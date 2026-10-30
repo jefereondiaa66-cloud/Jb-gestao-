@@ -34,7 +34,8 @@ export function extrairDoClaude(pagina) {
 }
 
 function commitAtual() {
-  if (process.env.COMMIT_REF) return process.env.COMMIT_REF; // definido pelo Netlify durante a construção
+  if (process.env.COMMIT_REF) return process.env.COMMIT_REF; // definido pelo Netlify quando constrói a partir do Git
+  try { return readFileSync(join(RAIZ, '.jb-commit'), 'utf8').trim(); } catch {}     // pacote enviado pelo publicador (jb-publicar)
   try { return execSync('git rev-parse HEAD', { cwd: RAIZ, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; }
 }
 
