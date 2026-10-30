@@ -76,11 +76,16 @@ e dispensa o passo 1–2; os dois caminhos usam o mesmo `netlify.toml`.
 | Teste | Como foi comprovado | Situação |
 |---|---|---|
 | A · código do desenvolvimento publicado na nuvem | commit `8d4cbfc` publicado pelo `jb-publicar` em 30/10 23:02 (deploy `6ae521f4…`): o Netlify rodou a verificação, publicou, e o `index.html` no ar tem o mesmo sha256 do construído localmente (`8428cb5d…`); histórico "verificada" | **ok, ao vivo** |
-| B · funcionário cadastrado chega ao banco | `verificar.mjs` (ponte com servidor simulado) e no navegador com o programa real e os 392 registros: `gravar('funcionarios', …)` chegou ao banco | ok (simulado); falta ao vivo no Claude |
+| B · funcionário cadastrado chega ao banco | `verificar.mjs` (ponte com servidor simulado) e no navegador com o programa real e os 392 registros: `gravar('funcionarios', …)` chegou ao banco | ok (simulado); gravação Claude → banco central comprovada ao vivo (ver abaixo) |
 | C · despesa disponível nos relatórios | `verificar.mjs`: lançamento em bloco agrupado pelo mesmo caminho do sistema (`update` → `set`), o "relatório" (ouvinte da coleção) soma as despesas | ok (simulado) |
 | D · atualização chega a quem está usando | `verificar.mjs` e navegador: alteração "na nuvem" aparece no sistema aberto; alteração do Claude chega ao banco preservando os outros campos; exclusão propaga | ok (simulado) |
 | E · queda de conexão sem duplicar | resposta perdida depois de gravar → reenvio reconhecido (1 gravação só); sem internet → fila guardada no navegador → reaberto, sobe uma vez só. No banco real: mesma operação enviada duas vezes = `repetida`, versão não muda | ok (simulado + banco real) |
 | F · falha de publicação e recuperação | `verificar.mjs` barra uma versão com erro (o Netlify não publica); `reverter.yml` desfaz por commit | ok (local); fluxo do GitHub ainda não executado |
+
+**Ao vivo, 30/10 22:43–22:47:** o artifact do Claude (publicação de 22:35) abriu pelo conector Supabase do dono,
+leu o banco central, consultou mudanças periodicamente (sinal de vida em `jbcore.estado`, chave `ponte:claude`)
+e enviou 6 gravações (`ws`, `diagnostico`, `uso`): 6 aplicadas, 0 erros, 0 duplicações, 1 conflito
+detectado no contador de uso, gravado ao mesmo tempo pela nuvem e pelo Claude (esperado; fica no painel).
 
 O motor no banco real também foi testado com uma coleção de teste (`jbcoreTeste`, já apagada):
 gravar, repetir (idempotente), atualizar, conflito, documento inexistente, caminho inválido,
