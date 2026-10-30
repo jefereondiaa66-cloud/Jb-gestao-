@@ -477,9 +477,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- Excel e PDF (cerca de 1,3 MB) carregam depois que a tela abre: ver garantirBibliotecas() -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <style>
 :root{
   --carvao:#1C2427;--carvao2:#263136;--carvao3:#34424A;
@@ -7041,7 +7040,8 @@ function renderCasca(){
  $$('#side [data-nprev]').forEach(b=>b.onclick=e=>{e.stopPropagation();const g=b.dataset.nprev;MPREV[g]=!MPREV[g];const sc=$('#side .nav')?$('#side .nav').scrollTop:0;renderCasca();const nv=$('#side .nav');if(nv)nv.scrollTop=sc;const nb=$(`#side [data-nprev="${CSS.escape(g)}"]`);if(nb)nb.focus()});
  if($('#compMes'))$('#compMes').onchange=e=>setComp(e.target.value);
  $$('[data-comp]').forEach(b=>b.onclick=()=>{const d=+b.dataset.comp;const m=d<0?mesMenos(COMP.mes,1):mesMenos(COMP.mes,-1);if(m<=mesAtual()||d<0)setComp(m)});
- $('#veuNav').onclick=fecharMenu;$('#side').addEventListener('click',e=>{if(e.target.closest('a'))fecharMenu()});
+ /* onclick (e não addEventListener): o menu é redesenhado a cada troca de tela e não pode acumular ouvintes */
+ $('#veuNav').onclick=fecharMenu;$('#side').onclick=e=>{if(e.target.closest('a'))fecharMenu()};
  $('#bSino').onclick=()=>{location.hash='#/alertas'};
  ligarPesquisa($('#buscaG'),$('#buscaRes'));
  atualizarSino();
@@ -25908,11 +25908,15 @@ function telaInstalar(el){
 /* ================= inicialização ================= */
 function carregarScript(src){return new Promise(r=>{const x=document.createElement('script');x.src=src;x.onload=()=>r(true);x.onerror=()=>r(false);document.head.appendChild(x)})}
 async function garantirBibliotecas(){
- const t=[];const J='https://cdn.jsdelivr.net/npm/';
+ /* Excel e PDF só são usados ao exportar ou importar: carregam aqui, depois que a tela já abriu,
+    para não travar a abertura em computador fraco ou internet lenta (cdnjs primeiro; jsdelivr se falhar) */
+ const t=[];const C='https://cdnjs.cloudflare.com/ajax/libs/',J='https://cdn.jsdelivr.net/npm/';
+ const lib=(c,j)=>carregarScript(C+c).then(ok=>ok||carregarScript(J+j));
+ const tabela=()=>lib('jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js','jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
  if(!window.Chart)t.push(carregarScript(J+'chart.js@4.4.1/dist/chart.umd.min.js'));
- if(!window.XLSX)t.push(carregarScript(J+'xlsx@0.18.5/dist/xlsx.full.min.js'));
- if(!(window.jspdf&&window.jspdf.jsPDF))t.push(carregarScript(J+'jspdf@2.5.1/dist/jspdf.umd.min.js').then(ok=>ok&&carregarScript(J+'jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js')));
- else if(!(window.jspdf.jsPDF.API&&window.jspdf.jsPDF.API.autoTable))t.push(carregarScript(J+'jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'));
+ if(!window.XLSX)t.push(lib('xlsx/0.18.5/xlsx.full.min.js','xlsx@0.18.5/dist/xlsx.full.min.js'));
+ if(!(window.jspdf&&window.jspdf.jsPDF))t.push(lib('jspdf/2.5.1/jspdf.umd.min.js','jspdf@2.5.1/dist/jspdf.umd.min.js').then(ok=>ok&&tabela()));
+ else if(!(window.jspdf.jsPDF.API&&window.jspdf.jsPDF.API.autoTable))t.push(tabela());
  if(t.length){await Promise.all(t);if(window.Chart&&lerRota().mod==='painel')renderTela()}
 }
 async function iniciar(){
