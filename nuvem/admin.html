@@ -56,6 +56,11 @@ dialog .cab h3{margin:0;font-size:16px;flex:1}dialog .corpo{padding:14px 16px;ma
 dialog .pe{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--linha)}
 .aviso{padding:10px 12px;border-radius:var(--r1);background:var(--at-bg);font-size:13px;margin-bottom:12px}
 progress{width:100%;height:10px;accent-color:var(--brasa)}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px}
+.kp>div{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
+.kp b{display:block;font-size:17px;font-weight:600;margin:4px 0 2px;overflow-wrap:anywhere}.kp span{font-size:12px;color:var(--suave)}
+.kp small{display:block;font-size:12px;color:var(--suave);overflow-wrap:anywhere}
+.acoes a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 @media (max-width:640px){main{padding:14px 12px 60px}td,th{padding:8px}}
 </style>
 <script>window.JB_NUVEM={url:"https://kdsaslmlvjllgzbzsnxt.supabase.co",chavePublica:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkc2FzbG1sdmpsbGd6Ynpzbnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTk1MjAsImV4cCI6MjEwODkzNTUyMH0.I2XLzCtp_4wP57NtXrVuTrCPZ90ZQyktzxRd67J1y6g",uidAdministrador:"u_FZmOBZqQYLD0VE7xkGL8AA",paginaAdmin:true};</script>
@@ -105,10 +110,11 @@ progress{width:100%;height:10px;accent-color:var(--brasa)}
     desenhar();
   }
   function desenhar() {
-    var abas = [['usuarios', 'Usuários e permissões'], ['eventos', 'Histórico de segurança'], ['auditoria', 'Alterações de dados'], ['copias', 'Cópias de segurança'], ['importar', 'Importar dados']];
+    if (ST.tCore) { clearInterval(ST.tCore); ST.tCore = null; }
+    var abas = [['usuarios', 'Usuários e permissões'], ['core', 'JB Core'], ['eventos', 'Histórico de segurança'], ['auditoria', 'Alterações de dados'], ['copias', 'Cópias de segurança'], ['importar', 'Importar dados']];
     $('#raiz').innerHTML = '<div class="abas" role="tablist">' + abas.map(function (a) { return '<button role="tab" data-aba="' + a[0] + '" aria-selected="' + (ST.aba === a[0]) + '">' + a[1] + '</button>'; }).join('') + '</div><div id="conteudo"></div>';
     $('#raiz').querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { ST.aba = b.dataset.aba; desenhar(); }; });
-    ({ usuarios: telaUsuarios, eventos: telaEventos, auditoria: telaAuditoria, copias: telaCopias, importar: telaImportar })[ST.aba]($('#conteudo'));
+    ({ usuarios: telaUsuarios, core: telaCore, eventos: telaEventos, auditoria: telaAuditoria, copias: telaCopias, importar: telaImportar })[ST.aba]($('#conteudo'));
   }
 
   /* ---------------- usuários ---------------- */
@@ -273,6 +279,72 @@ progress{width:100%;height:10px;accent-color:var(--brasa)}
       this.disabled = false;
     };
     await lista();
+  }
+
+  /* ---------------- JB CORE: painel de controle ---------------- */
+  var REPO = 'https://github.com/jefereondiaa66-cloud/Jb-gestao-';
+  var tam = function (b) { return b == null ? '—' : b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.round(b / 1024) + ' KB'; };
+  var ha = function (s) {
+    if (!s) return 'nunca'; var m = Math.round((Date.now() - new Date(s).getTime()) / 60000);
+    return m < 1 ? 'agora' : m < 60 ? 'há ' + m + ' min' : m < 1440 ? 'há ' + Math.round(m / 60) + ' h' : dt(s);
+  };
+  var tag = function (cls, t) { return '<span class="tag ' + cls + '">' + esc(t) + '</span>'; };
+  function telaCore(el) {
+    el.innerHTML = '<div class="painel"><h2>JB Core · painel de controle</h2><p class="sub">Banco central, sincronização com o Claude, hospedagem, publicações e cópias de segurança. Atualiza sozinho a cada 30 segundos.</p>' +
+      '<div class="acoes"><button class="btn pri" id="bSinc" type="button">Sincronizar e conferir agora</button>' +
+      '<button class="btn" id="bCopiaCore" type="button">Fazer cópia de segurança</button>' +
+      '<a class="btn" href="' + REPO + '/pulls" target="_blank" rel="noopener">Publicar (aprovar no GitHub)</a>' +
+      '<a class="btn" href="' + REPO + '/actions/workflows/reverter.yml" target="_blank" rel="noopener">Recuperar versão anterior</a></div>' +
+      '<div class="msg" id="mCore" role="status"></div></div><div id="coreC"><div class="vazio">Carregando…</div></div>';
+    $('#bSinc').onclick = async function () {
+      this.disabled = true; msg($('#mCore'), 'Conferindo o banco…');
+      try { var c = await API.rpc('jb_admin_core_conferir'); msg($('#mCore'), 'Conferido: ' + c.registros + ' registros em ' + Object.keys(c.colecoes || {}).length + ' partes.', 'ok'); await desenharCore(); }
+      catch (e) { msg($('#mCore'), e.message, 'erro'); }
+      this.disabled = false;
+    };
+    $('#bCopiaCore').onclick = async function () {
+      this.disabled = true; msg($('#mCore'), 'Fazendo a cópia…');
+      try { await API.rpc('jb_admin_fazer_copia'); msg($('#mCore'), 'Cópia de segurança feita.', 'ok'); await desenharCore(); }
+      catch (e) { msg($('#mCore'), e.message, 'erro'); }
+      this.disabled = false;
+    };
+    desenharCore();
+    ST.tCore = setInterval(function () { if (!document.hidden) desenharCore(); }, 30000);
+  }
+  async function desenharCore() {
+    var alvo = $('#coreC'); if (!alvo) return;
+    var P, aqui = null;
+    try { P = await API.rpc('jb_admin_core_painel'); }
+    catch (e) { alvo.innerHTML = '<div class="painel vazio">Não foi possível ler o painel: ' + esc(e.message) + '</div>'; return; }
+    try { var r = await fetch('versao.json', { cache: 'no-store' }); if (r.ok) aqui = await r.json(); } catch (e) {}
+    var est = P.estado || {}, nv = est.nuvem || {}, pc = est['ponte:claude'] || {}, s = P.sincronizacao || {}, b = P.banco || {};
+    var contato = pc.ultimo_contato || pc.ultimo_envio, minutos = contato ? (Date.now() - new Date(contato).getTime()) / 60000 : null;
+    var ponteTag = minutos == null ? tag('', 'Ainda sem contato') : minutos < 3 ? tag('ok', 'Conectado') : tag('at', 'Sem contato ' + ha(contato));
+    var hosp = nv.status === 200 ? tag('ok', 'No ar') : nv.status === 404 ? tag('at', 'No ar, sem registro de versão') : nv.status ? tag('pe', 'Falha ' + nv.status) : tag('', 'Aguardando verificação');
+    var vNuvem = nv.versao && nv.versao.versao;
+    var ult = (P.publicacoes || [])[0];
+    alvo.innerHTML = '<div class="kp">' +
+      '<div><span>Conexão desta página</span><b>' + tag('ok', 'Conectada') + '</b><small>Sessão de administrador · ' + (P.sessoes_abertas || 0) + ' sessão(ões) abertas</small></div>' +
+      '<div><span>Banco central</span><b>' + (b.registros || 0) + ' registros</b><small>' + (b.colecoes || 0) + ' partes · ' + tam(b.tamanho_bytes) + ' · alterado ' + ha(b.ultima_alteracao) + '</small></div>' +
+      '<div><span>Hospedagem (nuvem)</span><b>' + hosp + '</b><small>Conferida ' + ha(nv.verificado_em) + (vNuvem ? ' · versão ' + esc(vNuvem) : '') + '</small></div>' +
+      '<div><span>Sincronização com o Claude</span><b>' + ponteTag + '</b><small>' + (pc.pendentes ? pc.pendentes + ' lançamento(s) aguardando envio · ' : '') + (pc.versao_ponte ? esc(pc.versao_ponte) : 'ponte não aberta ainda') + '</small></div>' +
+      '<div><span>Última atualização de dados</span><b>' + ha(s.ultima_mudanca) + '</b><small>' + (s.mudancas_24h || 0) + ' mudança(s) e ' + (s.operacoes_24h || 0) + ' envio(s) do Claude em 24 h</small></div>' +
+      '<div><span>Erros e conflitos (24 h)</span><b>' + ((s.erros_24h || 0) + (s.conflitos_24h || 0) ? tag('at', (s.erros_24h || 0) + ' erro(s) · ' + (s.conflitos_24h || 0) + ' conflito(s)') : tag('ok', 'Nenhum')) + '</b><small>Conflito: gravação feita sobre uma versão que já tinha mudado (o estado anterior fica na auditoria)</small></div>' +
+      '<div><span>Versão do sistema (esta página)</span><b>' + (aqui ? esc(aqui.versao) : '—') + '</b><small>' + (aqui ? 'construída ' + ha(aqui.construido_em) + (aqui.commit ? ' · commit ' + esc(String(aqui.commit).slice(0, 7)) : '') : 'publicação anterior ao JB Core') + '</small></div>' +
+      '<div><span>Última publicação registrada</span><b>' + (ult ? esc(ult.ambiente) + ' · ' + esc(ult.versao) : '—') + '</b><small>' + (ult ? esc(ult.situacao) + ' ' + ha(ult.quando) : 'nenhuma ainda') + '</small></div>' +
+      '</div>' +
+      '<div class="painel"><h2>Ocorrências da sincronização</h2><p class="sub">Erros e conflitos mais recentes das gravações vindas do Claude.</p>' +
+      ((P.ocorrencias || []).length ? '<div class="tabwrap"><table><thead><tr><th>Quando</th><th>Onde</th><th>O que houve</th></tr></thead><tbody>' + P.ocorrencias.map(function (o) {
+        return '<tr><td>' + dt(o.quando) + '</td><td>' + esc(o.onde) + '</td><td>' + (o.resultado === 'erro' ? tag('pe', 'Erro') + ' ' + esc(o.erro || '') : tag('at', 'Conflito') + ' gravado; versão anterior na auditoria') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        : '<div class="vazio">Nenhuma ocorrência.</div>') + '</div>' +
+      '<div class="painel"><h2>Histórico de publicações</h2>' +
+      ((P.publicacoes || []).length ? '<div class="tabwrap"><table><thead><tr><th>Quando</th><th>Onde</th><th>Versão</th><th>Situação</th><th>Commit</th></tr></thead><tbody>' + P.publicacoes.map(function (p) {
+        return '<tr><td>' + dt(p.quando) + '</td><td>' + esc(p.ambiente) + '</td><td>' + esc(p.versao) + '</td><td>' + esc(p.situacao) + '</td><td>' + (p.commit ? '<a href="' + REPO + '/commit/' + encodeURIComponent(p.commit) + '" target="_blank" rel="noopener">' + esc(String(p.commit).slice(0, 7)) + '</a>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        : '<div class="vazio">Nenhuma publicação registrada ainda.</div>') + '</div>' +
+      '<div class="painel"><h2>Cópias de segurança disponíveis</h2>' +
+      ((P.copias || []).length ? '<div class="tabwrap"><table><thead><tr><th>Feita em</th><th>Registros</th><th>Tamanho</th></tr></thead><tbody>' + P.copias.map(function (c) {
+        return '<tr><td>' + dt(c.feita_em) + '</td><td>' + c.registros + '</td><td>' + tam(c.bytes) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="sub" style="margin-top:8px">Para baixar ou restaurar, use a aba "Cópias de segurança".</p>'
+        : '<div class="vazio">Nenhuma cópia ainda.</div>') + '</div>';
   }
 
   /* ---------------- importar dados ---------------- */

@@ -1,0 +1,48 @@
+# Recuperação: desfaz uma publicação criando um commit que reverte outro
+# (nada é apagado do histórico). O Netlify publica a versão revertida sozinho.
+# Uso: GitHub > Actions > Reverter publicação > Run workflow.
+name: Reverter publicação
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit a desfazer (deixe vazio para desfazer o último da main)"
+        required: false
+        default: ""
+      motivo:
+        description: "Motivo (vai na mensagem do commit)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  reverter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reverter
+        env:
+          ALVO: ${{ inputs.commit }}
+          MOTIVO: ${{ inputs.motivo }}
+        run: |
+          set -euo pipefail
+          git config user.name "jb-core-recuperacao"
+          git config user.email "jb-core-recuperacao@users.noreply.github.com"
+          alvo="${ALVO:-$(git rev-parse HEAD)}"
+          git cat-file -e "$alvo^{commit}"
+          pais=$(git rev-list --parents -n 1 "$alvo" | wc -w)
+          if [ "$pais" -gt 2 ]; then git revert --no-edit -m 1 "$alvo"; else git revert --no-edit "$alvo"; fi
+          git commit --amend -m "Reverter $(git rev-parse --short "$alvo"): $MOTIVO" -m "Recuperação pelo fluxo 'Reverter publicação' do JB CORE."
+      - name: Verificar a versão restaurada antes de publicar
+        run: node scripts/verificar.mjs
+      - name: Enviar
+        run: git push origin HEAD:main

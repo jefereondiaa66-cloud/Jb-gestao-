@@ -63,6 +63,415 @@
  }
 })();
 </script>
+<script id="jb-core-ponte">/* =====================================================================
+   JB CORE · ponte do Claude com o banco central
+   Dentro do Claude, o sistema lê e grava no MESMO banco da versão da nuvem
+   (Supabase), pelo conector "Supabase" de quem abre a página. Um lançamento
+   feito aqui aparece na nuvem e vice-versa. Cada gravação leva um código
+   único: se a conexão cair no meio, o reenvio não duplica nada, e o que não
+   foi enviado fica guardado neste navegador até conseguir enviar.
+   Se o banco central não responder, o sistema abre só para consulta (nunca
+   grava numa cópia separada). Fora do Claude (versão da nuvem) não faz nada.
+   ===================================================================== */
+(function () {
+  'use strict';
+  var VERSAO = 'jbcore-ponte-1';
+  var CFG = {
+    servidor: 'Supabase', ferramenta: 'execute_sql', projeto: 'kdsaslmlvjllgzbzsnxt', origem: 'claude',
+    nuvem: 'https://jb-gestao-ceramica.netlify.app',
+    prazoConexao: 25000, intervalo: 10000, intervaloOculto: 60000, conferencia: 5 * 60 * 1000,
+    esperaGravacao: 15000, esperaSemCache: 30000, maxLote: 40, maxBytes: 500000, pagina: 250000,
+    sinal: 60000, chaveFila: 'jbcore_fila_v1'
+  };
+  var MOTIVOS = {
+    server_not_connected: 'O conector Supabase não está ligado na sua conta do Claude (claude.ai › Configurações › Conectores).',
+    needs_reauth: 'O conector Supabase precisa ser reconectado (claude.ai › Configurações › Conectores).',
+    not_in_manifest: 'O uso do conector Supabase não foi permitido para esta página.',
+    approval_required: 'O uso do conector Supabase não foi aprovado nesta página.',
+    consent_required: 'O uso do conector Supabase não foi aprovado nesta página.',
+    blocked_by_policy: 'A organização bloqueou o conector Supabase.',
+    selection_required: 'Há mais de um conector Supabase: escolha qual usar quando o Claude perguntar.',
+    not_granted: 'Esta visualização não permite conectores.',
+    capability_disabled: 'Esta visualização não permite conectores.',
+    capability_removed: 'Esta visualização não permite conectores.',
+    sql_42501: 'Somente administradores usam o banco central por dentro do Claude. Os demais usam a versão da nuvem, com usuário e senha.',
+    prazo: 'O banco central demorou para responder (talvez aguardando a sua permissão para o conector Supabase).'
+  };
+  var PASSAGEIROS = { '23505': 1, '40001': 1, '40P01': 1, '55P03': 1, '57014': 1 };
+
+  var mcp = null, uid = null, reserva = null, aoMudar = null;
+  var cache = new Map();          // "colecao/id" -> {colecao, id, dados, versao}
+  var ouvintes = new Set();       // {tipo, colecao, id, filtros, cb, erro, solta}
+  var fila = [];                  // operações ainda não confirmadas pelo banco
+  var esperas = new Map();        // op_id -> {res, rej}
+  var cursor = 0, puxando = false, enviando = false, tPuxar = null, tEnviar = null, atraso = 2000, ultimoSinal = 0;
+  var estado = { modo: 'conectando', motivo: '', erro: false, motivoErro: '', ultimaSinc: null, conflitos: 0, falhas: [] };
+  var prontoRes, pronto = new Promise(function (r) { prontoRes = r; });
+
+  /* ---------------- utilidades ---------------- */
+  function erro(code, message) { var e = new Error(message || code); e.code = code; return e; }
+  function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function chave(c, i) { return c + '/' + i; }
+  function separar(caminho) {
+    var p = String(caminho || '').split('/').filter(Boolean);
+    if (p.length < 2 || p.length % 2) throw erro('invalid_argument', 'caminho inválido: ' + caminho);
+    return { colecao: p.slice(0, -1).join('/'), id: p[p.length - 1] };
+  }
+  function novoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+  function novoOpId() {
+    var b = new Uint8Array(9); crypto.getRandomValues(b);
+    return 'c' + Date.now().toString(36) + '-' + Array.prototype.map.call(b, function (x) { return x.toString(16).padStart(2, '0'); }).join('');
+  }
+  /* a mesma mescla do servidor (seg.mesclar): objetos se juntam campo a campo; o resto substitui */
+  function mesclar(a, b) {
+    var o = Object.assign({}, a || {});
+    Object.keys(b || {}).forEach(function (k) {
+      var v = b[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && o[k] && typeof o[k] === 'object' && !Array.isArray(o[k])) o[k] = mesclar(o[k], v);
+      else o[k] = v;
+    });
+    return o;
+  }
+  function b64(txt) {
+    var u = new TextEncoder().encode(txt), s = '';
+    for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function json64(v) { return "convert_from(decode('" + b64(JSON.stringify(v)) + "','base64'),'UTF8')::jsonb"; }
+  function txt64(v) { return v == null ? 'null' : "convert_from(decode('" + b64(String(v)) + "','base64'),'UTF8')"; }
+  function mudou() { try { if (aoMudar) aoMudar(api); } catch (e) { console.warn('jbcore', e); } }
+  function aviso(msg, tipo) { try { if (typeof toast === 'function') toast(msg, tipo); } catch (e) {} }
+  function comPrazo(p, ms) {
+    return new Promise(function (res, rej) {
+      var t = setTimeout(function () { rej(erro('prazo', 'tempo esgotado')); }, ms);
+      p.then(function (v) { clearTimeout(t); res(v); }, function (e) { clearTimeout(t); rej(e); });
+    });
+  }
+
+  /* ---------------- conversa com o banco (conector Supabase) ---------------- */
+  function traduzirMcp(e) {
+    var c = (e && e.code) || 'upstream_error', m = String((e && e.message) || '');
+    if (c === 'tool_error') { var s = /ERROR:\s+([0-9A-Z]{5})/.exec(m); return erro(s ? 'sql_' + s[1] : 'tool_error', m); }
+    var x = erro(c, m); x.retryAfterMs = e && e.retryAfterMs; return x;
+  }
+  function linhas(r) {
+    var p = r && r.payload, t = null;
+    if (Array.isArray(p)) return p;
+    if (typeof p === 'string') t = p;
+    else if (p && typeof p.result === 'string') t = p.result;
+    else if (p && p.error) { var m = JSON.stringify(p.error); var s = /ERROR:\s+([0-9A-Z]{5})/.exec(m); throw erro(s ? 'sql_' + s[1] : 'tool_error', m.slice(0, 400)); }
+    if (t == null && r && r.content && r.content[0] && typeof r.content[0].text === 'string') t = r.content[0].text;
+    if (t == null) throw erro('resposta', 'Resposta do banco em formato desconhecido.');
+    /* o conector cerca os dados com <untrusted-data-…> em linhas próprias; a mesma etiqueta
+       também aparece antes, no texto de aviso, por isso a busca exige a quebra de linha */
+    var m = /<(untrusted-data-[A-Za-z0-9-]+)>\s*\n([\s\S]*?)\n\s*<\/\1>/.exec(t);
+    if (m) t = m[2];
+    var j = JSON.parse(t.trim());
+    if (j && !Array.isArray(j) && typeof j.result === 'string') return linhas({ payload: j });
+    if (j && !Array.isArray(j) && j.error) return linhas({ payload: j });
+    return j;
+  }
+  async function sqlJ(q) {
+    var r;
+    try { r = await mcp.callTool(CFG.servidor, CFG.ferramenta, { project_id: CFG.projeto, query: q }, { cache: false }); }
+    catch (e) { throw traduzirMcp(e); }
+    var l = linhas(r);
+    if (!l || !l[0] || !('j' in l[0])) throw erro('resposta', 'Resposta vazia do banco.');
+    var v = l[0].j;
+    return typeof v === 'string' ? JSON.parse(v) : v;
+  }
+
+  /* ---------------- cache local e ouvintes (mesma forma do banco do Claude) ---------------- */
+  function temPendente(k) { return fila.some(function (op) { return chave(op.colecao, op.id) === k; }); }
+  function snapDoc(c, i) {
+    var r = cache.get(chave(c, i));
+    return { id: i, exists: !!r, data: function () { return r ? clone(r.dados) : undefined; },
+      metadata: { fromCache: false, hasPendingWrites: temPendente(chave(c, i)) } };
+  }
+  function passa(d, filtros) {
+    return filtros.every(function (f) {
+      var x = d ? d[f[0]] : undefined, op = f[1], v = f[2];
+      return op === '>=' ? x >= v : op === '<' ? x < v : op === '<=' ? x <= v : op === '>' ? x > v : op === '!=' ? x !== v : x === v;
+    });
+  }
+  function snapCol(c, filtros) {
+    var ds = [];
+    cache.forEach(function (r) { if (r.colecao === c && passa(r.dados, filtros)) ds.push(r); });
+    ds.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+    var docs = ds.map(function (r) { return snapDoc(r.colecao, r.id); });
+    return { docs: docs, size: docs.length, empty: !docs.length, metadata: { fromCache: false, hasPendingWrites: false } };
+  }
+  function avisar(c, i) {
+    if (estado.modo !== 'central') return;
+    ouvintes.forEach(function (o) {
+      if (o.colecao !== c) return;
+      if (o.tipo === 'doc' && i !== undefined && o.id !== i) return;
+      setTimeout(function () { if (!ouvintes.has(o)) return; try { o.cb(o.tipo === 'doc' ? snapDoc(o.colecao, o.id) : snapCol(o.colecao, o.filtros)); } catch (e) { console.warn(e); } }, 0);
+    });
+  }
+  function avisarTodos() { var cs = new Set(); ouvintes.forEach(function (o) { cs.add(o.colecao); }); cs.forEach(function (c) { avisar(c); }); }
+  function guardar(c, i, dados, versao) {
+    if (dados === null || dados === undefined) cache.delete(chave(c, i));
+    else cache.set(chave(c, i), { colecao: c, id: i, dados: dados, versao: versao || 0 });
+  }
+
+  /* ---------------- leitura ---------------- */
+  async function carregarTudo() {
+    var novo = new Map(), depois = null, cur = null, voltas = 0;
+    do {
+      var q = 'select jbcore.instantaneo_pagina(' + txt64(uid) + ',' + txt64(depois && depois[0]) + ',' + txt64(depois && depois[1]) + ',' + CFG.pagina + ') as j';
+      var r = await sqlJ(q);
+      if (cur === null) cur = +r.cursor || 0;
+      (r.docs || []).forEach(function (d) { novo.set(chave(d[0], d[1]), { colecao: d[0], id: d[1], dados: d[2], versao: +d[3] || 0 }); });
+      depois = r.proximo || null;
+      if (++voltas > 200) throw erro('resposta', 'leitura do banco não terminou');
+    } while (depois);
+    cache = novo; cursor = Math.max(cursor, cur);
+    fila.forEach(aplicarLocal);   // o que ainda não subiu continua valendo na tela
+    estado.ultimaSinc = new Date().toISOString();
+    avisarTodos();
+  }
+  function aplicarRemotos(docs) {
+    var tocadas = new Set();
+    (docs || []).forEach(function (d) {
+      var k = chave(d[0], d[1]);
+      if (temPendente(k)) return;                 // a gravação local ainda vai subir; o estado do banco chega depois dela
+      var at = cache.get(k), v = +d[3] || 0;
+      if (d[2] == null) { if (!at) return; cache.delete(k); }
+      else { if (at && at.versao === v && v) return; guardar(d[0], d[1], d[2], v); }
+      tocadas.add(d[0] + '\u0000' + d[1]);
+    });
+    tocadas.forEach(function (t) { var p = t.split('\u0000'); avisar(p[0], p[1]); });
+  }
+  async function puxar() {
+    clearTimeout(tPuxar);
+    if (estado.modo !== 'central' || puxando) { agendarPuxada(); return; }
+    puxando = true;
+    try {
+      await enviar();
+      var sinal = null;
+      if (Date.now() - ultimoSinal > CFG.sinal) { sinal = { origem: CFG.origem, uid_app: uid, versao_ponte: VERSAO, pendentes: fila.length }; ultimoSinal = Date.now(); }
+      var r = await sqlJ('select jbcore.mudancas_desde(' + (+cursor || 0) + ',' + (sinal ? json64(sinal) : 'null') + ') as j');
+      if (r.recarregar) await carregarTudo();
+      else { aplicarRemotos(r.docs); cursor = Math.max(cursor, +r.cursor || 0); }
+      estado.erro = false; estado.motivoErro = ''; estado.ultimaSinc = new Date().toISOString();
+    } catch (e) {
+      estado.erro = true; estado.motivoErro = MOTIVOS[e.code] || e.message || String(e.code);
+    } finally { puxando = false; mudou(); agendarPuxada(); }
+  }
+  function agendarPuxada() { clearTimeout(tPuxar); if (estado.modo === 'central') tPuxar = setTimeout(puxar, document.hidden ? CFG.intervaloOculto : CFG.intervalo); }
+
+  /* ---------------- escrita: fila com código único por operação ---------------- */
+  function chaveFila() { return CFG.chaveFila + ':' + uid; }
+  function salvarFila() { try { if (fila.length) localStorage.setItem(chaveFila(), JSON.stringify(fila)); else localStorage.removeItem(chaveFila()); } catch (e) {} }
+  function lerFila() { try { var f = JSON.parse(localStorage.getItem(chaveFila()) || '[]'); return Array.isArray(f) ? f.filter(function (o) { return o && o.op_id && o.tipo; }) : []; } catch (e) { return []; } }
+  function aplicarLocal(op) {
+    var k = chave(op.colecao, op.id), ant = cache.get(k);
+    if (op.tipo === 'gravar') guardar(op.colecao, op.id, clone(op.dados), ant ? ant.versao : 0);
+    else if (op.tipo === 'atualizar') { if (!ant) return; guardar(op.colecao, op.id, mesclar(ant.dados, clone(op.campos)), ant.versao); }
+    else cache.delete(k);
+    avisar(op.colecao, op.id);
+  }
+  function codigoApp(c) {
+    return c === 'P0002' || c === '22023' || c === '54000' ? 'invalid_argument' : c === '42501' ? 'permission_denied' : 'unknown';
+  }
+  function tirarDaFila(op) { var i = fila.indexOf(op); if (i >= 0) fila.splice(i, 1); salvarFila(); }
+  async function recarregarDoc(c, i) {
+    try {
+      var r = await sqlJ('select (select jsonb_build_array(d.dados, d.versao) from public.docs d where d.colecao = ' + txt64(c) + ' and d.id = ' + txt64(i) + ') as j');
+      if (temPendente(chave(c, i))) return;
+      guardar(c, i, r ? r[0] : null, r ? +r[1] : 0); avisar(c, i);
+    } catch (e) { /* a próxima conferência completa corrige */ }
+  }
+  function concluir(op, falha, res) {
+    tirarDaFila(op);
+    var w = esperas.get(op.op_id); esperas.delete(op.op_id);
+    if (falha) {
+      recarregarDoc(op.colecao, op.id);
+      if (w) w.rej(falha);
+      else { estado.falhas.unshift({ quando: new Date().toISOString(), onde: chave(op.colecao, op.id), erro: falha.message }); estado.falhas.length = Math.min(estado.falhas.length, 20);
+        aviso('Um lançamento não foi aceito pelo banco central (' + op.colecao + '): ' + falha.message, 'erro'); }
+      return;
+    }
+    var k = chave(op.colecao, op.id), c = cache.get(k);
+    if (c && res && res.versao != null && !temPendente(k)) c.versao = +res.versao;
+    if (res && res.conflito) estado.conflitos++;
+    if (w) w.res();
+  }
+  async function enviar() {
+    if (enviando || !fila.length || estado.modo !== 'central') return;
+    enviando = true;
+    try {
+      while (fila.length) {
+        var lote = [], bytes = 0;
+        for (var i = 0; i < fila.length && lote.length < CFG.maxLote; i++) {
+          var tam = JSON.stringify(fila[i]).length;
+          if (lote.length && bytes + tam > CFG.maxBytes) break;
+          lote.push(fila[i]); bytes += tam;
+        }
+        var r;
+        try {
+          r = await sqlJ('select jbcore.aplicar(' + json64({ origem: CFG.origem, uid_app: uid, ops: lote.map(function (o) {
+            return { op_id: o.op_id, tipo: o.tipo, colecao: o.colecao, id: o.id, dados: o.dados, campos: o.campos, versao_base: o.versao_base };
+          }) }) + ') as j');
+        } catch (e) {
+          if (e.code === 'sql_42501') { lote.forEach(function (op) { concluir(op, erro('permission_denied', MOTIVOS.sql_42501)); }); continue; }
+          /* sem resposta: o banco pode ou não ter gravado. A operação fica na fila com o mesmo
+             código; no reenvio, o banco reconhece o que já aplicou e não grava de novo. */
+          estado.erro = true; estado.motivoErro = MOTIVOS[e.code] || e.message || String(e.code);
+          var espera = Math.max(+e.retryAfterMs || 0, atraso); atraso = Math.min(atraso * 2, 60000);
+          clearTimeout(tEnviar); tEnviar = setTimeout(enviar, espera);
+          return;
+        }
+        estado.erro = false; atraso = 2000;
+        var porId = {}; (r.resultados || []).forEach(function (x) { porId[x.op_id] = x; });
+        var avancou = false;
+        lote.forEach(function (op) {
+          var x = porId[op.op_id];
+          if (!x) return;
+          if (x.resultado === 'erro') {
+            if (PASSAGEIROS[x.codigo]) return;
+            concluir(op, erro(codigoApp(x.codigo), String(x.erro || 'erro').replace(/^[0-9A-Z]{5}: /, ''))); avancou = true; return;
+          }
+          concluir(op, null, x); avancou = true;
+        });
+        if (!avancou) { clearTimeout(tEnviar); tEnviar = setTimeout(enviar, atraso); atraso = Math.min(atraso * 2, 60000); return; }
+      }
+    } finally { enviando = false; mudou(); }
+  }
+  function agendarEnvio() { clearTimeout(tEnviar); tEnviar = setTimeout(enviar, 40); }
+  function enfileirar(op) {
+    var conhecido = cache.has(chave(op.colecao, op.id));
+    var at = cache.get(chave(op.colecao, op.id));
+    op.op_id = novoOpId(); op.criadoEm = new Date().toISOString();
+    op.versao_base = at ? at.versao : 0;
+    /* atualizar um documento que esta tela não conhece: espera o banco dizer se ele existe */
+    var otimista = op.tipo !== 'atualizar' || conhecido;
+    fila.push(op); salvarFila();
+    if (otimista) aplicarLocal(op);
+    mudou(); agendarEnvio();
+    return new Promise(function (res, rej) {
+      var t = setTimeout(function () {
+        if (!esperas.has(op.op_id)) return;
+        esperas.delete(op.op_id);
+        if (otimista) res();      // guardado na fila deste navegador; sobe quando a conexão voltar
+        else rej(erro('unavailable', 'Sem resposta do banco central.'));
+      }, otimista ? CFG.esperaGravacao : CFG.esperaSemCache);
+      esperas.set(op.op_id, { res: function () { clearTimeout(t); res(); }, rej: function (e) { clearTimeout(t); rej(e); } });
+    });
+  }
+
+  /* ---------------- o "banco" que o sistema usa ---------------- */
+  function somenteLeitura() { return erro('permission_denied', 'Somente consulta: ' + (estado.motivo || 'banco central desligado') + ' Use a versão da nuvem para lançar.'); }
+  function refDoc(caminho) {
+    var p = separar(caminho);
+    function viaReserva() { return reserva.doc(p.colecao + '/' + p.id); }
+    return {
+      id: p.id, path: caminho,
+      get: async function () { await pronto; return estado.modo === 'reserva' ? viaReserva().get() : snapDoc(p.colecao, p.id); },
+      set: async function (d) { await pronto; if (estado.modo !== 'central') throw somenteLeitura(); return enfileirar({ tipo: 'gravar', colecao: p.colecao, id: p.id, dados: clone(d) }); },
+      update: async function (d) { await pronto; if (estado.modo !== 'central') throw somenteLeitura(); return enfileirar({ tipo: 'atualizar', colecao: p.colecao, id: p.id, campos: clone(d) }); },
+      delete: async function () { await pronto; if (estado.modo !== 'central') throw somenteLeitura(); return enfileirar({ tipo: 'apagar', colecao: p.colecao, id: p.id }); },
+      onSnapshot: function (cb, aoErro) {
+        var o = { tipo: 'doc', colecao: p.colecao, id: p.id, filtros: [], cb: cb, erro: aoErro, solta: null };
+        ouvintes.add(o);
+        pronto.then(function () {
+          if (!ouvintes.has(o)) return;
+          if (estado.modo === 'reserva') o.solta = viaReserva().onSnapshot(cb, aoErro);
+          else cb(snapDoc(p.colecao, p.id));
+        });
+        return function () { ouvintes.delete(o); if (o.solta) o.solta(); };
+      }
+    };
+  }
+  function consulta(c, filtros) {
+    function viaReserva() { var q = reserva.collection(c); filtros.forEach(function (f) { q = q.where(f[0], f[1], f[2]); }); return q; }
+    return {
+      path: c,
+      where: function (f, op, v) { return consulta(c, filtros.concat([[f, op, v]])); },
+      get: async function () { await pronto; return estado.modo === 'reserva' ? viaReserva().get() : snapCol(c, filtros); },
+      onSnapshot: function (cb, aoErro) {
+        var o = { tipo: 'col', colecao: c, filtros: filtros, cb: cb, erro: aoErro, solta: null };
+        ouvintes.add(o);
+        pronto.then(function () {
+          if (!ouvintes.has(o)) return;
+          if (estado.modo === 'reserva') o.solta = viaReserva().onSnapshot(cb, aoErro);
+          else cb(snapCol(c, filtros));
+        });
+        return function () { ouvintes.delete(o); if (o.solta) o.solta(); };
+      },
+      doc: function (id) { return refDoc(c + '/' + (id || novoId())); }
+    };
+  }
+  var db = Object.freeze({ doc: refDoc, collection: function (c) { return consulta(String(c).replace(/^\/+|\/+$/g, ''), []); } });
+
+  /* ---------------- aviso de "somente consulta" ---------------- */
+  function mostrarAviso() {
+    if (document.getElementById('jbcAviso')) return;
+    var d = document.createElement('div');
+    d.id = 'jbcAviso'; d.setAttribute('role', 'alert');
+    d.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top,0px));z-index:2147482000;' +
+      'width:min(720px,calc(100% - 24px));background:#7A2E14;color:#fff;border-radius:12px;padding:12px 14px;font:13.5px/1.45 Inter,system-ui,sans-serif;' +
+      'box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center';
+    var bt = 'border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:8px;padding:6px 11px;font:inherit;cursor:pointer;text-decoration:none';
+    d.innerHTML = '<div style="flex:1 1 300px"><b>Somente consulta: banco central desligado</b><br><span data-m></span> Os dados mostrados podem estar desatualizados.</div>' +
+      '<a data-n target="_blank" rel="noopener" style="' + bt + '">Abrir a nuvem</a><button type="button" data-r style="' + bt + '">Tentar de novo</button>' +
+      '<button type="button" data-x aria-label="Fechar aviso" style="' + bt + ';padding:6px 9px">×</button>';
+    d.querySelector('[data-m]').textContent = estado.motivo;
+    d.querySelector('[data-n]').href = CFG.nuvem;
+    d.querySelector('[data-r]').addEventListener('click', function () { location.reload(); });
+    d.querySelector('[data-x]').addEventListener('click', function () { d.remove(); });
+    (document.body || document.documentElement).appendChild(d);
+  }
+
+  /* ---------------- ligar ---------------- */
+  async function conectar(o) {
+    mcp = o.mcp || null; uid = o.uid || null; reserva = o.reserva || null; aoMudar = o.aoMudar || null;
+    var motivo = '';
+    if (!mcp) motivo = MOTIVOS.not_granted;
+    else if (!uid) motivo = 'Não foi possível identificar seu usuário do Claude.';
+    if (!motivo) {
+      try { await comPrazo(carregarTudo(), CFG.prazoConexao); }
+      catch (e) { motivo = MOTIVOS[e.code] || ('Falha ao abrir o banco central: ' + (e.message || e.code)); }
+    }
+    if (motivo) {
+      estado.modo = reserva ? 'reserva' : 'desligado'; estado.motivo = motivo;
+      prontoRes(); mudou();
+      if (document.body) mostrarAviso(); else addEventListener('DOMContentLoaded', mostrarAviso);
+      return { db: reserva ? db : null, api: api };
+    }
+    estado.modo = 'central';
+    var guardada = lerFila();
+    if (guardada.length) { fila = guardada; fila.forEach(aplicarLocal); aviso(guardada.length + ' lançamento(s) que não tinham subido estão sendo enviados ao banco central.'); }
+    prontoRes(); mudou();
+    enviar(); agendarPuxada();
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) puxar(); });
+    addEventListener('online', function () { enviar(); puxar(); });
+    setInterval(function () { if (estado.modo === 'central' && !document.hidden) carregarTudo().then(mudou, function () {}); }, CFG.conferencia);
+    return { db: db, api: api };
+  }
+  async function sincronizar() {
+    if (estado.modo !== 'central') throw erro('desligado', estado.motivo || 'banco central desligado');
+    await enviar(); await carregarTudo(); mudou();
+    return { pendentes: fila.length, registros: cache.size, quando: estado.ultimaSinc };
+  }
+  /* tocar no indicador de sincronização força uma conferência completa */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target && ev.target.closest && ev.target.closest('#sinc');
+    if (!a || estado.modo !== 'central') return;
+    sincronizar().then(function (r) { aviso('Sincronizado com o banco central: ' + r.registros + ' registros' + (r.pendentes ? ', ' + r.pendentes + ' aguardando envio' : '') + '.', 'ok'); },
+      function (e) { aviso('Não foi possível sincronizar agora: ' + (MOTIVOS[e.code] || e.message), 'erro'); });
+  });
+
+  var api = Object.freeze({
+    versao: VERSAO,
+    estado: function () { return { modo: estado.modo, motivo: estado.motivo, erro: estado.erro, motivoErro: estado.motivoErro, ultimaSinc: estado.ultimaSinc,
+      pendentes: fila.length, conflitos: estado.conflitos, falhas: estado.falhas.slice(), registros: cache.size, cursor: cursor }; },
+    sincronizar: sincronizar
+  });
+  window.JB_CORE_PONTE = Object.freeze({ conectar: conectar, api: api, CFG: CFG });
+})();
+</script>
 <title>JB Gestão</title>
 <script>/* visual escolhido (Concretiza ou JB): aplicado antes de desenhar a tela, para não piscar */try{if(localStorage.getItem('jb_visual')!=='jb')document.documentElement.classList.add('vis-cc')}catch(e){document.documentElement.classList.add('vis-cc')}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2429,10 +2838,12 @@ function marcarCarregado(col){CARREG[col]=true;if(!APP.carregado&&Object.keys(DA
 const SINC={pend:0,cache:{},online:navigator.onLine,erro:false};
 function atualizarSinc(){const el=document.getElementById('sinc');if(!el)return;
  if(APP.modo==='local'){el.className='sinc local';el.innerHTML='<i></i><span>Somente neste navegador</span>';el.title='Dados salvos apenas neste navegador';return}
- let c='ok',t='Sincronizado',d='Os dados estão salvos no banco compartilhado e aparecem em todos os dispositivos.';
- if(!SINC.online){c='pe';t='Sem conexão';d='Sem internet. Alterações feitas agora podem não ser salvas; confira depois que a conexão voltar.'}
- else if(SINC.erro){c='pe';t='Reconectando…';d='A ligação com o banco caiu e está sendo refeita. Se persistir, recarregue a página.'}
- else if(SINC.pend>0){c='at';t='Salvando…';d='Gravando alterações no banco compartilhado.'}
+ const jc=APP.central?APP.central.estado():null;
+ if(jc&&jc.modo!=='central'){el.className='sinc pe';el.innerHTML='<i></i><span>Somente consulta</span>';el.title='Banco central desligado: '+(jc.motivo||'');el.setAttribute('aria-label','Somente consulta');return}
+ let c='ok',t='Sincronizado',d=jc?'Os dados estão no banco central e aparecem no Claude e na nuvem. Toque para sincronizar agora.':'Os dados estão salvos no banco compartilhado e aparecem em todos os dispositivos.';
+ if(!SINC.online){c='pe';t='Sem conexão';d='Sem internet. Alterações feitas agora podem não ser salvas; confira depois que a conexão voltar.'+(jc?' O que não subir fica guardado neste navegador e sobe quando a conexão voltar.':'')}
+ else if(SINC.erro||(jc&&jc.erro)){c='pe';t='Reconectando…';d=(jc&&jc.motivoErro)||'A ligação com o banco caiu e está sendo refeita. Se persistir, recarregue a página.'}
+ else if(SINC.pend>0||(jc&&jc.pendentes>0)){c='at';t='Salvando…'+(jc&&jc.pendentes?' ('+jc.pendentes+')':'');d='Gravando alterações no banco '+(jc?'central':'compartilhado')+'.'}
  else if(Object.values(SINC.cache).some(Boolean)){c='at';t='Sincronizando…';d='Recebendo os dados mais recentes.'}
  el.className='sinc '+c;el.innerHTML='<i></i><span>'+t+'</span>';el.title=d;el.setAttribute('aria-label',t)}
 window.addEventListener('online',()=>{SINC.online=true;atualizarSinc()});
@@ -25505,9 +25916,15 @@ async function garantirBibliotecas(){
  if(t.length){await Promise.all(t);if(window.Chart&&lerRota().mod==='painel')renderTela()}
 }
 async function iniciar(){
- let db=null,user=null,assets=null,dl=null,sp=null;
+ let db=null,user=null,assets=null,dl=null,sp=null,mcp=null;
  const w=window.claude;
- if(w&&typeof w.use==='function'){try{[db,user,assets,dl,sp]=await Promise.all(['db','user','assets','downloads','sample'].map(n=>w.use(n).catch(()=>null)))}catch(e){}}
+ if(w&&typeof w.use==='function'){try{[db,user,assets,dl,sp,mcp]=await Promise.all(['db','user','assets','downloads','sample','mcp'].map(n=>w.use(n).catch(()=>null)))}catch(e){}}
+ /* JB CORE: dentro do Claude, os dados ficam no banco central, o mesmo da versão da nuvem */
+ if(db&&!window.JB_NUVEM&&window.JB_CORE_PONTE){
+  const me0=user?await user.me().catch(()=>null):null;
+  const c=await JB_CORE_PONTE.conectar({mcp,uid:me0&&me0.id,reserva:db,aoMudar:()=>{try{atualizarSinc()}catch(e){}}});
+  if(c.db){db=c.db;APP.central=c.api}
+ }
  if(db){APP.modo='nuvem';APP.db=db}else{APP.modo='local';APP.db=bancoLocal()}
  APP.user=db?user:null;APP.assets=db?assets:null;APP.downloads=dl;APP.sample=sp;
  if(sp&&sp.limits)sp.limits().then(l=>{if(!l||!l.tools){IA_TOOLS=false;APP.iaBloqueada='Esta sessão não deixa o assistente consultar os dados do sistema. Abra o link pelo aplicativo do Claude.'}else if(l.tools.maxCount)IA_MAX_TOOLS=Math.max(1,Math.min(IA_MAX_TOOLS,l.tools.maxCount))}).catch(()=>{});

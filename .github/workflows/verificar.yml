@@ -1,0 +1,40 @@
+# Verificação de todo envio: testes do programa e da ponte, construção dos
+# dois envelopes (nuvem e Claude) e teste de ponta a ponta no navegador.
+name: Verificar
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Testes do programa, da construção e da ponte
+        run: node scripts/verificar.mjs
+      - name: Construir nuvem (dist/) e Claude (saida/claude.html)
+        run: node scripts/construir.mjs
+      - name: Instalar navegador de teste
+        run: |
+          npm install --no-save --no-package-lock playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Teste de ponta a ponta no navegador
+        run: node scripts/testar-navegador.mjs
+      - name: Guardar o que foi construído
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jb-gestao-construido
+          path: |
+            dist/
+            saida/
+          retention-days: 30
