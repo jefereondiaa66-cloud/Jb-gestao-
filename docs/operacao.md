@@ -56,23 +56,26 @@ sincronização com o Claude, última atualização, erros/conflitos, versão no
 publicações, cópias; botões *Sincronizar e conferir*, *Fazer cópia*, *Publicar* (GitHub) e
 *Recuperar versão anterior*. No Claude, o indicador de sincronização mostra fila e estado.
 
-## 5. Uma única configuração que só você pode fazer: ligar o Netlify ao GitHub
+## 5. Como a nuvem é publicada (sem precisar mexer no painel do Netlify)
 
-Sem isso, o código continua chegando à nuvem só por upload manual.
+O publicador `jb-publicar` (função no Supabase) faz o papel da ferramenta oficial do Netlify:
 
-1. https://app.netlify.com/projects/jb-gestao-ceramica → **Project configuration** → **Build & deploy**
-   → **Continuous deployment** → **Link repository**.
-2. Escolha **GitHub**, autorize, selecione `jefereondiaa66-cloud/Jb-gestao-`, branch **main**.
-3. Os campos de construção vêm do `netlify.toml` (comando `node scripts/verificar.mjs && node scripts/construir.mjs`,
-   pasta `dist`). Salve.
-4. Faça o merge do PR do JB CORE na `main`. O primeiro deploy publica a versão com `versao.json`;
-   em até 10 min o painel mostra "No ar" com a versão e o histórico ganha a primeira linha.
+1. Pedir ao conector do Netlify um endereço de publicação (`deploy-site`; vale 30 min).
+2. `select jbcore.publicar_nuvem('publicar', '<commit completo da main>', '<endereço>');`
+   O banco chama a função com o segredo do cofre; ela baixa aquele commit do GitHub e entrega ao Netlify.
+3. O Netlify roda `netlify.toml` (verificar → construir). **Se a verificação falhar, não publica.**
+4. `jbcore.verificar_hospedagem()` (a cada 10 min, ou rodada à mão) lê `/versao.json` no ar e marca a
+   publicação como "verificada"; se foi recusada ou não aparece em 2 h, marca "falhou".
+
+`select jbcore.publicar_nuvem('simular', '<commit>')` monta o pacote sem publicar (resposta em `jbcore.resposta(<pedido>)`).
+Ligar o Netlify direto ao GitHub (Project configuration → Build & deploy → Link repository) continua possível
+e dispensa o passo 1–2; os dois caminhos usam o mesmo `netlify.toml`.
 
 ## 6. Testes obrigatórios
 
 | Teste | Como foi comprovado | Situação |
 |---|---|---|
-| A · código do desenvolvimento publicado na nuvem | depende do passo 5 | **aguardando o Netlify ser ligado ao GitHub** |
+| A · código do desenvolvimento publicado na nuvem | commit `8d4cbfc` publicado pelo `jb-publicar` em 30/10 23:02 (deploy `6ae521f4…`): o Netlify rodou a verificação, publicou, e o `index.html` no ar tem o mesmo sha256 do construído localmente (`8428cb5d…`); histórico "verificada" | **ok, ao vivo** |
 | B · funcionário cadastrado chega ao banco | `verificar.mjs` (ponte com servidor simulado) e no navegador com o programa real e os 392 registros: `gravar('funcionarios', …)` chegou ao banco | ok (simulado); falta ao vivo no Claude |
 | C · despesa disponível nos relatórios | `verificar.mjs`: lançamento em bloco agrupado pelo mesmo caminho do sistema (`update` → `set`), o "relatório" (ouvinte da coleção) soma as despesas | ok (simulado) |
 | D · atualização chega a quem está usando | `verificar.mjs` e navegador: alteração "na nuvem" aparece no sistema aberto; alteração do Claude chega ao banco preservando os outros campos; exclusão propaga | ok (simulado) |

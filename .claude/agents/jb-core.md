@@ -49,10 +49,14 @@ Como os dados circulam:
 4. Commit e push. O dono autorizou em 30/10/2026 publicar direto: com `verificar.mjs` passando,
    envie para a `main` (`git push origin HEAD:main`, ou merge do PR). Se algum teste falhar,
    não publique: corrija ou explique ao dono.
-5. A `main` publica a nuvem sozinha (Netlify: verificar → construir → publicar).
-6. Confira a nuvem: em ~10 min `jbcore.verificar_hospedagem()` registra a versão nova em
-   `jbcore.publicacoes` como "verificada"; para conferir na hora, rode a função duas vezes
-   com um intervalo e leia `select valor from jbcore.estado where chave='nuvem'`.
+5. Publique a nuvem: peça ao conector do Netlify o endereço de publicação (`deploy-site`, site
+   `f83479b1-…`; vale 30 min) e rode
+   `select jbcore.publicar_nuvem('publicar', '<commit completo>', '<endereço>');`
+   Resposta: `select jbcore.resposta(<pedido>);` (precisa trazer `deploy`). Andamento: conector do
+   Netlify `get-deploy-for-site`. Se o Netlify estiver ligado ao GitHub, o push na `main` já basta.
+6. Confira: rode `select jbcore.verificar_hospedagem();` duas vezes com uns segundos de intervalo
+   (a primeira dispara a leitura do `/versao.json`, a segunda colhe) e veja `jbcore.publicacoes`:
+   a linha do commit deve estar "verificada". "falhou" traz o motivo em `detalhe`.
 7. Publique no Claude: Artifact tool, `url` do artifact acima, `file_path` = `saida/claude.html`
    (sem `capabilities`, para manter a declaração guardada, que já inclui o conector Supabase).
 8. Registre: `select jbcore.registrar_publicacao('{"ambiente":"claude","versao":"<versao de saida/versao.json>","sha256":"...","commit_ref":"<sha>","situacao":"publicada"}');`
