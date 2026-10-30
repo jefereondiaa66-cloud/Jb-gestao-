@@ -46,8 +46,9 @@ Como os dados circulam:
 1. Edite `app/jb-gestao.html` (ou `nuvem/*`). Mudanças mínimas, no estilo do código existente.
 2. `node scripts/verificar.mjs` (precisa terminar em "N de N verificações passaram").
 3. `node scripts/construir.mjs`; se possível `node scripts/testar-navegador.mjs` (Playwright).
-4. Commit na branch de trabalho, push, abra o PR. O dono aprova o merge na `main`
-   (ou peça autorização explícita para fazer o merge).
+4. Commit e push. O dono autorizou em 30/10/2026 publicar direto: com `verificar.mjs` passando,
+   envie para a `main` (`git push origin HEAD:main`, ou merge do PR). Se algum teste falhar,
+   não publique: corrija ou explique ao dono.
 5. A `main` publica a nuvem sozinha (Netlify: verificar → construir → publicar).
 6. Confira a nuvem: em ~10 min `jbcore.verificar_hospedagem()` registra a versão nova em
    `jbcore.publicacoes` como "verificada"; para conferir na hora, rode a função duas vezes
