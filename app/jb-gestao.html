@@ -3077,7 +3077,10 @@ const baseFatorItem=i=>Math.max(0,(+i.fixo||0)+(+i.diarias||0)+(+i.producao||0)+
 /* folha do mês separada em produção (custo) e administrativo (despesa). A Controladoria usa só a folha fechada. */
 function custoFolhaMes(m,opc){
  const fc=folhaFechada(m);const itens=fc?(fc.itens||[]):(opc&&opc.previa?itensFolha(m,{}):[]);
- const z=()=>({base:0,comFator:0,semCarteira:0,pessoasC:0,pessoasS:0});const R={fechada:!!fc,prod:z(),adm:z(),pessoas:itens.length};
+ return{...custoFolhaItens(itens),fechada:!!fc};
+}
+function custoFolhaItens(itens){
+ const z=()=>({base:0,comFator:0,semCarteira:0,pessoasC:0,pessoasS:0});const R={prod:z(),adm:z(),pessoas:itens.length};
  itens.forEach(i=>{const b=baseFatorItem(i);const g=setorAdm(i.setor)?R.adm:R.prod;
   if(temCarteira(i.contratacao)){g.base+=b;g.comFator+=b*FATOR_FOLHA;g.pessoasC++}else{g.semCarteira+=b;g.pessoasS++}});
  [R.prod,R.adm].forEach(g=>{g.base=round2(g.base);g.comFator=round2(g.comFator);g.semCarteira=round2(g.semCarteira)});
@@ -3910,6 +3913,12 @@ function telaFolha(el){
   if(fechada)return '';
   return legalLigado()?`<div class="aviso at" style="margin-bottom:12px">As tabelas legais estão ligadas só no holerite. O fechamento <b>não</b> desconta INSS nem IRRF. ${pode('config')?'Para descontar, confira as tabelas com o contador e ligue “Descontar INSS e IRRF no fechamento” em <a href="#/config">Configurações › Tabelas legais</a>.':''}</div>`:''})()}
  <div class="kpis">${kp(fMoeda(tt.fixo),'Salário fixo')}${kp(fMoeda(tt.diarias),'Diárias')}${kp(fMoeda(tt.producao),'Produção')}${kp(fMoeda(tt.extras),'Horas extras')}${tt.noturno?kp(fMoeda(tt.noturno),'Adicional noturno'):''}${tt.salFamilia?kp(fMoeda(tt.salFamilia),'Salário-família'):''}${tt.inss?kp(fMoeda(tt.inss),'INSS descontado','pe'):''}${tt.irrf?kp(fMoeda(tt.irrf),'IRRF descontado','pe'):''}${tt.fgts?kp(fMoeda(tt.fgts),'FGTS da empresa (8%)'):''}${kp(fMoeda(tt.descFaltas+tt.descAtrasos),'Faltas e atrasos',(tt.descFaltas+tt.descAtrasos)?'at':'')}${kp(fMoeda(tt.vales),'Vales a descontar',tt.vales?'at':'')}${kp(fMoeda(tt.jaPago),'Já pago no mês')}</div>
+ ${(()=>{try{const cf=custoFolhaItens(it);const P=cf.prod,A=cf.adm;if(!cf.pessoas)return '';
+  const cu=round2(P.comFator+P.semCarteira),de=round2(A.comFator+A.semCarteira);
+  const kp=(v,l)=>`<div class="kpi" style="cursor:default"><div class="v" style="font-size:18px">${v}</div><div class="l">${l}</div></div>`;
+  return `<div class="grupo-t">Custo da folha com o fator 1,29${fechada?'':' (prévia: a Controladoria usa só a folha fechada)'}</div>
+  <div class="kpis">${kp(fMoeda(round2(P.base+A.base)),'Base com carteira (salário devido)')}${kp(fMoeda(round2(P.comFator+A.comFator)),'Com carteira × 1,29','dest')}${kp(fMoeda(round2(P.semCarteira+A.semCarteira)),'Sem carteira (bruto, sem fator)')}${kp(fMoeda(cu),'Produção → custo (Mão de obra)')}${kp(fMoeda(de),'Administrativo → despesa')}</div>
+  <div class="ajuda" style="margin:-6px 0 12px">Os 29% guardam 13º (8,33%), férias + 1/3 (11,11%) e FGTS (9,56%) que a cerâmica vai pagar no futuro. Rescisões, detalhe e o ano inteiro: <a href="javascript:void 0" data-relcf="r24">custo do mês</a> · <a href="javascript:void 0" data-relcf="r26">mês a mês</a>.</div>`}catch(e){console.warn('custo folha',e);return ''}})()}
  <div class="grupo-t">Pagamento por pessoa</div>
  <div class="painel tabwrap">${it.length?`<table class="tbl cartao tbl-folha"><thead><tr><th>Pessoa</th><th>Remuneração</th><th class="num">Fixo</th><th class="num">Diárias</th><th class="num">Produção</th><th class="num">Extras</th>${tt.legais?'<th class="num">Noturno e sal.-família</th>':''}<th class="num">Faltas</th><th class="num">Vales</th>${tt.legais?'<th class="num">INSS</th><th class="num">IRRF</th>':''}<th class="num">Já pago</th><th class="num">A pagar</th><th></th></tr></thead><tbody>
   ${it.map(i=>`<tr><td data-l="Pessoa"><b>${esc(i.nome)}</b>${i.matricula?'<div style="font-size:12px;color:var(--suave)">'+esc(i.matricula)+(i.setor?' · '+esc(i.setor):'')+'</div>':''}</td>
@@ -3938,6 +3947,7 @@ function telaFolha(el){
  if($('#foA'))$('#foA').onchange=e=>{UIF.atrasos=e.target.checked;renderTela()};
  $$('[data-rec]',el).forEach(b=>b.onclick=()=>verDoc(docRecibo(it.find(x=>x.funcionarioId===b.dataset.rec),mes,fc)));
  $$('[data-ext]',el).forEach(b=>b.onclick=()=>{UIE.func=b.dataset.ext;UIE.mes=mes;location.hash='#/extrato'});
+ $$('[data-relcf]',el).forEach(b=>b.onclick=()=>{UIR.id=b.dataset.relcf;UIR.mes=mes;UIR.extra='';location.hash='#/relatorios'});
  if($('#bFechar'))$('#bFechar').onclick=()=>fecharFolha();
  if($('#bReabrir'))$('#bReabrir').onclick=()=>reabrirFolha();
  if($('#bPagar'))$('#bPagar').onclick=()=>modalPagarFolha();
