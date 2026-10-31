@@ -2951,6 +2951,9 @@ const PERM={
  config:{v:['admin'],e:['admin']}
 };
 const pode=(mod,acao='v')=>(PERM[mod]||{v:[],e:[]})[acao].includes(APP.papel);
+/* lançamentos marcados “travado”: só Jeferson e Bayron alteram (o banco central também confere) */
+const DESTRAVAM=['u_FZmOBZqQYLD0VE7xkGL8AA','u_IUQfnrH8QROQdTs42EhcUQ'];
+const podeDestravar=()=>APP.modo==='local'||DESTRAVAM.includes(APP.uid);
 const veSensivel=()=>APP.modo==='local'||APP.canEdit;
 function definirPapel(){
  if(APP.modo==='local'){APP.papel='admin';APP.setorGestor='';APP.acessoEstado='ok';return}
@@ -7526,7 +7529,7 @@ function abrirRegistro(mod,id){
  if(temSens(mod)&&veSensivel()){const s=clone(sensDe(mod,st.id));delete s.id;Object.assign(st,s)}
  const ant=novo?null:clone(st);
  const vinculado=mod==='despesas'&&st.origem;
- const ro=!pode(mod,'e')||vinculado||(!!M.imutavel&&!novo);
+ const ro=!pode(mod,'e')||vinculado||(!!M.imutavel&&!novo)||(!novo&&st.travado===true&&!podeDestravar());
  GAV={mod,id};
  const campos=M.fields.filter(f=>!(f.sens&&!veSensivel()));
  const secoes=[...new Set(campos.map(f=>f.s))];
@@ -14448,7 +14451,7 @@ function ndpSecaoConfig(el){
 (()=>{
 const COL='prodFab';
 const TIPO={pmaromba:'maromba',pparadas:'parada',psecmov:'secagem',pfornadas:'fornada',pdesenf:'desenforna',pprontomov:'pronto'};
-const ROTAS_P=['setor-producao','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
+const ROTAS_P=['setor-producao','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
 
 /* ---------- banco: uma coleção, quatro listas ---------- */
 Object.assign(DATA,{[COL]:[]});
@@ -14464,7 +14467,7 @@ apagar=async function(col,rec){if(TIPO[col])return a0(COL,{...rec,tipo:TIPO[col]
 /* ---------- permissões ---------- */
 const PV=[...TODOS,...(typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[])];
 const PE=['admin','gerente','estoquista','gestor'];
-Object.assign(PERM,{'setor-producao':{v:PV,e:[]},pmaromba:{v:PV,e:PE},pparadas:{v:PV,e:PE},psecagem:{v:PV,e:[]},
+Object.assign(PERM,{'setor-producao':{v:PV,e:[]},pmes:{v:PV,e:[]},pmaromba:{v:PV,e:PE},pparadas:{v:PV,e:PE},psecagem:{v:PV,e:[]},
  psecmov:{v:PV,e:PE},pfornadas:{v:PV,e:PE},pdesenf:{v:PV,e:PE},ppronto:{v:PV,e:[]},pprontomov:{v:PV,e:PE},plenha:{v:PV,e:[]},prel:{v:PV,e:[]},pcfg:{v:PV,e:['admin']}});
 ROTAS_SETOR.push(...ROTAS_P.filter(r=>!ROTAS_SETOR.includes(r)));
 
@@ -14809,6 +14812,7 @@ function numerosProd(){
 /* ---------- casca do setor ---------- */
 function abasP(){return [
  {r:'#/setor-producao',m:'setor-producao',ic:'painel',l:'Início',at:['setor-producao']},
+ {r:'#/pmes',m:'pmes',ic:'calendario',l:'Produção por mês',at:['pmes']},
  {r:'#/pmaromba/novo',m:'pmaromba',e:1,ic:'mais',l:'Lançar produção',at:['pm-novo']},
  {r:'#/pmaromba',m:'pmaromba',ic:'caixa',l:'Maromba',at:['pmaromba']},
  {r:'#/pparadas',m:'pparadas',ic:'relogio',l:'Paradas',at:['pparadas']},
@@ -14948,6 +14952,8 @@ const aprovD=d=>n0(d.primeira)+n0(d.segunda);
 const classD=d=>aprovD(d)+perdasD(d);
 const FORN=id=>DATA.pfornadas.find(f=>f.id===id);
 const nomeFornada=f=>f?nomeForno(f.fornoId)+' · nº '+f.numero:'(fornada removida)';
+/* desenforna com o total do mês importado (sem fornada): mostra isso no lugar de “fornada removida” */
+const nomeFornadaD=d=>d&&d.totalDoMes&&!d.fornadaId?'Total do mês (importado)':nomeFornada(FORN(d&&d.fornadaId));
 function htmlConcD(r){
  const f=FORN(r.fornadaId);const t=n0(r.total);const c=classD(r);
  if(!f)return '<span class="ajuda">Escolha a fornada.</span>';
@@ -14976,7 +14982,7 @@ MODS.pdesenf={titulo:'Desenforna',sing:'desenforna',ic:'saida',
   {k:'responsavel',l:'Responsável pela desenforna',t:'txt',s:'Registro'},
   {k:'criadoPor',l:'Registrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
- cols:[{k:'data',l:'Data',t:'data'},{k:'_f',l:'Fornada',v:r=>'<b>'+esc(nomeFornada(FORN(r.fornadaId)))+'</b>',o:r=>nomeFornada(FORN(r.fornadaId))},
+ cols:[{k:'data',l:'Data',t:'data'},{k:'_f',l:'Fornada',v:r=>'<b>'+esc(nomeFornadaD(r))+'</b>',o:r=>nomeFornadaD(r)},
   {k:'total',l:'Retirado',t:'num',v:r=>esc(fT(r.total)),o:r=>n0(r.total)},
   {k:'primeira',l:'1ª',t:'num',v:r=>esc(fT(r.primeira)),o:r=>n0(r.primeira)},{k:'segunda',l:'2ª',t:'num',v:r=>esc(fT(r.segunda)),o:r=>n0(r.segunda)},
   {k:'_p',l:'Perdas',t:'num',v:r=>esc(fT(perdasD(r))),o:r=>perdasD(r)},
@@ -15089,7 +15095,7 @@ function telaPronto(c){
  const p=pronto();const ed=pode('pprontomov','e');const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const m=hoje().slice(0,7);
  const desM=DATA.pdesenf.filter(d=>conf(d)&&String(d.data).startsWith(m));
  const novo=(mov,l,pri)=>`<button type="button" class="btn${pri?' pri':''}" data-nmov="${esc(mov)}">${ic(mov==='Saída'?'saida':mov==='Perda posterior'?'aviso':'mais')}${esc(l)}</button>`;
- const hist=[...DATA.pdesenf.filter(conf).map(d=>({data:d.data,hora:d.hora||'',tipo:'Entrada da desenforna',q:'1ª '+fT(d.primeira)+' · 2ª '+fT(d.segunda),orig:nomeFornada(FORN(d.fornadaId)),href:'#/pdesenf/'+d.id})),
+ const hist=[...DATA.pdesenf.filter(conf).map(d=>({data:d.data,hora:d.hora||'',tipo:'Entrada da desenforna',q:'1ª '+fT(d.primeira)+' · 2ª '+fT(d.segunda),orig:nomeFornadaD(d),href:'#/pdesenf/'+d.id})),
   ...DATA.pprontomov.map(x=>({data:x.data,hora:x.hora||'',tipo:x.mov,q:x.mov==='Contagem inicial'?'1ª '+fT(x.contado1)+' · 2ª '+fT(x.contado2):(x.qualidade||'')+' '+(n0(x.delta)>0?'+':'')+fT(x.delta),orig:x.destino||x.motivo||x.justificativa||'',href:'#/pprontomov/'+x.id}))]
   .sort((a,b)=>(b.data+b.hora).localeCompare(a.data+a.hora)).slice(0,40);
  const lin=(rot,k)=>`<tr><td>${rot}</td><td class="num">${fT(p[k+'1'])}</td><td class="num">${fT(p[k+'2'])}</td><td class="num"><b>${fT(p[k+'1']+p[k+'2'])}</b></td></tr>`;
@@ -15194,6 +15200,49 @@ const RELS_P=[
    ...DATA.pprontomov.filter(x=>noPer(x.data,U)).map(x=>({data:x.data,tipo:x.mov,q1:x.mov==='Contagem inicial'?n0(x.contado1):qk(x.qualidade)==='1'?n0(x.delta):0,q2:x.mov==='Contagem inicial'?n0(x.contado2):qk(x.qualidade)==='2'?n0(x.delta):0,orig:x.destino||x.motivo||x.justificativa||''}))].sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   return{cols:[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo'},{k:'q1',l:'1ª qualidade',t:'num'},{k:'q2',l:'2ª qualidade',t:'num'},{k:'orig',l:'Origem / destino / motivo'}],rows,total:false,nota:'Período: '+perTxt(U)+'. Saídas, perdas e ajustes para menos aparecem negativos.'}}}
 ];
+/* ---------- Produção por mês (31/10/2026) ----------
+   Escolhe o mês e mostra o que foi produzido: desenforna confirmada (milheiros e tijolos), perdas,
+   aproveitamento, maromba, enforna e saídas do tijolo pronto, mais a produção mês a mês do ano.
+   Jan a set/2026 vieram do sistema de Índices como um total por mês (desenforna com totalDoMes).
+   Só lê: não grava nada. */
+const UIPM={mes:''};
+const MES_LONGO_P=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const mesLongoP=m=>MES_LONGO_P[+m.slice(5,7)-1]+' de '+m.slice(0,4);
+function mesesProd(){const s=new Set();[...DATA.pdesenf,...DATA.pmaromba,...DATA.pfornadas,...DATA.pprontomov].forEach(r=>{const m=String(r.data||'').slice(0,7);if(/^\d{4}-\d{2}$/.test(m))s.add(m)});return [...s].sort()}
+function telaMesP(c){
+ const L=mesesProd();if(!/^\d{4}-\d{2}$/.test(UIPM.mes))UIPM.mes=L.length?L[L.length-1]:hoje().slice(0,7);
+ const m=UIPM.mes;const I=indicMes(m);const em=d=>String(d||'').startsWith(m);
+ const imp=DATA.pdesenf.filter(d=>conf(d)&&em(d.data)&&d.totalDoMes);
+ const sai=soma(DATA.pprontomov.filter(x=>x.mov==='Saída'&&em(x.data)),x=>x.quantidade);
+ const trav=imp.some(d=>d.travado===true);
+ const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const mil=n=>fNum(n0(n)/1000,n0(n)%1000?1:0);
+ const ano=m.slice(0,4);const ate=ano===hoje().slice(0,4)?+hoje().slice(5,7):12;
+ const lin=[];for(let i=1;i<=ate;i++){const mm=ano+'-'+String(i).padStart(2,'0');const X=indicMes(mm);
+  const im=DATA.pdesenf.some(d=>conf(d)&&String(d.data).startsWith(mm)&&d.totalDoMes);
+  lin.push({mm,des:X.des,orig:im?'Total do mês (importado)':X.des>0?'Lançamentos do dia a dia':X.liq>0||X.enf>0?'Em andamento (sem desenforna)':'—'})}
+ const max=Math.max(1,...lin.map(x=>x.des));const tot=soma(lin,x=>x.des);
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('calendario')}</span><div><h1>Produção por mês</h1><p>Escolha o mês para ver o que foi produzido. Produzido é o que saiu do forno na desenforna confirmada (1 milheiro = 1.000 tijolos).</p></div></div>
+  <div class="acoes">${pode('prel')?`<a class="btn" href="#/prel">${ic('grafico')}Relatório</a>`:''}</div></div>
+  <div class="painel filtros" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+   <button type="button" class="btn min" data-pm="-1" aria-label="Mês anterior">${ic('esquerda')}</button>
+   <input type="month" id="pmM" value="${esc(m)}" aria-label="Mês">
+   <button type="button" class="btn min" data-pm="1" aria-label="Mês seguinte">${ic('direita')}</button>
+   <b style="margin-left:4px">${esc(mesLongoP(m))}</b></div>
+  ${imp.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Total do mês importado do sistema de Índices</b> (31/10/2026), sem detalhe por dia ou por fornada${trav?'. Lançamento travado: só Jeferson ou Bayron podem alterar':''}.</span></div>`:''}
+  ${I.pend?`<div class="aviso at" style="margin-bottom:14px"><span>${I.pend} lançamento(s) do mês ainda pendente(s) de confirmação: não entram nos números abaixo.</span></div>`:''}
+  <div class="resumo">${b(I.des?mil(I.des):'—','Milheiros produzidos')}${b(I.des?fT(I.des):'—','Tijolos produzidos')}${b(I.des?fT(I.p1)+' · '+fT(I.p2):'—','1ª · 2ª qualidade')}${b(I.des?fT(I.perDes):'—','Perdas na desenforna')}${b(I.aprov==null?'—':fNum(I.aprov,1)+'%','Aproveitamento')}</div>
+  <div class="resumo" style="margin-top:10px">${b(I.liq?fT(I.liq):'—','Moldado na maromba (líquido)')}${b(I.enf?fT(I.enf):'—','Enfornado')}${b(I.nEnf||'—','Fornadas enfornadas')}${b(sai?fT(sai):'—','Saídas do tijolo pronto')}</div>
+  ${!I.des?`<p class="ajuda" style="margin:10px 2px 0">Nenhuma desenforna confirmada em ${esc(mesLongoP(m))}.</p>`:''}
+  <div class="grupo-t" style="margin-top:18px">Produção mês a mês de ${esc(ano)}</div>
+  <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Mês</th><th class="num">Milheiros</th><th class="num">Tijolos</th><th>Origem</th><th style="width:30%"></th></tr></thead><tbody>
+   ${lin.map(x=>`<tr class="clic${x.mm===m?' on':''}" data-pmset="${x.mm}" style="cursor:pointer${x.mm===m?';font-weight:600':''}"><td data-l="Mês">${esc(fMes(x.mm))}</td><td data-l="Milheiros" class="num">${x.des?mil(x.des):'—'}</td><td data-l="Tijolos" class="num">${x.des?fT(x.des):'—'}</td><td data-l="Origem">${esc(x.orig)}</td><td data-l=""><span style="display:block;height:10px;border-radius:5px;background:var(--pri,#a3461f);opacity:${x.mm===m?1:.55};width:${(x.des/max*100).toFixed(1)}%"></span></td></tr>`).join('')}
+  </tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${mil(tot)}</b></td><td class="num"><b>${fT(tot)}</b></td><td colspan="2"></td></tr></tfoot></table></div>
+  <p class="ajuda" style="margin:8px 2px 0">Toque em um mês da tabela para ver o detalhe. Só entram lançamentos confirmados.</p>`;
+ const ir=mm=>{if(/^\d{4}-\d{2}$/.test(mm||'')){UIPM.mes=mm;telaMesP(c)}};
+ $('#pmM',c).onchange=e=>ir(e.target.value);
+ $$('[data-pm]',c).forEach(x=>x.onclick=()=>{const [y,mo]=m.split('-').map(Number);const d=new Date(y,mo-1+(+x.dataset.pm),1);ir(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'))});
+ $$('[data-pmset]',c).forEach(x=>x.onclick=()=>ir(x.dataset.pmset));
+}
 function telaRelP(c){telaRelatorios(c,{rels:RELS_P,ui:UIRP,h1:'Relatório de produção',p:'Só dados do Setor de Produção. Escolha o relatório, o período ou o mês; visualize, imprima ou exporte em PDF (A4 paisagem), Excel ou CSV.'})}
 /* listas e relatórios exportados a partir do Setor de Produção saem em A4 paisagem */
 const dl0=docLista;
@@ -15204,7 +15253,7 @@ Object.assign(TELAS_V,{
  pmaromba:listaP('pmaromba'),pparadas:listaP('pparadas'),psecmov:el=>shellP(el,'psecmov',c=>telaLista(c,'psecmov')),
  pfornadas:listaP('pfornadas'),psecagem:el=>shellP(el,'psecagem',telaSecagem),pcfg:el=>shellP(el,'pcfg',telaCfgProd),
  pdesenf:listaP('pdesenf'),pprontomov:el=>shellP(el,'pprontomov',c=>telaLista(c,'pprontomov')),ppronto:el=>shellP(el,'ppronto',telaPronto),
- plenha:el=>shellP(el,'plenha',telaLenhaP),prel:el=>shellP(el,'prel',telaRelP)});
+ plenha:el=>shellP(el,'plenha',telaLenhaP),prel:el=>shellP(el,'prel',telaRelP),pmes:el=>shellP(el,'pmes',telaMesP)});
 telaSetorProducao=function(el){shellP(el,'setor-producao',inicioProd)};
 
 /* ---------- cartão na seleção de setores ---------- */
@@ -20369,7 +20418,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const listaAgentes=()=>[...new Set([...Object.keys(AG_PAD),...Object.keys(AG.docs)])].map(agente);
 
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
- const ROTAS_PROD=['setor-producao','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
+ const ROTAS_PROD=['setor-producao','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
  const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta'];
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','despesas','documentos','contratos','producao','alimentacao','diarias',
