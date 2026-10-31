@@ -229,6 +229,29 @@ teste('ponte', 'TESTE D: alteração feita na nuvem aparece no Claude, e a do Cl
   srv.estado.apagarDireto('produtos', 'p1');                                                // exclusão na nuvem
   await ate(() => preco === null);
 }));
+teste('ponte', 'conferência completa só redesenha o que mudou e a página parada consulta menos', () => cenario(async ({ amb, srv }) => {
+  srv.estado.gravarDireto('produtos', 'p1', { nome: 'Tijolo', preco: 1 });
+  srv.estado.gravarDireto('clientes', 'c1', { nome: 'Construtora X' });
+  const { db, api } = await ligar(amb, srv, { cfg: { intervalo: 100000 } });
+  let nProd = 0, nCli = 0;
+  db.collection('produtos').onSnapshot(() => { nProd++; });
+  db.collection('clientes').onSnapshot(() => { nCli++; });
+  await ate(() => nProd === 1 && nCli === 1);
+  srv.estado.gravarDireto('produtos', 'p1', { nome: 'Tijolo', preco: 2 });
+  await api.sincronizar();
+  await ate(() => nProd === 2);
+  await esperar(50);
+  assert.equal(nCli, 1, 'clientes não mudou: não pode redesenhar');
+  await api.sincronizar(); await esperar(50);
+  assert.equal(nProd, 2, 'sem mudança nenhuma: não pode redesenhar');
+  const ponte = amb.g.JB_CORE_PONTE.CFG;
+  assert.ok(ponte.intervalo >= 1 && ponte.ocioso > 0, 'ritmo com regra de ociosidade');
+  const original = ler('app/jb-gestao.html');
+  const cfg = /intervalo: (\d+), intervaloOculto: ([^,]+), ocioso: ([^,]+), conferencia: ([^,]+),/.exec(original);
+  assert.ok(cfg, 'ritmo da ponte não encontrado');
+  assert.ok(+cfg[1] >= 30000, 'consulta de mudanças não pode ser mais rápida que 30 s');
+  assert.ok(eval(cfg[2]) >= 5 * 60 * 1000 && eval(cfg[4]) >= 30 * 60 * 1000, 'aba escondida/parada e conferência precisam ser econômicas');
+}));
 teste('ponte', 'TESTE E: resposta perdida no meio da gravação não duplica o registro', () => cenario(async ({ amb, srv }) => {
   const { db, api } = await ligar(amb, srv);
   srv.estado.falhas.depois = 1;        // o banco grava, mas a resposta não chega

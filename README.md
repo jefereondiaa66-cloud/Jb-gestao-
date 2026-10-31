@@ -16,7 +16,7 @@ Um programa, dois endereços, um banco só.
             painel, histórico de publicações, verificação do site
 ```
 
-- **Lançou na nuvem?** Grava no banco central na hora; o Claude recebe em até ~10 s.
+- **Lançou na nuvem?** Grava no banco central na hora; o Claude recebe em até ~30 s (página parada: na hora em que voltar a mexer).
 - **Lançou no Claude?** Vai para o mesmo banco (cada gravação com código único: se a
   conexão cair, o reenvio não duplica; o que não subir fica guardado no navegador).
 - **Mudou o código?** Commit na `main` → o Netlify verifica, constrói e publica sozinho;

@@ -75,11 +75,13 @@
    ===================================================================== */
 (function () {
   'use strict';
-  var VERSAO = 'jbcore-ponte-1';
+  var VERSAO = 'jbcore-ponte-2';
   var CFG = {
     servidor: 'Supabase', ferramenta: 'execute_sql', projeto: 'kdsaslmlvjllgzbzsnxt', origem: 'claude',
     nuvem: 'https://jb-gestao-ceramica.netlify.app',
-    prazoConexao: 25000, intervalo: 10000, intervaloOculto: 60000, conferencia: 5 * 60 * 1000,
+    /* ritmo econômico: mudanças a cada 30 s com alguém usando; 5 min com a aba escondida ou
+       ninguém mexendo há 5 min (volta na hora ao mexer); conferência completa a cada 30 min */
+    prazoConexao: 25000, intervalo: 30000, intervaloOculto: 5 * 60 * 1000, ocioso: 5 * 60 * 1000, conferencia: 30 * 60 * 1000,
     esperaGravacao: 15000, esperaSemCache: 30000, maxLote: 40, maxBytes: 500000, pagina: 250000,
     sinal: 60000, chaveFila: 'jbcore_fila_v1'
   };
@@ -104,7 +106,7 @@
   var ouvintes = new Set();       // {tipo, colecao, id, filtros, cb, erro, solta}
   var fila = [];                  // operações ainda não confirmadas pelo banco
   var esperas = new Map();        // op_id -> {res, rej}
-  var cursor = 0, puxando = false, enviando = false, tPuxar = null, tEnviar = null, atraso = 2000, ultimoSinal = 0;
+  var cursor = 0, puxando = false, enviando = false, tPuxar = null, tEnviar = null, atraso = 2000, ultimoSinal = 0, ultimaAtividade = Date.now();
   var estado = { modo: 'conectando', motivo: '', erro: false, motivoErro: '', ultimaSinc: null, conflitos: 0, falhas: [] };
   var prontoRes, pronto = new Promise(function (r) { prontoRes = r; });
 
@@ -226,10 +228,14 @@
       depois = r.proximo || null;
       if (++voltas > 200) throw erro('resposta', 'leitura do banco não terminou');
     } while (depois);
+    /* só as coleções que de fato mudaram são redesenhadas (antes: a tela inteira a cada conferência) */
+    var mudaram = new Set(), velho = cache;
+    novo.forEach(function (r, k) { var a = velho.get(k); if (!a || (a.versao !== r.versao || !r.versao) && JSON.stringify(a.dados) !== JSON.stringify(r.dados)) mudaram.add(r.colecao); });
+    velho.forEach(function (r, k) { if (!novo.has(k)) mudaram.add(r.colecao); });
     cache = novo; cursor = Math.max(cursor, cur);
     fila.forEach(aplicarLocal);   // o que ainda não subiu continua valendo na tela
     estado.ultimaSinc = new Date().toISOString();
-    avisarTodos();
+    mudaram.forEach(function (c) { avisar(c); });
   }
   function aplicarRemotos(docs) {
     var tocadas = new Set();
@@ -259,7 +265,10 @@
       estado.erro = true; estado.motivoErro = MOTIVOS[e.code] || e.message || String(e.code);
     } finally { puxando = false; mudou(); agendarPuxada(); }
   }
-  function agendarPuxada() { clearTimeout(tPuxar); if (estado.modo === 'central') tPuxar = setTimeout(puxar, document.hidden ? CFG.intervaloOculto : CFG.intervalo); }
+  function ocioso() { return Date.now() - ultimaAtividade > CFG.ocioso; }
+  function agendarPuxada() { clearTimeout(tPuxar); if (estado.modo === 'central') tPuxar = setTimeout(puxar, document.hidden || ocioso() ? CFG.intervaloOculto : CFG.intervalo); }
+  /* voltou a mexer depois de um tempo parado: busca as mudanças na hora */
+  function atividade() { var parado = ocioso(); ultimaAtividade = Date.now(); if (parado && estado.modo === 'central' && !document.hidden) puxar(); }
 
   /* ---------------- escrita: fila com código único por operação ---------------- */
   function chaveFila() { return CFG.chaveFila + ':' + uid; }
@@ -445,9 +454,10 @@
     if (guardada.length) { fila = guardada; fila.forEach(aplicarLocal); aviso(guardada.length + ' lançamento(s) que não tinham subido estão sendo enviados ao banco central.'); }
     prontoRes(); mudou();
     enviar(); agendarPuxada();
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) puxar(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { ultimaAtividade = Date.now(); puxar(); } });
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, atividade, { passive: true, capture: true }); });
     addEventListener('online', function () { enviar(); puxar(); });
-    setInterval(function () { if (estado.modo === 'central' && !document.hidden) carregarTudo().then(mudou, function () {}); }, CFG.conferencia);
+    setInterval(function () { if (estado.modo === 'central' && !document.hidden && !ocioso()) carregarTudo().then(mudou, function () {}); }, CFG.conferencia);
     return { db: db, api: api };
   }
   async function sincronizar() {

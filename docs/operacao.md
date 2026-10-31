@@ -24,8 +24,10 @@ cada uma com a reversão no cabeçalho):
 
 - **Nuvem**: igual a antes (login próprio, gravação pelas funções `jb_*`, tempo real do Supabase).
 - **Claude**: ao abrir, a ponte (`<script id="jb-core-ponte">`) lê o banco central pelo conector
-  Supabase de quem abre a página, a cada 10 s busca mudanças (60 s com a aba escondida), confere
-  tudo a cada 5 min e ao tocar no indicador "Sincronizado". Gravações vão para uma fila com código
+  Supabase de quem abre a página, a cada 30 s busca mudanças enquanto alguém usa a página (5 min com a
+  aba escondida ou sem ninguém mexer há 5 min; ao voltar a mexer, busca na hora), confere tudo a cada
+  30 min (só com a página em uso) e ao tocar no indicador "Sincronizado". Uma conferência só redesenha
+  as partes que mudaram. Gravações vão para uma fila com código
   único; sem resposta, a fila fica no navegador e é reenviada — o banco reconhece o que já aplicou.
 - Só um **administrador ativo** grava pela ponte. Se a ponte não conecta em 25 s (conector não
   ligado ou não permitido, outra pessoa, banco lento), o sistema no Claude abre **somente para

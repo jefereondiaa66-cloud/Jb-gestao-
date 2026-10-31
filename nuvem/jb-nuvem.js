@@ -89,7 +89,12 @@
       if (r.data.length < passo) break;
       de += passo;
     }
+    /* devolve as coleções que mudaram, para redesenhar só elas */
+    var mudaram = new Set(), velho = cache;
+    novo.forEach(function (r, k) { var a = velho.get(k); if (!a || JSON.stringify(a.dados) !== JSON.stringify(r.dados)) mudaram.add(r.colecao); });
+    velho.forEach(function (r, k) { if (!novo.has(k)) mudaram.add(r.colecao); });
     cache = novo;
+    return mudaram;
   }
   async function recarregarDoc(colecao, id) {
     var r = await sb.from('docs').select('colecao,id,dados').eq('colecao', colecao).eq('id', id).maybeSingle();
@@ -207,7 +212,7 @@
   }, 4 * 60 * 1000);
   setInterval(async function () {          // conferência completa periódica (cobre eventos perdidos)
     if (!sb || !eu || document.hidden) return;
-    try { await carregarTudo(); avisarTodos(); } catch (e) { /* tratado em traduzErro */ }
+    try { (await carregarTudo()).forEach(function (c) { avisar(c); }); } catch (e) { /* tratado em traduzErro */ }   // antes: a tela inteira era redesenhada mesmo sem mudança
   }, 10 * 60 * 1000);
   function ligarTempoReal() {
     sb.channel('jb-docs').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, function (p) {

@@ -89,7 +89,8 @@ try {
 
   // alteração feita "na nuvem"
   await page.evaluate(() => window.__srv.estado.gravarDireto('funcionarios', 'teste-nav-2', { id: 'teste-nav-2', nome: 'Cadastrado na Nuvem', situacao: 'Ativo', departamento: 'Produção' }));
-  await page.waitForFunction(() => DATA.funcionarios.some((f) => f.id === 'teste-nav-2'), null, { timeout: 15000 }).catch(() => {});
+  // a ponte busca mudanças a cada 30 s com alguém usando a página
+  await page.waitForFunction(() => DATA.funcionarios.some((f) => f.id === 'teste-nav-2'), null, { timeout: 40000 }).catch(() => {});
   ok(await page.evaluate(() => DATA.funcionarios.some((f) => f.id === 'teste-nav-2')), 'cadastro feito na nuvem apareceu no sistema aberto');
   const relevantes = erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
   ok(relevantes.length === 0, `sem erros de JavaScript${relevantes.length ? ': ' + relevantes.slice(0, 3).join(' | ') : ''}`);
