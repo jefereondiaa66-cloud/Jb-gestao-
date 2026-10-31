@@ -252,7 +252,12 @@
     '#jbsair{position:fixed;left:12px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
     '#jbadm{position:fixed;left:130px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
-    '#jbadm:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbadm{display:none}}';
+    '#jbadm:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbadm{display:none}}' +
+    /* selo "Powered by Netlify": o Netlify o põe no canto de baixo à direita, em cima do botão Salvar das
+       gavetas. No plano gratuito ele não pode ser escondido; aqui ele só muda de canto e continua visível:
+       embaixo à esquerda, acima de "Sair" (computador) ou acima da barra de baixo (tablet em pé e celular) */
+    '#nl-badge-frame{left:0!important;right:auto!important;bottom:36px!important}' +
+    '@media(max-width:960px){#nl-badge-frame{bottom:calc(60px + env(safe-area-inset-bottom,0px))!important}}';
   function el(h) { var d = document.createElement('div'); d.innerHTML = h; return d.firstChild; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function caixa(titulo, sub, campos, botao, rodape) {
