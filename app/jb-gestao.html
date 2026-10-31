@@ -1841,6 +1841,16 @@ body.compacto .grupo-t{margin:16px 0 7px}
 /* 7. troca de tela */
 .conteudo.pg-entra{animation:pgEntra .17s ease-out}
 @keyframes pgEntra{from{opacity:.25}to{opacity:1}}
+/* tablet e celular: rolagem leve. Medido num tablet simulado: o desfoque do véu era refeito na tela
+   inteira a cada quadro ao rolar uma gaveta; a coluna fixa da folha virava ~80 camadas ao rolar;
+   o fade de entrada obrigava a redesenhar a tela toda duas vezes ao abrir. */
+@media (hover:none),(pointer:coarse){
+ .veu{backdrop-filter:none;-webkit-backdrop-filter:none}
+ .tbl-folha tbody td:last-child,.tbl-folha thead th:last-child,.tbl-folha tfoot td:last-child{position:static;box-shadow:none}
+ .conteudo.pg-entra{animation:none}
+}
+/* ao chegar ao fim de uma gaveta, menu ou lista, o arrasto não passa para a página de trás */
+.gav-corpo,.side,.ia-lista,.busca .res,.eia-corpo,.eia-lista,.ms-folha{overscroll-behavior:contain}
 /* 8. a linha que você abriu */
 .tbl tr.recente>td{animation:linhaRecente 2.6s ease-out}
 @keyframes linhaRecente{0%,35%{background:var(--brasa-bg2)}100%{background:transparent}}
@@ -10696,7 +10706,8 @@ function padAbas(raiz){
  });
 }
 const reposAbas=()=>document.querySelectorAll('.com-ind').forEach(posAba);
-let tRes=null;window.addEventListener('resize',()=>{clearTimeout(tRes);tRes=setTimeout(()=>{reposAbas();document.querySelectorAll('[data-grade]').forEach(g=>{delete g.dataset.grade});const c=document.getElementById('conteudo');if(c)balancearGrades(c)},120)});
+/* no tablet a barra de endereço some e volta ao rolar, disparando resize só de altura: nada aqui depende da altura */
+let tRes=null,largRes=innerWidth;window.addEventListener('resize',()=>{if(innerWidth===largRes)return;largRes=innerWidth;clearTimeout(tRes);tRes=setTimeout(()=>{reposAbas();document.querySelectorAll('[data-grade]').forEach(g=>{delete g.dataset.grade});const c=document.getElementById('conteudo');if(c)balancearGrades(c)},120)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(reposAbas);
 
 /* ---------- 16. indicadores sem cartão sobrando ---------- */
@@ -25907,6 +25918,10 @@ function telaInstalar(el){
 
 /* ================= inicialização ================= */
 function carregarScript(src){return new Promise(r=>{const x=document.createElement('script');x.src=src;x.onload=()=>r(true);x.onerror=()=>r(false);document.head.appendChild(x)})}
+/* tablet e celular: o gráfico responde só ao toque (detalhe e dica continuam), não ao arrasto do dedo;
+   sem isso cada gráfico se redesenhava a cada movimento durante a rolagem do painel */
+function graficosNoToque(){if(window.Chart&&matchMedia('(hover:none),(pointer:coarse)').matches)Chart.defaults.events=['click']}
+graficosNoToque();
 async function garantirBibliotecas(){
  /* Excel e PDF só são usados ao exportar ou importar: carregam aqui, depois que a tela já abriu,
     para não travar a abertura em computador fraco ou internet lenta (cdnjs primeiro; jsdelivr se falhar) */
@@ -25917,7 +25932,7 @@ async function garantirBibliotecas(){
  if(!window.XLSX)t.push(lib('xlsx/0.18.5/xlsx.full.min.js','xlsx@0.18.5/dist/xlsx.full.min.js'));
  if(!(window.jspdf&&window.jspdf.jsPDF))t.push(lib('jspdf/2.5.1/jspdf.umd.min.js','jspdf@2.5.1/dist/jspdf.umd.min.js').then(ok=>ok&&tabela()));
  else if(!(window.jspdf.jsPDF.API&&window.jspdf.jsPDF.API.autoTable))t.push(tabela());
- if(t.length){await Promise.all(t);if(window.Chart&&lerRota().mod==='painel')renderTela()}
+ if(t.length){await Promise.all(t);graficosNoToque();if(window.Chart&&lerRota().mod==='painel')renderTela()}
 }
 async function iniciar(){
  let db=null,user=null,assets=null,dl=null,sp=null,mcp=null;
