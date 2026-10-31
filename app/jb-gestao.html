@@ -3062,6 +3062,104 @@ function estimarRescisao(r){
  return{itens,total,memoria};
 }
 
+/* ================= custo da folha e das rescisões (guia "Folha e rescisões: como lançar no custo") =================
+   Folha com carteira: base × 1,29. Os 29% guardam, mês a mês, 13º (8,33%), férias + 1/3 (11,11%) e FGTS (9,56%).
+   O fator começou em janeiro/2026. Sem carteira: valor bruto, sem fator. Base = salário devido no mês
+   (fixo + diárias + produção + extras + noturno − faltas − atrasos); férias e 13º pagos ficam fora (já guardados).
+   Produção → custo (Mão de obra da produção). Administrativo (escritório, vendas, gerência geral) → despesa (Folha administrativa).
+   Na rescisão só vira custo o que o fator não guardou: aviso indenizado e reflexos, FGTS do aviso, multa do FGTS,
+   indenização adicional, férias de meses antes de 2026 e multa por atraso (separada). */
+const FATOR_FOLHA=1.29,FATOR_INICIO='2026-01-01';
+const FATOR_PARTES=[['13º salário','1 salário por ano ÷ 12 meses',1/12],['Férias + 1/3','(1 + 1/3) salário ÷ 12 meses',4/36],['FGTS','8% × (salário + 13º + férias) = 8% × 119,44%',.08*(1+1/12+4/36)]];
+const setorAdm=s=>/administra|escrit[oó]rio|vendas|comercial|ger[eê]ncia geral/i.test(String(s||''));
+const destinoCusto=adm=>adm?'Despesa · Folha administrativa':'Custo · Mão de obra da produção';
+const baseFatorItem=i=>Math.max(0,(+i.fixo||0)+(+i.diarias||0)+(+i.producao||0)+(+i.extras||0)+(+i.noturno||0)-(+i.descFaltas||0)-(+i.descAtrasos||0));
+/* folha do mês separada em produção (custo) e administrativo (despesa). A Controladoria usa só a folha fechada. */
+function custoFolhaMes(m,opc){
+ const fc=folhaFechada(m);const itens=fc?(fc.itens||[]):(opc&&opc.previa?itensFolha(m,{}):[]);
+ const z=()=>({base:0,comFator:0,semCarteira:0,pessoasC:0,pessoasS:0});const R={fechada:!!fc,prod:z(),adm:z(),pessoas:itens.length};
+ itens.forEach(i=>{const b=baseFatorItem(i);const g=setorAdm(i.setor)?R.adm:R.prod;
+  if(temCarteira(i.contratacao)){g.base+=b;g.comFator+=b*FATOR_FOLHA;g.pessoasC++}else{g.semCarteira+=b;g.pessoasS++}});
+ [R.prod,R.adm].forEach(g=>{g.base=round2(g.base);g.comFator=round2(g.comFator);g.semCarteira=round2(g.semCarteira)});
+ return R;
+}
+/* avos (meses) de um período que ficam antes do início do fator */
+function avosAntesFator(a,b){if(!a||!b||a>=FATOR_INICIO)return 0;return mesesProp(a,b<FATOR_INICIO?b:addDias(FATOR_INICIO,-1))}
+/* verbas do TRCT: [campo, verba, destino, por quê]. destino: folha | guardado | custo | atraso */
+const TRCT_VERBAS=[
+ ['tSaldo','Saldo de salário (dias trabalhados no mês)','folha','É o salário do mês: entra pela folha do mês, na base × 1,29'],
+ ['tExtras','Horas extras e adicionais do mês','folha','Mesma razão: folha do mês, na base × 1,29'],
+ ['t13','13º proporcional do ano','guardado','O fator guardou 1/12 por mês desde janeiro/2026'],
+ ['tFerProp','Férias proporcionais + 1/3 (meses de 2026 em diante)','guardado','O fator guardou 1/12 por mês desde janeiro/2026'],
+ ['tFerPropAnt','Férias proporcionais + 1/3 (meses de 2025 ou antes)','custo','O fator só começou em janeiro/2026'],
+ ['tFerVenc','Férias vencidas + 1/3 (meses de 2026 em diante)','guardado','O fator guardou 1/12 por mês desde janeiro/2026'],
+ ['tFerVencAnt','Férias vencidas + 1/3 (meses de 2025 ou antes)','custo','O fator só começou em janeiro/2026'],
+ ['tAviso','Aviso prévio indenizado','custo','Não é guardado pelo fator'],
+ ['tReflexos','13º e férias + 1/3 sobre o aviso indenizado','custo','Vêm do aviso, que é custo novo'],
+ ['tFgtsAviso','FGTS sobre o aviso indenizado e reflexos','custo','Vem do aviso, que é custo novo'],
+ ['tMulta','Multa do FGTS (40%; 20% no acordo)','custo','Não é guardada pelo fator'],
+ ['tIndeniz','Indenização adicional (dispensa nos 30 dias antes da data-base)','custo','Não é guardada pelo fator'],
+ ['tMultaAtraso','Multa por atraso no pagamento da rescisão','atraso','É penalidade: custo de rescisão, mostrado separado']];
+const TRCT_DEST={folha:'Folha do mês',guardado:'Já guardado',custo:'Custo de rescisão',atraso:'Custo de rescisão (multa por atraso)'};
+const temTRCT=r=>TRCT_VERBAS.some(([k])=>+r[k]);
+/* estimativa das verbas do TRCT pelas regras do guia (para preencher; o TRCT é o que vale) */
+function verbasTRCT(r){
+ const f=F(r.funcionarioId);const sal=salarioF(r.funcionarioId);
+ if(!f||!r.data)return{erro:'Selecione o funcionário e a data do desligamento.'};
+ if(!temCarteira(f.tipoContratacao))return{erro:'Sem carteira não há fator: o acerto pago na saída entra inteiro como custo de rescisão. Informe o valor efetivamente pago.'};
+ if(!f.admissao)return{erro:'Sem data de admissão na ficha não dá para contar avos de 13º, de férias nem o aviso prévio.'};
+ if(!sal)return{erro:veSensivel()?'Cadastre o salário na ficha do funcionário para estimar.':'Seu acesso não mostra salários; peça a um administrador.'};
+ const t=r.tipo||'',jc=t==='Dispensa por justa causa',acordo=t.startsWith('Acordo'),sjc=t==='Dispensa sem justa causa';
+ const d=dt(r.data);const v={};const memo=[];const R2=x=>round2(x);
+ v.tSaldo=R2(sal/30*Math.min(30,d.getDate()));memo.push('Saldo de salário: '+Math.min(30,d.getDate())+' dia(s)');
+ const ini13=f.admissao.slice(0,4)===r.data.slice(0,4)?f.admissao:r.data.slice(0,4)+'-01-01';const m13=Math.min(12,mesesProp(ini13,r.data));
+ let aniv=f.admissao;while(addMeses(aniv,12)<=r.data)aniv=addMeses(aniv,12);const mf=Math.min(12,mesesProp(aniv,r.data));
+ if(!jc){v.t13=R2(sal*m13/12);memo.push('13º proporcional: '+m13+'/12');
+  const ant=Math.min(mf,avosAntesFator(aniv,r.data));v.tFerProp=R2(sal*(mf-ant)/12*4/3);v.tFerPropAnt=R2(sal*ant/12*4/3);
+  memo.push('Férias proporcionais: '+mf+'/12'+(ant?' ('+ant+' avo(s) antes de 2026)':''))}
+ /* férias vencidas: períodos completos com saldo de dias, no máximo os dois últimos */
+ const pend=periodosAquisitivos({...f,dataDesligamento:r.data}).filter(p=>p.completo).map(p=>({...p,saldo:30-soma(feriasDoPeriodo(f.id,p.ini),x=>+x.dias||0)})).filter(p=>p.saldo>0).slice(-2);
+ let fv=0,fvAnt=0;pend.forEach(p=>{const val=sal/30*p.saldo*4/3;const a=Math.min(12,avosAntesFator(p.ini,p.fim));fv+=val*(12-a)/12;fvAnt+=val*a/12;
+  memo.push('Férias vencidas '+fData(p.ini)+' a '+fData(p.fim)+': '+p.saldo+' dia(s)'+(a?' ('+a+' de 12 meses antes de 2026)':''))});
+ v.tFerVenc=R2(fv);v.tFerVencAnt=R2(fvAnt);
+ v.tAviso=0;v.tReflexos=0;v.tFgtsAviso=0;
+ if(r.aviso==='Indenizado'&&(sjc||acordo)){
+  const anos=Math.floor(diasEntre(f.admissao,r.data)/365.25);const dias=Math.min(30+3*anos,90);const proj=addDias(r.data,dias);
+  v.tAviso=R2(sal/30*dias*(acordo?.5:1));
+  const a13=Math.max(0,Math.min(12,mesesProp(ini13,proj))-m13),aF=Math.max(0,Math.min(12,mesesProp(aniv,proj))-mf);
+  const r13=sal*a13/12;v.tReflexos=R2(r13+sal*aF/12*4/3);v.tFgtsAviso=R2(.08*(v.tAviso+r13));
+  memo.push('Aviso indenizado: '+dias+' dia(s)'+(acordo?', metade (acordo)':'')+'; reflexos: '+a13+'/12 de 13º e '+aF+'/12 de férias')}
+ const saldoF=+r.tSaldoFgts||R2(sal*.08*mesesProp(f.admissao,r.data));
+ v.tMulta=sjc?R2(saldoF*.4):acordo?R2(saldoF*.2):0;
+ if(v.tMulta)memo.push('Multa do FGTS: '+(sjc?'40%':'20%')+' × '+fMoeda(saldoF)+(+r.tSaldoFgts?' (saldo informado)':' (saldo estimado: 8% do salário atual × meses; informe o saldo real)'));
+ return{v,memo};
+}
+/* separa a rescisão em folha do mês / já guardado / custo de rescisão */
+function classificarRescisao(r){
+ const f=F(r.funcionarioId)||{};const setor=setorF(r.funcionarioId)||f.setor||'';const adm=setorAdm(setor);
+ const o={adm,setor,destino:destinoCusto(adm),folha:0,guardado:0,custo:0,atraso:0,linhas:[],fonte:''};
+ if(!temCarteira(f.tipoContratacao)){const v=round2(+r.valorPago||+r.valorEstimado||0);if(!v)return o;
+  o.fonte='semCarteira';o.custo=v;o.linhas.push({k:'acerto',l:'Acerto pago na saída (sem carteira)',v,d:'custo',p:'Sem carteira nada é guardado: o acerto entra inteiro como custo de rescisão'});return o}
+ if(!temTRCT(r))return o;
+ o.fonte='trct';const pos=String(r.data||'')>=FATOR_INICIO;
+ TRCT_VERBAS.forEach(([k,l,d0,p])=>{const v=round2(+r[k]||0);if(!v)return;let d=d0,pp=p;
+  if(d==='guardado'&&!pos){d='custo';pp='Rescisão antes de janeiro/2026: o fator ainda não guardava nada'}
+  o.linhas.push({k,l,v,d,p:pp});if(d==='folha')o.folha+=v;else if(d==='guardado')o.guardado+=v;else{o.custo+=v;if(d==='atraso')o.atraso+=v}});
+ ['folha','guardado','custo','atraso'].forEach(k=>o[k]=round2(o[k]));
+ return o;
+}
+function htmlCustoRescisao(r){
+ const f=F(r.funcionarioId);if(!f)return '<span class="ajuda">Escolha o funcionário.</span>';
+ const c=classificarRescisao(r);
+ if(!c.fonte)return temCarteira(f.tipoContratacao)?'<div class="aviso at" style="margin:0">Preencha as verbas do TRCT acima (ou use <b>Preencher pela estimativa</b>) para separar o que já foi guardado pelo fator 1,29 e o que é custo novo de rescisão.</div>'
+  :'<div class="aviso in" style="margin:0">Sem carteira: o acerto pago na saída entra inteiro como custo de rescisão. Informe o <b>valor efetivamente pago</b>.</div>';
+ const cel=(x,d,dd)=>`<td class="num">${d===dd||(dd==='custo'&&d==='atraso')?fMoeda(x.v):''}</td>`;
+ return `<div class="tabwrap"><table class="tbl"><thead><tr><th>Verba</th><th class="num">Folha do mês</th><th class="num">Já guardado</th><th class="num">Custo de rescisão</th></tr></thead><tbody>
+ ${c.linhas.map(x=>`<tr title="${esc(x.p)}"><td>${esc(x.l)}<div style="font-size:11.5px;color:var(--suave)">${esc(x.p)}</div></td>${cel(x,x.d,'folha')}${cel(x,x.d,'guardado')}${cel(x,x.d,'custo')}</tr>`).join('')}
+ </tbody><tfoot><tr><td><b>Total ${fMoeda(c.folha+c.guardado+c.custo)}</b></td><td class="num"><b>${fMoeda(c.folha)}</b></td><td class="num"><b>${fMoeda(c.guardado)}</b></td><td class="num"><b>${fMoeda(c.custo)}</b></td></tr></tfoot></table></div>
+ <div class="ajuda" style="margin-top:6px">${c.folha?'Folha do mês: já entra pelo fechamento da folha de '+esc(fMes(String(r.data).slice(0,7)))+', na base × 1,29. ':''}${c.guardado?'Já guardado: não lançar, foi pago com o que o fator guardou. ':''}<b>Lançamento de rescisões: ${fMoeda(c.custo)}</b> → ${esc(c.destino)} (setor ${esc(c.setor||'não informado')})${c.atraso?'; inclui '+fMoeda(c.atraso)+' de multa por atraso':''}.</div>`;
+}
+
 /* ================= despesas vinculadas (integração) ================= */
 async function sincronizarDespesa(origem,rec,spec){
  const id='lnk-'+origem+'-'+rec.id;const ant=DATA.despesas.find(d=>d.id===id);
@@ -3487,6 +3585,10 @@ desligamentos:{titulo:'Desligamentos',sing:'desligamento',ic:'saida',desc:'Proce
   {k:'valorEstimado',l:'Valor estimado da rescisão',t:'moeda',s:'Valores',botao:{txt:'Calcular estimativa',fn:'estimar'}},
   {k:'memoria',l:'Memória da estimativa',t:'area',ro:1,w2:1,s:'Valores'},
   {k:'valorPago',l:'Valor efetivamente pago',t:'moeda',s:'Valores'},
+  ...TRCT_VERBAS.map(([k,l],i)=>({k,l,t:'moeda',s:'Verbas do TRCT para o custo',sh:r=>{const f=F(r.funcionarioId);return !f||temCarteira(f.tipoContratacao)},
+   ...(i===0?{botao:{txt:'Preencher pela estimativa',fn:'trctEstimar'},aj:'Copie do TRCT, verba por verba. O botão preenche pelas regras do guia; confira com o TRCT.'}:{})})),
+  {k:'tSaldoFgts',l:'Saldo do FGTS usado na multa',t:'moeda',s:'Verbas do TRCT para o custo',aj:'Da GRRF ou do FGTS Digital. Sem ele, a estimativa usa 8% do salário atual × meses.',sh:r=>{const f=F(r.funcionarioId);return !f||temCarteira(f.tipoContratacao)}},
+  {k:'_custo',l:'Onde cada verba entra no custo',t:'html',w2:1,vivo:1,calc:r=>htmlCustoRescisao(r),s:'Verbas do TRCT para o custo'},
   {k:'comprovante',l:'Comprovantes',t:'arq',s:'Valores'},
   {k:'responsavel',l:'Responsável pelo processo',t:'txt',s:'Valores'},
   {k:'_fluxo',l:'Andamento do desligamento',t:'html',w2:1,calc:r=>fluxoHtml(ETAPAS_RESC,etapaResc(r)),s:'Desligamento'},
@@ -6137,6 +6239,7 @@ const MENU=[
  {m:'producao',l:'Pagamento por produção'},
  {m:'horasExtras',l:'Horas extras'},
  {m:'despesas',l:'Custo com pessoal'},
+ {m:'relatorios',l:'Custo da folha (fator 1,29)',r:'r24'},
  {m:'conferencia',l:'Conferência da folha'},
  {m:'folha',l:'Fechamento da folha'},
  {l:'13º salário (1ª e 2ª parcela)',n:'A base já existe: os avos do 13º aparecem em Direitos do empregado. Falta a folha própria do 13º, com as duas parcelas, recibo e desconto na segunda.'},
@@ -6185,6 +6288,7 @@ const MENU=[
  {m:'direitos',l:'Simulação de rescisão',a:'rescisao'},
  {m:'desligamentos',l:'Checklist de desligamento'},
  {m:'documentos',l:'Documentos da rescisão',f:{categoria:'Rescisões'}},
+ {m:'relatorios',l:'Rescisões no custo (já guardado × custo novo)',r:'r25'},
  {l:'Termo de rescisão (TRCT) no padrão oficial',n:'Hoje o sistema estima as verbas. O TRCT tem layout e códigos próprios e é o documento que vale.'},
  {l:'FGTS e multa de 40% no cálculo',n:'Depende de guardar o saldo e os depósitos do FGTS, que o sistema não tem.'},
  {l:'Homologação e prazos',n:'Controle do prazo de 10 dias do art. 477 e dos documentos de desligamento.'}]],
@@ -6202,6 +6306,7 @@ const MENU=[
  {m:'config',l:'Tabelas de INSS e IRRF'},
  {m:'holerite',l:'INSS e IRRF por pessoa'},
  {m:'relatorios',l:'Provisão de férias e 13º',r:'r21'},
+ {m:'relatorios',l:'Custo da folha com o fator 1,29',r:'r24'},
  {l:'FGTS: controle de depósitos',n:'Guardaria o que foi depositado mês a mês, base da multa de 40% e da conferência.'},
  {l:'Guias: DARF, DAE e GPS',n:'Geração de guia exige integração com o sistema do governo e código de barras.'},
  {l:'PIS e contribuições',n:'Depende do enquadramento da empresa, que o sistema ainda não cadastra.'}]],
@@ -6256,6 +6361,8 @@ const MENU=[
  {m:'relatorios',l:'Vales e adiantamentos',r:'r19'},
  {m:'relatorios',l:'Folha estimada do mês',r:'r20'},
  {m:'relatorios',l:'Provisão de férias e 13º',r:'r21'},
+ {m:'relatorios',l:'Custo da folha e rescisões (fator 1,29)',r:'r24'},
+ {m:'relatorios',l:'Rescisões no custo',r:'r25'},
  {m:'relatorios',l:'Resumo mensal do DP',r:'r16'},
  {m:'relatorios',l:'Documentos pendentes',r:'r15'}]],
 
@@ -7571,6 +7678,9 @@ function abrirRegistro(mod,id){
   if(t.dataset.lrm){const k=t.closest('[data-linhas]').dataset.linhas;st[k].splice(+t.dataset.lrm,1);t.closest('.cmp').outerHTML=htmlCampo(M.fields.find(x=>x.k===k),st,false);return}
   const a=t.dataset.acao;
   if(a==='estimar'){const r=estimarRescisao(st);if(r.erro){toast(r.erro,'erro');return}st.valorEstimado=round2(r.total);st.memoria=r.memoria;$('[data-k="valorEstimado"]',v).value=st.valorEstimado;$('#c_memoria',v).value=r.memoria;toast('Estimativa calculada. Revise e salve.');return}
+  if(a==='trctEstimar'){const r=verbasTRCT(st);if(r.erro){toast(r.erro,'erro');return}
+   if(temTRCT(st)&&!await confirmar('Substituir as verbas já preenchidas?','Os valores do TRCT que estão nos campos serão trocados pela estimativa.',{ok:'Substituir'}))return;
+   Object.assign(st,r.v);refrescar();if(GAV)GAV.sujo=true;toast('Verbas estimadas: '+r.memo.join(' · ')+'. Confira com o TRCT e salve.');return}
   if(a==='excluir'){const pe=typeof preExcluirV51==='function'?preExcluirV51(mod,ant):null;if(pe&&pe.bloq){toast(pe.bloq,'erro');return}
    if(!await confirmar('Tem certeza que deseja excluir?',(pe&&pe.texto)||'Esta ação remove o registro. Ela fica anotada no histórico de alterações.',{ok:'Sim, excluir',perigo:true}))return;
    try{await apagar(mod,ant);if(pe&&pe.depois)await pe.depois();
@@ -19198,7 +19308,7 @@ const compFin=t=>String(t.competencia||t.competenciaDas||t.data||'').slice(0,7);
 function maqDe(id){const l=id&&typeof LOCAL==='function'?LOCAL(id):null;return l?{nome:typeof nomeLocal==='function'?nomeLocal(l):l.nome,st:l.setorTrabalho||''}:{nome:'',st:''}}
 
 let MEMO_S={k:null,v:{}};
-function chaveDados(){return [DATA[COLC],DATA.compras,DATA.consumos,DATA.vendas,DATA.prodFab,DATA.fin,DATA.alm,DATA.pal,DATA.folhas,DATA.estoqueMov,DATA.produtos,DATA.locais,CFG]}
+function chaveDados(){return [DATA[COLC],DATA.compras,DATA.consumos,DATA.vendas,DATA.prodFab,DATA.fin,DATA.alm,DATA.pal,DATA.folhas,DATA.desligamentos,DATA.funcionarios,DATA.estoqueMov,DATA.produtos,DATA.locais,CFG]}
 const mesmaChave=(a,b)=>a&&b&&a.length===b.length&&a.every((x,i)=>x===b[i]);
 function setoresMes(m){
  const k=chaveDados();if(!mesmaChave(MEMO_S.k,k))MEMO_S={k,v:{}};if(MEMO_S.v[m])return MEMO_S.v[m];
@@ -19247,13 +19357,15 @@ function setoresMes(m){
    ls.forEach(l=>{const it=IT(l.itemId);if(it.categoria!=='Cozinha')return;const val=(+l.qtd||0)*(+l.preco||0);add('cifOutros',val+(fr&&base>0?fr*val/base:0),o,'Cozinha (compra de '+fData(e.data)+') · '+(it.nome||'item'))})})}}catch(e){console.warn('ctl almoxarifado',e)}
  /* Paletes: compras e consertos */
  try{(DATA.paleteCompras||[]).filter(x=>emMes(x.data,m)).forEach(x=>add('insumos',+x.total||0,'Setor de Paletes',(x.kind==='conserto'?'Conserto':'Compra')+' de '+fNum(x.qtd||0)+' palete(s) · '+fData(x.data)))}catch(e){console.warn('ctl paletes',e)}
- /* Setor Pessoal: folha fechada do mês. Base com carteira × 1,29 (13º, férias + 1/3 e FGTS); sem carteira pelo bruto */
- try{const fc=typeof folhaFechada==='function'?folhaFechada(m):null;if(fc&&(fc.itens||[]).length){const o='Setor Pessoal';let pc=0,ps=0,ac=0,as=0;
-  fc.itens.forEach(i=>{const base=Math.max(0,(+i.fixo||0)+(+i.diarias||0)+(+i.producao||0)+(+i.extras||0)+(+i.noturno||0)-(+i.descFaltas||0)-(+i.descAtrasos||0));
-   const cart=typeof temCarteira==='function'&&temCarteira(i.contratacao);const adm=/administra/i.test(String(i.setor||''));const val=cart?base*1.29:base;
-   if(adm){if(cart)ac+=val;else as+=val}else{if(cart)pc+=val;else ps+=val}});
-  if(pc)add('mod',pc,o,'Folha de '+fMes(m)+' com carteira: base × 1,29');if(ps)add('mod',ps,o,'Folha de '+fMes(m)+' sem carteira: valor bruto');
-  if(ac)add('folhaAdm',ac,o,'Folha administrativa com carteira: base × 1,29');if(as)add('folhaAdm',as,o,'Folha administrativa sem carteira: valor bruto')}}catch(e){console.warn('ctl folha',e)}
+ /* Setor Pessoal: folha fechada do mês. Base com carteira × 1,29 (13º, férias + 1/3 e FGTS); sem carteira pelo bruto.
+    Produção → Mão de obra da produção (custo); administrativo (escritório, vendas, gerência geral) → Folha administrativa (despesa). */
+ try{const cf=typeof custoFolhaMes==='function'?custoFolhaMes(m):null;if(cf&&cf.fechada&&cf.pessoas){const o='Setor Pessoal';const p=cf.prod,a=cf.adm;
+  if(p.comFator)add('mod',p.comFator,o,'Folha de '+fMes(m)+' com carteira: base '+fMoeda(p.base)+' × 1,29');if(p.semCarteira)add('mod',p.semCarteira,o,'Folha de '+fMes(m)+' sem carteira: valor bruto');
+  if(a.comFator)add('folhaAdm',a.comFator,o,'Folha administrativa com carteira: base '+fMoeda(a.base)+' × 1,29');if(a.semCarteira)add('folhaAdm',a.semCarteira,o,'Folha administrativa sem carteira: valor bruto')}}catch(e){console.warn('ctl folha',e)}
+ /* Setor Pessoal: rescisões do mês. Só o custo novo (o que o fator 1,29 não guardou); sem carteira, o acerto inteiro */
+ try{if(typeof classificarRescisao==='function')(DATA.desligamentos||[]).filter(r=>emMes(r.data,m)).forEach(r=>{const o='Setor Pessoal';const c=classificarRescisao(r);const nm='Rescisão de '+fData(r.data)+(r.tipo?' ('+r.tipo+')':'');
+  if(!c.fonte){const v=+r.valorPago||+r.valorEstimado||0;if(v)fora.push({o,t:nm,v,porque:'faltam as verbas do TRCT no DP para separar o que já foi guardado e o que é custo novo'});return}
+  if(c.custo)add(c.adm?'folhaAdm':'mod',c.custo,o,nm+': custo de rescisão'+(c.fonte==='semCarteira'?' (acerto sem carteira)':'')+(c.atraso?' · inclui multa por atraso de '+fMoeda(c.atraso):''))})}catch(e){console.warn('ctl rescisões',e)}
  /* Financeiro: compromissos lançados no próprio Financeiro (os de outros setores já entraram acima) */
  try{(DATA.fTitulos||[]).filter(t=>!t.cancelado&&geral(t)&&compFin(t)===m).forEach(t=>{const o='Setor Financeiro';const txt=(t.numero?'Nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso')+(t.beneficiarioNome?' · '+t.beneficiarioNome:'');
   if(t.meiId||t.categoria==='DAS dos MEIs'){fora.push({o,t:txt,v:+t.valor||0,porque:'DAS de MEI: decida se é mão de obra ou outro custo e lance à mão'});return}
@@ -20143,7 +20255,7 @@ function telaPremC(c){
   ['Setor de Combustível','Combustível das máquinas da produção; da frota de entrega vai para Fretes (óleo e graxa para Peças da frota); de máquinas do barro para Barro; administrativo para Despesas administrativas; óleo e graxa das outras máquinas para Manutenção. Abastecimento de veículo de terceiro fica de fora.'],
   ['Almoxarifado / Cozinha','Requisições pelo custo médio: peças, ferramentas e elétrico → Manutenção; EPI e material de produção → Insumos; limpeza e escritório → Despesas administrativas; o resto → Outros custos indiretos. A cozinha entra na compra, como outros custos indiretos.'],
   ['Setor de Paletes','Compras e consertos de paletes → Insumos'],
-  ['Setor Pessoal','Folha fechada do mês: com carteira, (salário + diárias + produção + extras + noturno − faltas − atrasos) × 1,29; sem carteira, pelo bruto. Administrativo → Folha administrativa; os demais setores → Mão de obra da produção.'],
+  ['Setor Pessoal','Folha fechada do mês: com carteira, (salário + diárias + produção + extras + noturno − faltas − atrasos) × 1,29; sem carteira, pelo bruto. Férias e 13º pagos não entram de novo (o fator já guardou). Rescisões: só o custo novo (aviso indenizado e reflexos, multa do FGTS, férias de antes de 2026, multa por atraso), pelas verbas do TRCT no DP; acerto sem carteira entra inteiro. Administrativo (escritório, vendas, gerência geral) → Folha administrativa (despesa); os demais setores → Mão de obra da produção (custo).'],
   ['Setor Financeiro','Compromissos lançados no próprio Financeiro, pela categoria (energia, arrendamento, manutenção, DAS, juros, IPVA, parcelas, investimentos…). DAS de MEI e categorias sem campo ficam na lista “sem campo” dos lançamentos.'],
   ['Imobilizado','Depreciação da produção, administrativa e dos caminhões']];
  c.innerHTML=cabC('engrenagem','Premissas','Configurações globais da Controladoria. Mudar uma premissa recalcula todos os meses; os lançamentos de meses fechados não mudam.')+
@@ -25780,6 +25892,35 @@ const RELS=[
    rows:rs.map(r=>({...r,nome:nomeF(r.funcionarioId),setor:r.setor||setorF(r.funcionarioId),venc:validadeExame(r),sit:sitExame(r).s,aso:r.arquivo?'sim':'não'})),
    nota:'Relatório de controle de prazo. Resultado do exame, restrição e nome do médico não entram em relatório.'}}},
 
+ {id:'r24',n:'Custo da folha e rescisões (fator 1,29)',m:'folha',f:['mes'],b(){
+  const m=UIR.mes;const cf=custoFolhaMes(m,{previa:1});const P=cf.prod,A=cf.adm;
+  const rs=filtroSetor(DATA.desligamentos,r=>setorF(r.funcionarioId)).filter(r=>String(r.data||'').slice(0,7)===m).map(r=>({r,c:classificarRescisao(r)}));
+  const rsC=rs.filter(x=>x.c.fonte==='trct'),rsS=rs.filter(x=>x.c.fonte==='semCarteira'),rsN=rs.filter(x=>!x.c.fonte);
+  const sp=(l,fn)=>round2(soma(l.filter(x=>!x.c.adm),fn)),sa=(l,fn)=>round2(soma(l.filter(x=>x.c.adm),fn));
+  const fer=DATA.despesas.filter(d=>d.competencia===m&&d.situacao!=='Cancelado'&&d.categoria==='Férias');const vF=d=>+d.valorRealizado||+d.valorPrevisto||0;
+  const ferP=round2(soma(fer.filter(d=>!setorAdm(fSetorFunc(d))),vF)),ferA=round2(soma(fer.filter(d=>setorAdm(fSetorFunc(d))),vF));
+  const L=(g,i,p,a,o)=>({g,i,p,a,t:round2((+p||0)+(+a||0)),o});
+  const totP=round2(P.comFator+P.semCarteira+sp(rsC,x=>x.c.custo)+sp(rsS,x=>x.c.custo)),totA=round2(A.comFator+A.semCarteira+sa(rsC,x=>x.c.custo)+sa(rsS,x=>x.c.custo));
+  const rows=[
+   L('Folha com carteira','Base do mês (salário devido)',P.base,A.base,'Base do fator'),
+   ...FATOR_PARTES.map(([n,cta,pc])=>L('Folha com carteira','Guarda '+n+' ('+fNum(pc*100,2)+'%)',round2(P.base*pc),round2(A.base*pc),'Dentro do fator')),
+   L('Folha com carteira','Base × 1,29',P.comFator,A.comFator,'Vai para o custo / despesa'),
+   L('Folha sem carteira','Valor bruto, sem fator',P.semCarteira,A.semCarteira,'Vai para o custo / despesa'),
+   L('Rescisões com carteira','Custo de rescisão · '+rsC.length,sp(rsC,x=>x.c.custo),sa(rsC,x=>x.c.custo),'Vai para o custo / despesa'),
+   L('Rescisões sem carteira','Acertos na saída, inteiros · '+rsS.length,sp(rsS,x=>x.c.custo),sa(rsS,x=>x.c.custo),'Vai para o custo / despesa'),
+   L('TOTAL','Custo (produção) e despesa (administrativo)',totP,totA,'Total lançado'),
+   L('Não entra (informativo)','Rescisões: parte da folha do mês',sp(rsC,x=>x.c.folha),sa(rsC,x=>x.c.folha),'Já contado na folha'),
+   L('Não entra (informativo)','Rescisões: já guardado pelo fator',sp(rsC,x=>x.c.guardado),sa(rsC,x=>x.c.guardado),'Não lançar'),
+   L('Não entra (informativo)','Férias + 1/3 pagas no mês',ferP,ferA,'Não lançar: já guardado pelo fator')];
+  if(rsN.length)rows.push(L('Pendente','Rescisões sem TRCT preenchido · '+rsN.length,sp(rsN,x=>+x.r.valorPago||+x.r.valorEstimado||0),sa(rsN,x=>+x.r.valorPago||+x.r.valorEstimado||0),'Preencha o TRCT no desligamento'));
+  const nota=(cf.fechada?'Folha de '+fMes(m)+' fechada: são os mesmos valores que a Controladoria usa.':'Folha de '+fMes(m)+' ainda aberta: os valores da folha são uma prévia. A Controladoria só usa a folha fechada.')
+   +' Base = salário devido no mês (fixo, diárias, produção, extras e noturno, menos faltas e atrasos); férias e 13º pagos ficam fora. O fator 1,29 vale desde janeiro/2026: 13º 8,33% (1 salário ÷ 12) + férias e 1/3 11,11% (1,333 salário ÷ 12) + FGTS 9,56% (8% × 119,44%). Não inclui o INSS patronal (pago no DAS do Simples). Produção vai para o custo (Mão de obra da produção); administrativo (escritório, vendas, gerência geral) vira despesa (Folha administrativa).';
+  return{cols:[{k:'g',l:'Grupo'},{k:'i',l:'Item'},{k:'p',l:'Produção (custo)',t:'moeda'},{k:'a',l:'Administrativo (despesa)',t:'moeda'},{k:'t',l:'Total',t:'moeda'},{k:'o',l:'Onde entra'}],rows,nota}}},
+ {id:'r25',n:'Rescisões: já guardado e custo de rescisão',m:'desligamentos',f:['periodo','setor'],b(){
+  const rs=filtroSetor(DATA.desligamentos,r=>setorF(r.funcionarioId)).filter(r=>dentroR(r.data)&&okS(setorF(r.funcionarioId))).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  return{cols:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'tipo',l:'Tipo'},{k:'fonte',l:'Origem dos valores'},{k:'folha',l:'Folha do mês',t:'moeda'},{k:'guardado',l:'Já guardado',t:'moeda'},{k:'custo',l:'Custo de rescisão',t:'moeda'},{k:'atraso',l:'Dos quais multa por atraso',t:'moeda'},{k:'destino',l:'Vai para'}],total:1,
+   rows:rs.map(r=>{const c=classificarRescisao(r);return{data:r.data,nome:nomeF(r.funcionarioId),setor:c.setor,tipo:r.tipo,fonte:c.fonte==='trct'?'Verbas do TRCT':c.fonte==='semCarteira'?'Acerto sem carteira':'Falta preencher o TRCT',folha:c.folha,guardado:c.guardado,custo:c.custo,atraso:c.atraso,destino:c.fonte?c.destino:'—'}}),
+   nota:'Só a coluna “Custo de rescisão” entra no lançamento de rescisões. A folha do mês já entra pela folha × 1,29; o já guardado foi pago com o que o fator guardou desde janeiro/2026.'}}},
  {id:'r21',n:'Provisão de férias e 13º salário',m:'folha',f:['setor'],b(){
   const rs=provisoes().filter(x=>!UIR.setor||x.setor===UIR.setor);
   return{cols:[{k:'nome',l:'Funcionário'},{k:'matricula',l:'Matrícula'},{k:'setor',l:'Setor'},
