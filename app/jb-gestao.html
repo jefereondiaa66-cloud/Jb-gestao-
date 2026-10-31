@@ -6240,6 +6240,7 @@ const MENU=[
  {m:'horasExtras',l:'Horas extras'},
  {m:'despesas',l:'Custo com pessoal'},
  {m:'relatorios',l:'Custo da folha (fator 1,29)',r:'r24'},
+ {m:'relatorios',l:'Custo da folha mês a mês',r:'r26'},
  {m:'conferencia',l:'Conferência da folha'},
  {m:'folha',l:'Fechamento da folha'},
  {l:'13º salário (1ª e 2ª parcela)',n:'A base já existe: os avos do 13º aparecem em Direitos do empregado. Falta a folha própria do 13º, com as duas parcelas, recibo e desconto na segunda.'},
@@ -6362,6 +6363,7 @@ const MENU=[
  {m:'relatorios',l:'Folha estimada do mês',r:'r20'},
  {m:'relatorios',l:'Provisão de férias e 13º',r:'r21'},
  {m:'relatorios',l:'Custo da folha e rescisões (fator 1,29)',r:'r24'},
+ {m:'relatorios',l:'Custo da folha mês a mês',r:'r26'},
  {m:'relatorios',l:'Rescisões no custo',r:'r25'},
  {m:'relatorios',l:'Resumo mensal do DP',r:'r16'},
  {m:'relatorios',l:'Documentos pendentes',r:'r15'}]],
@@ -25913,9 +25915,22 @@ const RELS=[
    L('Não entra (informativo)','Rescisões: já guardado pelo fator',sp(rsC,x=>x.c.guardado),sa(rsC,x=>x.c.guardado),'Não lançar'),
    L('Não entra (informativo)','Férias + 1/3 pagas no mês',ferP,ferA,'Não lançar: já guardado pelo fator')];
   if(rsN.length)rows.push(L('Pendente','Rescisões sem TRCT preenchido · '+rsN.length,sp(rsN,x=>+x.r.valorPago||+x.r.valorEstimado||0),sa(rsN,x=>+x.r.valorPago||+x.r.valorEstimado||0),'Preencha o TRCT no desligamento'));
-  const nota=(cf.fechada?'Folha de '+fMes(m)+' fechada: são os mesmos valores que a Controladoria usa.':'Folha de '+fMes(m)+' ainda aberta: os valores da folha são uma prévia. A Controladoria só usa a folha fechada.')
+  const fech=(DATA.folhas||[]).filter(x=>x.situacao&&x.situacao!=='Aberta').map(x=>x.id).sort();
+  const vazio=!cf.fechada&&!(P.base+A.base+P.semCarteira+A.semCarteira)&&!rs.length;
+  const nota=(vazio?'A folha de '+fMes(m)+' ainda não foi fechada e não tem lançamentos, por isso está tudo zerado. '+(fech.length?'Meses com folha fechada: '+fech.map(fMes).join(', ')+'. Mude a competência no alto da tela ou veja o relatório “Custo da folha mês a mês”. ':'')
+   :cf.fechada?'Folha de '+fMes(m)+' fechada: são os mesmos valores que a Controladoria usa.':'Folha de '+fMes(m)+' ainda aberta: os valores da folha são uma prévia. A Controladoria só usa a folha fechada.')
    +' Base = salário devido no mês (fixo, diárias, produção, extras e noturno, menos faltas e atrasos); férias e 13º pagos ficam fora. O fator 1,29 vale desde janeiro/2026: 13º 8,33% (1 salário ÷ 12) + férias e 1/3 11,11% (1,333 salário ÷ 12) + FGTS 9,56% (8% × 119,44%). Não inclui o INSS patronal (pago no DAS do Simples). Produção vai para o custo (Mão de obra da produção); administrativo (escritório, vendas, gerência geral) vira despesa (Folha administrativa).';
   return{cols:[{k:'g',l:'Grupo'},{k:'i',l:'Item'},{k:'p',l:'Produção (custo)',t:'moeda'},{k:'a',l:'Administrativo (despesa)',t:'moeda'},{k:'t',l:'Total',t:'moeda'},{k:'o',l:'Onde entra'}],rows,nota}}},
+ {id:'r26',n:'Custo da folha mês a mês (fator 1,29)',m:'folha',f:['mes'],b(){
+  const ano=String(UIR.mes||mesAtual()).slice(0,4);const ms=Array.from({length:12},(_,i)=>ano+'-'+String(i+1).padStart(2,'0'));
+  const rows=ms.map(m=>{const cf=custoFolhaMes(m);const P=cf.prod,A=cf.adm;
+   const rs=(DATA.desligamentos||[]).filter(r=>String(r.data||'').slice(0,7)===m).map(classificarRescisao);
+   const rp=round2(soma(rs.filter(c=>!c.adm),c=>c.custo)),ra=round2(soma(rs.filter(c=>c.adm),c=>c.custo));
+   const sit=(folhaDo(m)||{}).situacao||'';
+   return{mes:fMes(m),sit:cf.fechada?sit:(sit||'Não fechada'),base:round2(P.base+A.base),fator:round2(P.comFator+A.comFator),sem:round2(P.semCarteira+A.semCarteira),resc:round2(rp+ra),
+    custo:round2(P.comFator+P.semCarteira+rp),desp:round2(A.comFator+A.semCarteira+ra),tem:cf.fechada||rs.length}}).filter(r=>r.tem);
+  return{cols:[{k:'mes',l:'Competência'},{k:'sit',l:'Folha'},{k:'base',l:'Base com carteira',t:'moeda'},{k:'fator',l:'Base × 1,29',t:'moeda'},{k:'sem',l:'Sem carteira (bruto)',t:'moeda'},{k:'resc',l:'Custo de rescisão',t:'moeda'},{k:'custo',l:'Produção → custo',t:'moeda'},{k:'desp',l:'Administrativo → despesa',t:'moeda'}],total:1,rows,
+   nota:'Ano de '+ano+' (escolha qualquer mês do ano). Só entram meses com folha fechada, como na Controladoria. Produção vai para Mão de obra da produção; administrativo (escritório, vendas, gerência geral) vira Folha administrativa. Para o detalhe de um mês, use “Custo da folha e rescisões (fator 1,29)”.'}}},
  {id:'r25',n:'Rescisões: já guardado e custo de rescisão',m:'desligamentos',f:['periodo','setor'],b(){
   const rs=filtroSetor(DATA.desligamentos,r=>setorF(r.funcionarioId)).filter(r=>dentroR(r.data)&&okS(setorF(r.funcionarioId))).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   return{cols:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'tipo',l:'Tipo'},{k:'fonte',l:'Origem dos valores'},{k:'folha',l:'Folha do mês',t:'moeda'},{k:'guardado',l:'Já guardado',t:'moeda'},{k:'custo',l:'Custo de rescisão',t:'moeda'},{k:'atraso',l:'Dos quais multa por atraso',t:'moeda'},{k:'destino',l:'Vai para'}],total:1,
