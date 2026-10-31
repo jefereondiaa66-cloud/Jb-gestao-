@@ -11585,8 +11585,25 @@ function grafV(id,cfg){const c=document.getElementById(id);if(!c||!window.Chart)
  cfg.options=Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}},cfg.options||{});CHARTS.push(new Chart(c,cfg))}
 const porUnidade=(xs,q,u)=>{const m={};xs.forEach(x=>{const k=u(x)||'';m[k]=round3((m[k]||0)+(+q(x)||0))});return m};
 const txtUnid=(m,curto)=>Object.entries(m).filter(([,q])=>q).map(([k,q])=>fQtd(q)+' '+(curto?String(k).replace(/\s*\(.*\)\s*/,''):k)).join(' · ')||'0';
-function numerosOp(O,s){
- const h=hoje(),m=h.slice(0,7);const vs=listaOp(O).filter(v=>v.setor===s);const ok=vs.filter(v=>!cancV(v));
+/* ---------- mês de consulta dos painéis dos setores (31/10/2026) ----------
+   Cada setor guarda o mês escolhido e anda para trás e para frente, mesmo em mês sem
+   nenhum lançamento (os números aparecem zerados). Só muda o que a tela mostra. */
+window.JB_MES=(()=>{
+ const S={};const ok=m=>/^\d{4}-\d{2}$/.test(m||'');
+ const NM=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+ const somar=(m,n)=>{const [y,mo]=m.split('-').map(Number);const d=new Date(y,mo-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+ const de=id=>ok(S[id])?S[id]:mesAtual();
+ const longo=m=>NM[+m.slice(5,7)-1]+' de '+m.slice(0,4);
+ const controles=id=>{const m=de(id);return `<button type="button" class="btn min" data-jbmes="-1" aria-label="Mês anterior">${ic('esquerda')}</button><input type="month" data-jbmes-in value="${esc(m)}" aria-label="Mês"><button type="button" class="btn min" data-jbmes="1" aria-label="Mês seguinte">${ic('direita')}</button>${m===mesAtual()?'':`<button type="button" class="btn min" data-jbmes-hoje>Mês atual</button>`}`};
+ const barra=id=>{const m=de(id);return `<div class="painel filtros jbmes" role="group" aria-label="Mês" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${controles(id)}<b style="margin-left:4px">${esc(longo(m))}</b>${m>mesAtual()?'<span class="ajuda">mês que ainda não começou</span>':''}</div>`};
+ const ligar=(c,id,aoMudar)=>{const ir=m=>{if(!ok(m))return;S[id]=m;(aoMudar||renderTela)()};const m=de(id);
+  c.querySelectorAll('[data-jbmes]').forEach(b=>b.onclick=()=>ir(somar(m,+b.dataset.jbmes)));
+  c.querySelectorAll('[data-jbmes-in]').forEach(x=>x.onchange=e=>ir(e.target.value));
+  c.querySelectorAll('[data-jbmes-hoje]').forEach(b=>b.onclick=()=>ir(mesAtual()))};
+ return{de,barra,controles,ligar,somar,longo};
+})();
+function numerosOp(O,s,mesQ){
+ const h=hoje(),m=/^\d{4}-\d{2}$/.test(mesQ||'')?mesQ:h.slice(0,7);const vs=listaOp(O).filter(v=>v.setor===s);const ok=vs.filter(v=>!cancV(v));
  const dia=ok.filter(v=>v.data===h),mes=ok.filter(v=>String(v.data||'').startsWith(m));
  const fs=ok.map(v=>({v,f:finVenda(v)}));const aberto=fs.filter(x=>x.f.saldo>0);const venc=fs.filter(x=>x.f.status==='Vencido');
  const pagMes=round2(soma(ok,v=>soma((v.pagamentos||[]).filter(p=>!p.estornado&&String(p.data||'').startsWith(m)),p=>p.valor)));
@@ -11632,24 +11649,25 @@ function inicioVendasV(c,s){
  else if(typeof vaziaCv==='function')vaziaCv('gSv1','Sem vendas nos últimos 30 dias.');
 }
 function inicioConsumoV(c,s){
- const S=SETORES_V[s];const cb=s==='combustivel';const N=numerosOp(OP.compra,s);const h=hoje(),m=h.slice(0,7);
+ const S=SETORES_V[s];const cb=s==='combustivel';const m=JB_MES.de(s);const N=numerosOp(OP.compra,s,m);const h=hoje();
  const cs=DATA.consumos.filter(x=>x.setor===s);const csMes=cs.filter(x=>String(x.data||'').startsWith(m));const csDia=cs.filter(x=>x.data===h);
  const porLocal={};csMes.forEach(x=>{const k=x.localId||'';const t=porLocal[k]||(porLocal[k]={id:k,qtd:{},custo:0,n:0});t.qtd[x.unidade||'']=round3((t.qtd[x.unidade||'']||0)+(+x.quantidade||0));t.custo=round2(t.custo+(+x.custoTotal||0));t.n++});
  const semProd=!DATA.produtos.some(p=>p.setor===s);const semLocal=!DATA.locais.some(l=>l.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
   <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
   ${semProd||semLocal?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?`Cadastre ${cb?'os combustíveis (diesel, gasolina…)':'os tipos de lenha'}, ${cb?'os veículos e máquinas':'os fornos e locais de consumo'} e os fornecedores; depois registre a primeira compra e os ${cb?'abastecimentos':'consumos'}. `:'Peça ao gerente ou ao estoquista para fazer os cadastros. '}Nenhum número abaixo é inventado.</span></div>`:''}
+  ${JB_MES.barra(s)}
   <div class="hero">
    ${kpiV('c3','caixa','Estoque atual',txtUnid(porUnidade(N.prods,p=>saldoP(p.id),p=>p.unidade),1),N.alerta.length?N.alerta.length+' item(ns) abaixo do mínimo ou zerado(s)':'valor '+fMoeda(N.valorEst),'#/estoque')}
    ${kpiV('c1','chama',cb?'Abastecido hoje':'Consumo hoje',txtUnid(porUnidade(csDia,x=>x.quantidade,x=>x.unidade),1),csDia.length+' lançamento(s)','#/consumos')}
-   ${kpiV('c4','moeda',cb?'Abastecido no mês':'Consumo no mês',txtUnid(porUnidade(csMes,x=>x.quantidade,x=>x.unidade),1),'custo estimado '+fMoeda(soma(csMes,x=>x.custoTotal)),'#/consumos')}
-   ${kpiV('c2','carrinho','Compras no mês',fMoeda(soma(N.mes,v=>v.total)),N.mes.length+' compra(s)','#/compras')}
+   ${kpiV('c4','moeda',(cb?'Abastecido em ':'Consumo em ')+fMes(m),txtUnid(porUnidade(csMes,x=>x.quantidade,x=>x.unidade),1),'custo estimado '+fMoeda(soma(csMes,x=>x.custoTotal)),'#/consumos')}
+   ${kpiV('c2','carrinho','Compras em '+fMes(m),fMoeda(soma(N.mes,v=>v.total)),N.mes.length+' compra(s)','#/compras')}
    ${kpiV('c5','carteira','Contas a pagar',fMoeda(soma(N.aberto,x=>x.f.saldo)),N.aberto.length+' conta(s) em aberto','#/pagar')}
    ${kpiV('c6','aviso','Contas vencidas',fMoeda(soma(N.venc,x=>x.f.saldo)),N.venc.length?N.venc.length+' conta(s) vencida(s)':'nenhuma vencida','#/pagar')}
   </div>
   <div class="ex2">
    <div class="bloco"><h3>${cb?'Abastecimentos':'Consumo'} dos últimos 30 dias<a href="#/consumos">Ver lançamentos</a></h3><div class="cv"><canvas id="gSc1"></canvas></div></div>
-   <div class="bloco"><h3>${cb?'Por veículo e máquina':'Por forno e local'} no mês<a href="#/locais">${esc(S.locais)}</a></h3>${lstV(Object.values(porLocal).sort((a,b)=>b.custo-a.custo).slice(0,6).map(t=>({href:'#/consumos',ic:cb?'bomba':'chama',t:nomeLocal(LOCAL(t.id))||'Sem local',s:t.n+' lançamento(s) · '+fMoeda(t.custo),v:txtUnid(t.qtd)})),'Nenhum lançamento neste mês.')}</div>
+   <div class="bloco"><h3>${cb?'Por veículo e máquina':'Por forno e local'} em ${esc(fMes(m))}<a href="#/locais">${esc(S.locais)}</a></h3>${lstV(Object.values(porLocal).sort((a,b)=>b.custo-a.custo).slice(0,6).map(t=>({href:'#/consumos',ic:cb?'bomba':'chama',t:nomeLocal(LOCAL(t.id))||'Sem local',s:t.n+' lançamento(s) · '+fMoeda(t.custo),v:txtUnid(t.qtd)})),'Nenhum lançamento neste mês.')}</div>
    <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+' · custo médio '+fMoeda(custoMedio(p.id)),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum item cadastrado.')}</div>
   </div>
   <div class="ex3">
@@ -11657,6 +11675,7 @@ function inicioConsumoV(c,s){
    <div class="bloco"><h3>Contas a pagar${N.venc.length?`<span class="n">${N.venc.length}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${lstV(N.aberto.sort((a,b)=>String(a.v.vencimento).localeCompare(String(b.v.vencimento))).slice(0,6).map(x=>({href:'#/compra/'+x.v.id,ic:x.f.status==='Vencido'?'aviso':'calendario',cls:x.f.status==='Vencido'?'a-pe':'a-at',t:parteSnap(x.v).nome||'',s:'Nº '+fNumV(x.v.numero)+' · '+(x.f.status==='Vencido'?'venceu em ':'vence em ')+fData(x.v.vencimento),v:fMoeda(x.f.saldo)})),'Nenhuma conta em aberto.')}</div>
    <div class="bloco"><h3>Últimos ${cb?'abastecimentos':'consumos'}<a href="#/consumos">Ver todos</a></h3>${lstV(cs.slice().sort((a,b)=>(b.data+(b.hora||'')).localeCompare(a.data+(a.hora||''))).slice(0,6).map(x=>({href:'#/consumos/'+x.id,ic:cb?'bomba':'chama',t:nomeLocal(LOCAL(x.localId))||'—',s:fData(x.data)+(x.hora?' '+x.hora:'')+(x.operador?' · '+x.operador:''),v:fQtd(x.quantidade)+' '+(x.unidade||'')})),'Nenhum lançamento ainda.')}</div>
   </div>`;
+ JB_MES.ligar(c,s);
  const sr=serieDiasV(cs,30,x=>x.quantidade);const un=[...new Set(cs.map(x=>x.unidade))];
  if(sr.val.some(x=>x>0))grafV('gSc1',{type:'bar',data:{labels:sr.lab,datasets:[{data:sr.val,backgroundColor:'#A3461F',borderRadius:4,maxBarThickness:18}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fQtd(v)+(un.length===1?' '+un[0]:'')}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gSc1','Sem lançamentos nos últimos 30 dias.');
@@ -13723,7 +13742,8 @@ filtrosRelV=function(R,U){let h=filtrosRelV1(R,U);if(R&&R.id==='rv_vendas')h=h.r
 
 /* ---------- painel do Setor de Vendas ---------- */
 const UIPV={per:'mes',ini:'',fim:'',cliente:'',produto:'',vendedor:''};
-function periodoPainelV(){const h=hoje();if(UIPV.per==='hoje')return[h,h];if(UIPV.per==='mes')return[h.slice(0,8)+'01',h];if(UIPV.per==='ano')return[h.slice(0,4)+'-01-01',h];
+function periodoPainelV(){const h=hoje();if(UIPV.per==='hoje')return[h,h];
+ if(UIPV.per==='mesx'){const m=JB_MES.de('vendas');return[m+'-01',addDias(addMeses(m+'-01',1),-1)]}if(UIPV.per==='mes')return[h.slice(0,8)+'01',h];if(UIPV.per==='ano')return[h.slice(0,4)+'-01-01',h];
  if(UIPV.per==='mesant'){const m=mesMenos(h.slice(0,7),1);return[m+'-01',addDias(addMeses(m+'-01',1),-1)]}return[UIPV.ini||'',UIPV.fim||h]}
 function abrirRelV(id,extra){Object.assign(UIRV,{id,cliente:UIPV.cliente,produto:UIPV.produto,vendedor:UIPV.vendedor,fornecedor:'',usuario:'',forma:'',stvenda:'',stfin:'',regiao:'',local:''},extra||{});const [a,b]=periodoPainelV();Object.assign(UIRV,{rapido:'pers',ini:a,fim:b},extra||{});location.hash='#/relvendas'}
 inicioVendasV=function(c,s){
@@ -13747,7 +13767,8 @@ inicioVendasV=function(c,s){
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>Situação comercial da cerâmica, com dados reais: clique em um indicador para ver os registros.</p></div></div>
   <div class="acoes">${pode('venda','e')?`<a class="btn" href="#/venda/nova" data-tip="Venda de balcão que baixa o estoque na hora">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn pri" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os produtos (milheiro, preço de referência e mínimo), as tabelas de preço e os clientes; registre a entrada no estoque e faça o primeiro orçamento ou pedido. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
-  <div class="painel filtros pv-filtros"><select id="pvPer" aria-label="Período">${[['hoje','Hoje'],['mes','Este mês'],['mesant','Mês anterior'],['ano','Este ano'],['pers','Período personalizado']].map(([k,l])=>`<option value="${k}" ${UIPV.per===k?'selected':''}>${l}</option>`).join('')}</select>
+  <div class="painel filtros pv-filtros"><select id="pvPer" aria-label="Período">${[['hoje','Hoje'],['mes','Este mês'],['mesant','Mês anterior'],['mesx','Escolher o mês'],['ano','Este ano'],['pers','Período personalizado']].map(([k,l])=>`<option value="${k}" ${UIPV.per===k?'selected':''}>${l}</option>`).join('')}</select>
+   ${UIPV.per==='mesx'?JB_MES.controles('vendas'):''}
    ${UIPV.per==='pers'?`<input type="date" id="pvIni" value="${esc(UIPV.ini)}" aria-label="De"><input type="date" id="pvFim" value="${esc(UIPV.fim)}" aria-label="Até">`:''}
    <select id="pvCli" aria-label="Cliente"><option value="">Cliente: todos</option>${DATA.clientes.slice().sort((a,b)=>nomeCliente(a).localeCompare(nomeCliente(b),'pt-BR')).map(x=>`<option value="${esc(x.id)}" ${UIPV.cliente===x.id?'selected':''}>${esc(nomeCliente(x))}</option>`).join('')}</select>
    <select id="pvProd" aria-label="Produto"><option value="">Produto: todos</option>${prodsVendaV(true).map(p=>`<option value="${esc(p.id)}" ${UIPV.produto===p.id?'selected':''}>${esc(nomeProduto(p))}</option>`).join('')}</select>
@@ -13786,6 +13807,7 @@ inicioVendasV=function(c,s){
   canc:()=>abrirRelV('rv_cancelamentos'),clientes:()=>abrirRelV('rv_clientes'),produtos:()=>abrirRelV('rv_produtos'),metas:()=>{location.hash='#/metas'}};
  $$('[data-k]',c).forEach(a=>a.onclick=e=>{e.preventDefault();const f=rot[a.dataset.k];if(f)f()});
  [['#pvPer','per'],['#pvIni','ini'],['#pvFim','fim'],['#pvCli','cliente'],['#pvProd','produto'],['#pvVend','vendedor']].forEach(([q,k])=>{const x=$(q,c);if(x)x.onchange=e=>{UIPV[k]=e.target.value;renderTela()}});
+ if(UIPV.per==='mesx')JB_MES.ligar(c,'vendas');
  const lab=[],val=[];for(let i=29;i>=0;i--){const d=addDias(h,-i);lab.push(fData(d).slice(0,5));val.push(round2(soma(vendasFatV({...U,ini:d,fim:d}),x=>x.total)))}
  if(val.some(x=>x>0))grafV('gSv1',{type:'line',data:{labels:lab,datasets:[{data:val,borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#A3461F'}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gSv1','Sem vendas faturadas nos últimos 30 dias.');
@@ -17923,7 +17945,7 @@ function exportarMenu(btn,nome,titulo,cols,dados){const fx=f=>exportar(f,nome+'_
 
 /* ================= almoxarifado: início ================= */
 function inicioAlm(c){
- const h=hoje(),m=h.slice(0,7);const its=DATA.almItens;const at=its.filter(ativo);
+ const h=hoje(),m=JB_MES.de('almox');const its=DATA.almItens;const at=its.filter(ativo);
  const comSaldo=at.filter(i=>estI(i.id).saldo>0);const valor=r2(soma(at,i=>estI(i.id).valor));const ab=abaixoMin();
  const entM=DATA.almEntradas.filter(e=>String(e.data||'').startsWith(m));const saiM=DATA.almSaidas.filter(s=>String(s.data||'').startsWith(m));
  const fs=DATA.almEntradas.map(e=>({e,f:finDe(e)}));const aberto=fs.filter(x=>x.f.saldo>0.004);const venc=aberto.filter(x=>x.f.st==='Vencido');
@@ -17939,13 +17961,14 @@ function inicioAlm(c){
   ${atr.length?`<div class="aviso at" style="margin-bottom:10px"><span><b>${atr.length} ferramenta(s) com devolução atrasada:</b> ${esc(atr.slice(0,5).map(x=>nomeItem(ITEM(x.itemId))+' com '+(nomeF(x.funcId)||'—')+' desde '+fData(x.data)).join('; '))}. <a href="#/almEmprestimos">Ver empréstimos</a></span></div>`:''}
   ${caV.length?`<div class="aviso at" style="margin-bottom:10px"><span><b>CA vencido em ${caV.length} EPI(s):</b> ${esc(caV.map(i=>i.nome+' ('+fData(i.caValidade)+')').join('; '))}.</span></div>`:''}
   ${invAb.length?`<div class="aviso in" style="margin-bottom:10px"><span>Há ${invAb.length} inventário(s) em aberto. <a href="#/almInv/${esc(invAb[0].id)}">Continuar a contagem</a></span></div>`:''}
+  ${JB_MES.barra('almox')}
   <div class="hero almp-hero">
    ${k('c3','caixa','Valor em estoque',fMoeda(valor),comSaldo.length+' de '+at.length+' item(ns) com saldo','#/almEstoque')}
-   ${k('c1','entrada','Entradas no mês',fMoeda(soma(entM,e=>e.total)),entM.length+' entrada(s) em '+fMes(m),'#/almEntradas')}
-   ${k('c4','saida','Saídas no mês (custo)',fMoeda(soma(saiM,valorSaida)),saiM.length+' requisição(ões)','#/almSaidas')}
+   ${k('c1','entrada','Entradas em '+fMes(m),fMoeda(soma(entM,e=>e.total)),entM.length+' entrada(s)','#/almEntradas')}
+   ${k('c4','saida','Saídas em '+fMes(m)+' (custo)',fMoeda(soma(saiM,valorSaida)),saiM.length+' requisição(ões)','#/almSaidas')}
    ${k('c5','moeda','Contas a pagar',fMoeda(soma(aberto,x=>x.f.saldo)),venc.length?venc.length+' vencida(s)':aberto.length+' em aberto','#/almPagar')}
    ${k(ab.length?'c6':'c2','aviso','Abaixo do mínimo',String(ab.length),ab.length?'repor':'nenhum item','#/almEstoque')}
-   ${k('c2','cozinha','Cozinha no mês',fMoeda(coz),'compras de alimentos e gás','#/almRel')}
+   ${k('c2','cozinha','Cozinha em '+fMes(m),fMoeda(coz),'compras de alimentos e gás','#/almRel')}
   </div>
   <div class="ex2">
    <div class="bloco"><h3>Últimas entradas<a href="#/almEntradas">Ver todas</a></h3>${lstV(DATA.almEntradas.slice().sort((a,b)=>String(b.data+(b.createdAt||b.criadoEm||'')).localeCompare(String(a.data+(a.createdAt||a.criadoEm||'')))).slice(0,6).map(e=>{const f=finDe(e);return{href:'#/almEntrada/'+e.id,ic:'entrada',cls:f.st==='Pago'?'a-ok':f.st==='Vencido'?'a-pe':'a-at',t:nomeFornA(e.fornecedorId),s:fData(e.data)+' · '+(e.itens||[]).length+' item(ns) · '+f.st.toLowerCase(),v:fMoeda(e.total)}}),'Nenhuma entrada lançada.')}</div>
@@ -17957,6 +17980,7 @@ function inicioAlm(c){
    <div class="bloco"><h3>Ferramentas emprestadas<a href="#/almEmprestimos">Empréstimos</a></h3>${lstV(emp.slice().sort((a,b)=>String(a.previsao).localeCompare(String(b.previsao))).slice(0,6).map(x=>({href:'#/almEmprestimos/'+x.id,ic:'ferramenta',cls:x.previsao<h?'a-pe':'a-at',t:nomeItem(ITEM(x.itemId)),s:(nomeF(x.funcId)||'—')+' · devolver até '+fData(x.previsao),v:fQtd(x.qtd)})),'Nenhuma ferramenta emprestada.')}</div>
    <div class="bloco"><h3>Por categoria</h3>${lstV(CAT_NOMES.map(cn=>{const xs=at.filter(i=>i.categoria===cn);return{href:'#/almEstoque',ic:'livro',t:cn,s:xs.length+' item(ns) · '+xs.filter(i=>estI(i.id).saldo>0).length+' com saldo',v:fMoeda(soma(xs,i=>estI(i.id).valor)),n:xs.length}}).filter(x=>x.n),'Nenhum item cadastrado.')}</div>
   </div>`;
+ JB_MES.ligar(c,'almox');
  const a=$('[data-fab]',c);if(a)a.onclick=e=>{e.preventDefault();UE.sit='Abaixo do mínimo';location.hash='#/almEstoque'};
 }
 
@@ -18720,12 +18744,18 @@ function inicioPal(c){
    ${k(soma(cs,x=>x.atrasado)>0?'c6':'c2','aviso','Devolução atrasada',fQtd(soma(cs,x=>x.atrasado)),'passou do prazo','#/palClientes')}
    ${k('c5','engrenagem','Aguardando conserto',fQtd(z.conserto),ab.length?fMoeda(soma(ab,f=>f.saldo))+' a pagar em compras/consertos':'quebrados','#/palEstoque')}
   </div>
+  ${(()=>{const mq=JB_MES.de('paletes');const mv=DATA.paleteMov.filter(x=>String(x.data||'').startsWith(mq));const q=tp=>soma(mv.filter(x=>x.tipo===tp),x=>+x.qtd||0);
+   const cp=DATA.paleteCompras.filter(x=>String(x.data||'').startsWith(mq));
+   return `<h3 class="grupo-t" style="margin-top:18px">Movimentações do mês</h3>${JB_MES.barra('paletes')}
+   <div class="resumo">${[[fQtd(q('saida')),'Saíram para clientes'],[fQtd(q('devolucao')),'Voltaram dos clientes'],[fQtd(q('cobranca')),'Cobrados'],[fQtd(q('quebra')+q('descarte')),'Quebrados ou descartados'],[fQtd(q('carregar')),'Carregados'],[fMoeda(soma(cp,x=>+x.total||0)),'Compras e consertos ('+cp.length+')']].map(([v,l])=>`<div><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div>
+   ${mv.length||cp.length?'':`<p class="ajuda" style="margin:8px 2px 0">Nenhuma movimentação em ${esc(JB_MES.longo(mq))}.</p>`}`})()}
   <div class="ex2">
    <div class="bloco"><h3>Com clientes${cs.length?`<span class="n">${cs.length}</span>`:''}<a href="#/palClientes">Ver todos</a></h3>${lstV(cs.slice(0,7).map(x=>({href:'#/palClientes',ic:'pessoas',cls:x.atrasado>0?'a-pe':x.vencendo>0?'a-at':'a-ok',t:nomeCli(x.clienteId),s:nomePT(x.palTipo)+(x.atrasado?' · '+fQtd(x.atrasado)+' atrasado(s)':x.proxima?' · devolver até '+fData(x.proxima):''),v:fQtd(x.saldo)})),'Nenhum palete com clientes.')}</div>
    <div class="bloco"><h3>Últimas movimentações<a href="#/paleteMov">Ver todas</a></h3>${lstV(DATA.paleteMov.slice().sort((a,b)=>String(b.data+(b.createdAt||b.criadoEm||'')).localeCompare(String(a.data+(a.createdAt||a.criadoEm||'')))).slice(0,7).map(m=>({href:'#/paleteMov/'+m.id,ic:'palete',cls:m.tipo==='devolucao'?'a-ok':['quebra','descarte','cobranca'].includes(m.tipo)?'a-pe':'a-at',t:ROT_MOV[m.tipo]+(m.clienteId?' · '+nomeCli(m.clienteId):''),s:fData(m.data)+' · '+nomePT(m.palTipo),v:fQtd(m.qtd)})),'Nenhuma movimentação ainda.')}</div>
    <div class="bloco"><h3>Por tipo de palete<a href="#/paleteTipos">Tipos</a></h3>${lstV(DATA.paleteTipos.map(t=>{const o=estP(t.id);return{href:'#/paleteTipos/'+t.id,ic:'palete',t:t.nome,s:fQtd(o.livre)+' livres · '+fQtd(o.carregado)+' carregados · '+fQtd(o.conserto)+' conserto · '+fQtd(o.clientes)+' com clientes',v:fQtd(o.total)}}),'Nenhum tipo cadastrado.')}</div>
   </div>`;
  ligarInv(c);
+ JB_MES.ligar(c,'paletes');
 }
 const UPC={so:'saldo',q:''};
 function telaClientesPal(c){
@@ -19245,7 +19275,11 @@ function mesesLista(){
   (DATA.fTitulos||[]).filter(t=>!t.cancelado&&geral(t)).forEach(t=>ad(compFin(t)));(DATA.almSaidas||[]).forEach(s=>ad(s.data));(DATA.paleteCompras||[]).forEach(x=>ad(x.data))}catch(e){}
  void k;
  const atual=mesAtual();const lista=[...ms].filter(m=>m<=atual).sort();
- const ini=lista[0]||atual;const out=[];let m=ini;let n=0;while(m<=atual&&n++<600){out.push(m);m=mesMenos(m,-1)}
+ /* o mês escolhido entra na lista mesmo sem lançamento (para trás ou para frente) */
+ const esc_=/^\d{4}-\d{2}$/.test(UC.mes||'')?UC.mes:'';const fim=esc_&&esc_>atual?esc_:atual;
+ let ini=lista[0]||atual;if(esc_&&esc_<ini)ini=esc_;
+ const prox=x=>{const [y,mo]=x.split('-').map(Number);return mo===12?(y+1)+'-01':y+'-'+String(mo+1).padStart(2,'0')};
+ const out=[];let m=ini;let n=0;while(m<=fim&&n++<600){out.push(m);m=prox(m)}
  return out;
 }
 
@@ -19584,14 +19618,16 @@ const NOME_SETOR='Setor de Controladoria e Análise';
 /* ---------- mês escolhido: o mesmo em todas as abas ---------- */
 const UC={mes:'',foco:'',cmp:'',rasc:{},sim:null};
 try{UC.mes=localStorage.getItem('jb_ctl_mes')||''}catch(e){}
-function mesSel(){const L=listaMeses();if(!L.includes(UC.mes))UC.mes=L[L.length-1]||mesAtual();return UC.mes}
-function trocarMes(m){UC.mes=m;try{localStorage.setItem('jb_ctl_mes',m)}catch(e){}renderTela()}
+function mesSel(){if(!/^\d{4}-\d{2}$/.test(UC.mes||'')){const L=listaMeses();UC.mes=L[L.length-1]||mesAtual()}return UC.mes}
+function trocarMes(m){if(!/^\d{4}-\d{2}$/.test(m||''))return;UC.mes=m;MEMO_C={k:null,res:{},lista:null};try{localStorage.setItem('jb_ctl_mes',m)}catch(e){}renderTela()}
 function seletorMes(){
- const L=listaMeses();const m=mesSel();const i=L.indexOf(m);
+ /* anda livre para trás e para frente, mesmo em mês sem lançamento (ex.: fechou outubro, abre novembro) */
+ const m=mesSel();const mv=(x,n)=>{const [y,mo]=x.split('-').map(Number);const d=new Date(y,mo-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+ const L=listaMeses();const ult=L.length?L[L.length-1]:mesAtual();const ops=[...L];for(let k=1;k<=12;k++)ops.push(mv(ult,k));
  return `<div class="ctl-mes" role="group" aria-label="Mês">
-  <button type="button" class="btn min" data-mes-p="${esc(L[i-1]||'')}" ${i>0?'':'disabled'} aria-label="Mês anterior">${ic('esquerda')}</button>
-  <select id="ctlMes" aria-label="Mês">${L.slice().reverse().map(x=>`<option value="${x}" ${x===m?'selected':''}>${esc(mesLongo(x))}${fechado(x)?' · fechado':docMes(x)?'':' · sem lançamentos'}</option>`).join('')}</select>
-  <button type="button" class="btn min" data-mes-p="${esc(L[i+1]||'')}" ${i>=0&&i<L.length-1?'':'disabled'} aria-label="Mês seguinte">${ic('direita')}</button>
+  <button type="button" class="btn min" data-mes-p="${esc(mv(m,-1))}" aria-label="Mês anterior">${ic('esquerda')}</button>
+  <select id="ctlMes" aria-label="Mês">${[...new Set(ops)].sort().reverse().map(x=>`<option value="${x}" ${x===m?'selected':''}>${esc(mesLongo(x))}${fechado(x)?' · fechado':docMes(x)?'':' · sem lançamentos'}</option>`).join('')}</select>
+  <button type="button" class="btn min" data-mes-p="${esc(mv(m,1))}" aria-label="Mês seguinte">${ic('direita')}</button>
   ${fechado(m)?`<span class="ctl-fech">${ic('ctlCadeado')}Mês fechado em ${esc(fData(docMes(m).fech))}</span>`:`<span class="ctl-aberto">Mês em aberto</span>`}</div>`;
 }
 function ligarMes(c){const s=$('#ctlMes',c);if(s)s.onchange=e=>trocarMes(e.target.value);$$('[data-mes-p]',c).forEach(b=>b.onclick=()=>{if(b.dataset.mesP)trocarMes(b.dataset.mesP)})}
