@@ -7745,6 +7745,7 @@ async function gravarRegistro(mod,st,ant,novo){
   if(veSensivel())await tentar(()=>APP.db.doc('sensivel/'+sid).set(limpa({...sens,id:sid})));
  }else await gravar(mod,rec,ant);
  await registrarLog(mod,rec.id,novo?'criou':'alterou',ant,rec,rotulosDe(M),sensK);
+ if(M.aposGravar){try{M.aposGravar(rec,ant)}catch(e){console.warn('depois de gravar',e)}}
  if(M.despesa)await sincronizarDespesa(mod,rec,M.despesa(rec));
  return rec;
 }
@@ -10440,8 +10441,31 @@ function docLista(titulo,cols,cab,corpo,base){
  D.arquivo=base;D.paisagem=cols.length>6;D.rodape=String(titulo||'Relatório');
  D.blocos.push({tipo:'tabela',head:cab,body:body.length?body:[[ 'Nenhum registro.',...cab.slice(1).map(()=>'')]],foot,dir,fonte:fonteTab(cols.length)});
  D.notaFinal='Emitido por '+(APP.nome||'usuário do sistema')+' em '+fDataHora(new Date().toISOString())+', com os filtros que estavam na tela.';
+ /* relatório de um setor com encarregado principal (Financeiro › Cadastros › Responsáveis): o nome dele sai como responsável */
+ const rs=REL_RESP;
+ if(rs&&rs.nome){const txt=rs.nome+(rs.cargo?' · '+rs.cargo:'');
+  D.meta.splice(2,0,['Responsável',rs.nome]);D.quadros[0].campos.push(['Responsável',txt]);
+  D.assinaturas=[{nome:rs.nome,sub:'Responsável'+(rs.setor?' · '+rs.setor:'')+(rs.cargo?' · '+rs.cargo:'')}]}
  return D;
 }
+/* responsável do relatório em exportação (definido pela tela de relatórios do setor só durante a exportação) */
+let REL_RESP=null;
+function respDoSetorRel(s){
+ const aba=typeof window.abaDoSetorV48==='function'?window.abaDoSetorV48(s):'';if(!aba)return null;
+ const setor=typeof nomeSetorV==='function'?nomeSetorV(s):aba;
+ const r=(DATA.fResp||[]).find(x=>x.aba===aba&&x.principal==='Sim'&&x.situacao!=='Inativo');
+ if(r&&r.nome)return{nome:String(r.nome),cargo:String(r.cargo||''),setor};
+ /* quem não lê o Financeiro usa a cópia guardada na configuração geral (config/empresa › respSetores) */
+ const c=((CFG&&CFG.respSetores)||{})[aba];
+ return c&&c.nome?{nome:String(c.nome),cargo:String(c.cargo||''),setor}:null}
+/* mantém a cópia de config/empresa › respSetores igual ao encarregado principal de cada aba */
+function copiarRespSetor(rec){try{
+ if(!rec||!rec.aba||!APP.db)return;const atual=((CFG&&CFG.respSetores)||{})[rec.aba]||null;
+ const ehPrincipal=rec.principal==='Sim'&&rec.situacao!=='Inativo';
+ let novo;if(ehPrincipal)novo={nome:String(rec.nome||'').trim(),cargo:String(rec.cargo||'').trim()};
+ else if(atual&&semAcento(atual.nome||'').trim()===semAcento(rec.nome||'').trim())novo=null;else return;
+ if(JSON.stringify(atual)===JSON.stringify(novo))return;
+ APP.db.doc('config/empresa').update({respSetores:{[rec.aba]:novo}}).catch(e=>console.warn('cópia do responsável',e))}catch(e){console.warn('cópia do responsável',e)}}
 
 /* ---------- extrato do funcionário ---------- */
 function docExtrato(ex){
@@ -12395,7 +12419,7 @@ function filtrosRelV(R,U){
 function telaRelVendasV(el){
  shellV(el,'relvendas',(c,s)=>{
   if(UIRV.setor!==s){UIRV.setor=s;['cliente','fornecedor','produto','local','usuario','forma','stvenda','stfin'].forEach(k=>UIRV[k]='');if(!RELS_V.some(r=>r.id===UIRV.id&&(!r.s||r.s(UIRV))))UIRV.id=''}
-  telaRelatorios(c,{rels:RELS_V,ui:UIRV,h1:'Relatórios do '+nomeSetorV(s),p:'Só os dados deste setor. Escolha o relatório, o período e os filtros; exporte em PDF, Excel ou CSV, ou visualize para imprimir.'});
+  telaRelatorios(c,{rels:RELS_V,ui:UIRV,resp:()=>respDoSetorRel(s),h1:'Relatórios do '+nomeSetorV(s),p:'Só os dados deste setor. Escolha o relatório, o período e os filtros; exporte em PDF, Excel ou CSV, ou visualize para imprimir.'});
  });
 }
 
@@ -16713,6 +16737,7 @@ function modResp(aba){return{titulo:'Responsáveis',sing:'responsável',ic:'pess
   const d=DATA.fResp.find(x=>x.id!==st.id&&x.aba===st.aba&&semAcento(x.nome).trim()===semAcento(st.nome).trim());if(d)e.nome='Já está cadastrado nesta aba.';
   return e},
  preparar(rec){rec.nome=String(rec.nome||'').trim();if(!rec.data)rec.data=hoje()},
+ aposGravar(rec){if(typeof copiarRespSetor==='function')copiarRespSetor(rec)},
  semExcluir:true}}
 MODS.fResp=modResp('Financeiro');MODS.responsaveis=modResp('Óleo e combustível');
 
@@ -26984,7 +27009,7 @@ function telaRelatorios(el,cfg){
   <div class="pag"><span>${res.rows.length} linha(s)</span></div>`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
  $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';renderTela()});
  $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
- $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;exportar(b.dataset.x,R.n+'_'+hoje(),res.cols,rows,R.n)});
+ $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;try{exportar(b.dataset.x,R.n+'_'+hoje(),res.cols,rows,R.n)}finally{REL_RESP=null}});
  resolverNomes(DATA.diario.map(r=>r.lancadoPor));
 }
 
