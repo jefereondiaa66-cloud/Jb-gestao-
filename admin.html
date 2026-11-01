@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Usuários e segurança · JB Gestão</title>
+<link rel="icon" href="icone.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{--papel:#F6F3EF;--branco:#fff;--papel2:#FAF8F5;--linha:#E8E1DA;--linha2:#F0EBE5;--tinta:#221C18;--suave:#5C534C;--fraco:#9C9188;
+ --carvao:#2A211C;--brasa:#A3461F;--brasa2:#8A3A19;--brasa-bg:#FBF3EE;--ok:#16784A;--ok-bg:#DCFCE7;--at:#A15C06;--at-bg:#FEF3C7;--pe:#B3302A;--pe-bg:#FEE2E2;
+ --r1:8px;--r2:12px;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--papel:#17120F;--branco:#211A16;--papel2:#1C1613;--linha:#3A2F28;--linha2:#2D241F;--tinta:#F1E9E3;--suave:#C2B5AB;--fraco:#8E8178;--brasa-bg:#3A2418;--ok-bg:#12321F;--at-bg:#3A2B0E;--pe-bg:#3C1816;color-scheme:dark}}
+:root[data-theme="dark"]{--papel:#17120F;--branco:#211A16;--papel2:#1C1613;--linha:#3A2F28;--linha2:#2D241F;--tinta:#F1E9E3;--suave:#C2B5AB;--fraco:#8E8178;--brasa-bg:#3A2418;--ok-bg:#12321F;--at-bg:#3A2B0E;--pe-bg:#3C1816;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papel);color:var(--tinta);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brasa);outline-offset:2px}
+header{background:var(--carvao);color:#F6EEE8;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header .lg{width:36px;height:36px;border-radius:10px;background:linear-gradient(150deg,#C2603A,#8A3A19);display:grid;place-items:center;font-weight:700;flex:none}
+header h1{font-size:16px;margin:0;font-weight:600}header small{display:block;color:#B5A395;font-size:12px}
+header a{margin-left:auto;color:#F6EEE8;text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 12px;font-size:13px}
+main{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+.abas{display:flex;gap:4px;border-bottom:1px solid var(--linha);margin-bottom:16px;overflow-x:auto}
+.abas button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;color:var(--suave);font-weight:500;cursor:pointer;white-space:nowrap}
+.abas button[aria-selected="true"]{color:var(--tinta);border-color:var(--brasa)}
+.painel{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:16px;margin-bottom:14px}
+.painel h2{font-size:15px;margin:0 0 4px}.painel p.sub{margin:0 0 12px;color:var(--suave);font-size:13px}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 14px;align-items:end}
+label{display:block;font-size:12.5px;font-weight:500;color:var(--suave);margin-bottom:4px}
+input[type=text],input[type=password],select{width:100%;padding:9px 10px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--papel2);min-height:40px}
+input:focus,select:focus{outline:none;border-color:var(--brasa);box-shadow:0 0 0 3px rgba(163,70,31,.18)}
+.btn{border:1px solid var(--linha);background:var(--branco);border-radius:var(--r1);padding:8px 13px;cursor:pointer;font-weight:500;min-height:38px}
+.btn:hover{border-color:var(--fraco)}.btn.pri{background:var(--brasa);border-color:var(--brasa);color:#fff}.btn.pri:hover{background:var(--brasa2)}
+.btn.perigo{color:var(--pe);border-color:var(--pe-bg)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.min{padding:5px 10px;min-height:32px;font-size:12.5px}
+.tabwrap{overflow-x:auto;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--suave);font-size:12px;padding:9px 12px;border-bottom:1px solid var(--linha);white-space:nowrap;background:var(--papel2)}
+td{padding:9px 12px;border-bottom:1px solid var(--linha2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:500;white-space:nowrap;background:var(--linha2);color:var(--suave)}
+.tag.ok{background:var(--ok-bg);color:var(--ok)}.tag.at{background:var(--at-bg);color:var(--at)}.tag.pe{background:var(--pe-bg);color:var(--pe)}.tag.br{background:var(--brasa-bg);color:var(--brasa)}
+.acoes{display:flex;gap:6px;flex-wrap:wrap}
+.matriz td,.matriz th{text-align:center}.matriz td:first-child,.matriz th:first-child{text-align:left}
+.matriz input{width:20px;height:20px;accent-color:var(--brasa)}
+.msg{min-height:20px;font-size:13px;margin-top:8px}.msg.erro{color:var(--pe)}.msg.ok{color:var(--ok)}
+.vazio{padding:28px;text-align:center;color:var(--suave)}
+.det{font-size:12px;color:var(--suave);max-width:520px;word-break:break-word}
+dialog{border:1px solid var(--linha);border-radius:var(--r2);padding:0;max-width:760px;width:calc(100% - 24px);background:var(--branco);color:var(--tinta)}
+dialog::backdrop{background:rgba(20,14,10,.5)}
+dialog .cab{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--linha)}
+dialog .cab h3{margin:0;font-size:16px;flex:1}dialog .corpo{padding:14px 16px;max-height:70vh;overflow:auto}
+dialog .pe{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--linha)}
+.aviso{padding:10px 12px;border-radius:var(--r1);background:var(--at-bg);font-size:13px;margin-bottom:12px}
+progress{width:100%;height:10px;accent-color:var(--brasa)}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px}
+.kp>div{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
+.kp b{display:block;font-size:17px;font-weight:600;margin:4px 0 2px;overflow-wrap:anywhere}.kp span{font-size:12px;color:var(--suave)}
+.kp small{display:block;font-size:12px;color:var(--suave);overflow-wrap:anywhere}
+.acoes a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
+@media (max-width:640px){main{padding:14px 12px 60px}td,th{padding:8px}}
+</style>
+<script>window.JB_NUVEM={url:"https://kdsaslmlvjllgzbzsnxt.supabase.co",chavePublica:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkc2FzbG1sdmpsbGd6Ynpzbnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTk1MjAsImV4cCI6MjEwODkzNTUyMH0.I2XLzCtp_4wP57NtXrVuTrCPZ90ZQyktzxRd67J1y6g",uidAdministrador:"u_FZmOBZqQYLD0VE7xkGL8AA",paginaAdmin:true};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="jb-nuvem.js"></script>
+</head>
+<body>
+<header>
+ <span class="lg">JB</span>
+ <div><h1>Usuários e segurança</h1><small>JB Gestão de Cerâmica e Controladoria</small></div>
+ <a href="./">Voltar ao sistema</a>
+</header>
+<main id="raiz"><div class="vazio">Carregando…</div></main>
+
+<dialog id="dlg"><form method="dialog"><div class="cab"><h3 id="dlgT"></h3><button class="btn min" value="x" aria-label="Fechar">Fechar</button></div><div class="corpo" id="dlgC"></div><div class="pe" id="dlgP"></div></form></dialog>
+
+<script>
+(function () {
+  'use strict';
+  var API = window.JB_NUVEM_API, $ = function (s, r) { return (r || document).querySelector(s); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var dt = function (s) { if (!s) return '—'; var d = new Date(s); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+  var OPS = [['ler', 'Ver'], ['criar', 'Criar'], ['editar', 'Editar'], ['excluir', 'Excluir']];
+  var PAPEIS = [['consulta', 'Usuário de consulta'], ['gestor', 'Gestor de setor'], ['dp', 'Departamento Pessoal'], ['rh', 'Responsável pelo RH'],
+    ['financeiro', 'Financeiro'], ['gerente', 'Gerente'], ['vendedor', 'Vendedor'], ['estoquista', 'Estoquista'], ['admin', 'Administrador']];
+  var EVENTOS = { login: 'Entrou no sistema', logout: 'Saiu do sistema', login_falhou: 'Tentativa de entrada com erro', login_recusado_ip: 'Endereço bloqueado por tentativas demais',
+    login_recusado_bloqueio: 'Tentou entrar com conta bloqueada', conta_bloqueada_temporariamente: 'Conta bloqueada por tentativas erradas',
+    usuario_criado: 'Usuário criado', usuario_bloqueado: 'Usuário bloqueado', usuario_desbloqueado: 'Usuário desbloqueado', usuario_desativado: 'Usuário desativado',
+    usuario_reativado: 'Usuário reativado', senha_redefinida: 'Senha redefinida pelo administrador', senha_trocada: 'Senha trocada pelo próprio usuário',
+    permissoes_alteradas: 'Permissões alteradas', admin_concedido: 'Tornou-se administrador', admin_retirado: 'Deixou de ser administrador',
+    sessoes_encerradas: 'Sessões encerradas pelo administrador', instalacao_concluida: 'Instalação concluída', instalacao_recusada: 'Instalação recusada', copia_feita: 'Cópia de segurança feita', copia_baixada: 'Cópia de segurança baixada' };
+  var ST = { aba: 'usuarios', usuarios: [], modulos: [], antigos: [] };
+
+  function msg(el, t, tipo) { el.textContent = t || ''; el.className = 'msg' + (tipo ? ' ' + tipo : ''); }
+  function dialogo(titulo, corpo, botoes) {
+    var d = $('#dlg'); $('#dlgT').textContent = titulo; $('#dlgC').innerHTML = corpo; $('#dlgP').innerHTML = '';
+    (botoes || []).forEach(function (b) { var x = document.createElement('button'); x.type = 'button'; x.className = 'btn' + (b.pri ? ' pri' : '') + (b.perigo ? ' perigo' : ''); x.textContent = b.t; x.onclick = b.f; $('#dlgP').appendChild(x); });
+    if (!d.open) d.showModal(); return d;
+  }
+  function fechar() { var d = $('#dlg'); if (d.open) d.close(); }
+
+  async function iniciar() {
+    await API.pronto;
+    var eu = API.eu();
+    if (!eu || !eu.admin) { $('#raiz').innerHTML = '<div class="painel vazio"><b>Somente administradores.</b><br>Seu usuário não tem acesso a esta área.</div>'; return; }
+    ST.modulos = await API.rpc('jb_admin_modulos');
+    desenhar();
+  }
+  function desenhar() {
+    if (ST.tCore) { clearInterval(ST.tCore); ST.tCore = null; }
+    var abas = [['usuarios', 'Usuários e permissões'], ['core', 'JB Core'], ['eventos', 'Histórico de segurança'], ['auditoria', 'Alterações de dados'], ['copias', 'Cópias de segurança'], ['importar', 'Importar dados']];
+    $('#raiz').innerHTML = '<div class="abas" role="tablist">' + abas.map(function (a) { return '<button role="tab" data-aba="' + a[0] + '" aria-selected="' + (ST.aba === a[0]) + '">' + a[1] + '</button>'; }).join('') + '</div><div id="conteudo"></div>';
+    $('#raiz').querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { ST.aba = b.dataset.aba; desenhar(); }; });
+    ({ usuarios: telaUsuarios, core: telaCore, eventos: telaEventos, auditoria: telaAuditoria, copias: telaCopias, importar: telaImportar })[ST.aba]($('#conteudo'));
+  }
+
+  /* ---------------- usuários ---------------- */
+  async function telaUsuarios(el) {
+    el.innerHTML = '<div class="painel"><h2>Novo usuário</h2><p class="sub">A pessoa entra com a senha provisória e o sistema pede para ela criar a própria senha. Você nunca vê a senha dela.</p>' +
+      '<form id="fNovo" class="grade" autocomplete="off"><div><label for="nNome">Nome completo</label><input id="nNome" type="text" required></div>' +
+      '<div><label for="nUsu">Usuário</label><input id="nUsu" type="text" placeholder="ex.: maria.dp" required></div>' +
+      '<div><label for="nSen">Senha provisória</label><input id="nSen" type="text" autocomplete="off" required></div>' +
+      '<div><label for="nPap">Perfil nas telas do JB</label><select id="nPap">' + PAPEIS.map(function (p) { return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div><label for="nVin">Já usava o JB? Vincular ao acesso antigo</label><select id="nVin"><option value="">Não, é um acesso novo</option></select></div>' +
+      '<div><button class="btn pri" type="submit">Criar usuário</button></div></form><div class="msg" id="mNovo" role="status"></div></div>' +
+      '<div class="tabwrap"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Situação</th><th>Último acesso</th><th>Permissões</th><th>Ações</th></tr></thead><tbody id="tbU"><tr><td colspan="6" class="vazio">Carregando…</td></tr></tbody></table></div>';
+    $('#nSen').value = senhaProvisoria();
+    $('#fNovo').onsubmit = async function (ev) {
+      ev.preventDefault(); var m = $('#mNovo'), b = ev.target.querySelector('button');
+      var nome = $('#nNome').value.trim(), usu = $('#nUsu').value.trim().toLowerCase(), sen = $('#nSen').value, pap = $('#nPap').value, vin = $('#nVin').value;
+      b.disabled = true; msg(m, 'Criando…');
+      try {
+        var r = await API.auth('criar-usuario', { nome: nome, usuario: usu, senhaInicial: sen, admin: pap === 'admin', uidApp: vin || undefined });
+        var ant = ST.antigos.find(function (a) { return a.id === r.uid; });
+        await API.db.doc('acesso/' + r.uid).set(Object.assign({}, ant || {}, { id: r.uid, nome: nome, papel: pap, ativo: true, setor: (ant && ant.setor) || '' },
+          ant ? { atualizadoEm: new Date().toISOString() } : { criadoEm: new Date().toISOString() }));
+        msg(m, 'Usuário criado. Passe à pessoa o usuário "' + usu + '" e a senha provisória. Agora marque as permissões dela na lista abaixo.', 'ok');
+        ev.target.reset(); $('#nSen').value = senhaProvisoria(); await carregarUsuarios();
+      } catch (e) { msg(m, e.message, 'erro'); }
+      b.disabled = false;
+    };
+    await carregarUsuarios();
+  }
+  function senhaProvisoria() {
+    var a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', n = new Uint32Array(10), s = '';
+    crypto.getRandomValues(n); n.forEach(function (x) { s += a[x % a.length]; }); return s.slice(0, 5) + '-' + s.slice(5);
+  }
+  async function carregarUsuarios() {
+    ST.usuarios = await API.rpc('jb_admin_usuarios');
+    var eu = API.eu();
+    /* acessos do JB antigo que ainda não têm usuário e senha próprios */
+    try {
+      var s = await API.db.collection('acesso').get();
+      var comConta = new Set(ST.usuarios.map(function (u) { return u.uid; }));
+      ST.antigos = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }).filter(function (a) { return !comConta.has(a.id); });
+    } catch (e) { ST.antigos = []; }
+    var sel = $('#nVin');
+    if (sel) sel.innerHTML = '<option value="">Não, é um acesso novo</option>' + ST.antigos.map(function (a) {
+      var pp = PAPEIS.find(function (p) { return p[0] === a.papel; });
+      return '<option value="' + esc(a.id) + '">' + esc(a.nome || a.id) + (pp ? ' (' + esc(pp[1]) + ')' : '') + '</option>'; }).join('');
+    if (sel) sel.onchange = function () {
+      var a = ST.antigos.find(function (x) { return x.id === sel.value; });
+      if (a) { if (!$('#nNome').value) $('#nNome').value = a.nome || ''; if (a.papel && PAPEIS.some(function (p) { return p[0] === a.papel; })) $('#nPap').value = a.papel; }
+    };
+    $('#tbU').innerHTML = ST.usuarios.length ? ST.usuarios.map(function (u, i) {
+      var sit = !u.ativo ? '<span class="tag">Desativado</span>' : u.bloqueado ? '<span class="tag pe">Bloqueado</span>' : u.bloqueadoAte ? '<span class="tag at">Bloqueio temporário</span>' : '<span class="tag ok">Ativo</span>';
+      if (u.trocarSenha && u.ativo) sit += ' <span class="tag at">Falta criar senha</span>';
+      if (u.admin) sit += ' <span class="tag br">Administrador</span>';
+      var mods = Object.keys(u.permissoes || {}).filter(function (k) { return u.permissoes[k].ler; });
+      var nomeMod = function (c) { var m = ST.modulos.find(function (x) { return x.codigo === c; }); return m ? m.nome : c; };
+      var perm = u.admin ? 'Tudo (administrador)' : mods.length ? mods.map(nomeMod).join(', ') : '<span class="tag pe">Nenhum módulo</span>';
+      var proprio = eu && u.uid === eu.uid;
+      return '<tr><td><b>' + esc(u.nome) + '</b></td><td>' + esc(u.usuario) + '</td><td>' + sit + '</td><td>' + dt(u.ultimoAcesso) + (u.sessoesAbertas ? '<br><small>' + u.sessoesAbertas + ' sessão(ões) aberta(s)</small>' : '') + '</td>' +
+        '<td class="det">' + perm + '</td><td><div class="acoes">' +
+        (u.admin ? '' : '<button class="btn min" data-a="perm" data-i="' + i + '">Permissões</button>') +
+        '<button class="btn min" data-a="senha" data-i="' + i + '">Redefinir senha</button>' +
+        (proprio ? '' : (u.bloqueado ? '<button class="btn min" data-a="desbloquear" data-i="' + i + '">Desbloquear</button>' : '<button class="btn min perigo" data-a="bloquear" data-i="' + i + '">Bloquear</button>')) +
+        (proprio ? '' : (u.ativo ? '<button class="btn min perigo" data-a="desativar" data-i="' + i + '">Desativar</button>' : '<button class="btn min" data-a="reativar" data-i="' + i + '">Reativar</button>')) +
+        (u.sessoesAbertas && !proprio ? '<button class="btn min" data-a="sessoes" data-i="' + i + '">Encerrar sessões</button>' : '') +
+        (proprio ? '' : '<button class="btn min" data-a="admin" data-i="' + i + '">' + (u.admin ? 'Retirar administrador' : 'Tornar administrador') + '</button>') +
+        '</div></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="vazio">Nenhum usuário.</td></tr>';
+    $('#tbU').querySelectorAll('[data-a]').forEach(function (b) { b.onclick = function () { acao(b.dataset.a, ST.usuarios[+b.dataset.i]); }; });
+  }
+  async function acao(a, u) {
+    if (a === 'perm') return editarPermissoes(u);
+    if (a === 'senha') {
+      var s = senhaProvisoria();
+      return dialogo('Redefinir a senha de ' + u.nome, '<p>A nova senha provisória será <b style="font-size:16px">' + esc(s) + '</b>.</p><p>Anote e passe à pessoa. No próximo acesso ela cria a própria senha. As sessões abertas dela serão encerradas.</p><div class="msg" id="mD"></div>',
+        [{ t: 'Cancelar', f: fechar }, { t: 'Redefinir senha', pri: true, f: async function () {
+          try { await API.auth('redefinir-senha', { userId: u.id, senhaNova: s }); fechar(); await carregarUsuarios(); } catch (e) { msg($('#mD'), e.message, 'erro'); } } }]);
+    }
+    var textos = { bloquear: ['Bloquear ' + u.nome + '?', 'A pessoa sai do sistema na hora e não consegue entrar até ser desbloqueada.'],
+      desbloquear: ['Desbloquear ' + u.nome + '?', 'A pessoa volta a poder entrar com a senha dela.'],
+      desativar: ['Desativar ' + u.nome + '?', 'A conta deixa de funcionar, mas todo o histórico dela é mantido. Pode ser reativada depois.'],
+      reativar: ['Reativar ' + u.nome + '?', 'A conta volta a funcionar com as mesmas permissões de antes.'],
+      sessoes: ['Encerrar as sessões de ' + u.nome + '?', 'Todos os aparelhos em que ela está conectada saem do sistema agora.'],
+      admin: [(u.admin ? 'Retirar o acesso de administrador de ' : 'Tornar administrador: ') + u.nome + '?', u.admin ? 'Ela passa a ver só os módulos marcados nas permissões.' : 'Administradores veem e alteram tudo, inclusive usuários e permissões.'] };
+    var t = textos[a];
+    dialogo(t[0], '<p>' + esc(t[1]) + '</p><div class="msg" id="mD"></div>', [{ t: 'Cancelar', f: fechar }, { t: 'Confirmar', pri: true, perigo: a === 'bloquear' || a === 'desativar', f: async function () {
+      try {
+        if (a === 'sessoes') await API.rpc('jb_admin_encerrar_sessoes', { p_user: u.id });
+        else if (a === 'admin') await API.rpc('jb_admin_definir_administrador', { p_user: u.id, p_admin: !u.admin });
+        else await API.auth('situacao-conta', { userId: u.id, acao: a });
+        fechar(); await carregarUsuarios();
+      } catch (e) { msg($('#mD'), e.message, 'erro'); } } }]);
+  }
+  function editarPermissoes(u) {
+    var p = u.permissoes || {};
+    var corpo = '<p class="sub">Marque o que ' + esc(u.nome) + ' pode fazer em cada módulo. O servidor confere isso em cada leitura e gravação.</p>' +
+      '<div class="tabwrap"><table class="matriz"><thead><tr><th>Módulo</th>' + OPS.map(function (o) { return '<th>' + o[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      ST.modulos.map(function (m) {
+        var x = p[m.codigo] || {};
+        return '<tr><td><b>' + esc(m.nome) + '</b><div class="det">' + esc(m.descricao) + '</div></td>' + OPS.map(function (o) {
+          return '<td><input type="checkbox" aria-label="' + esc(o[1] + ' em ' + m.nome) + '" data-m="' + m.codigo + '" data-o="' + o[0] + '"' + (x[o[0]] ? ' checked' : '') + '></td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div><div class="msg" id="mD"></div>';
+    dialogo('Permissões de ' + u.nome, corpo, [{ t: 'Cancelar', f: fechar }, { t: 'Salvar permissões', pri: true, f: async function () {
+      var novo = {};
+      $('#dlgC').querySelectorAll('input[data-m]').forEach(function (c) { novo[c.dataset.m] = novo[c.dataset.m] || {}; novo[c.dataset.m][c.dataset.o] = c.checked; });
+      Object.keys(novo).forEach(function (k) { var x = novo[k]; if (x.criar || x.editar || x.excluir) x.ler = true; });
+      try { await API.rpc('jb_admin_definir_permissoes', { p_user: u.id, p_permissoes: novo }); fechar(); await carregarUsuarios(); }
+      catch (e) { msg($('#mD'), e.message, 'erro'); } } }]);
+    $('#dlgC').addEventListener('change', function (ev) {
+      var c = ev.target; if (!c.dataset || !c.dataset.m) return;
+      if (c.dataset.o !== 'ler' && c.checked) $('#dlgC').querySelector('input[data-m="' + c.dataset.m + '"][data-o="ler"]').checked = true;
+      if (c.dataset.o === 'ler' && !c.checked) $('#dlgC').querySelectorAll('input[data-m="' + c.dataset.m + '"]').forEach(function (x) { x.checked = false; });
+    });
+  }
+
+  /* ---------------- históricos ---------------- */
+  async function telaEventos(el) {
+    el.innerHTML = '<div class="painel"><h2>Histórico de segurança</h2><p class="sub">Entradas, saídas, tentativas com erro, bloqueios e mudanças de usuários e permissões. Este histórico não pode ser alterado nem apagado.</p></div><div class="tabwrap"><table><thead><tr><th>Quando</th><th>O que aconteceu</th><th>Usuário</th><th>Feito por</th><th>Endereço</th></tr></thead><tbody id="tbE"><tr><td colspan="5" class="vazio">Carregando…</td></tr></tbody></table></div>';
+    var L = await API.rpc('jb_admin_eventos', { p_limite: 300 });
+    $('#tbE').innerHTML = L.length ? L.map(function (e) {
+      var grave = /falhou|recusad|bloquead/.test(e.tipo);
+      return '<tr><td>' + dt(e.quando) + '</td><td>' + (grave ? '<span class="tag at">' : '') + esc(EVENTOS[e.tipo] || e.tipo) + (grave ? '</span>' : '') + '</td><td>' + esc(e.usuario || (e.detalhes && e.detalhes.usuario_informado ? '"' + e.detalhes.usuario_informado + '" (não existe)' : '—')) + '</td><td>' + esc(e.autor_usuario || '—') + '</td><td>' + esc(e.ip || '—') + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="vazio">Nada registrado ainda.</td></tr>';
+  }
+  async function telaAuditoria(el) {
+    el.innerHTML = '<div class="painel"><h2>Alterações de dados</h2><p class="sub">Quem incluiu, alterou ou excluiu cada registro, quando, e como ele estava antes e depois. Gravado pelo próprio banco; não pode ser apagado.</p></div><div class="tabwrap"><table><thead><tr><th>Quando</th><th>Usuário</th><th>Operação</th><th>Onde</th><th>Detalhe</th></tr></thead><tbody id="tbA"><tr><td colspan="5" class="vazio">Carregando…</td></tr></tbody></table></div>';
+    var L = await API.rpc('jb_admin_auditoria', { p_limite: 200 });
+    var op = { inclusao: 'Inclusão', alteracao: 'Alteração', exclusao: 'Exclusão' };
+    $('#tbA').innerHTML = L.length ? L.map(function (a, i) {
+      return '<tr><td>' + dt(a.quando) + '</td><td>' + esc(a.usuario || '—') + '</td><td>' + (op[a.operacao] || a.operacao) + '</td><td>' + esc(a.colecao) + ' / ' + esc(a.doc_id) + '</td><td><button class="btn min" data-i="' + i + '">Ver antes e depois</button></td></tr>';
+    }).join('') : '<tr><td colspan="5" class="vazio">Nada registrado ainda.</td></tr>';
+    $('#tbA').querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () {
+      var a = L[+b.dataset.i];
+      dialogo('Alteração em ' + a.colecao + ' / ' + a.doc_id, '<p class="sub">' + dt(a.quando) + ' · ' + esc(a.usuario || '—') + '</p><h4>Antes</h4><pre style="white-space:pre-wrap;font-size:12px">' + esc(JSON.stringify(a.antes, null, 1)) + '</pre><h4>Depois</h4><pre style="white-space:pre-wrap;font-size:12px">' + esc(JSON.stringify(a.depois, null, 1)) + '</pre>', [{ t: 'Fechar', f: fechar }]);
+    }; });
+  }
+
+  /* ---------------- cópias de segurança ---------------- */
+  async function telaCopias(el) {
+    el.innerHTML = '<div class="painel"><h2>Cópias de segurança</h2><p class="sub">O servidor faz uma cópia completa dos dados todo dia às 3h e guarda os últimos 30 dias. Baixe uma cópia por semana e guarde fora do sistema (no computador ou no Drive). Para restaurar, use a aba "Importar dados" com o arquivo baixado.</p>' +
+      '<button class="btn pri" id="bCopia" type="button">Fazer uma cópia agora</button><div class="msg" id="mC" role="status"></div></div>' +
+      '<div class="tabwrap"><table><thead><tr><th>Feita em</th><th>Registros</th><th>Tamanho</th><th></th></tr></thead><tbody id="tbC"><tr><td colspan="4" class="vazio">Carregando…</td></tr></tbody></table></div>';
+    async function lista() {
+      var L = await API.rpc('jb_admin_copias');
+      $('#tbC').innerHTML = L.length ? L.map(function (c) {
+        return '<tr><td>' + dt(c.feitaEm) + '</td><td>' + c.registros + '</td><td>' + (c.tamanho / 1048576).toFixed(2).replace('.', ',') + ' MB</td><td><button class="btn min" data-c="' + c.id + '">Baixar</button></td></tr>';
+      }).join('') : '<tr><td colspan="4" class="vazio">Nenhuma cópia ainda. A primeira sai hoje às 3h, ou faça uma agora.</td></tr>';
+      $('#tbC').querySelectorAll('[data-c]').forEach(function (b) { b.onclick = async function () {
+        b.disabled = true;
+        try {
+          var j = await API.rpc('jb_admin_baixar_copia', { p_id: +b.dataset.c });
+          var blob = new Blob([JSON.stringify(j)], { type: 'application/json' }), a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = 'jb-copia-' + String(j.geradoEm || '').slice(0, 10) + '.json'; a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+        } catch (e) { msg($('#mC'), e.message, 'erro'); }
+        b.disabled = false;
+      }; });
+    }
+    $('#bCopia').onclick = async function () {
+      this.disabled = true; msg($('#mC'), 'Fazendo a cópia…');
+      try { await API.rpc('jb_admin_fazer_copia'); msg($('#mC'), 'Cópia feita.', 'ok'); await lista(); } catch (e) { msg($('#mC'), e.message, 'erro'); }
+      this.disabled = false;
+    };
+    await lista();
+  }
+
+  /* ---------------- JB CORE: painel de controle ---------------- */
+  var REPO = 'https://github.com/jefereondiaa66-cloud/Jb-gestao-';
+  var tam = function (b) { return b == null ? '—' : b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.round(b / 1024) + ' KB'; };
+  var ha = function (s) {
+    if (!s) return 'nunca'; var m = Math.round((Date.now() - new Date(s).getTime()) / 60000);
+    return m < 1 ? 'agora' : m < 60 ? 'há ' + m + ' min' : m < 1440 ? 'há ' + Math.round(m / 60) + ' h' : dt(s);
+  };
+  var tag = function (cls, t) { return '<span class="tag ' + cls + '">' + esc(t) + '</span>'; };
+  function telaCore(el) {
+    el.innerHTML = '<div class="painel"><h2>JB Core · painel de controle</h2><p class="sub">Banco central, sincronização com o Claude, hospedagem, publicações e cópias de segurança. Atualiza sozinho a cada 30 segundos.</p>' +
+      '<div class="acoes"><button class="btn pri" id="bSinc" type="button">Sincronizar e conferir agora</button>' +
+      '<button class="btn" id="bCopiaCore" type="button">Fazer cópia de segurança</button>' +
+      '<a class="btn" href="' + REPO + '/pulls" target="_blank" rel="noopener">Publicar (aprovar no GitHub)</a>' +
+      '<a class="btn" href="' + REPO + '/actions/workflows/reverter.yml" target="_blank" rel="noopener">Recuperar versão anterior</a></div>' +
+      '<div class="msg" id="mCore" role="status"></div></div><div id="coreC"><div class="vazio">Carregando…</div></div>';
+    $('#bSinc').onclick = async function () {
+      this.disabled = true; msg($('#mCore'), 'Conferindo o banco…');
+      try { var c = await API.rpc('jb_admin_core_conferir'); msg($('#mCore'), 'Conferido: ' + c.registros + ' registros em ' + Object.keys(c.colecoes || {}).length + ' partes.', 'ok'); await desenharCore(); }
+      catch (e) { msg($('#mCore'), e.message, 'erro'); }
+      this.disabled = false;
+    };
+    $('#bCopiaCore').onclick = async function () {
+      this.disabled = true; msg($('#mCore'), 'Fazendo a cópia…');
+      try { await API.rpc('jb_admin_fazer_copia'); msg($('#mCore'), 'Cópia de segurança feita.', 'ok'); await desenharCore(); }
+      catch (e) { msg($('#mCore'), e.message, 'erro'); }
+      this.disabled = false;
+    };
+    desenharCore();
+    ST.tCore = setInterval(function () { if (!document.hidden) desenharCore(); }, 30000);
+  }
+  async function desenharCore() {
+    var alvo = $('#coreC'); if (!alvo) return;
+    var P, aqui = null;
+    try { P = await API.rpc('jb_admin_core_painel'); }
+    catch (e) { alvo.innerHTML = '<div class="painel vazio">Não foi possível ler o painel: ' + esc(e.message) + '</div>'; return; }
+    try { var r = await fetch('versao.json', { cache: 'no-store' }); if (r.ok) aqui = await r.json(); } catch (e) {}
+    var est = P.estado || {}, nv = est.nuvem || {}, pc = est['ponte:claude'] || {}, s = P.sincronizacao || {}, b = P.banco || {};
+    var contato = pc.ultimo_contato || pc.ultimo_envio, minutos = contato ? (Date.now() - new Date(contato).getTime()) / 60000 : null;
+    var ponteTag = minutos == null ? tag('', 'Ainda sem contato') : minutos < 6 ? tag('ok', 'Conectado') : tag('at', 'Sem contato ' + ha(contato));
+    var hosp = nv.status === 200 ? tag('ok', 'No ar') : nv.status === 404 ? tag('at', 'No ar, sem registro de versão') : nv.status ? tag('pe', 'Falha ' + nv.status) : tag('', 'Aguardando verificação');
+    var vNuvem = nv.versao && nv.versao.versao;
+    var ult = (P.publicacoes || [])[0];
+    alvo.innerHTML = '<div class="kp">' +
+      '<div><span>Conexão desta página</span><b>' + tag('ok', 'Conectada') + '</b><small>Sessão de administrador · ' + (P.sessoes_abertas || 0) + ' sessão(ões) abertas</small></div>' +
+      '<div><span>Banco central</span><b>' + (b.registros || 0) + ' registros</b><small>' + (b.colecoes || 0) + ' partes · ' + tam(b.tamanho_bytes) + ' · alterado ' + ha(b.ultima_alteracao) + '</small></div>' +
+      '<div><span>Hospedagem (nuvem)</span><b>' + hosp + '</b><small>Conferida ' + ha(nv.verificado_em) + (vNuvem ? ' · versão ' + esc(vNuvem) : '') + '</small></div>' +
+      '<div><span>Sincronização com o Claude</span><b>' + ponteTag + '</b><small>' + (pc.pendentes ? pc.pendentes + ' lançamento(s) aguardando envio · ' : '') + (pc.versao_ponte ? esc(pc.versao_ponte) : 'ponte não aberta ainda') + '</small></div>' +
+      '<div><span>Última atualização de dados</span><b>' + ha(s.ultima_mudanca) + '</b><small>' + (s.mudancas_24h || 0) + ' mudança(s) e ' + (s.operacoes_24h || 0) + ' envio(s) do Claude em 24 h</small></div>' +
+      '<div><span>Erros e conflitos (24 h)</span><b>' + ((s.erros_24h || 0) + (s.conflitos_24h || 0) ? tag('at', (s.erros_24h || 0) + ' erro(s) · ' + (s.conflitos_24h || 0) + ' conflito(s)') : tag('ok', 'Nenhum')) + '</b><small>Conflito: gravação feita sobre uma versão que já tinha mudado (o estado anterior fica na auditoria)</small></div>' +
+      '<div><span>Versão do sistema (esta página)</span><b>' + (aqui ? esc(aqui.versao) : '—') + '</b><small>' + (aqui ? 'construída ' + ha(aqui.construido_em) + (aqui.commit ? ' · commit ' + esc(String(aqui.commit).slice(0, 7)) : '') : 'publicação anterior ao JB Core') + '</small></div>' +
+      '<div><span>Última publicação registrada</span><b>' + (ult ? esc(ult.ambiente) + ' · ' + esc(ult.versao) : '—') + '</b><small>' + (ult ? esc(ult.situacao) + ' ' + ha(ult.quando) : 'nenhuma ainda') + '</small></div>' +
+      '</div>' +
+      '<div class="painel"><h2>Ocorrências da sincronização</h2><p class="sub">Erros e conflitos mais recentes das gravações vindas do Claude.</p>' +
+      ((P.ocorrencias || []).length ? '<div class="tabwrap"><table><thead><tr><th>Quando</th><th>Onde</th><th>O que houve</th></tr></thead><tbody>' + P.ocorrencias.map(function (o) {
+        return '<tr><td>' + dt(o.quando) + '</td><td>' + esc(o.onde) + '</td><td>' + (o.resultado === 'erro' ? tag('pe', 'Erro') + ' ' + esc(o.erro || '') : tag('at', 'Conflito') + ' gravado; versão anterior na auditoria') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        : '<div class="vazio">Nenhuma ocorrência.</div>') + '</div>' +
+      '<div class="painel"><h2>Histórico de publicações</h2>' +
+      ((P.publicacoes || []).length ? '<div class="tabwrap"><table><thead><tr><th>Quando</th><th>Onde</th><th>Versão</th><th>Situação</th><th>Commit</th></tr></thead><tbody>' + P.publicacoes.map(function (p) {
+        return '<tr><td>' + dt(p.quando) + '</td><td>' + esc(p.ambiente) + '</td><td>' + esc(p.versao) + '</td><td>' + esc(p.situacao) + '</td><td>' + (p.commit ? '<a href="' + REPO + '/commit/' + encodeURIComponent(p.commit) + '" target="_blank" rel="noopener">' + esc(String(p.commit).slice(0, 7)) + '</a>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        : '<div class="vazio">Nenhuma publicação registrada ainda.</div>') + '</div>' +
+      '<div class="painel"><h2>Cópias de segurança disponíveis</h2>' +
+      ((P.copias || []).length ? '<div class="tabwrap"><table><thead><tr><th>Feita em</th><th>Registros</th><th>Tamanho</th></tr></thead><tbody>' + P.copias.map(function (c) {
+        return '<tr><td>' + dt(c.feita_em) + '</td><td>' + c.registros + '</td><td>' + tam(c.bytes) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="sub" style="margin-top:8px">Para baixar ou restaurar, use a aba "Cópias de segurança".</p>'
+        : '<div class="vazio">Nenhuma cópia ainda.</div>') + '</div>';
+  }
+
+  /* ---------------- importar dados ---------------- */
+  function telaImportar(el) {
+    el.innerHTML = '<div class="painel"><h2>Importar dados do JB atual</h2><p class="sub">Carrega o arquivo de dados preparado na migração (formato JSON do JB). Cada registro é gravado pelo caminho seguro e fica na auditoria. Registros com o mesmo código são substituídos; nada é apagado.</p>' +
+      '<div class="aviso">Use só o arquivo entregue para a migração. Depois da importação, o sistema confere a quantidade de registros de cada parte.</div>' +
+      '<div class="grade"><div><label for="arq">Arquivo de dados (.json)</label><input id="arq" type="file" accept=".json,application/json"></div><div><button class="btn pri" id="bImp" type="button" disabled>Importar</button></div></div>' +
+      '<div style="margin-top:12px"><progress id="pg" value="0" max="1" hidden></progress></div><div class="msg" id="mI" role="status"></div><div id="resI"></div></div>';
+    var dados = null;
+    $('#arq').onchange = async function () {
+      var f = this.files[0]; dados = null; $('#bImp').disabled = true; msg($('#mI'), '');
+      if (!f) return;
+      try {
+        var j = JSON.parse(await f.text());
+        if (!j || !Array.isArray(j.docs) || !j.docs.every(function (d) { return d && typeof d.colecao === 'string' && typeof d.id === 'string' && d.dados && typeof d.dados === 'object'; })) throw new Error('formato');
+        dados = j; $('#bImp').disabled = false;
+        msg($('#mI'), j.docs.length + ' registros prontos para importar (gerado em ' + (j.geradoEm || '?') + ').', 'ok');
+      } catch (e) { msg($('#mI'), 'Este arquivo não está no formato de migração do JB.', 'erro'); }
+    };
+    $('#bImp').onclick = async function () {
+      if (!dados) return; var b = this; b.disabled = true; var pg = $('#pg'); pg.hidden = false; pg.max = dados.docs.length; pg.value = 0;
+      var falhas = [];
+      for (var i = 0; i < dados.docs.length; i++) {
+        var d = dados.docs[i];
+        try { await API.rpc('jb_gravar', { p_colecao: d.colecao, p_id: d.id, p_dados: d.dados }); }
+        catch (e) { falhas.push(d.colecao + '/' + d.id + ': ' + e.message); }
+        pg.value = i + 1; if (i % 10 === 0) msg($('#mI'), 'Importando ' + (i + 1) + ' de ' + dados.docs.length + '…');
+      }
+      var esperado = {}; dados.docs.forEach(function (d) { esperado[d.colecao] = (esperado[d.colecao] || 0) + 1; });
+      var conf = await API.rpc('jb_admin_contagem');
+      var linhas = Object.keys(esperado).sort().map(function (c) { var ok = (conf[c] || 0) >= esperado[c]; return '<tr><td>' + esc(c) + '</td><td>' + esperado[c] + '</td><td>' + (conf[c] || 0) + '</td><td>' + (ok ? '<span class="tag ok">Confere</span>' : '<span class="tag pe">Falta</span>') + '</td></tr>'; });
+      $('#resI').innerHTML = '<div class="tabwrap" style="margin-top:12px"><table><thead><tr><th>Parte</th><th>No arquivo</th><th>No servidor</th><th>Conferência</th></tr></thead><tbody>' + linhas.join('') + '</tbody></table></div>' +
+        (falhas.length ? '<div class="msg erro">' + falhas.length + ' registro(s) com erro:<br>' + falhas.slice(0, 20).map(esc).join('<br>') + '</div>' : '');
+      msg($('#mI'), falhas.length ? 'Importação terminou com erros.' : 'Importação concluída: ' + dados.docs.length + ' registros.', falhas.length ? 'erro' : 'ok');
+      b.disabled = false;
+    };
+  }
+
+  iniciar().catch(function (e) { $('#raiz').innerHTML = '<div class="painel vazio">Não foi possível abrir: ' + esc(e.message) + '</div>'; });
+})();
+</script>
+</body>
+</html>
