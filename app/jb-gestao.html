@@ -10451,7 +10451,7 @@ function docLista(titulo,cols,cab,corpo,base){
 /* responsável do relatório em exportação (definido pela tela de relatórios do setor só durante a exportação) */
 let REL_RESP=null;
 function respDoSetorRel(s){
- const aba=typeof window.abaDoSetorV48==='function'?window.abaDoSetorV48(s):'';if(!aba)return null;
+ const aba=(window.RESP_SETOR_ABA||{})[s]||(typeof window.abaDoSetorV48==='function'?window.abaDoSetorV48(s):'');if(!aba)return null;
  const setor=typeof nomeSetorV==='function'?nomeSetorV(s):aba;
  const r=(DATA.fResp||[]).find(x=>x.aba===aba&&x.principal==='Sim'&&x.situacao!=='Inativo');
  if(r&&r.nome)return{nome:String(r.nome),cargo:String(r.cargo||''),setor};
@@ -25442,6 +25442,69 @@ renderCasca=function(){_renderCascaEIA.apply(this,arguments);try{if(acessoOk())e
 const _telaSetoresEIA=telaSetores;
 telaSetores=function(el){_telaSetoresEIA.apply(this,arguments);try{eiaAtualizarEntradas()}catch(e){}};
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-eia-abrir]');if(!b)return;e.preventDefault();eiaAbrir()});
+
+/* ================= V59 · responsável de cada setor =================
+   Cada cartão da seleção de setores mostra quem responde pelo setor e, para administradores,
+   um botão para definir. Usa o mesmo cadastro de Responsáveis do Financeiro (coleção fin,
+   tipo "responsavel"), separado pela aba do setor; o encarregado principal sai nos relatórios
+   e vem preenchido nos lançamentos novos. Nada é duplicado nem apagado. */
+const RESP_SETOR_ABA={dp:'Pessoal (DP)',vendas:'Vendas',lenha:'Lenha',combustivel:'Óleo e combustível',producao:'Produção',financeiro:'Financeiro',
+ almox:'Almoxarifado / Cozinha',paletes:'Paletes',barro:'Barro',control:'Controladoria e Análise',fiscal:'Fiscal'};
+window.RESP_SETOR_ABA=RESP_SETOR_ABA;
+(function(){try{
+ if(typeof ABAS_RESP!=='undefined')Object.values(RESP_SETOR_ABA).forEach(a=>{if(!ABAS_RESP.includes(a))ABAS_RESP.push(a)});
+ const H=window.FINANCEIRO_SETOR&&window.FINANCEIRO_SETOR.h;const B=MODS.responsaveis;if(!H||!B)return;
+ /* mesmo cadastro da aba Responsáveis do combustível, com o setor fixo (igual ao Almoxarifado, Paletes e Barro) */
+ const modRespAba=aba=>({...B,fields:B.fields.map(f=>f.k==='aba'?{...f,ro:1}:f),escopo:r=>r.aba===aba,
+  padrao:()=>({data:hoje(),aba,principal:(DATA.fResp||[]).some(x=>x.aba===aba&&x.principal==='Sim'&&x.situacao!=='Inativo')?'Não':'Sim',situacao:'Ativo'})});
+ const TODOS_P=[...new Set([...(typeof PB!=='undefined'?PB:[]),...Object.keys(typeof PAPEIS!=='undefined'?PAPEIS:{})])];
+ Object.entries(RESP_SETOR_ABA).forEach(([id,aba])=>{const mod='respSetor_'+id;const m=modRespAba(aba);if(!m)return;
+  MODS[mod]=m;H.TIPO[mod]='responsavel';
+  Object.defineProperty(DATA,mod,{enumerable:false,configurable:true,get(){return DATA.fResp||[]}});
+  PERM[mod]={v:TODOS_P,e:['admin']}});
+}catch(e){console.warn('responsável por setor',e)}})();
+/* o encarregado principal ativo do setor; quem não lê o Financeiro usa a cópia de config/empresa › respSetores */
+function respDoSetor(id){const aba=RESP_SETOR_ABA[id];if(!aba)return null;
+ const r=(DATA.fResp||[]).find(x=>x.aba===aba&&x.principal==='Sim'&&x.situacao!=='Inativo');
+ if(r&&r.nome)return{nome:String(r.nome),cargo:String(r.cargo||'')};
+ const c=((CFG&&CFG.respSetores)||{})[aba];return c&&c.nome?{nome:String(c.nome),cargo:String(c.cargo||'')}:null}
+function abrirRespSetor(id){
+ const aba=RESP_SETOR_ABA[id],mod='respSetor_'+id;if(!aba||!MODS[mod])return;
+ const S=SETORES.find(s=>s.id===id);const ed=pode(mod,'e');
+ const ordem=r=>(r.situacao==='Inativo'?2:0)+(r.principal==='Sim'?0:1);
+ const L=(DATA.fResp||[]).filter(r=>r.aba===aba).sort((a,b)=>ordem(a)-ordem(b)||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ const p=respDoSetor(id);
+ const v=abrirGaveta(`<div class="gav-cab"><h2>Responsável · ${esc(S?S.nome:aba)}</h2><button class="x" data-fechar aria-label="Fechar">${ic('fechar')}</button></div>
+  <div class="gav-corpo">
+   <p class="ajuda" style="margin:0 0 12px">O encarregado principal responde pelo setor: o nome dele sai como responsável nos relatórios do setor e vem preenchido nos lançamentos novos. Só um principal ativo por setor.</p>
+   ${L.length?`<div class="painel"><div class="tabwrap"><table class="tbl"><thead><tr><th>Nome</th><th>Cargo ou função</th><th>Telefone</th><th>Principal</th><th>Situação</th></tr></thead><tbody>
+    ${L.map(r=>`<tr class="clic" data-resp-id="${esc(r.id)}"><td data-l="Nome"><b>${esc(r.nome)}</b></td><td data-l="Cargo">${esc(r.cargo||'—')}</td><td data-l="Telefone">${esc(r.telefone||'—')}</td><td data-l="Principal">${r.principal==='Sim'?tag('Principal','ok'):'—'}</td><td data-l="Situação">${tag(r.situacao||'Ativo',r.situacao==='Inativo'?'':'ok')}</td></tr>`).join('')}
+   </tbody></table></div></div>`:p?`<div class="aviso in">Responsável atual: <b>${esc(p.nome)}</b>${p.cargo?' · '+esc(p.cargo):''}.</div>`:`<div class="vazio"><b>Nenhum responsável definido</b>${ed?'Toque em “Novo responsável” para definir quem responde por este setor.':'Peça a um administrador para definir.'}</div>`}
+  </div>
+  <div class="gav-pe">${ed?`<button type="button" class="btn pri" data-resp-novo>${ic('mais')}Novo responsável</button>`:''}<button type="button" class="btn" data-fechar>Fechar</button></div>`);
+ v.addEventListener('click',e=>{
+  if(e.target.closest('[data-fechar]')){fecharGaveta();return}
+  if(e.target.closest('[data-resp-novo]')){abrirRegistro(mod,'novo');return}
+  const tr=e.target.closest('tr[data-resp-id]');if(tr)abrirRegistro(mod,tr.dataset.respId)});
+}
+window.abrirRespSetor=abrirRespSetor;
+(function(){const st=document.createElement('style');st.textContent=
+ '.spot-resp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--suave);margin:8px 0 10px}'+
+ '.spot-resp svg{width:15px;height:15px;flex:none;opacity:.7}.spot-resp>span{flex:1 1 auto;min-width:0}.spot-resp b{color:var(--tinta);font-weight:600}.spot-resp .sem{font-style:italic}.spot-resp>span{flex:1 1 140px}'+
+ '.spot-resp .btn,.vis-cc .spot-resp .btn{margin-left:auto;flex:none;background:transparent;border:1px solid var(--linha);color:var(--tinta);box-shadow:none;padding:3px 10px;font-size:12px;font-weight:600;border-radius:7px;min-height:0;line-height:1.5}'+
+ '.spot-resp .btn:hover,.vis-cc .spot-resp .btn:hover{background:var(--papel);border-color:var(--fraco);color:var(--tinta)}';
+ (document.head||document.documentElement).appendChild(st)})();
+const _telaSetoresResp=telaSetores;
+telaSetores=function(el){_telaSetoresResp.apply(this,arguments);try{
+ $$('.spot-card',el).forEach(card=>{const b=card.querySelector('[data-setor]');if(!b||card.querySelector('.spot-resp'))return;
+  const id=b.dataset.setor;if(!RESP_SETOR_ABA[id]||!MODS['respSetor_'+id])return;
+  const p=respDoSetor(id);const ed=pode('respSetor_'+id,'e');
+  const d=document.createElement('div');d.className='spot-resp';
+  d.innerHTML=`${ic('pessoas')}<span>${p?`Responsável: <b>${esc(p.nome)}</b>${p.cargo?' · '+esc(p.cargo):''}`:'<span class="sem">Sem responsável definido</span>'}</span>`+
+   (ed||p?`<button type="button" class="btn min" data-resp-setor="${esc(id)}">${ed?(p?'Trocar':'Definir'):'Ver'}</button>`:'');
+  b.parentElement.insertBefore(d,b)});
+ $$('[data-resp-setor]',el).forEach(x=>x.onclick=ev=>{ev.stopPropagation();abrirRespSetor(x.dataset.respSetor)});
+}catch(e){console.warn('responsável por setor',e)}};
 
 /* ---------- contexto: versão, setor, tela ---------- */
 function eiaContexto(){
