@@ -7125,7 +7125,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 56 · outubro de 2026';
+const VERSAO='Versão 57 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -21883,6 +21883,1007 @@ function telaPendentes(el){
 })();
 </script>
 
+<style id="barro-v57">
+/* ===== Setor do Barro · extração (V57) · só aparência das telas novas ===== */
+.br-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.br-chips button{border:1px dashed var(--linha);background:var(--branco);border-radius:14px;padding:3px 10px;font-size:12.5px;cursor:pointer}
+.br-chips button:hover{border-color:var(--brasa);color:var(--brasa2)}
+.br-comp{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(48px,1fr) auto auto;gap:6px 12px;align-items:center;padding:12px 16px}
+.br-comp>span:not(.num){min-width:0;overflow-wrap:anywhere;line-height:1.25}
+.br-comp .bar{height:10px;border-radius:5px;background:var(--linha2);overflow:hidden}
+.br-comp .bar i{display:block;height:100%;background:var(--brasa)}
+.br-comp .num{white-space:nowrap}
+.br-comp .num{text-align:right}
+.br-tbl td input,.br-tbl td select{width:100%;min-width:0;padding:6px 8px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco);font:inherit}
+.br-tbl td input[readonly]{background:var(--papel);color:var(--suave)}
+.br-tbl .sub{display:block;font-size:11.5px;color:var(--fraco);margin-top:2px}
+.br-tbl .ib{border:0;background:none;cursor:pointer;padding:4px;color:var(--fraco)}
+.br-tbl .ib:hover{color:var(--pe)}
+.br-tbl .lk{font-size:11.5px;margin-top:2px;display:inline-block}
+.br-trava{font-size:11px;color:var(--in);display:block;margin-top:2px}
+#frmX,#xResumo,#frmX fieldset{min-width:0}
+@media (min-width:701px){
+ #xCar td[data-l="Motorista"] select{min-width:165px}#xCar td[data-l="Caçamba"] select{min-width:110px}
+ #xCar td[data-l="Carradas"] input,#xCar td[data-l="t por carrada"] input{width:70px}#xCar td[data-l="Valor da carrada"] input{width:100px}
+ #xCar td,#xMaq td,#xOut td{padding-left:6px;padding-right:6px}
+ #xMaq td[data-l="Máquina"] select{min-width:170px}#xMaq td[data-l="Operador"] input{min-width:100px}
+ #xMaq td[data-l^="Horímetro"] input{width:78px}#xMaq td[data-l="Horas"] input{width:62px}#xMaq td[data-l="Diesel (L)"] input{width:78px}
+ #xOut td[data-l="Tipo"] select{min-width:190px}#xOut td[data-l="Valor"] input{width:110px}}#frmX .tabwrap{max-width:100%}
+@media (max-width:700px){.br-comp{grid-template-columns:1fr auto;}.br-comp .bar{grid-column:1/-1}.br-tbl td input,.br-tbl td select{max-width:100%}}
+</style>
+<script>
+"use strict";
+/* ================= Setor do Barro · extração (V57) =================
+   Pedido do Jeferson (01/11/2026): módulo BARRO – EXTRAÇÃO no lugar do cartão "em breve".
+   · Uma coleção nova, barro, agrupada por mês (o mesmo esquema de alm e pal), com o tipo em jbt:
+     jazida, motorista, cacamba, config, ext (lançamento diário), mov (estoque de barro) e
+     fech (fechamento de motorista). Nenhuma coleção antiga muda de formato.
+   · Máquinas: as de Máquinas e veículos do Setor de Combustível (locais), sem cadastro novo.
+     Própria ou arrendada vem do campo Propriedade de lá. Diesel: os abastecimentos (consumos)
+     daquela máquina naquela data, com o custo médio do estoque; dá para digitar.
+   · Motoristas terceirizados: o valor a pagar sai das carradas; "Gerar conta a pagar" e
+     "Marcar como pago" criam o compromisso no Financeiro (setor de origem "Setor do Barro").
+     Cada carrada entra em um fechamento só: não dá para pagar a mesma carrada duas vezes.
+   · Estoque de barro: extração (+), saldo inicial, consumo na produção (−), venda a terceiros (−)
+     e ajustes. Venda não entra no custo da produção. */
+(()=>{
+const FS=window.FINANCEIRO_SETOR;if(!FS||!FS.h){console.warn('V57: Setor Financeiro não carregado');return}
+const H=FS.h,A=FS.acoes;
+const r2=v=>Math.round((+v||0)*100)/100,r3=v=>Math.round((+v||0)*1000)/1000;
+const n0=x=>x===''||x==null||isNaN(+x)?0:+x;
+const vazio=x=>x===''||x==null||(typeof x==='number'&&isNaN(x));
+const ig=(a,b)=>Math.abs(r2(a)-r2(b))<0.005;
+const agoraIso=()=>new Date().toISOString();const eu=()=>APP.uid||'local';
+const salvo=r=>!!(r&&(r.criadoEm||r.createdAt));
+const quem=r=>r?nomeUsuario(r.criadoPor||''):'';
+const normT=s=>semAcento(s).replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+const fT=v=>fNum(r2(v),2);                    /* toneladas: sempre 2 casas */
+const fTt=v=>fT(v)+' t';
+const fC=v=>fQtd(r2(v));                      /* carradas */
+const fH=v=>fNum(r2(v),Number.isInteger(r2(v))?0:2)+' h';
+const respP=aba=>typeof window.respPrincipalV48==='function'?window.respPrincipalV48(aba):'';
+const ABA='Barro',ORIGEM='Setor do Barro';
+const ativo=x=>!!x&&x.ativo!==false&&x.ativo!=='false';
+if(typeof IC==='object'){Object.assign(IC,{
+ cacamba:'<path d="M2 14h13l3-6h3v8H2z"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/><path d="M4 14l2-5h7l2 5"/>'});
+ if(!IC.barro)IC.barro='<path d="M3 20h18"/><path d="M5 20l3.5-7 3 4 2.5-5 5 8"/><circle cx="16.5" cy="6.5" r="2"/>';
+ if(!IC.lixo)IC.lixo='<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M9 7V4h6v3"/>'}
+
+/* ================= coleção barro, agrupada por mês, com o tipo em jbt ================= */
+const CB='barro',DISC='jbt';
+Object.assign(DATA,{[CB]:[]});
+Object.assign(BUCKET,{[CB]:'mes'});Object.assign(PARTES,{[CB]:4});Object.assign(CAMPO_DATA,{[CB]:'data'});
+if(typeof SEM_JANELA!=='undefined')SEM_JANELA.add(CB);
+const LOG={barroJaz:'jazida',barroMot:'motorista',barroCac:'cacamba',barroCfg:'config',barroExt:'ext',barroMov:'mov',barroFech:'fech'};
+const MEMO={};
+Object.keys(LOG).forEach(m=>Object.defineProperty(DATA,m,{enumerable:false,configurable:true,
+ get(){const t=LOG[m];const b=DATA[CB];const c=MEMO[m];if(c&&c.b===b)return c.v;const v=b.filter(r=>r[DISC]===t);MEMO[m]={b,v};return v}}));
+const g0=gravar,a0=apagar;
+gravar=async function(col,rec,ant){const t=LOG[col];if(t){const x={...rec,[DISC]:t};if(!x.data)x.data=(ant&&ant.data)||hoje();
+  return g0(CB,x,ant?{...ant,[DISC]:t,data:ant.data||x.data}:ant)}return g0(col,rec,ant)};
+apagar=async function(col,rec){const t=LOG[col];if(t)return a0(CB,{...rec,[DISC]:t});return a0(col,rec)};
+
+/* ================= permissões e rotas ================= */
+const BV=['admin','gerente','estoquista','financeiro'],BE=['admin','gerente','estoquista'],BC=['admin','gerente'];
+Object.assign(PERM,{'setor-barro':{v:BV,e:[]},barroLanc:{v:BV,e:BE},barroExt:{v:BV,e:BE},barroJaz:{v:BV,e:BE},barroMot:{v:BV,e:BE},barroCac:{v:BV,e:BE},
+ barroMov:{v:BV,e:BE},barroEst:{v:BV,e:[]},barroCusto:{v:BV,e:[]},barroPagar:{v:BV,e:BE},barroRel:{v:BV,e:[]},barroCfg:{v:BV,e:BC},barroResp:{v:BV,e:BE}});
+const ROTAS_B=['setor-barro','barroLanc','barroExt','barroJaz','barroMot','barroCac','barroMov','barroEst','barroCusto','barroPagar','barroRel','barroCfg','barroResp'];
+ROTAS_B.forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+if(window.ROTAS_SETOR_V52)window.ROTAS_SETOR_V52.barro=ROTAS_B.slice();
+
+/* ================= configurações (um registro só: id cfg) ================= */
+const CFG_B={valorCarrada:0,tonCarrada:0,moModo:'hora',moHora:0,moDiaria:0,tonPorMilheiro:'',arrendAtivo:false,maquinas:{}};
+const cfgRec=()=>DATA.barroCfg.find(x=>x.id==='cfg')||null;
+function cfgB(){const c=cfgRec()||{};return{...CFG_B,...c,maquinas:{...(c.maquinas||{})},arrendAtivo:c.arrendAtivo===true}}
+
+/* ================= consultas ================= */
+const JAZ=id=>DATA.barroJaz.find(x=>x.id===id);
+const MOT=id=>DATA.barroMot.find(x=>x.id===id);
+const CAC=id=>DATA.barroCac.find(x=>x.id===id);
+const EXT=id=>DATA.barroExt.find(x=>x.id===id);
+const nomeJaz=id=>{const j=JAZ(id);return j?String(j.nome||''):(id?'(jazida removida)':'—')};
+const nomeMot=id=>{const m=MOT(id);return m?String(m.nome||''):(id?'(motorista removido)':'—')};
+const nomeCac=id=>{const c=CAC(id);return c?String(c.placa||'')+(c.localId&&LOCAL(c.localId)?' · '+nomeLocal(LOCAL(c.localId)):''):(id?'(caçamba removida)':'—')};
+const placaCac=id=>{const c=CAC(id);return c?String(c.placa||''):''};
+const ord=(a,k)=>a.slice().sort((x,y)=>String(x[k]||'').localeCompare(String(y[k]||''),'pt-BR'));
+const optsJaz=m=>ord(DATA.barroJaz.filter(j=>ativo(j)||j.id===m),'nome').map(j=>[j.id,j.nome+(ativo(j)?'':' · inativa')]);
+const optsMot=m=>ord(DATA.barroMot.filter(j=>ativo(j)||j.id===m),'nome').map(j=>[j.id,j.nome+' · '+(j.tipo==='Terceirizado'?'terceirizado':'próprio')+(ativo(j)?'':' · inativo')]);
+const optsCac=m=>ord(DATA.barroCac.filter(j=>ativo(j)||j.id===m),'placa').map(j=>[j.id,nomeCac(j.id)+(ativo(j)?'':' · inativa')]);
+/* máquinas: as de Máquinas e veículos do Setor de Combustível (as do setor Barro primeiro) */
+const maqsComb=m=>DATA.locais.filter(l=>l.setor==='combustivel'&&(l.situacao!=='Inativo'||l.id===m));
+const ehMaqBarro=l=>l&&(l.setorTrabalho==='Barro'||/escavadeira|carregadeira|trator|retro/i.test(String(l.tipo||'')+' '+String(l.nome||'')));
+const optsMaq=m=>maqsComb(m).slice().sort((a,b)=>(ehMaqBarro(b)?1:0)-(ehMaqBarro(a)?1:0)||String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(l=>[l.id,nomeLocal(l)+(l.propriedade?' · '+l.propriedade.toLowerCase():'')]);
+const propMaq=id=>{const l=LOCAL(id);return l&&l.propriedade==='Arrendada'?'Arrendada':'Própria'};
+
+/* valor da carrada: motorista > caçamba > jazida > padrão; toneladas: caçamba > padrão */
+const temV=x=>!vazio(x)&&+x>=0&&x!==null;
+function valorPara(motId,cacId,jazId){const c=cfgB();const m=MOT(motId),k=CAC(cacId),j=JAZ(jazId);
+ if(m&&temV(m.valorCarrada))return{v:+m.valorCarrada,o:'do motorista'};
+ if(k&&temV(k.valorCarrada))return{v:+k.valorCarrada,o:'da caçamba'};
+ if(j&&temV(j.valorCarrada))return{v:+j.valorCarrada,o:'da jazida'};
+ return{v:+c.valorCarrada||0,o:'padrão'}}
+function tonPara(cacId){const k=CAC(cacId);if(k&&+k.tonCarrada>0)return{v:+k.tonCarrada,o:'da caçamba'};return{v:+cfgB().tonCarrada||0,o:'padrão'}}
+const formaMot=m=>m&&m.formaPag||'Por carrada';
+const ehTerc=m=>!!m&&m.tipo==='Terceirizado';
+
+/* ================= abastecimentos da máquina na data (Setor de Combustível) ================= */
+const ehDiesel=p=>!p||p.tipoItem==='Combustível'||!p.tipoItem;
+function abastDe(localId,data){
+ const xs=DATA.consumos.filter(c=>c.setor==='combustivel'&&c.localId===localId&&c.data===data&&c.abastecidoEm!=='Veículo de terceiro'&&ehDiesel(PROD(c.produtoId)));
+ const litros=r3(soma(xs,c=>c.quantidade));const custo=r2(soma(xs,c=>+c.custoTotal||((+c.quantidade||0)*(+c.custoUnit||0))));
+ return{xs,litros,custo,preco:litros>0?Math.round(custo/litros*10000)/10000:0}}
+function dieselPadrao(localId){const l=LOCAL(localId);const p=l&&l.combPadraoId&&PROD(l.combPadraoId);if(p)return p;
+ return DATA.produtos.find(x=>x.setor==='combustivel'&&x.situacao!=='Inativo'&&x.tipoComb==='Diesel')||null}
+const precoDiesel=localId=>{const p=dieselPadrao(localId);return p?custoMedio(p.id):0};
+
+/* ================= custo de um lançamento =================
+   frete (carradas × valor; motorista por diária: a diária do dia) + combustível (litros × preço médio)
+   + mão de obra (operadores por hora ou diária, e diárias de ajudante) + custo-hora das máquinas
+   (manutenção + depreciação; arrendada: só manutenção) + outros custos + arrendamento da jazida (rateio, se ligado) */
+const TIPOS_OUTROS=['Manutenção','Peças','Aluguel de máquina de terceiro','Diária de ajudante','Licença ou taxa ambiental','Outros'];
+const COMP=[['frete','Frete das caçambas'],['comb','Combustível das máquinas'],['mo','Mão de obra (operadores e ajudantes)'],['maq','Custo-hora das máquinas'],['outros','Outros custos'],['arrend','Arrendamento da jazida']];
+const totCarradas=e=>r2(soma(e.carradas||[],l=>n0(l.qtd)));
+const totTon=e=>r2(soma(e.carradas||[],l=>n0(l.qtd)*n0(l.ton)));
+function horasLinha(m){if(!vazio(m.horIni)&&!vazio(m.horFim)&&+m.horFim>=+m.horIni)return r2(+m.horFim-+m.horIni);return r2(n0(m.horas))}
+function freteDe(e){
+ let f=0;const dia={};
+ (e.carradas||[]).forEach(l=>{const forma=l.forma||formaMot(MOT(l.motoristaId));
+  if(forma==='Por diária'){if(n0(l.qtd)>0)dia[l.motoristaId]=1;return}f+=n0(l.qtd)*n0(l.valor)});
+ Object.keys(dia).forEach(m=>{const v=e.diarias&&e.diarias[m]!=null?e.diarias[m]:n0((MOT(m)||{}).valorDiaria);f+=n0(v)});
+ return r2(f)}
+let MEMO_TJ={b:null,v:null};
+function tonMesJaz(mes,jazId){if(MEMO_TJ.b!==DATA[CB]){MEMO_TJ={b:DATA[CB],v:{}}}const k=mes+'|'+jazId;
+ if(MEMO_TJ.v[k]==null)MEMO_TJ.v[k]=r2(soma(DATA.barroExt.filter(x=>x.jazidaId===jazId&&String(x.data||'').startsWith(mes)),totTon));return MEMO_TJ.v[k]}
+function custoExt(e,opc){
+ opc=opc||{};const C=cfgB();const mo=(!opc.rascunho&&e.mo)||{modo:C.moModo,hora:+C.moHora||0,diaria:+C.moDiaria||0};
+ const out={frete:freteDe(e),comb:0,mo:0,maq:0,outros:0,arrend:0,horas:0,litros:0,carradas:totCarradas(e),ton:totTon(e)};
+ const ops=new Set();let semNome=0;
+ (e.maquinas||[]).forEach(m=>{const h=horasLinha(m);out.horas+=h;
+  /* diesel puxado dos abastecimentos fica sempre ligado a eles (abastecimento lançado depois entra);
+     digitado: litros × preço médio do diesel guardado ao salvar */
+  let lt,cc;
+  if(m.litrosAuto!==false){const ab=abastDe(m.localId,e.data);lt=ab.litros;cc=ab.custo}
+  else{lt=n0(m.litros);const p=m.precoLitro!=null&&!opc.rascunho?+m.precoLitro:precoDiesel(m.localId);cc=lt*n0(p)}
+  out.litros+=lt;out.comb+=cc;
+  const x0=C.maquinas[m.localId]||{};
+  const cm=m.manutHora!=null&&!opc.rascunho?{m:+m.manutHora||0,d:+m.deprecHora||0,p:m.propriedade||propMaq(m.localId)}:{m:+x0.manutHora||0,d:+x0.deprecHora||0,p:propMaq(m.localId)};
+  out.maq+=h*(cm.m+(cm.p==='Arrendada'?0:cm.d));
+  if(mo.modo==='diaria'){const n=normT(m.operador);if(n)ops.add(n);else if(h>0)semNome++}else out.mo+=h*(+mo.hora||0)});
+ if(mo.modo==='diaria')out.mo+=(ops.size+semNome)*(+mo.diaria||0);
+ (e.outros||[]).forEach(o=>{if(o.tipo==='Diária de ajudante')out.mo+=n0(o.valor);else out.outros+=n0(o.valor)});
+ const j=JAZ(e.jazidaId);
+ if(C.arrendAtivo&&j&&+j.arrendMensal>0&&out.ton>0&&e.data){const mes=String(e.data).slice(0,7);const ja=e.id&&EXT(e.id);const tm=tonMesJaz(mes,e.jazidaId)+(opc.rascunho?out.ton-(ja&&ja.jazidaId===e.jazidaId&&String(ja.data).slice(0,7)===mes?totTon(ja):0):0);out.arrend=tm>0?+j.arrendMensal*out.ton/tm:0}
+ ['frete','comb','mo','maq','outros','arrend','horas','litros'].forEach(k=>out[k]=r2(out[k]));
+ out.total=r2(out.frete+out.comb+out.mo+out.maq+out.outros+out.arrend);
+ out.porCarrada=out.carradas>0?r2(out.total/out.carradas):0;out.porTon=out.ton>0?r2(out.total/out.ton):0;
+ return out}
+/* soma de vários lançamentos */
+function custoDe(lista){const t={frete:0,comb:0,mo:0,maq:0,outros:0,arrend:0,horas:0,litros:0,carradas:0,ton:0,total:0,n:lista.length};
+ lista.forEach(e=>{const c=custoExt(e);Object.keys(t).forEach(k=>{if(k!=='n')t[k]+=c[k]||0})});
+ Object.keys(t).forEach(k=>{if(k!=='n')t[k]=r2(t[k])});
+ t.porCarrada=t.carradas>0?r2(t.total/t.carradas):0;t.porTon=t.ton>0?r2(t.total/t.ton):0;return t}
+const extsPeriodo=(de,ate,jaz)=>DATA.barroExt.filter(e=>(!de||e.data>=de)&&(!ate||e.data<=ate)&&(!jaz||e.jazidaId===jaz)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+
+/* ================= o que cada motorista terceirizado tem a receber ================= */
+/* item a pagar: carrada de motorista por carrada (chave = id da linha) ou diária de motorista
+   por diária (chave = d:<lançamento>:<motorista>). Salário fixo e motorista próprio: nada aqui. */
+function itensPagar(){
+ const L=[];
+ DATA.barroExt.forEach(e=>{const dia={};
+  (e.carradas||[]).forEach(l=>{if(!(n0(l.qtd)>0)||!l.motoristaId)return;const m=MOT(l.motoristaId);
+   const terc=l.motTipo?l.motTipo==='Terceirizado':ehTerc(m);if(!terc)return;
+   const forma=l.forma||formaMot(m);
+   if(forma==='Salário fixo')return;
+   if(forma==='Por diária'){const d=dia[l.motoristaId]||(dia[l.motoristaId]={k:'d:'+e.id+':'+l.motoristaId,extId:e.id,data:e.data,motoristaId:l.motoristaId,jazidaId:e.jazidaId,carradas:0,ton:0,valor:n0(e.diarias&&e.diarias[l.motoristaId]!=null?e.diarias[l.motoristaId]:(m||{}).valorDiaria),diaria:true,linhas:[]});
+    d.carradas+=n0(l.qtd);d.ton+=n0(l.qtd)*n0(l.ton);d.linhas.push(l);return}
+   L.push({k:l.lid,extId:e.id,data:e.data,motoristaId:l.motoristaId,jazidaId:e.jazidaId,cacambaId:l.cacambaId,carradas:n0(l.qtd),ton:r2(n0(l.qtd)*n0(l.ton)),valorCarrada:n0(l.valor),valor:r2(n0(l.qtd)*n0(l.valor))})});
+  Object.values(dia).forEach(d=>{d.ton=r2(d.ton);d.valor=r2(d.valor);L.push(d)})});
+ return L}
+const fechAtivos=()=>DATA.barroFech.filter(f=>!f.cancelado);
+function chavesFechadas(excetoFech){const s=new Map();fechAtivos().forEach(f=>{if(f.id===excetoFech)return;(f.itens||[]).forEach(i=>s.set(i.k,f))});return s}
+/* situação do fechamento pelo compromisso no Financeiro */
+const TIT=id=>DATA.fTitulos.find(t=>t.id===id);
+const OBT=id=>{try{return FS.obrigacoes().find(o=>o.ref==='t:'+id)||null}catch(e){return null}};
+const pagosT=t=>r2((t&&t.pagamentos||[]).filter(p=>!p.estornado).reduce((a,p)=>a+(+p.valor||0),0));
+function sitFech(f){
+ const liq=r2(f.liquido);if(!(liq>0.004))return{st:'Pago',pago:0,saldo:0,o:null};
+ const t=f.finTituloId?TIT(f.finTituloId):null;if(!t)return{st:'Pendente',pago:0,saldo:liq,o:null,semTitulo:true};
+ const o=OBT(t.id);const pago=o?r2(o.s.pagoEf):pagosT(t);const saldo=r2(Math.max(0,liq-pago));
+ return{st:saldo<=0.004?'Pago':pago>0.004?'Parcial':'Pendente',pago,saldo,o,venc:t.vencimento}}
+const COR_SF={Pago:'ok',Parcial:'in',Pendente:'at'};
+const tagSF=s=>tag(s,COR_SF[s]||'');
+const catBarro=()=>{const cats=H.fcfg().categorias;return ['Fretes de barro','Barro','Fretes'].find(c=>cats.includes(c))||'Barro'};
+
+/* ================= cadastros (formulário padrão do sistema) ================= */
+const OP_ATIVO=[[true,'Ativo'],[false,'Inativo']],OP_ATIVA=[[true,'Ativa'],[false,'Inativa']];
+const fixAtivo=(st,k)=>{if(k==='ativo')st.ativo=st.ativo===true||st.ativo==='true'};
+const tagAtivo=(r,f)=>ativo(r)?tag(f?'Ativa':'Ativo','ok'):tag(f?'Inativa':'Inativo','');
+const campoQuando={k:'_quando',l:'Registrado em',t:'calc',calc:r=>{const x=r.criadoEm||r.createdAt;return x?fDataHora(x)+(r.criadoPor?' · '+nomeUsuario(r.criadoPor):''):'—'},sh:r=>salvo(r),s:'Registro'};
+const ajValor='Opcional. Em branco, vale o valor das Configurações (ou o da caçamba / jazida). Ordem: motorista, caçamba, jazida, padrão.';
+const extDaJaz=id=>DATA.barroExt.filter(e=>e.jazidaId===id);
+const linhasDoMot=id=>{const L=[];DATA.barroExt.forEach(e=>(e.carradas||[]).forEach(l=>{if(l.motoristaId===id)L.push({e,l})}));return L};
+const linhasDaCac=id=>{const L=[];DATA.barroExt.forEach(e=>(e.carradas||[]).forEach(l=>{if(l.cacambaId===id)L.push({e,l})}));return L};
+
+MODS.barroJaz={titulo:'Jazidas',sing:'jazida',ic:'mapa',
+ desc:'De onde o barro é tirado. A distância até a fábrica fica registrada; o valor da carrada pode ser próprio da jazida.',
+ fields:[
+  {k:'nome',l:'Nome da jazida',t:'txt',req:1,w2:1,s:'Jazida'},
+  {k:'localizacao',l:'Localização',t:'txt',w2:1,aj:'Ex.: Fazenda tal, estrada tal, coordenadas.',s:'Jazida'},
+  {k:'distanciaKm',l:'Distância até a fábrica (km)',t:'num',s:'Jazida'},
+  {k:'ativo',l:'Situação',t:'sel',req:1,op:OP_ATIVA,aj:'Inativa: some da lista de lançamento. O histórico continua.',s:'Jazida'},
+  {k:'valorCarrada',l:'Valor da carrada nesta jazida',t:'moeda',aj:ajValor,s:'Valores'},
+  {k:'arrendMensal',l:'Arrendamento mensal (para rateio)',t:'moeda',aj:'Só entra no custo do barro se o rateio do arrendamento estiver ligado nas Configurações (hoje o arrendamento é lançado no custo geral).',s:'Valores'},
+  {k:'_ext',l:'Extraído',t:'html',w2:1,calc:r=>{if(!r.id||!JAZ(r.id))return '<span class="ajuda">Aparece depois de salvar.</span>';const es=extDaJaz(r.id);
+   return es.length?esc(es.length+' lançamento(s) · '+fC(soma(es,totCarradas))+' carradas · '+fTt(soma(es,totTon))+' · último em '+fData(es.map(e=>e.data).sort().pop())):'<span class="ajuda">Nenhuma extração lançada.</span>'},s:'Valores'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Valores'},campoQuando],
+ cols:[{k:'nome',l:'Jazida',v:r=>'<b>'+esc(r.nome)+'</b>'+(r.localizacao?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(r.localizacao)+'</span>':''),o:r=>r.nome},
+  {k:'distanciaKm',l:'Distância (km)',t:'num'},{k:'valorCarrada',l:'Valor da carrada',t:'moeda',v:r=>temV(r.valorCarrada)?esc(fMoeda(r.valorCarrada)):'<span class="ajuda">padrão</span>',o:r=>+r.valorCarrada||0},
+  {k:'_t',l:'Extraído (t)',t:'num',v:r=>esc(fT(soma(extDaJaz(r.id),totTon))),o:r=>soma(extDaJaz(r.id),totTon)},
+  {k:'_a',l:'Situação',v:r=>tagAtivo(r,1),o:r=>ativo(r)?'Ativa':'Inativa'}],
+ filtros:[{k:'_a',l:'Situação',op:['Ativa','Inativa'],fn:(r,v)=>(ativo(r)?'Ativa':'Inativa')===v}],
+ ordem:['nome','asc'],semExcluir:true,
+ padrao:()=>({ativo:true,localizacao:'',distanciaKm:'',valorCarrada:'',arrendMensal:'',obs:''}),
+ aoMudar:fixAtivo,
+ validar(st){const e={};const n=normT(st.nome);if(n){const d=DATA.barroJaz.find(x=>x.id!==st.id&&normT(x.nome)===n);if(d)e.nome='Já existe jazida com este nome.'}
+  if(!vazio(st.distanciaKm)&&+st.distanciaKm<0)e.distanciaKm='Não pode ser negativa.';
+  if(!vazio(st.valorCarrada)&&+st.valorCarrada<0)e.valorCarrada='Não pode ser negativo.';return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim();rec.ativo=rec.ativo!==false&&rec.ativo!=='false';
+  ['distanciaKm','valorCarrada','arrendMensal'].forEach(k=>{rec[k]=vazio(rec[k])?null:r2(rec[k])})}};
+
+const TIPOS_MOT=['Próprio','Terceirizado'],FORMAS_MOT=['Por carrada','Por diária','Salário fixo'];
+MODS.barroMot={titulo:'Motoristas de caçamba',sing:'motorista',ic:'pessoas',
+ desc:'Próprios e terceirizados. O terceirizado recebe por carrada ou por diária e entra em Motoristas a pagar; o de salário fixo é pago pela folha.',
+ fields:[
+  {k:'nome',l:'Nome',t:'txt',req:1,w2:1,s:'Motorista'},
+  {k:'cpf',l:'CPF',t:'cpf',s:'Motorista'},
+  {k:'tel',l:'Telefone',t:'tel',s:'Motorista'},
+  {k:'pix',l:'Chave PIX',t:'txt',s:'Motorista'},
+  {k:'tipo',l:'Tipo',t:'sel',req:1,op:TIPOS_MOT,s:'Motorista'},
+  {k:'formaPag',l:'Forma de pagamento',t:'sel',req:1,op:FORMAS_MOT,aj:'Por carrada: carradas × valor. Por diária: uma diária por dia trabalhado. Salário fixo: não gera valor a pagar aqui.',s:'Motorista'},
+  {k:'valorDiaria',l:'Valor da diária',t:'moeda',req:1,sh:r=>r.formaPag==='Por diária',s:'Motorista'},
+  {k:'valorCarrada',l:'Valor da carrada deste motorista',t:'moeda',sh:r=>r.formaPag!=='Por diária',aj:ajValor,s:'Motorista'},
+  {k:'ativo',l:'Situação',t:'sel',req:1,op:OP_ATIVO,s:'Motorista'},
+  {k:'_ext',l:'Carradas lançadas',t:'html',w2:1,calc:r=>{if(!r.id||!MOT(r.id))return '<span class="ajuda">Aparece depois de salvar.</span>';const L=linhasDoMot(r.id);
+   return L.length?esc(fC(soma(L,x=>x.l.qtd))+' carradas · '+fTt(soma(L,x=>n0(x.l.qtd)*n0(x.l.ton)))+' · última em '+fData(L.map(x=>x.e.data).sort().pop())):'<span class="ajuda">Nenhuma carrada lançada.</span>'},s:'Motorista'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Motorista'},campoQuando],
+ cols:[{k:'nome',l:'Motorista',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},{k:'tipo',l:'Tipo',v:r=>tag(r.tipo,r.tipo==='Terceirizado'?'br':'in'),o:r=>r.tipo},
+  {k:'formaPag',l:'Pagamento',v:r=>esc((r.formaPag||'')+(r.formaPag==='Por diária'?' · '+fMoeda(r.valorDiaria):temV(r.valorCarrada)?' · '+fMoeda(r.valorCarrada):'')),o:r=>r.formaPag},
+  {k:'tel',l:'Telefone'},{k:'pix',l:'PIX'},
+  {k:'_c',l:'Carradas',t:'num',v:r=>esc(fC(soma(linhasDoMot(r.id),x=>x.l.qtd))),o:r=>soma(linhasDoMot(r.id),x=>x.l.qtd)},
+  {k:'_a',l:'Situação',v:r=>tagAtivo(r),o:r=>ativo(r)?'Ativo':'Inativo'}],
+ filtros:[{k:'tipo',l:'Tipo',op:TIPOS_MOT},{k:'formaPag',l:'Pagamento',op:FORMAS_MOT},{k:'_a',l:'Situação',op:['Ativo','Inativo'],fn:(r,v)=>(ativo(r)?'Ativo':'Inativo')===v}],
+ ordem:['nome','asc'],semExcluir:true,
+ padrao:()=>({tipo:'Terceirizado',formaPag:'Por carrada',ativo:true,cpf:'',tel:'',pix:'',valorDiaria:'',valorCarrada:'',obs:''}),
+ aoMudar(st,k){fixAtivo(st,k);if(k==='tipo'&&st.tipo==='Próprio'&&st.formaPag==='Por carrada')st.formaPag='Salário fixo'},
+ validar(st){const e={};const d=digitos(st.cpf);if(d&&(d.length!==11||!cpfValido(d)))e.cpf='CPF inválido.';
+  if(d&&!e.cpf){const x=DATA.barroMot.find(m=>m.id!==st.id&&digitos(m.cpf)===d);if(x)e.cpf='Já existe motorista com este CPF: '+x.nome+'.'}
+  const n=normT(st.nome);if(n){const x=DATA.barroMot.find(m=>m.id!==st.id&&normT(m.nome)===n);if(x)e.nome='Já existe motorista com este nome.'}
+  if(st.formaPag==='Por diária'&&!(+st.valorDiaria>0))e.valorDiaria='Informe o valor da diária.';
+  if(st.tipo==='Próprio'&&st.formaPag!=='Salário fixo')e._aviso='Motorista próprio normalmente recebe salário pela folha. Com "'+st.formaPag+'", ele não entra em Motoristas a pagar (só terceirizado entra). Salvar assim mesmo?';
+  return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim();rec.ativo=rec.ativo!==false&&rec.ativo!=='false';rec.cpf=digitos(rec.cpf);
+  rec.valorDiaria=rec.formaPag==='Por diária'?r2(rec.valorDiaria):null;rec.valorCarrada=rec.formaPag==='Por diária'||vazio(rec.valorCarrada)?null:r2(rec.valorCarrada)}};
+
+MODS.barroCac={titulo:'Caçambas',sing:'caçamba',ic:'cacamba',
+ desc:'Placa, motorista padrão e capacidade em toneladas por carrada. Caçamba da fábrica pode ser ligada ao veículo de Máquinas e veículos (Setor de Combustível).',
+ fields:[
+  {k:'placa',l:'Placa',t:'txt',req:1,s:'Caçamba'},
+  {k:'propriedade',l:'De quem é',t:'sel',req:1,op:['Própria','De terceiro'],s:'Caçamba'},
+  {k:'localId',l:'Veículo em Máquinas e veículos',t:'sel',op:()=>maqsComb().map(l=>[l.id,nomeLocal(l)]),sh:r=>r.propriedade==='Própria',aj:'Opcional: liga a caçamba ao cadastro que já existe no Setor de Combustível (não cria outro).',s:'Caçamba'},
+  {k:'motoristaId',l:'Motorista padrão',t:'sel',op:r=>optsMot(r&&r.motoristaId),aj:'Vem escolhido no lançamento quando a caçamba é escolhida.',s:'Caçamba'},
+  {k:'tonCarrada',l:'Toneladas por carrada',t:'num',aj:'Em branco, vale o padrão das Configurações.',s:'Caçamba'},
+  {k:'valorCarrada',l:'Valor da carrada desta caçamba',t:'moeda',aj:ajValor,s:'Caçamba'},
+  {k:'ativo',l:'Situação',t:'sel',req:1,op:OP_ATIVA,s:'Caçamba'},
+  {k:'_ext',l:'Carradas lançadas',t:'html',w2:1,calc:r=>{if(!r.id||!CAC(r.id))return '<span class="ajuda">Aparece depois de salvar.</span>';const L=linhasDaCac(r.id);
+   return L.length?esc(fC(soma(L,x=>x.l.qtd))+' carradas · '+fTt(soma(L,x=>n0(x.l.qtd)*n0(x.l.ton)))):'<span class="ajuda">Nenhuma carrada lançada.</span>'},s:'Caçamba'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Caçamba'},campoQuando],
+ cols:[{k:'placa',l:'Placa',v:r=>'<b>'+esc(r.placa)+'</b>'+(r.localId&&LOCAL(r.localId)?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(nomeLocal(LOCAL(r.localId)))+'</span>':''),o:r=>r.placa},
+  {k:'propriedade',l:'De quem é'},{k:'_m',l:'Motorista padrão',v:r=>esc(r.motoristaId?nomeMot(r.motoristaId):'—'),o:r=>nomeMot(r.motoristaId)},
+  {k:'_t',l:'t por carrada',t:'num',v:r=>+r.tonCarrada>0?esc(fT(r.tonCarrada)):'<span class="ajuda">padrão ('+esc(fT(cfgB().tonCarrada))+')</span>',o:r=>+r.tonCarrada||0},
+  {k:'_v',l:'Valor da carrada',t:'moeda',v:r=>temV(r.valorCarrada)?esc(fMoeda(r.valorCarrada)):'<span class="ajuda">—</span>',o:r=>+r.valorCarrada||0},
+  {k:'_a',l:'Situação',v:r=>tagAtivo(r,1),o:r=>ativo(r)?'Ativa':'Inativa'}],
+ filtros:[{k:'propriedade',l:'De quem é',op:['Própria','De terceiro']},{k:'_a',l:'Situação',op:['Ativa','Inativa'],fn:(r,v)=>(ativo(r)?'Ativa':'Inativa')===v}],
+ ordem:['placa','asc'],semExcluir:true,
+ padrao:()=>({propriedade:'De terceiro',ativo:true,motoristaId:'',localId:'',tonCarrada:'',valorCarrada:'',obs:''}),
+ aoMudar(st,k){fixAtivo(st,k);if(k==='localId'){const l=LOCAL(st.localId);if(l&&l.identificacao&&!st.placa)st.placa=l.identificacao}if(k==='propriedade'&&st.propriedade!=='Própria')st.localId=''},
+ validar(st){const e={};const p=normT(st.placa).replace(/ /g,'');if(p){const d=DATA.barroCac.find(x=>x.id!==st.id&&normT(x.placa).replace(/ /g,'')===p);if(d)e.placa='Já existe caçamba com esta placa.'}
+  if(!vazio(st.tonCarrada)&&!(+st.tonCarrada>0))e.tonCarrada='Informe um número maior que zero (ou deixe em branco).';
+  if(!vazio(st.valorCarrada)&&+st.valorCarrada<0)e.valorCarrada='Não pode ser negativo.';return e},
+ preparar(rec){rec.placa=String(rec.placa||'').trim().toUpperCase();rec.ativo=rec.ativo!==false&&rec.ativo!=='false';
+  rec.tonCarrada=vazio(rec.tonCarrada)?null:r2(rec.tonCarrada);rec.valorCarrada=vazio(rec.valorCarrada)?null:r2(rec.valorCarrada);if(rec.propriedade!=='Própria')rec.localId=''}};
+
+/* ---------- estoque de barro: saldo inicial, consumo na produção, venda a terceiros, ajustes ---------- */
+const TIPOS_MOV=[['inicial','Saldo inicial (contagem)'],['consumo','Consumo na produção'],['venda','Venda a terceiros'],['ajEnt','Ajuste de entrada'],['ajSai','Ajuste de saída']];
+const NOME_MOV=Object.fromEntries(TIPOS_MOV);
+const sinalMov=t=>t==='consumo'||t==='venda'||t==='ajSai'?-1:1;
+/* sugestão de consumo pela maromba (produção líquida confirmada × t por milheiro) */
+function sugestaoConsumo(data){const t=+cfgB().tonPorMilheiro;const P=window.PRODUCAO_SETOR;if(!(t>0)||!P||!P.calcMar||!data)return null;
+ const xs=(DATA.pmaromba||[]).filter(r=>r.data===data&&(!P.conf||P.conf(r)));if(!xs.length)return{mil:0,ton:0,n:0};
+ const mil=soma(xs,r=>P.calcMar(r).liquida)/1000;return{mil:r3(mil),ton:r2(mil*t),n:xs.length}}
+MODS.barroMov={titulo:'Movimentos do estoque de barro',sing:'movimento',ic:'caixa',
+ desc:'O que sai do estoque (consumo na produção e venda a terceiros), o saldo inicial e os ajustes. A extração entra sozinha pelo lançamento diário.',
+ fields:[
+  {k:'data',l:'Data',t:'data',req:1,s:'Movimento'},
+  {k:'tipo',l:'Tipo',t:'sel',req:1,op:TIPOS_MOV,s:'Movimento'},
+  {k:'ton',l:'Toneladas',t:'num',req:1,s:'Movimento'},
+  {k:'carradas',l:'Carradas',t:'num',aj:'Opcional.',s:'Movimento'},
+  {k:'jazidaId',l:'Jazida',t:'sel',op:r=>optsJaz(r&&r.jazidaId),aj:'Opcional.',s:'Movimento'},
+  {k:'_sug',l:'Pela produção da maromba',t:'html',vivo:1,w2:1,sh:r=>r.tipo==='consumo',calc:r=>{const t=+cfgB().tonPorMilheiro;
+   if(!(t>0))return '<span class="ajuda">Para o sistema sugerir o consumo pela produção, informe as toneladas de barro por milheiro em Configurações do setor.</span>';
+   const s=sugestaoConsumo(r.data);if(!s)return '<span class="ajuda">Sem dados da produção.</span>';
+   return s.n?`Maromba em ${esc(fData(r.data))}: <b>${esc(fNum(s.mil,3))} milheiros</b> × ${esc(fT(t))} t = <b>${esc(fTt(s.ton))}</b> (sugestão; confira antes de salvar).`:'<span class="ajuda">Nenhuma produção confirmada na maromba nesta data.</span>'},s:'Movimento'},
+  {k:'cliente',l:'Comprador',t:'txt',req:1,sh:r=>r.tipo==='venda',s:'Venda'},
+  {k:'valorVenda',l:'Valor da venda',t:'moeda',sh:r=>r.tipo==='venda',aj:'Só registro. A venda não entra no custo da produção.',s:'Venda'},
+  {k:'motivo',l:'Motivo',t:'txt',req:1,w2:1,sh:r=>r.tipo==='ajEnt'||r.tipo==='ajSai',aj:'Ex.: contagem do pátio, perda na chuva, correção de lançamento.',s:'Movimento'},
+  {k:'_sal',l:'Estoque',t:'html',vivo:1,w2:1,calc:r=>{const s=saldoSem(r.id);return `Saldo sem este movimento: <b>${esc(fTt(s.ton))}</b> · ${esc(fC(s.car))} carradas`},s:'Movimento'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Movimento'},campoQuando],
+ cols:[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo',v:r=>tag(NOME_MOV[r.tipo]||r.tipo,sinalMov(r.tipo)<0?'at':'ok'),o:r=>r.tipo},
+  {k:'ton',l:'Toneladas',t:'num',v:r=>esc((sinalMov(r.tipo)<0?'−':'+')+fT(r.ton)),o:r=>sinalMov(r.tipo)*n0(r.ton)},
+  {k:'carradas',l:'Carradas',t:'num',v:r=>vazio(r.carradas)?'—':esc(fC(r.carradas)),o:r=>n0(r.carradas)},
+  {k:'_j',l:'Jazida',v:r=>esc(r.jazidaId?nomeJaz(r.jazidaId):'—'),o:r=>nomeJaz(r.jazidaId)},
+  {k:'_d',l:'Detalhe',v:r=>esc(r.tipo==='venda'?(r.cliente||'')+(+r.valorVenda>0?' · '+fMoeda(r.valorVenda):''):r.motivo||r.obs||''),o:r=>r.cliente||r.motivo||''}],
+ filtros:[{k:'data',l:'Data',t:'periodo',campo:'data'},{k:'tipo',l:'Tipo',op:TIPOS_MOV}],
+ ordem:['data','desc'],excluirLanc:true,
+ padrao:()=>({data:hoje(),tipo:'consumo',ton:'',carradas:'',jazidaId:'',cliente:'',valorVenda:'',motivo:'',obs:''}),
+ aoMudar(st,k){if((k==='tipo'||k==='data')&&st.tipo==='consumo'&&vazio(st.ton)){const s=sugestaoConsumo(st.data);if(s&&s.ton>0)st.ton=s.ton}},
+ validar(st){const e={};if(!(+st.ton>0))e.ton='Informe as toneladas (maior que zero).';if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
+  if(!vazio(st.carradas)&&+st.carradas<0)e.carradas='Não pode ser negativo.';
+  if(st.tipo==='inicial'&&DATA.barroMov.some(m=>m.id!==st.id&&m.tipo==='inicial'))e._aviso='Já existe um saldo inicial. Um segundo soma ao estoque. Salvar assim mesmo?';
+  if(!e.ton&&sinalMov(st.tipo)<0){const s=saldoSem(st.id);if(+st.ton>s.ton+1e-9)e._aviso=(e._aviso?e._aviso+' ':'')+'A saída ('+fTt(st.ton)+') é maior que o estoque ('+fTt(s.ton)+'): o estoque fica negativo até lançar a extração ou o saldo inicial. Salvar assim mesmo?'}
+  return e},
+ preparar(rec){rec.ton=r2(rec.ton);rec.carradas=vazio(rec.carradas)?null:r2(rec.carradas);if(rec.tipo!=='venda'){rec.cliente='';rec.valorVenda=null}else rec.valorVenda=vazio(rec.valorVenda)?null:r2(rec.valorVenda);
+  if(rec.tipo!=='ajEnt'&&rec.tipo!=='ajSai')rec.motivo=String(rec.motivo||'').trim()}};
+
+/* responsáveis do setor: o mesmo cadastro do Financeiro (Cadastros › Responsáveis), aba Barro */
+H.TIPO.barroResp='responsavel';
+Object.defineProperty(DATA,'barroResp',{enumerable:false,configurable:true,get(){return DATA.fResp||[]}});
+{const B=MODS.responsaveis;if(B)MODS.barroResp={...B,fields:B.fields.map(f=>f.k==='aba'?{...f,ro:1}:f),escopo:r=>r.aba===ABA,
+ padrao:()=>({data:hoje(),aba:ABA,principal:(DATA.fResp||[]).some(x=>x.aba===ABA&&x.principal==='Sim'&&x.situacao!=='Inativo')?'Não':'Sim',situacao:'Ativo'})}}
+
+/* ================= estoque de barro ================= */
+function movsBarro(){
+ const L=[];
+ DATA.barroExt.forEach(e=>{const t=totTon(e),c=totCarradas(e);if(t||c)L.push({data:e.data,tipo:'ext',nome:'Extração',ton:t,car:c,jazidaId:e.jazidaId,href:'#/barroExt/'+e.id,id:e.id,det:nomeJaz(e.jazidaId)})});
+ DATA.barroMov.forEach(m=>{const s=sinalMov(m.tipo);L.push({data:m.data,tipo:m.tipo,nome:NOME_MOV[m.tipo]||m.tipo,ton:s*n0(m.ton),car:s*n0(m.carradas),jazidaId:m.jazidaId,href:'#/barroMov/'+m.id,id:m.id,
+  det:m.tipo==='venda'?(m.cliente||'')+(+m.valorVenda>0?' · '+fMoeda(m.valorVenda):''):m.motivo||m.obs||''})});
+ return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||(a.tipo==='inicial'?-1:b.tipo==='inicial'?1:0))}
+let MEMO_E={b:null,v:null};
+function estoqueB(){if(MEMO_E.b===DATA[CB])return MEMO_E.v;const L=movsBarro();const v={ton:r2(soma(L,x=>x.ton)),car:r2(soma(L,x=>x.car))};MEMO_E={b:DATA[CB],v};return v}
+function saldoSem(movId){const e=estoqueB();const m=movId&&DATA.barroMov.find(x=>x.id===movId);if(!m)return e;const s=sinalMov(m.tipo);return{ton:r2(e.ton-s*n0(m.ton)),car:r2(e.car-s*n0(m.carradas))}}
+/* resumo do mês: estoque inicial + extraído − consumido − vendido ± ajustes = final */
+function resumoMes(mes){const L=movsBarro();const ini=r2(soma(L.filter(x=>x.data<mes+'-01'),x=>x.ton));
+ const M=L.filter(x=>String(x.data).startsWith(mes));const s=t=>r2(soma(M.filter(x=>t.includes(x.tipo)),x=>x.ton));
+ const r={mes,ini,inicial:s(['inicial']),ext:s(['ext']),cons:-s(['consumo']),venda:-s(['venda']),aj:s(['ajEnt','ajSai'])};
+ r.fim=r2(r.ini+r.inicial+r.ext-r.cons-r.venda+r.aj);return r}
+
+/* ================= casca do setor ================= */
+const ABAS=()=>[
+ {r:'#/setor-barro',m:'setor-barro',ic:'painel',l:'Início',at:['setor-barro']},
+ {r:'#/barroExt/nova',m:'barroExt',e:1,ic:'mais',l:'Lançar extração',at:['ext-nova']},
+ {r:'#/barroLanc',m:'barroLanc',ic:'recibo',l:'Lançamentos',at:['barroLanc','barroExt']},
+ {r:'#/barroCusto',m:'barroCusto',ic:'moeda',l:'Custo do barro',at:['barroCusto']},
+ {r:'#/barroPagar',m:'barroPagar',ic:'carteira',l:'Motoristas a pagar',at:['barroPagar']},
+ {r:'#/barroEst',m:'barroEst',ic:'caixa',l:'Estoque de barro',at:['barroEst','barroMov']},
+ {r:'#/barroRel',m:'barroRel',ic:'grafico',l:'Relatórios',at:['barroRel']},
+ {r:'#/barroJaz',m:'barroJaz',ic:'mapa',l:'Jazidas',at:['barroJaz']},
+ {r:'#/barroMot',m:'barroMot',ic:'pessoas',l:'Motoristas',at:['barroMot']},
+ {r:'#/barroCac',m:'barroCac',ic:'cacamba',l:'Caçambas',at:['barroCac']},
+ {r:'#/barroCfg',m:'barroCfg',ic:'engrenagem',l:'Configurações',at:['barroCfg']},
+ ...(MODS.barroResp?[{r:'#/barroResp',m:'barroResp',ic:'pessoas',l:'Responsáveis',at:['barroResp']}]:[])];
+const NOME_S='Setor do Barro';
+function shellB(el,ativa,corpo){
+ if(typeof marcarSetor==='function')marcarSetor('barro');
+ el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot(NOME_S,'Extração · '+razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
+  <nav class="dir-abas sv-abas" aria-label="Telas do ${esc(NOME_S)}">${ABAS().filter(a=>pode(a.m,a.e?'e':'v')).map(a=>{const on=a.at.includes(ativa);return `<a class="dir-aba${on?' on':''}" href="${a.r}"${on?' aria-current="page"':''}>${ic(a.ic)}<span>${esc(a.l)}</span></a>`}).join('')}</nav></div>
+  <main class="sv-corpo" id="svCorpo"></main></div>`;
+ const c=$('#svCorpo',el);if(!APP.carregado){carregandoV(c);return}
+ try{corpo(c)}catch(e){console.error(e);c.innerHTML='<div class="vazio"><b>Não foi possível montar esta tela</b>'+esc(e&&e.message||String(e))+'</div>'}
+}
+const cab=(ico,t,p,acoes)=>`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(ico)}</span><div><h1>${esc(t)}</h1><p>${p}</p></div></div><div class="acoes">${acoes||''}</div></div>`;
+const optH=H.optH;
+const noNada=(t,s)=>`<div class="vazio"><b>${esc(t)}</b>${s||''}</div>`;
+const td=(l,v,num,cls)=>`<td data-l="${esc(l)}" class="${num?'num':''} ${cls||''}">${v}</td>`;
+const tabela=(head,linhas,foot,cls)=>`<div class="painel tabwrap"><table class="tbl cartao fi-tbl ${cls||''}"><thead><tr>${head.map(h=>{const[t,n]=Array.isArray(h)?h:[h,0];return `<th class="${n?'num':''}">${esc(t)}</th>`}).join('')}</tr></thead><tbody>${linhas.join('')}</tbody>${foot?`<tfoot><tr>${foot.map((f,i)=>{const[t,n]=Array.isArray(f)?f:[f,0];return `<td data-l="${esc((Array.isArray(head[i])?head[i][0]:head[i])||'')}" class="${n?'num':''}">${t}</td>`}).join('')}</tr></tfoot>`:''}</table></div>`;
+function exportarMenu(btn,nome,titulo,cols,dados){const fx=f=>exportar(f,nome+'_'+hoje(),cols,dados,titulo);
+ abrirMenuMais(btn,[{l:'Visualizar (timbrado)',sub:dados.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}
+const iniMes=()=>hoje().slice(0,8)+'01';
+
+/* ================= lançamento diário da extração (tela própria, com as linhas) ================= */
+let RX=null;
+const linhaC=()=>({lid:novoId(),motoristaId:'',cacambaId:'',qtd:'',valor:'',valorAuto:true,ton:'',tonAuto:true});
+const linhaM=()=>({mid:novoId(),localId:'',operador:'',horIni:'',horFim:'',horas:'',litros:'',litrosAuto:true});
+const linhaO=()=>({oid:novoId(),tipo:'',descricao:'',valor:''});
+function rascunhoX(e){
+ if(e)return{id:e.id,data:e.data,jazidaId:e.jazidaId||'',responsavel:e.responsavel||'',obs:e.obs||'',
+  carradas:clone(e.carradas||[]).map(l=>({...l,valorAuto:false,tonAuto:false})),maquinas:clone(e.maquinas||[]).map(m=>({...m})),outros:clone(e.outros||[]),diarias:clone(e.diarias||{})};
+ return{id:null,data:hoje(),jazidaId:'',responsavel:respP(ABA)||APP.nome||'',obs:'',carradas:[linhaC()],maquinas:[],outros:[],diarias:{}}}
+/* valores automáticos de uma linha (valor da carrada e toneladas) */
+function autoLinha(d,l){if(l.valorAuto){const v=valorPara(l.motoristaId,l.cacambaId,d.jazidaId);l.valor=v.v;l._ov=v.o}if(l.tonAuto){const t=tonPara(l.cacambaId);l.ton=t.v;l._ot=t.o}}
+function autoTudo(d){d.carradas.forEach(l=>autoLinha(d,l))}
+const calcX=d=>custoExt({...d,carradas:d.carradas.filter(l=>l.motoristaId&&n0(l.qtd)>0)},{rascunho:true});
+function travadasDe(extId){const m=new Map();fechAtivos().forEach(f=>(f.itens||[]).forEach(i=>{if(i.extId===extId)m.set(i.k,f)}));return m}
+function conferirX(d){
+ const e=[],a=[];const ant=d.id?EXT(d.id):null;
+ if(!d.data)e.push('Informe a data.');else if(d.data>hoje())e.push('A data não pode ser futura.');
+ if(!d.jazidaId)e.push('Escolha a jazida.');else if(!JAZ(d.jazidaId))e.push('Jazida não encontrada.');else if(!ativo(JAZ(d.jazidaId)))a.push('A jazida está inativa no cadastro.');
+ const cs=d.carradas.filter(l=>l.motoristaId||!vazio(l.qtd)||l.cacambaId);
+ if(!cs.some(l=>l.motoristaId&&n0(l.qtd)>0))e.push('Lance pelo menos uma linha de carradas com motorista e quantidade.');
+ cs.forEach((l,k)=>{const n='Carradas, linha '+(d.carradas.indexOf(l)+1)+(l.motoristaId?' ('+nomeMot(l.motoristaId)+')':'');
+  if(!l.motoristaId)e.push(n+': escolha o motorista.');else if(!MOT(l.motoristaId))e.push(n+': motorista não encontrado.');
+  if(!(n0(l.qtd)>0))e.push(n+': informe a quantidade de carradas.');
+  if(!vazio(l.valor)&&+l.valor<0)e.push(n+': valor da carrada inválido.');
+  if(!vazio(l.ton)&&+l.ton<0)e.push(n+': toneladas por carrada inválidas.');
+  const m=MOT(l.motoristaId);if(m&&formaMot(m)!=='Por diária'&&n0(l.qtd)>0&&!(n0(l.valor)>0))a.push(n+': valor da carrada zerado (cadastre o valor padrão em Configurações).');
+  if(n0(l.qtd)>0&&!(n0(l.ton)>0))a.push(n+': toneladas por carrada zeradas (cadastre na caçamba ou em Configurações).')});
+ /* o mesmo motorista com a mesma caçamba duas vezes no dia: provável repetição */
+ const vis=new Set();cs.forEach(l=>{const k=l.motoristaId+'|'+l.cacambaId;if(l.motoristaId&&vis.has(k))a.push('O motorista '+nomeMot(l.motoristaId)+' aparece duas vezes com a mesma caçamba. Confira se não é repetição.');vis.add(k)});
+ d.maquinas.forEach((m,k)=>{const n='Máquinas, linha '+(k+1)+(m.localId&&LOCAL(m.localId)?' ('+LOCAL(m.localId).nome+')':'');
+  if(!m.localId){if(m.operador||!vazio(m.horas)||!vazio(m.horIni)||!vazio(m.litros))e.push(n+': escolha a máquina.');return}
+  if(!vazio(m.horIni)&&!vazio(m.horFim)&&+m.horFim<+m.horIni)e.push(n+': o horímetro final é menor que o inicial.');
+  if(!vazio(m.horas)&&+m.horas<0)e.push(n+': horas inválidas.');if(m.litrosAuto===false&&!vazio(m.litros)&&+m.litros<0)e.push(n+': litros inválidos.');
+  if(horasLinha(m)>24)a.push(n+': mais de 24 horas no dia.');
+  if(m.litrosAuto!==false){const outro=DATA.barroExt.find(x=>x.id!==d.id&&x.data===d.data&&(x.maquinas||[]).some(y=>y.localId===m.localId&&y.litrosAuto!==false));
+   if(outro)a.push(n+': o diesel desta máquina nesta data já foi puxado no lançamento da jazida '+nomeJaz(outro.jazidaId)+'. Ele seria contado duas vezes: digite os litros de cada jazida.')}});
+ const dm=new Set();d.maquinas.forEach(m=>{if(m.localId&&dm.has(m.localId))a.push('A máquina '+nomeLocal(LOCAL(m.localId))+' aparece duas vezes.');dm.add(m.localId)});
+ d.outros.forEach((o,k)=>{if(!o.tipo&&vazio(o.valor)&&!o.descricao)return;const n='Outros custos, linha '+(k+1);if(!o.tipo)e.push(n+': escolha o tipo.');if(!(n0(o.valor)>0))e.push(n+': informe o valor.')});
+ if(d.data&&d.jazidaId){const dup=DATA.barroExt.find(x=>x.id!==d.id&&x.data===d.data&&x.jazidaId===d.jazidaId);if(dup)a.push('Já existe lançamento de '+fData(d.data)+' na jazida '+nomeJaz(d.jazidaId)+' ('+fC(totCarradas(dup))+' carradas). Salve só se for um complemento.')}
+ /* carradas já colocadas num fechamento de motorista não mudam */
+ if(ant){const trav=travadasDe(ant.id);if(trav.size){const novos=itensDeRascunho(d);trav.forEach((f,k)=>{const i0=(f.itens||[]).find(x=>x.k===k);const i={...i0,motoristaId:i0.motoristaId||f.motoristaId};const n=novos.find(x=>x.k===k);
+  if(!n)e.push('A carrada de '+nomeMot(i.motoristaId)+' já está no fechamento de '+fData(f.data)+' e não pode sair deste lançamento. Desfaça o fechamento em Motoristas a pagar antes.');
+  else if(!ig(n.valor,i.valor)||n.motoristaId!==i.motoristaId||Math.abs(n.carradas-i.carradas)>1e-9)e.push('A carrada de '+nomeMot(i.motoristaId)+' já está no fechamento de '+fData(f.data)+' ('+fMoeda(i.valor)+'): motorista, quantidade e valor não mudam. Desfaça o fechamento antes.');
+  if(d.data!==ant.data)e.push('Este lançamento tem carradas em fechamento de motorista: a data não muda.')})}}
+ return{erros:[...new Set(e)],avisos:[...new Set(a)],c:calcX(d)}}
+/* os itens a pagar que o rascunho geraria (para conferir com os fechamentos) */
+function itensDeRascunho(d){const L=[];const dia={};
+ d.carradas.forEach(l=>{if(!(n0(l.qtd)>0)||!l.motoristaId)return;const m=MOT(l.motoristaId);const terc=l.motTipo?l.motTipo==='Terceirizado':ehTerc(m);if(!terc)return;const f=l.forma||formaMot(m);
+  if(f==='Salário fixo')return;if(f==='Por diária'){const x=dia[l.motoristaId]||(dia[l.motoristaId]={k:'d:'+d.id+':'+l.motoristaId,motoristaId:l.motoristaId,carradas:0,valor:n0(d.diarias&&d.diarias[l.motoristaId]!=null?d.diarias[l.motoristaId]:(m||{}).valorDiaria)});x.carradas+=n0(l.qtd);return}
+  L.push({k:l.lid,motoristaId:l.motoristaId,carradas:n0(l.qtd),valor:r2(n0(l.qtd)*n0(l.valor))})});
+ return L.concat(Object.values(dia).map(x=>({...x,valor:r2(x.valor)})))}
+
+function linhasCar(d,trav){
+ const opM=sel=>`<option value="">Selecione…</option>`+optH(optsMot(sel),sel);
+ const opC=sel=>`<option value="">—</option>`+optH(optsCac(sel),sel);
+ return d.carradas.map((l,k)=>{const m=MOT(l.motoristaId);const diaria=m&&formaMot(m)==='Por diária';const tv=trav&&trav.has(l.lid)||trav&&m&&trav.has('d:'+d.id+':'+l.motoristaId);
+  const tot=r2(n0(l.qtd)*n0(l.valor)),ton=r2(n0(l.qtd)*n0(l.ton));const ro=tv?'disabled':'';
+  return `<tr data-lc="${k}">
+   ${td('Motorista',`<select data-cc="motoristaId" aria-label="Motorista da linha ${k+1}" ${ro}>${opM(l.motoristaId)}</select>${m?`<span class="sub">${esc((m.tipo==='Terceirizado'?'terceirizado':'próprio')+' · '+formaMot(m).toLowerCase())}</span>`:''}${tv?'<span class="br-trava">já está em fechamento de motorista</span>':''}`)}
+   ${td('Caçamba',`<select data-cc="cacambaId" aria-label="Caçamba da linha ${k+1}" ${ro}>${opC(l.cacambaId)}</select>`)}
+   ${td('Carradas',`<input data-cc="qtd" type="number" min="0" step="any" inputmode="decimal" value="${esc(l.qtd)}" aria-label="Carradas da linha ${k+1}" ${ro}>`,1)}
+   ${td('Valor da carrada',diaria?`<input readonly value="diária ${esc(fMoeda(n0(d.diarias&&d.diarias[l.motoristaId]!=null?d.diarias[l.motoristaId]:m.valorDiaria)))}" aria-label="Diária">`:`<input data-cc="valor" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(vazio(l.valor)?'':fMoedaCampo(l.valor))}" aria-label="Valor da carrada da linha ${k+1}" ${ro}><span class="sub" data-ov="${k}">${l.valorAuto&&l._ov?esc(l._ov):''}</span>`,1)}
+   ${td('t por carrada',`<input data-cc="ton" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(vazio(l.ton)?'':l.ton)}" aria-label="Toneladas por carrada da linha ${k+1}"><span class="sub" data-ot="${k}">${l.tonAuto&&l._ot?esc(l._ot):''}</span>`,1)}
+   ${td('Valor total',`<b data-ct="${k}">${diaria?'diária':esc(fMoeda(tot))}</b>`,1)}
+   ${td('Toneladas',`<b data-cn="${k}">${esc(fT(ton))}</b>`,1)}
+   <td>${d.carradas.length>1&&!tv?`<button type="button" class="ib" data-crm="${k}" aria-label="Tirar a linha ${k+1}">${ic('fechar')}</button>`:''}</td></tr>`}).join('')}
+function linhasMaq(d){
+ const ops=[...new Set([...DATA.barroExt.flatMap(e=>(e.maquinas||[]).map(m=>m.operador)),...maqsComb().map(l=>l.responsavel)].filter(Boolean))].sort();
+ return d.maquinas.map((m,k)=>{const L=LOCAL(m.localId);const ab=m.localId?abastDe(m.localId,d.data):null;const h=horasLinha(m);const temHor=!vazio(m.horIni)&&!vazio(m.horFim);
+  return `<tr data-lm="${k}">
+   ${td('Máquina',`<select data-mm="localId" aria-label="Máquina da linha ${k+1}"><option value="">Selecione…</option>${optH(optsMaq(m.localId),m.localId)}</select>${L?`<span class="sub">${esc(propMaq(m.localId))}</span>`:''}`)}
+   ${td('Operador',`<input data-mm="operador" list="brOps" value="${esc(m.operador)}" aria-label="Operador da linha ${k+1}">`)}
+   ${td('Horímetro inicial',`<input data-mm="horIni" type="number" step="any" inputmode="decimal" value="${esc(m.horIni)}" aria-label="Horímetro inicial da linha ${k+1}">`,1)}
+   ${td('Horímetro final',`<input data-mm="horFim" type="number" step="any" inputmode="decimal" value="${esc(m.horFim)}" aria-label="Horímetro final da linha ${k+1}">`,1)}
+   ${td('Horas',`<input data-mm="horas" type="number" min="0" step="any" inputmode="decimal" value="${esc(temHor?h:m.horas)}" ${temHor?'readonly':''} aria-label="Horas da linha ${k+1}"><span class="sub">${temHor?'pelo horímetro':'informadas'}</span>`,1)}
+   ${td('Diesel (L)',m.litrosAuto!==false?`<input readonly value="${esc(ab?fQtd(ab.litros):'')}" aria-label="Litros da linha ${k+1}"><span class="sub">${ab&&ab.xs.length?esc(ab.xs.length+' abastecimento(s) · '+fMoeda(ab.custo)):'sem abastecimento nesta data'}</span><a href="javascript:void 0" class="lk" data-mdig="${k}">digitar</a>`
+    :`<input data-mm="litros" type="number" min="0" step="any" inputmode="decimal" value="${esc(m.litros)}" aria-label="Litros da linha ${k+1}"><span class="sub">× ${esc(fMoeda(precoDiesel(m.localId)))}/L (preço médio)</span><a href="javascript:void 0" class="lk" data-mauto="${k}">puxar dos abastecimentos</a>`,1)}
+   <td><button type="button" class="ib" data-mrm="${k}" aria-label="Tirar a máquina ${k+1}">${ic('fechar')}</button></td></tr>`}).join('')+`<datalist id="brOps">${ops.map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`}
+function linhasOut(d){return d.outros.map((o,k)=>`<tr data-lo="${k}">
+  ${td('Tipo',`<select data-oo="tipo" aria-label="Tipo do custo ${k+1}"><option value="">Selecione…</option>${optH(TIPOS_OUTROS,o.tipo)}</select>`)}
+  ${td('Descrição',`<input data-oo="descricao" value="${esc(o.descricao)}" aria-label="Descrição do custo ${k+1}">`)}
+  ${td('Valor',`<input data-oo="valor" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(vazio(o.valor)?'':fMoedaCampo(o.valor))}" aria-label="Valor do custo ${k+1}">`,1)}
+  <td><button type="button" class="ib" data-orm="${k}" aria-label="Tirar o custo ${k+1}">${ic('fechar')}</button></td></tr>`).join('')}
+function chipsMaq(d){const usadas=new Set(d.maquinas.map(m=>m.localId));const L=maqsComb().filter(l=>ehMaqBarro(l)&&!usadas.has(l.id));
+ return L.length?`<div class="br-chips" aria-label="Adicionar máquina">${L.map(l=>`<button type="button" data-madd="${esc(l.id)}">+ ${esc(l.nome)}</button>`).join('')}</div>`:''}
+function resumoX(d){
+ const r=conferirX(d);const c=r.c;const ln=(l,v,cls)=>`<div class="${cls||''}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
+ const er=d.tentou?r.erros:r.erros.filter(x=>/fechamento|futura|inválid|menor que/.test(x));
+ const pc=v=>c.total>0?' ('+fNum(v/c.total*100,1)+'%)':'';
+ return `<h3>Resumo do dia</h3><div class="vd-tot">${ln('Carradas',fC(c.carradas))}${ln('Toneladas',fTt(c.ton))}
+  ${ln('Frete das caçambas',fMoeda(c.frete)+pc(c.frete))}${ln('Combustível ('+fQtd(c.litros)+' L)',fMoeda(c.comb)+pc(c.comb))}${ln('Mão de obra',fMoeda(c.mo)+pc(c.mo))}
+  ${ln('Custo-hora das máquinas ('+fH(c.horas)+')',fMoeda(c.maq)+pc(c.maq))}${ln('Outros custos',fMoeda(c.outros)+pc(c.outros))}${c.arrend?ln('Arrendamento (rateio)',fMoeda(c.arrend)+pc(c.arrend)):''}
+  ${ln('Custo total do dia',fMoeda(c.total),'vd-grande')}${ln('Custo por carrada',fMoeda(c.porCarrada))}${ln('Custo por tonelada',fMoeda(c.porTon))}</div>
+  ${er.length||r.avisos.length?`<ul class="vd-avisos">${er.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}</ul>`:''}
+  <button type="button" class="btn pri vd-ok" id="xOk" ${pode('barroExt','e')?'':'disabled'}>${ic('entrada')}${d.id?'Salvar alterações':'Salvar lançamento'}</button>
+  <ol class="vd-passos"><li>Dá entrada no estoque de barro: ${esc(fTt(c.ton))} e ${esc(fC(c.carradas))} carradas</li><li>Gera o valor a pagar de cada motorista terceirizado (Motoristas a pagar)</li><li>Fica no histórico, no custo do barro e nos relatórios</li></ol>`}
+function formX(c){
+ const d=RX;const novo=!d.id;const trav=d.id?travadasDe(d.id):new Map();autoTudo(d);
+ c.innerHTML=cab('barro',novo?'Lançar extração do dia':'Editar lançamento de '+fData(d.data),'Carradas, máquinas e outros custos do dia. Os totais e o custo atualizam enquanto você digita; nada é gravado até salvar.',
+  `<a class="btn" href="${novo?'#/barroLanc':'#/barroExt/'+esc(d.id)}">${ic('esquerda')}Voltar</a>${novo?`<button type="button" class="btn" id="xRep" title="Copia motoristas, caçambas e máquinas do último lançamento, sem as quantidades">${ic('recibo')}Repetir o último</button><button type="button" class="btn" id="xLimpar">Limpar</button>`:''}`)+
+  `${!DATA.barroJaz.length||!DATA.barroMot.length?`<div class="aviso at" style="margin-bottom:12px"><span><b>Falta cadastro.</b> ${!DATA.barroJaz.length?'Cadastre ao menos uma <a href="#/barroJaz/novo">jazida</a>. ':''}${!DATA.barroMot.length?'Cadastre os <a href="#/barroMot/novo">motoristas</a> (e as <a href="#/barroCac">caçambas</a>). ':''}O valor padrão da carrada e as toneladas por carrada ficam em <a href="#/barroCfg">Configurações</a>.</span></div>`:''}
+  <div class="vd-grade"><form id="frmX" class="vd-form" novalidate>
+   <fieldset class="sec"><legend>Dia e jazida</legend><div class="campos">
+    <div class="cmp"><label for="xData">Data<i> *</i></label><input id="xData" data-xv="data" type="date" max="${hoje()}" value="${esc(d.data)}" ${trav.size?'readonly':''}></div>
+    <div class="cmp"><label for="xJaz">Jazida<i> *</i></label><select id="xJaz" data-xv="jazidaId"><option value="">Selecione…</option>${optH(optsJaz(d.jazidaId),d.jazidaId)}</select></div>
+    <div class="cmp"><label for="xResp">Responsável pelo lançamento</label><input id="xResp" data-xv="responsavel" value="${esc(d.responsavel)}"><span class="ajuda">Vem o responsável principal do setor (aba Barro em Responsáveis).</span></div>
+    <div class="cmp w2"><label for="xObs">Observação</label><textarea id="xObs" data-xv="obs">${esc(d.obs)}</textarea></div></div></fieldset>
+   <fieldset class="sec"><legend>a) Carradas</legend>
+    <div class="tabwrap"><table class="tbl cartao br-tbl"><thead><tr><th>Motorista</th><th>Caçamba</th><th class="num">Carradas</th><th class="num">Valor da carrada</th><th class="num">t por carrada</th><th class="num">Valor total</th><th class="num">Toneladas</th><th></th></tr></thead><tbody id="xCar">${linhasCar(d,trav)}</tbody><tfoot></tfoot></table></div>
+    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="xAddC">${ic('mais')}Adicionar linha</button>${pode('barroMot','e')?`<a class="btn min" href="#/barroMot/novo" id="xNovoM">${ic('pessoas')}Cadastrar motorista</a>`:''}${pode('barroCac','e')?`<a class="btn min" href="#/barroCac/novo">${ic('cacamba')}Cadastrar caçamba</a>`:''}</div></fieldset>
+   <fieldset class="sec"><legend>b) Máquinas que trabalharam</legend>
+    ${d.maquinas.length?`<div class="tabwrap"><table class="tbl cartao br-tbl"><thead><tr><th>Máquina</th><th>Operador</th><th class="num">Horímetro inicial</th><th class="num">Horímetro final</th><th class="num">Horas</th><th class="num">Diesel (L)</th><th></th></tr></thead><tbody id="xMaq">${linhasMaq(d)}</tbody><tfoot></tfoot></table></div>`:'<p class="ajuda" style="margin:0">Nenhuma máquina neste dia. As máquinas são as de Máquinas e veículos do Setor de Combustível; o diesel vem dos abastecimentos daquela máquina nesta data.</p>'}
+    ${chipsMaq(d)}<div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="xAddM">${ic('mais')}Adicionar máquina</button></div></fieldset>
+   <fieldset class="sec"><legend>c) Outros custos do dia (opcional)</legend>
+    ${d.outros.length?`<div class="tabwrap"><table class="tbl cartao br-tbl"><thead><tr><th>Tipo</th><th>Descrição</th><th class="num">Valor</th><th></th></tr></thead><tbody id="xOut">${linhasOut(d)}</tbody><tfoot></tfoot></table></div>`:''}
+    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="xAddO">${ic('mais')}Adicionar custo</button></div></fieldset>
+  </form><aside class="vd-resumo" id="xResumo">${resumoX(d)}</aside></div>`;
+ const atuRes=()=>{const r=$('#xResumo',c);if(!r)return;const h=resumoX(d);if(r._h!==h){r.innerHTML=h;r._h=h}};
+ const reCar=()=>{autoTudo(d);$('#xCar',c).innerHTML=linhasCar(d,trav);atuRes()};
+ const atuLinhaC=k=>{const l=d.carradas[k];if(!l)return;const m=MOT(l.motoristaId);const a=$(`[data-ct="${k}"]`,c),b=$(`[data-cn="${k}"]`,c);
+  if(a&&!(m&&formaMot(m)==='Por diária'))a.textContent=fMoeda(r2(n0(l.qtd)*n0(l.valor)));if(b)b.textContent=fT(r2(n0(l.qtd)*n0(l.ton)));
+  const ov=$(`[data-ov="${k}"]`,c);if(ov)ov.textContent=l.valorAuto&&l._ov?l._ov:'';const ot=$(`[data-ot="${k}"]`,c);if(ot)ot.textContent=l.tonAuto&&l._ot?l._ot:''};
+ c.addEventListener('input',e=>{const t=e.target;
+  if(t.dataset.xv){d[t.dataset.xv]=t.value;if(t.dataset.xv==='data'&&d.maquinas.length){renderTela();return}atuRes();return}
+  const lc=t.closest('[data-lc]');if(lc&&t.dataset.cc&&!['motoristaId','cacambaId'].includes(t.dataset.cc)){const k=+lc.dataset.lc;const l=d.carradas[k];if(!l)return;const f=t.dataset.cc;
+   if(f==='valor'){l.valor=t.value.trim()===''?'':lerMoeda(t.value);l.valorAuto=false}else if(f==='ton'){l.ton=t.value===''?'':+t.value;l.tonAuto=false}else l[f]=t.value===''?'':+t.value;
+   atuLinhaC(k);atuRes();return}
+  const lm=t.closest('[data-lm]');if(lm&&t.dataset.mm&&t.dataset.mm!=='localId'){const k=+lm.dataset.lm;const m=d.maquinas[k];if(!m)return;const f=t.dataset.mm;
+   m[f]=f==='operador'?t.value:(t.value===''?'':+t.value);
+   if(f==='horIni'||f==='horFim'){const hi=$(`[data-lm="${k}"] [data-mm="horas"]`,c);const tem=!vazio(m.horIni)&&!vazio(m.horFim);if(hi){hi.readOnly=tem;if(tem)hi.value=horasLinha(m)}}
+   atuRes();return}
+  const lo=t.closest('[data-lo]');if(lo&&t.dataset.oo&&t.dataset.oo!=='tipo'){const o=d.outros[+lo.dataset.lo];if(!o)return;o[t.dataset.oo]=t.dataset.oo==='valor'?(t.value.trim()===''?'':lerMoeda(t.value)):t.value;atuRes()}});
+ c.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.xv&&t.tagName==='SELECT'){d[t.dataset.xv]=t.value;if(t.dataset.xv==='jazidaId')reCar();else atuRes();return}
+  const lc=t.closest('[data-lc]');if(lc&&(t.dataset.cc==='motoristaId'||t.dataset.cc==='cacambaId')){const l=d.carradas[+lc.dataset.lc];if(!l)return;l[t.dataset.cc]=t.value;
+   if(t.dataset.cc==='motoristaId'&&t.value&&!l.cacambaId){const k=DATA.barroCac.find(x=>ativo(x)&&x.motoristaId===t.value);if(k)l.cacambaId=k.id}
+   if(t.dataset.cc==='cacambaId'&&t.value&&!l.motoristaId){const k=CAC(t.value);if(k&&k.motoristaId&&MOT(k.motoristaId))l.motoristaId=k.motoristaId}
+   const m=MOT(l.motoristaId);if(m&&formaMot(m)==='Por diária'&&d.diarias[l.motoristaId]==null)d.diarias[l.motoristaId]=n0(m.valorDiaria);
+   reCar();return}
+  const lm=t.closest('[data-lm]');if(lm&&t.dataset.mm==='localId'){const m=d.maquinas[+lm.dataset.lm];if(!m)return;m.localId=t.value;const L=LOCAL(t.value);if(L&&L.responsavel&&!m.operador)m.operador=L.responsavel;renderTela();return}
+  const lo=t.closest('[data-lo]');if(lo&&t.dataset.oo==='tipo'){const o=d.outros[+lo.dataset.lo];if(o){o.tipo=t.value;atuRes()}}});
+ c.addEventListener('click',async e=>{const t=e.target.closest('button,a[data-mdig],a[data-mauto]');if(!t)return;
+  if(t.id==='xAddC'){d.carradas.push(linhaC());reCar();const s=$$('#xCar select[data-cc="motoristaId"]',c).pop();if(s)s.focus();return}
+  if(t.dataset.crm!=null){d.carradas.splice(+t.dataset.crm,1);if(!d.carradas.length)d.carradas.push(linhaC());reCar();return}
+  if(t.id==='xAddM'){d.maquinas.push(linhaM());renderTela();return}
+  if(t.dataset.madd){const m=linhaM();m.localId=t.dataset.madd;const L=LOCAL(m.localId);if(L&&L.responsavel)m.operador=L.responsavel;d.maquinas.push(m);renderTela();return}
+  if(t.dataset.mrm!=null){d.maquinas.splice(+t.dataset.mrm,1);renderTela();return}
+  if(t.dataset.mdig!=null){const m=d.maquinas[+t.dataset.mdig];if(m){const ab=abastDe(m.localId,d.data);m.litrosAuto=false;m.litros=ab.litros||'';renderTela()}return}
+  if(t.dataset.mauto!=null){const m=d.maquinas[+t.dataset.mauto];if(m){m.litrosAuto=true;renderTela()}return}
+  if(t.id==='xAddO'){d.outros.push(linhaO());renderTela();return}
+  if(t.dataset.orm!=null){d.outros.splice(+t.dataset.orm,1);renderTela();return}
+  if(t.id==='xRep'){const ult=DATA.barroExt.slice().sort((a,b)=>String(b.data+(b.criadoEm||'')).localeCompare(String(a.data+(a.criadoEm||''))))[0];
+   if(!ult){toast('Ainda não há lançamento para repetir.');return}
+   d.jazidaId=d.jazidaId||ult.jazidaId;d.carradas=(ult.carradas||[]).map(l=>({...linhaC(),motoristaId:l.motoristaId,cacambaId:l.cacambaId}));if(!d.carradas.length)d.carradas=[linhaC()];
+   d.maquinas=(ult.maquinas||[]).map(m=>({...linhaM(),localId:m.localId,operador:m.operador}));toast('Copiado do lançamento de '+fData(ult.data)+'. Agora preencha as quantidades.','ok');renderTela();return}
+  if(t.id==='xLimpar'){if(!await confirmar('Limpar este lançamento?','Os dados preenchidos se perdem. Nada foi gravado ainda.',{ok:'Limpar'}))return;RX=rascunhoX(null);renderTela();return}
+  if(t.id==='xOk')salvarX(t)});
+}
+const ROT_X={data:'Data',jazidaId:'Jazida',responsavel:'Responsável',obs:'Observação',carradas:'Carradas',maquinas:'Máquinas',outros:'Outros custos',totCarradas:'Total de carradas',totTon:'Total de toneladas',totFrete:'Frete'};
+async function salvarX(btn){
+ const d=RX;if(!d)return;const r=conferirX(d);
+ if(r.erros.length){d.tentou=true;const rs=$('#xResumo');if(rs){rs.innerHTML=resumoX(d);rs._h=''}toast(r.erros[0],'erro');return}
+ const ant=d.id?EXT(d.id):null;const C=cfgB();
+ if(r.avisos.length&&!await confirmar('Salvar assim mesmo?',r.avisos.join(' '),{ok:'Salvar assim mesmo'}))return;
+ btn.disabled=true;const agora=agoraIso();
+ const carradas=d.carradas.filter(l=>l.motoristaId&&n0(l.qtd)>0).map(l=>{const m=MOT(l.motoristaId)||{};
+  return{lid:l.lid||novoId(),motoristaId:l.motoristaId,cacambaId:l.cacambaId||'',qtd:r2(l.qtd),valor:formaMot(m)==='Por diária'?0:r2(n0(l.valor)),ton:r2(n0(l.ton)),motTipo:m.tipo||'',forma:formaMot(m)}});
+ const diarias={};carradas.forEach(l=>{if(l.forma==='Por diária')diarias[l.motoristaId]=r2(d.diarias&&d.diarias[l.motoristaId]!=null?d.diarias[l.motoristaId]:n0((MOT(l.motoristaId)||{}).valorDiaria))});
+ const maquinas=d.maquinas.filter(m=>m.localId).map(m=>{const x=C.maquinas[m.localId]||{};const h=horasLinha(m);const ab=m.litrosAuto!==false?abastDe(m.localId,d.data):null;
+  return{mid:m.mid||novoId(),localId:m.localId,operador:String(m.operador||'').trim(),horIni:vazio(m.horIni)?null:+m.horIni,horFim:vazio(m.horFim)?null:+m.horFim,horas:h,
+   litrosAuto:m.litrosAuto!==false,litros:ab?ab.litros:r3(n0(m.litros)),precoLitro:ab?ab.preco:precoDiesel(m.localId),propriedade:propMaq(m.localId),manutHora:+x.manutHora||0,deprecHora:+x.deprecHora||0}});
+ const outros=d.outros.filter(o=>o.tipo&&n0(o.valor)>0).map(o=>({oid:o.oid||novoId(),tipo:o.tipo,descricao:String(o.descricao||'').trim(),valor:r2(o.valor)}));
+ const rec={...(ant?clone(ant):{id:novoId(),criadoEm:agora,criadoPor:eu()}),data:d.data,jazidaId:d.jazidaId,responsavel:String(d.responsavel||'').trim(),obs:String(d.obs||'').trim(),
+  carradas,diarias,maquinas,outros,mo:{modo:C.moModo,hora:+C.moHora||0,diaria:+C.moDiaria||0},alteradoEm:agora,alteradoPor:eu()};
+ rec.totCarradas=totCarradas(rec);rec.totTon=totTon(rec);rec.totFrete=freteDe(rec);
+ try{await gravar('barroExt',rec,ant);await registrarLog('barroExt',rec.id,ant?'alterou':'criou',ant,rec,ROT_X)}
+ catch(err){btn.disabled=false;toast(msgFalhaSalvar(err),'erro');return}
+ RX=null;const ap=itensDeRascunho({...rec,carradas:rec.carradas});const vp=r2(soma(ap,i=>i.valor));
+ toast((ant?'Lançamento alterado.':'Extração lançada: '+fTt(rec.totTon)+' entraram no estoque de barro.')+(vp>0?' A pagar aos terceirizados: '+fMoeda(vp)+'.':''),'ok');
+ location.hash='#/barroExt/'+rec.id;
+}
+function detalheX(c,e){
+ const k=custoExt(e);const ed=pode('barroExt','e');const trav=travadasDe(e.id);const ap=itensPagar().filter(i=>i.extId===e.id);const fe=chavesFechadas();
+ c.innerHTML=cab('barro','Extração de '+fData(e.data),esc(nomeJaz(e.jazidaId))+' · '+esc(fC(k.carradas))+' carradas · '+esc(fTt(k.ton)),
+  `<a class="btn" href="#/barroLanc">${ic('esquerda')}Lançamentos</a>${ed?`<a class="btn" href="#/barroExt/${esc(e.id)}/editar">${ic('editar')}Editar</a><button type="button" class="btn perigo" id="xExc">${ic('lixo')}Excluir</button>`:''}`)+
+  `${trav.size?`<div class="aviso in" style="margin-bottom:12px"><span>${trav.size} item(ns) deste lançamento já estão em fechamento de motorista: motorista, quantidade e valor dessas carradas ficam travados.</span></div>`:''}
+  <div class="kpis">${[['Custo total',fMoeda(k.total)],['Custo por carrada',fMoeda(k.porCarrada)],['Custo por tonelada',fMoeda(k.porTon)],['Toneladas',fTt(k.ton)],['Carradas',fC(k.carradas)]].map(([l,v])=>`<div class="kpi" style="cursor:default"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>
+  <div class="vv-grade">
+   <section class="bloco"><h3>Dados do lançamento</h3>${kvV([['Data',esc(fData(e.data))],['Jazida',esc(nomeJaz(e.jazidaId))],['Responsável',esc(e.responsavel||'—')],['Lançado por',esc(quem(e)||'—')],['Registrado em',esc(fDataHora(e.criadoEm))],
+    e.alteradoEm&&e.alteradoEm!==e.criadoEm?['Última alteração',esc(fDataHora(e.alteradoEm)+' · '+nomeUsuario(e.alteradoPor||''))]:null,e.obs?['Observação',esc(e.obs),1]:null])}</section>
+   <section class="bloco"><h3>Quanto pesou cada item</h3>${compHtml(k)}</section>
+   <section class="bloco w2"><h3>a) Carradas</h3>${tabela(['Motorista','Caçamba',['Carradas',1],['Valor da carrada',1],['t por carrada',1],['Valor total',1],['Toneladas',1],'A pagar'],
+    (e.carradas||[]).map(l=>{const it=ap.find(i=>i.k===l.lid||i.k==='d:'+e.id+':'+l.motoristaId);const f=it&&fe.get(it.k);
+     return `<tr>${td('Motorista',esc(nomeMot(l.motoristaId))+'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc((l.motTipo==='Terceirizado'?'terceirizado':'próprio')+' · '+String(l.forma||'').toLowerCase())+'</span>')}${td('Caçamba',esc(l.cacambaId?placaCac(l.cacambaId):'—'))}
+     ${td('Carradas',esc(fC(l.qtd)),1)}${td('Valor da carrada',l.forma==='Por diária'?'diária '+esc(fMoeda(e.diarias&&e.diarias[l.motoristaId])):esc(fMoeda(l.valor)),1)}${td('t por carrada',esc(fT(l.ton)),1)}
+     ${td('Valor total',l.forma==='Por diária'?'—':esc(fMoeda(n0(l.qtd)*n0(l.valor))),1)}${td('Toneladas',esc(fT(n0(l.qtd)*n0(l.ton))),1)}
+     ${td('A pagar',!it?'<span class="ajuda">não gera (próprio ou salário fixo)</span>':f?tagSF(sitFech(f).st)+' <span class="ajuda">fechamento de '+esc(fData(f.data))+'</span>':tag('Pendente','at'))}</tr>`}),
+    ['Total','',esc(fC(k.carradas)),'','',esc(fMoeda(k.frete)),esc(fT(k.ton)),''].map((x,i)=>[x,i>=2&&i<=6]))}</section>
+   ${(e.maquinas||[]).length?`<section class="bloco w2"><h3>b) Máquinas</h3>${tabela(['Máquina','Operador',['Horímetro',1],['Horas',1],['Diesel (L)',1],['Combustível',1],['Custo-hora',1]],
+    (e.maquinas||[]).map(m=>{const ab=m.litrosAuto!==false?abastDe(m.localId,e.data):null;const lt=ab?ab.litros:n0(m.litros);const cc=ab?ab.custo:lt*n0(m.precoLitro);const h=horasLinha(m);
+     const ch=h*(n0(m.manutHora)+(m.propriedade==='Arrendada'?0:n0(m.deprecHora)));
+     return `<tr>${td('Máquina',esc(nomeLocal(LOCAL(m.localId))||'(máquina removida)')+'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(m.propriedade||'')+'</span>')}${td('Operador',esc(m.operador||'—'))}
+      ${td('Horímetro',m.horIni!=null&&m.horFim!=null?esc(fNum(m.horIni,1)+' → '+fNum(m.horFim,1)):'—',1)}${td('Horas',esc(fH(h)),1)}${td('Diesel (L)',esc(fQtd(lt))+(ab?'<span class="sub" style="display:block;font-size:11px;color:var(--fraco)">abastecimentos</span>':''),1)}${td('Combustível',esc(fMoeda(cc)),1)}${td('Custo-hora',esc(fMoeda(ch)),1)}</tr>`}))}</section>`:''}
+   ${(e.outros||[]).length?`<section class="bloco w2"><h3>c) Outros custos</h3>${tabela(['Tipo','Descrição',['Valor',1]],(e.outros||[]).map(o=>`<tr>${td('Tipo',esc(o.tipo))}${td('Descrição',esc(o.descricao||'—'))}${td('Valor',esc(fMoeda(o.valor)),1)}</tr>`))}</section>`:''}
+   <section class="bloco w2"><h3>Histórico de alterações (quem alterou e quando)</h3><div class="vv-hist">${historicoHtml('barroExt',e.id)}</div></section>
+  </div>`;
+ if($('#xExc',c))$('#xExc',c).onclick=()=>excluirX(e);
+ resolverNomes([e.criadoPor,e.alteradoPor].filter(Boolean));
+}
+async function excluirX(e){
+ const trav=travadasDe(e.id);if(trav.size){toast('Este lançamento tem carradas em fechamento de motorista. Desfaça o fechamento em Motoristas a pagar antes de excluir.','erro');return}
+ const k=custoExt(e);
+ const ok=await confirmar('Tem certeza que deseja excluir?','O lançamento de '+fData(e.data)+' ('+nomeJaz(e.jazidaId)+', '+fC(k.carradas)+' carradas, '+fTt(k.ton)+') será excluído. As toneladas saem do estoque de barro e o valor a pagar aos motoristas some. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true});
+ if(!ok)return;
+ try{await apagar('barroExt',e);await registrarLog('barroExt',e.id,'excluiu',e,null,ROT_X);toast('Lançamento excluído. A exclusão fica anotada no histórico.','ok');location.hash='#/barroLanc'}
+ catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
+function telaExt(el){
+ const r=lerRota();
+ shellB(el,r.id==='nova'?'ext-nova':'barroExt',c=>{
+  if(r.id==='nova'||r.id==='novo'){if(!pode('barroExt','e')){c.innerHTML=noNada('Seu perfil não lança extração','');return}if(!RX||RX.id)RX=rascunhoX(null);formX(c);return}
+  const e=EXT(r.id);
+  if(!e){c.innerHTML=noNada('Lançamento não encontrado',`<div class="vazio-acoes"><a class="btn" href="#/barroLanc">${ic('esquerda')}Voltar</a></div>`);return}
+  if(r.x==='editar'&&pode('barroExt','e')){if(!RX||RX.id!==e.id)RX=rascunhoX(e);formX(c);return}
+  detalheX(c,e)})}
+/* quadro de quanto cada item pesou no custo */
+function compHtml(k){if(!(k.total>0))return '<p class="ajuda" style="margin:12px 16px">Sem custo lançado.</p>';
+ return `<div class="br-comp">${COMP.filter(([id])=>id!=='arrend'||k.arrend>0||cfgB().arrendAtivo).map(([id,l])=>{const v=k[id]||0;const p=k.total>0?v/k.total*100:0;
+  return `<span>${esc(l)}</span><div class="bar" role="img" aria-label="${esc(l)}: ${esc(fNum(p,1))}%"><i style="width:${Math.max(0,Math.min(100,p)).toFixed(1)}%"></i></div><b class="num">${esc(fMoeda(v))}</b><span class="num">${esc(fNum(p,1))}%</span>`}).join('')}
+  <b>Total</b><span></span><b class="num">${esc(fMoeda(k.total))}</b><b class="num">100%</b></div>`}
+
+/* ================= lista de lançamentos ================= */
+const UL={de:'',ate:'',jaz:''};
+function telaLanc(c){
+ const xs=extsPeriodo(UL.de,UL.ate,UL.jaz).reverse();const t=custoDe(xs);
+ c.innerHTML=cab('recibo','Lançamentos da extração','Um lançamento por dia e jazida: carradas, máquinas e custos. Toque para ver ou editar.',
+  `<button type="button" class="btn" id="lExp">${ic('baixar')}Exportar ▾</button>${pode('barroExt','e')?`<a class="btn pri" href="#/barroExt/nova">${ic('mais')}Lançar extração</a>`:''}`)+
+  `<div class="painel filtros" style="margin-bottom:12px"><label class="inline">De <input type="date" id="lDe" value="${esc(UL.de)}"></label><label class="inline">Até <input type="date" id="lAte" value="${esc(UL.ate)}"></label>
+   <select id="lJaz"><option value="">Jazida: todas</option>${optH(optsJaz(UL.jaz),UL.jaz)}</select></div>
+  <div class="resumo"><div><b>${xs.length}</b><span>Lançamentos</span></div><div><b>${esc(fC(t.carradas))}</b><span>Carradas</span></div><div><b>${esc(fTt(t.ton))}</b><span>Toneladas</span></div><div><b>${esc(fMoeda(t.total))}</b><span>Custo total</span></div><div><b>${esc(fMoeda(t.porTon))}</b><span>Custo por tonelada</span></div></div>
+  ${xs.length?tabela(['Data','Jazida',['Carradas',1],['Toneladas',1],['Frete',1],['Custo total',1],['Custo/t',1],'Lançado por'],
+   xs.map(e=>{const k=custoExt(e);return `<tr class="clic" data-go="#/barroExt/${esc(e.id)}">${td('Data',esc(fData(e.data)))}${td('Jazida',esc(nomeJaz(e.jazidaId)))}${td('Carradas',esc(fC(k.carradas)),1)}${td('Toneladas',esc(fT(k.ton)),1)}${td('Frete',esc(fMoeda(k.frete)),1)}${td('Custo total',esc(fMoeda(k.total)),1)}${td('Custo/t',esc(fMoeda(k.porTon)),1)}${td('Lançado por',esc(e.responsavel||quem(e)||'—'))}</tr>`}),
+   ['Total','',[esc(fC(t.carradas)),1],[esc(fT(t.ton)),1],[esc(fMoeda(t.frete)),1],[esc(fMoeda(t.total)),1],[esc(fMoeda(t.porTon)),1],''])
+  :noNada('Nenhum lançamento no filtro',pode('barroExt','e')?`<div class="vazio-acoes"><a class="btn pri" href="#/barroExt/nova">${ic('mais')}Lançar extração</a></div>`:'')}`;
+ $$('[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
+ $('#lDe',c).onchange=e=>{UL.de=e.target.value;renderTela()};$('#lAte',c).onchange=e=>{UL.ate=e.target.value;renderTela()};$('#lJaz',c).onchange=e=>{UL.jaz=e.target.value;renderTela()};
+ $('#lExp',c).onclick=()=>exportarMenu($('#lExp',c),'Barro_lancamentos','Lançamentos da extração de barro',
+  [{k:'data',l:'Data',t:'data'},{k:'jaz',l:'Jazida'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'frete',l:'Frete',t:'moeda'},{k:'total',l:'Custo total',t:'moeda'},{k:'pt',l:'Custo/t',t:'moeda'}],
+  xs.map(e=>{const k=custoExt(e);return{data:e.data,jaz:nomeJaz(e.jazidaId),car:k.carradas,ton:k.ton,frete:k.frete,total:k.total,pt:k.porTon}}));
+}
+
+/* ================= custo do barro extraído ================= */
+const UC={de:'',ate:'',jaz:''};
+function telaCusto(c){
+ if(!UC.de&&!UC.ate){UC.de=iniMes();UC.ate=hoje()}
+ const xs=extsPeriodo(UC.de,UC.ate,UC.jaz);const k=custoDe(xs);const C=cfgB();
+ const cons=r2(soma(DATA.barroMov.filter(m=>m.tipo==='consumo'&&(!UC.de||m.data>=UC.de)&&(!UC.ate||m.data<=UC.ate)&&(!UC.jaz||m.jazidaId===UC.jaz)),m=>m.ton));
+ const vend=DATA.barroMov.filter(m=>m.tipo==='venda'&&(!UC.de||m.data>=UC.de)&&(!UC.ate||m.data<=UC.ate)&&(!UC.jaz||m.jazidaId===UC.jaz));
+ const porJ={};xs.forEach(e=>{(porJ[e.jazidaId]=porJ[e.jazidaId]||[]).push(e)});
+ c.innerHTML=cab('moeda','Custo do barro extraído','Frete, combustível, mão de obra, custo-hora das máquinas, outros custos e, se ligado, o arrendamento da jazida. Por dia, por período e por jazida.',
+  `<button type="button" class="btn" id="cExp">${ic('baixar')}Exportar ▾</button>`)+
+  `<div class="painel filtros" style="margin-bottom:12px"><label class="inline">De <input type="date" id="cDe" value="${esc(UC.de)}"></label><label class="inline">Até <input type="date" id="cAte" value="${esc(UC.ate)}"></label>
+   <select id="cJaz"><option value="">Jazida: todas</option>${optH(optsJaz(UC.jaz),UC.jaz)}</select>
+   <button type="button" class="btn min" data-per="mes">Este mês</button><button type="button" class="btn min" data-per="ant">Mês passado</button><button type="button" class="btn min" data-per="ano">Este ano</button></div>
+  <div class="hero almp-hero">
+   ${kpiV('c3','moeda','CUSTO TOTAL DA EXTRAÇÃO',esc(fMoeda(k.total)),esc(k.n+' lançamento(s) · '+fC(k.carradas)+' carradas'),'javascript:void 0')}
+   ${kpiV('c1','cacamba','CUSTO POR CARRADA',esc(fMoeda(k.porCarrada)),esc(fC(k.carradas)+' carradas'),'javascript:void 0')}
+   ${kpiV('c4','barro','CUSTO POR TONELADA',esc(fMoeda(k.porTon)),esc(fTt(k.ton)+' extraídas'),'javascript:void 0')}
+   ${kpiV('c2','caixa','Barro consumido na produção',esc(fTt(cons)),esc(k.porTon>0&&cons>0?'≈ '+fMoeda(cons*k.porTon)+' pelo custo/t do período':'lance o consumo em Estoque de barro'),'#/barroEst')}
+  </div>
+  ${C.arrendAtivo?'':'<div class="aviso in" style="margin-bottom:12px"><span>O arrendamento da jazida está fora deste custo (rateio desligado nas <a href="#/barroCfg">Configurações</a>): hoje ele é lançado inteiro no custo geral.</span></div>'}
+  ${!(+C.moHora>0||+C.moDiaria>0)?'<div class="aviso at" style="margin-bottom:12px"><span>A mão de obra dos operadores está zerada: informe o valor por hora ou a diária em <a href="#/barroCfg">Configurações</a>.</span></div>':''}
+  <div class="vv-grade">
+   <section class="bloco"><h3>Quanto cada item pesou no custo</h3>${compHtml(k)}</section>
+   <section class="bloco"><h3>Números do período</h3>${kvV([['Toneladas extraídas',esc(fTt(k.ton))],['Carradas',esc(fC(k.carradas))],['Horas de máquina',esc(fH(k.horas))],['Diesel das máquinas',esc(fQtd(k.litros)+' L')],
+    ['Barro vendido a terceiros',esc(fTt(soma(vend,m=>m.ton))+(vend.length?' · '+fMoeda(soma(vend,m=>m.valorVenda))+' (fora do custo da produção)':''))]])}</section>
+   <section class="bloco w2"><h3>Por jazida</h3>${Object.keys(porJ).length?tabela(['Jazida',['Lançamentos',1],['Carradas',1],['Toneladas',1],['Custo total',1],['Custo/carrada',1],['Custo/t',1]],
+    Object.entries(porJ).map(([j,L])=>{const t=custoDe(L);return `<tr>${td('Jazida',esc(nomeJaz(j)))}${td('Lançamentos',String(L.length),1)}${td('Carradas',esc(fC(t.carradas)),1)}${td('Toneladas',esc(fT(t.ton)),1)}${td('Custo total',esc(fMoeda(t.total)),1)}${td('Custo/carrada',esc(fMoeda(t.porCarrada)),1)}${td('Custo/t',esc(fMoeda(t.porTon)),1)}</tr>`}),
+    ['Total',[String(k.n),1],[esc(fC(k.carradas)),1],[esc(fT(k.ton)),1],[esc(fMoeda(k.total)),1],[esc(fMoeda(k.porCarrada)),1],[esc(fMoeda(k.porTon)),1]]):noNada('Nada no período','')}</section>
+   <section class="bloco w2"><h3>Dia a dia</h3>${xs.length?tabela(['Data','Jazida',['Carradas',1],['Toneladas',1],['Frete',1],['Combustível',1],['Mão de obra',1],['Máquinas',1],['Outros',1],['Total',1],['Custo/t',1]],
+    xs.map(e=>{const t=custoExt(e);return `<tr class="clic" data-go="#/barroExt/${esc(e.id)}">${td('Data',esc(fData(e.data)))}${td('Jazida',esc(nomeJaz(e.jazidaId)))}${td('Carradas',esc(fC(t.carradas)),1)}${td('Toneladas',esc(fT(t.ton)),1)}${td('Frete',esc(fMoeda(t.frete)),1)}${td('Combustível',esc(fMoeda(t.comb)),1)}${td('Mão de obra',esc(fMoeda(t.mo)),1)}${td('Máquinas',esc(fMoeda(t.maq)),1)}${td('Outros',esc(fMoeda(t.outros+t.arrend)),1)}${td('Total',esc(fMoeda(t.total)),1)}${td('Custo/t',esc(fMoeda(t.porTon)),1)}</tr>`}),
+    ['Total','',[esc(fC(k.carradas)),1],[esc(fT(k.ton)),1],[esc(fMoeda(k.frete)),1],[esc(fMoeda(k.comb)),1],[esc(fMoeda(k.mo)),1],[esc(fMoeda(k.maq)),1],[esc(fMoeda(k.outros+k.arrend)),1],[esc(fMoeda(k.total)),1],[esc(fMoeda(k.porTon)),1]]):noNada('Nada no período','')}</section>
+  </div>
+  <p class="ajuda">Barro vendido a terceiros sai do estoque como venda e não entra no custo da produção. Diesel puxado dos abastecimentos usa o custo médio do estoque de combustível; diesel digitado usa o preço médio guardado no dia do lançamento.</p>`;
+ $$('[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
+ $('#cDe',c).onchange=e=>{UC.de=e.target.value;renderTela()};$('#cAte',c).onchange=e=>{UC.ate=e.target.value;renderTela()};$('#cJaz',c).onchange=e=>{UC.jaz=e.target.value;renderTela()};
+ $$('[data-per]',c).forEach(b=>b.onclick=()=>{const p=b.dataset.per;if(p==='mes'){UC.de=iniMes();UC.ate=hoje()}else if(p==='ant'){const m=JB_MES.somar(mesAtual(),-1);UC.de=m+'-01';UC.ate=addDias(iniMes(),-1)}else{UC.de=hoje().slice(0,4)+'-01-01';UC.ate=hoje()}renderTela()});
+ $('#cExp',c).onclick=()=>exportarMenu($('#cExp',c),'Barro_custo','Custo do barro extraído · '+fData(UC.de)+' a '+fData(UC.ate)+(UC.jaz?' · '+nomeJaz(UC.jaz):''),
+  [{k:'item',l:'Componente'},{k:'valor',l:'Valor',t:'moeda'},{k:'pc',l:'% do custo',t:'num'}],
+  [...COMP.map(([id,l])=>({item:l,valor:k[id]||0,pc:k.total>0?r2((k[id]||0)/k.total*100):0})),{item:'CUSTO TOTAL DA EXTRAÇÃO',valor:k.total,pc:100},{item:'Custo por carrada ('+fC(k.carradas)+' carradas)',valor:k.porCarrada,pc:''},{item:'Custo por tonelada ('+fT(k.ton)+' t)',valor:k.porTon,pc:''}]);
+}
+
+/* ================= estoque de barro ================= */
+const UE={de:'',ate:''};
+function telaEstoque(c){
+ const e=estoqueB();const L=movsBarro();let s=0,sc=0;const rows=L.map(x=>{s=r2(s+x.ton);sc=r2(sc+x.car);return{...x,saldo:s,saldoC:sc}}).filter(x=>(!UE.de||x.data>=UE.de)&&(!UE.ate||x.data<=UE.ate)).reverse();
+ const ed=pode('barroMov','e');const m=resumoMes(mesAtual());
+ const bt=(t,l,i)=>ed?`<button type="button" class="btn${t==='consumo'?' pri':''}" data-mov="${t}">${ic(i)}${esc(l)}</button>`:'';
+ c.innerHTML=cab('caixa','Estoque de barro','Entra pela extração; sai pelo consumo na produção e pela venda a terceiros. Saldo inicial e ajustes com motivo.',
+  `${bt('consumo','Consumo na produção','saida')}${bt('venda','Venda a terceiros','recibo')}${bt('ajEnt','Ajuste','engrenagem')}${!DATA.barroMov.some(x=>x.tipo==='inicial')?bt('inicial','Saldo inicial','entrada'):''}<a class="btn" href="#/barroMov">${ic('livro')}Movimentos lançados</a>`)+
+  `${!DATA.barroMov.some(x=>x.tipo==='inicial')?'<div class="aviso in" style="margin-bottom:12px"><span>Ainda não há saldo inicial: o estoque começa do zero na primeira extração. Se já havia barro no pátio, lance o <b>Saldo inicial</b> (contagem).</span></div>':''}
+  ${e.ton<0?'<div class="aviso pe" style="margin-bottom:12px"><span>O estoque está negativo: saiu mais barro do que entrou. Confira o saldo inicial, as extrações e o consumo.</span></div>':''}
+  <div class="hero almp-hero">
+   ${kpiV(e.ton<0?'c6':'c3','caixa','Estoque agora',esc(fTt(e.ton)),esc(fC(e.car)+' carradas'),'javascript:void 0')}
+   ${kpiV('c1','entrada','Extraído em '+fMes(mesAtual()),esc(fTt(m.ext)),'','#/barroLanc')}
+   ${kpiV('c4','saida','Consumido em '+fMes(mesAtual()),esc(fTt(m.cons)),'na produção','#/barroMov')}
+   ${kpiV('c5','recibo','Vendido em '+fMes(mesAtual()),esc(fTt(m.venda)),'a terceiros','#/barroMov')}
+  </div>
+  <div class="painel filtros" style="margin-bottom:12px"><label class="inline">De <input type="date" id="eDe" value="${esc(UE.de)}"></label><label class="inline">Até <input type="date" id="eAte" value="${esc(UE.ate)}"></label></div>
+  ${rows.length?tabela(['Data','Movimento','Detalhe',['Toneladas',1],['Carradas',1],['Saldo (t)',1],['Saldo (carradas)',1]],
+   rows.slice(0,300).map(x=>`<tr class="clic" data-go="${esc(x.href)}">${td('Data',esc(fData(x.data)))}${td('Movimento',tag(x.nome,x.ton<0?'at':'ok'))}${td('Detalhe',esc(x.det||(x.jazidaId?nomeJaz(x.jazidaId):'')))}${td('Toneladas',esc((x.ton<0?'−':'+')+fT(Math.abs(x.ton))),1)}${td('Carradas',x.car?esc((x.car<0?'−':'+')+fC(Math.abs(x.car))):'—',1)}${td('Saldo (t)','<b>'+esc(fT(x.saldo))+'</b>',1)}${td('Saldo (carradas)',esc(fC(x.saldoC)),1)}</tr>`))
+   :noNada('Nenhum movimento','A extração lançada aparece aqui como entrada.')}`;
+ $$('[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
+ $$('[data-mov]',c).forEach(b=>b.onclick=()=>{PREFILL={mod:'barroMov',dados:{tipo:b.dataset.mov}};location.hash='#/barroMov/novo'});
+ $('#eDe',c).onchange=e=>{UE.de=e.target.value;renderTela()};$('#eAte',c).onchange=e=>{UE.ate=e.target.value;renderTela()};
+}
+
+/* ================= motoristas a pagar ================= */
+const UP={de:'',ate:'',mot:'',sit:''};
+const podePagar=()=>pode('fpagar','e');
+function linhasPagar(){
+ if(!UP.de&&!UP.ate){UP.de=iniMes();UP.ate=hoje()}
+ const fe=chavesFechadas();const its=itensPagar().filter(i=>(!UP.de||i.data>=UP.de)&&(!UP.ate||i.data<=UP.ate)&&(!UP.mot||i.motoristaId===UP.mot)&&!fe.has(i.k));
+ const ab={};its.forEach(i=>{(ab[i.motoristaId]=ab[i.motoristaId]||[]).push(i)});
+ const R=[];
+ Object.entries(ab).forEach(([m,L])=>R.push({tipo:'aberto',motoristaId:m,itens:L.sort((a,b)=>String(a.data).localeCompare(String(b.data))),carradas:r2(soma(L,i=>i.carradas)),ton:r2(soma(L,i=>i.ton)),bruto:r2(soma(L,i=>i.valor)),desc:0,liquido:r2(soma(L,i=>i.valor)),st:'Pendente',pago:0,saldo:r2(soma(L,i=>i.valor)),
+  de:L.map(i=>i.data).sort()[0],ate:L.map(i=>i.data).sort().pop()}));
+ fechAtivos().filter(f=>(!UP.mot||f.motoristaId===UP.mot)&&(!UP.ate||f.de<=UP.ate)&&(!UP.de||f.ate>=UP.de)).forEach(f=>{const s=sitFech(f);
+  R.push({tipo:'fech',f,motoristaId:f.motoristaId,itens:f.itens||[],carradas:r2(soma(f.itens||[],i=>i.carradas)),ton:r2(soma(f.itens||[],i=>i.ton)),bruto:r2(f.bruto),desc:r2(n0(f.descontos)+n0(f.adiant)),liquido:r2(f.liquido),st:s.st,pago:s.pago,saldo:s.saldo,de:f.de,ate:f.ate,venc:s.venc})});
+ return R.filter(r=>!UP.sit||r.st===UP.sit).sort((a,b)=>nomeMot(a.motoristaId).localeCompare(nomeMot(b.motoristaId),'pt-BR')||(a.tipo==='aberto'?-1:1))}
+function telaPagar(c){
+ const R=linhasPagar();const ed=pode('barroPagar','e');
+ const terc=DATA.barroMot.filter(m=>ehTerc(m));
+ c.innerHTML=cab('carteira','Motoristas a pagar','O valor de cada motorista terceirizado sai das carradas lançadas. Gere a conta a pagar (vai para o Financeiro) ou marque como pago. Cada carrada entra em um pagamento só.',
+  `<button type="button" class="btn" id="pExp">${ic('baixar')}Exportar ▾</button>`)+
+  `<div class="painel filtros" style="margin-bottom:12px"><label class="inline">De <input type="date" id="pDe" value="${esc(UP.de)}"></label><label class="inline">Até <input type="date" id="pAte" value="${esc(UP.ate)}"></label>
+   <select id="pMot"><option value="">Motorista: todos</option>${optH(ord(terc,'nome').map(m=>[m.id,m.nome]),UP.mot)}</select>
+   <select id="pSit"><option value="">Situação: todas</option>${optH(['Pendente','Parcial','Pago'],UP.sit)}</select></div>
+  <div class="resumo"><div><b>${esc(fC(soma(R,r=>r.carradas)))}</b><span>Carradas</span></div><div><b>${esc(fTt(soma(R,r=>r.ton)))}</b><span>Toneladas</span></div><div><b>${esc(fMoeda(soma(R,r=>r.bruto)))}</b><span>Valor bruto</span></div><div><b>${esc(fMoeda(soma(R,r=>r.desc)))}</b><span>Descontos e adiantamentos</span></div><div><b>${esc(fMoeda(soma(R,r=>r.liquido)))}</b><span>Valor líquido</span></div><div><b>${esc(fMoeda(soma(R,r=>r.saldo)))}</b><span>Falta pagar</span></div></div>
+  ${!terc.length?'<div class="aviso in" style="margin-bottom:12px"><span>Nenhum motorista terceirizado cadastrado. Só terceirizado (por carrada ou por diária) entra aqui; motorista próprio e salário fixo são pagos pela folha.</span></div>':''}
+  ${R.length?tabela(['Motorista','Período',['Carradas',1],['Toneladas',1],['Valor bruto',1],['Descontos / adiant.',1],['Valor líquido',1],['Pago',1],'Situação',''],
+   R.map((r,i)=>`<tr>${td('Motorista','<b>'+esc(nomeMot(r.motoristaId))+'</b><span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+(r.tipo==='aberto'?'sem conta a pagar ainda':'fechamento de '+esc(fData(r.f.data))+(r.f.numero?' · compromisso nº '+esc(r.f.numero):''))+'</span>')}
+    ${td('Período',esc(fData(r.de)+(r.ate&&r.ate!==r.de?' a '+fData(r.ate):'')))}${td('Carradas',esc(fC(r.carradas)),1)}${td('Toneladas',esc(fT(r.ton)),1)}${td('Valor bruto',esc(fMoeda(r.bruto)),1)}${td('Descontos / adiant.',esc(fMoeda(r.desc)),1)}${td('Valor líquido','<b>'+esc(fMoeda(r.liquido))+'</b>',1)}${td('Pago',esc(fMoeda(r.pago)),1)}
+    ${td('Situação',tagSF(r.st)+(r.venc&&r.st!=='Pago'?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">vence '+esc(fData(r.venc))+'</span>':''))}
+    <td class="acs">${r.tipo==='aberto'?`${ed?`<button type="button" class="btn min" data-pg="${i}">Gerar conta a pagar</button>`:''}${ed&&podePagar()?`<button type="button" class="btn min pri" data-pp="${i}">Marcar como pago</button>`:''}<button type="button" class="btn min" data-pr="${i}">Extrato</button>`
+     :`${r.st!=='Pago'&&podePagar()?`<button type="button" class="btn min pri" data-pp="${i}">Marcar como pago</button>`:''}<button type="button" class="btn min" data-pr="${i}">Recibo / extrato</button>${r.f.finTituloId&&pode('fpagar')?`<button type="button" class="btn min" data-pf="${i}">No Financeiro</button>`:''}${ed&&!(r.pago>0.004)?`<button type="button" class="btn min perigo" data-pd="${i}">Desfazer</button>`:''}`}</td></tr>`),
+   ['Total','',[esc(fC(soma(R,r=>r.carradas))),1],[esc(fT(soma(R,r=>r.ton))),1],[esc(fMoeda(soma(R,r=>r.bruto))),1],[esc(fMoeda(soma(R,r=>r.desc))),1],[esc(fMoeda(soma(R,r=>r.liquido))),1],[esc(fMoeda(soma(R,r=>r.pago))),1],'',''])
+  :noNada('Nada a pagar no filtro','Os valores aparecem conforme as carradas dos terceirizados são lançadas.')}
+  ${!podePagar()?'<p class="ajuda">Marcar como pago é feito por quem tem acesso ao pagamento no Setor Financeiro.</p>':''}`;
+ $('#pDe',c).onchange=e=>{UP.de=e.target.value;renderTela()};$('#pAte',c).onchange=e=>{UP.ate=e.target.value;renderTela()};
+ $('#pMot',c).onchange=e=>{UP.mot=e.target.value;renderTela()};$('#pSit',c).onchange=e=>{UP.sit=e.target.value;renderTela()};
+ $$('[data-pg]',c).forEach(b=>b.onclick=()=>modalFechar(R[+b.dataset.pg],false));
+ $$('[data-pp]',c).forEach(b=>b.onclick=()=>{const r=R[+b.dataset.pp];if(r.tipo==='aberto')modalFechar(r,true);else modalPagar(r.f)});
+ $$('[data-pr]',c).forEach(b=>b.onclick=()=>verDoc(docMotorista(R[+b.dataset.pr]),{voltar:'#/barroPagar'}));
+ $$('[data-pf]',c).forEach(b=>b.onclick=()=>A.abrirObrig('t:'+R[+b.dataset.pf].f.finTituloId));
+ $$('[data-pd]',c).forEach(b=>b.onclick=()=>desfazerFech(R[+b.dataset.pd].f));
+ $('#pExp',c).onclick=()=>exportarMenu($('#pExp',c),'Barro_motoristas_a_pagar','Motoristas a pagar · '+fData(UP.de)+' a '+fData(UP.ate),
+  [{k:'mot',l:'Motorista'},{k:'per',l:'Período'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'bruto',l:'Valor bruto',t:'moeda'},{k:'desc',l:'Descontos/adiant.',t:'moeda'},{k:'liq',l:'Valor líquido',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'st',l:'Situação'}],
+  R.map(r=>({mot:nomeMot(r.motoristaId),per:fData(r.de)+(r.ate!==r.de?' a '+fData(r.ate):''),car:r.carradas,ton:r.ton,bruto:r.bruto,desc:r.desc,liq:r.liquido,pago:r.pago,st:r.st})));
+}
+/* cria o compromisso no Financeiro (setor Barro) */
+async function criarTitulo(f,venc,pagto){
+ const numero=Math.max(0,...DATA.fTitulos.map(t=>+t.numero||0))+1;const m=MOT(f.motoristaId)||{};
+ const st={id:novoId(),numero,data:f.data,descricao:'Frete de barro · '+(m.nome||'motorista')+' · '+fData(f.de)+(f.ate!==f.de?' a '+fData(f.ate):'')+' · '+fC(soma(f.itens,i=>i.carradas))+' carradas',
+  categoria:catBarro(),setorOrigem:ORIGEM,beneficiarioTipo:'Outro',beneficiario:m.nome||'',beneficiarioNome:m.nome||'',valor:r2(f.liquido),vencimento:venc,
+  dataPrevista:!pagto&&venc>=hoje()?venc:'',formaPrevista:pagto?pagto.forma:'PIX',contaId:pagto?pagto.contaId:'',docOrigemTipo:'',docOrigemNum:'',condicaoT:pagto?'À vista (já pago)':'A prazo',repetir:'Não repete',
+  pagamentos:pagto?[{id:novoId(),data:pagto.data,valor:r2(pagto.valor),forma:pagto.forma,contaId:pagto.contaId,quitacao:pagto.valor>=f.liquido-0.004,motivoDif:'',obsDif:'',por:eu(),em:agoraIso(),obs:'Pago no Setor do Barro (Motoristas a pagar)'}]:[],
+  barroFechId:f.id,responsavelNome:respP('Financeiro'),obs:(m.pix?'PIX do motorista: '+m.pix+'. ':'')+'Gerado em Motoristas a pagar (Setor do Barro).'};
+ await gravarRegistro('fTitulos',st,null,true);return st}
+function camposPagto(pre){const formas=window.FORMAS_F||FORMAS_V;
+ return `<div class="duas">${H.campoM('bpD','Data do pagamento<i> *</i>',`<input id="bpD" type="date" max="${hoje()}" value="${esc(hoje())}">`)}${H.campoM('bpV','Valor pago<i> *</i>',`<input id="bpV" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(pre))}">`,'Pode ser parcial.')}</div>
+  <div class="duas">${H.campoM('bpF','Forma de pagamento<i> *</i>',`<select id="bpF">${optH(formas,'PIX')}</select>`)}${H.campoM('bpC','Conta ou caixa usado<i> *</i>',`<select id="bpC"><option value="">Selecione…</option>${optH(H.optsContas(),'')}</select>`)}</div>`}
+function lerPagto(v,max){const p={data:H.valM(v,'bpD'),valor:r2(lerMoeda(H.valM(v,'bpV'))),forma:H.valM(v,'bpF'),contaId:H.valM(v,'bpC')};
+ if(!p.data){toast('Informe a data do pagamento.','erro');return null}if(p.data>hoje()){toast('A data do pagamento não pode ser futura.','erro');return null}
+ if(!(p.valor>0)){toast('Informe o valor pago.','erro');return null}if(p.valor>max+0.004){toast('O valor pago passa do que falta pagar ('+fMoeda(max)+').','erro');return null}
+ if(!p.forma){toast('Escolha a forma de pagamento.','erro');return null}if(!p.contaId){toast('Escolha a conta ou o caixa de onde saiu o dinheiro.','erro');return null}return p}
+function modalFechar(r,pagar){
+ const m=MOT(r.motoristaId)||{};
+ H.modalF((pagar?'Marcar como pago':'Gerar conta a pagar')+' · '+(m.nome||''),`<p class="ajuda" style="margin:0 0 10px">${esc(r.itens.length+' item(ns) de '+fData(r.de)+(r.ate!==r.de?' a '+fData(r.ate):'')+': '+fC(r.carradas)+' carradas, '+fTt(r.ton)+'. Valor bruto ')}<b>${esc(fMoeda(r.bruto))}</b>.${m.pix?' PIX: '+esc(m.pix)+'.':''}</p>
+  <div class="duas">${H.campoM('bfD','Descontos',`<input id="bfD" data-masc="moeda" inputmode="decimal" placeholder="0,00">`)}${H.campoM('bfA','Adiantamentos já pagos',`<input id="bfA" data-masc="moeda" inputmode="decimal" placeholder="0,00">`)}</div>
+  ${H.campoM('bfM','Motivo do desconto / adiantamento',`<input id="bfM">`)}
+  <p style="margin:6px 0 10px">Valor líquido: <b id="bfL">${esc(fMoeda(r.bruto))}</b></p>
+  ${pagar?camposPagto(r.bruto):H.campoM('bfV','Vencimento<i> *</i>',`<input id="bfV" type="date" value="${esc(hoje())}">`,'O compromisso vai para Contas a pagar no Setor Financeiro.')}
+  ${H.campoM('bfO','Observação',`<input id="bfO">`)}`,pagar?'Registrar pagamento':'Gerar conta a pagar',async v=>{
+  const desc=r2(lerMoeda(H.valM(v,'bfD'))),adi=r2(lerMoeda(H.valM(v,'bfA')));const liq=r2(r.bruto-desc-adi);
+  if(desc<0||adi<0){toast('Desconto e adiantamento não podem ser negativos.','erro');return false}
+  if(liq<-0.004){toast('Descontos e adiantamentos passam do valor bruto.','erro');return false}
+  if((desc>0||adi>0)&&!String(H.valM(v,'bfM')).trim()){toast('Informe o motivo do desconto ou do adiantamento.','erro');return false}
+  let p=null,venc='';if(pagar&&liq>0){p=lerPagto(v,liq);if(!p)return false;venc=p.data}else{venc=H.valM(v,'bfV')||hoje();if(!pagar&&!H.valM(v,'bfV')){toast('Informe o vencimento.','erro');return false}}
+  /* confere de novo, na hora de gravar, que nenhuma carrada já foi paga */
+  const fe=chavesFechadas();const ja=r.itens.filter(i=>fe.has(i.k));if(ja.length){toast('Parte destas carradas acabou de entrar em outro pagamento. Atualize a tela.','erro');return false}
+  const f={id:novoId(),data:hoje(),motoristaId:r.motoristaId,de:r.de,ate:r.ate,itens:r.itens.map(i=>({k:i.k,extId:i.extId,motoristaId:r.motoristaId,data:i.data,jazidaId:i.jazidaId,cacambaId:i.cacambaId||'',carradas:i.carradas,ton:i.ton,valorCarrada:i.valorCarrada||null,valor:i.valor,diaria:!!i.diaria})),
+   bruto:r.bruto,descontos:desc,adiant:adi,motivoDesc:String(H.valM(v,'bfM')).trim(),liquido:liq,venc,obs:String(H.valM(v,'bfO')).trim(),finTituloId:'',criadoEm:agoraIso(),criadoPor:eu()};
+  await gravar('barroFech',f,null);await registrarLog('barroFech',f.id,'criou',null,f,{bruto:'Valor bruto',liquido:'Valor líquido'});
+  if(liq>0.004){try{const t=await criarTitulo(f,venc,p);const f2={...f,finTituloId:t.id,numero:t.numero};await gravar('barroFech',f2,f)}
+   catch(err){toast('O fechamento foi gravado, mas o compromisso no Financeiro não: '+msgErro(err)+'. Use “Marcar como pago” de novo para criar.','erro');renderTela();return}}
+  toast(pagar?'Pagamento registrado: '+fMoeda(p?p.valor:0)+' para '+(m.nome||'')+'.':'Conta a pagar de '+fMoeda(liq)+' lançada no Financeiro (vence '+fData(venc)+').','ok');renderTela()},
+  {depois:v=>{const at=()=>{const l=r2(r.bruto-r2(lerMoeda(H.valM(v,'bfD')))-r2(lerMoeda(H.valM(v,'bfA'))));$('#bfL',v).textContent=fMoeda(l);const pv=$('#bpV',v);if(pv&&!pv._mexeu)pv.value=fMoedaCampo(Math.max(0,l))};
+   ['bfD','bfA'].forEach(id=>$('#'+id,v).addEventListener('input',at));const pv=$('#bpV',v);if(pv)pv.addEventListener('input',()=>pv._mexeu=1)}})}
+function modalPagar(f){
+ const s=sitFech(f);const m=MOT(f.motoristaId)||{};
+ H.modalF('Marcar como pago · '+(m.nome||''),`<p class="ajuda" style="margin:0 0 10px">Fechamento de ${esc(fData(f.data))}: líquido <b>${esc(fMoeda(f.liquido))}</b>, já pago ${esc(fMoeda(s.pago))}, falta <b>${esc(fMoeda(s.saldo))}</b>.${m.pix?' PIX: '+esc(m.pix)+'.':''}</p>${camposPagto(s.saldo)}`,'Registrar pagamento',async v=>{
+  const s2=sitFech(f);const p=lerPagto(v,s2.saldo);if(!p)return false;
+  let t=f.finTituloId?TIT(f.finTituloId):null;
+  if(!t){t=await criarTitulo(f,p.data,p);const atual=DATA.barroFech.find(x=>x.id===f.id)||f;await gravar('barroFech',{...clone(atual),finTituloId:t.id,numero:t.numero},atual)}
+  else{const nt={...clone(t),pagamentos:[...(t.pagamentos||[]),{id:novoId(),data:p.data,valor:p.valor,forma:p.forma,contaId:p.contaId,quitacao:p.valor>=s2.saldo-0.004,motivoDif:'',obsDif:'',por:eu(),em:agoraIso(),obs:'Pago no Setor do Barro (Motoristas a pagar)'}]};
+   await gravarRegistro('fTitulos',nt,clone(t),false)}
+  await logV('barroFech',f.id,'registrou pagamento',[{c:'Pagamento',de:'',para:fMoeda(p.valor)+' em '+fData(p.data)}]);
+  toast('Pagamento de '+fMoeda(p.valor)+' registrado.','ok');renderTela()})}
+async function desfazerFech(f){
+ const s=sitFech(f);if(s.pago>0.004){toast('Este fechamento já tem pagamento. Estorne o pagamento no Setor Financeiro antes.','erro');return}
+ if(!await confirmar('Desfazer este fechamento?','As carradas voltam para "sem conta a pagar" e o compromisso nº '+(f.numero||'')+' é excluído do Financeiro. Fica anotado no histórico.',{ok:'Desfazer',perigo:true}))return;
+ try{const t=f.finTituloId&&TIT(f.finTituloId);if(t){await apagar('fTitulos',t);await registrarLog('fTitulos',t.id,'excluiu')}
+  await apagar('barroFech',f);await registrarLog('barroFech',f.id,'excluiu',f,null,{});toast('Fechamento desfeito.','ok');renderTela()}catch(err){toast('Não foi possível: '+motivoErro(err)+'.','erro')}}
+/* recibo (fechamento) ou extrato (ainda sem conta) timbrado, com as carradas por dia */
+function docMotorista(r){
+ const m=MOT(r.motoristaId)||{};const rec=r.tipo==='fech';const s=rec?sitFech(r.f):null;
+ const D=baseRel(rec?'RECIBO DE FRETE DE BARRO':'EXTRATO DE CARRADAS',(m.nome||'Motorista')+' · '+fData(r.de)+(r.ate!==r.de?' a '+fData(r.ate):''),[]);
+ D.meta=[['Emitido em',fData(hoje())],['Por',APP.nome||nomeUsuario(APP.uid)||'Usuário'],['Situação',rec?s.st:'Sem conta a pagar']];
+ D.quadros=[{rot:'MOTORISTA',campos:[['Nome',m.nome||'—',1],['CPF',m.cpf?mascCPF(m.cpf):'—'],['Chave PIX',m.pix||'—'],['Forma de pagamento',formaMot(m)]]},quadroEmpresaDoc('PAGADOR · SETOR DO BARRO')];
+ D.parteNome=m.nome||'';D.arquivo=(rec?'Recibo_frete_barro_':'Extrato_carradas_')+nomeArq(m.nome||'motorista')+'_'+String(r.de||'');
+ D.rodape=(rec?'Recibo de frete de barro':'Extrato de carradas')+' · '+(m.nome||'');
+ const its=(r.itens||[]).slice().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+ D.blocos.push({tipo:'tabela',head:['Data','Jazida','Caçamba','Carradas','Toneladas','Valor da carrada','Total'],dir:[3,4,5,6],
+  body:its.map(i=>[fData(i.data),nomeJaz(i.jazidaId),i.diaria?'diária':(i.cacambaId?placaCac(i.cacambaId):'—'),fC(i.carradas),fT(i.ton),i.diaria?'—':fMoeda(i.valorCarrada||(i.carradas?i.valor/i.carradas:0)),fMoeda(i.valor)]),
+  foot:['Total','','',fC(soma(its,i=>i.carradas)),fT(soma(its,i=>i.ton)),'',fMoeda(soma(its,i=>i.valor))]});
+ const L=[['Valor bruto',fMoeda(r.bruto)]];if(rec){if(n0(r.f.descontos))L.push(['(−) Descontos',fMoeda(r.f.descontos)]);if(n0(r.f.adiant))L.push(['(−) Adiantamentos',fMoeda(r.f.adiant)]);if(r.f.motivoDesc)L.push(['Motivo',r.f.motivoDesc])}
+ L.push(['Valor líquido',fMoeda(r.liquido)]);if(rec){L.push(['Pago',fMoeda(s.pago)]);L.push(['Falta pagar',fMoeda(s.saldo)])}
+ D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:L});
+ if(rec&&s.pago>0){const t=r.f.finTituloId&&TIT(r.f.finTituloId);const pg=(t&&t.pagamentos||[]).filter(p=>!p.estornado);
+  if(pg.length)D.blocos.push({tipo:'tabela',head:['Pagamento','Forma','Conta','Valor'],dir:[3],body:pg.map(p=>[fData(p.data),p.forma||'—',H.nomeConta(p.contaId)||'—',fMoeda(p.valor)])})}
+ if(rec&&s.pago>0)D.blocos.push({tipo:'p',texto:'Recebi da '+(razaoMostra())+' a importância de '+fMoeda(s.pago)+' referente ao frete de barro das carradas acima.'});
+ const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(hoje())+'.';
+ D.assinaturas=rec?[{nome:m.nome||'',sub:'Motorista (recebedor)'},{nome:respP(ABA)||'',sub:'Responsável · Setor do Barro'}]:[];
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
+
+/* ================= relatórios (timbrados, PDF e Excel) ================= */
+const RELS=[['periodo','Extração por período (dia a dia)'],['jazida','Por jazida'],['motorista','Por motorista'],['maquina','Por máquina (horas, litros e custo)'],['mensal','Evolução mensal do custo por tonelada'],['resumo','Resumo mensal do barro (estoque)']];
+const UR={id:'periodo',de:'',ate:'',jaz:''};
+function mesesEntre(de,ate){const out=[];let m=String(de).slice(0,7);const fim=String(ate).slice(0,7);let n=0;while(m<=fim&&n++<120){out.push(m);m=JB_MES.somar(m,1)}return out}
+function dadosRel(){
+ const xs=extsPeriodo(UR.de,UR.ate,UR.jaz);const id=UR.id;
+ if(id==='periodo'){const cols=[{k:'data',l:'Data',t:'data'},{k:'jaz',l:'Jazida'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'frete',l:'Frete',t:'moeda'},{k:'comb',l:'Combustível',t:'moeda'},{k:'mo',l:'Mão de obra',t:'moeda'},{k:'maq',l:'Máquinas',t:'moeda'},{k:'out',l:'Outros',t:'moeda'},{k:'total',l:'Custo total',t:'moeda'},{k:'pt',l:'Custo/t',t:'moeda'}];
+  const rows=xs.map(e=>{const k=custoExt(e);return{data:e.data,jaz:nomeJaz(e.jazidaId),car:k.carradas,ton:k.ton,frete:k.frete,comb:k.comb,mo:k.mo,maq:k.maq,out:r2(k.outros+k.arrend),total:k.total,pt:k.porTon}});
+  const t=custoDe(xs);return{cols,rows,tot:{data:'',jaz:'Total',car:t.carradas,ton:t.ton,frete:t.frete,comb:t.comb,mo:t.mo,maq:t.maq,out:r2(t.outros+t.arrend),total:t.total,pt:t.porTon}}}
+ if(id==='jazida'){const cols=[{k:'jaz',l:'Jazida'},{k:'km',l:'Distância (km)',t:'num'},{k:'n',l:'Lançamentos',t:'num'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'total',l:'Custo total',t:'moeda'},{k:'pc',l:'Custo/carrada',t:'moeda'},{k:'pt',l:'Custo/t',t:'moeda'}];
+  const g={};xs.forEach(e=>{(g[e.jazidaId]=g[e.jazidaId]||[]).push(e)});
+  const rows=Object.entries(g).map(([j,L])=>{const t=custoDe(L);return{jaz:nomeJaz(j),km:(JAZ(j)||{}).distanciaKm||'',n:L.length,car:t.carradas,ton:t.ton,total:t.total,pc:t.porCarrada,pt:t.porTon}}).sort((a,b)=>b.ton-a.ton);
+  const t=custoDe(xs);return{cols,rows,tot:{jaz:'Total',km:'',n:xs.length,car:t.carradas,ton:t.ton,total:t.total,pc:t.porCarrada,pt:t.porTon}}}
+ if(id==='motorista'){const cols=[{k:'mot',l:'Motorista'},{k:'tipo',l:'Tipo'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'frete',l:'Valor (frete)',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'aberto',l:'A pagar',t:'moeda'}];
+  const g={};xs.forEach(e=>(e.carradas||[]).forEach(l=>{const x=g[l.motoristaId]||(g[l.motoristaId]={car:0,ton:0,frete:0,dias:new Set()});x.car+=n0(l.qtd);x.ton+=n0(l.qtd)*n0(l.ton);
+   if(l.forma==='Por diária'){if(!x.dias.has(e.id)){x.dias.add(e.id);x.frete+=n0(e.diarias&&e.diarias[l.motoristaId])}}else x.frete+=n0(l.qtd)*n0(l.valor)}));
+  const fe=chavesFechadas();const its=itensPagar().filter(i=>(!UR.de||i.data>=UR.de)&&(!UR.ate||i.data<=UR.ate)&&(!UR.jaz||i.jazidaId===UR.jaz));
+  const rows=Object.entries(g).map(([m,x])=>{const mi=its.filter(i=>i.motoristaId===m);let pago=0,ab=0;mi.forEach(i=>{const f=fe.get(i.k);if(!f){ab+=i.valor;return}const s=sitFech(f);const fr=f.bruto>0?i.valor/f.bruto:0;pago+=s.pago*fr;ab+=(s.saldo)*fr});
+   const M=MOT(m)||{};return{mot:nomeMot(m),tipo:(M.tipo||'')+(M.formaPag?' · '+M.formaPag.toLowerCase():''),car:r2(x.car),ton:r2(x.ton),frete:r2(x.frete),pago:r2(pago),aberto:r2(ab)}}).sort((a,b)=>b.car-a.car);
+  return{cols,rows,tot:{mot:'Total',tipo:'',car:r2(soma(rows,r=>r.car)),ton:r2(soma(rows,r=>r.ton)),frete:r2(soma(rows,r=>r.frete)),pago:r2(soma(rows,r=>r.pago)),aberto:r2(soma(rows,r=>r.aberto))}}}
+ if(id==='maquina'){const cols=[{k:'maq',l:'Máquina'},{k:'prop',l:'Propriedade'},{k:'dias',l:'Dias',t:'num'},{k:'horas',l:'Horas',t:'num'},{k:'litros',l:'Diesel (L)',t:'num'},{k:'comb',l:'Combustível',t:'moeda'},{k:'ch',l:'Custo-hora (manut.+deprec.)',t:'moeda'},{k:'total',l:'Total',t:'moeda'},{k:'lh',l:'Litros por hora',t:'num'}];
+  const g={};xs.forEach(e=>(e.maquinas||[]).forEach(m=>{const x=g[m.localId]||(g[m.localId]={dias:0,horas:0,litros:0,comb:0,ch:0,prop:m.propriedade||propMaq(m.localId)});const h=horasLinha(m);
+   const ab=m.litrosAuto!==false?abastDe(m.localId,e.data):null;const lt=ab?ab.litros:n0(m.litros);x.dias++;x.horas+=h;x.litros+=lt;x.comb+=ab?ab.custo:lt*n0(m.precoLitro);
+   x.ch+=h*(n0(m.manutHora)+((m.propriedade||'')==='Arrendada'?0:n0(m.deprecHora)))}));
+  const rows=Object.entries(g).map(([l,x])=>({maq:nomeLocal(LOCAL(l))||'(máquina removida)',prop:x.prop,dias:x.dias,horas:r2(x.horas),litros:r2(x.litros),comb:r2(x.comb),ch:r2(x.ch),total:r2(x.comb+x.ch),lh:x.horas>0?r2(x.litros/x.horas):''})).sort((a,b)=>b.horas-a.horas);
+  return{cols,rows,tot:{maq:'Total',prop:'',dias:soma(rows,r=>r.dias),horas:r2(soma(rows,r=>r.horas)),litros:r2(soma(rows,r=>r.litros)),comb:r2(soma(rows,r=>r.comb)),ch:r2(soma(rows,r=>r.ch)),total:r2(soma(rows,r=>r.total)),lh:''}}}
+ if(id==='mensal'){const cols=[{k:'mes',l:'Mês'},{k:'car',l:'Carradas',t:'num'},{k:'ton',l:'Toneladas',t:'num'},{k:'total',l:'Custo total',t:'moeda'},{k:'pc',l:'Custo/carrada',t:'moeda'},{k:'pt',l:'Custo/t',t:'moeda'},{k:'var',l:'Variação do custo/t (%)',t:'num'}];
+  const ms=mesesEntre(UR.de||(xs[0]||{}).data||hoje(),UR.ate||hoje());let ant=null;
+  const rows=ms.map(m=>{const t=custoDe(xs.filter(e=>String(e.data).startsWith(m)));const v=ant&&ant>0&&t.porTon>0?r2((t.porTon-ant)/ant*100):'';if(t.porTon>0)ant=t.porTon;return{mes:fMes(m),car:t.carradas,ton:t.ton,total:t.total,pc:t.porCarrada,pt:t.porTon,var:v}});
+  const t=custoDe(xs);return{cols,rows,tot:{mes:'Período',car:t.carradas,ton:t.ton,total:t.total,pc:t.porCarrada,pt:t.porTon,var:''}}}
+ /* resumo do barro: estoque inicial + extraído − consumido − vendido ± ajustes = final */
+ const cols=[{k:'mes',l:'Mês'},{k:'ini',l:'Estoque inicial (t)',t:'num'},{k:'ext',l:'(+) Extraído',t:'num'},{k:'cons',l:'(−) Consumido na produção',t:'num'},{k:'venda',l:'(−) Vendido',t:'num'},{k:'aj',l:'(±) Ajustes e saldo inicial',t:'num'},{k:'fim',l:'Estoque final (t)',t:'num'}];
+ const ms=mesesEntre(UR.de||(movsBarro()[0]||{}).data||hoje(),UR.ate||hoje());
+ const rows=ms.map(m=>{const r=resumoMes(m);return{mes:fMes(m),ini:r.ini,ext:r.ext,cons:r.cons,venda:r.venda,aj:r2(r.aj+r.inicial),fim:r.fim}});
+ return{cols,rows,tot:rows.length?{mes:'Período',ini:rows[0].ini,ext:r2(soma(rows,r=>r.ext)),cons:r2(soma(rows,r=>r.cons)),venda:r2(soma(rows,r=>r.venda)),aj:r2(soma(rows,r=>r.aj)),fim:rows[rows.length-1].fim}:null}}
+function fmtR(c,v){if(v===''||v==null)return '';if(c.t==='moeda')return fMoeda(v);if(c.t==='data')return fData(v);if(c.t==='num')return /^(ton|ini|ext|cons|venda|aj|fim|horas|litros|car|pc|pt|lh|var)$/.test(c.k)?fNum(v,2):fQtd(v);return String(v)}
+function telaRel(c){
+ if(!UR.de&&!UR.ate){UR.de=hoje().slice(0,4)+'-01-01';UR.ate=hoje()}
+ const R=dadosRel();const tit=(RELS.find(x=>x[0]===UR.id)||[,''])[1];const comJaz=!['resumo'].includes(UR.id);
+ c.innerHTML=cab('grafico','Relatórios do barro','Timbrados, com visualização, PDF e Excel. Escolha o relatório e o período.',`<button type="button" class="btn pri" id="rExp">${ic('baixar')}Visualizar / exportar ▾</button>`)+
+  `<div class="painel filtros" style="margin-bottom:12px"><select id="rId">${optH(RELS,UR.id)}</select><label class="inline">De <input type="date" id="rDe" value="${esc(UR.de)}"></label><label class="inline">Até <input type="date" id="rAte" value="${esc(UR.ate)}"></label>
+   ${comJaz?`<select id="rJaz"><option value="">Jazida: todas</option>${optH(optsJaz(UR.jaz),UR.jaz)}</select>`:''}</div>
+  ${R.rows.length?tabela(R.cols.map(x=>[x.l,x.t==='moeda'||x.t==='num']),R.rows.map(r=>`<tr>${R.cols.map(x=>td(x.l,esc(fmtR(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`),R.tot?R.cols.map(x=>[esc(fmtR(x,R.tot[x.k])),x.t==='moeda'||x.t==='num']):null)
+   :noNada('Nada para mostrar','Ajuste o período ou lance a extração.')}
+  ${UR.id==='resumo'?'<p class="ajuda">Estoque inicial + extraído − consumido na produção − vendido ± ajustes = estoque final. O saldo inicial (contagem) entra na coluna de ajustes do mês em que foi lançado.</p>':''}`;
+ $('#rId',c).onchange=e=>{UR.id=e.target.value;renderTela()};$('#rDe',c).onchange=e=>{UR.de=e.target.value;renderTela()};$('#rAte',c).onchange=e=>{UR.ate=e.target.value;renderTela()};
+ if($('#rJaz',c))$('#rJaz',c).onchange=e=>{UR.jaz=e.target.value;renderTela()};
+ $('#rExp',c).onclick=()=>{const rows=R.tot?[...R.rows,R.tot]:R.rows;
+  exportarMenu($('#rExp',c),'Barro_'+UR.id,'Barro · '+tit+' · '+fData(UR.de)+' a '+fData(UR.ate)+(UR.jaz&&comJaz?' · '+nomeJaz(UR.jaz):''),R.cols,rows)};
+}
+
+/* ================= configurações do setor ================= */
+let RCF=null;
+function telaCfg(c){
+ const ed=pode('barroCfg','e');if(!RCF)RCF=clone(cfgB());const C=RCF;
+ const maqs=maqsComb().slice().sort((a,b)=>(ehMaqBarro(b)?1:0)-(ehMaqBarro(a)?1:0)||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ const dis=ed?'':'disabled';
+ c.innerHTML=cab('engrenagem','Configurações do Setor do Barro','Valores padrão do lançamento, mão de obra, custo-hora das máquinas e rateio do arrendamento. Mudar aqui vale para os próximos lançamentos; os já salvos guardam os valores do dia.',
+  ed?`<button type="button" class="btn pri" id="cfSalvar">${ic('entrada')}Salvar configurações</button>`:'')+
+  `<div class="vv-grade">
+   <section class="bloco"><h3>Carrada (valores padrão)</h3><div class="campos" style="padding:12px 16px">
+    ${H.campoM('cfV','Valor padrão da carrada (R$)',`<input id="cfV" data-cf="valorCarrada" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.valorCarrada))}" ${dis}>`,'Pode ser diferente por motorista, caçamba ou jazida (no cadastro de cada um).')}
+    ${H.campoM('cfT','Toneladas por carrada (padrão)',`<input id="cfT" data-cf="tonCarrada" type="number" min="0" step="0.01" value="${esc(C.tonCarrada||'')}" ${dis}>`,'Cada caçamba pode ter a sua capacidade.')}
+    ${H.campoM('cfPM','Toneladas de barro por milheiro (opcional)',`<input id="cfPM" data-cf="tonPorMilheiro" type="number" min="0" step="0.001" value="${esc(C.tonPorMilheiro||'')}" ${dis}>`,'Usado só para sugerir o consumo na produção pela maromba.')}</div></section>
+   <section class="bloco"><h3>Mão de obra dos operadores</h3><div class="campos" style="padding:12px 16px">
+    ${H.campoM('cfMM','Cobrar por',`<select id="cfMM" data-cf="moModo" ${dis}>${optH([['hora','Hora trabalhada'],['diaria','Diária (um operador por dia)']],C.moModo)}</select>`)}
+    ${H.campoM('cfMH','Valor por hora (R$)',`<input id="cfMH" data-cf="moHora" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moHora))}" ${dis}>`)}
+    ${H.campoM('cfMD','Diária do operador (R$)',`<input id="cfMD" data-cf="moDiaria" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moDiaria))}" ${dis}>`,'Ajudantes: lance em “Outros custos do dia” como Diária de ajudante.')}</div></section>
+   <section class="bloco"><h3>Arrendamento da jazida</h3><div style="padding:12px 16px">
+    <label class="inline"><input type="checkbox" id="cfAr" ${C.arrendAtivo?'checked':''} ${dis}> Ratear o arrendamento mensal no custo do barro</label>
+    <p class="ajuda" style="margin:8px 0 0">Desligado por padrão: hoje o arrendamento é lançado inteiro no custo geral. Ligado, o valor mensal informado em cada jazida é dividido pelas toneladas extraídas no mês daquela jazida.</p></div></section>
+   <section class="bloco w2"><h3>Custo-hora das máquinas</h3>
+    <p class="ajuda" style="margin:10px 16px 0">As máquinas são as de Máquinas e veículos do Setor de Combustível (nenhum cadastro novo). Própria ou arrendada vem de lá. Arrendada entra só com a manutenção, sem depreciação. Falta escavadeira ou trator? Cadastre em Setor de Combustível › Máquinas e veículos, com o setor Barro.</p>
+    ${tabela(['Máquina','Propriedade',['Manutenção por hora (R$)',1],['Depreciação por hora (R$)',1]],maqs.map(l=>{const x=C.maquinas[l.id]||{};const arr=propMaq(l.id)==='Arrendada';
+     return `<tr>${td('Máquina','<b>'+esc(nomeLocal(l))+'</b>'+(l.setorTrabalho?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">setor '+esc(l.setorTrabalho)+'</span>':''))}${td('Propriedade',tag(propMaq(l.id),arr?'at':'in'))}
+      ${td('Manutenção por hora (R$)',`<input data-cm="${esc(l.id)}" data-ck="manutHora" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(x.manutHora?fMoedaCampo(x.manutHora):'')}" style="max-width:120px" ${dis}>`,1)}
+      ${td('Depreciação por hora (R$)',arr?'<span class="ajuda">não se aplica (arrendada)</span>':`<input data-cm="${esc(l.id)}" data-ck="deprecHora" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(x.deprecHora?fMoedaCampo(x.deprecHora):'')}" style="max-width:120px" ${dis}>`,1)}</tr>`}),null,'br-tbl')}</section>
+   <section class="bloco w2"><h3>Histórico das configurações</h3><div class="vv-hist">${historicoHtml('barroCfg','cfg')}</div></section>
+  </div>`;
+ c.addEventListener('input',e=>{const t=e.target;if(t.dataset.cf){const k=t.dataset.cf;C[k]=k==='moModo'?t.value:t.dataset.masc==='moeda'?lerMoeda(t.value):(t.value===''?'':+t.value);return}
+  if(t.dataset.cm){const x=C.maquinas[t.dataset.cm]||(C.maquinas[t.dataset.cm]={});x[t.dataset.ck]=t.value.trim()===''?0:lerMoeda(t.value)}});
+ c.addEventListener('change',e=>{const t=e.target;if(t.id==='cfAr')C.arrendAtivo=t.checked;if(t.dataset.cf==='moModo')C.moModo=t.value});
+ if($('#cfSalvar',c))$('#cfSalvar',c).onclick=async()=>{const b=$('#cfSalvar',c);
+  const num=['valorCarrada','tonCarrada','moHora','moDiaria'];if(num.some(k=>+C[k]<0)){toast('Os valores não podem ser negativos.','erro');return}
+  if(!vazio(C.tonPorMilheiro)&&+C.tonPorMilheiro<0){toast('Toneladas por milheiro inválidas.','erro');return}
+  const maq={};Object.entries(C.maquinas).forEach(([id,x])=>{const m=r2(x.manutHora),d=r2(x.deprecHora);if(m<0||d<0)return;if(m||d)maq[id]={manutHora:m,deprecHora:propMaq(id)==='Arrendada'?0:d}});
+  const ant=cfgRec();const n={...(ant?clone(ant):{id:'cfg',data:'2026-01-01',criadoEm:agoraIso(),criadoPor:eu()}),valorCarrada:r2(C.valorCarrada),tonCarrada:r2(C.tonCarrada),tonPorMilheiro:vazio(C.tonPorMilheiro)?'':+C.tonPorMilheiro,
+   moModo:C.moModo==='diaria'?'diaria':'hora',moHora:r2(C.moHora),moDiaria:r2(C.moDiaria),arrendAtivo:C.arrendAtivo===true,maquinas:maq,alteradoEm:agoraIso(),alteradoPor:eu()};
+  b.disabled=true;try{await gravar('barroCfg',n,ant);await registrarLog('barroCfg','cfg',ant?'alterou':'criou',ant||{},n,{valorCarrada:'Valor padrão da carrada',tonCarrada:'Toneladas por carrada',tonPorMilheiro:'Toneladas por milheiro',moModo:'Mão de obra por',moHora:'Valor por hora',moDiaria:'Diária do operador',arrendAtivo:'Rateio do arrendamento',maquinas:'Custo-hora das máquinas'});
+   RCF=null;toast('Configurações do Setor do Barro salvas.','ok');renderTela()}catch(err){b.disabled=false;toast(msgFalhaSalvar(err),'erro')}};
+}
+
+/* ================= início do setor ================= */
+function inicioB(c){
+ const h=hoje(),m=JB_MES.de('barro');const xm=DATA.barroExt.filter(e=>String(e.data).startsWith(m));const xh=DATA.barroExt.filter(e=>e.data===h);
+ const km=custoDe(xm),kh=custoDe(xh);const est=estoqueB();const C=cfgB();
+ const fe=chavesFechadas();const ab=itensPagar().filter(i=>!fe.has(i.k));const fs=fechAtivos().map(f=>({f,s:sitFech(f)})).filter(x=>x.s.saldo>0.004);
+ const aPagar=r2(soma(ab,i=>i.valor)+soma(fs,x=>x.s.saldo));const ed=pode('barroExt','e');
+ const falta=[];if(!DATA.barroJaz.length)falta.push('<a href="#/barroJaz/novo">jazida</a>');if(!DATA.barroMot.length)falta.push('<a href="#/barroMot/novo">motoristas</a>');if(!DATA.barroCac.length)falta.push('<a href="#/barroCac/novo">caçambas</a>');
+ if(!(+C.valorCarrada>0))falta.push('<a href="#/barroCfg">valor padrão da carrada</a>');if(!(+C.tonCarrada>0))falta.push('<a href="#/barroCfg">toneladas por carrada</a>');
+ c.innerHTML=cab('barro','Setor do Barro · Extração','Barro tirado da jazida e levado à fábrica: carradas, máquinas, custo por carrada e por tonelada, estoque e o que pagar a cada motorista.',
+  ed?`<a class="btn pri" href="#/barroExt/nova">${ic('mais')}Lançar extração do dia</a>`:'')+
+  `${falta.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Falta cadastrar: ${falta.join(', ')}. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
+  ${JB_MES.barra('barro')}
+  <div class="hero almp-hero">
+   ${kpiV('c1','barro','Extraído hoje',esc(fTt(kh.ton)),esc(fC(kh.carradas)+' carradas'),'#/barroLanc')}
+   ${kpiV('c3','cacamba','Extraído em '+fMes(m),esc(fTt(km.ton)),esc(fC(km.carradas)+' carradas · '+xm.length+' lançamento(s)'),'#/barroLanc')}
+   ${kpiV('c4','moeda','Custo por tonelada · '+fMes(m),esc(fMoeda(km.porTon)),esc('custo total '+fMoeda(km.total)),'#/barroCusto')}
+   ${kpiV('c2','moeda','Custo por carrada · '+fMes(m),esc(fMoeda(km.porCarrada)),'','#/barroCusto')}
+   ${kpiV(est.ton<0?'c6':'c5','caixa','Estoque de barro',esc(fTt(est.ton)),esc(fC(est.car)+' carradas'),'#/barroEst')}
+   ${kpiV(aPagar>0?'c6':'c2','carteira','Motoristas a pagar',esc(fMoeda(aPagar)),esc(fs.length+' conta(s) em aberto'+(ab.length?' · '+ab.length+' item(ns) sem conta':'')),'#/barroPagar')}
+  </div>
+  <div class="ex2">
+   <div class="bloco"><h3>Últimos lançamentos<a href="#/barroLanc">Ver todos</a></h3>${lstV(DATA.barroExt.slice().sort((a,b)=>String(b.data+(b.criadoEm||'')).localeCompare(String(a.data+(a.criadoEm||'')))).slice(0,6).map(e=>{const k=custoExt(e);return{href:'#/barroExt/'+e.id,ic:'barro',t:fData(e.data)+' · '+nomeJaz(e.jazidaId),s:fC(k.carradas)+' carradas · '+fTt(k.ton)+' · '+fMoeda(k.porTon)+'/t',v:fMoeda(k.total)}}),'Nenhuma extração lançada.')}</div>
+   <div class="bloco"><h3>Quanto pesou cada item · ${esc(fMes(m))}<a href="#/barroCusto">Custo</a></h3>${compHtml(km)}</div>
+   <div class="bloco"><h3>A pagar por motorista<a href="#/barroPagar">Motoristas a pagar</a></h3>${lstV((()=>{const g={};ab.forEach(i=>{g[i.motoristaId]=(g[i.motoristaId]||0)+i.valor});fs.forEach(x=>{g[x.f.motoristaId]=(g[x.f.motoristaId]||0)+x.s.saldo});
+    return Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([id,v])=>({href:'#/barroPagar',ic:'pessoas',cls:'a-at',t:nomeMot(id),s:(MOT(id)||{}).pix?'PIX '+(MOT(id)||{}).pix:'',v:fMoeda(v)}))})(),'Nada a pagar.')}</div>
+  </div>`;
+ JB_MES.ligar(c,'barro');
+}
+
+/* ================= rotas ================= */
+const naB=(ativa,corpo)=>el=>shellB(el,ativa,corpo);
+Object.assign(TELAS_V,{
+ 'setor-barro':naB('setor-barro',inicioB),barroExt:telaExt,barroLanc:naB('barroLanc',telaLanc),barroCusto:naB('barroCusto',telaCusto),barroPagar:naB('barroPagar',telaPagar),
+ barroEst:naB('barroEst',telaEstoque),barroMov:naB('barroMov',c=>telaLista(c,'barroMov')),barroRel:naB('barroRel',telaRel),barroCfg:naB('barroCfg',telaCfg),
+ barroJaz:naB('barroJaz',c=>telaLista(c,'barroJaz')),barroMot:naB('barroMot',c=>telaLista(c,'barroMot')),barroCac:naB('barroCac',c=>telaLista(c,'barroCac'))});
+if(MODS.barroResp)TELAS_V.barroResp=naB('barroResp',c=>telaLista(c,'barroResp'));
+const av0=avisosModulo;
+avisosModulo=function(mod){if(mod==='barroMov')return `<div class="aviso in"><span>Estoque de barro agora: <b>${esc(fTt(estoqueB().ton))}</b>. A extração entra sozinha pelo lançamento diário; aqui ficam as saídas, o saldo inicial e os ajustes. <a href="#/barroEst">Ver o estoque</a></span></div>`;
+ if(mod==='barroJaz'||mod==='barroMot'||mod==='barroCac')return '';return av0.apply(this,arguments)};
+
+/* ================= cartão na seleção de setores (no lugar do "em breve") ================= */
+{const BR=FS.BREVE||{};if(BR.barro)delete BR.barro;
+ PERM['setor-barro']={v:BV,e:[]};
+ const novo={id:'barro',nome:'Setor do Barro',ic:'barro',rota:'#/setor-barro',v:()=>pode('setor-barro'),
+  desc:'Extração do barro: jazidas, carradas por motorista e caçamba, máquinas, custo por carrada e por tonelada, estoque de barro e motoristas a pagar.'};
+ const i=SETORES.findIndex(s=>s.id==='barro');if(i>=0)SETORES.splice(i,1,novo);else SETORES.push(novo)}
+const tsB=telaSetores;
+telaSetores=function(el){tsB.apply(this,arguments);
+ try{const b=el.querySelector('[data-setor="barro"]');if(!b)return;const card=b.closest('.spot-card');if(!card||card.querySelector('.spot-info'))return;
+  const sp=document.createElement('span');sp.className='spot-info';
+  if(!APP.carregado)sp.textContent='Carregando os dados…';
+  else{const m=mesAtual();const xm=DATA.barroExt.filter(e=>String(e.data).startsWith(m));const k=custoDe(xm);
+   sp.textContent=DATA.barroExt.length?fTt(k.ton)+' extraídas em '+fMes(m)+(k.porTon>0?' · '+fMoeda(k.porTon)+'/t':'')+' · estoque '+fTt(estoqueB().ton):'Pronto para cadastrar as jazidas, os motoristas e as caçambas'}
+  b.before(sp)}catch(e){console.warn('V57 setores',e)}};
+
+/* ================= o compromisso do Financeiro gerado aqui só se desfaz aqui ================= */
+const pe0=window.preExcluirV51;
+window.preExcluirV51=function(mod,rec){
+ if(mod==='fTitulos'&&rec){const f=rec.barroFechId?DATA.barroFech.find(x=>x.id===rec.barroFechId):DATA.barroFech.find(x=>x.finTituloId===rec.id);
+  if(f&&!f.cancelado)return{bloq:'Este compromisso é o pagamento do motorista '+nomeMot(f.motoristaId)+' (fechamento de '+fData(f.data)+'). Para excluir, use “Desfazer” em Setor do Barro › Motoristas a pagar.'}}
+ if(mod==='barroMov'&&rec){const s=estoqueB();const t=sinalMov(rec.tipo)*n0(rec.ton);
+  return{texto:'O movimento de '+fData(rec.data)+' ('+(NOME_MOV[rec.tipo]||rec.tipo)+', '+fTt(rec.ton)+') será excluído. O estoque passa de '+fTt(s.ton)+' para '+fTt(r2(s.ton-t))+'. A exclusão fica anotada no histórico de alterações.'}}
+ return pe0?pe0(mod,rec):null};
+
+/* ================= para os testes e para as telas ================= */
+window.BARRO_V57={cfgB,valorPara,tonPara,abastDe,precoDiesel,custoExt,custoDe,freteDe,itensPagar,chavesFechadas,sitFech,estoqueB,resumoMes,movsBarro,conferirX,itensDeRascunho,
+ rascunhoX,dadosRel,docMotorista,linhasPagar,criarTitulo,setRX:d=>{RX=d},getRX:()=>RX,UP,UR,UC};
+})();
+</script>
 <style id="ia-estilos">
 /* ===== estilos novos feitos pelo editor por IA (podem ser alterados) ===== */
 /* ===== fim dos estilos novos feitos pelo editor por IA ===== */
