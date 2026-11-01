@@ -1,5 +1,11 @@
 // JB Gestão · login, sessões e administração de contas
 // Roda no servidor (Supabase Edge Functions). O navegador nunca recebe chave de serviço nem segredo.
+// Publicar SEM conferência de token (verify_jwt = false): o próprio login é quem cria o token.
+//
+// v4 (01/11/2026), entrada mais rápida:
+//  - o segredo das senhas é buscado JUNTO com a conferência de bloqueio (antes: um depois do outro);
+//  - "ping" já deixa o segredo pronto (a tela de entrada chama ping enquanto a pessoa digita);
+//  - o navegador guarda a autorização (CORS) por 2 h e não repete o pedido extra a cada entrada.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
@@ -17,12 +23,17 @@ const comoUsuario = (token: string) => createClient(SB_URL, CHAVE_PUBLICA, {
 });
 const tokenDe = (req: Request) => (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
 
-let segredoCache: string | null = null;
-async function segredo(): Promise<string> {
-  if (segredoCache) return segredoCache;
-  const { data, error } = await admin.rpc("jb_srv_segredo");
-  if (error || !data) throw new Error("segredo das senhas não configurado");
-  segredoCache = String(data);
+// guarda a PROMESSA: pedidos ao mesmo tempo dividem uma única consulta; se falhar, tenta de novo na próxima
+let segredoCache: Promise<string> | null = null;
+function segredo(): Promise<string> {
+  if (!segredoCache) {
+    segredoCache = (async () => {
+      const { data, error } = await admin.rpc("jb_srv_segredo");
+      if (error || !data) throw new Error("segredo das senhas não configurado");
+      return String(data);
+    })();
+    segredoCache.catch(() => { segredoCache = null; });
+  }
   return segredoCache;
 }
 
@@ -45,6 +56,7 @@ function cors(req: Request) {
     "Access-Control-Allow-Origin": permitida,
     "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "7200",
     "Vary": "Origin",
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
@@ -86,6 +98,8 @@ async function login(req: Request, b: Record<string, unknown>) {
   const usuario = str(b.usuario, 40).trim().toLowerCase();
   const senha = str(b.senha, 128);
   if (!USUARIO_RE.test(usuario) || !senha) throw falha(400, "dados", "Informe usuário e senha.");
+  // o segredo já começa a ser buscado enquanto o banco confere bloqueios (erro tratado lá embaixo)
+  segredo().catch(() => {});
   const { data: prep, error } = await admin.rpc("jb_srv_login_preparar", { p_usuario: usuario, p_ip: ip(req) });
   if (error) throw falha(500, "servidor", "Não foi possível entrar agora.");
   const sit = prep.situacao as string;
@@ -210,6 +224,12 @@ async function instalar(req: Request, b: Record<string, unknown>) {
   return { ok: true, usuario };
 }
 
+// "acordar": deixa a função ligada e o segredo pronto. Não confere nem devolve nada da pessoa.
+async function ping() {
+  await segredo().catch(() => {});
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   const h = cors(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: h });
@@ -226,7 +246,7 @@ Deno.serve(async (req) => {
       : acao === "redefinir-senha" ? await redefinirSenha(req, corpo)
       : acao === "situacao-conta" ? await situacaoConta(req, corpo)
       : acao === "instalar" ? await instalar(req, corpo)
-      : acao === "ping" ? { ok: true }
+      : acao === "ping" ? await ping()
       : null;
     if (r === null) return new Response(JSON.stringify({ erro: "acao" }), { status: 404, headers: h });
     return new Response(JSON.stringify(r), { headers: h });

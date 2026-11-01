@@ -282,22 +282,37 @@
     if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || 'Não foi possível concluir.');
     return j;
   }
+  /* o servidor de login desliga ~15 s depois de usado e religar custa ~1 s. Enquanto a tela de
+     entrada está aberta, ele é "acordado" (no máximo a cada 10 s, só se a pessoa estiver mexendo),
+     para já estar pronto quando ela apertar Entrar. O "ping" não envia nada da pessoa. */
+  var ultimoAcordar = 0;
+  function acordarLogin() {
+    if (Date.now() - ultimoAcordar < 10000 || !document.getElementById('jbl')) return;
+    ultimoAcordar = Date.now();
+    fetch(AUTH + 'ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function () {});
+  }
+  function etapa(v, texto) {
+    var b = v.querySelector('button'); if (b) b.textContent = texto;
+    var m = v.querySelector('.msg'); if (m) { m.className = 'msg ok'; m.textContent = ''; }
+  }
   function tela(aviso, encerrada) {
     if (encerrada) { var s = document.getElementById('jbsair'); if (s) s.remove(); }
     var v = caixa('JB Gestão', 'Entre com seu usuário e senha', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
     var msg = v.querySelector('.msg'); if (aviso) msg.textContent = aviso;
+    acordarLogin();
+    ['focusin', 'input'].forEach(function (ev) { v.addEventListener(ev, acordarLogin); });
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       var b = v.querySelector('button'), u = v.querySelector('#jblu').value.trim().toLowerCase(), s = v.querySelector('#jbls').value;
       if (!u || !s) { msg.textContent = 'Informe usuário e senha.'; return; }
-      b.disabled = true; msg.textContent = '';
+      b.disabled = true; msg.textContent = ''; etapa(v, 'Conferindo a senha…');
       try {
         var r = await post('login', { usuario: u, senha: s });
         v.querySelector('#jbls').value = '';
         if (r.trocarSenha) { trocarSenha(r); return; }
-        if (encerrada) { location.reload(); return; }
-        await entrar(r);
-      } catch (e) { msg.textContent = e.message; b.disabled = false; }
+        if (encerrada) { etapa(v, 'Abrindo…'); location.reload(); return; }
+        await entrar(r, function (t) { etapa(v, t); });
+      } catch (e) { msg.className = 'msg'; msg.textContent = e.message; b.disabled = false; b.textContent = 'Entrar'; }
     });
   }
   function trocarSenha(r) {
@@ -336,7 +351,9 @@
     });
   }
 
-  async function entrar(r) {
+  async function entrar(r, avisarEtapa) {
+    avisarEtapa = avisarEtapa || function () {};
+    avisarEtapa('Abrindo a sessão…');
     sessao = r;
     sb = window.supabase.createClient(SB_URL, SB_CHAVE, { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } });
     var s = await sb.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
@@ -345,10 +362,15 @@
       if (nova) sessao = Object.assign({}, sessao, { access_token: nova.access_token, refresh_token: nova.refresh_token });
       if (ev === 'SIGNED_OUT') sessaoEncerrada();
     });
+    avisarEtapa('Carregando os dados…');
+    // acesso e dados ao mesmo tempo (antes era um depois do outro). Os dados só ficam
+    // disponíveis ao sistema depois que o acesso é confirmado (prontoRes, abaixo).
+    var dados = carregarTudo().then(function () { return null; }, function (e) { return e; });
     var q = await sb.rpc('jb_eu');
-    if (q.error || !q.data) throw erro('sessao', 'Não foi possível confirmar seu acesso.');
+    if (q.error || !q.data) { cache = new Map(); throw erro('sessao', 'Não foi possível confirmar seu acesso.'); }
     eu = { uid: q.data.uid, nome: q.data.nome, usuario: q.data.usuario, admin: !!q.data.admin, permissoes: q.data.permissoes || {} };
-    await carregarTudo();
+    var falhaDados = await dados;
+    if (falhaDados) throw falhaDados;
     ligarTempoReal();
     var v = document.getElementById('jbl'); if (v) v.remove();
     var bt = el('<button id="jbsair" type="button" title="Encerrar a sessão neste aparelho">' + esc(eu.usuario) + ' · Sair</button>');
