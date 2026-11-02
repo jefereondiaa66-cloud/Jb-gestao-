@@ -1,0 +1,21 @@
+/** Memória persistente e banco local do 300. */
+export { openDatabase, toUnpackedPath, DatabaseKeyError, LATEST_SCHEMA_VERSION } from './database';
+export type { AppDatabase, OpenDatabaseOptions, SqliteDb } from './database';
+export { runMigrations, MIGRATIONS } from './schema';
+export type { Migration } from './schema';
+export { createStores } from './stores';
+export type { CreateStoresOptions, Stores } from './stores';
+export { SqliteMemoryStore, MEMORY_KINDS, MEMORY_LIMITS, isMemoryKind, normalizeTags } from './memory-store';
+export type { MemorySearchOptions, SqliteMemoryStoreOptions } from './memory-store';
+export { SqliteConversationStore } from './conversation-store';
+export { SqliteTaskStore, TASK_STATUSES, TASK_PRIORITIES, normalizeDueDate } from './task-store';
+export { SqliteScheduleStore, validateScheduleAction } from './schedule-store';
+export { SqliteAuditLog, AUDIT_RETENTION_DAYS } from './audit-log';
+export { VectorIndex } from './vector-index';
+export type { VectorIndexOptions, VectorHit } from './vector-index';
+export { OpenAIEmbeddings, OllamaEmbeddings, createEmbeddingProvider } from './embeddings';
+export type { OpenAIEmbeddingsOptions, OllamaEmbeddingsOptions } from './embeddings';
+export { createMemoryExtractor, parseJsonArray, normalizeCandidate } from './extractor';
+export type { ExtractInput, ExtractResult, MemoryExtractor, MemoryExtractorOptions, MemoryCandidate } from './extractor';
+export { buildFtsQuery, searchTerms, foldText, cleanText, textSimilarity } from './text';
+export { looksSensitive, hasRememberCue } from './sensitive';
