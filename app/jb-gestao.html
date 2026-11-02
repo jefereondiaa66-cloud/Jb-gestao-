@@ -7131,7 +7131,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 60 · novembro de 2026';
+const VERSAO='Versão 61 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -26848,6 +26848,201 @@ padronizar=function(){
 };
 </script>
 
+<style id="lembretes-v61-estilos">
+/* ===== V61 · lembretes de todos os setores, WhatsApp dos paletes, ficha de EPI · só aparência ===== */
+.v61-lemb{margin:0 0 18px;background:var(--branco,#fff);border:1px solid var(--linha,#E3E3E8);border-radius:12px;padding:12px 14px 6px}
+.v61-lemb-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:0 0 6px}
+.v61-lemb-cab h2{font-size:15px;margin:0}
+.v61-lemb-cab p{margin:0;font-size:12.5px;color:var(--suave,#5B5B63);flex:1 1 220px}
+.v61-lemb .alerta-it{padding:9px 0}
+.v61-lemb .alerta-it:last-child{border-bottom:0}
+.v61-lemb .tx small{display:inline-block;margin-right:6px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--suave,#5B5B63)}
+.v61-lemb-mais-d{padding:6px 0 4px}
+.v61-lemb-mais-d>summary{list-style:none;margin:4px 0 6px;display:inline-flex}
+.v61-lemb-mais-d>summary::-webkit-details-marker{display:none}
+.v61-lemb-mais-d[open]>summary{display:none}
+a.btn.v61-wa{color:#1F7A45;border-color:#1F7A45}
+.v61-pecas{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.v61-pecas th,.v61-pecas td{padding:5px 6px;border-bottom:1px solid var(--linha,#E3E3E8);text-align:left;vertical-align:top}
+.v61-pecas td.n,.v61-pecas th.n{text-align:right;white-space:nowrap}
+.v61-pecas tfoot td{font-weight:700}
+</style>
+<script id="lembretes-v61">
+"use strict";
+/* ================= V61 · o que veio do controle de lançamentos diários (02/11/2026) =================
+   Pedido do Jeferson: ver o que o outro sistema ("Lançamentos da Cerâmica") tem e o JB Gestão não tem,
+   e trazer. Quase tudo já tinha vindo nas V48 (Financeiro e Combustível), V50 (Lenha), V52 (Almoxarifado
+   e Paletes) e V57 (Barro). Faltavam quatro coisas, que esta camada ACRESCENTA:
+   · Lembretes de todos os setores num lugar só: contas a pagar vencidas, que vencem hoje e nos próximos
+     3 dias; DAS dos MEIs; contas a receber vencidas; itens do almoxarifado abaixo do mínimo; EPI com CA
+     vencido; ferramentas com devolução atrasada; paletes com clientes atrasados ou vencendo; contagem
+     mensal dos paletes. Aparecem na tela "Em qual setor você deseja entrar?". Cada pessoa só vê o que o
+     perfil dela pode abrir. O sino e a tela Alertas continuam só do Departamento Pessoal.
+   · Paletes com clientes: botão WhatsApp com a mensagem de cobrança pronta (só quando o cliente tem
+     WhatsApp ou telefone no cadastro). Nada é gravado: abre a conversa, quem envia é a pessoa.
+   · Entrega de EPI: "Ficha de EPI" por funcionário, para assinatura (NR-6), no modelo dos documentos.
+   · Máquinas e veículos (Setor de Combustível): peças e itens do almoxarifado que saíram para a máquina.
+   Nada é gravado sozinho, nenhuma coleção nova, nenhum cálculo existente muda. */
+(()=>{
+const FS=window.FINANCEIRO_SETOR,AL=window.ALMOX_V52,PL=window.PALETES_V52,A56=window.ALM_V56;
+const DIAS_AVISO=3,DIAS_DAS=5;
+const r2v=n=>Math.round((+n||0)*100)/100;
+const pl=(n,s,p)=>(+n===1?s:p);
+const nomeCliV=id=>{const c=(DATA.clientes||[]).find(x=>x.id===id);return c?String(c.fantasia||c.razao||c.nome||'Cliente'):'Cliente sem cadastro'};
+const tipoPalV=id=>(DATA.paleteTipos||[]).find(x=>x.id===id)||null;
+const itemV=id=>A56&&A56.ITEM?A56.ITEM(id):(DATA.almItens||[]).find(x=>x.id===id);
+const rotItemV=id=>{const i=itemV(id);return i?(A56&&A56.rotItem?A56.rotItem(i):String(i.nome||'Item')):'Item excluído'};
+const itemAtivo=i=>i&&i.ativo!=='Inativo'&&i.ativo!==false&&i.situacao!=='Inativo';
+const lista=(xs,f,n=3)=>xs.slice(0,n).map(f).join('; ')+(xs.length>n?'…':'');
+const empresaV=()=>{const e=CFG.empresa||{};return String(e.fantasia||e.razao||(typeof razaoMostra==='function'?razaoMostra():'')||'cerâmica')};
+
+/* ---------- 1. lembretes de todos os setores ---------- */
+function lembretesSetores(){
+ const L=[];const h=hoje();
+ const add=(key,prio,titulo,det,rota,mod,setor)=>L.push({key:'v61-'+key,prio,titulo,det,rota,mod,setor,v61:true});
+ const tenta=(nome,fn)=>{try{fn()}catch(e){console.warn('lembretes V61 · '+nome,e)}};
+ /* Financeiro: contas a pagar (o DAS dos MEIs tem lembrete próprio) */
+ tenta('pagar',()=>{if(!FS||!pode('fpagar'))return;
+  const ehDas=o=>o.fonte==='titulo'&&o.rec&&o.rec.meiId;
+  const ab=FS.obrigacoes().filter(FS.h.abertaO);const rot=FS.h.rotuloO;const tot=xs=>fMoeda(r2v(soma(xs,o=>o.s.saldo)));
+  const pg=ab.filter(o=>!ehDas(o)&&o.venc);
+  const venc=pg.filter(o=>o.venc<h).sort((a,b)=>String(a.venc).localeCompare(String(b.venc)));
+  const hj=pg.filter(o=>o.venc===h);
+  const prox=pg.filter(o=>o.venc>h&&diasEntre(h,o.venc)<=DIAS_AVISO).sort((a,b)=>String(a.venc).localeCompare(String(b.venc)));
+  if(venc.length)add('pg-v-'+h+'-'+venc.length,'alta',venc.length+' '+pl(venc.length,'conta a pagar vencida','contas a pagar vencidas'),tot(venc)+' em aberto. '+lista(venc,o=>rot(o)+' (venceu '+fData(o.venc)+')'),'#/fpagar','fpagar','Financeiro');
+  if(hj.length)add('pg-h-'+h+'-'+hj.length,'alta',hj.length+' '+pl(hj.length,'conta a pagar vence hoje','contas a pagar vencem hoje'),tot(hj)+'. '+lista(hj,rot),'#/fpagar','fpagar','Financeiro');
+  if(prox.length)add('pg-p-'+h+'-'+prox.length,'media',prox.length+' '+pl(prox.length,'conta a pagar vence','contas a pagar vencem')+' nos próximos '+DIAS_AVISO+' dias',tot(prox)+'. '+lista(prox,o=>rot(o)+' ('+fData(o.venc)+')'),'#/fpagar','fpagar','Financeiro');
+  if(pode('fMeis')){const das=ab.filter(o=>ehDas(o)&&o.venc&&diasEntre(h,o.venc)<=DIAS_DAS).sort((a,b)=>String(a.venc).localeCompare(String(b.venc)));
+   if(das.length){const v=das.filter(o=>o.venc<h).length;
+    add('das-'+h+'-'+das.length+'-'+v,v?'alta':'media',das.length+' DAS de MEI '+(v?pl(v,'vencido','vencidos'):'a vencer'),tot(das)+'. '+lista(das,o=>String(o.benef||rot(o)).split(' ')[0]+' '+fData(o.venc),5),'#/fMeis','fMeis','Financeiro')}}});
+ /* Vendas: contas a receber vencidas */
+ tenta('receber',()=>{if(!pode('receber')||typeof titulosReceberV!=='function')return;
+  const xs=titulosReceberV().filter(x=>x.saldo>0.004&&x.status!=='Cancelado'&&x.venc&&x.venc<h).sort((a,b)=>String(a.venc).localeCompare(String(b.venc)));
+  if(xs.length)add('rc-'+h+'-'+xs.length,'media',xs.length+' '+pl(xs.length,'conta a receber vencida','contas a receber vencidas'),fMoeda(r2v(soma(xs,x=>x.saldo)))+' a receber. '+lista(xs,x=>(x.cli||'Cliente')+' ('+fData(x.venc)+')'),'#/receber','receber','Vendas')});
+ /* Almoxarifado */
+ tenta('almox',()=>{if(!pode('almItens'))return;
+  const bx=AL&&AL.abaixoMin?AL.abaixoMin():[];
+  if(bx.length)add('min-'+bx.map(i=>i.id).sort().join('.').slice(0,120),'media',bx.length+' '+pl(bx.length,'item do almoxarifado abaixo do mínimo','itens do almoxarifado abaixo do mínimo'),lista(bx,i=>rotItemV(i.id)+(AL.estI?' ('+fQtd(AL.estI(i.id).saldo)+' de '+fQtd(i.minimo)+')':''),4),'#/almEstoque','almItens','Almoxarifado');
+  const ca=(DATA.almItens||[]).filter(i=>itemAtivo(i)&&i.categoria==='EPI'&&i.caValidade&&i.caValidade<h);
+  if(ca.length)add('ca-'+ca.map(i=>i.id+i.caValidade).sort().join('.').slice(0,120),'media',ca.length+' EPI com CA vencido',lista(ca,i=>rotItemV(i.id)+' (CA '+(i.ca||'—')+', venceu '+fData(i.caValidade)+')'),'#/almItens','almItens','Almoxarifado')});
+ tenta('ferramentas',()=>{if(!pode('almEmprestimos'))return;
+  const at=(DATA.almEmprestimos||[]).filter(e=>!e.devData&&e.previsao&&e.previsao<h).sort((a,b)=>String(a.previsao).localeCompare(String(b.previsao)));
+  if(at.length)add('fer-'+h+'-'+at.length,'media',at.length+' '+pl(at.length,'ferramenta com devolução atrasada','ferramentas com devolução atrasada'),lista(at,e=>rotItemV(e.itemId)+' com '+(nomeF(e.funcId)||'—')+' (era até '+fData(e.previsao)+')'),'#/almEmprestimos','almEmprestimos','Almoxarifado')});
+ /* Paletes */
+ tenta('paletes',()=>{if(!PL||!PL.calcPal)return;
+  if(pode('palClientes')){const cs=Object.values(PL.calcPal().C||{});
+   const atr=cs.filter(c=>c.saldo>1e-9&&c.atrasado>0).sort((a,b)=>b.atrasado-a.atrasado);
+   const ven=cs.filter(c=>c.saldo>1e-9&&c.vencendo>0);
+   if(atr.length)add('pal-a-'+h+'-'+atr.length,'alta',fQtd(soma(atr,c=>c.atrasado))+' '+pl(soma(atr,c=>c.atrasado),'palete','paletes')+' com devolução atrasada',pl(atr.length,'Cliente: ','Clientes: ')+lista(atr,c=>nomeCliV(c.clienteId)+' ('+fQtd(c.atrasado)+')',4),'#/palClientes','palClientes','Paletes');
+   if(ven.length)add('pal-v-'+h+'-'+ven.length,'baixa',fQtd(soma(ven,c=>c.vencendo))+' '+pl(soma(ven,c=>c.vencendo),'palete vence','paletes vencem')+' nos próximos 5 dias',lista(ven,c=>nomeCliV(c.clienteId)+' ('+fQtd(c.vencendo)+')',4),'#/palClientes','palClientes','Paletes')}
+  if(pode('palEstoque')&&+h.slice(8,10)>=25&&((DATA.paleteMov||[]).length||(DATA.paleteCompras||[]).length)){const m=h.slice(0,7);
+   const fez=(DATA.paleteMov||[]).some(x=>(x.tipo==='ajuste'&&String(x.data||'').startsWith(m)&&/^Inventário de/.test(x.motivo||''))||x.inventario===m);
+   if(!fez)add('pal-inv-'+m,'baixa','Contagem mensal dos paletes de '+fMes(m)+' ainda não foi feita','A partir do dia 25, conte os paletes da fábrica e registre o inventário em Estoque e inventário.','#/palEstoque','palEstoque','Paletes')}});
+ return L;
+}
+window.LEMBRETES_V61=lembretesSetores;
+
+/* o sino e a tela Alertas continuam só do Departamento Pessoal (setores separados, sem misturar):
+   os lembretes dos outros setores ficam na tela de entrada, onde todo mundo passa. */
+/* faixa na tela "Em qual setor você deseja entrar?": vale também para quem não abre a tela Alertas */
+function faixaSetores(c){
+ if(!c||c.querySelector('.v61-lemb'))return;const grade=c.querySelector('.spot-grade');if(!grade)return;
+ let L=[];try{L=lembretesSetores().filter(a=>pode(a.mod))}catch(e){console.warn(e);return}
+ if(!L.length)return;const ord={alta:0,media:1,baixa:2};L.sort((a,b)=>ord[a.prio]-ord[b.prio]);
+ const MAX=5;const linha=a=>`<div class="alerta-it"><span class="pt p-${a.prio}" title="Prioridade ${a.prio==='media'?'média':a.prio}"></span><div class="tx"><b><small>${esc(a.setor)}</small><a href="${a.rota}" style="color:inherit">${esc(a.titulo)}</a></b><div>${esc(a.det)}</div></div><a class="btn min" href="${a.rota}">Ver</a></div>`;
+ const d=document.createElement('section');d.className='v61-lemb';d.setAttribute('aria-label','Lembretes dos setores');
+ d.innerHTML=`<div class="v61-lemb-cab"><h2>Lembretes de hoje</h2><p>Vencimentos e pendências dos setores que você acessa. Somem sozinhos quando a situação é resolvida.</p></div>
+  ${L.slice(0,MAX).map(linha).join('')}
+  ${L.length>MAX?`<details class="v61-lemb-mais-d"><summary class="btn min">Ver mais ${L.length-MAX} ${pl(L.length-MAX,'lembrete','lembretes')}</summary>${L.slice(MAX).map(linha).join('')}</details>`:''}`;
+ grade.before(d);
+}
+
+/* ---------- 2. WhatsApp para cobrar a devolução dos paletes ---------- */
+function linkWaPal(x){
+ const cl=(DATA.clientes||[]).find(c=>c.id===x.clienteId);if(!cl)return '';
+ let tel=String(cl.whatsapp||cl.telefone||'').replace(/\D/g,'');if(tel.length<10)return '';if(tel.length<=11)tel='55'+tel;
+ const h=hoje();const t=tipoPalV(x.palTipo);const nomeT=t&&t.nome?' ('+t.nome+')':'';
+ const ab=(x.abertas||[]).slice().sort((a,b)=>String(a.previsao).localeCompare(String(b.previsao)));
+ const desde=(ab.find(a=>a.previsao<h)||{}).previsao;const prox=(ab.find(a=>a.previsao>=h)||{}).previsao;
+ const qp=n=>fQtd(n)+' '+pl(n,'palete','paletes');
+ const valor=t?(+t.valorCobranca||+t.valorReposicao||0):0;
+ /* contato da compra: só o primeiro nome; sem contato, o nome do cliente inteiro */
+ const quem=String(cl.responsavelCompra||'').trim().split(/\s+/)[0]||String(cl.fantasia||cl.razao||'').trim();
+ const txt=`Olá${quem?', '+quem:''}! Aqui é da ${empresaV()}. Consta em nosso controle que estão com vocês ${qp(x.saldo)}${nomeT}`+
+  (x.atrasado>0?(x.atrasado>=x.saldo-1e-9?`, com a devolução vencida desde ${fData(desde)}`:`, sendo ${qp(x.atrasado)} com a devolução vencida desde ${fData(desde)}`):prox?`, para devolver até ${fData(prox)}`:'')+
+  `. Pode nos avisar quando podemos buscar ou quando vão devolver? Paletes não devolvidos são cobrados (${valor>0?fMoeda(valor)+' cada':'conforme combinado'}). Obrigado!`;
+ return 'https://wa.me/'+tel+'?text='+encodeURIComponent(txt);
+}
+function botoesWaPal(c){
+ if(!PL||!PL.calcPal)return;const C=PL.calcPal().C||{};
+ $$('[data-pmov]',c).forEach(b=>{const td=b.closest('td');if(!td||td.querySelector('.v61-wa'))return;
+  const tr=b.closest('tr');const k=(tr&&tr.querySelector('[data-pdev],[data-pcob]')||{}).dataset;const key=k&&(k.pdev||k.pcob);
+  const x=key?C[key]:null;if(!x||!(x.saldo>1e-9))return;const href=linkWaPal(x);if(!href)return;
+  const a=document.createElement('a');a.className='btn min v61-wa';a.href=href;a.target='_blank';a.rel='noopener';
+  a.title='Abre o WhatsApp com a mensagem de cobrança pronta. Nada é enviado sem você confirmar lá.';a.textContent='WhatsApp';b.before(a)});
+}
+
+/* ---------- 3. ficha de EPI por funcionário (para assinatura) ---------- */
+function docFichaEpi(f){
+ const ents=(DATA.almEpis||[]).filter(e=>e.funcId===f.id).sort((a,b)=>String(a.data).localeCompare(String(b.data))||String(a.criadoEm||'').localeCompare(String(b.criadoEm||'')));
+ const emp=CFG.empresa||{};const tit='FICHA DE ENTREGA DE EQUIPAMENTOS DE PROTEÇÃO INDIVIDUAL';
+ const D=baseRel(tit,'Ficha de EPI · NR-6',[]);
+ D.meta=[['Emitido em',fData(hoje())],['Por',APP.nome||'Usuário'],['Entregas',String(ents.length)]];
+ D.quadros=[quadroFuncDoc(f,'EMPREGADO(A)',[['Admissão',f.admissao?fData(f.admissao):'—']])];D.parteNome=f.nome;
+ D.arquivo='Ficha_de_EPI_'+nomeArq(f.nome)+'_'+hoje();D.rodape='Ficha de entrega de EPI · '+f.nome;
+ D.blocos.push({tipo:'secao',n:'1',titulo:'EPIs entregues',...(ents.length?{tabela:{head:['Data','EPI','Qtd.','Nº do CA','Validade do CA','Motivo','Entregue por','Visto'],
+  body:ents.map(e=>{const i=itemV(e.itemId)||{};return[fData(e.data),rotItemV(e.itemId),fQtd(e.qtd),String(e.ca||i.ca||'—'),i.caValidade?fData(i.caValidade):'—',String(e.motivo||'—'),String(e.entregador||'—'),'']})}}:{vazio:'Nenhum EPI entregue a este funcionário ainda.'})});
+ D.blocos.push({tipo:'secao',n:'2',titulo:'Declaração do(a) empregado(a)',paras:['Declaro que recebi gratuitamente os equipamentos de proteção individual relacionados acima, em perfeito estado de uso, e que fui orientado(a) sobre o uso correto, a guarda e a conservação de cada um. Comprometo-me a:',
+  'a) usar o EPI fornecido apenas para a finalidade a que se destina;','b) responsabilizar-me pela limpeza, guarda e conservação;','c) comunicar à empresa quando o EPI for extraviado, danificado ou apresentar qualquer alteração que o torne impróprio para uso;','d) cumprir as determinações da empresa sobre o uso adequado.',
+  'Estou ciente de que a recusa injustificada ao uso do EPI fornecido constitui ato faltoso (CLT, art. 158, parágrafo único, alínea b).']});
+ D.assinaturas=[{nome:f.nome,sub:'Empregado(a) · recebi os EPIs acima'},{nome:emp.responsavel||'',sub:'Pela empresa · responsável pela entrega'}];
+ D.notaFinal='Ficha gerada pelo sistema a partir das entregas lançadas no Almoxarifado (Entrega de EPI). Guarde a via assinada junto ao registro do empregado.';
+ return D;
+}
+function abrirFichaEpi(){
+ const ids=[...new Set((DATA.almEpis||[]).map(e=>e.funcId).filter(Boolean))];
+ const fs=(DATA.funcionarios||[]).filter(f=>ids.includes(f.id)).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ if(!fs.length){toast('Nenhuma entrega de EPI lançada ainda.','erro');return}
+ const H=FS&&FS.h;if(!H||!H.modalF){verDoc(docFichaEpi(fs[0]));return}
+ H.modalF('Ficha de EPI',H.campoM('v61fe','Funcionário<i> *</i>',`<select id="v61fe">${fs.map(f=>`<option value="${esc(f.id)}">${esc(f.nome)} (${(DATA.almEpis||[]).filter(e=>e.funcId===f.id).length})</option>`).join('')}</select>`,'Todas as entregas do funcionário, com o CA, num documento para ele assinar. Abre para visualizar, imprimir ou gerar o PDF.'),'Abrir a ficha',async v=>{
+  const f=fs.find(x=>x.id===H.valM(v,'v61fe'));if(!f){toast('Escolha o funcionário.','erro');return false}
+  setTimeout(()=>verDoc(docFichaEpi(f)),0)});
+}
+function botaoFichaEpi(c){const ac=c.querySelector('.sec-cab .acoes');if(!ac||ac.querySelector('[data-v61epi]'))return;
+ const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.v61epi='1';b.innerHTML=ic('doc')+'Ficha de EPI';b.onclick=abrirFichaEpi;ac.prepend(b)}
+
+/* ---------- 4. peças do almoxarifado na ficha da máquina ---------- */
+function pecasDaMaquina(id){
+ const de=addDias(hoje(),-365);const L=[];
+ (DATA.almSaidas||[]).filter(s=>s.maquinaId===id&&String(s.data||'')>=de).forEach(s=>(s.itens||[]).forEach(l=>{
+  const dev=soma((DATA.almDevolucoes||[]).filter(d=>d.saidaId===s.id),d=>soma((d.itens||[]).filter(x=>x.itemId===l.itemId),x=>+x.qtd||0));
+  const q=(+l.qtd||0)-dev;if(q<=1e-9)return;
+  const cu=l.custoUnit!=null?+l.custoUnit:l.custoTotal!=null&&+l.qtd?(+l.custoTotal)/(+l.qtd):(AL&&AL.estI?AL.estI(l.itemId).cm:0)||0;
+  L.push({s,itemId:l.itemId,q,v:r2v(q*cu)})}));
+ return L.sort((a,b)=>String(b.s.data).localeCompare(String(a.s.data)));
+}
+function htmlPecas(r){
+ if(!r||!r.id)return '<span class="ajuda">Aparece depois de salvar.</span>';
+ const L=pecasDaMaquina(r.id);if(!L.length)return '<span class="ajuda">Nenhuma peça ou item do almoxarifado saiu para esta máquina nos últimos 12 meses. As requisições com esta máquina aparecem aqui.</span>';
+ const MAX=12;const tot=r2v(soma(L,x=>x.v));
+ return `<table class="v61-pecas"><thead><tr><th>Data</th><th>Req.</th><th>Item</th><th class="n">Qtd.</th><th class="n">Valor</th></tr></thead><tbody>${L.slice(0,MAX).map(x=>`<tr><td>${esc(fData(x.s.data))}</td><td>${esc(x.s.numero?'Nº '+x.s.numero:'—')}</td><td>${esc(rotItemV(x.itemId))}${x.s.finalidade?`<br><span class="ajuda">${esc(x.s.finalidade)}</span>`:''}</td><td class="n">${esc(fQtd(x.q))}</td><td class="n">${esc(fMoeda(x.v))}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td colspan="3">${L.length} ${pl(L.length,'item','itens')} em 12 meses${L.length>MAX?' (mostrando os '+MAX+' mais recentes)':''}</td><td></td><td class="n">${esc(fMoeda(tot))}</td></tr></tfoot></table>
+  <span class="ajuda">Valor pelo custo da requisição (ou custo médio), já descontadas as devoluções.</span>`;
+}
+if(typeof MODS!=='undefined'&&MODS.locais&&Array.isArray(MODS.locais.fields)&&!MODS.locais.fields.some(f=>f.k==='_pecasV61'))
+ MODS.locais.fields.push({k:'_pecasV61',l:'Peças e itens do almoxarifado (12 meses)',t:'html',w2:1,sh:r=>r&&r.setor==='combustivel'&&!!r.id&&pode('almSaidas'),calc:htmlPecas,s:'Peças do almoxarifado'});
+
+/* ---------- ligação com as telas (depois de cada desenho) ---------- */
+if(typeof renderTela==='function'){const rt0=renderTela;
+ renderTela=function(){const r0=rt0.apply(this,arguments);
+  try{const r=lerRota(),c=document.getElementById('conteudo');if(c){
+   if(r.mod==='setores')faixaSetores(c);
+   else if(r.mod==='palClientes')botoesWaPal(c);
+   else if(r.mod==='almEpis'&&!r.id&&pode('almEpis'))botaoFichaEpi(c)}}catch(e){console.warn('V61',e)}
+  return r0}}
+window.V61={lembretesSetores,linkWaPal,docFichaEpi,abrirFichaEpi,pecasDaMaquina};
+})();
+</script>
 <script>
 /* ================= ponto e jornada ================= */
 const UIP={func:'',mes:mesAtual()};
