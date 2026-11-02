@@ -1,0 +1,453 @@
+/* ==========================================================================
+   300 — sobreposições: diálogos, confirmação, avisos
+   ========================================================================== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 4, 8, 0.66);
+  backdrop-filter: blur(6px);
+  animation: fade-in 0.16s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.overlay-drawer {
+  z-index: 50;
+  place-items: stretch end;
+  padding: 0;
+  background: rgba(2, 4, 8, 0.5);
+}
+
+.overlay-dialog {
+  z-index: 80;
+}
+
+.overlay-confirm {
+  z-index: 100;
+  background: rgba(2, 4, 8, 0.78);
+}
+
+/* ---------------- diálogo simples ---------------- */
+.dialog {
+  width: min(460px, 100%);
+  padding: 20px 22px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: linear-gradient(180deg, rgba(18, 25, 38, 0.97), rgba(10, 14, 22, 0.97));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+  animation: pop-in 0.18s var(--ease);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dialog-head h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.dialog-icon {
+  color: var(--amber);
+}
+
+.dialog-msg {
+  margin-top: 10px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.55;
+  user-select: text;
+}
+
+.dialog-code {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #ffd38a;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dialog-quote {
+  margin: 8px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--line-3);
+  color: var(--text);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* ---------------- confirmação de ação ---------------- */
+.confirm {
+  --risk: var(--blue);
+  --risk-rgb: var(--blue-rgb);
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 22px 24px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(var(--risk-rgb), 0.55);
+  background: linear-gradient(180deg, rgba(20, 27, 41, 0.98), rgba(9, 13, 21, 0.98));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 40px 100px rgba(0, 0, 0, 0.75), 0 0 60px -20px rgba(var(--risk-rgb), 0.6);
+  animation: pop-in 0.2s var(--ease);
+}
+
+.confirm::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--risk), transparent);
+}
+
+.confirm.risk-cyan { --risk: var(--cyan); --risk-rgb: var(--cyan-rgb); }
+.confirm.risk-amber { --risk: var(--amber); --risk-rgb: var(--amber-rgb); }
+.confirm.risk-orange { --risk: var(--orange); --risk-rgb: var(--orange-rgb); }
+.confirm.risk-red { --risk: var(--red); --risk-rgb: var(--red-rgb); }
+
+.confirm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.confirm-shield {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--risk);
+  border: 1px solid rgba(var(--risk-rgb), 0.5);
+  background: rgba(var(--risk-rgb), 0.12);
+  box-shadow: 0 0 22px -6px rgba(var(--risk-rgb), 0.8);
+}
+
+.confirm-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm-kicker {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.confirm-head h2 {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.confirm-timer {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.confirm-timer svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.timer-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 2.5;
+}
+
+.timer-bar {
+  fill: none;
+  stroke: var(--risk);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 97.4;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.confirm-timer.is-low {
+  color: #ff8794;
+}
+
+.confirm-timer.is-low .timer-bar {
+  stroke: var(--red);
+}
+
+.confirm-desc {
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.confirm-risk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--risk-rgb), 0.3);
+  background: rgba(var(--risk-rgb), 0.07);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.confirm-taint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--amber-rgb), 0.7);
+  background: rgba(var(--amber-rgb), 0.13);
+  color: #ffe2ad;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 0 24px -10px rgba(var(--amber-rgb), 0.9);
+}
+
+.confirm-taint svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--amber);
+}
+
+.confirm-taint strong {
+  color: #fff1d6;
+}
+
+.confirm-details {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.confirm-details summary {
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.confirm-details[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.confirm-json {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #cfe0ff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.confirm-details p {
+  padding: 8px 12px;
+}
+
+.confirm-expired {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(var(--red-rgb), 0.12);
+  border: 1px solid rgba(var(--red-rgb), 0.4);
+  color: #ffb3bc;
+  font-size: 12.5px;
+}
+
+.confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.btn-allow {
+  background: linear-gradient(180deg, rgba(var(--risk-rgb), 0.35), rgba(var(--risk-rgb), 0.22));
+  border-color: rgba(var(--risk-rgb), 0.75);
+  color: #fff;
+  min-width: 112px;
+}
+
+.btn-allow:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(var(--risk-rgb), 0.5), rgba(var(--risk-rgb), 0.32));
+  border-color: var(--risk);
+}
+
+.btn-allow.is-arming {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-allow.is-arming::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--risk);
+  transform-origin: left;
+  animation: arm 0.8s linear forwards;
+}
+
+@keyframes arm {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.confirm .btn-lg:first-child {
+  min-width: 104px;
+}
+
+/* ---------------- avisos ---------------- */
+/* canto inferior esquerdo: não cobre a conversa, o PARAR nem a gaveta de configurações */
+.toasts {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(300px, calc(100vw - 28px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: rgba(12, 17, 27, 0.96);
+  backdrop-filter: var(--blur);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
+  animation: toast-in 0.24s var(--ease);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.toast.tone-erro {
+  border-color: rgba(var(--red-rgb), 0.55);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), 0 0 26px -10px rgba(var(--red-rgb), 0.8);
+}
+
+.toast.tone-aviso {
+  border-color: rgba(var(--amber-rgb), 0.5);
+}
+
+.toast.tone-ok {
+  border-color: rgba(var(--green-rgb), 0.45);
+}
+
+.toast-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  color: var(--cyan);
+}
+
+.toast.tone-erro .toast-icon { color: #ff7a89; }
+.toast.tone-aviso .toast-icon { color: var(--amber); }
+.toast.tone-ok .toast-icon { color: var(--green); }
+
+.toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.toast-body {
+  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  width: 24px;
+  height: 24px;
+}
