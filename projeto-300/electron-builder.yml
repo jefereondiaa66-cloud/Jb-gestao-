@@ -1,0 +1,48 @@
+# Empacotamento do 300 para Windows (instalador NSIS).
+# Gerado no GitHub Actions (windows-latest): veja .github/workflows/projeto-300.yml na raiz do repositório.
+appId: br.pessoal.trezentos
+productName: "300"
+executableName: "300"
+copyright: "Projeto pessoal"
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - resources/**
+  - package.json
+  - "!**/*.map"
+extraMetadata:
+  main: out/main/index.js
+asar: true
+# Módulos nativos e dados que precisam existir como arquivos de verdade no disco.
+asarUnpack:
+  - node_modules/sherpa-onnx-node/**
+  - node_modules/sherpa-onnx-win-x64/**
+  - node_modules/piper-phonemize-node/**
+  - node_modules/piper-phonemize-win-x64/**
+  - node_modules/better-sqlite3-multiple-ciphers/**
+  - node_modules/sqlite-vec/**
+  - node_modules/sqlite-vec-windows-x64/**
+  - node_modules/robotjs/**
+  - node_modules/tesseract.js/**
+  - node_modules/tesseract.js-core/**
+  - resources/**
+# Os binários N-API já vêm prontos nos pacotes: não recompilar.
+npmRebuild: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "300"
+  installerLanguages: [pt_BR]
+  language: "1046"
+  artifactName: "300-instalador-${version}.${ext}"
+  deleteAppDataOnUninstall: false

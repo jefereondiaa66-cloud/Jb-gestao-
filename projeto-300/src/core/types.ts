@@ -190,6 +190,12 @@ export interface ToolDefinition<I = any> {
   title: string; // rótulo pt-BR para a interface
   description: string; // descrição para o modelo (inglês ou pt-BR; seja específico)
   inputSchema: z.ZodType<I>;
+  /**
+   * JSON Schema enviado ao modelo no lugar do gerado a partir do zod (ex.: ferramentas de servidores MCP,
+   * que já trazem o próprio esquema). Quando presente, inputSchema costuma ser permissivo e a validação
+   * fina fica com quem executa.
+   */
+  jsonSchema?: JsonSchema;
   risk: RiskLevel | ((input: I) => RiskLevel);
   /** Frase pt-BR que descreve a ação concreta (usada no pedido de confirmação). */
   describe?(input: I): string;
@@ -411,6 +417,8 @@ export interface PlatformServices {
   openPath(path: string): Promise<string>; // '' = ok, senão mensagem de erro
   /** Captura de tela (PNG base64) — undefined se indisponível. */
   captureScreen?(): Promise<{ data: string; width: number; height: number } | undefined>;
+  /** Foto da câmera (JPEG base64) — só com permissão do dono; undefined se indisponível. */
+  captureCamera?(): Promise<{ data: string; mediaType: ImageMediaType; width: number; height: number } | undefined>;
   /** Move para a lixeira em vez de apagar definitivamente. */
   trashItem?(path: string): Promise<void>;
   /** Pastas conhecidas do usuário. */

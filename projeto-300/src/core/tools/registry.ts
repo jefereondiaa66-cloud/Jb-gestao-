@@ -44,7 +44,7 @@ export class ToolRegistry {
   specs(services?: EngineServices): ToolSpec[] {
     return this.list(services)
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((t) => ({ name: t.name, description: t.description, inputSchema: toJsonSchema(t.inputSchema) }));
+      .map((t) => ({ name: t.name, description: t.description, inputSchema: t.jsonSchema ?? toJsonSchema(t.inputSchema) }));
   }
 
   riskOf(tool: ToolDefinition, input: unknown): RiskLevel {
