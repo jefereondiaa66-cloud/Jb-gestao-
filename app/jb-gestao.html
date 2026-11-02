@@ -5674,15 +5674,17 @@ const TITULO_COMP={dados:'COMPROVANTE DE DADOS CADASTRAIS',ferias:'COMPROVANTE D
  salario:'COMPROVANTE DE REMUNERAÇÃO',jornada:'COMPROVANTE DE JORNADA DE TRABALHO',banco:'COMPROVANTE DE SALDO DE HORAS',
  decimo:'COMPROVANTE DE 13º SALÁRIO',adicionais:'COMPROVANTE DE ADICIONAIS',beneficios:'COMPROVANTE DE BENEFÍCIOS',
  rescisao:'COMPROVANTE DE VERBAS RESCISÓRIAS (ESTIMATIVA)',outros:'COMPROVANTE DE OUTROS DIREITOS'};
-function comprovantePDF(R,f){
+async function comprovantePDF(R,f){
  const D=docComprovante(R,f);const doc=pdfDoc(D);if(!doc)return false;
- salvarArquivo(nomeArqDoc(D)+'.pdf',new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
- return true;
+ /* espera o arquivo sair: se o download foi recusado ou falhou, o comprovante não
+    pode ser registrado como emitido no histórico */
+ const ok=await salvarArquivo(nomeArqDoc(D)+'.pdf',new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
+ return ok!==false;
 }
 async function gerarComprovante(id){
  const f=F(DIR.fid);if(!f){toast('Escolha um empregado.','erro');return}
  const D=calcDireito(id,DIR.fid);
- if(!comprovantePDF(D,f))return;
+ if(!await comprovantePDF(D,f))return;
  /* o registro do histórico guarda só o que não é valor: a coleção é visível a todos os perfis.
     os números continuam no PDF e na aba, que respeitam o nível de acesso de quem abre. */
  await registrarComprovanteDir(id,D,f);
@@ -6840,7 +6842,11 @@ function calcINSS(base){
  return{valor:round2(tot),memoria:mem,base:b,teto,limitado:round2(base)>teto};
 }
 function calcIRRF(tributavel,nDeps,inss){
- const L=LG();const fx=(L.irrf||[]);
+ const L=LG();
+ /* a faixa é escolhida pelo "até" em ordem crescente, nunca pela ordem em que as
+    linhas estão na tela: "Adicionar faixa" entra no fim da lista e a faixa sem
+    limite (até = 0) tem de ficar por último. Mesma proteção que o INSS já tinha. */
+ const fx=(L.irrf||[]).slice().sort((a,b)=>((+a.ate||Infinity)-(+b.ate||Infinity)));
  const trib=round2(tributavel);
  const porDed=round2(Math.max(0,trib-(+inss||0)-(+nDeps||0)*(+L.irrfDependente||0)));
  const porSimp=round2(Math.max(0,trib-(+L.irrfSimplificado||0)));
@@ -7125,7 +7131,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 57 · novembro de 2026';
+const VERSAO='Versão 60 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
