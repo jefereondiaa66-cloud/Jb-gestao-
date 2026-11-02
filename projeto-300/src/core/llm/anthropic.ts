@@ -43,7 +43,9 @@ import {
   invalidToolInput,
   type InvalidToolInput,
   type KeySource,
+  limitRetryWait,
   LlmError,
+  objectSchema,
   parseRetryAfter,
   repairToolPairing,
   replayableInput,
@@ -313,7 +315,7 @@ export function buildAnthropicRequest(req: LlmRequest, o: AnthropicBuildOptions)
     tools.push({
       name: t.name,
       description: t.description,
-      input_schema: t.inputSchema as { type: 'object'; [k: string]: unknown },
+      input_schema: objectSchema(t.inputSchema) as { type: 'object'; [k: string]: unknown },
       ...(o.eagerInputStreaming ? { eager_input_streaming: true } : {}),
     });
   }
@@ -516,6 +518,8 @@ export interface AnthropicProviderOptions {
   defaultMaxTokens?: number;
   /** Quantas vezes continuar automaticamente um "pause_turn" (padrão 5). */
   maxPauseContinuations?: number;
+  /** Espera máxima (s) que o SDK aceita fazer sozinho antes de repetir um pedido limitado (padrão 15). */
+  maxRetryWaitSec?: number;
 }
 
 interface Accum {
@@ -548,7 +552,7 @@ export class AnthropicProvider implements LlmProvider {
       baseURL: this.opts.baseURL ?? DEFAULT_BASE_URL,
       maxRetries: this.opts.maxRetries ?? 2,
       timeout: this.opts.timeoutMs ?? 10 * 60 * 1000,
-      ...(this.opts.fetch ? { fetch: this.opts.fetch } : {}),
+      fetch: limitRetryWait(this.opts.fetch ?? globalThis.fetch.bind(globalThis), this.opts.maxRetryWaitSec ?? 15),
     });
     this.cached = { key, client };
     return client;

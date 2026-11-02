@@ -183,3 +183,25 @@ describe('safeFetch — limites', () => {
     await expect(p).rejects.toBeInstanceOf(SecurityError);
   });
 });
+
+describe('isBlockedAddress — IPv6 de transição (revisão)', () => {
+  it('bloqueia 6to4, NAT64, Teredo, site-local e documentação que embutem/escondem endereços internos', () => {
+    for (const ip of ['2002:7f00:1::', '2002:0a00:0001::', '64:ff9b::7f00:1', '64:ff9b::a00:5', 'fec0::1', '2001:0000:4136:e378:8000:63bf:3fff:fdd2', '2001:db8::1']) {
+      expect(isBlockedAddress(ip), ip).toBe(true);
+    }
+  });
+  it('não bloqueia 6to4/NAT64 que mapeiam IPs públicos', () => {
+    expect(isBlockedAddress('2002:0808:0808::')).toBe(false); // 8.8.8.8
+    expect(isBlockedAddress('64:ff9b::0808:0808')).toBe(false); // 8.8.8.8
+  });
+});
+
+describe('validatePublicUrl — ponto final no host (revisão)', () => {
+  it('bloqueia "localhost." e "algo.internal." (FQDN com ponto final)', () => {
+    expect(() => validatePublicUrl('http://localhost./')).toThrow(SecurityError);
+    expect(() => validatePublicUrl('http://servico.internal./')).toThrow(SecurityError);
+  });
+  it('aceita host público com ponto final', () => {
+    expect(validatePublicUrl('http://exemplo.com./').hostname).toBe('exemplo.com.');
+  });
+});

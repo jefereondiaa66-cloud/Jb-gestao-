@@ -44,6 +44,8 @@ export class MicCapture {
   private generation = 0;
   private starting: Promise<void> | null = null;
   private startingGen = -1;
+  /** Abertura em andamento: stop() precisa conseguir fechar o fluxo antes de ele ser "oficial". */
+  private pending: { stream: MediaStream; ctx: AudioContext | null } | null = null;
 
   constructor(private readonly cb: MicCallbacks) {}
 
@@ -78,9 +80,12 @@ export class MicCapture {
       for (const t of stream.getTracks()) t.stop();
       return;
     }
+    const pending: { stream: MediaStream; ctx: AudioContext | null } = { stream, ctx: null };
+    this.pending = pending;
     let ctx: AudioContext | null = null;
     try {
       ctx = new AudioContext({ latencyHint: 'interactive' });
+      pending.ctx = ctx;
       await ctx.audioWorklet.addModule(new URL('mic-worklet.js', document.baseURI).href);
       if (gen !== this.generation) throw new Error('cancelado');
       const source = ctx.createMediaStreamSource(stream);
@@ -89,6 +94,8 @@ export class MicCapture {
       const sink = ctx.createGain();
       sink.gain.value = 0;
       node.port.onmessage = (e: MessageEvent) => {
+        // quadros só valem enquanto esta abertura for a atual
+        if (gen !== this.generation) return;
         const frame = e.data;
         if (!(frame instanceof Float32Array) || frame.length !== FRAME_SIZE) return;
         this.meter.updateFromSamples(frame);
@@ -98,6 +105,8 @@ export class MicCapture {
       node.connect(sink);
       sink.connect(ctx.destination);
       if (ctx.state === 'suspended') await ctx.resume();
+      // stop() pode ter sido chamado durante a espera acima
+      if (gen !== this.generation) throw new Error('cancelado');
       for (const track of stream.getAudioTracks()) {
         track.addEventListener('ended', () => {
           if (this.stream === stream) {
@@ -116,11 +125,20 @@ export class MicCapture {
       if (ctx) void ctx.close().catch(() => undefined);
       if (gen !== this.generation) return;
       throw err;
+    } finally {
+      if (this.pending === pending) this.pending = null;
     }
   }
 
   async stop(): Promise<void> {
     this.generation++;
+    // abertura ainda em andamento (ex.: esperando o áudio ser liberado): fecha já
+    const pending = this.pending;
+    this.pending = null;
+    if (pending) {
+      for (const t of pending.stream.getTracks()) t.stop();
+      if (pending.ctx) void pending.ctx.close().catch(() => undefined);
+    }
     const { stream, ctx, node, source, sink } = this;
     this.stream = null;
     this.ctx = null;

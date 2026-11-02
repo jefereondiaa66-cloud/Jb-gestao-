@@ -116,6 +116,7 @@ function isBlockedV6(ip: string): boolean {
   if (b.every((x) => x === 0)) return true; // :: unspecified
   if ((b[0]! & 0xfe) === 0xfc) return true; // fc00::/7 (ULA)
   if (b[0] === 0xfe && (b[1]! & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  if (b[0] === 0xfe && (b[1]! & 0xc0) === 0xc0) return true; // fec0::/10 site-local (obsoleto)
   if (b[0] === 0xff) return true; // ff00::/8 multicast
   // IPv4 mapeado (::ffff:a.b.c.d) ou compatível (::a.b.c.d)
   const first10Zero = b.slice(0, 10).every((x) => x === 0);
@@ -123,6 +124,17 @@ function isBlockedV6(ip: string): boolean {
     const v4 = `${b[12]}.${b[13]}.${b[14]}.${b[15]}`;
     return isBlockedV4(v4);
   }
+  // 6to4 (2002::/16): IPv4 embutido nos bytes 2..5.
+  if (b[0] === 0x20 && b[1] === 0x02) {
+    return isBlockedV4(`${b[2]}.${b[3]}.${b[4]}.${b[5]}`);
+  }
+  // NAT64 (64:ff9b::/96 e 64:ff9b:1::/48): IPv4 embutido nos bytes 12..15.
+  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b) {
+    return isBlockedV4(`${b[12]}.${b[13]}.${b[14]}.${b[15]}`);
+  }
+  // Teredo (2001:0000::/32): túnel que pode alcançar a rede interna; bloqueia por inteiro.
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] === 0x00 && b[3] === 0x00) return true;
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] === 0x0d && b[3] === 0xb8) return true; // 2001:db8::/32 documentação (não roteável)
   return false;
 }
 
@@ -148,9 +160,11 @@ export function validatePublicUrl(raw: string | URL, opts: { allowPrivate?: bool
   if (u.username || u.password) throw new SecurityError('a URL não pode conter usuário/senha embutidos.');
   const host = u.hostname;
   if (!host) throw new SecurityError('URL sem endereço (host).');
-  if (!opts.allowPrivate && /^(localhost|ip6-localhost|ip6-loopback)$/i.test(host)) throw new SecurityError('endereço local não é permitido.');
-  if (!opts.allowPrivate && /\.(localhost|local|internal|intranet|corp|home|lan)$/i.test(host)) throw new SecurityError('endereço de rede interna não é permitido.');
-  const lit = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  // Um ponto final no nome ("localhost.") é o mesmo endereço; normaliza antes de checar.
+  const name = host.replace(/\.+$/, '').toLowerCase();
+  if (!opts.allowPrivate && /^(localhost|ip6-localhost|ip6-loopback)$/.test(name)) throw new SecurityError('endereço local não é permitido.');
+  if (!opts.allowPrivate && /\.(localhost|local|internal|intranet|corp|home|lan)$/.test(name)) throw new SecurityError('endereço de rede interna não é permitido.');
+  const lit = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host.replace(/\.+$/, '');
   if (net.isIP(lit) && isBlockedAddress(lit, opts.allowPrivate ?? false)) {
     throw new SecurityError(`endereço não permitido: ${lit}`);
   }

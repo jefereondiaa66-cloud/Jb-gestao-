@@ -1,6 +1,6 @@
 /** Painel de atividade: ferramentas em execução, agendamentos e erros. */
 import { useEffect, useState } from 'react';
-import { RISK_INFO, formatTime } from '../lib/format';
+import { formatTime, riskInfo } from '../lib/format';
 import type { ActivityItem } from '../lib/store';
 import { Spinner } from './controls';
 import { IconCheck, IconClock, IconTool, IconWarning, IconX } from './icons';
@@ -74,7 +74,7 @@ export function ActivityPanel({ items, onClear }: { items: ActivityItem[]; onCle
                   {a.detail && <div className="act-detail">{a.detail}</div>}
                   <div className="act-tags">
                     {STATUS_TEXT[a.status] && <span className="act-status">{STATUS_TEXT[a.status]}</span>}
-                    {a.risk && a.risk !== 'read' && <span className={`act-risk tone-text-${RISK_INFO[a.risk].tone}`}>{RISK_INFO[a.risk].label}</span>}
+                    {a.risk && a.risk !== 'read' && <span className={`act-risk tone-text-${riskInfo(a.risk).tone}`}>{riskInfo(a.risk).label}</span>}
                   </div>
                 </div>
               </li>

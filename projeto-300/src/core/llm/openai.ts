@@ -28,7 +28,9 @@ import {
   dataUrl,
   isInvalidToolInput,
   type KeySource,
+  limitRetryWait,
   LlmError,
+  objectSchema,
   parseRetryAfter,
   parseToolArguments,
   repairToolPairing,
@@ -48,6 +50,8 @@ export interface OpenAIModelProfile {
   reasoning: boolean;
   vision: boolean;
   pdf: boolean;
+  /** Teto de saída do modelo (pedir mais que isso é recusado pela API). */
+  maxOutputTokens: number;
 }
 
 export function openAIModelProfile(model: string): OpenAIModelProfile {
@@ -55,7 +59,11 @@ export function openAIModelProfile(model: string): OpenAIModelProfile {
   const reasoning = /^(o\d|gpt-5|gpt-oss|codex)/.test(id);
   // Modelos antigos só de texto.
   const textOnly = /^(gpt-3\.5|gpt-4-0|gpt-4$|gpt-4-32k|davinci|babbage|o1-mini|o3-mini|gpt-oss)/.test(id);
-  return { reasoning, vision: !textOnly, pdf: !textOnly };
+  let maxOutputTokens = 100_000;
+  if (/^(gpt-3\.5|gpt-4-0|gpt-4$|gpt-4-32k|gpt-4-turbo|gpt-4-1106|gpt-4-vision)/.test(id)) maxOutputTokens = 4096;
+  else if (/^(gpt-4o|chatgpt-4o)/.test(id)) maxOutputTokens = 16_384;
+  else if (/^gpt-4\.1/.test(id)) maxOutputTokens = 32_768;
+  return { reasoning, vision: !textOnly, pdf: !textOnly, maxOutputTokens };
 }
 
 /** Nosso esforço -> esforço de raciocínio da OpenAI (níveis extras viram "high", o mais seguro). */
@@ -150,7 +158,7 @@ export function buildOpenAIRequest(req: LlmRequest, opts: { defaultMaxTokens: nu
     type: 'function',
     name: t.name,
     description: t.description,
-    parameters: t.inputSchema,
+    parameters: objectSchema(t.inputSchema),
     strict: false,
   }));
   const params: ResponseCreateParamsStreaming = {
@@ -158,7 +166,7 @@ export function buildOpenAIRequest(req: LlmRequest, opts: { defaultMaxTokens: nu
     input: toOpenAIInput(req.messages, { model: req.model }),
     stream: true,
     store: false,
-    max_output_tokens: req.maxTokens ?? opts.defaultMaxTokens,
+    max_output_tokens: Math.max(16, Math.min(req.maxTokens ?? opts.defaultMaxTokens, profile.maxOutputTokens)),
   };
   if (req.system.trim() !== '') params.instructions = req.system;
   if (tools.length) {
@@ -266,6 +274,8 @@ export interface OpenAIProviderOptions {
   maxRetries?: number;
   timeoutMs?: number;
   defaultMaxTokens?: number;
+  /** Espera máxima (s) que o SDK aceita fazer sozinho antes de repetir um pedido limitado (padrão 15). */
+  maxRetryWaitSec?: number;
 }
 
 export class OpenAIProvider implements LlmProvider {
@@ -291,7 +301,7 @@ export class OpenAIProvider implements LlmProvider {
       project: null,
       maxRetries: this.opts.maxRetries ?? 2,
       timeout: this.opts.timeoutMs ?? 10 * 60 * 1000,
-      ...(this.opts.fetch ? { fetch: this.opts.fetch } : {}),
+      fetch: limitRetryWait(this.opts.fetch ?? globalThis.fetch.bind(globalThis), this.opts.maxRetryWaitSec ?? 15),
     });
     this.cached = { key, client };
     return client;

@@ -1,7 +1,7 @@
 /** Gaveta de configurações com navegação por seções. */
 import { useEffect, useRef } from 'react';
 import { trapTab } from '../Dialog';
-import { IconX } from '../icons';
+import { IconStop, IconX } from '../icons';
 import { Spinner } from '../controls';
 import { AboutSection, AuditSection } from './AuditAboutSections';
 import { BrainSection } from './BrainSection';
@@ -18,6 +18,8 @@ export interface SettingsDrawerProps extends Omit<SectionProps, 'settings'> {
   section: SectionId;
   onSection: (s: SectionId) => void;
   onClose: () => void;
+  /** PARAR continua ao alcance com a gaveta aberta (ela cobre a barra superior). */
+  onStopAll: () => void;
 }
 
 export function SettingsDrawer(p: SettingsDrawerProps) {
@@ -87,9 +89,15 @@ export function SettingsDrawer(p: SettingsDrawerProps) {
               <h2>{current.label}</h2>
               <p className="muted small">{current.hint}</p>
             </div>
-            <button ref={closeRef} type="button" className="icon-btn icon-btn-lg" onClick={p.onClose} aria-label="Fechar configurações">
-              <IconX size={20} />
-            </button>
+            <div className="drawer-head-actions">
+              <button type="button" className="kill kill-sm" onClick={p.onStopAll} aria-label="Parar tudo: resposta, ferramentas, fala e escuta" title="Parar tudo">
+                <IconStop size={14} />
+                <span>PARAR</span>
+              </button>
+              <button ref={closeRef} type="button" className="icon-btn icon-btn-lg" onClick={p.onClose} aria-label="Fechar configurações">
+                <IconX size={20} />
+              </button>
+            </div>
           </header>
           <div className="drawer-body" ref={bodyRef} key={p.section}>
             {render()}

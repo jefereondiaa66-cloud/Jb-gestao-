@@ -45,6 +45,17 @@ export const RISK_INFO: Record<RiskLevel, RiskInfo> = {
   },
 };
 
+const UNKNOWN_RISK: RiskInfo = {
+  label: 'Risco desconhecido',
+  explanation: 'O tipo de risco não veio informado corretamente. Trate como uma ação perigosa.',
+  tone: 'red',
+};
+
+/** Rótulo do risco sem quebrar a tela quando chega um valor inesperado (dado vindo do motor ou do banco). */
+export function riskInfo(risk: unknown): RiskInfo {
+  return typeof risk === 'string' && Object.prototype.hasOwnProperty.call(RISK_INFO, risk) ? RISK_INFO[risk as RiskLevel] : UNKNOWN_RISK;
+}
+
 export const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
   { value: 'low', label: 'Baixo (mais rápido)' },
   { value: 'medium', label: 'Médio' },

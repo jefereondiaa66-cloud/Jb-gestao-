@@ -18,6 +18,16 @@ export function call<C extends IpcChannel>(channel: C, ...args: ArgsOf<C>): Prom
   return api().invoke(channel, args[0] as IpcArg<C>);
 }
 
+/**
+ * Botão PARAR: cancela resposta, ferramentas, fala e escuta no motor.
+ * Pede as duas paradas mesmo que uma falhe; devolve o primeiro erro (ou null).
+ */
+export async function stopEverything(): Promise<unknown> {
+  const res = await Promise.allSettled([call('chat:stop'), call('voice:stop')]);
+  const failed = res.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  return failed ? (failed.reason ?? new Error('falha ao parar')) : null;
+}
+
 /** Abre um endereço no navegador do sistema (só http, https e mailto). */
 export async function openExternal(url: string): Promise<void> {
   const href = safeHref(url);

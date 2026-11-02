@@ -8,6 +8,7 @@ import type { AssistantState } from '../../../core/types';
 import { api, call } from '../api';
 import { MicCapture, micErrorMessage } from '../audio/mic';
 import { errorText } from '../lib/format';
+import { VoiceSessionTracker } from '../lib/voice-session';
 
 export interface VoiceApi {
   micOpen: boolean;
@@ -26,9 +27,6 @@ export interface VoiceApi {
 
 type Notify = (tone: 'erro' | 'aviso' | 'info', title: string, body?: string) => void;
 
-/** Tempo em que um "Aguardando" logo após começar a ouvir é ignorado (corrida de eventos). */
-const START_GRACE_MS = 1500;
-
 export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; assistantState: AssistantState; notify: Notify; onStopAudio: () => void }): VoiceApi {
   const { voiceEnabled, wakeEnabled, assistantState } = opts;
   const notifyRef = useRef(opts.notify);
@@ -38,15 +36,29 @@ export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; as
 
   const [session, setSession] = useState(false);
   const sessionRef = useRef(false);
-  const sessionStart = useRef(0);
+  const [tracker] = useState(() => new VoiceSessionTracker());
+  const recheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [micOpen, setMicOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const setSessionState = useCallback((v: boolean) => {
-    sessionRef.current = v;
-    if (v) sessionStart.current = Date.now();
-    setSession(v);
-  }, []);
+  const setSessionState = useCallback(
+    (v: boolean) => {
+      if (v) tracker.begin(Date.now());
+      else tracker.end();
+      sessionRef.current = v;
+      setSession(v);
+    },
+    [tracker],
+  );
+
+  /** O microfone falhou no meio de uma sessão: o motor não pode ficar esperando áudio que não vem. */
+  const abortSession = useCallback(() => {
+    if (!sessionRef.current) return;
+    setSessionState(false);
+    call('voice:stop').catch(() => undefined);
+  }, [setSessionState]);
+  const abortRef = useRef(abortSession);
+  abortRef.current = abortSession;
 
   const micRef = useRef<MicCapture | null>(null);
   if (!micRef.current) {
@@ -60,7 +72,7 @@ export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; as
       },
       onEnded: (reason) => {
         setMicOpen(false);
-        setSessionState(false);
+        abortRef.current();
         notifyRef.current('aviso', 'Microfone desligado', reason);
       },
     });
@@ -79,8 +91,7 @@ export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; as
         (err) => {
           if (cancelled) return;
           setMicOpen(false);
-          sessionRef.current = false;
-          setSession(false);
+          abortRef.current();
           notifyRef.current('erro', 'Microfone indisponível', micErrorMessage(err));
         },
       );
@@ -99,6 +110,7 @@ export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; as
     const mic = micRef.current!;
     return () => {
       void mic.stop();
+      if (recheckTimer.current) clearTimeout(recheckTimer.current);
     };
   }, []);
 
@@ -134,17 +146,27 @@ export function useVoice(opts: { voiceEnabled: boolean; wakeEnabled: boolean; as
 
   const onEngineState = useCallback(
     (s: AssistantState) => {
-      if (s === 'LISTENING' && voiceEnabled) {
-        if (!sessionRef.current) setSessionState(true);
-        return;
+      const action = tracker.onEngineState(s, Date.now(), voiceEnabled);
+      if (action.kind === 'begin' || action.kind === 'end') {
+        sessionRef.current = tracker.isActive;
+        setSession(tracker.isActive);
+      } else if (action.kind === 'recheck') {
+        if (recheckTimer.current) clearTimeout(recheckTimer.current);
+        recheckTimer.current = setTimeout(() => {
+          recheckTimer.current = null;
+          if (tracker.recheck(Date.now())) {
+            sessionRef.current = false;
+            setSession(false);
+          }
+        }, action.afterMs + 20);
       }
-      if ((s === 'IDLE' || s === 'ERROR') && sessionRef.current && Date.now() - sessionStart.current > START_GRACE_MS) setSessionState(false);
     },
-    [voiceEnabled, setSessionState],
+    [voiceEnabled, tracker],
   );
 
   const onWake = useCallback(() => {
-    if (voiceEnabled) setSessionState(true);
+    // sessão já ativa (modo contínuo): não reinicia a contagem
+    if (voiceEnabled && !sessionRef.current) setSessionState(true);
   }, [voiceEnabled, setSessionState]);
 
   const micLevel = useCallback(() => micRef.current?.level ?? 0, []);

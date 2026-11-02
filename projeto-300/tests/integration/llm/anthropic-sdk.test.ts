@@ -347,3 +347,25 @@ describe('Agente + AnthropicProvider (ponta a ponta com SSE)', () => {
     expect(JSON.stringify(second.messages.slice(0, 2))).toBe(JSON.stringify(first.messages));
   });
 });
+
+describe('AnthropicProvider: espera de repetição limitada (revisão)', () => {
+  it('429 com retry-after longo: avisa na hora em vez de esperar minutos em silêncio', async () => {
+    server = await startServer((_req, res) => writeJson(res, 429, { type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } }, { 'retry-after': '120' }));
+    const t0 = Date.now();
+    const err = await collect(provider(server.url, { maxRetries: 2 }).stream(baseReq(server.url))).catch((e: unknown) => e);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(server.requests).toHaveLength(1);
+    expect((err as LlmError).code).toBe('limite_taxa');
+    expect((err as LlmError).retryAfterSec).toBe(120);
+    expect((err as LlmError).message).toContain('120 s');
+  });
+
+  it('espera curta continua sendo repetida automaticamente pelo SDK', async () => {
+    server = await startServer((_req, res, i) =>
+      i === 0 ? writeJson(res, 529, { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }, { 'retry-after-ms': '20' }) : writeSse(res, anthText('oi')),
+    );
+    const events = await collect(provider(server.url, { maxRetries: 2 }).stream(baseReq(server.url)));
+    expect(server.requests).toHaveLength(2);
+    expect((events.at(-1) as Extract<LlmStreamEvent, { type: 'done' }>).stopReason).toBe('end_turn');
+  });
+});

@@ -4,7 +4,7 @@
  */
 import type { AudioOutMessage } from '../../../shared/ipc';
 import { LevelMeter, rms, rmsToLevel } from '../lib/dsp/level';
-import { PlaybackScheduler, isValidSampleRate } from '../lib/dsp/playback';
+import { PlaybackScheduler, UtteranceGate, isValidSampleRate } from '../lib/dsp/playback';
 
 export class AudioPlayer {
   private ctx: AudioContext | null = null;
@@ -12,6 +12,7 @@ export class AudioPlayer {
   private analyser: AnalyserNode | null = null;
   private timeData: Float32Array<ArrayBuffer> | null = null;
   private readonly scheduler = new PlaybackScheduler(0.05);
+  private readonly gate = new UtteranceGate();
   private readonly sources = new Set<AudioBufferSourceNode>();
   private readonly meter = new LevelMeter(0.5, 0.14);
   private volume = 0.9;
@@ -41,6 +42,8 @@ export class AudioPlayer {
 
   enqueue(msg: AudioOutMessage): void {
     if (this.disposed) return;
+    // pedaço atrasado de uma fala que já foi interrompida: descarta
+    if (!this.gate.accept(String(msg.utteranceId), !!msg.final, Date.now())) return;
     const samples = msg.samples;
     if (!(samples instanceof Float32Array) || samples.length === 0) return;
     if (!isValidSampleRate(msg.sampleRate)) return;
@@ -82,6 +85,7 @@ export class AudioPlayer {
     this.sources.clear();
     this.scheduler.reset();
     this.meter.reset();
+    this.gate.stop(Date.now());
   }
 
   get isPlaying(): boolean {

@@ -10,7 +10,7 @@
  */
 import type { ChatMessage, ContentPart, LlmProvider, LlmRequest, LlmStreamEvent, LlmUsage, ModelCapabilities, StopReason } from '../types';
 import { newId, nowIso } from '../util/ids';
-import { cancelledError, type Dynamic, LlmError, parseToolArguments, repairToolPairing, replayableInput, resolveDynamic, shortDetail, textOfParts } from './common';
+import { cancelledError, type Dynamic, LlmError, objectSchema, parseToolArguments, repairToolPairing, replayableInput, resolveDynamic, shortDetail, textOfParts } from './common';
 
 const PROVIDER = 'ollama';
 
@@ -256,14 +256,17 @@ export class OllamaProvider implements LlmProvider {
     const base = this.base();
     if (!this.caps.has(req.model)) {
       try {
-        await this.refreshCapabilities(req.model, AbortSignal.timeout(4000));
+        // stop() também interrompe esta consulta (não espera os 4 s).
+        const t = AbortSignal.timeout(4000);
+        await this.refreshCapabilities(req.model, signal ? AbortSignal.any([signal, t]) : t);
       } catch {
         /* sem /api/show: segue com a estimativa pelo nome */
       }
+      if (signal?.aborted) throw cancelledError(PROVIDER);
     }
     const caps = this.capabilities(req.model);
     const tools = caps.tools && req.tools?.length
-      ? req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } }))
+      ? req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: objectSchema(t.inputSchema) } }))
       : undefined;
     const body: Record<string, unknown> = {
       model: req.model,

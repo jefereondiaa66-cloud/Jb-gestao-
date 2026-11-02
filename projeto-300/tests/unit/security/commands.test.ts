@@ -110,3 +110,61 @@ describe('buildSafeEnv', () => {
     expect('SESSION_TOKEN' in safe).toBe(false);
   });
 });
+
+describe('classifyCommand — regressões de segurança (revisão)', () => {
+  it('não é driblado por sufixo .exe', () => {
+    expect(classifyCommand('reg.exe delete HKLM\\Software\\X /f', 'cmd').level).toBe('bloqueado');
+    expect(classifyCommand('netsh.exe advfirewall set allprofiles state off', 'cmd').level).toBe('bloqueado');
+    expect(classifyCommand('vssadmin.exe delete shadows /all /quiet', 'cmd').level).toBe('bloqueado');
+    expect(classifyCommand('Set-MpPreference.exe -DisableRealtimeMonitoring $true', 'powershell').level).toBe('bloqueado');
+  });
+
+  it('bloqueia alvo crítico com barra normal (C:/Windows) e não só invertida', () => {
+    expect(classifyCommand('Remove-Item C:/Windows/System32 -Recurse -Force', 'powershell').level).toBe('bloqueado');
+    expect(classifyCommand('del C:/Windows/System32/x', 'cmd').level).toBe('bloqueado');
+  });
+
+  it('bloqueia apagar a raiz do perfil do usuário (~/ e $env:USERPROFILE)', () => {
+    expect(classifyCommand('rm -rf ~/', 'sh').level).toBe('bloqueado');
+    expect(classifyCommand('Remove-Item $env:USERPROFILE -Recurse -Force', 'powershell').level).toBe('bloqueado');
+  });
+
+  it('não é driblado por bloco { } (cmd /c {Remove-Item C:\\ ...})', () => {
+    expect(classifyCommand('cmd /c {Remove-Item C:\\ -Recurse}', 'cmd').level).toBe('bloqueado');
+  });
+
+  it('pega prefixos abreviados de -EncodedCommand (-en, -enco)', () => {
+    expect(classifyCommand('powershell -en QQBCAEMAWQB', 'cmd').level).toBe('bloqueado');
+    expect(classifyCommand('powershell -enco QQBCAEMAWQB', 'cmd').level).toBe('bloqueado');
+    // mas não confunde com parâmetros legítimos que começam com -e
+    expect(classifyCommand('Out-File saida.txt -Encoding UTF8', 'powershell').level).not.toBe('bloqueado');
+  });
+
+  it('bloqueia desligar o firewall pelo cmdlet do PowerShell', () => {
+    expect(classifyCommand('Set-NetFirewallProfile -Profile Domain,Public -Enabled False', 'powershell').level).toBe('bloqueado');
+  });
+});
+
+describe('buildSafeEnv — regressões (revisão)', () => {
+  it('remove senhas de banco e strings de conexão que o padrão antigo deixava passar', () => {
+    const safe = buildSafeEnv({
+      PGPASSWORD: 'x',
+      MYSQL_PWD: 'y',
+      DATABASE_URL: 'postgres://u:p@h/db',
+      REDIS_URL: 'redis://u:p@h',
+      MONGODB_URI: 'mongodb://u:p@h',
+      NPM_TOKEN: 't',
+      VAULT_TOKEN: 'v',
+      MY_CONNECTION_STRING: 'Server=...;Password=...;',
+      PATH: '/usr/bin',
+      LANG: 'pt_BR.UTF-8',
+      NODE_ENV: 'production',
+    });
+    for (const leaked of ['PGPASSWORD', 'MYSQL_PWD', 'DATABASE_URL', 'REDIS_URL', 'MONGODB_URI', 'NPM_TOKEN', 'VAULT_TOKEN', 'MY_CONNECTION_STRING']) {
+      expect(leaked in safe, leaked).toBe(false);
+    }
+    expect(safe.PATH).toBe('/usr/bin');
+    expect(safe.LANG).toBe('pt_BR.UTF-8');
+    expect(safe.NODE_ENV).toBe('production');
+  });
+});

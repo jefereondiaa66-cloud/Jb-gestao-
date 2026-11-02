@@ -64,6 +64,25 @@ export function parseRetryAfter(headers: { get(name: string): string | null } | 
   return undefined;
 }
 
+/**
+ * Envolve o fetch dos SDKs para que uma espera longa pedida pelo servidor
+ * (retry-after de 429/529/5xx) NÃO vire minutos de silêncio: acima de maxSec, o
+ * SDK desiste na hora (x-should-retry: false) e o dono recebe a mensagem
+ * "tente de novo em cerca de N s". Esperas curtas continuam automáticas.
+ */
+export function limitRetryWait(base: typeof fetch, maxSec: number): typeof fetch {
+  const wrapped = async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
+    const res = await base(input, init);
+    if (res.status !== 429 && res.status < 500) return res;
+    const wait = parseRetryAfter(res.headers);
+    if (wait === undefined || wait <= maxSec) return res;
+    const headers = new Headers(res.headers);
+    headers.set('x-should-retry', 'false');
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  };
+  return wrapped as typeof fetch;
+}
+
 /** Texto curto e seguro a partir de uma mensagem de erro de terceiros. */
 export function shortDetail(msg: unknown, max = 300): string {
   const s = typeof msg === 'string' ? msg : msg instanceof Error ? msg.message : '';
@@ -188,6 +207,19 @@ export function textOfToolContent(content: ToolResultContent[]): string {
     .filter((c): c is Extract<ToolResultContent, { type: 'text' }> => c.type === 'text')
     .map((c) => c.text)
     .join('\n');
+}
+
+/**
+ * As APIs exigem que o esquema de entrada de uma ferramenta seja um objeto JSON
+ * ("type": "object"). Esquemas vindos de fora (ex.: servidores MCP) às vezes
+ * omitem o "type"; um só esquema assim faria TODOS os pedidos falharem.
+ */
+export function objectSchema(schema: unknown): Record<string, unknown> {
+  const s = typeof schema === 'object' && schema !== null && !Array.isArray(schema) ? (schema as Record<string, unknown>) : {};
+  if (s.type === 'object') return s;
+  if (s.type === undefined) return { ...s, type: 'object', ...(s.properties === undefined ? { properties: {} } : {}) };
+  // Mesmo formato do registro de ferramentas para entradas que não são objeto.
+  return { type: 'object', properties: { value: s }, required: ['value'] };
 }
 
 /** Rejeita imediatamente quando o sinal é abortado, mesmo que a promessa ignore o sinal. */

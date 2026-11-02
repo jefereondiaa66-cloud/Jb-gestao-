@@ -3,11 +3,11 @@ import { useState, type ReactNode } from 'react';
 import type { McpServerConfig } from '../../../../core/settings';
 import { SECRET_NAMES, type RiskLevel } from '../../../../core/types';
 import { call } from '../../api';
-import { CONNECTION_LABEL, RISK_INFO, errorText } from '../../lib/format';
+import { CONNECTION_LABEL, errorText, riskInfo } from '../../lib/format';
 import { useDialog } from '../Dialog';
 import { Badge, Field, Group, Notice, Select, Spinner, TextInput, Toggle } from '../controls';
 import { IconEdit, IconPlus, IconRefresh, IconTrash } from '../icons';
-import { isHttpUrl, statusOf, type SectionProps } from './common';
+import { isHttpUrl, mcpRunsNewCommand, statusOf, type SectionProps } from './common';
 import { SecretRow, useSecretNames } from './KeysSection';
 
 const RISKS: RiskLevel[] = ['read', 'write', 'external', 'destructive', 'financial', 'system'];
@@ -128,7 +128,7 @@ function McpEditor({ initial, existingIds, onSave, onCancel }: { initial: McpSer
           <select className="select" value={s.risk} onChange={(e) => set('risk', e.target.value as RiskLevel)}>
             {RISKS.map((r) => (
               <option key={r} value={r}>
-                {RISK_INFO[r].label}
+                {riskInfo(r).label}
               </option>
             ))}
           </select>
@@ -151,7 +151,7 @@ function McpEditor({ initial, existingIds, onSave, onCancel }: { initial: McpSer
           </label>
         )}
       </div>
-      {(s.risk === 'read' || s.risk === 'write') && <Notice tone="amber">Com risco “{RISK_INFO[s.risk].label}”, as ferramentas deste servidor podem rodar sem pedir confirmação. Use só com servidores que você confia.</Notice>}
+      {(s.risk === 'read' || s.risk === 'write') && <Notice tone="amber">Com risco “{riskInfo(s.risk).label}”, as ferramentas deste servidor podem rodar sem pedir confirmação. Use só com servidores que você confia.</Notice>}
       {err && <span className="field-error">{err}</span>}
       <div className="row-actions">
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>
@@ -187,11 +187,12 @@ function McpServers(props: SectionProps) {
   };
 
   const save = async (s: McpServerConfig) => {
-    const exists = servers.some((x) => x.id === s.id);
-    if (!exists && s.transport === 'stdio') {
+    const prev = servers.find((x) => x.id === s.id);
+    const exists = !!prev;
+    if (mcpRunsNewCommand(prev, s)) {
       const cmd = [s.command, ...s.args].join(' ');
       const ok = await ask({
-        title: 'Adicionar servidor local?',
+        title: exists ? 'Alterar o programa do servidor?' : 'Adicionar servidor local?',
         message: (
           <>
             Este servidor vai executar no seu computador o comando:
@@ -199,7 +200,7 @@ function McpServers(props: SectionProps) {
             Adicione só programas que você confia.
           </>
         ),
-        confirmLabel: 'Adicionar',
+        confirmLabel: exists ? 'Salvar' : 'Adicionar',
         danger: true,
       });
       if (!ok) return;
@@ -227,7 +228,7 @@ function McpServers(props: SectionProps) {
                 <span className="mcp-meta mono">{s.transport === 'stdio' ? [s.command, ...s.args].join(' ') : s.url}</span>
                 {st?.detail && <span className="mcp-meta">{st.detail}</span>}
               </div>
-              <Badge tone={RISK_INFO[s.risk].tone}>{RISK_INFO[s.risk].label}</Badge>
+              <Badge tone={riskInfo(s.risk).tone}>{riskInfo(s.risk).label}</Badge>
               <Toggle label={`Servidor ${s.name} ligado`} checked={s.enabled} onChange={(v) => void persist(servers.map((x) => (x.id === s.id ? { ...x, enabled: v } : x)))} />
               <button type="button" className="icon-btn" onClick={() => setEditing(s)} aria-label={`Editar ${s.name}`}>
                 <IconEdit size={14} />

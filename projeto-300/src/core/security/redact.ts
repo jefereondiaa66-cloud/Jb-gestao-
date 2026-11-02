@@ -11,8 +11,37 @@
  */
 import { redactSecrets } from '../util/logger';
 
-/** Nomes de campo que nunca devem aparecer em texto claro. */
-const SECRET_KEY = /(pass(word)?|senha|passwd|token|secret|api[_-]?key|apikey|authorization|bearer|cookie|credential|private[_-]?key|access[_-]?key|session|key)/i;
+/**
+ * Decide se o NOME de um campo indica segredo. Em vez de casar a substring crua
+ * (que escondia "passos", "keys" ou "hotkey" de um assistente que controla o
+ * teclado — justamente o que a auditoria precisa ver), quebra o nome em palavras
+ * (camelCase, _ e -) e só oculta quando uma palavra inteira é sensível. O valor
+ * em si continua passando pelo detector de segredos embutidos (redactText), que
+ * é a rede de segurança caso um nome escape.
+ */
+const SECRET_TOKENS: ReadonlySet<string> = new Set([
+  'password', 'passwd', 'pwd', 'passphrase', 'senha',
+  'secret', 'token', 'apikey', 'authorization', 'auth', 'bearer', 'cookie',
+  'credential', 'credentials', 'key', 'privatekey', 'accesskey', 'secretkey',
+  'session', 'pat',
+]);
+
+function nameTokens(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // apiKey -> api Key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // APIKey -> API Key
+    .split(/[^a-zA-Z0-9]+/) // _  -  .  etc
+    .map((t) => t.toLowerCase())
+    .filter((t) => t !== '');
+}
+
+export function isSecretKey(name: string): boolean {
+  const n = String(name ?? '');
+  for (const t of nameTokens(n)) if (SECRET_TOKENS.has(t)) return true;
+  // formas coladas comuns (apikey, accesskey) sem separador nem camelCase
+  const flat = n.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return /^(apikey|accesskey|secretkey|privatekey|sessiontoken|refreshtoken|authtoken|clientsecret)$/.test(flat);
+}
 
 const STRING_MAX = 2000;
 const BINARY_MIN = 200;
@@ -55,6 +84,16 @@ function redactString(s: string): string {
   if (out.length > BINARY_MIN && looksBinary(out)) return binaryMarker(Buffer.byteLength(out, 'utf8'));
   if (out.length > STRING_MAX) out = out.slice(0, STRING_MAX) + `…[+${out.length - STRING_MAX} caracteres]`;
   return out;
+}
+
+/**
+ * Atribui uma propriedade PRÓPRIA sem o perigo de "__proto__"/"constructor"
+ * (um `out['__proto__'] = x` mudaria o protótipo em vez de guardar o dado,
+ * perdendo o dado e abrindo brecha de "prototype pollution").
+ */
+function assign(out: Record<string, unknown>, key: string, value: unknown): void {
+  if (value === undefined) return;
+  Object.defineProperty(out, key, { value, enumerable: true, configurable: true, writable: true });
 }
 
 export function redactInput(value: unknown, opts: RedactOptions = {}): unknown {
@@ -106,7 +145,7 @@ export function redactInput(value: unknown, opts: RedactOptions = {}): unknown {
             break;
           }
           const key = String(k);
-          out[key] = SECRET_KEY.test(key) ? '[oculto]' : walk(val, depth + 1);
+          assign(out, key, isSecretKey(key) ? '[oculto]' : walk(val, depth + 1));
         }
         return out;
       }
@@ -121,12 +160,12 @@ export function redactInput(value: unknown, opts: RedactOptions = {}): unknown {
       const n = Math.min(keys.length, maxKeys);
       for (let i = 0; i < n; i++) {
         const k = keys[i]!;
-        if (SECRET_KEY.test(k)) {
-          out[k] = '[oculto]';
+        if (isSecretKey(k)) {
+          assign(out, k, '[oculto]');
           continue;
         }
         const r = walk((obj as Record<string, unknown>)[k], depth + 1);
-        if (r !== undefined) out[k] = r;
+        if (r !== undefined) assign(out, k, r);
       }
       if (keys.length > maxKeys) out['__omitido__'] = `[+${keys.length - maxKeys} campos omitidos]`;
       return out;

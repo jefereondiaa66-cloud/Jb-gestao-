@@ -12,7 +12,7 @@
  *   (pasta do Windows, Arquivos de Programas, System32, credenciais, ~/.ssh,
  *   perfis de navegador, a própria pasta de dados do app, etc.).
  */
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import nodePath from 'node:path';
 
@@ -72,7 +72,10 @@ export class PathGuard {
   resolve(p: string, opts: ResolveOptions = {}): string {
     if (typeof p !== 'string' || p.trim() === '') throw new SecurityError('caminho vazio ou inválido.');
     const abs = this.toAbsolute(p);
+    if (this.os === 'windows') this.assertSafeWindowsNames(abs);
     const real = this.canonExisting(abs);
+    // O caminho real também precisa ter nomes válidos (ex.: um link para "C:\\Windows.").
+    if (this.os === 'windows') this.assertSafeWindowsNames(real, true);
 
     this.assertNotCritical(real);
 
@@ -103,8 +106,40 @@ export class PathGuard {
 
   /* ---------------- internos ---------------- */
 
+  /** Modo Windows simulado em outro SO (só testes): o disco real não pode ser consultado. */
+  private get simulated(): boolean {
+    return this.os === 'windows' && process.platform !== 'win32';
+  }
+
+  /** realpath do sistema; no Windows usa a versão nativa (expande nomes curtos 8.3 e corrige maiúsculas). */
+  private realpath(p: string): string {
+    if (this.simulated) throw new Error('simulado');
+    return process.platform === 'win32' ? realpathSync.native(p) : realpathSync(p);
+  }
+
+  /**
+   * Recusa nomes que o Windows interpreta de forma especial e que permitiriam
+   * driblar as comparações: fluxos alternativos ("a.txt:oculto"), ponto ou
+   * espaço no fim ("Windows." = "Windows"), nomes curtos 8.3 ("PROGRA~1"),
+   * nomes de dispositivo (CON, NUL, COM1...) e caracteres curinga.
+   */
+  private assertSafeWindowsNames(abs: string, resolved = false): void {
+    const rest = abs.replace(/^[A-Za-z]:\\?/, '');
+    if (rest.startsWith('\\') && !resolved) throw new SecurityError('caminhos de rede (UNC) ou de dispositivo não são permitidos.');
+    for (const seg of rest.split('\\')) {
+      if (seg === '' || seg === '.' || seg === '..') continue;
+      if (seg.includes(':')) throw new SecurityError('o caminho tem ":" no meio (fluxo alternativo de arquivo); isso não é permitido.');
+      if (/[<>"|?*\u0000-\u001f]/.test(seg)) throw new SecurityError('o caminho tem caracteres que o Windows não aceita.');
+      if (/[. ]$/.test(seg)) throw new SecurityError('nomes que terminam com ponto ou espaço não são permitidos no Windows.');
+      if (/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\..*)?$/i.test(seg.trim())) {
+        throw new SecurityError('nomes reservados de dispositivo do Windows (CON, NUL, COM1...) não são permitidos.');
+      }
+      if (!resolved && /~\d/.test(seg)) throw new SecurityError('use o nome completo da pasta ou arquivo (nomes curtos como "PROGRA~1" não são aceitos).');
+    }
+  }
+
   private existsSafe(p: string): boolean {
-    if (this.os === 'windows' && process.platform !== 'win32') return true; // não dá para checar no SO de teste
+    if (this.simulated) return true; // não dá para checar no SO de teste
     try {
       return existsSync(p);
     } catch {
@@ -145,18 +180,38 @@ export class PathGuard {
     let cur = abs;
     const tail: string[] = [];
     for (let i = 0; i < 4096; i++) {
+      let real: string | undefined;
       try {
-        const real = realpathSync(cur);
+        real = this.realpath(cur);
+      } catch {
+        real = undefined;
+      }
+      if (real !== undefined) {
         if (tail.length === 0) return real;
         return pm.join(real, ...tail.slice().reverse());
-      } catch {
-        const parent = pm.dirname(cur);
-        if (parent === cur) return pm.normalize(abs);
-        tail.push(pm.basename(cur));
-        cur = parent;
       }
+      // O item existe mas o realpath falhou: link quebrado (apontando para um
+      // lugar que ainda não existe), laço de links ou sem permissão. Escrever
+      // por um link quebrado criaria o arquivo FORA da pasta liberada.
+      if (!this.simulated && this.lexists(cur)) {
+        throw new SecurityError('o caminho passa por um atalho (link) quebrado ou inacessível; por segurança, não uso esse caminho.');
+      }
+      const parent = pm.dirname(cur);
+      if (parent === cur) return pm.normalize(abs);
+      tail.push(pm.basename(cur));
+      cur = parent;
     }
     return pm.normalize(abs);
+  }
+
+  /** O item existe (sem seguir links)? */
+  private lexists(p: string): boolean {
+    try {
+      lstatSync(p);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Forma de comparação (minúsculas no Windows, sem barra final). */
@@ -166,27 +221,39 @@ export class PathGuard {
     return c;
   }
 
-  private within(child: string, parent: string): boolean {
-    const c = this.cmp(child);
-    const p = this.cmp(parent);
+  private within(child: string, parent: string, ignoreCase = false): boolean {
+    let c = this.cmp(child);
+    let p = this.cmp(parent);
+    if (ignoreCase) {
+      c = c.toLowerCase();
+      p = p.toLowerCase();
+    }
     if (c === p) return true;
     const sep = this.os === 'windows' ? '\\' : '/';
     return c.startsWith(p + sep);
   }
 
   private assertNotCritical(real: string): void {
+    // Locais negados são comparados SEM diferenciar maiúsculas em todos os
+    // sistemas: no macOS o disco costuma não diferenciar ("~/.SSH" = "~/.ssh").
     for (const d of this.denies) {
-      if (this.within(real, d)) throw new SecurityError('esse local é protegido e o 300 não pode mexer nele.');
+      if (this.within(real, d, true)) throw new SecurityError('esse local é protegido e o 300 não pode mexer nele.');
     }
     if (this.os === 'windows') {
-      const c = this.cmp(real);
+      const c = this.cmp(real).toLowerCase();
       const winCritical = [
         /^[a-z]:\\windows(\\|$)/,
         /^[a-z]:\\program files( \(x86\))?(\\|$)/,
         /^[a-z]:\\programdata(\\|$)/,
-        /\\appdata\\roaming\\microsoft\\(credentials|protect|crypto)(\\|$)/,
+        /^[a-z]:\\(\$recycle\.bin|system volume information|recovery|boot|\$windows\.~bt|\$windows\.~ws)(\\|$)/,
+        /^[a-z]:\\(pagefile|hiberfil|swapfile)\.sys$/,
+        /^[a-z]:\\(bootmgr|bootnxt)$/,
+        /\\appdata\\roaming\\microsoft\\(credentials|protect|crypto|vault|systemcertificates)(\\|$)/,
+        /\\appdata\\local\\microsoft\\(credentials|vault)(\\|$)/,
         /\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup(\\|$)/,
-        /\\appdata\\local\\microsoft\\credentials(\\|$)/,
+        /\\appdata\\local\\(google\\chrome|microsoft\\edge|bravesoftware\\brave-browser|vivaldi|chromium)\\user data(\\|$)/,
+        /\\appdata\\roaming\\(mozilla\\firefox|opera software|thunderbird)(\\|$)/,
+        /^[a-z]:\\users\\[^\\]+\\ntuser\.(dat|ini|pol)/,
       ];
       if (winCritical.some((re) => re.test(c))) throw new SecurityError('esse é um local protegido do sistema; o 300 não pode mexer nele.');
     }
@@ -198,7 +265,20 @@ export class PathGuard {
     const home = this.home;
     if (!home) return [];
     const j = (...parts: string[]): string => pm.join(home, ...parts);
-    const common = [j('.ssh'), j('.aws'), j('.gnupg'), j('.config', 'gcloud'), j('.docker')];
+    const common = [
+      j('.ssh'),
+      j('.aws'),
+      j('.azure'),
+      j('.kube'),
+      j('.gnupg'),
+      j('.config', 'gcloud'),
+      j('.docker'),
+      j('.netrc'),
+      j('_netrc'),
+      j('.git-credentials'),
+      j('.pgpass'),
+      j('.password-store'),
+    ];
     if (this.os === 'windows') {
       return [
         ...common,
@@ -228,6 +308,7 @@ export class PathGuard {
       j('.config', 'microsoft-edge'),
       j('.config', 'BraveSoftware'),
       j('.mozilla', 'firefox'),
+      j('.local', 'share', 'keyrings'),
     ];
   }
 }

@@ -1,4 +1,4 @@
-import type { Settings, SettingsPatch } from '../../../../core/settings';
+import type { McpServerConfig, Settings, SettingsPatch } from '../../../../core/settings';
 import type { ConnectionStatus } from '../../../../shared/ipc';
 
 export type Notify = (tone: 'info' | 'ok' | 'erro' | 'aviso', title: string, body?: string) => void;
@@ -45,6 +45,19 @@ export function isAbsolutePath(p: string): boolean {
 export function isBroadPath(p: string): boolean {
   const n = p.replace(/[\\/]+$/, '');
   return /^[a-zA-Z]:$/.test(n) || n === '' || /^[a-zA-Z]:[\\/]Users$/i.test(n) || /^[a-zA-Z]:[\\/]Users[\\/][^\\/]+$/i.test(n) || n === '/home' || /^\/home\/[^/]+$/.test(n) || /^\/Users\/[^/]+$/.test(n);
+}
+
+/**
+ * Salvar este servidor MCP passa a executar um programa diferente no computador?
+ * (novo servidor local, troca de comando/argumentos, ou troca de HTTP para local)
+ * Nesses casos o dono confirma vendo o comando completo.
+ */
+export function mcpRunsNewCommand(prev: McpServerConfig | undefined, next: McpServerConfig): boolean {
+  if (next.transport !== 'stdio') return false;
+  if (!prev || prev.transport !== 'stdio') return true;
+  const cmd = (c: McpServerConfig) => (c.command ?? '').trim();
+  const args = (c: McpServerConfig) => JSON.stringify(c.args ?? []);
+  return cmd(prev) !== cmd(next) || args(prev) !== args(next);
 }
 
 export function isHttpUrl(v: string): boolean {

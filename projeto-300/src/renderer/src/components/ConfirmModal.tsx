@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ConfirmationRequest, ConfirmationResponse } from '../../../core/types';
-import { ACTOR_LABEL, RISK_INFO, prettyJson } from '../lib/format';
+import { ACTOR_LABEL, prettyJson, riskInfo } from '../lib/format';
 import { trapTab } from './Dialog';
 import { IconShield, IconWarning } from './icons';
 
@@ -45,19 +45,23 @@ export function ConfirmModal({ request, queued, onRespond, onExpired }: ConfirmM
   const denyRef = useRef<HTMLButtonElement>(null);
   const left = useCountdown(request.expiresAt);
   const expired = left <= 0;
-  const risk = RISK_INFO[request.risk] ?? RISK_INFO.system;
+  const risk = riskInfo(request.risk);
   const allowRemember = request.risk === 'read' || request.risk === 'write';
   const total = Math.max(1, Date.parse(request.expiresAt) - Date.parse(request.createdAt));
   const fraction = Number.isFinite(left) ? Math.max(0, Math.min(1, left / total)) : 1;
 
-  // novo pedido: reinicia estado e foco em "Negar"
+  // novo pedido: reinicia estado e foco em "Negar"; ao fechar, o foco volta para onde estava
   useEffect(() => {
+    const prev = document.activeElement;
     setRemember(false);
     setSent(false);
     setArmed(false);
     denyRef.current?.focus();
     const t = setTimeout(() => setArmed(true), ARM_DELAY_MS);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      if (prev instanceof HTMLElement && prev.isConnected && !prev.closest('.overlay-confirm')) prev.focus();
+    };
   }, [request.id]);
 
   // expirou: o motor nega sozinho; avisamos e fechamos

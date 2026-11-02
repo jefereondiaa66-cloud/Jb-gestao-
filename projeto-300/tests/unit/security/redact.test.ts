@@ -81,3 +81,39 @@ describe('redactText', () => {
     expect(redactText('token=abcdef123456')).toContain('[oculto]');
   });
 });
+
+describe('redactInput — regressões (revisão)', () => {
+  it('não esconde campos comuns que só CONTÊM "key"/"pass" (auditoria do controle de teclado)', () => {
+    const out = redactInput({
+      passos: ['abrir', 'salvar'],
+      keys: ['ctrl', 'c'],
+      hotkey: 'win+d',
+      keyboard: 'abnt2',
+      monkey: 'george',
+      author: 'ana',
+    }) as any;
+    expect(out.passos).toEqual(['abrir', 'salvar']);
+    expect(out.keys).toEqual(['ctrl', 'c']);
+    expect(out.hotkey).toBe('win+d');
+    expect(out.keyboard).toBe('abnt2');
+    expect(out.monkey).toBe('george');
+    expect(out.author).toBe('ana');
+  });
+
+  it('continua escondendo campos realmente sensíveis (inclusive camelCase)', () => {
+    const out = redactInput({ apiKey: 'a', publicKey: 'b', access_key: 'c', sessionToken: 'd', key: 'e' }) as any;
+    expect(out.apiKey).toBe('[oculto]');
+    expect(out.publicKey).toBe('[oculto]');
+    expect(out.access_key).toBe('[oculto]');
+    expect(out.sessionToken).toBe('[oculto]');
+    expect(out.key).toBe('[oculto]');
+  });
+
+  it('um campo "__proto__" não polui o protótipo e é preservado como dado', () => {
+    const entrada = JSON.parse('{"a":1,"__proto__":{"poluido":true}}');
+    const out = redactInput(entrada) as any;
+    expect(({} as any).poluido).toBeUndefined(); // sem prototype pollution
+    expect(out.a).toBe(1);
+    expect(() => JSON.stringify(out)).not.toThrow();
+  });
+});

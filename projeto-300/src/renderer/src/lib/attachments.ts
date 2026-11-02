@@ -106,8 +106,17 @@ export function formatBytes(n: number): string {
   return `${v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 })} ${units[u]}`;
 }
 
-/** Nome seguro para exibição (sem quebras e limitado). */
+/** Controles (quebras, tabulação) e marcas de direção do texto (usadas para disfarçar extensões). */
+// eslint-disable-next-line no-control-regex
+const UNSAFE_NAME_CHARS = /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * Nome seguro para exibição e envio: sem caracteres de controle e limitado a
+ * 80 caracteres, MANTENDO a extensão (ela decide como o arquivo é lido).
+ */
 export function displayName(name: string): string {
-  const n = (name || 'arquivo').replace(/[\r\n\t]/g, ' ').trim() || 'arquivo';
-  return n.length > 80 ? n.slice(0, 77) + '…' : n;
+  const n = (name || 'arquivo').replace(UNSAFE_NAME_CHARS, ' ').replace(/ {2,}/g, ' ').trim() || 'arquivo';
+  if (n.length <= 80) return n;
+  const ext = /\.[a-z0-9]{1,10}$/i.exec(n)?.[0] ?? '';
+  return n.slice(0, 79 - ext.length).trimEnd() + '…' + ext;
 }

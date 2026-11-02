@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ConfirmationResponse, ConversationSummary } from '../../core/types';
 import type { Attachment } from '../../shared/ipc';
-import { api, call, openExternal } from './api';
+import { api, call, openExternal, stopEverything } from './api';
 import { AudioPlayer } from './audio/player';
 import { ActivityPanel } from './components/ActivityPanel';
 import { CenterStage } from './components/CenterStage';
@@ -194,24 +194,29 @@ function AppInner() {
   attachmentsRef.current = attachments;
   const [processing, setProcessing] = useState(0);
   const [pendingSends, setPendingSends] = useState(0);
+  /** Anexos ainda sendo preparados (contam no limite: duas soltadas rápidas não podem passar de 10). */
+  const inflight = useRef(0);
 
   const addFiles = useCallback(
     async (files: File[], pasted?: boolean) => {
-      const room = LIMITS.count - attachmentsRef.current.length;
+      const room = LIMITS.count - attachmentsRef.current.length - inflight.current;
       if (room <= 0) {
         notify('aviso', 'Limite de anexos', `No máximo ${LIMITS.count} anexos por mensagem.`);
         return;
       }
       const list = files.slice(0, room);
       if (files.length > room) notify('aviso', 'Limite de anexos', `Só ${room} ${room === 1 ? 'arquivo foi adicionado' : 'arquivos foram adicionados'} (máximo ${LIMITS.count}).`);
+      inflight.current += list.length;
       setProcessing((n) => n + list.length);
       for (const f of list) {
         try {
           const a = await fileToAttachment(pasted ? namePasted(f) : f);
           setAttachments((prev) => [...prev, a]);
+          attachmentsRef.current = [...attachmentsRef.current, a];
         } catch (e) {
           notify('aviso', 'Anexo recusado', errorText(e));
         } finally {
+          inflight.current--;
           setProcessing((n) => n - 1);
         }
       }
@@ -267,9 +272,8 @@ function AppInner() {
   const stopAll = useCallback(async () => {
     stopAudio();
     voiceRef.current.endSession();
-    const res = await Promise.allSettled([call('chat:stop'), call('voice:stop')]);
-    const failed = res.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
-    if (failed) notify('erro', 'Falha ao parar', errorText(failed.reason));
+    const failed = await stopEverything();
+    if (failed) notify('erro', 'Falha ao parar', errorText(failed));
     else notify('info', 'Tudo parado', 'Resposta, ferramentas, fala e escuta foram interrompidas.');
   }, [stopAudio, notify]);
   const stopAllRef = useRef(stopAll);
@@ -497,6 +501,7 @@ function AppInner() {
             section={section}
             onSection={setSection}
             onClose={() => setSettingsOpen(false)}
+            onStopAll={() => void stopAll()}
           />
         </div>
       )}

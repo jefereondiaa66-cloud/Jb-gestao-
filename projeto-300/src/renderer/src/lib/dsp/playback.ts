@@ -55,3 +55,48 @@ export class PlaybackScheduler {
     this.next = 0;
   }
 }
+
+/**
+ * Filtro de falas interrompidas. Depois de parar o áudio (Esc, PARAR,
+ * interrupção), pedaços da mesma fala que ainda estavam a caminho pelo IPC
+ * não podem voltar a tocar. Falas novas (outro utteranceId) passam normalmente.
+ * O bloqueio expira sozinho (holdMs) para não silenciar um id reaproveitado.
+ */
+export class UtteranceGate {
+  /** Falas com pedaços agendados e ainda sem o pedaço final. */
+  private readonly open = new Set<string>();
+  /** id -> instante (ms) até quando seus pedaços são descartados. */
+  private readonly muted = new Map<string, number>();
+
+  constructor(private readonly holdMs = 1500) {}
+
+  /** true = pode tocar este pedaço. */
+  accept(id: string, final: boolean, nowMs: number): boolean {
+    const until = this.muted.get(id);
+    if (until !== undefined) {
+      if (nowMs < until) {
+        if (final) this.muted.delete(id); // a fala interrompida terminou de chegar
+        return false;
+      }
+      this.muted.delete(id);
+    }
+    if (final) this.open.delete(id);
+    else {
+      this.open.add(id);
+      if (this.open.size > 64) this.open.delete(this.open.values().next().value as string);
+    }
+    return true;
+  }
+
+  /** Parada: as falas em andamento ficam bloqueadas por holdMs. */
+  stop(nowMs: number): void {
+    for (const [id, until] of this.muted) if (until <= nowMs) this.muted.delete(id);
+    for (const id of this.open) this.muted.set(id, nowMs + this.holdMs);
+    this.open.clear();
+  }
+
+  isMuted(id: string, nowMs: number): boolean {
+    const until = this.muted.get(id);
+    return until !== undefined && nowMs < until;
+  }
+}

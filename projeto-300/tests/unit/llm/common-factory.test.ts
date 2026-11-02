@@ -119,3 +119,21 @@ describe('fábrica', () => {
     await expect(uc('x', { images: [{ mediaType: 'image/png', data: 'A' }] })).rejects.toThrow('não enxerga imagens');
   });
 });
+
+describe('esquemas de ferramenta vindos de fora', () => {
+  it('esquema sem "type" (comum em servidores MCP) vira objeto em todos os provedores', async () => {
+    const { objectSchema } = await import('@core/llm/common');
+    const { buildAnthropicRequest } = await import('@core/llm/anthropic');
+    const { buildOpenAIRequest } = await import('@core/llm/openai');
+    expect(objectSchema({})).toEqual({ type: 'object', properties: {} });
+    expect(objectSchema({ properties: { a: { type: 'string' } } })).toEqual({ type: 'object', properties: { a: { type: 'string' } } });
+    expect(objectSchema({ type: 'string' })).toEqual({ type: 'object', properties: { value: { type: 'string' } }, required: ['value'] });
+    const obj = { type: 'object', properties: { a: { type: 'number' } } };
+    expect(objectSchema(obj)).toBe(obj);
+    const tools = [{ name: 'mcp_x', description: 'd', inputSchema: {} }];
+    const a = buildAnthropicRequest({ model: 'claude-opus-5-5', system: '', messages: [], tools }, { refusalFallback: false, thinkingDisplay: 'omitted', eagerInputStreaming: true, defaultMaxTokens: 1000 });
+    expect((a.tools![0] as { input_schema: unknown }).input_schema).toEqual({ type: 'object', properties: {} });
+    const o = buildOpenAIRequest({ model: 'gpt-5.1', system: '', messages: [], tools }, { defaultMaxTokens: 1000 });
+    expect((o.tools![0] as { parameters: unknown }).parameters).toEqual({ type: 'object', properties: {} });
+  });
+});

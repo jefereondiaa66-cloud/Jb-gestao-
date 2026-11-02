@@ -74,6 +74,12 @@ describe('OpenAI: conversão', () => {
     expect(openAIEffort('max')).toBe('high');
   });
 
+  it('max_output_tokens respeita o teto do modelo (gpt-4o aceita no máximo 16384)', () => {
+    expect(buildOpenAIRequest({ model: 'gpt-4o', system: '', messages: [] }, { defaultMaxTokens: 32000 }).max_output_tokens).toBe(16384);
+    expect(buildOpenAIRequest({ model: 'gpt-4.1-mini', system: '', messages: [] }, { defaultMaxTokens: 64000 }).max_output_tokens).toBe(32768);
+    expect(buildOpenAIRequest({ model: 'gpt-5.1', system: '', messages: [] }, { defaultMaxTokens: 32000 }).max_output_tokens).toBe(32000);
+  });
+
   it('saída -> partes, com argumentos lidos de forma estrita', () => {
     const { parts, refusal } = openAIOutputToParts([
       { type: 'message', id: 'm', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'A', annotations: [] }, { type: 'output_text', text: 'B', annotations: [] }] },

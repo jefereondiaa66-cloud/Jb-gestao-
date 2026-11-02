@@ -226,3 +226,30 @@ describe('OllamaProvider (NDJSON real)', () => {
     expect((e2 as LlmError).code).toBe('cancelado');
   });
 });
+
+describe('revisão: espera de repetição e cancelamento', () => {
+  it('OpenAI: 429 com retry-after longo vira aviso imediato', async () => {
+    server = await startServer((_r, res) => writeJson(res, 429, { error: { message: 'Rate limit', type: 'requests', code: 'rate_limit_exceeded' } }, { 'retry-after': '90' }));
+    const p = new OpenAIProvider({ apiKey: 'sk-test-0000000000000000000000', baseURL: server.url + '/v1', maxRetries: 2 });
+    const t0 = Date.now();
+    const err = await collect(p.stream(req('gpt-5.1'))).catch((e: unknown) => e);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(server.requests).toHaveLength(1);
+    expect((err as LlmError).code).toBe('limite_taxa');
+    expect((err as LlmError).retryAfterSec).toBe(90);
+  });
+
+  it('Ollama: stop() durante a consulta de capacidades (/api/show) não espera 4 s', async () => {
+    server = await startServer(() => {
+      /* nunca responde */
+    });
+    const p = new OllamaProvider({ baseUrl: server.url });
+    const ac = new AbortController();
+    setTimeout(() => ac.abort(), 50);
+    const t0 = Date.now();
+    const err = await collect(p.stream(req('qwen3:8b', { signal: ac.signal }))).catch((e: unknown) => e);
+    expect(Date.now() - t0).toBeLessThan(1500);
+    expect((err as LlmError).code).toBe('cancelado');
+    expect(server.requests.some((r) => r.url === '/api/chat')).toBe(false);
+  });
+});

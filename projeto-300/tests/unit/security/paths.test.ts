@@ -144,3 +144,49 @@ describe('defaultRoots', () => {
     expect(defaultRoots({ documents: '/d', desktop: '', downloads: '/dl', pictures: '' })).toEqual(['/d', '/dl']);
   });
 });
+
+describe('PathGuard — regressões de segurança (revisão)', () => {
+  it('bloqueia escrita por link simbólico quebrado (alvo inexistente fora da raiz)', () => {
+    const b = realpathSync(mkdtempSync(join(tmpdir(), '300-dangling-')));
+    const docs2 = join(b, 'docs');
+    const fora2 = join(b, 'fora');
+    mkdirSync(docs2, { recursive: true });
+    mkdirSync(fora2, { recursive: true });
+    const link = join(docs2, 'pendente.txt');
+    try {
+      symlinkSync(join(fora2, 'novo.txt'), link, 'file'); // alvo ainda não existe
+    } catch {
+      return; // ambiente sem symlink
+    }
+    const g = new PathGuard({ roots: [docs2], os: 'linux', home: join(b, 'home') });
+    // Escrever por esse link criaria o arquivo FORA da raiz: precisa ser recusado.
+    expect(() => g.resolve(link, { forWrite: true })).toThrow(SecurityError);
+    expect(() => g.resolve(link)).toThrow(SecurityError);
+    // Um arquivo novo normal (sem link) continua permitido para escrita.
+    expect(g.resolve(join(docs2, 'novo-normal.txt'), { forWrite: true })).toBe(join(docs2, 'novo-normal.txt'));
+    rmSync(b, { recursive: true, force: true });
+  });
+
+  it('Windows: recusa fluxo alternativo de dados (ADS "arquivo:oculto")', () => {
+    const g = new PathGuard({ roots: ['C:\\Users\\alice\\Documents'], os: 'windows', home: 'C:\\Users\\alice' });
+    expect(() => g.resolve('C:\\Users\\alice\\Documents\\a.txt:oculto')).toThrow(SecurityError);
+  });
+
+  it('Windows: recusa nomes curtos 8.3 ("PROGRA~1")', () => {
+    const g = new PathGuard({ roots: ['C:\\'], os: 'windows', home: 'C:\\Users\\alice' });
+    expect(() => g.resolve('C:\\PROGRA~1\\app\\x.dll')).toThrow(SecurityError);
+  });
+
+  it('Windows: recusa nome terminado em ponto ("Windows.") e dispositivos (CON, NUL)', () => {
+    const g = new PathGuard({ roots: ['C:\\'], os: 'windows', home: 'C:\\Users\\alice' });
+    expect(() => g.resolve('C:\\Windows.\\System32\\x.dll')).toThrow(SecurityError);
+    expect(() => g.resolve('C:\\Users\\alice\\Documents\\CON')).toThrow(SecurityError);
+    expect(() => g.resolve('C:\\Users\\alice\\Documents\\nul.txt')).toThrow(SecurityError);
+  });
+
+  it('macOS: nega local protegido sem diferenciar maiúsculas (~/.SSH == ~/.ssh)', () => {
+    const g = new PathGuard({ roots: ['/Users/alice'], os: 'macos', home: '/Users/alice' });
+    expect(() => g.resolve('/Users/alice/.SSH/id_rsa')).toThrow(SecurityError);
+    expect(() => g.resolve('/Users/alice/.ssh/id_rsa')).toThrow(SecurityError);
+  });
+})

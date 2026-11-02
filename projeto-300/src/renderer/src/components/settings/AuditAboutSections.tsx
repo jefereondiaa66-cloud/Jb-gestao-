@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AuditEntry } from '../../../../core/types';
 import type { SystemInfo } from '../../../../shared/ipc';
 import { call } from '../../api';
-import { ACTOR_LABEL, AUDIT_DECISION_LABEL, AUDIT_KIND_LABEL, AUDIT_OUTCOME_LABEL, RISK_INFO, errorText, formatDateTime } from '../../lib/format';
+import { ACTOR_LABEL, AUDIT_DECISION_LABEL, AUDIT_KIND_LABEL, AUDIT_OUTCOME_LABEL, errorText, formatDateTime, riskInfo } from '../../lib/format';
 import { Group, Spinner } from '../controls';
 import { IconCheck, IconCopy, IconRefresh, IconWarning } from '../icons';
 import type { SectionProps } from './common';
@@ -80,7 +80,7 @@ export function AuditSection({ notify }: SectionProps) {
                       {AUDIT_KIND_LABEL[r.kind] ?? r.kind}
                       {r.tool && <span className="audit-sub mono">{r.tool}</span>}
                     </td>
-                    <td>{r.risk ? <span className={`tone-text-${RISK_INFO[r.risk].tone}`}>{RISK_INFO[r.risk].label}</span> : '—'}</td>
+                    <td>{r.risk ? <span className={`tone-text-${riskInfo(r.risk).tone}`}>{riskInfo(r.risk).label}</span> : '—'}</td>
                     <td>
                       {r.decision ? AUDIT_DECISION_LABEL[r.decision] ?? r.decision : '—'}
                       {r.outcome && <span className={'audit-sub' + (r.outcome === 'erro' || r.outcome === 'bloqueado' ? ' tone-text-red' : '')}>{AUDIT_OUTCOME_LABEL[r.outcome] ?? r.outcome}</span>}

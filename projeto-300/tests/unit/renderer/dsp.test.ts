@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { Framer, MicPipeline, StreamResampler, downmix } from '../../../src/renderer/src/lib/dsp/resampler';
 import { LevelMeter, decayLevel, rms, rmsToLevel } from '../../../src/renderer/src/lib/dsp/level';
-import { PlaybackScheduler, isValidSampleRate, pcmDuration } from '../../../src/renderer/src/lib/dsp/playback';
+import { PlaybackScheduler, UtteranceGate, isValidSampleRate, pcmDuration } from '../../../src/renderer/src/lib/dsp/playback';
 
 function sine(freq: number, rate: number, seconds: number, amp = 0.8): Float32Array {
   const n = Math.round(rate * seconds);
@@ -260,5 +260,38 @@ describe('PlaybackScheduler', () => {
     expect(pcmDuration(100, 0)).toBe(0);
     expect(isValidSampleRate(22050)).toBe(true);
     expect(isValidSampleRate(10)).toBe(false);
+  });
+});
+
+describe('UtteranceGate (interrupção da fala)', () => {
+  it('depois de parar, pedaços atrasados da mesma fala são descartados', () => {
+    const g = new UtteranceGate(1500);
+    expect(g.accept('u1', false, 0)).toBe(true);
+    expect(g.accept('u1', false, 100)).toBe(true);
+    g.stop(200);
+    expect(g.accept('u1', false, 250)).toBe(false);
+    expect(g.accept('u1', false, 900)).toBe(false);
+    // fala nova passa normalmente
+    expect(g.accept('u2', false, 300)).toBe(true);
+  });
+
+  it('o bloqueio termina com o pedaço final ou com o tempo (id reaproveitado não fica mudo)', () => {
+    const g = new UtteranceGate(1500);
+    g.accept('a', false, 0);
+    g.accept('b', false, 0);
+    g.stop(10);
+    expect(g.accept('a', true, 20)).toBe(false); // final da fala interrompida: descarta e libera
+    expect(g.isMuted('a', 30)).toBe(false);
+    expect(g.accept('a', false, 40)).toBe(true);
+    expect(g.isMuted('b', 1000)).toBe(true);
+    expect(g.accept('b', false, 1600)).toBe(true);
+  });
+
+  it('fala que já terminou de chegar não é bloqueada por uma parada posterior', () => {
+    const g = new UtteranceGate(1500);
+    g.accept('x', false, 0);
+    g.accept('x', true, 10);
+    g.stop(20);
+    expect(g.isMuted('x', 30)).toBe(false);
   });
 });

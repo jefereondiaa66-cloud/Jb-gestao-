@@ -120,6 +120,83 @@ describe('parseMarkdown', () => {
   });
 });
 
+describe('parseMarkdown — partes reescritas sem retrocesso', () => {
+  it('títulos: "#" final só sai quando separado por espaço', () => {
+    expect(parseMarkdown('# Título #')[0]).toMatchObject({ t: 'h', level: 1, c: [{ t: 'text', v: 'Título' }] });
+    expect(parseMarkdown('## Linguagem C#')[0]).toMatchObject({ t: 'h', level: 2, c: [{ t: 'text', v: 'Linguagem C#' }] });
+    expect(parseMarkdown('#hashtag')[0]).toMatchObject({ t: 'p' });
+    expect(parseMarkdown('####### sete')[0]).toMatchObject({ t: 'p' });
+    // "#" sozinho não interrompe parágrafo; "# x" interrompe
+    expect(parseMarkdown('texto\n#').map((b) => b.t)).toEqual(['p']);
+    expect(parseMarkdown('texto\n# x').map((b) => b.t)).toEqual(['p', 'h']);
+  });
+
+  it('cercas de código: linguagem e crase na informação', () => {
+    expect(parseMarkdown('```js extra\nx\n```')[0]).toEqual({ t: 'code', lang: 'js', v: 'x', open: false });
+    expect(parseMarkdown('~~~py\nx\n~~~')[0]).toEqual({ t: 'code', lang: 'py', v: 'x', open: false });
+    expect(parseMarkdown('``` a`b')[0]).toMatchObject({ t: 'p' });
+  });
+
+  it('separador de tabela com alinhamentos e espaços', () => {
+    const b = parseMarkdown('| a | b | c |\n| :-: | --- |---: |\n| 1 | 2 | 3 |');
+    expect(b[0]).toMatchObject({ t: 'table', align: ['center', null, 'right'] });
+    expect(parseMarkdown('a | b\n| - x |')[0]).toMatchObject({ t: 'p' });
+  });
+
+  it('lista com várias linhas vazias entre os itens continua a mesma lista', () => {
+    const b = parseMarkdown('- a\n\n\n\n- b');
+    expect(b).toHaveLength(1);
+    if (b[0]!.t !== 'list') throw new Error();
+    expect(b[0]!.items).toHaveLength(2);
+  });
+
+  it('espaços no fim da linha somem antes da quebra', () => {
+    expect(parseInline('a   \nb')).toEqual([{ t: 'text', v: 'a' }, { t: 'br' }, { t: 'text', v: 'b' }]);
+  });
+
+  it('ênfase depois de um delimitador sem par ainda funciona', () => {
+    const nodes = parseInline('_sem par e depois **forte** e *leve* fim _');
+    expect(nodes.map((n) => n.t)).toEqual(['text', 'strong', 'text', 'em', 'text']);
+    expect(inlineText(nodes)).toBe('_sem par e depois forte e leve fim _');
+  });
+
+  it('links com colchetes aninhados e destino com parênteses', () => {
+    const nodes = parseInline('[a [b] c](https://x.com/p_(1)) fim');
+    expect(nodes[0]).toMatchObject({ t: 'link', href: 'https://x.com/p_(1)' });
+    expect(inlineText(nodes)).toBe('a [b] c fim');
+  });
+});
+
+/**
+ * O texto em transmissão é reprocessado a cada pedaço que chega. Antes da
+ * correção, cada um destes casos levava de 1 a 12 segundos e travava a
+ * interface inteira (inclusive o botão PARAR).
+ */
+describe('parseMarkdown — desempenho com entradas adversas', () => {
+  const cases: Record<string, string> = {
+    'asteriscos sem par': '*a '.repeat(20000),
+    'negrito sem par': '**a '.repeat(15000),
+    'sublinhado sem par': '_a '.repeat(20000),
+    'tachado sem par': '~~a '.repeat(15000),
+    'links sem fechamento': '[a](b '.repeat(12000),
+    'links sem fechamento em linhas': '[a](b\n'.repeat(12000),
+    'colchetes abertos': '['.repeat(60000) + 'x',
+    'espaços antes da quebra': 'a' + ' '.repeat(40000) + 'b\nc',
+    'título com muitos espaços': '# a' + ' '.repeat(40000) + 'b',
+    'separador de tabela com espaços': 'a|b\n' + ' '.repeat(40000) + 'x',
+    'separador de tabela com sobra': 'a|b\n|---' + ' '.repeat(40000) + 'x',
+    'cerca com crase no fim': '```' + 'a'.repeat(40000) + '`',
+    'lista com muitas linhas vazias': '- a' + '\n'.repeat(20000) + '  b',
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    it(name, () => {
+      const t0 = performance.now();
+      parseMarkdown(text);
+      expect(performance.now() - t0).toBeLessThan(500);
+    });
+  }
+});
+
 describe('<Markdown> (elementos React, sem HTML cru)', () => {
   it('escapa HTML e scripts', () => {
     const out = html('<script>alert(1)</script> <img src=x onerror=alert(1)> **ok**');

@@ -22,22 +22,43 @@ export function useDialog(): Ask {
 }
 
 interface Pending extends DialogOptions {
+  id: number;
   resolve: (v: boolean) => void;
 }
 
+let nextId = 0;
+
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Pending[]>([]);
-  const ask = useCallback<Ask>((opts) => new Promise<boolean>((resolve) => setQueue((q) => [...q, { ...opts, resolve }])), []);
+  const ask = useCallback<Ask>((opts) => new Promise<boolean>((resolve) => setQueue((q) => [...q, { ...opts, id: ++nextId, resolve }])), []);
   const current = queue[0];
+  // remove pelo próprio item: dois cliques rápidos não podem descartar o próximo diálogo da fila
   const close = (v: boolean) => {
     if (!current) return;
     current.resolve(v);
-    setQueue((q) => q.slice(1));
+    setQueue((q) => q.filter((x) => x !== current));
   };
+
+  // Esc fecha o diálogo mesmo com o foco fora dele (antes, fechava a gaveta que estava atrás).
+  // Escuta em document (captura): o pedido de confirmação do motor, que fica por cima e
+  // escuta em window, tem prioridade e interrompe a propagação.
+  useEffect(() => {
+    if (!current) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      current.resolve(false);
+      setQueue((q) => q.filter((x) => x !== current));
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [current]);
+
   return (
     <DialogContext.Provider value={ask}>
       {children}
-      {current && <DialogView key={queue.length + current.title} opts={current} onClose={close} />}
+      {current && <DialogView key={current.id} opts={current} onClose={close} />}
     </DialogContext.Provider>
   );
 }
@@ -56,13 +77,7 @@ function DialogView({ opts, onClose }: { opts: DialogOptions; onClose: (v: boole
     <div
       className="overlay overlay-dialog"
       role="presentation"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.stopPropagation();
-          onClose(false);
-        }
-        trapTab(e);
-      }}
+      onKeyDown={trapTab}
     >
       <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-msg">
         <div className="dialog-head">

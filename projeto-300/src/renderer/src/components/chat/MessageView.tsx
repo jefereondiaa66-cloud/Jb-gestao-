@@ -1,9 +1,9 @@
 /** Exibição de mensagens e atividades de ferramentas dentro da conversa. */
-import { memo, type ReactNode } from 'react';
+import { memo, useDeferredValue, type ReactNode } from 'react';
 import type { ChatMessage } from '../../../../core/types';
 import type { Attachment } from '../../../../shared/ipc';
 import { formatBytes, displayName, base64ByteLength } from '../../lib/attachments';
-import { RISK_INFO, formatTime } from '../../lib/format';
+import { formatTime, riskInfo } from '../../lib/format';
 import { attachedFileName, type ThreadItem, type ToolInfo } from '../../lib/store';
 import { Markdown } from '../Markdown';
 import { Spinner } from '../controls';
@@ -35,7 +35,7 @@ export function ToolRow({ name, info, result }: ToolRowProps) {
       <IconTool size={14} className="tool-row-kind" />
       <span className="tool-row-title">{title}</span>
       {detail && <span className="tool-row-detail">{detail}</span>}
-      {risk && risk !== 'read' && <span className={`tool-row-risk tone-text-${RISK_INFO[risk].tone}`}>{RISK_INFO[risk].label}</span>}
+      {risk && risk !== 'read' && <span className={`tool-row-risk tone-text-${riskInfo(risk).tone}`}>{riskInfo(risk).label}</span>}
       <span className="sr-only">{status === 'running' ? 'em andamento' : status === 'erro' ? 'falhou' : 'concluída'}</span>
     </div>
   );
@@ -167,6 +167,8 @@ export const MessageView = memo(function MessageView({ item, tools, results, onO
 });
 
 export function StreamingView({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
+  // pedaços chegando em rajada: o React pode pular versões intermediárias do texto
+  const deferred = useDeferredValue(text);
   return (
     <div className="msg msg-assistant is-streaming">
       <div className="msg-avatar is-live" aria-hidden="true">
@@ -174,7 +176,7 @@ export function StreamingView({ text, onOpenLink }: { text: string; onOpenLink: 
       </div>
       <div className="msg-body">
         <div className="msg-bubble">
-          <Markdown text={text} onOpenLink={onOpenLink} streaming />
+          <Markdown text={deferred} onOpenLink={onOpenLink} streaming />
         </div>
       </div>
     </div>

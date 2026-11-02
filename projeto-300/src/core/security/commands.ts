@@ -26,26 +26,30 @@ function normalize(raw: string): string {
     .replace(/\u00a0/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    // Remove a extensão de executável no fim de cada palavra ("reg.exe" -> "reg",
+    // "netsh.exe" -> "netsh") para que a detecção não seja driblada com ".exe".
+    .replace(/\.(exe|com|cmd|bat|ps1|scr|pif|vbs|vbe|wsf|wsh|msc)(?=$|[\s\\/)\];,|&])/g, '');
 }
 
 /** Verbos de remoção (inclui apelidos de PowerShell e cmd). */
-const DEL_VERB = /(^|[;&|(]\s*|\s)(remove-item|ri|rm|del|erase|rd|rmdir|unlink|rimraf|shred|clear-content)\b/;
+const DEL_VERB = /(^|[;&|({]\s*|\s)(remove-item|ri|rm|del|erase|rd|rmdir|unlink|rimraf|shred|clear-content)\b/;
 
 /** Alvos críticos: se um verbo de remoção mira aqui, é bloqueado. */
 const DANGER_TARGET: RegExp[] = [
-  /\b[a-z]:\\?(\s|$)/, // raiz de drive: c:\  ou c:
-  /\b[a-z]:\\\*/, // c:\*
-  /\b[a-z]:\\windows\b/,
-  /\b[a-z]:\\program files( \(x86\))?\b/,
-  /%systemroot%|%windir%|%programfiles%|%programdata%|%systemdrive%/,
-  /%userprofile%/,
-  /\b[a-z]:\\users\\[^\\/]+\\?(\s|$)/, // raiz do perfil do usuário
+  /\b[a-z]:[\\/]?(\s|$)/, // raiz de drive: c:\  c:/  ou c:
+  /\b[a-z]:[\\/]\*/, // c:\*  ou c:/*
+  /\b[a-z]:[\\/]windows\b/, // aceita barra normal ou invertida
+  /\b[a-z]:[\\/]program files( \(x86\))?\b/,
+  /\b[a-z]:[\\/]programdata\b/,
+  /%systemroot%|%windir%|%programfiles%|%programdata%|%systemdrive%|%userprofile%|%homepath%|%appdata%|%localappdata%/,
+  /\$env:(userprofile|systemroot|windir|programfiles|programdata|systemdrive|homepath|appdata|localappdata)\b/,
+  /\b[a-z]:[\\/]users[\\/][^\\/]+[\\/]?(\s|$)/, // raiz do perfil do usuário
   /(^|\s)\/(\s|$)/, // raiz /
   /(^|\s)\/\*/, // /*
   /(^|\s)\/(bin|boot|dev|etc|lib|lib64|proc|root|sbin|sys|usr|var|home|opt)(\/|\s|$)/,
-  /\$home\b|\$\{home\}/,
-  /(^|\s)~(\/\*)?(\s|$)/, // ~  ou ~/*
+  /\$home\b|\$\{home\}|\$env:home\b/,
+  /(^|\s)~([\\/]\*?)?(\s|$)/, // ~  ~/  ~\  ~/*  ~\*
 ];
 
 interface Rule {
@@ -70,12 +74,15 @@ const BLOCK: Rule[] = [
   { re: /\badd-mppreference\b[^;|]*-exclusion/, reason: 'criar exclusão no antivírus (burlar o Defender)' },
   { re: /\bnetsh\b\s+advfirewall\b[^;|]*\bset\b[^;|]*\boff\b/, reason: 'desligar o firewall do Windows' },
   { re: /\bnetsh\b\s+firewall\b[^;|]*\bdisable\b/, reason: 'desligar o firewall do Windows' },
+  { re: /\bset-netfirewallprofile\b[^;|]*-enabled\s+(false|0|\$false)\b/, reason: 'desligar o firewall do Windows' },
+  { re: /\b(disable|stop)-(mpscanning|windefend)\b|\bset-mppreference\b[^;|]*-disable/, reason: 'desativar a proteção do Windows Defender' },
   { re: /\b(sc|net)\b[^\n]*\b(windefend|mpssvc|wscsvc)\b/, reason: 'desativar serviço de segurança do Windows' },
   // Baixar e executar
   { re: /\b(iwr|irm|invoke-webrequest|invoke-restmethod|curl|wget)\b[^|]*\|\s*(iex|invoke-expression|sh|bash|cmd|powershell|pwsh)\b/, reason: 'baixar e executar código da internet' },
   { re: /\b(iex|invoke-expression)\b[^\n]*\b(downloadstring|downloaddata|downloadfile|http|https|iwr|irm|invoke-webrequest|invoke-restmethod|net\.webclient)\b/, reason: 'executar código baixado da internet (Invoke-Expression)' },
   { re: /\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(sh|bash|zsh|python3?|perl)\b/, reason: 'baixar e executar código da internet' },
-  { re: /-encodedcommand\b|\s-enc\b|\s-e\s+[a-z0-9+/=]{16,}/, reason: 'comando PowerShell codificado (ofuscado)' },
+  { re: /(^|\s)-(e|en|enc|enco|encod|encode|encoded|encodedcommand)\s+[a-z0-9+/=]{6,}={0,2}(\s|$|[;|&])/, reason: 'comando PowerShell codificado (ofuscado)' },
+  { re: /-encodedcommand\b/, reason: 'comando PowerShell codificado (ofuscado)' },
   // Roubo de credenciais
   { re: /\bmimikatz\b|\bsekurlsa\b|\blogonpasswords\b/, reason: 'ferramenta de roubo de credenciais (mimikatz)' },
   { re: /\breg\b\s+save\s+(hklm|hkey_local_machine)\\?(sam|system|security)\b/, reason: 'extrair o banco de senhas do Windows (SAM/SYSTEM)' },
@@ -151,9 +158,14 @@ export function classifyCommand(command: string, shell: ShellKind): CommandClass
 /** Nomes de variável de ambiente que carregam segredos. */
 function isSecretEnvKey(name: string): boolean {
   const u = name.toUpperCase();
-  if (/(^|_)(API[_]?KEY|APIKEY|TOKEN|SECRET|PASSWORD|SENHA|PASSWD|CREDENTIAL|CREDENTIALS|PRIVATE[_]?KEY|ACCESS[_]?KEY|SECRET[_]?KEY|SESSION[_]?TOKEN|REFRESH[_]?TOKEN|CLIENT[_]?SECRET|AUTH[_]?TOKEN|PASSPHRASE|PAT)($|_)/.test(u)) return true;
-  if (/_(KEY|TOKEN|SECRET)$/.test(u)) return true;
-  if (/^(AWS|AZURE|GCP|GOOGLE|GITHUB|GH|GITLAB|OPENAI|ANTHROPIC|ELEVENLABS|PICOVOICE|BRAVE|TAVILY|SLACK|STRIPE|TWILIO|SENDGRID|DIGITALOCEAN|HEROKU|NPM|PYPI|DOCKER|CLOUDFLARE|VERCEL|NETLIFY|SUPABASE)_/.test(u)) return true;
+  // Termos sensíveis em QUALQUER posição do nome (pega PGPASSWORD, MYSQL_PWD, VAULT_TOKEN...).
+  if (/(PASSWORD|PASSWD|PASSPHRASE|PWD|SECRET|TOKEN|APIKEY|CREDENTIAL|PRIVATEKEY|SENHA|BEARER)/.test(u)) return true;
+  if (/(^|_)(API[_]?KEY|ACCESS[_]?KEY|SECRET[_]?KEY|CLIENT[_]?SECRET|AUTH[_]?TOKEN|PRIVATE[_]?KEY|PAT|KEY)($|_)/.test(u)) return true;
+  if (/_(KEY|TOKEN|SECRET|PWD|PASS|PASSWORD|CREDENTIALS?)$/.test(u)) return true;
+  // Strings de conexão de bancos/filas costumam embutir usuário e senha.
+  if (/(CONNECTION[_]?STRING|CONNSTR|DATABASE[_]?URL|DB[_]?URL|DSN)/.test(u)) return true;
+  if (/^(DATABASE|DB|POSTGRES(QL)?|PG|MYSQL|MARIADB|MONGO(DB)?|REDIS|AMQP|RABBITMQ|KAFKA|ELASTIC(SEARCH)?|CLICKHOUSE|SNOWFLAKE)_(URL|URI|DSN)$/.test(u)) return true;
+  if (/^(AWS|AZURE|GCP|GOOGLE|GITHUB|GH|GITLAB|OPENAI|ANTHROPIC|ELEVENLABS|PICOVOICE|BRAVE|TAVILY|SLACK|STRIPE|TWILIO|SENDGRID|DIGITALOCEAN|HEROKU|NPM|PYPI|DOCKER|CLOUDFLARE|VERCEL|NETLIFY|SUPABASE|HF|HUGGINGFACE|REPLICATE|COHERE|MISTRAL|GROQ|PERPLEXITY)_/.test(u)) return true;
   return false;
 }
 

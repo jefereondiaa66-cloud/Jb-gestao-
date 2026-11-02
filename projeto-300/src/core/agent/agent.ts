@@ -9,7 +9,9 @@
  * - Entrada de ferramenta é validada pelo esquema zod antes de rodar.
  * - Toda ferramenta passa pelo portão (política + confirmação + auditoria).
  * - Conteúdo externo é embrulhado como dado e "contamina" a tarefa: as
- *   próximas chamadas chegam ao portão com tainted = true.
+ *   próximas chamadas chegam ao portão com tainted = true. Como esse conteúdo
+ *   continua no histórico (o modelo segue lendo), a conversa inteira fica
+ *   contaminada a partir dali, também nos turnos seguintes.
  * - stop()/abort cancela o modelo e as ferramentas na hora.
  */
 import { z } from 'zod';
@@ -40,7 +42,7 @@ import type {
   ToolResultContent,
 } from '../types';
 import { newId, nowIso } from '../util/ids';
-import { attachmentsToParts } from './attachments';
+import { attachmentsToParts, MAX_IMAGE_BYTES, sniffImageType } from './attachments';
 
 type ToolCallPart = Extract<ContentPart, { type: 'tool_call' }>;
 type ToolResultPart = Extract<ContentPart, { type: 'tool_result' }>;
@@ -90,6 +92,7 @@ export const AGENT_TEXT = {
   notRunStepLimit: 'Ferramenta não executada: limite de etapas desta tarefa atingido.',
   truncatedInput: 'Ferramenta não executada: a entrada foi cortada pelo limite de tamanho da resposta. Tente de novo com uma entrada menor (por exemplo, divida em partes).',
   interrupted: 'Ferramenta não executada: o aplicativo foi interrompido antes do resultado.',
+  truncatedAnswer: '(A resposta foi cortada pelo limite de tamanho. Se quiser, peça para eu continuar.)',
 } as const;
 
 class ToolCancelled extends Error {}
@@ -104,6 +107,8 @@ interface Turn {
   actor: Actor;
   mode: 'text' | 'voice';
   signal: AbortSignal;
+  /** Reserva a conversa (nova ou continuação) para esta tarefa: outras tarefas nela esperam a vez. */
+  claim(conversationId: string): void;
 }
 
 const RESULT_PREVIEW = 160;
@@ -140,19 +145,32 @@ export class Agent {
     const ctrl = new AbortController();
     this.active.add(ctrl);
     const signal = input.signal ? AbortSignal.any([input.signal, ctrl.signal]) : ctrl.signal;
+    // Uma tarefa por conversa de cada vez (o histórico precisa ficar em ordem). Vale também para a
+    // conversa que esta tarefa cria ou abre ao recomeçar: quem chegar depois nela espera a vez.
+    let release!: () => void;
+    const mine = new Promise<void>((r) => (release = r));
+    const held = new Map<string, Promise<unknown>>();
+    const claim = (id: string): Promise<unknown> => {
+      const prev = this.queues.get(id);
+      if (held.has(id)) return Promise.resolve();
+      // A vez só passa adiante quando esta tarefa E as anteriores terminarem.
+      const slot = prev ? Promise.all([prev.catch(() => undefined), mine]) : mine;
+      this.queues.set(id, slot);
+      held.set(id, slot);
+      return prev ? prev.catch(() => undefined) : Promise.resolve();
+    };
     try {
       const id = input.conversationId;
-      if (!id) return await this.runTurn(input, signal);
-      // Uma tarefa por conversa de cada vez (o histórico precisa ficar em ordem).
-      const prev = this.queues.get(id) ?? Promise.resolve();
-      const next = prev.catch(() => undefined).then(() => this.runTurn(input, signal));
-      this.queues.set(id, next);
-      try {
-        return await next;
-      } finally {
-        if (this.queues.get(id) === next) this.queues.delete(id);
+      if (id) {
+        const wait = claim(id);
+        await raceAbort(wait, signal, () => new ToolCancelled(AGENT_TEXT.cancelled)).catch(() => undefined);
+        // Cancelada ainda na fila: nem começou, então não mexe no estado mostrado (outra tarefa pode estar rodando).
+        if (signal.aborted) return { conversationId: id, text: '', stopReason: 'cancelled' };
       }
+      return await this.runTurn(input, signal, (cid) => void claim(cid));
     } finally {
+      release();
+      for (const [id, slot] of held) if (this.queues.get(id) === slot) this.queues.delete(id);
       this.active.delete(ctrl);
     }
   }
@@ -160,13 +178,13 @@ export class Agent {
   /* ==================================================================
    * Turno
    * ================================================================ */
-  private async runTurn(input: AgentRunInput, signal: AbortSignal): Promise<SendResult> {
+  private async runTurn(input: AgentRunInput, signal: AbortSignal, claim: (conversationId: string) => void): Promise<SendResult> {
     const { services } = this.deps;
     const mode = input.mode ?? 'text';
     const actor: Actor = input.actor === 'scheduler' ? 'scheduler' : 'agent';
     const userText = input.text ?? '';
     let conversationId = input.conversationId ?? '';
-    const turn: Turn = { conversationId, history: [], tainted: false, shown: '', citations: new Map(), actor, mode, signal };
+    const turn: Turn = { conversationId, history: [], tainted: false, shown: '', citations: new Map(), actor, mode, signal, claim };
 
     this.emitState('THINKING');
     try {
@@ -181,11 +199,15 @@ export class Agent {
       else {
         const c = await services.conversations.create();
         conversationId = c.id;
+        claim(conversationId);
         this.deps.events.emit({ type: 'conversation', conversationId, ...(c.title ? { title: c.title } : {}) });
       }
       turn.conversationId = conversationId;
       await this.repairTail(turn);
-      if (historyChars(turn.history) > this.opts.rolloverChars || historyBinaryBytes(turn.history) > this.opts.rolloverBinaryBytes) await this.rollover(turn);
+      const big = historyChars(turn.history) > this.opts.rolloverChars || historyBinaryBytes(turn.history) > this.opts.rolloverBinaryBytes;
+      if (big) await this.rollover(turn);
+      // Conteúdo externo de turnos anteriores continua no contexto do modelo: a tarefa já começa contaminada.
+      if (historyTainted(turn.history)) turn.tainted = true;
       const firstExchange = !turn.history.some((m) => m.role === 'user');
 
       // 2) Fala do dono
@@ -198,7 +220,7 @@ export class Agent {
       await this.persist(turn, userMessage);
 
       // 3) Contexto do turno (data/hora, memórias, modo)
-      const memories = await this.searchMemories(userText);
+      const memories = await this.searchMemories(userText, signal);
       if (signal.aborted) return this.finishCancelled(turn);
       const contextText = buildTurnContext({
         now: this.opts.now(),
@@ -222,7 +244,8 @@ export class Agent {
       const maxSteps = settings.brain.maxToolSteps;
       let steps = 0;
       // Enquanto nenhuma resposta deste turno foi salva, dá para recomeçar numa conversa nova se o modelo disser que ficou grande demais.
-      let canRollover = true;
+      // Se este turno já recomeçou, recomeçar de novo só perderia o resumo (o excesso está na própria fala do dono).
+      let canRollover = !big;
 
       for (;;) {
         if (signal.aborted) return this.finishCancelled(turn);
@@ -265,6 +288,12 @@ export class Agent {
         const message = done.message;
         const calls = message.parts.filter((p): p is ToolCallPart => p.type === 'tool_call');
         if (calls.length === 0) {
+          if (done.stopReason === 'max_tokens') {
+            // Sem aviso, o dono veria uma resposta cortada (ou nada, se o limite acabou no raciocínio).
+            const note = AGENT_TEXT.truncatedAnswer;
+            this.emitBlock(turn, note);
+            message.parts = [...message.parts, { type: 'text', text: (textOfParts(message.parts) ? '\n\n' : '') + note }];
+          }
           const sources = mode === 'text' ? formatSources(turn.citations, turn.shown) : '';
           if (sources) {
             message.parts = [...message.parts, { type: 'text', text: sources }];
@@ -304,38 +333,58 @@ export class Agent {
   private async streamStep(provider: LlmProvider, req: LlmRequest, turn: Turn): Promise<DoneEvent | undefined> {
     let done: DoneEvent | undefined;
     let first = true;
-    for await (const ev of provider.stream(req)) {
-      if (turn.signal.aborted) return undefined;
-      switch (ev.type) {
-        case 'text_delta':
-          if (!ev.text) break;
-          if (first && turn.shown !== '' && !/\s$/.test(turn.shown)) this.emitDelta(turn, '\n\n');
-          first = false;
-          this.emitDelta(turn, ev.text);
-          break;
-        case 'server_tool': {
-          // Pesquisa/leitura na web feita pelo servidor do provedor: conteúdo externo entrou na tarefa.
-          turn.tainted = true;
-          const callId = newId('srv');
-          const title = ev.name === 'web_fetch' ? 'Leitura de página' : ev.name === 'web_search' ? 'Pesquisa na web' : ev.name;
-          const detail = oneLine(ev.detail, 200);
-          this.deps.events.emit({ type: 'tool_start', callId, name: ev.name, title, description: detail || title, risk: 'read' });
-          this.deps.events.emit({ type: 'tool_end', callId, name: ev.name, ok: true, summary: detail ? `${title}: ${detail}` : title });
-          break;
-        }
-        case 'citation':
-          if (/^https?:\/\//i.test(ev.url) && !turn.citations.has(ev.url)) turn.citations.set(ev.url, ev.title);
-          break;
-        case 'done':
+    const it = provider.stream(req)[Symbol.asyncIterator]();
+    try {
+      for (;;) {
+        // Cancelamento imediato mesmo se o provedor demorar para notar o sinal.
+        const r = await raceAbort(it.next(), turn.signal, () => new LlmError('cancelado', AGENT_TEXT.cancelled, { provider: provider.id }));
+        if (r.done) break;
+        const ev = r.value;
+        if (turn.signal.aborted) return undefined;
+        if (ev.type === 'done') {
           done = ev;
-          break;
-        default:
-          break;
+          continue;
+        }
+        this.onStreamEvent(ev, turn, first);
+        if (ev.type === 'text_delta' && ev.text) first = false;
       }
+    } catch (e) {
+      if (turn.signal.aborted) return undefined;
+      throw e;
+    } finally {
+      // Fecha o fluxo (o provedor encerra a conexão) sem esperar.
+      void Promise.resolve()
+        .then(() => it.return?.())
+        .catch(() => undefined);
     }
     if (turn.signal.aborted) return undefined;
     if (!done) throw new LlmError('servidor', 'O modelo encerrou a resposta sem concluir. Tente de novo.', { provider: provider.id });
     return done;
+  }
+
+  private onStreamEvent(ev: Exclude<LlmStreamEvent, DoneEvent>, turn: Turn, first: boolean): void {
+    switch (ev.type) {
+      case 'text_delta':
+        if (!ev.text) break;
+        if (first && turn.shown !== '' && !/\s$/.test(turn.shown)) this.emitDelta(turn, '\n\n');
+        this.emitDelta(turn, ev.text);
+        break;
+      case 'server_tool': {
+        // Pesquisa/leitura na web feita pelo servidor do provedor: conteúdo externo entrou na tarefa.
+        turn.tainted = true;
+        const callId = newId('srv');
+        const title = serverToolTitle(ev.name);
+        const detail = oneLine(ev.detail, 200);
+        this.deps.events.emit({ type: 'tool_start', callId, name: ev.name, title, description: detail || title, risk: 'read' });
+        this.deps.events.emit({ type: 'tool_end', callId, name: ev.name, ok: true, summary: detail ? `${title}: ${detail}` : title });
+        break;
+      }
+      case 'citation':
+        if (/^https?:\/\//i.test(ev.url) && !turn.citations.has(ev.url)) turn.citations.set(ev.url, ev.title);
+        break;
+      default:
+        break;
+    }
   }
 
   /* ==================================================================
@@ -369,7 +418,7 @@ export class Agent {
       const msg = tool
         ? `A ferramenta "${call.name}" não está disponível agora (desativada nas configurações ou sem o serviço necessário).`
         : `A ferramenta "${call.name}" não existe. Use apenas as ferramentas disponíveis${list ? `: ${list}` : ''}.`;
-      this.toolEvents(call, call.name, msg, 'read', false, tool ? 'Indisponível' : 'Ferramenta desconhecida');
+      this.toolEvents(call, oneLine(call.name, 64), msg, 'read', false, tool ? 'Indisponível' : 'Ferramenta desconhecida');
       return errorResult(call, msg);
     }
 
@@ -427,14 +476,23 @@ export class Agent {
     }
 
     // Execução com cancelamento imediato e tempo máximo.
+    // O tempo esperando o dono responder a uma confirmação (ctx.confirm) não conta:
+    // o pedido de confirmação já tem o próprio prazo.
     const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(new ToolTimedOut('tempo esgotado')), this.opts.toolTimeoutMs);
+    const deadline = pausableTimer(this.opts.toolTimeoutMs, () => timeout.abort(new ToolTimedOut('tempo esgotado')));
     const toolSignal = AbortSignal.any([turn.signal, timeout.signal]);
     const ctx: ToolContext = {
       signal: toolSignal,
       actor: turn.actor,
       conversationId: turn.conversationId,
-      confirm: (title, desc, r) => this.confirmFromTool(tool, title, desc, r, turn, toolSignal),
+      confirm: async (title, desc, r) => {
+        deadline.pause();
+        try {
+          return await this.confirmFromTool(tool, title, desc, r, turn, toolSignal);
+        } finally {
+          deadline.resume();
+        }
+      },
       log: (m) => services.logger.info(`[ferramenta ${call.name}] ${m}`),
       services,
     };
@@ -469,7 +527,7 @@ export class Agent {
       events.emit({ type: 'tool_end', callId: call.id, name: call.name, ok, summary });
       return result;
     } finally {
-      clearTimeout(timer);
+      deadline.clear();
     }
   }
 
@@ -487,12 +545,19 @@ export class Agent {
     const limit = this.opts.maxToolOutputChars;
     const texts: string[] = [];
     const images: ToolResultContent[] = [];
+    const dropped: string[] = [];
     for (const c of Array.isArray(output?.content) ? output.content : []) {
       if (c && c.type === 'text' && typeof c.text === 'string') texts.push(c.text);
-      else if (c && c.type === 'image' && typeof c.data === 'string' && /^image\/(png|jpeg|webp|gif)$/.test(c.mediaType)) images.push(c);
+      else if (c && c.type === 'image' && typeof c.data === 'string') {
+        // Imagem com tipo errado ou grande demais faria a API recusar este e todos os próximos pedidos da conversa.
+        const img = checkToolImage(c.data);
+        if (typeof img === 'string') dropped.push(img);
+        else images.push(img);
+      }
     }
     let text = texts.join('\n');
     if (text.length > limit) text = text.slice(0, limit) + `\n[saída cortada: ${text.length - limit} caracteres omitidos]`;
+    if (dropped.length) text = (text ? text + '\n' : '') + dropped.map((d) => `[${d}]`).join('\n');
     const content: ToolResultContent[] = [];
     if (output?.untrusted) {
       turn.tainted = true;
@@ -578,6 +643,7 @@ export class Agent {
     if (!summary.trim()) summary = transcriptOf(turn.history, 8_000);
     const created = await services.conversations.create('Continuação da conversa anterior');
     turn.conversationId = created.id;
+    turn.claim(created.id);
     turn.history = [];
     // O resumo pode conter trechos de conteúdo externo: entra como dado.
     turn.tainted = true;
@@ -596,7 +662,7 @@ export class Agent {
     events.emit({ type: 'conversation', conversationId: created.id, title: created.title || 'Continuação da conversa anterior' });
   }
 
-  private async searchMemories(text: string): Promise<MemorySearchResult[]> {
+  private async searchMemories(text: string, signal: AbortSignal): Promise<MemorySearchResult[]> {
     if (!text.trim()) return [];
     const { memory, logger } = this.deps.services;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -604,9 +670,12 @@ export class Agent {
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('tempo esgotado')), this.opts.memoryTimeoutMs);
       });
-      const res = await Promise.race([memory.search({ text, limit: 6 }), timeout]);
+      // stop() não espera a busca terminar.
+      const search = Promise.race([Promise.resolve().then(() => memory.search({ text, limit: 6 })), timeout]);
+      const res = await raceAbort(search, signal, () => new ToolCancelled(AGENT_TEXT.cancelled));
       return Array.isArray(res) ? res.slice(0, 6) : [];
     } catch (e) {
+      if (signal.aborted) return [];
       logger.warn('memória indisponível neste turno', shortDetail(e));
       return [];
     } finally {
@@ -689,6 +758,88 @@ export class Agent {
 /* ======================================================================
  * Funções auxiliares
  * ==================================================================== */
+/** Temporizador que pode ser pausado (aninhável) e retomado com o tempo que faltava. */
+function pausableTimer(ms: number, onExpire: () => void): { pause(): void; resume(): void; clear(): void } {
+  let remaining = ms;
+  let startedAt = Date.now();
+  let paused = 0;
+  let finished = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const fire = () => {
+    timer = undefined;
+    if (finished) return;
+    finished = true;
+    onExpire();
+  };
+  timer = setTimeout(fire, ms);
+  return {
+    pause() {
+      if (finished) return;
+      if (paused++ === 0 && timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+        remaining -= Date.now() - startedAt;
+      }
+    },
+    resume() {
+      if (finished || paused === 0) return;
+      if (--paused === 0) {
+        startedAt = Date.now();
+        timer = setTimeout(fire, Math.max(0, remaining));
+      }
+    },
+    clear() {
+      finished = true;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    },
+  };
+}
+
+/** Valida uma imagem devolvida por ferramenta: tipo real pelos bytes e tamanho máximo. Texto = motivo da recusa. */
+function checkToolImage(raw: string): ToolResultContent | string {
+  const comma = raw.startsWith('data:') ? raw.indexOf(',') : -1;
+  const data = (comma >= 0 ? raw.slice(comma + 1) : raw).replace(/\s+/g, '');
+  const head = Buffer.from(data.slice(0, 64), 'base64');
+  const mediaType = sniffImageType(head);
+  if (!mediaType) return 'imagem omitida: formato inválido (só PNG, JPEG, WebP ou GIF)';
+  const bytes = Math.floor((data.length * 3) / 4);
+  if (bytes > MAX_IMAGE_BYTES) return `imagem omitida: grande demais (${Math.round(bytes / 1024 / 1024)} MB; máximo 5 MB)`;
+  return { type: 'image', mediaType, data };
+}
+
+/** Rótulo pt-BR para as ferramentas que o próprio servidor do provedor executa. */
+function serverToolTitle(name: string): string {
+  if (name === 'web_search') return 'Pesquisa na web';
+  if (name === 'web_fetch') return 'Leitura de página';
+  if (/code_execution/.test(name)) return 'Análise dos resultados da web';
+  return oneLine(name, 64) || 'Ferramenta do servidor';
+}
+
+const EXTERNAL_NATIVE = /^(server_tool_use|mcp_tool_use|web_search_call|file_search_call|mcp_call)$|_tool_result$/;
+
+/**
+ * O histórico já tem conteúdo externo que o modelo continua lendo?
+ * (resultados embrulhados, anexos, resumo de conversa anterior, pesquisas feitas pelo servidor do provedor)
+ */
+export function historyTainted(history: ChatMessage[]): boolean {
+  for (const m of history) {
+    for (const p of m.parts) {
+      if (p.type === 'text' && p.text.includes('<conteudo_externo')) return true;
+      if (m.role === 'user' && (p.type === 'image' || p.type === 'document')) return true;
+      if (p.type === 'tool_result' && p.content.some((c) => c.type === 'text' && c.text.includes('<conteudo_externo'))) return true;
+    }
+    const native = m.role === 'assistant' ? m.native?.content : undefined;
+    if (Array.isArray(native)) {
+      for (const b of native) {
+        const t = typeof b === 'object' && b !== null ? (b as { type?: unknown }).type : undefined;
+        if (typeof t === 'string' && EXTERNAL_NATIVE.test(t)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function errorResult(call: ToolCallPart, text: string): ToolResultPart {
   return { type: 'tool_result', toolCallId: call.id, name: call.name, content: [{ type: 'text', text }], isError: true };
 }
@@ -804,7 +955,9 @@ function formatSources(citations: Map<string, string | undefined>, alreadyShown:
   if (!list.length) return '';
   const lines = list.map(([url, title]) => {
     const label = oneLine(title || url, 120).replace(/[[\]]/g, '');
-    return `- [${label}](${url})`;
+    // Parênteses, espaços e < > quebrariam o link em Markdown.
+    const href = url.replace(/[()<>\s]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+    return `- [${label}](${href})`;
   });
   return `\n\nFontes:\n${lines.join('\n')}`;
 }
