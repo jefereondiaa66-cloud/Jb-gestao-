@@ -621,6 +621,13 @@ fieldset.sec legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--ard
 .chk label{display:flex;gap:7px;align-items:center;font-size:13px;color:var(--tinta);font-weight:400}
 .linhas .ln{display:grid;grid-template-columns:140px 1fr 120px 34px;gap:6px;margin-bottom:6px}
 .linhas input{padding:6px 8px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco);min-width:0}
+/* V69 · paradas lançadas no próprio lançamento da maromba */
+.parm .par-ln{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--linha);font-size:13px}
+.parm .par-nova{display:grid;grid-template-columns:110px 110px 1fr 1fr auto;gap:6px;border-bottom:none;padding:3px 0}
+.parm .par-nova input,.parm .par-nova select{padding:6px 8px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco);min-width:0;font:inherit}
+.parm .par-bts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.parm .par-res{margin-top:8px;font-size:12.5px;color:var(--suave)}
+@media (max-width:640px){.parm .par-nova{grid-template-columns:1fr 1fr;padding:8px 0;border-bottom:1px solid var(--linha)}.parm .par-nova select,.parm .par-nova [data-parc=obs]{grid-column:1/-1}}
 .abas{display:flex;gap:2px;border-bottom:1px solid var(--linha);margin-bottom:14px;overflow-x:auto}
 .abas button{background:none;border:none;padding:9px 12px;cursor:pointer;color:var(--suave);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
 .abas button.on{color:var(--tinta);border-color:var(--brasa)}
@@ -15048,6 +15055,7 @@ MODS.pmaromba={titulo:'Maromba',sing:'lançamento da maromba',ic:'caixa',
   {k:'perdas',l:'Perdas na maromba (tijolos)',t:'num',s:'Produção'},
   {k:'motivoPerda',l:'Motivo das perdas',t:'txt',sh:r=>n0(r.perdas)>0,s:'Produção'},
   {k:'_calc',l:'Cálculo',t:'html',vivo:1,w2:1,calc:htmlCalcMar,s:'Produção'},
+  {k:'_paradas',l:'Intervalos em que a máquina parou',t:'html',vivo:1,w2:1,calc:r=>htmlParadasMar(r),aj:'Quebra, manutenção, falta de barro, falta de energia… Explica por que a produção do dia baixou. O intervalo de refeição não conta como falha.',s:'Paradas da máquina'},
   {k:'criadoPor',l:'Registrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
  cols:[{k:'data',l:'Data',t:'data'},{k:'turno',l:'Turno'},
@@ -15057,6 +15065,7 @@ MODS.pmaromba={titulo:'Maromba',sing:'lançamento da maromba',ic:'caixa',
   {k:'_l',l:'Líquida',t:'num',v:r=>'<b>'+esc(fT(calcMar(r).liquida))+'</b>',o:r=>calcMar(r).liquida},
   {k:'_h',l:'Horas efetivas',v:r=>{const c=calcMar(r);return c.trab?esc(fHm(c.efet)):'—'},o:r=>calcMar(r).efet},
   {k:'_m',l:'Tijolos/hora',t:'num',v:r=>{const c=calcMar(r);return c.porHora==null?'—':esc(fT(c.porHora))},o:r=>calcMar(r).porHora||0},
+  {k:'_par',l:'Paradas',v:r=>{const t=txtParadas(r.data,r.turno);return t?esc(t):'—'},o:r=>calcMar(r).parFalha},
   {k:'operador',l:'Operador'},
   {k:'situacao',l:'Situação',v:r=>tagP(r.situacao)}],
  filtros:[{k:'situacao',l:'Situação',op:[CONF,PEND]},{k:'turno',l:'Turno',op:()=>pc().turnos},{k:'data',l:'Data',t:'periodo',campo:'data'}],
@@ -15127,6 +15136,92 @@ MODS.pparadas={titulo:'Paradas da maromba',sing:'parada',ic:'relogio',
   const tab=(tit,o)=>Object.keys(o).length?`<div class="painel tabwrap" style="margin-bottom:14px"><table class="tbl"><thead><tr><th>${tit}</th><th class="num">Ocorrências</th><th class="num">Tempo parado</th><th class="num">% das paradas</th></tr></thead><tbody>${Object.entries(o).sort((a,b)=>b[1].m-a[1].m).map(([k,x])=>`<tr><td>${esc(k)}</td><td class="num">${x.n}</td><td class="num">${fHm(x.m)}</td><td class="num">${tf?fNum(x.m/tf*100,1)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>`:'';
   return `<div class="resumo">${b(fHm(tf),'Tempo parado (sem refeição)')}${b(fal.length,'Ocorrências')}${b(fHm(soma(ref,p=>dur(p.inicio,p.fim))),'Intervalos de refeição')}${b(trab?fNum(tf/trab*100,1)+'%':'—','Do tempo de turno lançado na maromba')}</div>${tab('Motivo',porMot)}${tab('Turno',porTur)}`},
  semExcluir:false};
+
+/* ---------- V69: paradas lançadas junto com a produção da maromba ----------
+   No próprio lançamento a pessoa informa os intervalos em que a máquina parou (quebra,
+   manutenção, falta de barro…). Cada intervalo é gravado como uma parada comum, na mesma
+   lista da tela "Paradas da maromba": horas efetivas, tijolos/hora e relatórios continuam
+   saindo dos mesmos cálculos, sem tabela nova e sem mexer em lançamentos antigos. */
+let ST_PAR=null;
+const parDoTurno=(data,turno)=>DATA.pparadas.filter(p=>p.data===data&&p.turno===turno).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
+const novasPar=st=>Array.isArray(st._novasParadas)?st._novasParadas:[];
+/* resumo das falhas do dia/turno: "1h30 · Quebra ou manutenção da maromba 1h; Falta de energia 30min" */
+function txtParadas(data,turno){
+ const fal=parDoTurno(data,turno).filter(p=>!ehRefeicao(p.motivo));if(!fal.length)return '';
+ const pm={};fal.forEach(p=>{pm[p.motivo||'Sem motivo']=(pm[p.motivo||'Sem motivo']||0)+dur(p.inicio,p.fim)});
+ const tot=soma(Object.values(pm),x=>x);
+ return fHm(tot)+' · '+Object.entries(pm).sort((a,b)=>b[1]-a[1]).map(([m,x])=>m+(Object.keys(pm).length>1?' '+fHm(x):'')).join('; ');
+}
+function errosNovasPar(st){
+ const er=[];const ex=st.data&&st.turno?parDoTurno(st.data,st.turno):[];const lst=novasPar(st);
+ lst.forEach((p,i)=>{const n='Parada '+(i+1)+': ';
+  if(!p.inicio&&!p.fim&&!p.motivo)return;
+  if(!p.inicio||!p.fim){er.push(n+'informe o início e o fim.');return}
+  if(p.inicio===p.fim){er.push(n+'o fim precisa ser diferente do início.');return}
+  if(!p.motivo){er.push(n+'escolha o motivo.');return}
+  const sob=ex.find(x=>sobrepoe(p.inicio,p.fim,x.inicio,x.fim)>0)||lst.find((x,j)=>j<i&&x.inicio&&x.fim&&sobrepoe(p.inicio,p.fim,x.inicio,x.fim)>0);
+  if(sob){er.push(n+'o horário se sobrepõe a outra parada ('+sob.inicio+'–'+sob.fim+').');return}
+  if(ehRefeicao(p.motivo)&&(ex.some(x=>ehRefeicao(x.motivo))||lst.some((x,j)=>j<i&&ehRefeicao(x.motivo))))er.push(n+'o intervalo de refeição deste dia e turno já foi lançado.');
+ });
+ return er;
+}
+function resumoParMar(st){
+ const tudo=[...(st.data&&st.turno?parDoTurno(st.data,st.turno):[]),...novasPar(st).filter(p=>p.inicio&&p.fim&&p.inicio!==p.fim)];
+ if(!tudo.length)return 'Nenhuma parada neste dia e turno.';
+ const min=p=>st.horaInicio&&st.horaFim?sobrepoe(st.horaInicio,st.horaFim,p.inicio,p.fim):dur(p.inicio,p.fim);
+ const fal=soma(tudo.filter(p=>!ehRefeicao(p.motivo)),min),ref=soma(tudo.filter(p=>ehRefeicao(p.motivo)),min);
+ const trab=st.horaInicio&&st.horaFim?dur(st.horaInicio,st.horaFim):0;
+ return `Máquina parada por falha: <b>${fHm(fal)}</b>${ref?` · refeição: <b>${fHm(ref)}</b>`:''}${trab?` · horas efetivas: <b>${fHm(Math.max(0,trab-fal-ref))}</b> de ${fHm(trab)}`:''}`;
+}
+function htmlParadasMar(st){
+ ST_PAR=st;
+ const ro=!pode('pmaromba','e')||!pode('pparadas','e')||(st.travado===true&&!podeDestravar());
+ const ex=st.data&&st.turno?parDoTurno(st.data,st.turno):[];const lst=novasPar(st);const C=pc();
+ const lnEx=p=>`<div class="par-ln"><span><b>${esc(p.inicio)}–${esc(p.fim)}</b> · ${esc(fHm(dur(p.inicio,p.fim)))} · ${esc(p.motivo||'')}${ehRefeicao(p.motivo)?' '+pTxt('refeição','in'):''}${p.obs?' · <small>'+esc(p.obs)+'</small>':''}</span><a href="#/pparadas/${esc(p.id)}" class="btn min">Abrir</a></div>`;
+ const lnNova=(p,i)=>`<div class="par-ln par-nova" data-pari="${i}">
+  <input type="time" data-parc="inicio" value="${esc(p.inicio||'')}" aria-label="Início da parada ${i+1}" title="Parou às">
+  <input type="time" data-parc="fim" value="${esc(p.fim||'')}" aria-label="Fim da parada ${i+1}" title="Voltou às">
+  <select data-parc="motivo" aria-label="Motivo da parada ${i+1}"><option value="">Motivo…</option>${C.motivosParada.map(m=>`<option value="${esc(m)}" ${m===p.motivo?'selected':''}>${esc(m)}</option>`).join('')}</select>
+  <input data-parc="obs" value="${esc(p.obs||'')}" placeholder="O que aconteceu (opcional)" aria-label="Detalhe da parada ${i+1}">
+  <button type="button" class="btn min perigo" data-parrm="${i}" aria-label="Tirar a parada ${i+1}">Tirar</button></div>`;
+ const temRef=ex.some(p=>ehRefeicao(p.motivo))||lst.some(p=>ehRefeicao(p.motivo));
+ const bts=ro?'':`<div class="par-bts"><button type="button" class="btn min" data-paradd>${ic('mais')}Adicionar parada</button>${C.refeicaoIni&&C.refeicaoFim&&!temRef?`<button type="button" class="btn min" data-parref>Intervalo de refeição (${esc(C.refeicaoIni)}–${esc(C.refeicaoFim)})</button>`:''}</div>`;
+ if(!st.data||!st.turno)return '<span class="ajuda">Informe a data e o turno para ver e lançar as paradas.</span>';
+ return `<div class="parm">${ex.map(lnEx).join('')}${ro?'':lst.map(lnNova).join('')}${!ex.length&&!lst.length?'<div class="ajuda">Nenhuma parada lançada. Se a máquina parou, clique em “Adicionar parada”.</div>':''}${bts}<div class="par-res" data-parres>${resumoParMar(st)}</div></div>`;
+}
+(()=>{
+ const caixa=el=>el.closest('[data-calc="_paradas"]');
+ const redesenha=el=>{const c=caixa(el);if(c&&ST_PAR)c.innerHTML=htmlParadasMar(ST_PAR);if(GAV)GAV.sujo=true};
+ const muda=e=>{const el=e.target.closest&&e.target.closest('[data-parc]');if(!el||!ST_PAR||!caixa(el))return;
+  const i=+el.closest('[data-pari]').dataset.pari;const l=novasPar(ST_PAR);if(!l[i])return;l[i][el.dataset.parc]=el.value;if(GAV)GAV.sujo=true;
+  const r=caixa(el).querySelector('[data-parres]');if(r)r.innerHTML=resumoParMar(ST_PAR)};
+ document.addEventListener('input',muda);document.addEventListener('change',muda);
+ document.addEventListener('click',e=>{if(!ST_PAR||!e.target.closest)return;
+  const a=e.target.closest('[data-paradd],[data-parref],[data-parrm]');if(!a||!caixa(a))return;e.preventDefault();
+  ST_PAR._novasParadas=novasPar(ST_PAR);const C=pc();
+  if(a.dataset.paradd!==undefined)ST_PAR._novasParadas.push({inicio:'',fim:'',motivo:'',obs:''});
+  else if(a.dataset.parref!==undefined)ST_PAR._novasParadas.push({inicio:C.refeicaoIni,fim:C.refeicaoFim,motivo:C.motivosParada.find(ehRefeicao)||'Intervalo de refeição',obs:''});
+  else ST_PAR._novasParadas.splice(+a.dataset.parrm,1);
+  const box=caixa(a);redesenha(a);
+  if(a.dataset.paradd!==undefined&&!matchMedia('(pointer:coarse)').matches){const ins=box.querySelectorAll('.par-nova input[type=time]');if(ins.length>1)ins[ins.length-2].focus()}});
+})();
+/* validação: as paradas novas entram na conferência do lançamento */
+{const v0=MODS.pmaromba.validar;
+ MODS.pmaromba.validar=function(st){const e=v0.call(this,st)||{};const er=errosNovasPar(st);if(er.length)e._paradas=er.join(' ');
+  if(!er.length&&st.horaInicio&&st.horaFim){const fora=novasPar(st).filter(p=>p.inicio&&p.fim&&sobrepoe(st.horaInicio,st.horaFim,p.inicio,p.fim)<dur(p.inicio,p.fim));
+   if(fora.length){const t='Há parada(s) fora do horário do turno ('+st.horaInicio+'–'+st.horaFim+'): só a parte dentro do turno desconta das horas.';e._aviso=e._aviso?e._aviso+' '+t:t}}
+  return e}}
+/* depois de gravar o lançamento, grava cada parada nova como parada comum (com histórico) */
+{const ag0=MODS.pmaromba.aposGravar;
+ MODS.pmaromba.aposGravar=function(rec,ant){if(ag0){try{ag0.call(this,rec,ant)}catch(e){console.warn(e)}}
+  const st=ST_PAR;if(!st||st.id!==rec.id)return;
+  const lst=novasPar(st).filter(p=>p.inicio&&p.fim&&p.motivo&&p.inicio!==p.fim);st._novasParadas=[];if(!lst.length)return;
+  (async()=>{let ok=0;
+   for(const p of lst){try{await gravarRegistro('pparadas',{...MODS.pparadas.padrao(),id:novoId(),data:rec.data,turno:rec.turno,inicio:p.inicio,fim:p.fim,motivo:p.motivo,obs:p.obs||''},null,true);ok++}catch(e){console.error('parada',e)}}
+   if(ok<lst.length)toast((lst.length-ok)+' parada(s) não foram gravadas. Lance pela tela Paradas da maromba.','erro',true);
+   else toast(ok===1?'Parada registrada junto com a produção.':ok+' paradas registradas junto com a produção.','ok');
+   try{renderTela()}catch(e){}})();
+ }}
 
 /* ---------- secagem: movimentações manuais (contagem inicial, perdas e ajustes) ---------- */
 const MOVS_SEC=['Contagem inicial','Perda','Ajuste'];
@@ -15387,7 +15482,7 @@ function inicioProd(c){
    ${k('c5','chama','Fornadas abertas',String(N.abertas),N.pendF?N.pendF+' enforna(s) pendente(s) de confirmação':'todas confirmadas','#/pfornadas')}
   </div>
   <div class="ex2">
-   <div class="bloco"><h3>Produção de hoje<a href="#/pmaromba">Maromba</a></h3>${lstV([...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||''))).map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.')}</div>
+   <div class="bloco"><h3>Produção de hoje<a href="#/pmaromba">Maromba</a></h3>${lstV([...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||''))).map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(txtParadas(r.data,r.turno)?' · parado '+txtParadas(r.data,r.turno):'')+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.')}</div>
    <div class="bloco"><h3>Situação dos fornos<a href="#/pfornadas">Fornadas</a></h3>${lstV(fornosLst,'Nenhum forno cadastrado no Setor da Lenha.')}</div>
    <div class="bloco"><h3>Paradas de hoje${N.parH.length?`<span class="n">${N.parH.length}</span>`:''}<a href="#/pparadas">Paradas</a></h3>${lstV(N.parH.sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map(p=>({href:'#/pparadas/'+p.id,ic:'relogio',cls:ehRefeicao(p.motivo)?'':'a-pe',t:p.motivo,s:p.turno+' · '+p.inicio+'–'+p.fim,v:fHm(dur(p.inicio,p.fim))})),'Nenhuma parada registrada hoje.')}</div>
   </div>`;
@@ -15684,8 +15779,8 @@ const RELS_P=[
    total:false,nota:'Só lançamentos confirmados, exceto a última linha. Lenha de referência é estimativa pela regra '+pc().lenhaRef.lenha+'/'+pc().lenhaRef.carregado+'; unidade da lenha não convertida.'}}},
  {id:'rp_dia',n:'Produção da maromba por dia',m:'prel',f:['rapido','periodo'],b:U=>{const g={};DATA.pmaromba.filter(r=>noPer(r.data,U)).forEach(r=>{const x=g[r.data]||(g[r.data]={data:r.data,n:0,grades:0,bruta:0,perdas:0,liq:0,ef:0,par:0,pend:0});
    if(!conf(r)){x.pend+=calcMar(r).liquida;return}const c=calcMar(r);x.n++;x.grades+=n0(r.grades);x.bruta+=c.bruta;x.perdas+=c.perdas;x.liq+=c.liquida;x.ef+=c.efet;x.par+=c.parFalha});
-  return{cols:[{k:'data',l:'Data',t:'data'},{k:'n',l:'Lançamentos',t:'num'},{k:'grades',l:'Grades',t:'num'},{k:'bruta',l:'Bruta',t:'num'},{k:'perdas',l:'Perdas',t:'num'},{k:'liq',l:'Líquida',t:'num'},{k:'ef',l:'Horas efetivas',t:'hm'},{k:'par',l:'Parado (falhas)',t:'hm'},{k:'th',l:'Tijolos/hora',t:'num',semTotal:1},{k:'pend',l:'Pendente de confirmação',t:'num'}],
-   rows:Object.values(g).sort((a,b)=>a.data.localeCompare(b.data)).map(x=>({...x,th:x.ef?Math.round(x.liq/(x.ef/60)):''})),total:true,nota:'Período: '+perTxt(U)+'. Valores confirmados; a última coluna mostra o que ainda está pendente e não entra nos totais de produção.'}}},
+  return{cols:[{k:'data',l:'Data',t:'data'},{k:'n',l:'Lançamentos',t:'num'},{k:'grades',l:'Grades',t:'num'},{k:'bruta',l:'Bruta',t:'num'},{k:'perdas',l:'Perdas',t:'num'},{k:'liq',l:'Líquida',t:'num'},{k:'ef',l:'Horas efetivas',t:'hm'},{k:'par',l:'Parado (falhas)',t:'hm'},{k:'mot',l:'Motivos das paradas',semTotal:1},{k:'th',l:'Tijolos/hora',t:'num',semTotal:1},{k:'pend',l:'Pendente de confirmação',t:'num'}],
+   rows:Object.values(g).sort((a,b)=>a.data.localeCompare(b.data)).map(x=>({...x,th:x.ef?Math.round(x.liq/(x.ef/60)):'',mot:[...new Set(DATA.pparadas.filter(p=>p.data===x.data&&!ehRefeicao(p.motivo)).map(p=>p.motivo))].join('; ')})),total:true,nota:'Período: '+perTxt(U)+'. Valores confirmados; a última coluna mostra o que ainda está pendente e não entra nos totais de produção.'}}},
  {id:'rp_perdas',n:'Perdas por etapa',m:'prel',f:['rapido','periodo'],b:U=>{const rows=[];const add=(et,mot,q)=>{if(q>0)rows.push({et,mot:mot||'Sem motivo',q})};
   const g=(lst,et,mot,q)=>{const o={};lst.forEach(x=>{const k=mot(x);o[k]=(o[k]||0)+q(x)});Object.entries(o).forEach(([k,v])=>add(et,k,v))};
   g(DATA.pmaromba.filter(r=>conf(r)&&noPer(r.data,U)),'Maromba',r=>r.motivoPerda,r=>n0(r.perdas));
