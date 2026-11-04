@@ -18308,7 +18308,7 @@ function detalheE(c,e){
   <div class="vv-grade">
    <section class="bloco"><h3>Dados da entrada</h3>${kvV([['Data',esc(fData(e.data))],['Fornecedor',esc(nomeFornA(e.fornecedorId))],['CPF/CNPJ',esc(forn?fmtDoc(forn.doc)||'—':'—')],['Nota ou cupom',esc(e.nota||'—')],
      ['Pagamento',esc(formaTxt(e))],e.totalNota!=null&&e.totalNota!==''?['Total da nota',esc(fMoeda(e.totalNota))+(ig(e.totalNota,e.total)?'':' <span class="tag at">diferente do total lançado</span>')]:null,
-     ['Foto do cupom',e.anexo&&e.anexo.id?`<a href="/_blob/${esc(e.anexo.id)}" target="_blank" rel="noopener">${esc(e.anexo.nome||'arquivo')}</a>`:'<span class="tag at">sem foto</span>'],['Recebido por',esc(e.recebedor||'—')],['Lançado por',esc(quem(e)||'—')],['Registrado em',esc(fDataHora(e.criadoEm||e.lancadoEm||e.createdAt))],e.obs?['Observações',esc(e.obs),1]:null])}</section>
+     ['Foto do cupom',(e.anexos&&e.anexos.length>1?e.anexos:[e.anexo]).filter(a=>a&&a.id).map(a=>`<a href="/_blob/${esc(a.id)}" target="_blank" rel="noopener">${esc(a.nome||'arquivo')}</a>`).join('<br>')||'<span class="tag at">sem foto</span>'],e.ia?['Lançamento por foto',esc('Lido por IA'+(e.ia.numero?' · documento nº '+e.ia.numero:'')+(e.ia.emissao?' · emissão '+fData(e.ia.emissao):'')+((e.ia.pendencias||[]).length?' · ficou para completar: '+e.ia.pendencias.join(', '):''))]:null,['Recebido por',esc(e.recebedor||'—')],['Lançado por',esc(quem(e)||'—')],['Registrado em',esc(fDataHora(e.criadoEm||e.lancadoEm||e.createdAt))],e.obs?['Observações',esc(e.obs),1]:null])}</section>
    <section class="bloco"><h3>Conta a pagar no Financeiro${pode('fpagar')?'<a href="#/fpagar">Contas a pagar</a>':''}</h3>${kvV([['Situação',tagFin(f)],['Total',esc(fMoeda(e.total))],['Pago',esc(fMoeda(f.pago))],['Saldo',esc(fMoeda(f.saldo))],f.venc?['Próximo vencimento',esc(fData(f.venc))]:null])}
     ${tabTitulos(f)}${!podePagarFin()&&f.saldo>0?'<p class="ajuda" style="margin:0 17px 14px">O pagamento é registrado no Setor Financeiro.</p>':''}</section>
    <section class="bloco w2"><h3>Itens recebidos</h3>${tabela(['Item','Categoria',['Quantidade',1],'Un.',['Preço unit.',1],['Frete rateado',1],['Total',1]],
@@ -19129,7 +19129,741 @@ posSalvarV=function(mod,rec,ant){
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();location.hash='#/almMov'},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
+/* V57: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
+window.ALM_IA_BASE={ITEM,FORNA,estI,un,rotItem,ativo,CAT_NOMES,UNIDS,normT,proxCodigo,sincFinEntrada,catAlm,juntarLinhasE,conferirE,calcE,finDe,tagFin,TIT,shellS,cab,ABA_ALM,respP,fmtDoc,nomeFornA,SETS};
 window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,cfgPal,sugestaoPaletes,prazo:modalPrazoPal,inventario:modalInvPal,cobrar:k=>modalCobranca(calcPal().C[k])};
+})();
+</script>
+<style id="lanc-ia-estilos">
+/* ===== Lançamento Inteligente por Foto (V57) · só aparência das telas novas ===== */
+.lia-zona{border:2px dashed var(--linha,#E8E1DA);border-radius:14px;padding:22px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--fundo2,#FAF8F5)}
+.lia-zona.arrastando{border-color:var(--pri,#A3461F);background:rgba(163,70,31,.06)}
+.lia-zona-ic svg{width:38px;height:38px;color:var(--pri,#A3461F)}
+.lia-bts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:6px 0}
+.lia-bt{cursor:pointer;min-height:44px}
+.lia-mini{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.lia-mini figure{margin:0;width:96px;position:relative;border:1px solid var(--linha,#E8E1DA);border-radius:10px;overflow:hidden;background:#fff}
+.lia-mini img{width:96px;height:110px;object-fit:cover;display:block}
+.lia-mini .lia-pdf{width:96px;height:110px;display:grid;place-items:center;font-weight:700;color:var(--pri,#A3461F)}
+.lia-mini figcaption{font-size:11px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lia-mini .lia-rm{position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;line-height:26px;padding:0}
+.lia-prog{margin:14px 0}
+.lia-barra{height:10px;border-radius:99px;background:var(--linha,#E8E1DA);overflow:hidden}
+.lia-barra>i{display:block;height:100%;background:var(--pri,#A3461F);transition:width .3s}
+.lia-sec{margin-top:14px}
+.lia-sec h3{margin:0 0 8px;font-size:15px}
+.lia-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px 14px}
+.lia-kv>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lia-kv span{font-size:12px;color:var(--fraco,#5C534C)}
+.lia-kv b{overflow-wrap:anywhere}
+.lia-perg{border:2px solid var(--pri,#A3461F);border-radius:12px;padding:14px;background:rgba(163,70,31,.05)}
+.lia-perg h3{margin:0 0 10px}
+.lia-formas{display:flex;flex-wrap:wrap;gap:8px}
+.lia-formas .btn.on{background:var(--pri,#A3461F);color:#fff;border-color:var(--pri,#A3461F)}
+.lia-tb td select,.lia-tb td input{max-width:100%}
+.lia-tb .lia-desc{min-width:180px}
+.lia-tb .lia-novo{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.lia-tb .lia-novo select{flex:1;min-width:110px}
+.tag.lia-lido{background:#E6F2EC;color:#16784A}
+.tag.lia-pres{background:#FFF3DC;color:#8A5A00}
+.lia-alertas{margin:0;padding-left:18px}
+.lia-alertas li{margin:4px 0}
+.lia-alertas li.pe{color:var(--perigo,#B3302A)}
+.lia-res li{margin:6px 0}
+#liaChip{position:fixed;right:14px;bottom:70px;z-index:2147482000;background:#2A211C;color:#fff;border-radius:999px;padding:9px 14px;font:13px Inter,system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.25);text-decoration:none;max-width:calc(100vw - 28px)}
+#liaChip:hover{background:#A3461F}
+.lia-cam{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+.lia-cam video{max-width:100%;max-height:70vh;border-radius:10px;background:#000}
+.lia-cam .lia-bts .btn{background:#fff}
+@media (max-width:900px){.lia-tb.tbl.cartao td{display:block;text-align:left;padding:4px 10px;min-width:0}.lia-tb.tbl.cartao td::before{display:block;margin-bottom:3px}.lia-tb td input,.lia-tb td select{width:100%!important;min-width:0;box-sizing:border-box}.lia-tb td input[data-lial-k="qtd"]{width:calc(100% - 48px)!important}.lia-tb td b{white-space:normal;overflow-wrap:anywhere}.lia-tb.tbl.cartao td.acs::before{content:none}.lia-tb tr{overflow:hidden}}
+@media (max-width:720px){.lia-tb .lia-desc{min-width:0}.lia-kv{grid-template-columns:1fr 1fr}#liaChip{bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
+</style>
+<script>
+"use strict";
+/* ================= Lançamento Inteligente por Foto (V57) =================
+   Pedido do Jeferson (04/11/2026): qualquer pessoa autorizada fotografa ou anexa a nota, o cupom, o boleto
+   ou a fatura; o sistema lê, identifica o fornecedor e os produtos, dá entrada no almoxarifado, lança a conta
+   no Financeiro e guarda o documento original.
+   · Nenhuma coleção nova e nenhum financeiro paralelo: grava pelos mesmos caminhos da tela "Nova entrada"
+     (almEntradas → sincFinEntrada → fTitulos) e do cadastro de compromissos do Financeiro (fTitulos).
+     Fornecedores e itens novos entram nos cadastros do almoxarifado, depois de conferir CNPJ/CPF, descrição,
+     código e unidade contra o que já existe.
+   · Quem lê: dentro do Claude, o próprio Claude da página (capacidade "sample" com imagens); na nuvem, a função
+     jb-ler-documento do servidor (a chave da API fica guardada no Supabase, nunca no navegador).
+   · Cada lançamento guarda os arquivos originais (anexo e anexos), a impressão digital SHA-256 de cada arquivo e
+     o que foi lido (campo ia), para reconhecer documento repetido e para conferência posterior.
+   · Nada é gravado antes de a pessoa confirmar. Pergunta, no máximo, uma coisa: como foi feito o pagamento,
+     quando o documento não mostra. O que não foi lido fica marcado como pendente, sem travar o resto. */
+(()=>{
+const B=window.ALM_IA_BASE,FS=window.FINANCEIRO_SETOR;
+if(!B||!FS||!FS.h){console.warn('Lançamento inteligente: almoxarifado ou financeiro não carregado');return}
+const H=FS.h,A=FS.acoes||{};
+const r2=v=>Math.round((+v||0)*100)/100,r3=v=>Math.round((+v||0)*1000)/1000,r4=v=>Math.round((+v||0)*10000)/10000;
+const ig=(a,b)=>Math.abs(r2(a)-r2(b))<0.005;
+const eu=()=>APP.uid||'local';const agoraIso=()=>new Date().toISOString();
+const espera=ms=>new Promise(r=>setTimeout(r,ms));
+const MAX_PAG=30,MAX_ARQ=20,MAX_BYTES=20*1024*1024;
+const ROTA={almox:'#/almIA',fin:'#/fIA'};
+if(typeof IC==='object'&&!IC.camera)IC.camera='<path d="M3.5 8.5h3.2l1.8-2.8h7l1.8 2.8h3.2v10.8h-17z"/><circle cx="12" cy="13.4" r="3.6"/>';
+
+/* ================= permissões, rotas e abas ================= */
+Object.assign(PERM,{almIA:{v:['admin','gerente','estoquista','financeiro'],e:['admin','gerente','estoquista']},fIA:{v:['admin','financeiro','gerente'],e:['admin','financeiro']}});
+['almIA','fIA'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+{const ab0=B.SETS.almox.abas;B.SETS.almox.abas=()=>{const L=ab0();const i=L.findIndex(a=>a.m==='almEntrada');
+ L.splice(i<0?1:i+1,0,{r:'#/almIA',m:'almIA',e:1,ic:'camera',l:'Lançamento Inteligente por Foto',at:['almIA']});return L}}
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+window.FIN_ABAS_EXTRA.push({depois:'setor-financeiro',r:'#/fIA',m:'fIA',ic:'camera',l:'Lançamento Inteligente por Foto',at:['fIA']});
+Object.assign(TELAS_V,{almIA:el=>B.shellS(el,'almox','almIA',c=>tela(c,'almox')),fIA:el=>H.shellF(el,'fIA',c=>tela(c,'fin'))});
+const podeAlm=()=>pode('almEntrada','e'),podeFin=()=>pode('fTitulos','e');
+
+/* ================= o trabalho em andamento (continua se a pessoa mudar de tela) ================= */
+let J=null;
+const novoJ=origem=>({id:novoId(),origem,arqs:[],fase:'captura',prog:{txt:'',pct:0},erro:'',L:null,C:null,ctl:null,res:null,timer:null,motor:''});
+function erroU(code,msg){const e=new Error(msg);e.code=code;return e}
+const naTela=()=>{const m=lerRota().mod;return m==='almIA'||m==='fIA'};
+function atualizar(){if(naTela())renderTela();chip()}
+function chip(){
+ let el=document.getElementById('liaChip');
+ const mostrar=J&&!naTela()&&['lendo','conferir','gravando','erro'].includes(J.fase);
+ if(!mostrar){if(el)el.remove();return}
+ if(!el){el=document.createElement('a');el.id='liaChip';document.body.appendChild(el)}
+ el.href=ROTA[J.origem]||'#/almIA';
+ el.textContent=J.fase==='lendo'?'Lendo o documento… '+Math.round(J.prog.pct)+'%':J.fase==='gravando'?'Gravando o lançamento…':J.fase==='erro'?'Leitura do documento: ver o problema':'Documento lido: conferir e lançar';
+}
+addEventListener('hashchange',()=>setTimeout(chip,0));
+function prog(job,txt,pct){job.prog={txt,pct:Math.max(0,Math.min(100,pct))};if(job!==J)return;
+ const p=document.getElementById('liaProgTxt'),b=document.getElementById('liaProgBar');if(p)p.textContent=txt;if(b)b.style.width=job.prog.pct+'%';chip()}
+
+/* ================= arquivos ================= */
+const ehPdf=a=>/pdf/i.test(a.tipo)||/\.pdf$/i.test(a.nome);
+const ehImg=f=>/^image\/(jpe?g|png|webp|heic|heif)$/i.test(f.type||'')||/\.(jpe?g|png|webp|heic|heif)$/i.test(f.name||'');
+function adicionar(files,semIniciar){
+ if(!J)J=novoJ(lerRota().mod==='fIA'?'fin':'almox');
+ if(J.fase==='gravando'||J.fase==='pronto'){toast('Termine ou comece um novo lançamento antes de anexar outro documento.','erro');return}
+ let n=0;
+ for(const f of Array.from(files||[])){
+  if(J.arqs.length>=MAX_ARQ){toast('No máximo '+MAX_ARQ+' arquivos por lançamento.','erro');break}
+  const pdf=/pdf/i.test(f.type||'')||/\.pdf$/i.test(f.name||'');
+  if(!pdf&&!ehImg(f)){toast(f.name+': use PDF, JPG ou PNG.','erro');continue}
+  if(f.size>MAX_BYTES){toast(f.name+': arquivo maior que 20 MB.','erro');continue}
+  J.arqs.push({id:novoId(),file:f,nome:f.name||('foto-'+(J.arqs.length+1)+'.jpg'),tipo:f.type||(pdf?'application/pdf':'image/jpeg'),tam:f.size,url:pdf?'':URL.createObjectURL(f),hash:''});n++}
+ if(!n)return;
+ if(J.ctl){J.ctl.abort();J.ctl=null}
+ J.fase='captura';J.L=null;J.C=null;J.erro='';
+ atualizar();
+ clearTimeout(J.timer);if(!semIniciar)J.timer=setTimeout(()=>iniciarLeitura(),700);
+}
+function tirar(id){if(!J)return;const a=J.arqs.find(x=>x.id===id);if(a&&a.url)URL.revokeObjectURL(a.url);J.arqs=J.arqs.filter(x=>x.id!==id);
+ if(J.ctl){J.ctl.abort();J.ctl=null}J.L=null;J.C=null;J.fase='captura';atualizar();if(J.arqs.length){clearTimeout(J.timer);J.timer=setTimeout(()=>iniciarLeitura(),700)}}
+async function hashArq(f){try{const b=await crypto.subtle.digest('SHA-256',await f.arrayBuffer());return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){return ''}}
+function b64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=()=>rej(r.error);r.readAsDataURL(blob)})}
+const paraBlob=(cv,q)=>new Promise(r=>cv.toBlob(b=>r(b),'image/jpeg',q||.85));
+async function abrirImg(f){
+ try{return await createImageBitmap(f,{imageOrientation:'from-image'})}catch(e){}
+ return await new Promise((res,rej)=>{const u=URL.createObjectURL(f);const i=new Image();i.onload=()=>{res(i);setTimeout(()=>URL.revokeObjectURL(u),1000)};i.onerror=()=>{URL.revokeObjectURL(u);rej(erroU('imagem','Não foi possível abrir a imagem '+(f.name||'')+'. Use JPG ou PNG.'))};i.src=u})}
+/* a IA enxerga cada imagem em ~1,2 megapixel: página comprida (nota A4, cupom) vai em faixas seguidas,
+   com pequena sobreposição, para as letras miúdas continuarem legíveis */
+async function recortes(cv,inteira){
+ const w=cv.width,h=cv.height;const vert=h>=w;const L=vert?h:w,C=vert?w:h;
+ const n=inteira?1:Math.max(1,Math.min(5,Math.ceil((L/C)/1.35)));const passo=L/n,sob=Math.round(L*0.03);const out=[];
+ for(let i=0;i<n;i++){const a=Math.max(0,Math.round(i*passo)-(i?sob:0)),b=Math.min(L,Math.round((i+1)*passo)+(i<n-1?sob:0));
+  const tw=vert?w:b-a,th=vert?b-a:h;const s=Math.min(1,1568/Math.max(tw,th));const t=document.createElement('canvas');t.width=Math.max(1,Math.round(tw*s));t.height=Math.max(1,Math.round(th*s));
+  const x=t.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);x.drawImage(cv,vert?0:a,vert?a:0,tw,th,0,0,t.width,t.height);out.push(await paraBlob(t,.85))}
+ return out}
+async function paginasImagem(f){
+ const im=await abrirImg(f);const w=im.width||im.naturalWidth,h=im.height||im.naturalHeight;const s=Math.min(1,3200/Math.max(w,h));
+ const cv=document.createElement('canvas');cv.width=Math.round(w*s);cv.height=Math.round(h*s);const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);
+ if(im.close)try{im.close()}catch(e){}
+ return recortes(cv,false)}
+let PDFJS=null;
+async function pdfjs(){
+ if(window.pdfjsLib)return window.pdfjsLib;
+ if(!PDFJS)PDFJS=(async()=>{
+  const C='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/',Jd='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+  /* o "worker" carregado como script roda na própria página: não depende de Worker de outro endereço */
+  if(!(window.pdfjsWorker&&window.pdfjsWorker.WorkerMessageHandler))await (carregarScript(C+'pdf.worker.min.js').then(ok=>ok||carregarScript(Jd+'pdf.worker.min.js')));
+  if(!window.pdfjsLib)await (carregarScript(C+'pdf.min.js').then(ok=>ok||carregarScript(Jd+'pdf.min.js')));
+  if(!window.pdfjsLib){PDFJS=null;throw erroU('pdf','Não foi possível carregar o leitor de PDF. Verifique a internet ou envie fotos das páginas.')}
+  try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=C+'pdf.worker.min.js'}catch(e){}
+  return window.pdfjsLib})();
+ return PDFJS}
+async function paginasPdf(f,aoAndar,sinal){
+ const lib=await pdfjs();let doc;
+ try{doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer()),isEvalSupported:false}).promise}
+ catch(e){throw erroU('pdf',e&&e.name==='PasswordException'?'O PDF '+f.name+' tem senha. Abra, salve sem senha ou envie fotos das páginas.':'Não foi possível abrir o PDF '+f.name+'.')}
+ const n=Math.min(doc.numPages,MAX_PAG);const imgs=[];let texto='';
+ try{for(let p=1;p<=n;p++){if(sinal.aborted)throw erroU('cancelado','');aoAndar(p,n);
+  const pg=await doc.getPage(p);let tx='';
+  try{const tc=await pg.getTextContent();tx=tc.items.map(i=>(i.str||'')+(i.hasEOL?'\n':' ')).join('').replace(/[ \t]+/g,' ').trim()}catch(e){}
+  if(tx)texto+='[página '+p+']\n'+tx+'\n';
+  const v1=pg.getViewport({scale:1});const s=Math.min(4,2400/Math.max(v1.width,v1.height));const vp=pg.getViewport({scale:s});
+  const cv=document.createElement('canvas');cv.width=Math.round(vp.width);cv.height=Math.round(vp.height);const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);
+  await pg.render({canvasContext:x,viewport:vp}).promise;
+  imgs.push(...await recortes(cv,tx.length>300));cv.width=cv.height=0;try{pg.cleanup()}catch(e){}
+  await espera(0)}}
+ finally{try{doc.destroy()}catch(e){}}
+ return{imgs,texto,cortou:doc.numPages>MAX_PAG,total:doc.numPages}}
+
+/* ================= quem lê: o Claude da página ou a função do servidor da nuvem ================= */
+async function motorLeitura(){
+ const w=window.claude;
+ if(w&&typeof w.use==='function'){
+  const lt=await w.use('leitor').catch(()=>null);
+  if(lt&&typeof lt.ler==='function')return{tipo:'nuvem',maxImgs:16,maxTexto:150000,
+   ler:async(prompt,imgs,sinal)=>{const paginas=[];for(const b of imgs)paginas.push({tipo:'image/jpeg',dados:await b64(b)});
+    const r=await lt.ler({prompt,paginas},sinal);if(!r||typeof r.texto!=='string')throw erroU('vazio','O servidor não devolveu a leitura.');return r.texto}};
+ }
+ const s=APP.sample;if(!s)return null;
+ const lim=s.limits?await s.limits().catch(()=>null):null;
+ const mx=lim&&lim.images?Math.max(1,+lim.images.maxCount||1):0;
+ const maxTexto=Math.max(20000,Math.floor((((lim&&lim.maxPromptBytes)||262144)-30000)/1.3));
+ return{tipo:'claude',maxImgs:mx,maxTexto,semImagens:!mx,
+  ler:async(prompt,imgs,sinal)=>{const o={signal:sinal,modelTier:'complex',cache:false};if(imgs.length)o.images=imgs;
+   try{const r=await s(prompt,o);if(r.truncated)throw erroU('cortado','A leitura veio incompleta (documento grande demais de uma vez).');return r.text}
+   catch(e){if(e&&e.code&&!(e instanceof Error))throw erroU(e.code,msgSample(e));throw e}}}}
+function msgSample(e){return({not_granted:'Você precisa permitir que esta página use o Claude. Clique em "Tentar de novo" e aceite quando o aviso aparecer.',
+ sampling_disabled:'A sua conta do Claude não permite usar a leitura por IA aqui.',rate_limited:'Muitas leituras seguidas ou limite da sua conta do Claude. Espere um pouco e tente de novo.',
+ session_expired:'Sua sessão do Claude expirou. Entre de novo e tente outra vez.',cancelled:'',images_unavailable:'Esta página do Claude ainda não está autorizada a enviar imagens ao Claude.',
+ image_rejected:'Uma das imagens não pôde ser lida. Tire a foto de novo (JPG ou PNG).',prompt_too_large:'O documento é grande demais para ler de uma vez. Envie menos páginas.',
+ refused:'O Claude não leu este documento. Confira se é uma nota, cupom, boleto ou fatura.'})[e.code]||e.message||'A leitura não deu certo agora. Tente de novo em instantes.'}
+function semMotorTxt(){
+ if(window.JB_NUVEM)return 'A leitura por IA não respondeu neste acesso. Recarregue a página e tente de novo.';
+ if(APP.modo==='local')return 'A leitura por IA funciona na versão publicada (nuvem ou Claude). Nesta cópia local use a tela "Nova entrada".';
+ return 'A conexão com o Claude não está disponível nesta sessão. Abra o JB Gestão pelo aplicativo ou site do Claude, ou pela versão da nuvem.'}
+
+/* ================= o pedido de leitura (o mesmo nos dois caminhos) ================= */
+function promptLeitura(parte,total,texto){
+ const cf=H.fcfg();
+ return `Você lê documentos brasileiros de compra e de cobrança (nota fiscal / DANFE, NFC-e, cupom fiscal ou não fiscal, boleto, fatura de consumo, recibo, comprovante de pagamento) para o sistema de gestão de uma cerâmica. Sua resposta vira lançamento de estoque e de contas a pagar: um número errado causa prejuízo.
+${total>1?`\nEsta é a PARTE ${parte+1} DE ${total} do mesmo documento. Extraia só o que aparece nestas imagens; o que não aparece aqui fica null (os itens das outras partes chegam em outras leituras).\n`:''}
+As imagens são as páginas na ordem. Uma página comprida pode vir em faixas seguidas com pequena sobreposição: o item que aparece cortado ou repetido na emenda entra UMA vez só.${texto?' Depois das regras vem também o texto extraído do PDF; use-o para conferir números e letras, mas o que vale é o documento.':''}
+
+REGRAS
+1. Copie só o que está escrito. NUNCA invente, estime, calcule por conta própria nem complete fornecedor, produto, quantidade, valor ou data. O que não dá para ler fica null e o nome do campo vai para "ilegiveis".
+2. Cada produto é um item separado, na ordem do documento, mesmo que pareça igual a outro. Não agrupe, não some, não resuma, não pule.
+3. Números em JSON com ponto decimal e sem separador de milhar (R$ 1.234,56 → 1234.56). Datas no formato AAAA-MM-DD.
+4. Por item: "quantidade", "unidade" e "valorUnitario" como impressos; "valorTotal" é o total impresso da linha; "desconto" só se a linha mostrar desconto.
+5. "valores" vêm do quadro de totais do documento. "total" é o valor total a pagar do documento.
+6. "pagamento.situacao": "pago" só quando o documento mostra claramente que foi pago (comprovante de pagamento, autenticação bancária, "pago", forma de pagamento do cupom com valor pago ou troco); "pendente" quando é boleto, duplicata, fatura ou tem vencimento a pagar; senão "desconhecido". Em "evidencia" copie o trecho que comprova. "forma" escolha da lista FORMAS DE PAGAMENTO ou null.
+7. "confianca" de cada item: "alta" (nítido), "media" (legível com dúvida), "baixa" (borrado, cortado ou parcialmente adivinhado).
+8. "categoriaItem", "unidadeSistema" e "categoriaFinanceira" são SUGESTÕES: escolha somente das listas abaixo; se nenhuma serve, null.
+9. "tipoDocumento": nota_fiscal, nfce, cupom, boleto, fatura, recibo, comprovante, pedido ou outro.
+10. Se a imagem não for um documento de compra ou cobrança, devolva "tipoDocumento":"outro", "itens":[] e explique em "observacoes".
+
+CATEGORIAS DE ITEM: ${B.CAT_NOMES.join('; ')}
+UNIDADES DO SISTEMA: ${B.UNIDS.join('; ')}
+CATEGORIAS FINANCEIRAS: ${(cf.categorias||[]).slice(0,80).join('; ')}
+FORMAS DE PAGAMENTO: ${formasF().join('; ')}
+
+Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, exatamente com estas chaves:
+{"tipoDocumento":null,"fornecedor":{"nome":null,"cnpjCpf":null,"inscricaoEstadual":null,"endereco":null,"cidade":null,"uf":null,"telefone":null},"documento":{"numero":null,"serie":null,"chaveAcesso":null,"dataEmissao":null},"itens":[{"codigo":null,"descricao":null,"quantidade":null,"unidade":null,"valorUnitario":null,"desconto":null,"valorTotal":null,"confianca":"alta","categoriaItem":null,"unidadeSistema":null}],"valores":{"produtos":null,"desconto":null,"frete":null,"seguro":null,"outrasDespesas":null,"ipi":null,"icmsST":null,"icms":null,"outrosImpostos":null,"total":null},"vencimentos":[{"data":null,"valor":null}],"boleto":{"linhaDigitavel":null,"banco":null},"pagamento":{"situacao":"desconhecido","forma":null,"data":null,"evidencia":null},"categoriaFinanceira":null,"ilegiveis":[],"observacoes":null}${texto?'\n\nTEXTO EXTRAÍDO DO PDF:\n'+texto:''}`}
+const formasF=()=>(window.FORMAS_F||FORMAS_V||[]).slice();
+function lerJson(t){
+ let s=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');const a=s.indexOf('{'),b=s.lastIndexOf('}');
+ if(a<0||b<a)throw erroU('json','A leitura não veio no formato esperado. Tente de novo.');
+ try{return JSON.parse(s.slice(a,b+1))}catch(e){throw erroU('json','A leitura veio incompleta. Tente de novo ou envie menos páginas por vez.')}}
+
+/* ================= limpeza do que veio da leitura ================= */
+function num(v){if(v==null||v==='')return null;if(typeof v==='number')return isFinite(v)?v:null;
+ let s=String(v).replace(/[R$\s]/g,'');if(!s)return null;
+ if(/,\d{1,4}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');else s=s.replace(/,/g,'');
+ const n=+s;return isFinite(n)?n:null}
+const txt=(v,max)=>v==null?'':String(v).replace(/\s+/g,' ').trim().slice(0,max||200);
+function dataOk(v){const s=txt(v,20);if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const d=new Date(s+'T12:00:00');if(!isNaN(d)&&s>'2000-01-01')return s}
+ const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);if(m)return dataOk(m[3]+'-'+m[2]+'-'+m[1]);return ''}
+function normalizar(L){
+ L=L&&typeof L==='object'?L:{};const f=L.fornecedor||{},d=L.documento||{},v=L.valores||{},p=L.pagamento||{},bo=L.boleto||{};
+ const conf=c=>['alta','media','baixa'].includes(c)?c:'media';
+ return{tipo:txt(L.tipoDocumento,30).toLowerCase()||'outro',
+  forn:{nome:txt(f.nome,120),doc:digitos(f.cnpjCpf||''),ie:txt(f.inscricaoEstadual,30),end:txt(f.endereco,200),cidade:txt(f.cidade,60),uf:txt(f.uf,2).toUpperCase(),tel:txt(f.telefone,30)},
+  doc:{numero:txt(d.numero,30).replace(/^0+(?=\d)/,''),serie:txt(d.serie,10),chave:digitos(d.chaveAcesso||'').length===44?digitos(d.chaveAcesso):'',emissao:dataOk(d.dataEmissao)},
+  itens:(Array.isArray(L.itens)?L.itens:[]).map(i=>({cod:txt(i&&i.codigo,40),desc:txt(i&&i.descricao,160),qtd:num(i&&i.quantidade),un:txt(i&&i.unidade,12),unit:num(i&&i.valorUnitario),desc$:num(i&&i.desconto),total:num(i&&i.valorTotal),
+   conf:conf(i&&i.confianca),cat:B.CAT_NOMES.includes(i&&i.categoriaItem)?i.categoriaItem:'',unSis:B.UNIDS.includes(i&&i.unidadeSistema)?i.unidadeSistema:''})).filter(i=>i.desc||i.total!=null),
+  val:Object.fromEntries(['produtos','desconto','frete','seguro','outrasDespesas','ipi','icmsST','icms','outrosImpostos','total'].map(k=>[k,num(v[k])])),
+  vencs:(Array.isArray(L.vencimentos)?L.vencimentos:[]).map(x=>({data:dataOk(x&&x.data),valor:num(x&&x.valor)})).filter(x=>x.data||x.valor),
+  linhaDig:digitos(bo.linhaDigitavel||'').length>=44?txt(bo.linhaDigitavel,80):'',banco:txt(bo.banco,60),
+  pag:{sit:['pago','pendente'].includes(p.situacao)?p.situacao:'desconhecido',forma:formaDe(p.forma),data:dataOk(p.data),evid:txt(p.evidencia,200)},
+  catFin:txt(L.categoriaFinanceira,80),ileg:(Array.isArray(L.ilegiveis)?L.ilegiveis:[]).map(x=>txt(x,60)).filter(Boolean).slice(0,30),obs:txt(L.observacoes,400)}}
+function formaDe(t){const s=semAcento(String(t||'')).toLowerCase();if(!s)return '';const F=formasF();const ach=x=>F.find(f=>f===x)||'';
+ const exato=F.find(f=>semAcento(f).toLowerCase()===s);if(exato)return exato;
+ if(/pix/.test(s))return ach('PIX');if(/dinheiro|especie/.test(s))return ach('Dinheiro');if(/debito/.test(s))return ach('Cartão de débito');if(/credito|cartao/.test(s))return ach('Cartão de crédito');
+ if(/boleto/.test(s))return ach('Boleto');if(/deposito/.test(s))return ach('Depósito bancário')||ach('Transferência bancária');if(/transfer|ted|doc\b/.test(s))return ach('Transferência bancária');if(/cheque/.test(s))return ach('Cheque');return ''}
+/* várias partes do mesmo documento: cabeçalho da primeira que tem, itens em sequência, totais da última que tem */
+function mesclar(a,b){if(!a)return b;const o=JSON.parse(JSON.stringify(a));
+ const prim=(x,y)=>{Object.keys(y||{}).forEach(k=>{if(x[k]==null||x[k]==='')x[k]=y[k]})};
+ o.fornecedor=o.fornecedor||{};prim(o.fornecedor,b.fornecedor);o.documento=o.documento||{};prim(o.documento,b.documento);o.boleto=o.boleto||{};prim(o.boleto,b.boleto);
+ if(!o.tipoDocumento||o.tipoDocumento==='outro')o.tipoDocumento=b.tipoDocumento||o.tipoDocumento;
+ o.itens=[...(o.itens||[]),...(b.itens||[])];o.valores=o.valores||{};Object.keys(b.valores||{}).forEach(k=>{if(b.valores[k]!=null)o.valores[k]=b.valores[k]});
+ o.vencimentos=[...(o.vencimentos||[]),...(b.vencimentos||[])].filter((x,i,arr)=>arr.findIndex(y=>y&&x&&y.data===x.data&&y.valor===x.valor)===i);
+ const ord={pago:2,pendente:1};const pa=o.pagamento||{},pb=b.pagamento||{};if((ord[pb.situacao]||0)>(ord[pa.situacao]||0))o.pagamento=pb;
+ o.categoriaFinanceira=o.categoriaFinanceira||b.categoriaFinanceira;o.ilegiveis=[...new Set([...(o.ilegiveis||[]),...(b.ilegiveis||[])])];
+ o.observacoes=[o.observacoes,b.observacoes].filter(Boolean).join(' ');return o}
+
+/* ================= a leitura (assíncrona: a pessoa pode sair da tela, o aviso flutuante acompanha) ================= */
+async function iniciarLeitura(){
+ if(!J||!J.arqs.length)return;
+ clearTimeout(J.timer);if(J.ctl)J.ctl.abort();
+ const ctl=new AbortController();const job=J;job.ctl=ctl;job.fase='lendo';job.erro='';job.L=null;job.C=null;
+ prog(job,'Preparando as páginas…',2);atualizar();
+ const parar=()=>{if(ctl.signal.aborted)throw erroU('cancelado','')};
+ try{
+  const motor=await motorLeitura();if(!motor)throw erroU('sem_motor',semMotorTxt());job.motor=motor.tipo;
+  for(const a of job.arqs)if(!a.hash)a.hash=await hashArq(a.file);
+  parar();
+  const imgs=[];let texto='',cortou=[];const nA=job.arqs.length;
+  for(let i=0;i<nA;i++){const a=job.arqs[i];parar();
+   if(ehPdf(a)){const r=await paginasPdf(a.file,(k,n)=>prog(job,'Abrindo '+a.nome+': página '+k+' de '+n+'…',3+32*(i+k/n)/nA),ctl.signal);
+    imgs.push(...r.imgs);if(r.texto)texto+='\n=== '+a.nome+' ===\n'+r.texto;if(r.cortou)cortou.push(a.nome+' ('+r.total+' páginas; lidas as '+MAX_PAG+' primeiras)')}
+   else{prog(job,'Preparando a foto '+(i+1)+' de '+nA+'…',3+32*(i+1)/nA);imgs.push(...await paginasImagem(a.file))}
+   await espera(0)}
+  texto=texto.trim();if(texto.length>motor.maxTexto)texto=texto.slice(0,motor.maxTexto);
+  let usar=imgs;
+  if(motor.semImagens){usar=[];if(!texto)throw erroU('sem_imagem','Esta página do Claude ainda não está autorizada a enviar imagens ao Claude. Use a versão da nuvem ou anexe o PDF digital da nota (com texto). O administrador libera as imagens ao republicar o sistema no Claude.')}
+  const partes=[];for(let i=0;i<usar.length;i+=motor.maxImgs)partes.push(usar.slice(i,i+motor.maxImgs));if(!partes.length)partes.push([]);
+  let L=null;
+  for(let k=0;k<partes.length;k++){parar();
+   prog(job,(partes.length>1?'A IA está lendo o documento (parte '+(k+1)+' de '+partes.length+')…':'A IA está lendo o documento…')+' Isso leva de 20 segundos a alguns minutos.',38+55*k/partes.length);
+   const t=await motor.ler(promptLeitura(k,partes.length,k===0?texto:''),partes[k],ctl.signal);parar();
+   L=mesclar(L,lerJson(t))}
+  prog(job,'Conferindo com os cadastros…',96);
+  job.L=normalizar(L);job.L.cortou=cortou;job.C=montarConf(job);job.fase='conferir';
+  if(!naTela())toast('Documento lido. Toque no aviso para conferir e lançar.','ok');
+ }catch(e){
+  if(e&&e.code==='cancelado'||ctl.signal.aborted){if(J===job&&job.fase==='lendo')job.fase='captura';return}
+  console.warn('leitura',e);job.fase='erro';job.erro=(e&&e.message)||'A leitura não deu certo.';
+  if(!naTela())toast('A leitura do documento não deu certo. Toque no aviso para ver.','erro');
+ }finally{if(job.ctl===ctl)job.ctl=null;if(J===job)atualizar()}}
+
+/* ================= vínculo com os cadastros ================= */
+const PARADAS=new Set(['de','da','do','das','dos','e','com','para','p','c','em','a','o','x','un','und','unid','pc','pcs','pct','cx','kg','lt','mt','m','tipo','ref','cod']);
+const toks=s=>B.normT(s).split(' ').filter(t=>t&&!PARADAS.has(t));
+const tokIg=(a,b)=>a===b||(a.length>=4&&b.length>=4&&(a.startsWith(b)||b.startsWith(a)));
+function semelhanca(a,b){const A=[...new Set(toks(a))],Bt=[...new Set(toks(b))];if(!A.length||!Bt.length)return 0;
+ let i=0;A.forEach(t=>{if(Bt.some(u=>tokIg(t,u)))i++});const j=i/(A.length+Bt.length-i);
+ const nA=A.filter(t=>/\d/.test(t)),nB=Bt.filter(t=>/\d/.test(t));const numOk=nA.every(t=>Bt.includes(t))&&nB.every(t=>A.includes(t));return numOk?j:j*0.5}
+const UN_MAP={un:'unidade',und:'unidade',unid:'unidade',unidade:'unidade',pc:'unidade',pca:'unidade',peca:'unidade',pcs:'unidade',cj:'jogo',jg:'jogo',jogo:'jogo',par:'par',pr:'par',cx:'caixa',caixa:'caixa',
+ m:'metro',mt:'metro',mts:'metro',metro:'metro',kg:'kg',quilo:'kg',l:'litro',lt:'litro',litro:'litro',rl:'rolo',rolo:'rolo',pct:'pacote',pt:'pacote',pacote:'pacote',fd:'fardo',fardo:'fardo',
+ sc:'saco',saco:'saco',bj:'botijão',botijao:'botijão',dz:'dúzia',duzia:'dúzia',lata:'lata',lta:'lata',mc:'maço',maco:'maço',bd:'bandeja',bandeja:'bandeja'};
+function unSistema(it){if(it.unSis&&B.UNIDS.includes(it.unSis))return it.unSis;const k=semAcento(String(it.un||'')).toLowerCase().replace(/[^a-z]/g,'');return UN_MAP[k]||''}
+function vincular(it,docF){
+ const itens=DATA.almItens.filter(B.ativo);const nd=B.normT(it.desc);
+ const ap=i=>Array.isArray(i.apelidos)?i.apelidos:[];
+ if(it.cod&&docF){const x=itens.find(i=>ap(i).some(a=>a.d===docF&&a.c&&a.c===it.cod));if(x)return{id:x.id,como:'aprendido',score:1}}
+ if(nd){const x=itens.find(i=>ap(i).some(a=>a.n===nd));if(x)return{id:x.id,como:'aprendido',score:1}
+  const y=itens.find(i=>B.normT(i.nome)===nd);if(y)return{id:y.id,como:'igual',score:1}}
+ let best=null;itens.forEach(i=>{const s=semelhanca(it.desc,i.nome);if(s>=0.6&&(!best||s>best.score))best={id:i.id,como:'parecido',score:s}});
+ return best||{id:'',como:'novo',score:0}}
+function fornecedorDe(f){
+ const d=f.doc;const docOk=d.length===14?cnpjValido(d):d.length===11?cpfValido(d):false;
+ let alm=null,fin=null;
+ if(docOk){alm=DATA.almFornecedores.find(x=>digitos(x.doc)===d)||null;fin=(DATA.fornecedores||[]).find(x=>digitos(x.cnpj||x.cpf||'')===d)||null}
+ if(!alm&&f.nome){const n=B.normT(f.nome);alm=DATA.almFornecedores.find(x=>B.normT(x.nome)===n&&(!docOk||!digitos(x.doc)))||null}
+ return{almId:alm?alm.id:'',finId:fin?fin.id:'',docOk,docLido:d}}
+
+/* ================= montagem da conferência ================= */
+function montarConf(job){
+ const L=job.L;const cf=H.fcfg();const tipo=L.tipo;const F=fornecedorDe(L.forn);
+ const estoque=L.itens.length>0&&!['boleto','fatura','comprovante'].includes(tipo);
+ const destino=podeAlm()&&(estoque||!podeFin())?'almox':'fin';
+ const linhas=L.itens.map((it,k)=>{const qtd=it.qtd!=null&&it.qtd>0?it.qtd:null;
+  const total=it.total!=null?it.total:(qtd!=null&&it.unit!=null?r2(qtd*it.unit-(it.desc$||0)):null);
+  const v=vincular(it,F.docOk?F.docLido:'');const un=unSistema(it);
+  return{k,cod:it.cod,desc:it.desc,qtd,un:it.un,total,unit:it.unit,descL:it.desc$,conf:it.conf,alvo:v.id||'novo',como:v.como,score:v.score,
+   nomeNovo:it.desc,catNovo:it.cat||'',unNovo:un||'unidade',unLida:un}});
+ /* forma: o que o documento diz; sem informação, a pergunta única */
+ let pag;
+ if(L.pag.sit==='pago'&&L.pag.forma)pag={fonte:'documento',sit:'pago',forma:L.pag.forma,data:L.pag.data||'',evid:L.pag.evid};
+ else if(L.pag.sit==='pendente'||L.vencs.some(x=>x.data)||L.linhaDig||tipo==='boleto'||tipo==='fatura')pag={fonte:'documento',sit:'pendente',forma:L.linhaDig||tipo==='boleto'?'Boleto':'',data:'',evid:L.pag.evid};
+ else pag={fonte:'pergunta',sit:'',forma:'',data:'',evid:''};
+ pag.conta=contaPadrao(pag.forma);
+ const cats=cf.categorias||[];
+ const catFin=destino==='almox'?catAlmDe(linhas):(cats.includes(L.catFin)?L.catFin:(cats.includes('Outras despesas')?'Outras despesas':''));
+ const centro=destino==='almox'?((cf.centros||[]).find(c=>/almox/i.test(semAcento(c)))||''):'';
+ const C={destino,forn:{nome:L.forn.nome,doc:F.docOk?F.docLido:'',docLido:L.forn.doc,docOk:F.docOk,almId:F.almId,finId:F.finId,escolha:F.almId||'novo'},
+  linhas,data:hoje(),nota:L.doc.numero,serie:L.doc.serie,chave:L.doc.chave,emissao:L.doc.emissao,frete:L.val.frete||0,
+  categoria:catFin,catSugerida:destino!=='almox'&&!!L.catFin&&cats.includes(L.catFin),centro,pag,
+  vencs:L.vencs.filter(v=>v.data),vencManual:'',linhaDig:L.linhaDig,obs:'',forcarDup:false};
+ return C}
+const catAlmDe=linhas=>{const cats=H.fcfg().categorias||[];const cs=linhas.map(l=>l.alvo&&l.alvo!=='novo'?((B.ITEM(l.alvo)||{}).categoria):l.catNovo);
+ const so=cs.length&&cs.every(c=>c==='Cozinha');const pref=so?['Alimentação dos funcionários','Alimentação']:['Peças e materiais','Materiais'];return pref.find(c=>cats.includes(c))||pref[0]};
+function contaPadrao(forma){
+ if(forma==='Dinheiro')return H.CAIXA;
+ const ult=DATA.fTitulos.flatMap(t=>(t.pagamentos||[]).filter(p=>!p.estornado&&p.contaId&&(!forma||p.forma===forma)).map(p=>p)).sort((a,b)=>String(b.em||b.data).localeCompare(String(a.em||a.data)))[0];
+ if(ult&&H.optsContas().some(o=>o[0]===ult.contaId))return ult.contaId;
+ const o=H.optsContas().find(x=>x[0]!==H.CAIXA);return o?o[0]:H.CAIXA}
+
+/* ================= contas: o que vai ser lançado ================= */
+function calc(job){
+ const C=job.C,L=job.L;const ls=C.linhas.filter(l=>!l.ignorar);
+ const somaL=r2(ls.reduce((a,l)=>a+(+l.total||0),0));const v=L.val;
+ const desconto=v.desconto!=null?v.desconto:r2(ls.reduce((a,l)=>a+(+l.descL||0),0)); // desconto da nota (ou a soma dos descontos das linhas)
+ const acres=r2((v.ipi||0)+(v.icmsST||0)+(v.seguro||0)+(v.outrasDespesas||0)+(v.outrosImpostos||0)-desconto);
+ const frete=r2(+C.frete||0);
+ const alvoTot=r2(somaL+acres);
+ const fat=somaL>0?alvoTot/somaL:1;
+ const linhas=ls.map(l=>{const q=+l.qtd||0;const t=r2((+l.total||0)*fat);return{...l,qtdF:r3(q),precoF:q>0?r4(t/q):0,totF:t}});
+ const total=r2(linhas.reduce((a,l)=>a+l.qtdF*l.precoF,0)+frete);
+ const totalDoc=v.total!=null?r2(v.total):null;
+ const dif=totalDoc!=null?r2(totalDoc-total):0;
+ return{linhas,somaL,acres,desconto,frete,total,totalDoc,dif,fat}}
+/* parcelas: as do documento, quando fecham com o total; senão uma só */
+function parcelas(job,total){
+ const C=job.C;const pago=C.pag.sit==='pago';
+ if(pago)return{ls:[{n:1,valor:r2(total),venc:C.pag.data&&C.pag.data<=hoje()?C.pag.data:C.data}],pres:false};
+ const vs=C.vencs.filter(v=>v.data).slice().sort((a,b)=>a.data.localeCompare(b.data));
+ if(vs.length>1&&vs.every(v=>v.valor>0)&&ig(vs.reduce((a,v)=>a+v.valor,0),total))return{ls:vs.map((v,i)=>({n:i+1,valor:r2(v.valor),venc:v.data})),pres:false};
+ if(vs.length)return{ls:[{n:1,valor:r2(total),venc:vs[0].data}],pres:false,vencDif:vs.length>1};
+ const venc=C.vencManual||addDias(C.data,30);return{ls:[{n:1,valor:r2(total),venc}],pres:!C.vencManual}}
+
+/* ================= conferência inteligente ================= */
+function jaLancado(job){
+ const C=job.C;const hs=new Set(job.arqs.map(a=>a.hash).filter(Boolean));const out=[];
+ const ver=(ia,o)=>{if(!ia)return;if((ia.hashes||[]).some(h=>hs.has(h)))out.push(o+' (mesmo arquivo)');else if(C.chave&&ia.chave===C.chave)out.push(o+' (mesma chave de acesso)')};
+ DATA.almEntradas.forEach(e=>ver(e.ia,'entrada de '+fData(e.data)+' · '+B.nomeFornA(e.fornecedorId)+' · '+fMoeda(e.total)));
+ DATA.fTitulos.forEach(t=>{if(!t.almEntradaId)ver(t.ia,'compromisso nº '+t.numero+' do Financeiro ('+fMoeda(t.valor)+')')});
+ if(C.chave){(DATA.compras||[]).forEach(c=>{const ch=digitos(((c.fiscal||{}).chave)||'');if(ch&&ch===C.chave)out.push('compra nº '+c.numero+' do '+(typeof nomeSetorV==='function'?nomeSetorV(c.setor):'setor'))})}
+ return[...new Set(out)]}
+function alertas(job){
+ const C=job.C,L=job.L;const K=calc(job);const erros=[],avisos=[],info=[];
+ const almox=C.destino==='almox';
+ const dup=jaLancado(job);
+ if(dup.length&&!C.forcarDup)erros.push('Este documento já foi lançado: '+dup.join('; ')+'. Para lançar de novo mesmo assim, marque a opção no fim da página.');
+ if(!C.forn.nome&&!(C.forn.escolha&&C.forn.escolha!=='novo'))erros.push('O nome do fornecedor não foi lido. Escreva o nome ou escolha um fornecedor cadastrado.');
+ if(C.forn.docLido&&!C.forn.docOk)avisos.push('O CNPJ/CPF lido ('+C.forn.docLido+') não confere pelos dígitos verificadores: não foi usado para procurar nem para cadastrar.');
+ if(!C.data)erros.push('Informe a data do lançamento.');else if(C.data>hoje())erros.push('A data do lançamento não pode ser futura.');
+ if(almox){
+  const ls=C.linhas.filter(l=>!l.ignorar);
+  if(!ls.length)erros.push('Nenhum item para dar entrada. Mude para "Só Financeiro" ou inclua os itens.');
+  ls.forEach(l=>{const n='Item '+(l.k+1)+' ('+(l.desc||'sem descrição')+')';
+   if(!(+l.qtd>0))erros.push(n+': quantidade não lida. Informe a quantidade.');
+   if(l.total==null||!(+l.total>=0))erros.push(n+': valor não lido. Informe o valor total do item.');
+   if(l.alvo==='novo'&&!l.catNovo)erros.push(n+': escolha a categoria do item novo.');
+   if(l.alvo==='novo'&&!String(l.nomeNovo||'').trim())erros.push(n+': informe a descrição do item novo.');
+   if(l.alvo!=='novo'&&!B.ITEM(l.alvo))erros.push(n+': o item escolhido não existe mais.');
+   if(l.conf==='baixa')avisos.push(n+': leitura com baixa confiança. Confira descrição, quantidade e valor.');
+   if(l.qtd>0&&l.unit!=null&&l.total!=null&&[l.qtd*l.unit,l.qtd*l.unit-(l.descL||0)].every(x=>Math.abs(x-l.total)>Math.max(0.05,l.total*0.01)))avisos.push(n+': quantidade × valor unitário ('+fMoeda(l.qtd*l.unit)+') não fecha com o total da linha ('+fMoeda(l.total)+').');
+   if(l.alvo!=='novo'){const it=B.ITEM(l.alvo);if(it&&l.unLida&&it.unidade!==l.unLida)avisos.push(n+': no documento a unidade é "'+l.un+'" e no cadastro é "'+it.unidade+'". Confira se a quantidade está na unidade do estoque.')}
+   if(l.como==='parecido')info.push(n+': ligado por semelhança a '+B.rotItem(B.ITEM(l.alvo))+'. Confira.')});
+  const fid=C.forn.escolha!=='novo'?C.forn.escolha:'';
+  if(fid&&C.nota){const dn=DATA.almEntradas.find(x=>x.fornecedorId===fid&&String(x.nota||'').trim()===String(C.nota).trim());if(dn&&!C.forcarDup)erros.push('A nota '+C.nota+' deste fornecedor já foi lançada em '+fData(dn.data)+'. Para lançar de novo mesmo assim, marque a opção no fim da página.')}
+  if(fid){const dd=DATA.almEntradas.find(x=>x.fornecedorId===fid&&x.data===C.data&&ig(x.total,K.total));if(dd&&!C.forcarDup)avisos.push('Já existe uma entrada deste fornecedor hoje com o mesmo total ('+fMoeda(dd.total)+'). Confira se não é repetida.')}
+ }else{
+  if(!podeFin())erros.push('Seu perfil não lança compromissos no Financeiro.');
+  if(!(K.totalDoc>0)&&!(K.total>0))erros.push('O valor total do documento não foi lido. Informe o valor a pagar.');
+  const st=rascunhoTitulo(job,{n:1,valor:valorFin(job),venc:parcelas(job,valorFin(job)).ls[0].venc},1);
+  try{const ev=MODS.fTitulos.validar(st)||{};if(ev.docOrigemNum&&!C.forcarDup)erros.push(ev.docOrigemNum+' Para lançar de novo mesmo assim, marque a opção no fim da página.');if(ev._aviso)avisos.push(ev._aviso)}catch(e){}
+  if(!C.categoria)erros.push('Escolha a categoria da despesa.');else if(C.catSugerida)info.push('Categoria "'+C.categoria+'" sugerida pela leitura. Confira.');
+ }
+ if(L.val.produtos!=null&&almox&&!ig(L.val.produtos,K.somaL)&&!L.val.desconto)avisos.push('A soma dos itens lidos ('+fMoeda(K.somaL)+') é diferente do total de produtos do documento ('+fMoeda(L.val.produtos)+'). Pode faltar ou sobrar item: confira.');
+ if(almox&&K.totalDoc!=null&&Math.abs(K.dif)>=0.02)avisos.push('A soma dos itens + frete + impostos ('+fMoeda(K.total)+') não bate com o total do documento ('+fMoeda(K.totalDoc)+'): diferença de '+fMoeda(Math.abs(K.dif))+'.');
+ if(K.totalDoc==null)avisos.push('O total do documento não foi lido: o lançamento usa a soma dos itens.');
+ if(almox&&K.acres)info.push((K.acres>0?'Impostos e despesas da nota (':'Desconto da nota (')+fMoeda(Math.abs(K.acres))+') distribuídos no custo dos itens, proporcional ao valor de cada um.');
+ if(C.pag.fonte==='pergunta'&&!C.pag.sit)erros.push('Responda: como foi realizado o pagamento?');
+ if(C.pag.sit==='pago'&&!C.pag.forma)erros.push('Escolha a forma de pagamento.');
+ if(C.pag.sit==='pago'&&!C.pag.conta)erros.push('Escolha a conta de onde saiu o dinheiro.');
+ const P=parcelas(job,almox?K.total:valorFin(job));
+ if(P.pres)info.push('O vencimento não está no documento: ficou '+fData(P.ls[0].venc)+' (30 dias). Ajuste se souber a data certa; o compromisso fica marcado para conferir.');
+ if(P.vencDif)avisos.push('As parcelas lidas não fecham com o total: o lançamento ficou numa parcela só, com o primeiro vencimento.');
+ if(L.ileg.length)avisos.push('Não foi possível ler: '+L.ileg.join(', ')+'. Ficam pendentes para completar depois.');
+ if(L.cortou&&L.cortou.length)avisos.push('Documento longo: '+L.cortou.join('; ')+'.');
+ if(!APP.assets)avisos.push('Este acesso não guarda arquivos: o lançamento fica sem o documento original anexado.');
+ if(L.tipo==='outro'&&!L.itens.length)erros.push('Não parece uma nota, cupom, boleto ou fatura.'+(L.obs?' '+L.obs:'')+' Confira o arquivo.');
+ return{erros,avisos,info,K,P}}
+const valorFin=job=>{const K=calc(job);const C=job.C;if(C.valorManual>0)return r2(C.valorManual);return K.totalDoc!=null&&K.totalDoc>0?K.totalDoc:K.total};
+
+/* ================= telas ================= */
+const tagLido=t=>`<span class="tag lia-lido">${esc(t||'lido')}</span>`,tagPres=t=>`<span class="tag lia-pres">${esc(t||'presumido')}</span>`;
+const TIPO_TXT={nota_fiscal:'Nota fiscal',nfce:'NFC-e',cupom:'Cupom',boleto:'Boleto',fatura:'Fatura / conta de consumo',recibo:'Recibo',comprovante:'Comprovante de pagamento',pedido:'Pedido',outro:'Documento'};
+function tela(c,origem){
+ if(!J)J=novoJ(origem);
+ if(J.fase==='captura'&&!J.arqs.length)J.origem=origem;
+ const pa=podeAlm(),pf=podeFin();
+ const sub='Fotografe ou anexe a nota, o cupom, o boleto ou a fatura. O sistema lê, confere com os cadastros e prepara a entrada no estoque e a conta no Financeiro. Nada é gravado antes de você confirmar.';
+ const ac=J.fase!=='captura'||J.arqs.length?`<button type="button" class="btn" id="liaNovo">${ic('mais')}Novo lançamento</button>`:'';
+ if(!pa&&!pf){c.innerHTML=B.cab('camera','Lançamento Inteligente por Foto',sub)+'<div class="vazio"><b>Seu perfil não faz lançamentos</b>Peça ao administrador acesso de lançamento no Almoxarifado ou no Financeiro.</div>'+historico();return}
+ let corpo='';
+ if(J.fase==='captura'||J.fase==='lendo'||J.fase==='erro')corpo=telaCaptura();
+ else if(J.fase==='conferir')corpo=telaConf();
+ else if(J.fase==='gravando')corpo=`<section class="painel" style="padding:18px"><div class="lia-prog"><p id="liaProgTxt">${esc(J.prog.txt||'Gravando…')}</p><div class="lia-barra"><i id="liaProgBar" style="width:${J.prog.pct}%"></i></div></div></section>`;
+ else if(J.fase==='pronto')corpo=telaPronto();
+ c.innerHTML=B.cab('camera','Lançamento Inteligente por Foto',sub,ac)+corpo+historico();
+ ligar(c);chip();
+}
+function miniaturas(){
+ if(!J.arqs.length)return '';
+ const mexe=J.fase!=='gravando'&&J.fase!=='pronto';
+ return `<div class="lia-mini">${J.arqs.map(a=>`<figure>${a.url?`<img src="${esc(a.url)}" alt="${esc(a.nome)}">`:'<div class="lia-pdf">PDF</div>'}<figcaption title="${esc(a.nome)}">${esc(a.nome)}</figcaption>${mexe?`<button type="button" class="lia-rm" data-liarm="${esc(a.id)}" aria-label="Tirar ${esc(a.nome)}">×</button>`:''}</figure>`).join('')}</div>`}
+function botoesCaptura(){
+ const web=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)&&!matchMedia('(pointer:coarse)').matches;
+ return `<div class="lia-bts">
+  <label class="btn pri lia-bt">${ic('camera')}<span>${J.arqs.length?'Fotografar outra página':'Tirar foto'}</span><input type="file" accept="image/*" capture="environment" multiple hidden data-liaarq></label>
+  ${web?`<button type="button" class="btn lia-bt" id="liaWeb">${ic('camera')}<span>Câmera do computador</span></button>`:''}
+  <label class="btn lia-bt">${ic('clip')}<span>${J.arqs.length?'Anexar mais arquivos':'Anexar PDF ou imagens'}</span><input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple hidden data-liaarq></label></div>`}
+function telaCaptura(){
+ const lendo=J.fase==='lendo';
+ return `<section class="painel" style="padding:16px">
+  <div class="lia-zona" id="liaZona"><div class="lia-zona-ic">${ic('camera')}</div>
+   <b>${J.arqs.length?'Documento recebido':'Tire uma foto ou anexe o documento'}</b>
+   <span class="ajuda">Nota fiscal, cupom, boleto, fatura ou recibo · PDF, JPG ou PNG · várias páginas ou arquivos do mesmo documento.</span>
+   ${botoesCaptura()}<span class="ajuda">No computador, você também pode arrastar os arquivos para cá.</span></div>
+  ${miniaturas()}
+  ${lendo?`<div class="lia-prog" role="status" aria-live="polite"><p id="liaProgTxt">${esc(J.prog.txt)}</p><div class="lia-barra"><i id="liaProgBar" style="width:${J.prog.pct}%"></i></div>
+   <p class="ajuda">Pode continuar usando o sistema: a leitura segue e um aviso no canto da tela leva de volta quando terminar.</p><button type="button" class="btn min" id="liaParar">Parar a leitura</button></div>`:''}
+  ${J.fase==='erro'?`<div class="aviso pe" style="margin-top:12px"><span>${esc(J.erro)}</span></div><div class="inline" style="margin-top:8px"><button type="button" class="btn pri" id="liaDeNovo">Tentar de novo</button></div>`:''}
+  ${J.fase==='captura'&&J.arqs.length?`<div class="inline" style="margin-top:12px"><button type="button" class="btn pri" id="liaLer">Ler o documento</button></div>`:''}
+ </section>`}
+function opItens(sel){return `<option value="novo"${sel==='novo'?' selected':''}>＋ Cadastrar como item novo</option>`+DATA.almItens.filter(i=>B.ativo(i)||i.id===sel).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(i=>`<option value="${esc(i.id)}"${i.id===sel?' selected':''}>${esc(B.rotItem(i)+' ('+B.un(i.unidade)+')')}</option>`).join('')}
+function telaConf(){
+ const C=J.C,L=J.L;const al=alertas(J);const K=al.K;const almox=C.destino==='almox';
+ const forn=C.forn;const optF=DATA.almFornecedores.filter(B.ativo).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ const fSel=forn.escolha!=='novo'?B.FORNA(forn.escolha):null;
+ const comoTag=l=>l.alvo==='novo'?tagPres('item novo'):l.como==='parecido'?tagPres('parecido · confira'):tagLido(l.como==='aprendido'?'já usado antes':'mesmo nome');
+ const confTag=l=>l.conf==='baixa'?'<span class="tag pe">leitura duvidosa</span>':l.conf==='media'?'<span class="tag at">confira</span>':'';
+ const linhasH=C.linhas.map(l=>`<tr data-lial="${l.k}"${l.ignorar?' style="opacity:.5"':''}>
+   <td data-l="Lido no documento" class="lia-desc"><b>${esc(l.desc||'(descrição não lida)')}</b>${l.cod?`<span class="sub" style="display:block;font-size:11.5px">cód. ${esc(l.cod)}</span>`:''} ${confTag(l)}</td>
+   <td data-l="Quantidade" class="num"><input type="number" step="any" min="0" inputmode="decimal" data-lial-k="qtd" value="${esc(l.qtd==null?'':l.qtd)}" style="width:86px" aria-label="Quantidade do item ${l.k+1}"> <small>${esc(l.un||'')}</small></td>
+   <td data-l="Total do item" class="num"><input data-lial-k="total" data-masc="moeda" inputmode="decimal" value="${esc(l.total==null?'':fMoedaCampo(l.total))}" style="width:100px" aria-label="Total do item ${l.k+1}"></td>
+   ${almox?`<td data-l="No estoque"><select data-lial-k="alvo" aria-label="Item do estoque para a linha ${l.k+1}">${opItens(l.alvo)}</select> ${comoTag(l)}
+    ${l.alvo==='novo'?`<div class="lia-novo"><input data-lial-k="nomeNovo" value="${esc(l.nomeNovo)}" aria-label="Descrição do item novo" style="flex:2;min-width:150px">
+     <select data-lial-k="catNovo" aria-label="Categoria do item novo"><option value="">Categoria…</option>${B.CAT_NOMES.map(c=>`<option${c===l.catNovo?' selected':''}>${esc(c)}</option>`).join('')}</select>
+     <select data-lial-k="unNovo" aria-label="Unidade do item novo">${B.UNIDS.map(u=>`<option${u===l.unNovo?' selected':''}>${esc(u)}</option>`).join('')}</select></div>`:''}</td>`:''}
+   <td class="acs"><button type="button" class="btn min" data-liaign="${l.k}">${l.ignorar?'Incluir':'Não lançar'}</button></td></tr>`).join('');
+ const P=al.P;
+ const pagH=(()=>{const p=C.pag;const formas=formasF();
+  const contaSel=`<div class="cmp" style="max-width:340px;margin-top:10px"><label for="liaConta">Conta de onde saiu o dinheiro</label><select id="liaConta">${H.optsContas().map(([v,t])=>`<option value="${esc(v)}"${v===p.conta?' selected':''}>${esc(t)}</option>`).join('')}</select></div>`;
+  if(p.fonte==='documento'&&!p.mudar){
+   return `<section class="lia-sec painel" style="padding:14px"><h3>Pagamento ${tagLido('identificado no documento')}</h3>
+    <p style="margin:0">${p.sit==='pago'?'Pago via <b>'+esc(p.forma)+'</b>'+(p.data?' em '+esc(fData(p.data)):''):'Em aberto: '+P.ls.map(x=>'<b>'+esc(fMoeda(x.valor))+'</b> vence '+esc(fData(x.venc))).join(' · ')+(p.forma?' · '+esc(p.forma):'')}</p>
+    ${p.evid?`<p class="ajuda" style="margin:6px 0 0">No documento: “${esc(p.evid)}”</p>`:''}
+    ${p.sit==='pago'?contaSel:''}
+    <button type="button" class="btn min" id="liaPagMudar" style="margin-top:8px">Corrigir o pagamento</button></section>`}
+  return `<section class="lia-sec lia-perg" id="liaPerg"><h3>Como foi realizado o pagamento?</h3>
+   <div class="lia-formas">${formas.map(f=>`<button type="button" class="btn${p.sit==='pago'&&p.forma===f?' on':''}" data-liaforma="${esc(f)}">${p.sit==='pago'&&p.forma===f?'✓ ':''}${esc(f)}</button>`).join('')}
+    <button type="button" class="btn${p.sit==='pendente'?' on':''}" data-liaforma="__aberto">${p.sit==='pendente'?'✓ ':''}Ainda não foi pago</button></div>
+   ${p.sit==='pago'?contaSel:''}
+   ${p.sit==='pendente'?`<div class="cmp" style="max-width:240px;margin-top:10px"><label for="liaVenc">Vencimento</label><input type="date" id="liaVenc" value="${esc(P.ls[0].venc)}"><span class="ajuda">${P.pres?'Não está no documento: 30 dias, se não souber.':'Do documento.'}</span></div>`:''}
+  </section>`})();
+ const kv=(l,v)=>`<div><span>${esc(l)}</span><b>${v}</b></div>`;
+ const valorTxt=v=>v==null?'<span class="tag at">não lido</span>':esc(fMoeda(v));
+ return `<section class="painel" style="padding:16px">
+  ${miniaturas()}
+  <div class="lia-sec"><h3>Documento ${tagLido(TIPO_TXT[L.tipo]||'Documento')}</h3><div class="lia-kv">
+   ${kv('Número',C.nota?esc(C.nota)+(C.serie?' · série '+esc(C.serie):''):'<span class="tag at">não lido</span>')}${kv('Emissão',C.emissao?esc(fData(C.emissao)):'<span class="tag at">não lida</span>')}
+   ${C.chave?kv('Chave de acesso','<small>'+esc(C.chave.replace(/(\d{4})/g,'$1 ').trim())+'</small>'):''}${kv('Total do documento',valorTxt(K.totalDoc))}
+   ${C.linhaDig?kv('Linha digitável','<small>'+esc(C.linhaDig)+'</small>'):''}${kv('Lido por',J.motor==='nuvem'?'IA do servidor da nuvem':'Claude desta página')}</div></div>
+  <div class="lia-sec"><h3>Fornecedor ${forn.escolha!=='novo'&&fSel?tagLido('já cadastrado'):tagPres('será cadastrado')}</h3>
+   <div class="campos"><div class="cmp"><label for="liaForn">Fornecedor</label><select id="liaForn"><option value="novo">${esc(forn.nome?'＋ Cadastrar “'+forn.nome+'”':'＋ Cadastrar novo')}</option>${optF.map(f=>`<option value="${esc(f.id)}"${f.id===forn.escolha?' selected':''}>${esc(f.nome+(f.doc?' · '+B.fmtDoc(f.doc):''))}</option>`).join('')}</select>
+    ${forn.finId&&!almox?'<span class="ajuda">Já está nos fornecedores do Financeiro: o compromisso fica ligado a esse cadastro.</span>':''}</div>
+    ${forn.escolha==='novo'?`<div class="cmp"><label for="liaFNome">Nome ou razão social</label><input id="liaFNome" value="${esc(forn.nome)}"></div>`:''}</div>
+   <div class="lia-kv" style="margin-top:8px">${kv('CPF/CNPJ',forn.docLido?esc(B.fmtDoc(forn.docLido))+(forn.docOk?'':' <span class="tag pe">não confere</span>'):'<span class="tag at">não lido</span>')}
+    ${L.forn.end||L.forn.cidade?kv('Endereço',esc([L.forn.end,L.forn.cidade,L.forn.uf].filter(Boolean).join(' · '))):''}${L.forn.tel?kv('Telefone',esc(L.forn.tel)):''}</div></div>
+  <div class="lia-sec"><h3>Onde lançar</h3><div class="lia-formas">
+   ${podeAlm()?`<button type="button" class="btn${almox?' on':''}" data-liadest="almox">${almox?'✓ ':''}Entrada no estoque + conta no Financeiro</button>`:''}
+   ${podeFin()?`<button type="button" class="btn${!almox?' on':''}" data-liadest="fin">${!almox?'✓ ':''}Só no Financeiro (despesa sem estoque)</button>`:''}</div></div>
+  ${L.itens.length?`<div class="lia-sec"><h3>Itens lidos (${C.linhas.filter(l=>!l.ignorar).length} de ${C.linhas.length})</h3>
+   <div class="tabwrap"><table class="tbl cartao lia-tb"><thead><tr><th>Lido no documento</th><th class="num">Quantidade</th><th class="num">Total do item</th>${almox?'<th>No estoque</th>':''}<th></th></tr></thead><tbody>${linhasH}</tbody></table></div></div>`:''}
+  <div class="lia-sec"><h3>Valores</h3><div class="lia-kv">
+   ${almox?kv('Soma dos itens',esc(fMoeda(K.somaL))):''}${L.val.desconto?kv('Desconto',esc(fMoeda(L.val.desconto))):''}
+   ${almox?`<div><span>Frete</span><b><input id="liaFrete" data-masc="moeda" inputmode="decimal" value="${esc(K.frete?fMoedaCampo(K.frete):'')}" placeholder="0,00" style="width:110px"></b></div>`:''}
+   ${L.val.ipi?kv('IPI',esc(fMoeda(L.val.ipi))):''}${L.val.icmsST?kv('ICMS-ST',esc(fMoeda(L.val.icmsST))):''}${L.val.icms?kv('ICMS (já no preço)',esc(fMoeda(L.val.icms))):''}${L.val.outrasDespesas?kv('Outras despesas',esc(fMoeda(L.val.outrasDespesas))):''}${L.val.seguro?kv('Seguro',esc(fMoeda(L.val.seguro))):''}
+   ${almox?kv('Total que vai ser lançado','<span style="font-size:17px">'+esc(fMoeda(K.total))+'</span>'):`<div><span>Valor a pagar</span><b><input id="liaValor" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(valorFin(J)))}" style="width:120px"></b></div>`}
+   ${kv('Total do documento',valorTxt(K.totalDoc)+(K.totalDoc!=null&&almox?(Math.abs(K.dif)<0.02?' '+tagLido('confere'):' <span class="tag pe">diferença '+esc(fMoeda(Math.abs(K.dif)))+'</span>'):''))}</div></div>
+  <div class="lia-sec"><h3>Financeiro</h3><div class="campos">
+   <div class="cmp"><label for="liaData">Data do lançamento${almox?' (entrada)':''}</label><input type="date" id="liaData" max="${hoje()}" value="${esc(C.data)}"></div>
+   <div class="cmp"><label for="liaCat">Categoria da despesa</label><select id="liaCat"><option value="">Selecione…</option>${(H.fcfg().categorias||[]).map(c=>`<option${c===C.categoria?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
+   <div class="cmp"><label for="liaCC">Centro de custo</label><select id="liaCC"><option value="">—</option>${(H.fcfg().centros||[]).map(c=>`<option${c===C.centro?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
+   <div class="cmp w2"><label for="liaObs">Observações</label><textarea id="liaObs" rows="2">${esc(C.obs)}</textarea></div></div></div>
+  ${pagH}
+  <div class="lia-sec" id="liaAlertas">${htmlAlertas(al)}</div>
+  ${jaLancado(J).length||al.erros.some(e=>/já foi lançad|já está lançado/i.test(e))||C.forcarDup?`<label class="inline" style="margin-top:8px;gap:8px"><input type="checkbox" id="liaForcar"${C.forcarDup?' checked':''}> Sei que parece repetido e quero lançar mesmo assim</label>`:''}
+  <div class="inline" style="margin-top:14px;gap:8px"><button type="button" class="btn pri" id="liaOk">${ic('entrada')}Confirmar e lançar</button><button type="button" class="btn" id="liaReler">Ler de novo</button></div>
+  <ol class="vd-passos" style="margin-top:10px">${almox?'<li>Cadastra o fornecedor e os itens que ainda não existem (sem repetir os que já existem)</li><li>Dá entrada no estoque e recalcula o custo médio</li><li>Lança a conta no Financeiro'+(C.pag.sit==='pago'?', já paga':'')+'</li>':'<li>'+(forn.finId?'Usa o fornecedor do Financeiro':'Cadastra o fornecedor, se ainda não existir')+'</li><li>Lança o compromisso no Financeiro'+(C.pag.sit==='pago'?', já pago':'')+'</li>'}<li>Guarda o documento original junto do lançamento, com o histórico</li></ol>
+ </section>`}
+function htmlAlertas(al){
+ if(!al.erros.length&&!al.avisos.length&&!al.info.length)return `<div class="aviso ok"><span>Conferência sem pendências: valores, cadastros e duplicidade conferidos.</span></div>`;
+ return `<h3>Conferência</h3><ul class="lia-alertas">${al.erros.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${al.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}${al.info.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`}
+function telaPronto(){const R=J.res||{passos:[],falhas:[]};
+ return `<section class="painel" style="padding:16px"><div class="aviso ${R.falhas.length?'at':'ok'}"><span>${R.falhas.length?'Lançado, com pendências abaixo.':'Lançamento concluído.'}</span></div>
+  <div class="lia-sec"><h3>Resumo do que foi lançado</h3><ul class="lia-res">${R.passos.map(p=>`<li>${p}</li>`).join('')}</ul>
+  ${R.falhas.length?`<h3>Pendências</h3><ul class="lia-alertas">${R.falhas.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}</ul>`:''}</div>
+  <div class="inline" style="margin-top:12px;gap:8px"><button type="button" class="btn pri" id="liaNovo2">${ic('camera')}Lançar outro documento</button>${R.link?`<a class="btn" href="${esc(R.link)}">Abrir o lançamento</a>`:''}${R.tit?`<button type="button" class="btn" data-liaobr="${esc(R.tit)}">Abrir no Financeiro</button>`:''}</div></section>`}
+function historico(){
+ const xs=[...DATA.almEntradas.filter(e=>e.ia).map(e=>({q:'e',r:e,em:e.criadoEm||e.data,forn:B.nomeFornA(e.fornecedorId),valor:e.total,anexos:e.anexos||(e.anexo?[e.anexo]:[])})),
+  ...DATA.fTitulos.filter(t=>t.ia&&!t.almEntradaId&&(!t.parcela||t.parcela===1)).map(t=>({q:'t',r:t,em:t.criadoEm||t.data,forn:t.beneficiarioNome||'',valor:t.parcelas>1?t.ia.total||t.valor:t.valor,anexos:t.anexos||(t.anexo?[t.anexo]:[])}))]
+  .sort((a,b)=>String(b.em).localeCompare(String(a.em))).slice(0,20);
+ if(!xs.length)return '';
+ const sit=x=>{if(x.q==='e'){const f=B.finDe(x.r);return B.tagFin(f)}const o=(FS.obrigacoes()||[]).find(o=>o.ref==='t:'+x.r.id);return o?H.tagSit(o.s.st):''};
+ return `<section class="lia-sec"><h3>Últimos lançamentos por foto</h3><div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Lançado em</th><th>Documento</th><th>Fornecedor</th><th class="num">Valor</th><th>Pagamento</th><th>Por</th><th>Original</th><th></th></tr></thead><tbody>
+  ${xs.map(x=>`<tr><td data-l="Lançado em">${esc(fDataHora(x.em))}</td><td data-l="Documento">${esc((TIPO_TXT[x.r.ia.tipo]||'Documento')+(x.r.ia.numero?' nº '+x.r.ia.numero:''))}<span class="sub" style="display:block;font-size:11.5px">${x.q==='e'?'Almoxarifado + Financeiro':'Financeiro'}</span></td>
+   <td data-l="Fornecedor">${esc(x.forn||'—')}</td><td data-l="Valor" class="num">${esc(fMoeda(x.valor))}</td><td data-l="Pagamento">${sit(x)}</td><td data-l="Por">${esc(nomeUsuario(x.r.criadoPor||'')||'—')}</td>
+   <td data-l="Original">${x.anexos.filter(a=>a&&a.id).map(a=>`<a href="/_blob/${esc(a.id)}" target="_blank" rel="noopener">${ic('clip','style="width:14px;height:14px;vertical-align:-2px"')} ${esc(a.nome||'arquivo')}</a>`).join('<br>')||'—'}</td>
+   <td class="acs">${x.q==='e'?(pode('almEntrada')?`<a class="btn min" href="#/almEntrada/${esc(x.r.id)}">Abrir</a>`:''):(pode('fpagar')?`<button type="button" class="btn min" data-liaobr="t:${esc(x.r.id)}">Abrir</button>`:'')}</td></tr>`).join('')}</tbody></table></div></section>`}
+
+/* ================= interação ================= */
+function ligar(c){
+ const zona=$('#liaZona',c);
+ if(zona){['dragenter','dragover'].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.add('arrastando')}));
+  ['dragleave','drop'].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.remove('arrastando')}));
+  zona.addEventListener('drop',e=>adicionar(e.dataTransfer&&e.dataTransfer.files))}
+ $$('[data-liaarq]',c).forEach(i=>i.onchange=()=>{const f=Array.from(i.files||[]);i.value='';adicionar(f)});
+ c.onclick=async e=>{const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.liarm){tirar(t.dataset.liarm);return}
+  if(t.id==='liaNovo'||t.id==='liaNovo2'){if(J&&J.fase==='conferir'&&!await confirmar('Começar outro lançamento?','O documento lido ainda não foi lançado e será descartado.',{ok:'Descartar'}))return;novo();return}
+  if(t.id==='liaWeb'){abrirCamera();return}
+  if(t.id==='liaParar'){if(J&&J.ctl){J.ctl.abort();J.ctl=null}J.fase='captura';atualizar();return}
+  if(t.id==='liaLer'||t.id==='liaDeNovo'||t.id==='liaReler'){iniciarLeitura();return}
+  if(t.dataset.liaobr){if(A.abrirObrig)A.abrirObrig(t.dataset.liaobr);else location.hash='#/fpagar';return}
+  if(!J||!J.C)return;const C=J.C;
+  if(t.dataset.liadest){C.destino=t.dataset.liadest;C.categoria=C.destino==='almox'?catAlmDe(C.linhas):(C.categoria||'');renderTela();return}
+  if(t.dataset.liaign!=null){const l=C.linhas[+t.dataset.liaign];if(l)l.ignorar=!l.ignorar;renderTela();return}
+  if(t.id==='liaPagMudar'){C.pag={fonte:'pergunta',sit:'',forma:'',data:'',evid:'',conta:C.pag.conta,mudar:true};renderTela();return}
+  if(t.dataset.liaforma){const f=t.dataset.liaforma;if(f==='__aberto')Object.assign(C.pag,{fonte:'pergunta',sit:'pendente',forma:''});else Object.assign(C.pag,{fonte:'pergunta',sit:'pago',forma:f,conta:contaPadrao(f)});renderTela();return}
+  if(t.id==='liaOk'){efetivar(t);return}};
+ const conf=()=>{const w=$('#liaAlertas',c);if(w&&J&&J.C)w.innerHTML=htmlAlertas(alertas(J))};
+ c.oninput=e=>{if(!J||!J.C)return;const t=e.target;const C=J.C;
+  const tr=t.closest('[data-lial]');if(tr&&t.dataset.lialK){const l=C.linhas[+tr.dataset.lial];const k=t.dataset.lialK;if(!l)return;
+   if(k==='qtd')l.qtd=t.value===''?null:+t.value;else if(k==='total')l.total=t.value.trim()===''?null:lerMoeda(t.value);else if(k==='nomeNovo')l.nomeNovo=t.value;conf();return}
+  if(t.id==='liaFrete'){C.frete=lerMoeda(t.value)||0;conf();return}
+  if(t.id==='liaValor'){C.valorManual=lerMoeda(t.value)||0;conf();return}
+  if(t.id==='liaFNome'){C.forn.nome=t.value;conf();return}
+  if(t.id==='liaObs'){C.obs=t.value;return}};
+ c.onchange=e=>{if(!J||!J.C)return;const t=e.target;const C=J.C;
+  const tr=t.closest('[data-lial]');if(tr&&t.dataset.lialK){const l=C.linhas[+tr.dataset.lial];const k=t.dataset.lialK;if(!l)return;
+   if(k==='alvo'){l.alvo=t.value;l.como=t.value==='novo'?'novo':'escolhido';if(C.destino==='almox')C.categoria=catAlmDe(C.linhas);renderTela();return}
+   if(k==='catNovo'){l.catNovo=t.value;if(C.destino==='almox')C.categoria=catAlmDe(C.linhas);conf();return}if(k==='unNovo'){l.unNovo=t.value;return}return}
+  if(t.id==='liaForn'){C.forn.escolha=t.value;renderTela();return}
+  if(t.id==='liaData'){C.data=t.value;conf();return}
+  if(t.id==='liaCat'){C.categoria=t.value;C.catSugerida=false;conf();return}
+  if(t.id==='liaCC'){C.centro=t.value;return}
+  if(t.id==='liaConta'){C.pag.conta=t.value;conf();return}
+  if(t.id==='liaVenc'){C.vencManual=t.value;C.vencs=[];conf();return}
+  if(t.id==='liaForcar'){C.forcarDup=t.checked;renderTela();return}};
+}
+function novo(){if(J){if(J.ctl)J.ctl.abort();J.arqs.forEach(a=>{if(a.url)URL.revokeObjectURL(a.url)})}const o=lerRota().mod==='fIA'?'fin':'almox';J=novoJ(o);atualizar()}
+/* câmera do computador: várias páginas seguidas, depois lê tudo junto */
+async function abrirCamera(){
+ let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1440}},audio:false})}
+ catch(e){toast('A câmera do computador não abriu aqui ('+(e&&e.name==='NotAllowedError'?'permissão negada':'não disponível')+'). Use "Anexar PDF ou imagens".','erro');return}
+ const v=document.createElement('div');v.className='lia-cam';v.setAttribute('role','dialog');v.setAttribute('aria-label','Câmera do computador');
+ v.innerHTML=`<video autoplay playsinline muted></video><div style="color:#fff" id="liaCamN">Enquadre a página inteira e clique em Fotografar.</div><div class="lia-bts"><button type="button" class="btn pri" data-c="foto">${ic('camera')}Fotografar página</button><button type="button" class="btn" data-c="ok">Concluir e ler</button><button type="button" class="btn" data-c="sair">Cancelar</button></div>`;
+ document.body.appendChild(v);const vid=v.querySelector('video');vid.srcObject=st;let n=0;const novos=[];
+ const fechar=()=>{st.getTracks().forEach(t=>t.stop());v.remove()};
+ v.onclick=async e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.c==='foto'){if(!vid.videoWidth)return;const cv=document.createElement('canvas');cv.width=vid.videoWidth;cv.height=vid.videoHeight;cv.getContext('2d').drawImage(vid,0,0);
+   const bl=await paraBlob(cv,.92);n++;novos.push(new File([bl],'camera-pagina-'+n+'.jpg',{type:'image/jpeg'}));v.querySelector('#liaCamN').textContent=n+' página(s) fotografada(s). Fotografe a próxima ou conclua.';return}
+  if(b.dataset.c==='ok'){fechar();if(novos.length)adicionar(novos);return}
+  if(b.dataset.c==='sair')fechar()}}
+
+/* ================= gravação: pelos caminhos que o sistema já usa ================= */
+async function aguardar(f,ms){const fim=Date.now()+(ms||4000);while(Date.now()<fim){const x=f();if(x)return x;await espera(80)}return f()}
+const docTipoFin=t=>({nota_fiscal:'Nota fiscal',nfce:'Nota fiscal',cupom:'Nota fiscal',boleto:'Boleto',fatura:'Fatura / conta de consumo',recibo:'Recibo',comprovante:'Recibo'})[t]||'';
+function iaRegistro(job,K,anexos){const L=job.L,C=job.C;
+ return{versao:1,origem:'foto',lidoPor:job.motor,tipo:L.tipo,numero:C.nota||'',serie:C.serie||'',chave:C.chave||'',emissao:C.emissao||'',fornecedorLido:{nome:L.forn.nome,doc:L.forn.doc,end:L.forn.end,cidade:L.forn.cidade,uf:L.forn.uf,tel:L.forn.tel,ie:L.forn.ie},
+  hashes:job.arqs.map(a=>a.hash).filter(Boolean),arquivos:anexos.map(a=>a.id),total:K.totalDoc!=null?K.totalDoc:K.total,valores:L.val,
+  itensLidos:L.itens.map(i=>({cod:i.cod,desc:i.desc,qtd:i.qtd,un:i.un,unit:i.unit,total:i.total,conf:i.conf})).slice(0,300),
+  pagamento:{fonte:C.pag.fonte,situacao:C.pag.sit,forma:C.pag.forma,evidencia:C.pag.evid||''},pendencias:L.ileg,lancadoEm:agoraIso(),lancadoPor:eu()}}
+function rascunhoTitulo(job,p,n){
+ const C=job.C,L=job.L;const pago=C.pag.sit==='pago';const fin=C.forn.finId?(DATA.fornecedores||[]).find(f=>f.id===C.forn.finId):null;
+ const fAlm=C.forn.escolha!=='novo'?B.FORNA(C.forn.escolha):null;const nome=fAlm?fAlm.nome:String(C.forn.nome||'').trim();
+ const tipoDoc=docTipoFin(L.tipo);
+ return{id:novoId(),data:C.data,descricao:(TIPO_TXT[L.tipo]||'Documento')+(C.nota?' nº '+C.nota:'')+(nome?' · '+nome:''),categoria:C.categoria,setorOrigem:'Geral (Financeiro)',centroCusto:C.centro||'',
+  ...(fin?{beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:fin.id}:{beneficiarioTipo:'Outro',beneficiario:nome||'Fornecedor não identificado'}),
+  valor:r2(p.valor),vencimento:p.venc,dataPrevista:!pago&&p.venc>=hoje()?p.venc:'',formaPrevista:pago?C.pag.forma:(C.pag.forma||(C.linhaDig?'Boleto':'PIX')),contaId:pago?C.pag.conta:'',
+  docOrigemTipo:tipoDoc,docOrigemNum:tipoDoc?String(C.nota||''):'',linhaDigitavel:C.linhaDig||'',condicaoT:pago?'À vista (já pago)':'A prazo',repetir:'Não repete',
+  pagamentos:pago?[{id:novoId(),data:C.pag.data&&C.pag.data<=hoje()?C.pag.data:C.data,valor:r2(p.valor),forma:C.pag.forma,contaId:C.pag.conta,quitacao:true,motivoDif:'',obsDif:'',por:eu(),em:agoraIso(),obs:'Pago, conforme o documento lido no Lançamento Inteligente por Foto'}]:[],
+  ...(n>1?{parcela:p.n,parcelas:n}:{})}}
+async function efetivar(btn){
+ const job=J;if(!job||!job.C)return;const C=job.C;const al=alertas(job);
+ if(al.erros.length){toast(al.erros[0],'erro');const w=$('#liaAlertas');if(w)w.scrollIntoView({behavior:'smooth',block:'center'});return}
+ const almox=C.destino==='almox';const K=al.K;const total=almox?K.total:valorFin(job);const P=parcelas(job,total);
+ const nomeF=C.forn.escolha!=='novo'?B.nomeFornA(C.forn.escolha):String(C.forn.nome||'').trim();
+ const novosIt=almox?C.linhas.filter(l=>!l.ignorar&&l.alvo==='novo').length:0;
+ const txt=nomeF+' · '+(almox?C.linhas.filter(l=>!l.ignorar).length+' item(ns) no estoque'+(novosIt?' ('+novosIt+' novo(s))':'')+' · ':'')+'total '+fMoeda(total)+' · '+(C.pag.sit==='pago'?'pago via '+C.pag.forma:'em aberto, vence '+P.ls.map(p=>fData(p.venc)).join(', '))+'.'+(al.avisos.length?' Atenção: '+al.avisos.length+' aviso(s) na conferência.':'');
+ if(!await confirmar('Confirmar o lançamento?',txt,{ok:'Lançar'}))return;
+ btn.disabled=true;job.fase='gravando';prog(job,'Guardando o documento original…',5);atualizar();
+ const R={passos:[],falhas:[],link:'',tit:''};
+ try{
+  /* 1. originais: sem o comprovante guardado, nada é lançado */
+  const anexos=[];
+  if(APP.assets){for(let i=0;i<job.arqs.length;i++){const a=job.arqs[i];prog(job,'Guardando o documento original ('+(i+1)+' de '+job.arqs.length+')…',5+20*i/job.arqs.length);
+    try{const r=await APP.assets.upload(a.file);anexos.push({id:r.id,nome:a.nome,tipo:r.contentType||a.tipo,tam:r.sizeBytes||a.tam,sha256:a.hash})}
+    catch(e){throw erroU('upload','Não foi possível guardar o arquivo '+a.nome+(e&&e.code==='too_large'?' (grande demais)':'')+'. Nada foi lançado. Tente de novo.')}}
+   R.passos.push('Documento original guardado ('+anexos.length+' arquivo'+(anexos.length>1?'s':'')+').')}
+  else R.falhas.push('Este acesso não guarda arquivos: o lançamento ficou sem o documento original.');
+  const ia=iaRegistro(job,K,anexos);
+  /* 2. fornecedor: o que já existe; senão cadastra (conferindo CNPJ/CPF e nome de novo, agora) */
+  prog(job,'Conferindo o fornecedor…',30);
+  let fornId=C.forn.escolha!=='novo'?C.forn.escolha:'';
+  const precisaAlm=almox||(!C.forn.finId&&pode('almFornecedores','e'));
+  if(!fornId&&precisaAlm){const F=fornecedorDe({doc:C.forn.doc,nome:String(C.forn.nome||'').trim()});
+   if(F.almId){fornId=F.almId;R.passos.push('Fornecedor já cadastrado: '+esc(B.nomeFornA(fornId))+'.')}
+   else{const L=job.L;const st={...MODS.almFornecedores.padrao(),id:novoId(),nome:String(C.forn.nome||'').trim()||'Fornecedor não identificado',doc:C.forn.doc||'',tel:L.forn.tel||'',cidade:[L.forn.cidade,L.forn.uf].filter(Boolean).join(' - '),
+     obs:'Cadastrado pelo Lançamento Inteligente por Foto ('+(TIPO_TXT[L.tipo]||'documento')+(C.nota?' nº '+C.nota:'')+(C.emissao?' de '+fData(C.emissao):'')+').'+(L.forn.end?' Endereço: '+L.forn.end+'.':'')+(L.forn.ie?' IE: '+L.forn.ie+'.':'')+(C.forn.doc?'':' CPF/CNPJ não lido: completar.')};
+    const v=conferirRegistro('almFornecedores',st);const er=Object.values(v.erros||{});if(er.length)throw erroU('forn','Fornecedor: '+er[0]);
+    const rec=await gravarRegistro('almFornecedores',st,null,true);await aguardar(()=>B.FORNA(rec.id));fornId=rec.id;R.passos.push('Fornecedor cadastrado: <b>'+esc(rec.nome)+'</b>'+(rec.doc?' ('+esc(B.fmtDoc(rec.doc))+')':' · CPF/CNPJ fica para completar')+'.')}}
+  else if(fornId)R.passos.push('Fornecedor já cadastrado: '+esc(B.nomeFornA(fornId))+'.');
+  if(!almox){await lancarFin(job,K,P,ia,anexos,fornId,R)}
+  else{
+   /* 3. itens: liga aos que existem; cria só os que faltam (o mesmo item novo em duas linhas vira um cadastro só) */
+   prog(job,'Conferindo os itens do estoque…',45);
+   const docF=C.forn.doc||'';const criados=new Map();const mapa=new Map();
+   for(const l of C.linhas.filter(x=>!x.ignorar)){
+    if(l.alvo!=='novo'){mapa.set(l.k,l.alvo);continue}
+    const nome=String(l.nomeNovo||l.desc).trim();const ch=B.normT(nome)+'|'+l.catNovo+'|'+l.unNovo;
+    if(criados.has(ch)){mapa.set(l.k,criados.get(ch));continue}
+    const ja=DATA.almItens.find(i=>B.ativo(i)&&B.normT(i.nome)===B.normT(nome)&&i.categoria===l.catNovo);
+    if(ja){mapa.set(l.k,ja.id);criados.set(ch,ja.id);R.passos.push('Item já existia: '+esc(B.rotItem(ja))+'.');continue}
+    const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:l.catNovo,unidade:l.unNovo,fornecedorId:fornId,apelidos:[{d:docF,c:l.cod||'',n:B.normT(l.desc)}],
+     obs:'Cadastrado pelo Lançamento Inteligente por Foto'+(C.nota?' (documento nº '+C.nota+')':'')+'.'};
+    const v=conferirRegistro('almItens',st);const er=Object.values(v.erros||{});if(er.length)throw erroU('item','Item "'+nome+'": '+er[0]);
+    const rec=await gravarRegistro('almItens',st,null,true);await aguardar(()=>B.ITEM(rec.id));mapa.set(l.k,rec.id);criados.set(ch,rec.id);R.passos.push('Item novo cadastrado: <b>'+esc(B.rotItem(B.ITEM(rec.id)||rec))+'</b> ('+esc(rec.unidade)+').')}
+   /* aprende: na próxima nota do mesmo fornecedor, a mesma descrição/código já vem ligada */
+   for(const l of C.linhas.filter(x=>!x.ignorar&&x.alvo!=='novo'&&x.como!=='aprendido')){const it=B.ITEM(l.alvo);if(!it)continue;
+    const ap=Array.isArray(it.apelidos)?it.apelidos:[];const n=B.normT(l.desc);if(!n||ap.some(a=>a.n===n&&a.d===docF))continue;
+    try{const ant=clone(it);await gravarRegistro('almItens',{...clone(it),apelidos:[...ap,{d:docF,c:l.cod||'',n}].slice(-30)},ant,false)}catch(e){console.warn('apelido',e)}}
+   /* 4. entrada no estoque (o mesmo registro da tela "Nova entrada") */
+   prog(job,'Dando entrada no estoque…',60);
+   const K2=calc(job);const lin=K2.linhas.map(l=>({itemId:mapa.get(l.k),qtd:l.qtdF,preco:l.precoF})).filter(l=>l.itemId&&l.qtd>0);
+   const Jn=B.juntarLinhasE(lin);const itens=Jn.ls.map(l=>({itemId:l.itemId,qtd:r3(l.qtd),preco:r4(l.preco)}));
+   const tot=r2(itens.reduce((a,l)=>a+l.qtd*l.preco,0)+K2.frete);const P2=parcelas(job,tot);const pago=C.pag.sit==='pago';
+   const agora=agoraIso();
+   const rec={id:novoId(),criadoEm:agora,criadoPor:eu(),milheiros:null,precoMilheiro:null,data:C.data,fornecedorId:fornId,nota:String(C.nota||'').trim(),itens,frete:K2.frete,total:tot,
+    totalNota:K2.totalDoc,anexo:anexos[0]||null,anexos,forma:pago?'vista':'prazo',pagoVia:pago?C.pag.forma:'',parcelas:tot>0?P2.ls:[],recebedor:String(APP.nome||'').trim(),
+    obs:[String(C.obs||'').trim(),'Lançado pelo Lançamento Inteligente por Foto'+(C.emissao?' · emissão '+fData(C.emissao):'')+(P2.pres?' · vencimento presumido (30 dias): conferir':'')].filter(Boolean).join(' · '),
+    alteradoEm:agora,alteradoPor:eu(),finTitulos:[],ia};
+   await gravar('almEntradas',rec,null);await registrarLog('almEntradas',rec.id,'criou',null,rec,rotulosDe(MODS.almEntradas));
+   R.passos.push('Entrada no estoque: <b>'+itens.length+' item(ns)</b>, total <b>'+esc(fMoeda(tot))+'</b>. Saldo e custo médio atualizados.');R.link='#/almEntrada/'+rec.id;
+   /* 5. Financeiro: a rotina da entrada cria a conta; aqui só completa com documento, centro de custo e categoria */
+   prog(job,'Lançando a conta no Financeiro…',75);
+   const fin=await B.sincFinEntrada(rec,null,pago?C.pag.conta:'');
+   if(!fin.ok)R.falhas.push('A conta a pagar não foi lançada: '+fin.msg+' Abra a entrada e use "Lançar a conta a pagar".');
+   else if(tot>0){const e2=await aguardar(()=>{const x=DATA.almEntradas.find(y=>y.id===rec.id);return x&&(x.finTitulos||[]).length?x:null});
+    const ids=(e2&&e2.finTitulos)||[];
+    for(const id of ids){const t=await aguardar(()=>B.TIT(id));if(!t)continue;
+     const mud={centroCusto:C.centro||t.centroCusto||'',anexo:anexos[0]||t.anexo||null,anexos,docOrigemTipo:docTipoFin(job.L.tipo)||t.docOrigemTipo||'',docOrigemNum:String(C.nota||t.docOrigemNum||''),
+      linhaDigitavel:C.linhaDig||t.linhaDigitavel||'',ia:{origem:'foto',lanc:rec.id,hashes:ia.hashes,chave:ia.chave,tipo:ia.tipo,numero:ia.numero,total:ia.total}};
+     if(C.categoria&&C.categoria!==t.categoria)mud.categoria=C.categoria;if(!pago&&C.linhaDig)mud.formaPrevista='Boleto';
+     try{await gravarRegistro('fTitulos',{...clone(t),...mud},clone(t),false)}catch(e){R.falhas.push('O compromisso nº '+t.numero+' foi lançado, mas sem o documento anexado: '+msgErro(e))}}
+    const tt=ids.map(B.TIT).filter(Boolean);R.tit=tt[0]?'t:'+tt[0].id:'';
+    R.passos.push('Financeiro: '+(tt.length>1?tt.length+' parcelas':'compromisso nº '+(tt[0]?tt[0].numero:''))+' de <b>'+esc(fMoeda(tot))+'</b> · '+esc(C.categoria)+(C.centro?' · '+esc(C.centro):'')+' · '+(pago?'<b>pago</b> via '+esc(C.pag.forma):'<b>em aberto</b>, vence '+esc(P2.ls.map(p=>fData(p.venc)).join(', ')))+'.')}
+  }
+  R.passos.push('Lançado por '+esc(APP.nome||'você')+' em '+esc(fDataHora(agoraIso()))+'. O histórico de alterações fica em cada registro.');
+  if(job.L.ileg.length)R.falhas.push('Ficou para completar (não estava legível): '+job.L.ileg.join(', ')+'.');
+  job.res=R;job.fase='pronto';prog(job,'',100);toast('Lançamento concluído.','ok');
+ }catch(e){console.error(e);job.fase='conferir';toast(e&&e.code&&e.message?e.message:msgFalhaSalvar(e),'erro');
+  if(R.passos.length)toast('Parte já foi gravada: '+R.passos.map(p=>p.replace(/<[^>]+>/g,'')).join(' '),'erro',true)}
+ finally{atualizar()}}
+async function lancarFin(job,K,P,ia,anexos,fornAlmId,R){
+ const C=job.C;prog(job,'Lançando o compromisso no Financeiro…',60);
+ const n=P.ls.length;const grupo=novoId();const ids=[];
+ for(const p of P.ls){const st={...rascunhoTitulo(job,p,n),anexo:anexos[0]||null,anexos,ia:{...ia,total:valorFin(job)},responsavelNome:typeof window.respPrincipalV48==='function'?window.respPrincipalV48('Financeiro'):'',
+   obs:[String(C.obs||'').trim(),'Lançado pelo Lançamento Inteligente por Foto'+(C.emissao?' · emissão '+fData(C.emissao):'')+(P.pres?' · vencimento presumido (30 dias): conferir':'')].filter(Boolean).join(' · ')};
+  if(fornAlmId&&st.beneficiarioTipo==='Outro')st.fornecedorAlmId=fornAlmId;if(n>1)st.grupo=grupo;
+  const rec=await gravarRegistro('fTitulos',st,null,true);ids.push(rec.id)}
+ const t0=await aguardar(()=>B.TIT(ids[0]));R.tit=ids[0]?'t:'+ids[0]:'';
+ R.passos.push('Financeiro: '+(n>1?n+' parcelas':'compromisso nº '+(t0?t0.numero:''))+' de <b>'+esc(fMoeda(valorFin(job)))+'</b> · '+esc(C.categoria)+(C.centro?' · '+esc(C.centro):'')+' · '+(C.pag.sit==='pago'?'<b>pago</b> via '+esc(C.pag.forma):'<b>em aberto</b>, vence '+esc(P.ls.map(p=>fData(p.venc)).join(', ')))+'.')}
+
+window.LANC_IA_V57={estado:()=>J,adicionar,iniciarLeitura,normalizar,mesclar,lerJson,vincular,semelhanca,calc:()=>J&&J.C?calc(J):null,alertas:()=>J&&J.C?alertas(J):null,promptLeitura,novo};
 })();
 </script>
 <style id="controladoria-estilos">

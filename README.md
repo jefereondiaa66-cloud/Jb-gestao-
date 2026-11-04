@@ -27,6 +27,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/verificar.mjs` | 20 verificações: programa, construção, ponte (testes B–F) |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
+| `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/do-claude.mjs <pagina>` | traz para cá uma versão alterada dentro do Claude |
 
 Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como operar) ·
