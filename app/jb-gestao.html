@@ -7131,7 +7131,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 61 · novembro de 2026';
+const VERSAO='Versão 62 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -16835,7 +16835,7 @@ window.gerarDasV48=gerarDas;
 const dasAbertos=()=>obrigacoes().filter(o=>o.fonte==='titulo'&&o.rec.meiId&&abertaO(o));
 
 /* ================= Caixa e bancos: saldo pelo movimento ================= */
-const pagaEmDinheiro=p=>p&&p.forma!==PERMUTA;
+const pagaEmDinheiro=p=>p&&p.forma!==PERMUTA&&!p.semDinheiro&&!(window.formaSemDinheiroV62&&window.formaSemDinheiroV62(p.forma)); /* V62: formas sem dinheiro (combustível, trocas) ficam fora do saldo */
 /* tudo o que entrou e saiu de uma conta (Caixa ou banco), a partir do que foi lançado */
 function movimentos(){
  const L=[];const add=x=>L.push(x);
@@ -19381,6 +19381,7 @@ function setoresMes(m){
  /* Setor de Combustível: abastecimentos em máquina da fábrica, pelo custo gravado no abastecimento */
  try{(DATA.consumos||[]).filter(c=>c.setor==='combustivel'&&emMes(c.data,m)).forEach(c=>{
   const val=+c.custoTotal||0;const p=typeof PROD==='function'?PROD(c.produtoId)||{}:{};const nm=(p.nome||'item')+' · '+fNum(c.quantidade,0)+' '+(c.unidade||'');
+  if(c.pagLenha){if(val)fora.push({o:'Setor de Combustível',t:nm+' pago a fornecedor de lenha ('+fData(c.data)+')',v:val,porque:'pagamento de lenha com combustível (o valor já entra no custo da lenha)'});return} /* V62 */
   if(c.abastecidoEm==='Veículo de terceiro'){if(val)fora.push({o:'Setor de Combustível',t:nm+' em veículo de terceiro ('+fData(c.data)+')',v:val,porque:'fora da produção'});return}
   const mq=maqDe(c.localId);const oleo=['Óleo lubrificante','Graxa'].includes(p.tipoItem);const o='Setor de Combustível';const t=nm+' · '+(mq.nome||'máquina não informada')+' · '+fData(c.data);
   if(!val){fora.push({o,t,v:0,porque:'abastecimento sem custo gravado'});return}
@@ -21709,7 +21710,7 @@ new MutationObserver(()=>{if(tObs)return;tObs=requestAnimationFrame(()=>{tObs=nu
 const PERMUTA=()=>window.PERMUTA_V48||'Milheiros (tijolos)';
 function pagSemConta(){if(!FS)return[];const L=[];
  FS.obrigacoes().forEach(o=>{if(o.cancelado||!['titulo','compra'].includes(o.fonte))return;if(o.fonte==='compra'&&o.rec.historico)return;
-  (o.rec.pagamentos||[]).forEach(p=>{if(p.estornado||p.contaId||p.forma===PERMUTA())return;L.push({o,p})})});
+  (o.rec.pagamentos||[]).forEach(p=>{if(p.estornado||p.contaId||p.forma===PERMUTA()||p.semDinheiro||(window.formaSemDinheiroV62&&window.formaSemDinheiroV62(p.forma)))return;L.push({o,p})})});
  return L.sort((a,b)=>String(b.p.data).localeCompare(String(a.p.data)))}
 async function informarConta(ref,pid,contaId){
  const o=FS.obrigacoes().find(x=>x.ref===ref);if(!o)throw new Error('compromisso não encontrado');
@@ -27041,6 +27042,213 @@ if(typeof renderTela==='function'){const rt0=renderTela;
    else if(r.mod==='almEpis'&&!r.id&&pode('almEpis'))botaoFichaEpi(c)}}catch(e){console.warn('V61',e)}
   return r0}}
 window.V61={lembretesSetores,linkWaPal,docFichaEpi,abrirFichaEpi,pecasDaMaquina};
+})();
+</script>
+<script id="formas-pag-v62">
+"use strict";
+/* ================= V62 · forma de pagamento da lenha e lenha paga com combustível (04/11/2026) =================
+   Pedido do Jeferson: no Setor da Lenha, escolher como a compra é paga (dinheiro, PIX, combustível da
+   fábrica e outras), com a opção de cadastrar uma forma nova na hora; e, no Setor de Combustível, lançar
+   o abastecimento "pago com combustível", que já entra como pagamento da compra de lenha (Setor da Lenha
+   e Financeiro).
+   · Formas cadastradas moram na coleção nova "formasPag" (módulo de compras). Cada uma diz se sai
+     dinheiro do Caixa/banco. As que não saem (como "Combustível da fábrica") ficam fora do saldo das contas.
+   · Abastecimento pago com combustível: baixa o estoque do combustível, grava o pagamento na compra de
+     lenha escolhida (forma "Combustível da fábrica", ligado ao abastecimento) e fica fora do custo de
+     combustível da produção, porque o valor já entra no custo da lenha.
+   Só acrescenta: nada antigo é apagado, renomeado ou recalculado. */
+(()=>{
+const COMB='Combustível da fábrica';
+const COL='formasPag';
+const LS='lenha';
+const r2=v=>round2(v);
+const agoraIso=()=>new Date().toISOString();
+const eu=()=>APP.uid||'local';
+const norm=s=>semAcento(String(s||'')).replace(/\s+/g,' ').trim();
+Object.assign(DATA,{[COL]:[]});
+
+/* ---------- formas de pagamento ---------- */
+const base=()=>window.FORMAS_F||FORMAS_V;
+const cadastradas=()=>(DATA[COL]||[]).filter(f=>f.situacao!=='Inativa'&&String(f.nome||'').trim()).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+const FP=nome=>(DATA[COL]||[]).find(f=>norm(f.nome)===norm(nome));
+function formasLenha(atual){const L=[];const add=x=>{x=String(x||'').trim();if(x&&!L.some(y=>norm(y)===norm(x)))L.push(x)};
+ base().forEach(add);add(COMB);cadastradas().forEach(f=>add(f.nome));if(atual)add(atual);return L}
+/* forma que não tira dinheiro do Caixa nem do banco (pagamento em combustível, troca etc.) */
+function semDinheiro(forma){if(!forma)return false;if(norm(forma)===norm(COMB))return true;const f=FP(forma);return !!f&&f.dinheiro==='Não'}
+Object.assign(window,{FORMAS_LENHA_V62:formasLenha,formaSemDinheiroV62:semDinheiro,COMB_V62:COMB});
+
+/* ---------- permissões, cadastro e aba no Setor da Lenha ---------- */
+const PV=typeof PAP_C!=='undefined'?PAP_C:['admin','gerente','estoquista','financeiro'];
+Object.assign(PERM,{[COL]:{v:PV,e:['admin','gerente','estoquista']}});
+if(!ROTAS_SETOR.includes(COL))ROTAS_SETOR.push(COL);
+MODS[COL]={titulo:'Formas de pagamento',sing:'forma de pagamento',ic:'moeda',
+ desc:'Formas usadas para pagar as compras de lenha, além das de sempre (dinheiro, PIX, transferência…). “Combustível da fábrica” já vem pronta: o pagamento é lançado no Setor de Combustível.',
+ fields:[
+  {k:'nome',l:'Nome da forma',t:'txt',req:1,s:'Forma de pagamento',aj:'Ex.: Troca por telha, Desconto em vale do fornecedor.'},
+  {k:'dinheiro',l:'Sai dinheiro do Caixa ou do banco?',t:'sel',req:1,op:['Sim','Não'],s:'Forma de pagamento',aj:'Não: o pagamento não mexe no saldo das contas (é uma troca).'},
+  {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativa','Inativa'],s:'Forma de pagamento',aj:'Inativa: sai da lista. O que já foi pago com ela continua igual.'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Forma de pagamento'}],
+ cols:[{k:'nome',l:'Forma',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},
+  {k:'dinheiro',l:'Sai dinheiro do Caixa/banco',v:r=>esc(r.dinheiro==='Não'?'Não (troca)':'Sim'),o:r=>r.dinheiro||'Sim'},
+  {k:'_u',l:'Compras pagas com ela',t:'num',v:r=>String(usos(r.nome)),o:r=>usos(r.nome)},
+  {k:'situacao',l:'Situação',v:r=>tagV(r.situacao||'Ativa'),o:r=>r.situacao||'Ativa'}],
+ filtros:[{k:'situacao',l:'Situação',op:['Ativa','Inativa']}],
+ ordem:['nome','asc'],semExcluir:true,
+ padrao:()=>({dinheiro:'Sim',situacao:'Ativa'}),
+ validar(st){const e={};const n=String(st.nome||'').trim();if(!n)return e;
+  if(norm(n)===norm(COMB)||base().some(x=>norm(x)===norm(n)))e.nome='Esta forma já existe na lista.';
+  else{const o=(DATA[COL]||[]).find(f=>f.id!==st.id&&norm(f.nome)===norm(n));if(o)e.nome='Já existe uma forma com este nome'+(o.situacao==='Inativa'?' (inativa: abra e mude para Ativa).':'.')}
+  return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim()}};
+function usos(nome){return DATA.compras.filter(c=>c.tipoOp==='compra'&&!cancV(c)&&(norm(c.forma)===norm(nome)||(c.pagamentos||[]).some(p=>!p.estornado&&norm(p.forma)===norm(nome)))).length}
+{const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s===LS&&pode(COL)){const i=a.findIndex(x=>x.m==='fornecedores');a.splice(i<0?a.length:i+1,0,{r:'#/'+COL,m:COL,ic:'moeda',l:'Formas de pagamento',at:[COL]})}return a}}
+TELAS_V[COL]=el=>{if(typeof marcarSetor==='function')marcarSetor(LS);SV=LS;shellV(el,COL,c=>telaLista(c,COL),{setor:LS})};
+
+/* cadastrar uma forma nova na hora (da compra ou do pagamento). Devolve o nome gravado. */
+function novaForma(aoGravar){
+ if(!pode(COL,'e')){toast('Seu perfil não cadastra formas de pagamento. Peça ao gerente ou ao administrador.','erro');return}
+ modalV('Cadastrar forma de pagamento',`<div class="campos" style="grid-template-columns:1fr">
+  <div class="cmp"><label for="fp62n">Nome da forma<i> *</i></label><input id="fp62n" maxlength="60" placeholder="Ex.: Troca por telha"></div>
+  <div class="cmp"><label for="fp62d">Sai dinheiro do Caixa ou do banco?<i> *</i></label><select id="fp62d"><option value="Sim">Sim</option><option value="Não">Não (é uma troca)</option></select><span class="ajuda">Não: o pagamento não mexe no saldo das contas.</span></div></div>`,'Cadastrar',async m=>{
+  const nome=String($('#fp62n',m).value||'').trim();const din=$('#fp62d',m).value;
+  if(!nome){toast('Informe o nome da forma.','erro');return false}
+  const er=MODS[COL].validar({nome});if(er.nome){toast(er.nome,'erro');return false}
+  const rec={id:novoId(),nome,dinheiro:din,situacao:'Ativa',criadoEm:agoraIso(),criadoPor:eu(),alteradoEm:agoraIso(),alteradoPor:eu()};
+  await gravar(COL,rec,null);await registrarLog(COL,rec.id,'criou',null,rec,{nome:'Nome',dinheiro:'Sai dinheiro do Caixa/banco',situacao:'Situação'});
+  toast('Forma “'+nome+'” cadastrada.','ok');if(aoGravar)aoGravar(nome)});
+}
+window.novaFormaV62=novaForma;
+const optsForma=(lista,sel)=>lista.map(x=>`<option ${norm(sel)===norm(x)?'selected':''}>${esc(x)}</option>`).join('');
+const AJ_COMB='Pagamento com combustível: a compra fica a pagar e é quitada quando o abastecimento for lançado no Setor de Combustível como “Pago com combustível”.';
+
+/* ---------- nova compra de lenha: lista de formas, cadastrar na hora, combustível ---------- */
+{const f0=formOpV;formOpV=function(c,O,s){f0(c,O,s);if(O.K!=='compra'||s!==LS)return;
+ try{const d=RASC_V[O.K];const sel=$('#vdForma',c);if(!sel)return;
+  if(!d.forma||d.forma==='Boleto')d.forma='Dinheiro';
+  sel.innerHTML=optsForma(formasLenha(d.forma),d.forma);sel.value=d.forma;
+  const w=sel.closest('.cmp');
+  w.insertAdjacentHTML('beforeend',`${pode(COL,'e')?'<button type="button" class="btn min" id="vdNovaForma62" style="margin-top:6px">'+ic('mais')+'Cadastrar forma nova</button>':''}<span class="ajuda" id="vdAjComb62" ${d.forma===COMB?'':'hidden'}>${esc(AJ_COMB)}</span>`);
+  const ajustar=()=>{const aj=$('#vdAjComb62',c);if(aj)aj.hidden=d.forma!==COMB;if(d.forma!==COMB)return;
+   if(d.condicao==='À vista'){const r=$('#vdRec',c);if(r&&r.value!=='nao'){r.value='nao';r.dispatchEvent(new Event('change',{bubbles:true}))}}
+   else{const e=$('#vdEnt',c);if(e&&e.value){e.value='';e.dispatchEvent(new Event('input',{bubbles:true}))}}};
+  sel.addEventListener('change',()=>setTimeout(ajustar,0));
+  const cond=$('#vdCond',c);if(cond)cond.addEventListener('change',()=>setTimeout(ajustar,0));
+  const b=$('#vdNovaForma62',c);if(b)b.onclick=()=>novaForma(nome=>{const s2=$('#vdForma');if(!s2)return;d.forma=nome;s2.innerHTML=optsForma(formasLenha(nome),nome);s2.value=nome;s2.dispatchEvent(new Event('change',{bubbles:true}))});
+ }catch(e){console.warn('V62 forma',e)}}}
+{const c0=conferirOpV;conferirOpV=function(O,d){const r=c0(O,d);if(O.K!=='compra'||!d)return r;
+ if(semDinheiro(d.forma))r.erros=r.erros.filter(x=>!/^Escolha a conta/.test(x));
+ if(d.forma===COMB&&r.c&&r.c.pagoAgora>0)r.erros.push(d.condicao==='À vista'?'Pagamento com combustível: deixe como “Ainda não pago”. O pagamento entra quando o abastecimento for lançado no Setor de Combustível.':'Pagamento com combustível: deixe a entrada em branco. O pagamento entra quando o abastecimento for lançado no Setor de Combustível.');
+ return r}}
+
+/* ---------- registrar pagamento de compra de lenha: formas, cadastrar na hora, sem conta nas trocas ---------- */
+{const m0=modalPagamentoV;modalPagamentoV=function(v){const r=m0(v);
+ try{if(!v||v.tipoOp!=='compra'||v.setor!==LS)return r;const vs=document.querySelectorAll('.veu');const m=vs[vs.length-1]||document;const sel=m.querySelector('#mpForma');if(!sel)return r;
+  const atual=sel.value;sel.innerHTML=optsForma(formasLenha(v.forma),v.forma===COMB?'Dinheiro':(v.forma||atual));
+  const w=sel.closest('.cmp');
+  w.insertAdjacentHTML('beforeend',`${pode(COL,'e')?'<button type="button" class="btn min" data-fp62 style="margin-top:6px">'+ic('mais')+'Cadastrar forma nova</button>':''}<span class="ajuda" data-ajcomb62 hidden>Combustível: lance no Setor de Combustível o abastecimento “Pago com combustível” desta compra. Ele baixa o estoque do combustível e registra o pagamento aqui.${podePagarComb(v)?' <a href="javascript:void 0" data-irComb62>Lançar agora</a>':''}</span>`);
+  const conta=m.querySelector('#mpConta48');const wc=conta&&conta.closest('.cmp');
+  const vis=()=>{const f=sel.value;const aj=m.querySelector('[data-ajcomb62]');if(aj)aj.hidden=f!==COMB;if(wc)wc.hidden=semDinheiro(f)};vis();
+  sel.addEventListener('change',vis);
+  const b=m.querySelector('[data-fp62]');if(b)b.onclick=()=>novaForma(nome=>{sel.innerHTML=optsForma(formasLenha(nome),nome);sel.value=nome;vis()});
+  const ir=m.querySelector('[data-irComb62]');if(ir)ir.onclick=()=>{const veu=ir.closest('.veu');if(veu)veu.remove();pagarComCombustivel(v)};
+ }catch(e){console.warn('V62 pagamento',e)}
+ return r}}
+{const l0=window.lerPagV48;if(typeof l0==='function')window.lerPagV48=async(m,val)=>{const fm=m.querySelector('#mpForma');const f=fm&&fm.value;
+ if(f===COMB){toast('Pagamento com combustível é lançado no Setor de Combustível (abastecimento “Pago com combustível”), para baixar o estoque do combustível.','erro');return false}
+ if(!semDinheiro(f))return l0(m,val);
+ const o={};const ct=m.querySelector('#mpConta48');if(ct&&ct.value)o.contaId=ct.value;
+ const arq=m.querySelector('#mpArq48')&&m.querySelector('#mpArq48').files[0];
+ if(arq&&window.FINANCEIRO_SETOR&&FINANCEIRO_SETOR.h&&FINANCEIRO_SETOR.h.subirComprovante){toast('Enviando o comprovante…');const a=await FINANCEIRO_SETOR.h.subirComprovante(arq);if(a)o.comprovante=a}
+ o.semDinheiro=true;return o}}
+
+/* ---------- tela da compra de lenha: botão "Pagar com combustível" ---------- */
+const podePagarComb=v=>!!v&&v.tipoOp==='compra'&&v.setor===LS&&!cancV(v)&&finVenda(v).saldo>0.004&&pode('consumos','e')&&typeof liberadoV==='function'&&liberadoV('combustivel');
+function pagarComCombustivel(v){
+ if(!podePagarComb(v)){toast('Seu perfil não lança abastecimentos no Setor de Combustível.','erro');return}
+ PREFILL={mod:'consumos',dados:{pagLenhaSim:SIM,pagLenhaCompra:v.id}};SV='combustivel';if(typeof marcarSetor==='function')marcarSetor('combustivel');
+ location.hash='#/consumos/novo'}
+window.pagarComCombustivelV62=id=>{const v=DATA.compras.find(x=>x.id===id);if(v)pagarComCombustivel(v)};
+{const d0=detalheOpV;detalheOpV=function(c,O,v){d0(c,O,v);
+ try{if(O.K!=='compra'||v.setor!==LS)return;
+  if(podePagarComb(v)){const ac=$('.sec-cab .acoes',c);if(ac&&!$('#vvComb62',c)){const pg=$('#vvPag',c);const h=`<button type="button" class="btn" id="vvComb62">${ic('chama')}Pagar com combustível</button>`;if(pg)pg.insertAdjacentHTML('afterend',h);else ac.insertAdjacentHTML('afterbegin',h);$('#vvComb62',c).onclick=()=>pagarComCombustivel(v)}}
+  const ab=(DATA.consumos||[]).filter(x=>x.pagLenha&&x.pagLenha.compraId===v.id);
+  if(ab.length){const g=$('.vv-grade',c);if(g)g.insertAdjacentHTML('beforeend',`<section class="bloco w2"><h3>Pago com combustível</h3><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Combustível</th><th class="num">Quantidade</th><th class="num">Preço</th><th class="num">Valor</th><th>Pagamento</th></tr></thead><tbody>${ab.map(x=>{const p=(v.pagamentos||[]).find(y=>y.consumoId===x.id);
+   return `<tr><td data-l="Data">${esc(fData(x.data))}</td><td data-l="Combustível">${esc(nomeProduto(PROD(x.produtoId)))}</td><td data-l="Quantidade" class="num">${esc(fQtd(x.quantidade)+' '+(x.unidade||''))}</td><td data-l="Preço" class="num">${esc(fMoeda(x.pagLenha.precoUnit))}</td><td data-l="Valor" class="num">${esc(fMoeda(x.pagLenha.valor))}</td><td data-l="Pagamento">${p?(p.estornado?tag('estornado','pe'):tag('registrado','ok')):tag('não registrado','at')}</td></tr>`}).join('')}</tbody></table></div><p class="ajuda" style="margin:8px 17px 14px">Abastecimentos lançados no Setor de Combustível como pagamento desta compra. O combustível saiu do estoque e não entra no custo de combustível da produção.</p></section>`)}
+ }catch(e){console.warn('V62 compra',e)}}}
+
+/* ---------- Setor de Combustível: abastecimento "pago com combustível" (pagamento de lenha) ---------- */
+const MC=MODS.consumos;
+const noComb=()=>setorAtualV()==='combustivel';
+const SIM='Sim, pagamento de compra de lenha';
+const pagL=r=>noComb()&&r&&r.pagLenhaSim===SIM;
+const comprasAbertas=()=>DATA.compras.filter(c=>c.tipoOp==='compra'&&c.setor===LS&&!cancV(c)&&finVenda(c).saldo>0.004)
+ .sort((a,b)=>String(parteSnap(a).nome||'').localeCompare(String(parteSnap(b).nome||''),'pt-BR')||String(a.data).localeCompare(String(b.data)));
+const CP=id=>DATA.compras.find(c=>c.id===id&&c.tipoOp==='compra');
+const rotCompra=c=>(parteSnap(c).nome||'Fornecedor')+' · compra nº '+fNumV(c.numero)+' de '+fData(c.data)+' · a pagar '+fMoeda(finVenda(c).saldo);
+const valorPag=r=>r2((+r.quantidade||0)*(+r.pagLenhaPreco||0));
+const precoSugerido=pid=>{const cm=pid?custoMedio(pid):0;return cm>0?Math.round(cm*100)/100:''};
+const fldK=k=>MC.fields.find(f=>f.k===k);
+const insAntes=(k,novos)=>{const i=MC.fields.findIndex(f=>f.k===k);MC.fields.splice(i<0?MC.fields.length:i,0,...novos)};
+insAntes(fldK('abastecidoEm')?'abastecidoEm':'localId',[
+ {k:'pagLenhaSim',l:'Pago com combustível?',t:'sel',op:['Não',SIM],sh:r=>noComb()&&(!r.criadoEm||r.pagLenhaSim===SIM),s:'Consumo',
+  aj:'Sim: o combustível sai do estoque e vira pagamento de uma compra de lenha (Setor da Lenha e Financeiro). Fica fora do custo de combustível da produção.'},
+ {k:'pagLenhaCompra',l:'Compra de lenha que está sendo paga',t:'sel',req:1,sh:pagL,s:'Consumo',
+  op:()=>comprasAbertas().map(c=>[c.id,rotCompra(c)]),
+  aj:'Só aparecem compras de lenha com valor a pagar. Se não estiver aqui, lance antes a compra no Setor da Lenha com a forma “Combustível da fábrica”.'},
+ {k:'pagLenhaPreco',l:r=>{const p=PROD(r.produtoId);return 'Preço combinado por '+(p&&p.unidade?p.unidade:'unidade')},t:'moeda',req:1,sh:pagL,s:'Consumo',
+  aj:'Vem com o custo médio do combustível. Mude se o preço combinado com o fornecedor for outro.'},
+ {k:'_pagLenhaValor',l:'Valor pago ao fornecedor',t:'html',vivo:1,w2:1,sh:pagL,s:'Consumo',calc:r=>{
+  const c=CP(r.pagLenhaCompra);const v=valorPag(r);
+  if(r.criadoEm&&r.pagLenha)return `<b>${esc(fMoeda(r.pagLenha.valor))}</b> · ${esc((r.pagLenha.fornecedorNome||'')+' · compra nº '+fNumV(r.pagLenha.compraNumero))} <a href="#/compra/${esc(r.pagLenha.compraId)}">Abrir a compra</a>`;
+  if(!c)return '<span class="ajuda">Escolha a compra, a quantidade e o preço.</span>';
+  const s=finVenda(c).saldo;return `<b>${esc(fMoeda(v))}</b> (quantidade × preço) · a pagar nesta compra: ${esc(fMoeda(s))}${v>0&&v<s-0.004?' · depois fica '+esc(fMoeda(r2(s-v))):v>0&&Math.abs(v-s)<0.005?' · quita a compra':''}`}}]);
+/* esconde o que não se aplica (máquina, km, terceiro, posto) quando é pagamento de lenha */
+['abastecidoEm','localId','medidor','terceiroId','terceiroNome','terceiroPlaca','terceiroFinalidade','_notaTerc','origem','postoId','cupom','precoPosto','_valorPosto','formaPosto','condPosto','vencPosto','tipoServico']
+ .forEach(k=>{const f=fldK(k);if(!f)return;const sh0=f.sh;f.sh=r=>!pagL(r)&&(!sh0||sh0(r))});
+{const p0=MC.padrao;MC.padrao=()=>{const p=p0();if(noComb())p.pagLenhaSim='Não';return p}}
+{const a0=MC.aoMudar;MC.aoMudar=function(st,k){if(a0)a0.call(this,st,k);if(!noComb())return;
+ if(k==='pagLenhaSim'){if(st.pagLenhaSim===SIM){st.abastecidoEm='Pagamento de lenha';st.localId='';st.medidor='';st.origem='Estoque da fábrica';if(st.pagLenhaPreco===''||st.pagLenhaPreco==null)st.pagLenhaPreco=precoSugerido(st.produtoId)}
+  else{st.abastecidoEm='Máquina da fábrica';st.pagLenhaCompra='';st.pagLenhaPreco=''}}
+ if(k==='produtoId'&&pagL(st)&&(st.pagLenhaPreco===''||st.pagLenhaPreco==null))st.pagLenhaPreco=precoSugerido(st.produtoId);
+ if(k==='pagLenhaCompra'&&pagL(st)&&st.pagLenhaCompra&&!st.obs){const c=CP(st.pagLenhaCompra);if(c)st.obs='Pagamento da compra de lenha nº '+fNumV(c.numero)+' ('+(parteSnap(c).nome||'')+').'}}}
+{const v0=MC.validar;MC.validar=function(st){const e=v0.call(this,st);if(!pagL(st))return e;const av=e._aviso?[e._aviso]:[];delete e._aviso;
+ const c=CP(st.pagLenhaCompra);
+ if(st.pagLenhaCompra&&!c)e.pagLenhaCompra='Compra não encontrada.';
+ else if(c){if(cancV(c))e.pagLenhaCompra='Esta compra está cancelada.';
+  else{const s=finVenda(c).saldo;const v=valorPag(st);
+   if(!(s>0.004))e.pagLenhaCompra='Esta compra não tem mais valor a pagar.';
+   else if(!(+st.pagLenhaPreco>0))e.pagLenhaPreco='Informe o preço combinado.';
+   else if(+st.quantidade>0&&v>s+0.004)e.pagLenhaPreco='O valor ('+fMoeda(v)+') passa do que falta pagar na compra nº '+fNumV(c.numero)+' ('+fMoeda(s)+'). Ajuste o preço ou a quantidade.';
+   if(st.data&&c.data&&st.data<c.data)av.push('A data do abastecimento ('+fData(st.data)+') é antes da compra ('+fData(c.data)+'). O pagamento fica com a data do abastecimento.')}}
+ if(av.length)e._aviso=av.join(' ');return e}}
+{const pr0=MC.preparar;MC.preparar=function(rec,novo){pr0.call(this,rec,novo);if(!novo||rec.setor!=='combustivel')return;
+ if(rec.pagLenhaSim!==SIM){delete rec.pagLenhaCompra;delete rec.pagLenhaPreco;return}
+ const c=CP(rec.pagLenhaCompra);if(!c)return;
+ ['localId','medidor','terceiroId','terceiroNome','terceiroPlaca','terceiroFinalidade','postoId','cupom','precoPosto','formaPosto','condPosto','vencPosto','valorPosto','postoNome','tipoServico'].forEach(k=>delete rec[k]);
+ rec.abastecidoEm='Pagamento de lenha';rec.origem='Estoque da fábrica';rec.categoria='Pagamento de lenha com combustível';rec.foraDaProducao=true;
+ rec.pagLenhaPreco=r2(rec.pagLenhaPreco);
+ rec.pagLenha={compraId:c.id,compraNumero:c.numero,fornecedorId:c.fornecedorId||'',fornecedorNome:parteSnap(c).nome||'',precoUnit:rec.pagLenhaPreco,valor:valorPag(rec),pagamentoId:'pl-'+rec.id}}}
+{const g0=Object.getOwnPropertyDescriptor(MC,'cols').get;Object.defineProperty(MC,'cols',{configurable:true,enumerable:true,get(){const c=g0.call(this);if(!noComb())return c;
+ return c.map(x=>x.k!=='_l'?x:{...x,v:r=>r.pagLenha?tag('pagou lenha','br')+' '+esc(r.pagLenha.fornecedorNome||'')+' · nº '+esc(fNumV(r.pagLenha.compraNumero)):x.v(r),o:r=>r.pagLenha?'pagamento de lenha '+(r.pagLenha.fornecedorNome||''):x.o(r)})}})}
+{const f0=Object.getOwnPropertyDescriptor(MC,'filtros');const get0=f0&&f0.get?f0.get:(()=>f0.value);Object.defineProperty(MC,'filtros',{configurable:true,enumerable:true,get(){const f=get0.call(this);
+ return noComb()?[...f,{k:'_pagLenha',l:'Pago com combustível',op:['Sim','Não'],fn:(r,v)=>(r.pagLenha?'Sim':'Não')===v}]:f}})}
+
+/* depois de gravar: o pagamento entra na compra de lenha (e daí no Financeiro) */
+async function registrarPagLenha(rec){
+ const pl=rec.pagLenha;if(!pl)return;const c=CP(pl.compraId);
+ if(!c){toast('O abastecimento foi salvo, mas a compra de lenha não foi encontrada para registrar o pagamento.','erro');return}
+ if((c.pagamentos||[]).some(p=>p.consumoId===rec.id))return;
+ const s=finVenda(c).saldo;if(pl.valor>s+0.004){toast('O abastecimento foi salvo, mas o pagamento ('+fMoeda(pl.valor)+') passa do que falta pagar na compra nº '+fNumV(c.numero)+' ('+fMoeda(s)+'). Registre o pagamento na compra.','erro');return}
+ const p0=PROD(rec.produtoId)||{};
+ const p={id:pl.pagamentoId,data:rec.data,valor:r2(pl.valor),forma:COMB,semDinheiro:true,consumoId:rec.id,produtoId:rec.produtoId,quantidade:rec.quantidade,unidade:rec.unidade||'',precoUnit:pl.precoUnit,
+  obs:'Pago com '+fQtd(rec.quantidade)+' '+(rec.unidade||'')+' de '+(p0.nome||'combustível')+' (abastecimento no Setor de Combustível)',por:eu(),em:agoraIso()};
+ try{await salvarOpV(c,{pagamentos:[...(c.pagamentos||[]),p]},'registrou pagamento com combustível',[{c:'Pagamento',de:'',para:fMoeda(p.valor)+' · '+COMB+' · '+fData(p.data)},{c:'Combustível',de:'',para:fQtd(rec.quantidade)+' '+(rec.unidade||'')+' × '+fMoeda(pl.precoUnit)},{c:'Saldo a pagar',de:fMoeda(s),para:fMoeda(r2(Math.max(0,s-p.valor)))}]);
+  toast('Pagamento de '+fMoeda(p.valor)+' registrado na compra de lenha nº '+fNumV(c.numero)+'.','ok')}
+ catch(e){toast('O abastecimento foi salvo, mas o pagamento na compra de lenha não: '+msgErro(e)+'. Registre na compra nº '+fNumV(c.numero)+'.','erro')}}
+{const ps0=typeof posSalvarV==='function'?posSalvarV:null;posSalvarV=function(mod,rec,ant){
+ if(mod==='consumos'&&!ant&&rec&&rec.pagLenha)registrarPagLenha(rec);
+ return ps0?ps0(mod,rec,ant):false}}
+window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB};
 })();
 </script>
 <script>
