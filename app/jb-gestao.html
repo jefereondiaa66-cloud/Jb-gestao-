@@ -12318,13 +12318,15 @@ function telaFinV(el,O){
 }
 
 /* ================= relatórios: a mesma tela de relatórios do sistema, só com os dados do setor ================= */
-const RAPIDOS_V=[['hoje','Hoje'],['ontem','Ontem'],['7d','Últimos 7 dias'],['mes','Este mês'],['mesant','Mês anterior'],['ano','Este ano'],['tudo','Todo o período'],['pers','Período personalizado']];
+const RAPIDOS_V=[['hoje','Hoje'],['ontem','Ontem'],['7d','Últimos 7 dias'],['mes','Este mês'],['mesant','Mês anterior'],['mesesc','Escolher o mês'],['ano','Este ano'],['tudo','Todo o período'],['pers','Período personalizado']];
 function periodoRapidoV(k){const h=hoje();
  if(k==='hoje')return[h,h];if(k==='ontem'){const o=addDias(h,-1);return[o,o]}if(k==='7d')return[addDias(h,-6),h];if(k==='mes')return[h.slice(0,8)+'01',h];
  if(k==='mesant'){const m=mesMenos(h.slice(0,7),1);return[m+'-01',addDias(addMeses(m+'-01',1),-1)]}if(k==='ano')return[h.slice(0,4)+'-01-01',h];if(k==='tudo')return['',''];return null}
 const UIRV={id:'',rapido:'mes',ini:hoje().slice(0,8)+'01',fim:hoje(),setor:'',cliente:'',fornecedor:'',produto:'',local:'',usuario:'',forma:'',stvenda:'',stfin:''};
+const periodoDoMesV=m=>/^\d{4}-\d{2}$/.test(m||'')?[m+'-01',addDias(addMeses(m+'-01',1),-1)]:null;
+const mesInteiroV=U=>{if(!U.ini||!U.fim||U.ini.slice(0,7)!==U.fim.slice(0,7))return '';const p=periodoDoMesV(U.ini.slice(0,7));return p&&p[0]===U.ini&&p[1]===U.fim?U.ini.slice(0,7):''};
 const noPeriodoV=(d,U)=>(!U.ini||String(d||'')>=U.ini)&&(!U.fim||String(d||'')<=U.fim);
-const periodoTxtV=U=>U.ini||U.fim?(U.ini?fData(U.ini):'início')+' a '+(U.fim?fData(U.fim):'hoje'):'todo o período';
+const periodoTxtV=U=>mesInteiroV(U)?mesLongo(mesInteiroV(U)):U.ini||U.fim?(U.ini?fData(U.ini):'início')+' a '+(U.fim?fData(U.fim):'hoje'):'todo o período';
 function opsRelV(O,U,o){o=o||{};const s=U.setor;
  return listaOp(O).filter(v=>v.setor===s&&(o.semPeriodo||noPeriodoV(v.data,U))&&(!U.cliente||(U.cliente===SEM_CLIENTE?!v.clienteId:v.clienteId===U.cliente))&&(!U.fornecedor||v.fornecedorId===U.fornecedor)
   &&(!U.produto||(v.itens||[]).some(i=>i.produtoId===U.produto))&&(!U.usuario||v.criadoPor===U.usuario)&&(!U.forma||v.forma===U.forma)
@@ -27487,7 +27489,8 @@ function telaRelatorios(el,cfg){
  <div class="relgrid"><div class="painel rel-lista">${vis.map(r=>`<a href="javascript:void 0" data-rel="${r.id}" class="${r.id===U.id?'on':''}">${esc(r.n)}</a>`).join('')}</div>
  <div class="painel">${R?`<div class="filtros">
   ${R.f.includes('rapido')&&typeof RAPIDOS_V!=='undefined'?`<select data-r="rapido" aria-label="Período">${RAPIDOS_V.map(([k,l])=>`<option value="${k}" ${U.rapido===k?'selected':''}>${l}</option>`).join('')}</select>`:''}
-  ${R.f.includes('periodo')?`<label class="inline" style="font-size:12.5px;color:var(--suave)">De <input type="date" data-r="ini" value="${U.ini}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" data-r="fim" value="${U.fim}"></label>`:''}
+  ${R.f.includes('periodo')&&U.rapido==='mesesc'?`<label class="inline" style="font-size:12.5px;color:var(--suave)">Mês <input type="month" data-r="mesrel" value="${esc(U.mesrel||String(U.ini||hoje()).slice(0,7))}" aria-label="Mês do relatório"></label>`:''}
+  ${R.f.includes('periodo')&&U.rapido!=='mesesc'?`<label class="inline" style="font-size:12.5px;color:var(--suave)">De <input type="date" data-r="ini" value="${U.ini}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" data-r="fim" value="${U.fim}"></label>`:''}
   ${R.f.includes('mes')?`<input type="month" data-r="mes" value="${U.mes}" aria-label="Mês">`:''}
   ${R.f.includes('setor')&&!(APP.papel==='gestor'&&APP.setorGestor)?`<select data-r="setor" aria-label="Setor"><option value="">Todos os setores</option>${CFG.setores.map(s=>`<option ${U.setor===s?'selected':''}>${esc(s)}</option>`).join('')}</select>`:''}
   ${R.f.includes('func')?`<select data-r="func" aria-label="Funcionário"><option value="">Todos os funcionários</option>${optsFunc().map(([v,l])=>`<option value="${v}" ${U.func===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`:''}
@@ -27498,8 +27501,8 @@ function telaRelatorios(el,cfg){
   ${res.nota?`<p class="ajuda" style="margin:10px 2px 0">${esc(res.nota)}</p>`:''}
   <div class="pag"><span>${res.rows.length} linha(s)</span></div>`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
  $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';renderTela()});
- $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
- $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;try{exportar(b.dataset.x,R.n+'_'+hoje(),res.cols,rows,R.n)}finally{REL_RESP=null}});
+ $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='mesrel'){const pr=typeof periodoDoMesV==='function'?periodoDoMesV(i.value):null;if(pr){U.mesrel=i.value;U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'&&i.value==='mesesc'&&typeof periodoDoMesV==='function'){U.rapido='mesesc';U.mesrel=U.mesrel||(U.ini?U.ini.slice(0,7):hoje().slice(0,7));const pr=periodoDoMesV(U.mesrel);if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
+ $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;const perTit=R.f.includes('periodo')&&typeof periodoTxtV==='function'?periodoTxtV(U):'';const mesArq=perTit&&typeof mesInteiroV==='function'?mesInteiroV(U):'';try{exportar(b.dataset.x,R.n+'_'+(mesArq||hoje()),res.cols,rows,R.n+(perTit?' · '+perTit:''))}finally{REL_RESP=null}});
  resolverNomes(DATA.diario.map(r=>r.lancadoPor));
 }
 
