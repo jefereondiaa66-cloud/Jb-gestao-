@@ -192,11 +192,33 @@
     delete: async function (id) { await pronto; var r = await sb.storage.from('anexos').remove([String(id)]); if (r.error) throw erro('permission_denied', r.error.message); }
   });
 
+  /* leitura de documentos por IA (Lançamento Inteligente por Foto): a função do servidor confere a
+     sessão e a permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave */
+  var LEITOR = SB_URL + '/functions/v1/jb-ler-documento';
+  var leitor = Object.freeze({
+    ler: async function (corpo, sinal) {
+      await pronto; atividade();
+      var r;
+      try {
+        r = await fetch(LEITOR, { method: 'POST', signal: sinal,
+          headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
+          body: JSON.stringify(corpo || {}) });
+      } catch (e) {
+        if (sinal && sinal.aborted) throw erro('cancelado', '');
+        throw erro('rede', 'Sem conexão com o servidor de leitura. Verifique a internet e tente de novo.');
+      }
+      var j = {}; try { j = await r.json(); } catch (e) {}
+      if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || ('O servidor de leitura respondeu com erro (' + r.status + ').'));
+      return j;
+    }
+  });
+
   window.claude = Object.freeze({
     use: async function (nome) {
       if (nome === 'db') { await pronto; return db; }
       if (nome === 'user') { await pronto; return user; }
       if (nome === 'assets') { await pronto; return assets; }
+      if (nome === 'leitor') { await pronto; return leitor; }
       return null; // assistente, editor por IA, conector fiscal e versões do Claude não existem fora dele
     }
   });

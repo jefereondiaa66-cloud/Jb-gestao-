@@ -92,3 +92,22 @@ detectado no contador de uso, gravado ao mesmo tempo pela nuvem e pelo Claude (e
 O motor no banco real também foi testado com uma coleção de teste (`jbcoreTeste`, já apagada):
 gravar, repetir (idempotente), atualizar, conflito, documento inexistente, caminho inválido,
 exclusão e exclusão repetida, e usuário não administrador recusado.
+
+## 7. Lançamento Inteligente por Foto (Almoxarifado e Financeiro)
+
+Aba "Lançamento Inteligente por Foto" no Setor do Almoxarifado (`#/almIA`) e no Setor Financeiro (`#/fIA`).
+A pessoa fotografa (câmera do celular ou do computador) ou anexa PDF/JPG/PNG, uma ou várias páginas.
+
+| Etapa | O que acontece |
+|---|---|
+| Leitura | Fotos e páginas de PDF viram imagens (página comprida vai em faixas, para a letra miúda continuar legível); o texto do PDF digital vai junto. Roda em segundo plano: dá para mudar de tela, um aviso no canto leva de volta. |
+| Quem lê | No Claude: o Claude da própria página (capacidade `sample` com `images: true`). Na nuvem: a função `jb-ler-documento` do Supabase, que confere a sessão e a permissão (`almox` ou `financeiro` com "criar") e usa a chave `ANTHROPIC_API_KEY` guardada nos segredos das funções. |
+| Conferência | Fornecedor por CNPJ/CPF (com dígito verificador) e nome; itens por descrição aprendida, código do fornecedor, nome igual ou parecido (marcado "confira"); soma dos itens × total; impostos e descontos da nota rateados no custo; documento repetido (impressão digital SHA-256 do arquivo, chave de acesso, número da nota do mesmo fornecedor, compromisso já lançado); leitura duvidosa e campos ilegíveis sinalizados. |
+| Pergunta | Só uma, quando o documento não mostra: "Como foi realizado o pagamento?" (formas do Financeiro ou "Ainda não foi pago"). |
+| Gravação | Depois da confirmação: guarda o original (`anexo`/`anexos`), cadastra fornecedor e itens que faltam, grava a entrada pelo mesmo caminho da "Nova entrada" (`almEntradas` → `sincFinEntrada` → `fTitulos`) ou, se for só despesa (boleto, fatura), o compromisso em `fTitulos`. Cada registro leva o campo `ia` com o que foi lido. Nenhuma coleção nova. |
+
+Ativar na nuvem (uma vez): Supabase → projeto "JB Gestão" → Edge Functions → Secrets → `ANTHROPIC_API_KEY`
+(chave de console.anthropic.com). Opcional: `JB_IA_MODELO` (padrão `claude-opus-5-5`). Sem a chave, a tela avisa
+"A leitura por IA ainda não foi ativada no servidor" e nada é lançado.
+Ativar no Claude: o artifact precisa declarar `sample: {images: true}`; sem isso, só PDFs digitais (com texto) são lidos lá.
+Teste: `node scripts/construir.mjs && PDFJS_DIR=<pasta do pdfjs-dist/build> node scripts/testar-lancamento-foto.mjs`.
