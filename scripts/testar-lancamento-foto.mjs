@@ -99,7 +99,7 @@ try {
   }, { codigo: servidorFalso });
   await page.goto(base + '/saida/claude.html');
   await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 });
-  ok(await page.evaluate(() => !!window.LANC_IA_V57 && typeof TELAS_V.almIA === 'function' && typeof TELAS_V.fIA === 'function'), 'módulo carregado com as telas do Almoxarifado e do Financeiro');
+  ok(await page.evaluate(() => !!window.LANC_IA_V65 && typeof TELAS_V.almIA === 'function' && typeof TELAS_V.fIA === 'function'), 'módulo carregado com as telas do Almoxarifado e do Financeiro');
 
   // item já cadastrado (deve ser reconhecido, não duplicado)
   await page.evaluate(() => gravarRegistro('almItens', { ...MODS.almItens.padrao(), id: 'it1', nome: 'Parafuso sextavado 10mm', categoria: 'Peças e manutenção', unidade: 'unidade' }, null, true));
@@ -109,9 +109,9 @@ try {
     const cv = document.createElement('canvas'); cv.width = 900; cv.height = 1300; const x = cv.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 1300); x.fillStyle = '#000'; x.font = '28px sans-serif'; x.fillText('NOTA FISCAL ' + nome, 40, 60);
     const b = await new Promise((r) => cv.toBlob(r, 'image/png'));
-    LANC_IA_V57.adicionar([new File([b], nome + '.png', { type: 'image/png' })]);
+    LANC_IA_V65.adicionar([new File([b], nome + '.png', { type: 'image/png' })]);
   }, nome);
-  const fase = (f, ms = 20000) => page.waitForFunction((f) => LANC_IA_V57.estado() && LANC_IA_V57.estado().fase === f, f, { timeout: ms });
+  const fase = (f, ms = 20000) => page.waitForFunction((f) => LANC_IA_V65.estado() && LANC_IA_V65.estado().fase === f, f, { timeout: ms });
   const confirmarDialogo = async () => { await page.waitForSelector('.veu [data-r="1"]', { timeout: 5000 }); await page.click('.veu [data-r="1"]'); };
 
   /* ---------- 1. nota: item existente + item novo, pagamento não informado ---------- */
@@ -120,7 +120,7 @@ try {
   ok(await page.evaluate(() => [...document.querySelectorAll('.dir-aba')].some((a) => /Lançamento Inteligente por Foto/.test(a.textContent))), 'aba "Lançamento Inteligente por Foto" no Almoxarifado');
   await foto('nota123');
   await fase('conferir');
-  const c1 = await page.evaluate(() => { const C = LANC_IA_V57.estado().C; return { dest: C.destino, l0: C.linhas[0].alvo, l1: C.linhas[1].alvo, forn: C.forn.escolha, perg: C.pag.fonte, erros: LANC_IA_V57.alertas().erros, total: LANC_IA_V57.calc().total, imgs: window.__leituras[0].imagens }; });
+  const c1 = await page.evaluate(() => { const C = LANC_IA_V65.estado().C; return { dest: C.destino, l0: C.linhas[0].alvo, l1: C.linhas[1].alvo, forn: C.forn.escolha, perg: C.pag.fonte, erros: LANC_IA_V65.alertas().erros, total: LANC_IA_V65.calc().total, imgs: window.__leituras[0].imagens }; });
   ok(c1.dest === 'almox', 'nota com itens vai para estoque + Financeiro');
   ok(c1.l0 === 'it1', 'item já cadastrado foi reconhecido (não cria outro)');
   ok(c1.l1 === 'novo', 'item que não existe fica para cadastrar');
@@ -155,21 +155,21 @@ try {
   ok(await page.evaluate(() => /Resumo do que foi lançado/.test(document.body.textContent) && /Últimos lançamentos por foto/.test(document.body.textContent)), 'resumo final e histórico na tela');
 
   /* ---------- 2. o mesmo arquivo de novo ---------- */
-  await page.evaluate(() => LANC_IA_V57.novo());
+  await page.evaluate(() => LANC_IA_V65.novo());
   await foto('nota123');
   await fase('conferir');
-  const c2 = await page.evaluate(() => ({ erros: LANC_IA_V57.alertas().erros, forn: LANC_IA_V57.estado().C.forn.escolha, l1: LANC_IA_V57.estado().C.linhas[1].alvo, como: LANC_IA_V57.estado().C.linhas[0].como }));
+  const c2 = await page.evaluate(() => ({ erros: LANC_IA_V65.alertas().erros, forn: LANC_IA_V65.estado().C.forn.escolha, l1: LANC_IA_V65.estado().C.linhas[1].alvo, como: LANC_IA_V65.estado().C.linhas[0].como }));
   ok(c2.erros.some((e) => /já foi lançad/i.test(e)), 'mesmo documento de novo: avisa que já foi lançado e não deixa lançar sem confirmação');
   ok(c2.forn !== 'novo' && c2.l1 !== 'novo', 'na segunda vez, fornecedor e item novo já são reconhecidos');
   ok(c2.como === 'aprendido', 'descrição aprendida liga o item direto');
 
   /* ---------- 3. boleto: só Financeiro, sem pergunta ---------- */
-  await page.evaluate((r) => { LANC_IA_V57.novo(); window.__resposta = r; location.hash = '#/fIA'; }, BOLETO);
+  await page.evaluate((r) => { LANC_IA_V65.novo(); window.__resposta = r; location.hash = '#/fIA'; }, BOLETO);
   await page.waitForSelector('#liaZona');
   ok(await page.evaluate(() => [...document.querySelectorAll('.dir-aba')].some((a) => /Lançamento Inteligente por Foto/.test(a.textContent))), 'aba "Lançamento Inteligente por Foto" no Financeiro');
   await foto('boleto9876');
   await fase('conferir');
-  const c3 = await page.evaluate(() => { const C = LANC_IA_V57.estado().C; return { dest: C.destino, perg: C.pag.fonte, sit: C.pag.sit, cat: C.categoria, erros: LANC_IA_V57.alertas().erros }; });
+  const c3 = await page.evaluate(() => { const C = LANC_IA_V65.estado().C; return { dest: C.destino, perg: C.pag.fonte, sit: C.pag.sit, cat: C.categoria, erros: LANC_IA_V65.alertas().erros }; });
   ok(c3.dest === 'fin' && c3.perg === 'documento' && c3.sit === 'pendente', 'boleto vai só para o Financeiro, em aberto, sem perguntar');
   ok(c3.cat === 'Fretes' || c3.cat === 'Outras despesas', `categoria sugerida das existentes (${c3.cat})`);
   ok(!c3.erros.length, 'conferência sem pendências' + (c3.erros.length ? ': ' + c3.erros.join(' | ') : ''));
@@ -183,10 +183,10 @@ try {
 
   /* ---------- 4. PDF digital ---------- */
   if (PDFJS) {
-    await page.evaluate(({ r, pdf }) => { LANC_IA_V57.novo(); window.__resposta = r; window.__leituras = []; location.hash = '#/almIA';
-      LANC_IA_V57.adicionar([new File([pdf], 'danfe.pdf', { type: 'application/pdf' })]); }, { r: { ...NOTA, documento: { ...NOTA.documento, numero: '555' } }, pdf: pdfMinimo(['DANFE NF-e 555', 'PARAFUSO SEXTAVADO 10MM 100 UN 0,50 50,00']) });
+    await page.evaluate(({ r, pdf }) => { LANC_IA_V65.novo(); window.__resposta = r; window.__leituras = []; location.hash = '#/almIA';
+      LANC_IA_V65.adicionar([new File([pdf], 'danfe.pdf', { type: 'application/pdf' })]); }, { r: { ...NOTA, documento: { ...NOTA.documento, numero: '555' } }, pdf: pdfMinimo(['DANFE NF-e 555', 'PARAFUSO SEXTAVADO 10MM 100 UN 0,50 50,00']) });
     await fase('conferir', 30000).catch(() => {});
-    const c4 = await page.evaluate(() => ({ fase: LANC_IA_V57.estado().fase, erro: LANC_IA_V57.estado().erro, l: window.__leituras[0] || {} }));
+    const c4 = await page.evaluate(() => ({ fase: LANC_IA_V65.estado().fase, erro: LANC_IA_V65.estado().erro, l: window.__leituras[0] || {} }));
     ok(c4.fase === 'conferir' && /TEXTO EXTRAÍDO DO PDF/.test(c4.l.prompt || '') && /PARAFUSO SEXTAVADO/.test(c4.l.prompt || '') && c4.l.imagens >= 1, `PDF aberto: texto e imagem da página seguem para a leitura${c4.erro ? ' (' + c4.erro + ')' : ''}`);
   } else console.log('  - PDF: pulado (defina PDFJS_DIR para testar)');
 
