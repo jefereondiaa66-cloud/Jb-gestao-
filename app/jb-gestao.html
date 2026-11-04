@@ -7131,7 +7131,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 62 · novembro de 2026';
+const VERSAO='Versão 63 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -15636,7 +15636,7 @@ function obT(t){const pg=(t.pagamentos||[]).filter(p=>!p.estornado);
   resp:t.criadoPor,href:null,podePagar:edF(),hist:[['fTitulos',t.id]]}}
 function obC(c){const f=finVenda(c);const m=metaDe('c:'+c.id)||{};const pg=(c.pagamentos||[]).filter(p=>!p.estornado);const fis=c.fiscal||{};
  return{ref:'c:'+c.id,fonte:'compra',rec:c,origem:nomeSetorV(c.setor),num:'Compra nº '+fNumV(c.numero),descricao:(c.itens||[]).map(i=>i.nome).filter(Boolean).join(', ')||'Compra',
-  categoria:c.setor==='lenha'?'Lenha':'Combustíveis',benef:parteSnap(c).nome||'',centro:m.centroCusto||'',lanc:c.data||'',venc:c.vencimento||c.data||'',prog:m.dataPrevista||'',valor:r2(f.total),
+  categoria:c.setor==='lenha'?'Lenha':'Combustíveis',benef:parteSnap(c).nome||'',centro:m.centroCusto||'',lanc:c.data||'',venc:c.condicao==='A prazo'&&!c.vencimento?'':(c.vencimento||c.data||''),prog:m.dataPrevista||'',valor:r2(f.total),
   forma:m.formaPrevista||c.forma||'',conta:m.contaId||'',docOrigem:fis.numero?'NF nº '+fis.numero:'',temDocOrigem:!!((fis.pdf&&fis.pdf.id)||(fis.xml&&fis.xml.id)),
   pagamentos:pg.map(p=>({id:p.id,data:p.data,valor:r2(p.valor),forma:p.forma||'',conta:p.contaId||'',quitacao:false,por:p.por})),
   estornados:(c.pagamentos||[]).filter(p=>p.estornado),cancelado:cancV(c)?{motivo:c.motivoCancelamento||'compra cancelada no setor'}:null,justif:m.justificativa||null,parcela:'',
@@ -27248,7 +27248,25 @@ async function registrarPagLenha(rec){
 {const ps0=typeof posSalvarV==='function'?posSalvarV:null;posSalvarV=function(mod,rec,ant){
  if(mod==='consumos'&&!ant&&rec&&rec.pagLenha)registrarPagLenha(rec);
  return ps0?ps0(mod,rec,ant):false}}
-window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB};
+
+/* ---------- V63: compra a prazo sem data de vencimento (opção "Não há data para vencimento") ----------
+   A compra fica a pagar sem vencimento: nunca aparece como vencida e fica fora dos avisos de vencimento.
+   Reconhecida por: compra a prazo com o vencimento em branco (antes isso não era aceito). */
+const semVenc=v=>!!v&&v.tipoOp==='compra'&&v.condicao==='A prazo'&&!v.vencimento;
+window.semVencimentoV63=semVenc;
+{const fv0=finVenda;finVenda=function(v){const f=fv0(v);if(f&&f.status==='Vencido'&&semVenc(v))return{...f,status:f.pago>0.004?'Parcial':'Pendente'};return f}}
+{const f0=formOpV;formOpV=function(c,O,s){f0(c,O,s);if(O.K!=='compra')return;
+ try{const d=RASC_V[O.K];const inp=$('#vdVenc',c);if(!inp||$('#vdSemVenc63',c))return;
+  inp.closest('.cmp').insertAdjacentHTML('beforeend',`<label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="vdSemVenc63" ${d.semVenc?'checked':''}>Não há data para vencimento</label>`);
+  const cb=$('#vdSemVenc63',c);const lab=inp.closest('.cmp').querySelector('label[for="vdVenc"] i');
+  const aplicar=()=>{inp.disabled=!!d.semVenc;if(lab)lab.hidden=!!d.semVenc;if(d.semVenc&&inp.value){inp.value='';inp.dispatchEvent(new Event('input',{bubbles:true}))}};
+  aplicar();cb.addEventListener('change',()=>{d.semVenc=cb.checked;aplicar();const r=$('#vdResumo',c);if(r){r.innerHTML=resumoOpV(O,d);r._h=r.innerHTML}});
+ }catch(e){console.warn('V63 vencimento',e)}}}
+{const c0=conferirOpV;conferirOpV=function(O,d){const r=c0(O,d);if(O.K!=='compra'||!d||d.condicao!=='A prazo')return r;
+ if(d.semVenc){d.vencimento='';r.erros=r.erros.filter(x=>x!=='Informe o vencimento.')}return r}}
+{const d0=detalheOpV;detalheOpV=function(c,O,v){d0(c,O,v);
+ try{if(!semVenc(v))return;$$('.vv-kv dt',c).forEach(dt=>{if(dt.textContent==='Vencimento'){const dd=dt.nextElementSibling;if(dd)dd.textContent='Sem data de vencimento'}})}catch(e){}}}
+window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,semVenc};
 })();
 </script>
 <script>
