@@ -1253,6 +1253,28 @@ button.kpi:focus-visible{outline:none;box-shadow:var(--anel)}
 .ex2{display:grid;grid-template-columns:1.25fr 1fr .95fr;gap:14px;align-items:start;margin-bottom:14px}
 .ex3{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:14px;margin-bottom:14px}
 .ex4{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px}
+.pm-meta{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:18px 20px;margin-bottom:16px;box-shadow:var(--s2)}
+.pm-meta-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pm-rot{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--suave);margin-bottom:4px}
+.pm-real{font-size:30px;font-weight:700;letter-spacing:-.03em;color:var(--tinta);line-height:1.1}
+.pm-real small{font-size:14px;font-weight:500;color:var(--suave);letter-spacing:0}
+.pm-pct{font-size:28px;font-weight:700;color:var(--brasa)}.pm-pct.ok{color:var(--ok)}.pm-pct.at{color:var(--at)}
+.pm-barra{position:relative;height:14px;border-radius:99px;background:var(--linha2);margin:14px 0 16px;overflow:visible}
+.pm-barra i{display:block;height:100%;border-radius:99px;background:var(--brasa);min-width:2px}
+.pm-barra u{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;border-radius:2px;background:var(--tinta);opacity:.7;text-decoration:none}
+.pm-meta-n{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.pm-meta-n b{display:block;font-size:20px;font-weight:600;color:var(--tinta)}
+.pm-meta-n span{display:block;font-size:12.5px;color:var(--suave);margin-top:2px;line-height:1.35}
+.pm-status{margin:14px 0 0;font-size:13px;color:var(--suave)}
+.pm-metas{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:16px}
+.pm-metas .pm-meta{margin-bottom:0;display:block;color:inherit;text-decoration:none;cursor:pointer}
+.pm-meta:hover,.hero a.kpi[data-rel]:hover{border-color:var(--brasa)}
+.pm-sub{display:flex;gap:6px;flex-wrap:wrap;width:100%;max-width:1280px;margin:0 auto;padding:16px 28px 0;box-sizing:border-box}
+@media (max-width:760px){.pm-sub{padding:12px 16px 0}}
+.pm-sub a{padding:6px 12px;border-radius:99px;border:1px solid var(--linha);background:var(--branco);color:var(--suave);font-size:13px;font-weight:600;text-decoration:none}
+.pm-sub a.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
+.pm-lanc button.kpi{font:inherit;color:inherit}
+.pm-rel .tbl tfoot td{border-top:2px solid var(--linha)}
 .bloco{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);box-shadow:var(--s2);overflow:hidden}
 .bloco>h3{margin:0;padding:15px 17px 12px;font-size:14px;font-weight:600;color:var(--tinta);
  display:flex;align-items:center;justify-content:space-between;gap:9px}
@@ -14973,7 +14995,7 @@ function ndpSecaoConfig(el){
 (()=>{
 const COL='prodFab';
 const TIPO={pmaromba:'maromba',pparadas:'parada',psecmov:'secagem',pfornadas:'fornada',pdesenf:'desenforna',pprontomov:'pronto'};
-const ROTAS_P=['setor-producao','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
+const ROTAS_P=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
 
 /* ---------- banco: uma coleção, quatro listas ---------- */
 Object.assign(DATA,{[COL]:[]});
@@ -14989,13 +15011,13 @@ apagar=async function(col,rec){if(TIPO[col])return a0(COL,{...rec,tipo:TIPO[col]
 /* ---------- permissões ---------- */
 const PV=[...TODOS,...(typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[])];
 const PE=['admin','gerente','estoquista','gestor'];
-Object.assign(PERM,{'setor-producao':{v:PV,e:[]},pmes:{v:PV,e:[]},pmaromba:{v:PV,e:PE},pparadas:{v:PV,e:PE},psecagem:{v:PV,e:[]},
+Object.assign(PERM,{'setor-producao':{v:PV,e:[]},plancar:{v:PV,e:[]},pmes:{v:PV,e:[]},pmaromba:{v:PV,e:PE},pparadas:{v:PV,e:PE},psecagem:{v:PV,e:[]},
  psecmov:{v:PV,e:PE},pfornadas:{v:PV,e:PE},pdesenf:{v:PV,e:PE},ppronto:{v:PV,e:[]},pprontomov:{v:PV,e:PE},plenha:{v:PV,e:[]},prel:{v:PV,e:[]},pcfg:{v:PV,e:['admin']}});
 ROTAS_SETOR.push(...ROTAS_P.filter(r=>!ROTAS_SETOR.includes(r)));
 
 /* ---------- configuração do setor (fica em Dados da empresa, só o administrador grava) ---------- */
 const PCFG_PAD={tijolosPorGrade:'',turnos:['1º turno','2º turno','3º turno'],inicioExpediente:'',fimExpediente:'',
- refeicaoIni:'11:00',refeicaoFim:'13:00',diasSecagem:'', /* V56: parada automática de refeição das 11h às 13h (o administrador muda em Configurações) */
+ refeicaoIni:'11:00',refeicaoFim:'13:00',diasSecagem:'',metaMarombaMes:'',metaDesenfMes:'',lenhaFornadaMin:'',lenhaFornadaMax:'', /* V56: parada automática de refeição das 11h às 13h (o administrador muda em Configurações) */
  motivosParada:['Falta de barro','Quebra ou manutenção da maromba','Falta de energia','Troca de boquilha','Limpeza','Falta de pessoal','Chuva','Intervalo de refeição','Outro'],
  motivosPerdaSec:['Quebra','Trinca','Chuva','Deformação','Outro'],
  lenhaRef:{lenha:60,carregado:58,bons:55}};
@@ -15015,7 +15037,7 @@ const ehRefeicao=m=>/refei|almo[cç]o|jantar|intervalo/i.test(String(m||''));
 const CONF='Confirmado',PEND='Pendente de confirmação';
 const conf=r=>r&&r.situacao===CONF;
 const fConf=r=>r&&r.confirmacao==='Confirmada';
-const tagP=v=>tag(v,{Desenfornada:'ok',Saída:'at','Perda posterior':'pe',Confirmado:'ok',Confirmada:'ok',[PEND]:'at','Em enforna':'in','Em queima':'br','Aguardando desenforna':'at',Perda:'pe',Ajuste:'in','Contagem inicial':'ok'}[v]);
+const tagP=v=>tag(v,{Desenfornada:'ok',Saída:'at','Perda posterior':'pe',Confirmado:'ok',Confirmada:'ok',[PEND]:'at','Em enforna':'in','Em queima':'br','Aguardando desenforna':'at',Perda:'pe',Ajuste:'in','Contagem inicial':'ok','Entrada no secador':'ok','Saída do secador':'br'}[v]);
 const pTxt=(t,cls)=>`<span class="tag ${cls||''}">${esc(t)}</span>`;
 
 /* ---------- maromba ---------- */
@@ -15224,13 +15246,16 @@ function htmlParadasMar(st){
  }}
 
 /* ---------- secagem: movimentações manuais (contagem inicial, perdas e ajustes) ---------- */
-const MOVS_SEC=['Contagem inicial','Perda','Ajuste'];
+const MOVS_SEC=['Contagem inicial','Entrada no secador','Saída do secador','Perda','Ajuste'];
+const ehGradeSec=m=>m==='Entrada no secador'||m==='Saída do secador';
 const contagemIni=()=>DATA.psecmov.filter(m=>m.mov==='Contagem inicial').sort((a,b)=>String(a.data).localeCompare(String(b.data)))[0]||null;
 MODS.psecmov={titulo:'Movimentações da secagem',sing:'movimentação da secagem',ic:'caixa',imutavel:true,
- desc:'Contagem física inicial, perdas (quebra, trinca, chuva…) e ajustes com justificativa. Entradas da maromba e saídas para a enforna entram sozinhas.',
+ desc:'Contagem física inicial, perdas (quebra, trinca, chuva…) e ajustes com justificativa. Entrada e saída do secador em grades, lançadas pela equipe.',
  fields:[
   {k:'mov',l:'Tipo',t:'sel',req:1,op:MOVS_SEC,s:'Movimentação'},
   {k:'contado',l:r=>r.mov==='Ajuste'?'Quantidade contada na secagem (tijolos)':'Tijolos contados na secagem',t:'num',sh:r=>r.mov==='Contagem inicial'||r.mov==='Ajuste',aj:'Contagem física. Faça no início do dia, antes da produção.',s:'Movimentação'},
+  {k:'grades',l:r=>r.mov==='Entrada no secador'?'Grades (vagonetas) que entraram no secador':'Grades (vagonetas) que saíram do secador',t:'num',sh:r=>ehGradeSec(r.mov),aj:'Contagem das grades feita pela equipe no dia.',s:'Movimentação'},
+  {k:'porGrade',l:'Tijolos por grade',t:'num',sh:r=>ehGradeSec(r.mov),s:'Movimentação'},
   {k:'quantidade',l:'Tijolos perdidos',t:'num',sh:r=>r.mov==='Perda',s:'Movimentação'},
   {k:'motivo',l:'Motivo da perda',t:'sel',sh:r=>r.mov==='Perda',op:()=>pc().motivosPerdaSec,s:'Movimentação'},
   {k:'justificativa',l:'Justificativa do ajuste',t:'area',w2:1,sh:r=>r.mov==='Ajuste',s:'Movimentação'},
@@ -15241,14 +15266,17 @@ MODS.psecmov={titulo:'Movimentações da secagem',sing:'movimentação da secage
   {k:'criadoPor',l:'Registrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
  cols:[{k:'data',l:'Data',t:'data'},{k:'mov',l:'Tipo',v:r=>tagP(r.mov)},
-  {k:'delta',l:'Quantidade',t:'num',v:r=>esc(r.mov==='Contagem inicial'?fT(r.contado):(n0(r.delta)>0?'+':'')+fT(r.delta)),o:r=>r.mov==='Contagem inicial'?n0(r.contado):n0(r.delta)},
+  {k:'delta',l:'Quantidade',t:'num',v:r=>esc(r.mov==='Contagem inicial'?fT(r.contado):ehGradeSec(r.mov)?(r.mov==='Entrada no secador'?'+':'−')+fT(r.grades)+' grade(s) · '+fT(n0(r.grades)*n0(r.porGrade))+' tijolos':(n0(r.delta)>0?'+':'')+fT(r.delta)),o:r=>r.mov==='Contagem inicial'?n0(r.contado):ehGradeSec(r.mov)?n0(r.grades)*n0(r.porGrade):n0(r.delta)},
   {k:'_m',l:'Motivo / justificativa',v:r=>esc(r.motivo||r.justificativa||''),o:r=>r.motivo||r.justificativa||''},
   {k:'responsavel',l:'Responsável'}],
  filtros:[{k:'mov',l:'Tipo',op:MOVS_SEC},{k:'motivo',l:'Motivo',op:()=>pc().motivosPerdaSec},{k:'data',l:'Data',t:'periodo',campo:'data'}],
  setorDe:()=>APP.setorGestor||'',
  ordem:['data','desc'],
  padrao:()=>({mov:contagemIni()?'Perda':'Contagem inicial',data:hoje(),hora:horaAgora()}),
+ aoMudar(st,k){if(k==='mov'&&ehGradeSec(st.mov)&&vazio(st.porGrade))st.porGrade=n0(pc().tijolosPorGrade)||''},
  validar(st){const e={};const s=secagem();
+  if(ehGradeSec(st.mov)){const g=n0(st.grades);if(!(g>0&&Number.isInteger(g)))e.grades='Informe o número de grades (inteiro maior que zero).';
+   if(!(n0(st.porGrade)>0))e.porGrade='Informe quantos tijolos cabem em uma grade.'}
   if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
   if(st.mov==='Contagem inicial'){const ci=contagemIni();if(ci&&ci.id!==st.id)e.mov='A contagem inicial já foi lançada em '+fData(ci.data)+'. Para corrigir o saldo, use Ajuste.';
    if(vazio(st.contado)||n0(st.contado)<0)e.contado='Informe a quantidade contada (zero ou mais).';
@@ -15265,10 +15293,16 @@ MODS.psecmov={titulo:'Movimentações da secagem',sing:'movimentação da secage
  preparar(rec,novo){rec.tipo='secagem';if(!novo)return;const s=secagem();
   if(rec.mov==='Contagem inicial'){rec.contado=Math.round(n0(rec.contado));rec.delta=0;delete rec.quantidade;delete rec.motivo;delete rec.justificativa}
   else if(rec.mov==='Ajuste'){rec.contado=Math.round(n0(rec.contado));rec.delta=rec.contado-s.saldo;rec.anterior=s.saldo;rec.atual=rec.contado;delete rec.quantidade;delete rec.motivo}
+  else if(ehGradeSec(rec.mov)){rec.grades=Math.round(n0(rec.grades));rec.porGrade=n0(rec.porGrade);rec.quantidade=Math.round(rec.grades*rec.porGrade);rec.delta=rec.mov==='Entrada no secador'?rec.quantidade:-rec.quantidade;rec.anterior=s.saldo;rec.atual=s.saldo+rec.delta;delete rec.contado;delete rec.justificativa;delete rec.motivo}
   else{rec.quantidade=Math.round(n0(rec.quantidade));rec.delta=-rec.quantidade;rec.anterior=s.saldo;rec.atual=s.saldo-rec.quantidade;delete rec.contado;delete rec.justificativa}
   if(!rec.hora)rec.hora=horaAgora()},
  semExcluir:true};
 function htmlSaldoSec(r){
+ if(ehGradeSec(r.mov)&&!(r.criadoEm&&r.anterior!=null)){const t=n0(r.grades)*n0(r.porGrade);if(!t)return '<span class="ajuda">Informe as grades e os tijolos por grade.</span>';
+  const s=secagem();const ent=r.mov==='Entrada no secador';
+  if(ent)return `Entram <b>${fT(t)} tijolos</b> no secador · saldo atual: <b>${fT(s.saldo)}</b> · depois: <b>${fT(s.saldo+t)}</b>`;
+  const enf=enfornadoDia(r.data);const p=Math.max(0,t-enf);
+  return `Saem <b>${fT(t)} tijolos</b> do secador · saldo atual: <b>${fT(s.saldo)}</b> · depois: <b>${fT(s.saldo-t)}</b><br>Enfornado neste dia: <b>${fT(enf)}</b>${enf?` · perda na enforna: <b>${fT(p)}</b> (${fNum(p/t*100,1)}%)`:' (a enforna do dia ainda não foi lançada)'}`}
  if(r.criadoEm&&r.anterior!=null)return `Saldo antes: <b>${fT(r.anterior)}</b> · depois: <b>${fT(r.atual)}</b> tijolos`;
  const s=secagem();
  if(r.mov==='Contagem inicial')return s.temIni?'<span class="ajuda">A contagem inicial já existe.</span>':'<span class="ajuda">A partir desta contagem o saldo passa a ser confirmado. Lançamentos da maromba e enfornas da mesma data em diante entram no saldo.</span>';
@@ -15276,32 +15310,41 @@ function htmlSaldoSec(r){
  return `Saldo atual: <b>${fT(s.saldo)} tijolos</b>${s.temIni?'':' (parcial, sem contagem inicial)'}${d!=null?` · depois do registro: <b>${fT(s.saldo+d)}</b>${r.mov==='Ajuste'?` (diferença de ${d>0?'+':''}${fT(d)})`:''}`:''}`;
 }
 
+/* saída do secador x enforna do dia: o que saiu do secador e não entrou em forno é perda na enforna */
+const enfornadoDia=d=>soma(DATA.pfornadas.filter(f=>fConf(f)&&f.data===d),f=>f.quantidade);
+const saidaSecDia=d=>soma(DATA.psecmov.filter(m=>m.mov==='Saída do secador'&&m.data===d),m=>n0(m.grades)*n0(m.porGrade));
+function perdasEnforna(movs){
+ const dias=[...new Set((movs||DATA.psecmov).filter(m=>m.mov==='Saída do secador').map(m=>m.data))].sort();
+ return dias.map(d=>{const saiu=saidaSecDia(d),enf=enfornadoDia(d);return{data:d,saiu,enf,perda:enf>0?Math.max(0,saiu-enf):0,semEnforna:!enf}});
+}
 /* saldo da secagem, lotes e tempo de permanência */
 const MS={k:null,c:null,v:null};
 function secagem(){
  const base=DATA[COL];if(MS.k===base&&MS.c===CFG&&MS.l===DATA.locais&&MS.d===hoje()&&MS.v)return MS.v;
  const ci=contagemIni();const d0=ci?ci.data:'';const vale=d=>!d0||String(d||'')>=d0;
- const mar=DATA.pmaromba.filter(r=>conf(r)&&vale(r.data));
- const forn=DATA.pfornadas.filter(f=>fConf(f)&&vale(f.data));
+ /* o secador tem lançamento próprio (grades que entraram e que saíram), separado da produção da maromba */
  const movs=DATA.psecmov.filter(m=>m.mov!=='Contagem inicial'&&vale(m.data));
- const entradas=soma(mar,r=>calcMar(r).liquida);
- const saidas=soma(forn,f=>n0(f.quantidade));
+ const qG=m=>n0(m.grades)*n0(m.porGrade);
+ const entL=movs.filter(m=>m.mov==='Entrada no secador'),saiL=movs.filter(m=>m.mov==='Saída do secador');
+ const entradas=soma(entL,qG);
+ const saidas=soma(saiL,qG);
  const perdasL=movs.filter(m=>m.mov==='Perda');const perdas=soma(perdasL,m=>n0(m.quantidade));
  const ajustes=soma(movs.filter(m=>m.mov==='Ajuste'),m=>n0(m.delta));
+ const pEnf=perdasEnforna(movs);const perdasEnf=soma(pEnf,x=>x.perda);
  const inicial=ci?n0(ci.contado):0;
  const saldo=inicial+entradas-saidas-perdas+ajustes;
  const porMotivo={};perdasL.forEach(m=>{porMotivo[m.motivo||'Outro']=(porMotivo[m.motivo||'Outro']||0)+n0(m.quantidade)});
  /* lotes: o mais antigo sai primeiro */
  const lotes=[];if(ci&&inicial>0)lotes.push({data:ci.data,origem:'Saldo inicial (contagem)',qtd:inicial,resta:inicial});
- const porDia={};mar.forEach(r=>{porDia[r.data]=(porDia[r.data]||0)+calcMar(r).liquida});
- Object.keys(porDia).sort().forEach(d=>{if(porDia[d]>0)lotes.push({data:d,origem:'Maromba',qtd:porDia[d],resta:porDia[d]})});
+ const porDia={};entL.forEach(m=>{porDia[m.data]=(porDia[m.data]||0)+qG(m)});
+ Object.keys(porDia).sort().forEach(d=>{if(porDia[d]>0)lotes.push({data:d,origem:'Entrada no secador',qtd:porDia[d],resta:porDia[d]})});
  movs.filter(m=>m.mov==='Ajuste'&&n0(m.delta)>0).forEach(m=>lotes.push({data:m.data,origem:'Ajuste',qtd:n0(m.delta),resta:n0(m.delta)}));
  lotes.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
  let sai=saidas+perdas+soma(movs.filter(m=>m.mov==='Ajuste'&&n0(m.delta)<0),m=>-n0(m.delta));
  for(const l of lotes){if(sai<=0)break;const t=Math.min(l.resta,sai);l.resta-=t;sai-=t}
  const abertos=lotes.filter(l=>l.resta>0).map(l=>({...l,dias:diasEntre(l.data,hoje())}));
  const dm=pc().diasSecagem;const disp=vazio(dm)?null:soma(abertos.filter(l=>l.dias>=+dm),l=>l.resta);
- MS.k=base;MS.c=CFG;MS.l=DATA.locais;MS.d=hoje();MS.v={temIni:!!ci,ini:ci,inicial,entradas,saidas,perdas,ajustes,saldo,porMotivo,lotes:abertos,disp,diasMin:vazio(dm)?null:+dm};
+ MS.k=base;MS.c=CFG;MS.l=DATA.locais;MS.d=hoje();MS.v={temIni:!!ci,ini:ci,inicial,entradas,saidas,perdas,perdasEnf,pEnf,ajustes,saldo,porMotivo,lotes:abertos,disp,diasMin:vazio(dm)?null:+dm};
  return MS.v;
 }
 
@@ -15311,7 +15354,9 @@ const nomeForno=id=>{const l=(DATA.locais||[]).find(x=>x.id===id);return l?nomeL
 const SIT_F=['Em enforna','Em queima','Aguardando desenforna'];
 const desenfDe=fid=>DATA.pdesenf.find(d=>d.fornadaId===fid&&conf(d))||null;
 const sitF=f=>desenfDe(f.id)?'Desenfornada':f.situacao;
-const abertaF=f=>SIT_F.includes(sitF(f));
+/* forno contínuo (linear): enforna e desenforna todos os dias, sem fornada fechada */
+const ehContinuo=id=>{const l=(DATA.locais||[]).find(x=>x.id===id);return !!(l&&(l.continuo||/cont[ií]nuo|linear/i.test(String(l.nome||''))))};
+const abertaF=f=>!ehContinuo(f.fornoId)&&SIT_F.includes(sitF(f));
 const proxNum=fid=>Math.max(0,...DATA.pfornadas.filter(f=>f.fornoId===fid).map(f=>+f.numero||0))+1;
 function lenhaFornada(f){
  const ref=pc().lenhaRef;const q=n0(f.quantidade);
@@ -15322,17 +15367,21 @@ function lenhaFornada(f){
  const ord=cs.slice().sort((a,b)=>(String(a.data)+(a.hora||'')).localeCompare(String(b.data)+(b.hora||'')));
  const de=desenfDe(f.id);const bons=de?n0(de.primeira)+n0(de.segunda):null;
  const estB=bons!=null&&ref.bons>0?bons/1000*(n0(ref.lenha)/n0(ref.bons)):null;
- return{est,estB,bons,real:cs.length?txtUnid(porUnidade(cs,c=>c.quantidade,c=>c.unidade)):'',realN,unid:us.length===1?us[0]:'',n:cs.length,ate:prox,
+ const C=pc();const rMin=n0(C.lenhaFornadaMin),rMax=n0(C.lenhaFornadaMax)||rMin;const ref2=rMax>0?{min:rMin||rMax,max:rMax}:null;
+ const difRef=ref2&&realN!=null?round3(realN-ref2.max):null;
+ return{est,estB,bons,ref2,difRef,real:cs.length?txtUnid(porUnidade(cs,c=>c.quantidade,c=>c.unidade)):'',realN,unid:us.length===1?us[0]:'',n:cs.length,ate:prox,
   antes:ord.length&&ord[0].anterior!=null?ord[0].anterior:null,depois:ord.length&&ord[ord.length-1].atual!=null?ord[ord.length-1].atual:null};
 }
 function htmlLenhaF(r){
  if(!r.fornoId||!n0(r.quantidade))return '<span class="ajuda">Escolha o forno e informe a quantidade para ver a referência de lenha.</span>';
  const l=lenhaFornada(r);const ref=pc().lenhaRef;
+ if(l.ref2)return `Referência por fornada: <b>${fNum(l.ref2.min)}${l.ref2.max!==l.ref2.min?' a '+fNum(l.ref2.max):''} m³</b> de lenha<br>
+  Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>${l.difRef!=null?` · ${l.difRef>0?'<span class="tag pe">'+fNum(l.difRef,1)+' acima da referência</span>':'<span class="tag ok">dentro da referência</span>'}`:''}`;
  return `Referência pelo carregado: <b>${l.est==null?'—':fNum(l.est,1)}</b>${l.estB!=null?` · pelos tijolos bons (${fT(l.bons)}): <b>${fNum(l.estB,1)}</b>`:''} unidades de lenha <span class="tag at">estimativa</span> <span class="ajuda">(${fNum(ref.lenha)} para ${fNum(ref.carregado)} milheiros carregados; unidade ainda a confirmar entre m³ e st)</span><br>
   Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>`;
 }
 MODS.pfornadas={titulo:'Fornos e fornadas',sing:'fornada',ic:'chama',
- desc:'Enforna por forno e fornada. Quando a enforna é confirmada, a quantidade sai da secagem uma única vez.',
+ desc:'Enforna por forno e fornada. A saída do secador é lançada à parte (em grades); a diferença entre o que saiu do secador e o que foi enfornado no dia é a perda na enforna.',
  fields:[
   {k:'fornoId',l:'Forno',t:'sel',req:1,op:()=>FORNOS().filter(l=>l.situacao!=='Inativo').map(l=>[l.id,nomeLocal(l)]),aj:'Os fornos são os do Setor da Lenha (Fornos e locais, tipo Forno).',s:'Fornada'},
   {k:'numero',l:'Número da fornada',t:'num',req:1,s:'Fornada'},
@@ -15341,9 +15390,10 @@ MODS.pfornadas={titulo:'Fornos e fornadas',sing:'fornada',ic:'chama',
   {k:'quantidade',l:'Tijolos carregados',t:'num',req:1,s:'Fornada'},
   {k:'_q',l:'Em milheiros',t:'html',vivo:1,calc:r=>n0(r.quantidade)?'<b>'+fMil(r.quantidade)+'</b> ('+fNum(n0(r.quantidade)/1000,3)+' milheiros)':'—',s:'Fornada'},
   {k:'situacao',l:'Situação',t:'sel',req:1,op:SIT_F,aj:'Vira “Desenfornada” sozinha quando a desenforna desta fornada é confirmada.',s:'Fornada'},
-  {k:'confirmacao',l:'Enforna',t:'sel',req:1,op:['Confirmada',PEND],aj:'Confirmada: a quantidade sai da secagem. Depois de confirmada, forno, data e quantidade não mudam.',s:'Fornada'},
+  {k:'confirmacao',l:'Enforna',t:'sel',req:1,op:['Confirmada',PEND],aj:'Confirmada: a fornada entra nos fornos e nas contas do painel. Depois de confirmada, forno, data e quantidade não mudam.',s:'Fornada'},
   {k:'_sec',l:'Secagem',t:'html',vivo:1,w2:1,calc:r=>{const s=secagem();const ant=DATA.pfornadas.find(x=>x.id===r.id);
-   if(ant&&fConf(ant))return `Esta enforna já saiu da secagem (${fT(ant.quantidade)} tijolos). Saldo atual da secagem: <b>${fT(s.saldo)} tijolos</b>.`;
+   const sd=saidaSecDia(r.data||hoje()),enf=enfornadoDia(r.data||hoje())-(ant&&fConf(ant)&&ant.data===(r.data||hoje())?n0(ant.quantidade):0)+n0(r.quantidade);
+   if(sd)return `Saiu do secador em ${esc(fData(r.data||hoje()))}: <b>${fT(sd)} tijolos</b> · enfornado no dia (com esta fornada): <b>${fT(enf)}</b> · perda na enforna: <b>${fT(Math.max(0,sd-enf))}</b>`;
    return `Saldo da secagem: <b>${fT(s.saldo)} tijolos</b>${s.temIni?'':' (parcial: falta a contagem inicial)'}${s.disp!=null?` · seco para enforna: <b>${fT(s.disp)}</b> (${s.diasMin} dia(s) ou mais)`:''}`},s:'Fornada'},
   {k:'_lenha',l:'Lenha',t:'html',vivo:1,w2:1,calc:htmlLenhaF,s:'Lenha'},
   {k:'responsavel',l:'Responsável pela enforna',t:'txt',s:'Registro'},
@@ -15368,14 +15418,10 @@ MODS.pfornadas={titulo:'Fornos e fornadas',sing:'fornada',ic:'chama',
   if(ant&&fConf(ant)){
    if(ant.fornoId!==st.fornoId)e.fornoId='Enforna confirmada: o forno não muda.';
    if(ant.data!==st.data)e.data='Enforna confirmada: a data não muda.';
-   if(n0(ant.quantidade)!==q)e.quantidade='Enforna confirmada: a quantidade não muda (já saiu da secagem).';
+   if(n0(ant.quantidade)!==q)e.quantidade='Enforna confirmada: a quantidade não muda.';
    if(st.confirmacao!=='Confirmada')e.confirmacao='Uma enforna confirmada não volta a pendente.'}
   const av=[];
-  if(st.confirmacao==='Confirmada'&&!(ant&&fConf(ant))&&q>0){const s=secagem();
-   if(s.temIni&&q>s.saldo)e.quantidade='Maior que o saldo da secagem ('+fT(s.saldo)+' tijolos). Confira a contagem ou lance a produção que falta.';
-   else if(!s.temIni)av.push('Ainda não há contagem inicial da secagem: não dá para conferir se há tijolos suficientes.');
-   else if(s.disp!=null&&q>s.disp)av.push('Pelo tempo mínimo de secagem ('+s.diasMin+' dia(s)), só '+fT(s.disp)+' tijolos estariam secos. Confirme se os tijolos já estão prontos para enfornar.')}
-  if(st.fornoId){const ab=DATA.pfornadas.find(x=>x.id!==st.id&&x.fornoId===st.fornoId&&['Em enforna','Em queima'].includes(sitF(x)));if(ab&&!ant)av.push('O '+nomeForno(st.fornoId)+' ainda tem a fornada nº '+ab.numero+' em '+ab.situacao.toLowerCase()+'.')}
+  if(st.fornoId&&!ehContinuo(st.fornoId)){const ab=DATA.pfornadas.find(x=>x.id!==st.id&&x.fornoId===st.fornoId&&['Em enforna','Em queima'].includes(sitF(x)));if(ab&&!ant)av.push('O '+nomeForno(st.fornoId)+' ainda tem a fornada nº '+ab.numero+' em '+ab.situacao.toLowerCase()+'.')}
   if(av.length)e._aviso=av.join(' ');
   return e},
  preparar(rec){rec.tipo='fornada';rec.quantidade=Math.round(n0(rec.quantidade));rec.numero=+rec.numero;
@@ -15410,33 +15456,146 @@ function numerosProd(){
  const mar=DATA.pmaromba;const okH=mar.filter(r=>r.data===h&&conf(r));const pendH=mar.filter(r=>r.data===h&&!conf(r));
  const okM=mar.filter(r=>String(r.data).startsWith(m)&&conf(r));
  const s=secagem();const fs=DATA.pfornadas;const fc=fs.filter(fConf);
- const noForno=soma(fc.filter(f=>['Em enforna','Em queima'].includes(sitF(f))),f=>f.quantidade);
- const aguard=soma(fc.filter(f=>sitF(f)==='Aguardando desenforna'),f=>f.quantidade);
+ const noForno=soma(fc.filter(f=>!ehContinuo(f.fornoId)&&['Em enforna','Em queima'].includes(sitF(f))),f=>f.quantidade);
+ const aguard=soma(fc.filter(f=>!ehContinuo(f.fornoId)&&sitF(f)==='Aguardando desenforna'),f=>f.quantidade);
  const perdMar=soma(okM,r=>calcMar(r).perdas);const perdSec=soma(DATA.psecmov.filter(x=>x.mov==='Perda'&&String(x.data).startsWith(m)),x=>x.quantidade);
  const perdDes=soma(DATA.pdesenf.filter(d=>conf(d)&&String(d.data).startsWith(m)),d=>perdasD(d));const pr=pronto();
  const parH=DATA.pparadas.filter(p=>p.data===h);
+ const noMes=x=>String(x.data||'').startsWith(m);
+ const fH=fc.filter(f=>f.data===h),fM=fc.filter(noMes);
+ const dc=DATA.pdesenf.filter(conf);const desH=dc.filter(d=>d.data===h),dM=dc.filter(noMes);
+ const somaD=a=>({total:soma(a,desenfQtd),aprov:soma(a,aprovD),perdas:soma(a,perdasD),n:a.length});
+ /* perda na desenforna (queima): o que entrou no forno menos os tijolos bons (1ª + 2ª), fornada por fornada */
+ const queima=dM.filter(d=>d.fornadaId&&FORN(d.fornadaId)).map(d=>{const f=FORN(d.fornadaId);const enf=n0(f.quantidade),bons=aprovD(d);return{d,f,enf,bons,perda:Math.max(0,enf-bons)}});
+ const pEnf=perdasEnforna(DATA.psecmov.filter(noMes));const pEnfC=pEnf.filter(x=>!x.semEnforna);
+ const tpg=n0(pc().tijolosPorGrade);
  return{h,m,okH,pendH,hoje:soma(okH,r=>calcMar(r).liquida),mes:soma(okM,r=>calcMar(r).liquida),okM,est:estimativaDia(),s,noForno,aguard,
-  abertas:fs.filter(abertaF).length,pendF:fs.filter(f=>!fConf(f)).length,perdMar,perdSec,perdDes,pr,parH};
+  abertas:fs.filter(abertaF).length,pendF:fs.filter(f=>!fConf(f)).length,perdMar,perdSec,perdDes,pr,parH,tpg,
+  gradesH:soma(okH,r=>n0(r.grades)),gradesM:soma(okM,r=>n0(r.grades)),
+  fH,fM,enfH:soma(fH,f=>f.quantidade),enfM:soma(fM,f=>f.quantidade),
+  desH,dM,desHoje:somaD(desH),desMes:somaD(dM),
+  saiuSecH:saidaSecDia(h),gradesSecH:soma(DATA.psecmov.filter(x=>x.mov==='Saída do secador'&&x.data===h),x=>x.grades),
+  entSecH:soma(DATA.psecmov.filter(x=>x.mov==='Entrada no secador'&&x.data===h),x=>n0(x.grades)*n0(x.porGrade)),gradesEntH:soma(DATA.psecmov.filter(x=>x.mov==='Entrada no secador'&&x.data===h),x=>x.grades),
+  pEnf,perdEnf:soma(pEnfC,x=>x.perda),baseEnf:soma(pEnfC,x=>x.saiu),
+  queima,perdQueima:soma(queima,x=>x.perda),baseQueima:soma(queima,x=>x.enf)};
+}
+const desenfQtd=d=>n0(d.total)||classD(d);
+/* dias úteis do mês: segunda a sábado, fora feriados cadastrados e nacionais */
+function diasUteisMes(m){const y=+m.slice(0,4),mm=+m.slice(5,7);const n=new Date(y,mm,0).getDate();const L=[];
+ for(let i=1;i<=n;i++){const iso=m+'-'+String(i).padStart(2,'0');if(dt(iso).getDay()===0)continue;
+  if(typeof feriado==='function'&&feriado(iso))continue;if(typeof window.feriadoNacV48==='function'&&window.feriadoNacV48(iso))continue;L.push(iso)}
+ return L}
+/* meta do mês: porcentagem, falta, projeção pelo ritmo dos dias úteis já trabalhados e quanto precisa por dia útil */
+function metaCalc(meta,real,temHoje,m,h){
+ meta=n0(meta);if(!(meta>0))return null;
+ const u=diasUteisMes(m);const decorr=u.filter(d=>d<h).length+(temHoje&&u.includes(h)?1:0);const rest=Math.max(0,u.length-decorr);
+ const falta=Math.max(0,meta-real);
+ return{meta,real,falta,uteis:u.length,decorr,rest,pct:real/meta*100,
+  proj:decorr>0?Math.round(real+real/decorr*rest):null,porDia:rest>0?Math.ceil(falta/rest):null,
+  esperado:u.length?Math.round(meta*decorr/u.length):0,ritmo:decorr>0?real/decorr:null};
+}
+function metaProd(N){return metaCalc(pc().metaDesenfMes,N.desMes.total,N.desH.length>0,N.m,N.h)}
+function metaMar(N){return metaCalc(pc().metaMarombaMes,N.mes,N.okH.length>0,N.m,N.h)}
+const fMilh=n=>fNum(n0(n)/1000,1);
+function metaBox(rot,M,rel,extra){
+ const ok=M.real>=M.esperado;
+ return `<a class="pm-meta" href="#" data-rel="${rel}" title="Clique para ver o dia a dia">
+   <div class="pm-meta-top"><div><span class="pm-rot">${esc(rot)}</span><b class="pm-real">${fMilh(M.real)} <small>de ${fMilh(M.meta)} milheiros</small></b></div><div class="pm-pct${ok?' ok':' at'}">${fNum(Math.min(999,M.pct),1)}%</div></div>
+   <div class="pm-barra"><i style="width:${Math.min(100,M.pct).toFixed(1)}%"></i>${M.decorr?`<u style="left:${Math.min(100,M.esperado/M.meta*100).toFixed(1)}%" title="Onde deveria estar hoje"></u>`:''}</div>
+   <div class="pm-meta-n">
+    <div><b>${fMilh(M.falta)}</b><span>Faltam (milheiros)</span></div>
+    <div><b>${M.proj==null?'—':fMilh(M.proj)}</b><span>Projeção do mês ${pTxt('estimativa','at')}</span></div>
+    <div><b>${M.porDia==null?'—':fMilh(M.porDia)}</b><span>Precisa por dia útil (${M.rest} restante(s))</span></div>
+    <div><b>${fMilh(M.esperado)}</b><span>Deveria ter até hoje (${M.decorr} de ${M.uteis} dias úteis)</span></div>
+    ${extra||''}
+   </div>
+   <p class="pm-status">${!M.decorr?'Ainda sem lançamento neste mês: a projeção aparece a partir do primeiro.':ok?'No ritmo: '+fMilh(M.real-M.esperado)+' milheiros à frente do esperado. Ritmo de '+fMilh(M.ritmo)+' milheiros por dia útil.':'Abaixo do ritmo: faltam '+fMilh(M.esperado-M.real)+' milheiros para o esperado até hoje. Ritmo de '+fMilh(M.ritmo)+' milheiros por dia útil.'}</p>
+  </a>`;
+}
+
+/* ---------- relatório ao clicar num número do painel ---------- */
+function relProd(ch,N){
+ const quem=r=>esc((typeof nomeUsuario==='function'&&r.criadoPor&&nomeUsuario(r.criadoPor))||r.responsavel||r.operador||'—');
+ const tab=(cab,lin,tot,vz)=>lin.length?`<div class="tabwrap" style="max-height:62vh;overflow:auto"><table class="tbl"><thead><tr>${cab.map(c=>`<th${c.n?' class="num"':''}>${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${lin.map(r=>`<tr>${r.map((v,i)=>`<td${cab[i]&&cab[i].n?' class="num"':''}>${v}</td>`).join('')}</tr>`).join('')}</tbody>${tot?`<tfoot><tr>${tot.map((v,i)=>`<td${cab[i]&&cab[i].n?' class="num"':''}><b>${v}</b></td>`).join('')}</tr></tfoot>`:''}</table></div>`:`<div class="vazio"><b>Nada lançado</b>${esc(vz||'Nenhum lançamento neste período.')}</div>`;
+ const pc_=(p,b)=>b>0?fNum(p/b*100,1)+'%':'—';
+ const ord=(a,k)=>a.slice().sort((x,y)=>(String(x.data)+(x[k]||'')).localeCompare(String(y.data)+(y[k]||'')));
+ const mesTxt=fMes(N.m),hojeTxt=fData(N.h);
+ const marL=rs=>ord(rs,'horaInicio').map(r=>{const x=calcMar(r);return[esc(fData(r.data)),esc(r.turno||''),esc(r.operador||'—'),esc((r.horaInicio||'')+(r.horaFim?'–'+r.horaFim:'')),fT(r.grades),fT(x.perdas),'<b>'+fT(x.liquida)+'</b>',conf(r)?'Confirmado':'Pendente']});
+ const cabMar=[{l:'Data'},{l:'Turno'},{l:'Operador'},{l:'Horário'},{l:'Grades',n:1},{l:'Perdas',n:1},{l:'Líquida',n:1},{l:'Situação'}];
+ const totMar=rs=>['Total','','','',fT(soma(rs,r=>r.grades)),fT(soma(rs,r=>calcMar(r).perdas)),fT(soma(rs.filter(conf),r=>calcMar(r).liquida)),''];
+ const enfL=fs=>ord(fs,'hora').map(f=>[esc(fData(f.data)),esc(f.hora||''),esc(nomeForno(f.fornoId)),ehContinuo(f.fornoId)?'—':'nº '+esc(f.numero),'<b>'+fT(f.quantidade)+'</b>',esc(sitF(f)),quem(f)]);
+ const cabEnf=[{l:'Data'},{l:'Hora'},{l:'Forno'},{l:'Fornada'},{l:'Tijolos',n:1},{l:'Situação'},{l:'Lançado por'}];
+ const desL=ds=>ord(ds,'hora').map(d=>[esc(fData(d.data)),esc(nomeFornadaD(d)),'<b>'+fT(desenfQtd(d))+'</b>',fT(d.primeira)+(d.classificacaoPendente?' '+pTxt('a classificar','at'):''),fT(d.segunda),fT(perdasD(d)),pc_(aprovD(d),desenfQtd(d)),quem(d)]);
+ const cabDes=[{l:'Data'},{l:'Forno / fornada'},{l:'Desenfornado',n:1},{l:'1ª',n:1},{l:'2ª',n:1},{l:'Perdas',n:1},{l:'Aproveitamento',n:1},{l:'Lançado por'}];
+ const totDes=ds=>['Total','','<b>'+fT(soma(ds,desenfQtd))+'</b>',fT(soma(ds,d=>d.primeira)),fT(soma(ds,d=>d.segunda)),fT(soma(ds,perdasD)),pc_(soma(ds,aprovD),soma(ds,desenfQtd)),''];
+ const secMovs=DATA.psecmov.filter(m=>m.mov!=='Contagem inicial');
+ const metaDia=(M,porDia)=>{if(!M)return null;const u=diasUteisMes(N.m).filter(d=>d<=N.h);let ac=0;
+  const lin=u.map((d,i)=>{const q=porDia(d);ac+=q;const esp=Math.round(M.meta*(i+1)/M.uteis);return[esc(fData(d)),fT(q),'<b>'+fT(ac)+'</b>',fT(esp),ac>=esp?pTxt('no ritmo','ok'):pTxt('faltam '+fMilh(esp-ac)+' mil','at')]});
+  return `<p class="ajuda" style="margin:0 0 10px">Meta de ${fMilh(M.meta)} milheiros em ${M.uteis} dias úteis: ${fMilh(M.meta/M.uteis)} milheiros por dia. Feito até agora: ${fNum(M.pct,1)}%. Faltam ${fMilh(M.falta)} milheiros${M.porDia!=null?', '+fMilh(M.porDia)+' por dia útil restante':''}.</p>`+tab([{l:'Dia útil'},{l:'No dia',n:1},{l:'Acumulado',n:1},{l:'Esperado até o dia',n:1},{l:'Situação'}],lin,null,'Nenhum dia útil ainda.')};
+ switch(ch){
+  case 'metaMar':{const M=metaMar(N);return{t:'Meta da maromba · '+mesTxt,href:'#/pmes',h:metaDia(M,d=>soma(N.okM.filter(r=>r.data===d),r=>calcMar(r).liquida))}}
+  case 'metaDes':{const M=metaProd(N);return{t:'Meta de desenforna · '+mesTxt,href:'#/pdesenf',h:metaDia(M,d=>soma(N.dM.filter(x=>x.data===d),desenfQtd))}}
+  case 'marH':{const rs=[...N.okH,...N.pendH];return{t:'Maromba hoje · '+hojeTxt,href:'#/pmaromba',h:tab(cabMar,marL(rs),totMar(rs),'Nenhum lançamento da maromba hoje.')}}
+  case 'marM':return{t:'Maromba no mês · '+mesTxt,href:'#/pmaromba',h:tab(cabMar,marL(N.okM),totMar(N.okM),'Nenhum lançamento confirmado no mês.')};
+  case 'secH':{const ms=ord(secMovs.filter(m=>m.data===N.h&&ehGradeSec(m.mov)),'hora');
+   return{t:'Secador hoje · '+hojeTxt,href:'#/psecmov',h:tab([{l:'Hora'},{l:'Movimento'},{l:'Grades',n:1},{l:'Tijolos',n:1},{l:'Lançado por'}],ms.map(m=>[esc(m.hora||''),esc(m.mov),fT(m.grades),'<b>'+fT(n0(m.grades)*n0(m.porGrade))+'</b>',quem(m)]),null,'Nenhuma entrada ou saída do secador hoje.')}}
+  case 'sec':{const S=N.s;let sd=S.inicial;const ms=ord(secMovs.filter(m=>!S.ini||String(m.data)>=S.ini.data),'hora');
+   const lin=ms.map(m=>{const q=ehGradeSec(m.mov)?n0(m.grades)*n0(m.porGrade):m.mov==='Perda'?n0(m.quantidade):n0(m.delta);const d=m.mov==='Entrada no secador'?q:m.mov==='Saída do secador'||m.mov==='Perda'?-q:q;sd+=d;
+    return[esc(fData(m.data)),esc(m.mov),ehGradeSec(m.mov)?fT(m.grades):'—',(d>0?'+':'')+fT(d),'<b>'+fT(sd)+'</b>',esc(m.motivo||m.justificativa||'')]});
+   return{t:'Secador: entradas e saídas',href:'#/psecagem',h:`<p class="ajuda" style="margin:0 0 10px">${S.ini?'Início do controle em '+esc(fData(S.ini.data))+' com '+fT(S.inicial)+' tijolos. ':''}Saldo atual: <b>${fT(S.saldo)} tijolos</b>${N.tpg?' ('+fNum(S.saldo/N.tpg,1)+' grades)':''}.</p>`+tab([{l:'Data'},{l:'Movimento'},{l:'Grades',n:1},{l:'Tijolos',n:1},{l:'Saldo',n:1},{l:'Motivo'}],lin,null,'Nenhuma entrada ou saída lançada.')}}
+  case 'enfH':return{t:'Enfornado hoje · '+hojeTxt,href:'#/pfornadas',h:tab(cabEnf,enfL(N.fH),['Total','','','','<b>'+fT(N.enfH)+'</b>','',''],'Nenhuma enforna hoje.')};
+  case 'enfM':return{t:'Enfornado no mês · '+mesTxt,href:'#/pfornadas',h:tab(cabEnf,enfL(N.fM),['Total','','','','<b>'+fT(N.enfM)+'</b>','',''],'Nenhuma enforna no mês.')};
+  case 'desH':return{t:'Desenfornado hoje · '+hojeTxt,href:'#/pdesenf',h:tab(cabDes,desL(N.desH),totDes(N.desH),'Nenhuma desenforna hoje.')};
+  case 'desM':return{t:'Desenfornado no mês · '+mesTxt,href:'#/pdesenf',h:tab(cabDes,desL(N.dM),totDes(N.dM),'Nenhuma desenforna no mês.')};
+  case 'perdEnf':return{t:'Perda na enforna · '+mesTxt,href:'#/psecmov',h:`<p class="ajuda" style="margin:0 0 10px">Por dia: o que saiu do secador menos o que foi enfornado em todos os fornos (inclusive o contínuo).</p>`+tab([{l:'Dia'},{l:'Saiu do secador',n:1},{l:'Enfornado',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.pEnf.map(x=>[esc(fData(x.data)),fT(x.saiu),x.semEnforna?'enforna não lançada':fT(x.enf),x.semEnforna?'—':'<b>'+fT(x.perda)+'</b>',x.semEnforna?'—':pc_(x.perda,x.saiu)]),['Total',fT(N.baseEnf),'','<b>'+fT(N.perdEnf)+'</b>',pc_(N.perdEnf,N.baseEnf)],'Lance a saída do secador (grades) para calcular.')};
+  case 'perdDes':return{t:'Perda na desenforna · '+mesTxt,href:'#/pdesenf',h:`<p class="ajuda" style="margin:0 0 10px">Por fornada: o que entrou no forno menos os tijolos bons (1ª + 2ª). O forno contínuo e as desenfornas sem enforna lançada não entram nesta conta.</p>`+tab([{l:'Desenforna'},{l:'Fornada'},{l:'Enfornado',n:1},{l:'Bons',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.queima.map(x=>[esc(fData(x.d.data)),esc(nomeFornada(x.f)),fT(x.enf),fT(x.bons),'<b>'+fT(x.perda)+'</b>',pc_(x.perda,x.enf)]),['Total','',fT(N.baseQueima),'','<b>'+fT(N.perdQueima)+'</b>',pc_(N.perdQueima,N.baseQueima)],'Nenhuma desenforna de fornada neste mês.')};
+  case 'perdMS':{const lin=[...N.okM.filter(r=>calcMar(r).perdas>0).map(r=>[esc(fData(r.data)),'Maromba',esc(r.turno||''),'<b>'+fT(calcMar(r).perdas)+'</b>']),
+    ...DATA.psecmov.filter(x=>x.mov==='Perda'&&String(x.data).startsWith(N.m)).map(x=>[esc(fData(x.data)),'Secagem',esc(x.motivo||''),'<b>'+fT(x.quantidade)+'</b>'])].sort((a,b)=>a[0].localeCompare(b[0]));
+   return{t:'Perdas na maromba e na secagem · '+mesTxt,href:'#/prel',h:tab([{l:'Data'},{l:'Etapa'},{l:'Turno / motivo'},{l:'Tijolos',n:1}],lin,['Total','','','<b>'+fT(N.perdMar+N.perdSec)+'</b>'],'Nenhuma perda registrada no mês.')}}
+  case 'fornos':{const ab=DATA.pfornadas.filter(f=>fConf(f)&&abertaF(f)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+   return{t:'Fornadas nos fornos',href:'#/pfornadas',h:tab([{l:'Forno'},{l:'Fornada'},{l:'Enforna'},{l:'Tijolos',n:1},{l:'Situação'},{l:'Lenha lançada'}],ab.map(f=>{const l=lenhaFornada(f);return[esc(nomeForno(f.fornoId)),'nº '+esc(f.numero),esc(fData(f.data)),'<b>'+fT(f.quantidade)+'</b>',esc(sitF(f)),l.n?esc(l.real)+(l.difRef!=null&&l.difRef>0?' '+pTxt('acima da referência','pe'):''):'—']}),['Total','','','<b>'+fT(soma(ab,f=>f.quantidade))+'</b>','',''],'Nenhuma fornada aberta.')}}
+ }
+ return null;
+}
+
+/* ---------- central de lançamentos do setor ---------- */
+function lancaveisP(){
+ const tpg=n0(pc().tijolosPorGrade)||'';
+ return [
+  {m:'pmaromba',ic:'caixa',t:'Produção da maromba',d:'Turno, operador, horário e grades produzidas.',go:()=>{location.hash='#/pmaromba/novo'}},
+  {m:'psecmov',ic:'mais',t:'Entrada no secador',d:'Quantas grades entraram no secador.',go:()=>{PREFILL={mod:'psecmov',dados:{mov:'Entrada no secador',data:hoje(),porGrade:tpg}};location.hash='#/psecmov/novo'}},
+  {m:'psecmov',ic:'direita',t:'Saída do secador',d:'Quantas grades saíram do secador para os fornos.',go:()=>{PREFILL={mod:'psecmov',dados:{mov:'Saída do secador',data:hoje(),porGrade:tpg}};location.hash='#/psecmov/novo'}},
+  {m:'pfornadas',ic:'chama',t:'Enforna',d:'Qual forno (ou o contínuo) e quantos tijolos entraram.',go:()=>{location.hash='#/pfornadas/novo'}},
+  {m:'pdesenf',ic:'saida',t:'Desenforna',d:'Qual forno e quantos tijolos saíram (1ª, 2ª e perdas).',go:()=>{location.hash='#/pdesenf/novo'}},
+  {m:'pparadas',ic:'relogio',t:'Parada da maromba',d:'Início, fim e motivo da parada.',go:()=>{location.hash='#/pparadas/novo'}},
+  {m:'psecmov',ic:'aviso',t:'Perda na secagem',d:'Tijolos quebrados ou trincados no secador.',go:()=>{PREFILL={mod:'psecmov',dados:{mov:'Perda',data:hoje()}};location.hash='#/psecmov/novo'}},
+  {m:'pprontomov',ic:'caixa',t:'Tijolo pronto',d:'Saída, perda posterior ou ajuste do estoque.',go:()=>{location.hash='#/pprontomov/novo'}}
+ ].filter(x=>pode(x.m,'e'));
+}
+function telaLancarP(c){
+ const L=lancaveisP();
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('mais')}</span><div><h1>Lançar</h1><p>Escolha o que aconteceu. Cada lançamento entra na hora no painel do setor.</p></div></div><div class="acoes"></div></div>
+  ${L.length?`<div class="hero pm-lanc">${L.map((x,i)=>`<button type="button" class="kpi c${(i%6)+1}" data-lp="${i}"><div class="ic">${ic(x.ic)}</div><div class="v" style="font-size:18px">${esc(x.t)}</div><div class="l">${esc(x.d)}</div></button>`).join('')}</div>`:`<div class="vazio"><b>Sem permissão para lançar</b>Peça ao administrador.</div>`}`;
+ $$('[data-lp]',c).forEach(b=>b.onclick=()=>L[+b.dataset.lp].go());
+ try{if(typeof window.posTelaProdV56==='function')window.posTelaProdV56(c,'pmaromba')}catch(e){console.warn(e)}
 }
 
 /* ---------- casca do setor ---------- */
 function abasP(){return [
  {r:'#/setor-producao',m:'setor-producao',ic:'painel',l:'Início',at:['setor-producao']},
- {r:'#/pmes',m:'pmes',ic:'calendario',l:'Produção por mês',at:['pmes']},
- {r:'#/pmaromba/novo',m:'pmaromba',e:1,ic:'mais',l:'Lançar produção',at:['pm-novo']},
- {r:'#/pmaromba',m:'pmaromba',ic:'caixa',l:'Maromba',at:['pmaromba']},
- {r:'#/pparadas',m:'pparadas',ic:'relogio',l:'Paradas',at:['pparadas']},
- {r:'#/psecagem',m:'psecagem',ic:'calendario',l:'Secagem',at:['psecagem','psecmov']},
- {r:'#/pfornadas',m:'pfornadas',ic:'chama',l:'Fornos e fornadas',at:['pfornadas']},
- {r:'#/pdesenf',m:'pdesenf',ic:'saida',l:'Desenforna',at:['pdesenf']},
- {r:'#/ppronto',m:'ppronto',ic:'caixa',l:'Tijolo pronto',at:['ppronto','pprontomov']},
- {r:'#/plenha',m:'plenha',ic:'chama',l:'Lenha por fornada',at:['plenha']},
- {r:'#/prel',m:'prel',ic:'grafico',l:'Relatório',at:['prel']},
+ {r:'#/plancar',m:'setor-producao',ic:'mais',l:'Lançar',at:['plancar','pm-novo']},
+ {r:'#/pmaromba',m:'pmaromba',ic:'caixa',l:'Maromba',at:['pmaromba','pparadas'],sub:[['#/pmaromba','pmaromba','Lançamentos',['pmaromba']],['#/pparadas','pparadas','Paradas',['pparadas']]]},
+ {r:'#/psecagem',m:'psecagem',ic:'calendario',l:'Secador',at:['psecagem','psecmov'],sub:[['#/psecagem','psecagem','Saldo e lotes',['psecagem']],['#/psecmov','psecmov','Entradas, saídas e perdas',['psecmov']]]},
+ {r:'#/pfornadas',m:'pfornadas',ic:'chama',l:'Fornos',at:['pfornadas','pdesenf','plenha'],sub:[['#/pfornadas','pfornadas','Enforna',['pfornadas']],['#/pdesenf','pdesenf','Desenforna',['pdesenf']],['#/plenha','plenha','Lenha por fornada',['plenha']]]},
+ {r:'#/ppronto',m:'ppronto',ic:'caixa',l:'Tijolo pronto',at:['ppronto','pprontomov'],sub:[['#/ppronto','ppronto','Estoque',['ppronto']],['#/pprontomov','pprontomov','Movimentações',['pprontomov']]]},
+ {r:'#/prel',m:'prel',ic:'grafico',l:'Relatórios',at:['prel','pmes'],sub:[['#/prel','prel','Relatório do período',['prel']],['#/pmes','pmes','Produção por mês',['pmes']]]},
  {r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']}].filter(a=>pode(a.m,a.e?'e':'v'))}
 function shellP(el,ativa,corpo){
  if(typeof marcarSetor==='function')marcarSetor('producao');
  el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot('Setor de Produção',razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
   <nav class="dir-abas sv-abas" aria-label="Telas do Setor de Produção">${abasP().map(a=>{const on=a.at.includes(ativa);return `<a class="dir-aba${on?' on':''}" href="${a.r}"${on?' aria-current="page"':''}>${ic(a.ic)}<span>${esc(a.l)}</span></a>`}).join('')}</nav></div>
+  ${(()=>{const g=abasP().find(a=>a.at.includes(ativa));const sb=g&&g.sub?g.sub.filter(x=>pode(x[1],'v')):[];
+   return sb.length>1?`<nav class="pm-sub" aria-label="${esc(g.l)}">${sb.map(x=>`<a href="${x[0]}" class="${x[3].includes(ativa)?'on':''}">${esc(x[2])}</a>`).join('')}</nav>`:''})()}
   <main class="sv-corpo" id="svCorpo"></main></div>`;
  const c=$('#svCorpo',el);
  if(!APP.carregado){c.innerHTML=typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>';return}
@@ -15454,55 +15613,93 @@ function barraRefeicao(c){
 
 /* ---------- início do setor: só números, sem gráficos ---------- */
 function inicioProd(c){
- const N=numerosProd();const C=pc();const s=N.s;const ed=pode('pmaromba','e');
+ const N=numerosProd();const C=pc();const s=N.s;const ed=pode('pmaromba','e');const M=metaProd(N);
  const falta=[];
  if(vazio(C.tijolosPorGrade))falta.push('o número padrão de tijolos por grade');
+ if(vazio(C.metaDesenfMes)||vazio(C.metaMarombaMes))falta.push('as metas do mês (maromba e desenforna)');
  if(!C.fimExpediente)falta.push('o horário de fim do expediente (para a estimativa do dia)');
  if(vazio(C.diasSecagem))falta.push('o tempo mínimo de secagem (para saber o que está seco)');
  if(!FORNOS().length)falta.push('os fornos, no Setor da Lenha › Fornos e locais (tipo Forno)');
  if(!s.temIni)falta.push('a contagem física inicial da secagem');
  if(!N.pr.temIni)falta.push('a contagem física inicial do tijolo pronto');
- const k=(cls,ico,rot,val,sub,href,tg)=>`<a class="kpi ${cls}" href="${esc(href)}"><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div><div class="delta neutro">${tg||''}<b>${sub}</b></div></a>`;
+ const k=(cls,ico,rot,val,sub,href,tg,rel)=>`<a class="kpi ${cls}" href="${esc(href)}"${rel?` data-rel="${rel}" title="Clique para ver a lista"`:''}><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div><div class="delta neutro">${tg||''}<b>${sub}</b></div></a>`;
+ const MM=metaMar(N);
+ const pct=(p,base)=>base>0?fNum(p/base*100,1)+'%':'—';
+ const gr=q=>N.tpg>0?' · '+fNum(q/N.tpg,1)+' grade(s)':'';
  const est=N.est;
- const fornosLst=FORNOS().map(l=>{const fs=DATA.pfornadas.filter(f=>f.fornoId===l.id).sort((a,b)=>(+b.numero||0)-(+a.numero||0));const u=fs[0];
-  const su=u?sitF(u):'';return{href:u?'#/pfornadas/'+u.id:'#/pfornadas',ic:'chama',cls:!u?'':su==='Aguardando desenforna'?'a-at':abertaF(u)?'a-ok':'',t:nomeLocal(l),s:u?'Fornada nº '+u.numero+' · '+su.toLowerCase()+(fConf(u)?'':' · enforna pendente'):'Nenhuma fornada lançada',v:u&&abertaF(u)?fMil(u.quantidade):''}});
+ const fornosLst=FORNOS().map(l=>{if(ehContinuo(l.id)){const eM=soma(N.fM.filter(f=>f.fornoId===l.id),f=>f.quantidade),dMc=soma(N.dM.filter(d=>d.fornoId===l.id),desenfQtd);
+   return{href:'#/pdesenf',ic:'chama',cls:eM||dMc?'a-ok':'',t:nomeLocal(l),s:'No mês: enfornado '+fT(eM)+' · desenfornado '+fT(dMc),v:''}}
+  const fs=DATA.pfornadas.filter(f=>f.fornoId===l.id).sort((a,b)=>(+b.numero||0)-(+a.numero||0));const u=fs[0];
+  const su=u?sitF(u):'';const lf=u&&abertaF(u)?lenhaFornada(u):null;
+  const tl=lf&&lf.ref2?' · lenha '+(lf.n?lf.real:'sem lançamento')+' (ref. '+fNum(lf.ref2.min)+(lf.ref2.max!==lf.ref2.min?'–'+fNum(lf.ref2.max):'')+' m³)':'';
+  return{href:u?'#/pfornadas/'+u.id:'#/pfornadas',ic:'chama',cls:!u?'':su==='Aguardando desenforna'?'a-at':abertaF(u)?'a-ok':'',t:nomeLocal(l),s:u?'Fornada nº '+u.numero+' · '+su.toLowerCase()+(fConf(u)?'':' · enforna pendente')+tl:'Nenhuma fornada lançada',v:u&&abertaF(u)?fMil(u.quantidade):''}});
+ const movHoje=[...N.fH.map(f=>({href:'#/pfornadas/'+f.id,ic:'chama',cls:'a-ok',t:'Enfornado · '+nomeForno(f.fornoId),s:'Fornada nº '+f.numero+(f.hora?' · '+f.hora:''),v:fT(f.quantidade)})),
+  ...N.desH.map(d=>({href:'#/pdesenf/'+d.id,ic:'saida',cls:'a-at',t:'Desenfornado · '+nomeFornadaD(d),s:'1ª '+fT(d.primeira)+' · 2ª '+fT(d.segunda)+' · perdas '+fT(perdasD(d)),v:fT(desenfQtd(d))}))];
+ const pEnfLst=N.pEnf.slice().reverse().map(x=>({href:'#/psecmov',ic:'aviso',cls:x.semEnforna?'a-at':x.perda>0?'a-pe':'a-ok',t:fData(x.data),
+  s:'saiu do secador '+fT(x.saiu)+(x.semEnforna?' · enforna do dia ainda não lançada':' · enfornado '+fT(x.enf)),v:x.semEnforna?'—':fT(x.perda)+' ('+pct(x.perda,x.saiu)+')'}));
+ const queimaLst=N.queima.slice().sort((a,b)=>String(b.d.data).localeCompare(String(a.d.data))).map(x=>({href:'#/pdesenf/'+x.d.id,ic:'saida',cls:x.perda>0?'a-pe':'a-ok',t:nomeFornada(x.f),
+  s:fData(x.d.data)+' · enfornado '+fT(x.enf)+' · bons '+fT(x.bons),v:fT(x.perda)+' ('+pct(x.perda,x.enf)+')'}));
+ const metaHtml=(MM||M)?`<div class="pm-metas">${MM?metaBox('Meta da maromba · '+fMes(N.m),MM,'metaMar'):''}${M?metaBox('Meta de desenforna · '+fMes(N.m),M,'metaDes',`<div><b>${fMilh(N.desMes.aprov)}</b><span>Tijolos bons (1ª + 2ª), milheiros</span></div>`):''}</div>`:'';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('caixa')}</span><div><h1>Setor de Produção</h1><p>Da maromba ao tijolo pronto: produção do dia, secagem, fornos, desenforna e estoque. Números só de lançamentos confirmados.</p></div></div>
-  <div class="acoes">${pode('pdesenf','e')?`<a class="btn" href="#/pdesenf/novo">${ic('saida')}Desenforna</a>`:''}${pode('pfornadas','e')?`<a class="btn" href="#/pfornadas/novo">${ic('chama')}Nova fornada</a>`:''}${pode('pparadas','e')?`<a class="btn" href="#/pparadas/novo">${ic('relogio')}Registrar parada</a>`:''}${ed?`<a class="btn pri" href="#/pmaromba/novo">${ic('mais')}Lançar produção</a>`:''}</div></div>
+  <div class="acoes">${lancaveisP().length?`<a class="btn pri" href="#/plancar">${ic('mais')}Lançar</a>`:''}</div></div>
   ${falta.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Para os números ficarem completos, falta cadastrar:</b> ${esc(falta.join('; '))}. Enquanto isso, o que depende desses dados aparece como indisponível — nenhum número é inventado.</span></div>`:''}
+  ${metaHtml}
+  <h3 class="grupo-t">Hoje · ${esc(fData(N.h))}</h3>
   <div class="hero">
-   ${k('c1','caixa','Produção hoje na maromba',fT(N.hoje),'tijolos líquidos confirmados','#/pmaromba',N.pendH.length?pTxt(N.pendH.length+' pendente(s)','at')+' ':'')}
-   ${k('c4','calendario','Acumulado no mês',fT(N.mes),fMes(N.m)+' · '+N.okM.length+' lançamento(s)','#/pmaromba')}
-   ${k('c2','grafico','Estimativa até o fim do dia',est.ok?fT(est.valor):'—',est.ok?esc('ritmo de '+fT(est.ritmoH)+'/h · '+fHm(est.rest)+' restantes'):esc('estimativa indisponível: '+est.motivo),'#/pmaromba',pTxt('estimativa','at')+' ')}
-   ${k('c3','calendario','Em secagem',fT(s.saldo),s.temIni?s.lotes.length+' lote(s)':'sem contagem inicial','#/psecagem',s.temIni?'':pTxt('parcial','at')+' ')}
+   ${k('c1','caixa','Maromba hoje',fT(N.hoje),fT(N.gradesH)+' grade(s) · tijolos líquidos','#/pmaromba',N.pendH.length?pTxt(N.pendH.length+' pendente(s)','at')+' ':'','marH')}
+   ${k('c4','calendario','Entrada no secador hoje',N.entSecH?fT(N.entSecH):'—',N.entSecH?fT(N.gradesEntH)+' grade(s)':'ainda não lançada','#/psecmov','','secH')}
+   ${k('c3','calendario','Saída do secador hoje',N.saiuSecH?fT(N.saiuSecH):'—',N.saiuSecH?fT(N.gradesSecH)+' grade(s)':'ainda não lançada','#/psecmov','','secH')}
+   ${k('c5','chama','Enfornado hoje',fT(N.enfH),N.fH.length?N.fH.map(f=>nomeForno(f.fornoId)).join(', '):'nenhuma enforna hoje','#/pfornadas','','enfH')}
+   ${k('c4','saida','Desenfornado hoje',fT(N.desHoje.total),N.desHoje.n?'bons '+fT(N.desHoje.aprov)+' · perdas '+fT(N.desHoje.perdas):'nenhuma desenforna hoje','#/pdesenf','','desH')}
+   ${k('c2','grafico','Estimativa da maromba até o fim do dia',est.ok?fT(est.valor):'—',est.ok?esc('ritmo de '+fT(est.ritmoH)+'/h · '+fHm(est.rest)+' restantes'):esc('estimativa indisponível: '+est.motivo),'#/pmaromba',pTxt('estimativa','at')+' ')}
+  </div>
+  <h3 class="grupo-t">No mês · ${esc(fMes(N.m))}</h3>
+  <div class="hero">
+   ${k('c1','calendario','Maromba no mês',fT(N.mes),fT(N.gradesM)+' grade(s) · '+N.okM.length+' lançamento(s)','#/pmaromba','','marM')}
+   ${k('c5','chama','Enfornado no mês',fT(N.enfM),N.fM.length+' fornada(s)','#/pfornadas','','enfM')}
+   ${k('c4','saida','Desenfornado no mês',fT(N.desMes.total),'bons '+fT(N.desMes.aprov)+' · '+N.desMes.n+' desenforna(s)','#/pdesenf','','desM')}
+   ${k('c6','aviso','Perda na enforna',fT(N.perdEnf),N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia','#/psecmov','','perdEnf')}
+   ${k('c6','aviso','Perda na desenforna',fT(N.perdQueima),N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que foi enfornado':'sem desenforna de fornada no mês','#/pdesenf','','perdDes')}
+   ${k('c3','aviso','Perdas na maromba e secagem',fT(N.perdMar+N.perdSec),'maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec),'#/prel','','perdMS')}
+  </div>
+  <h3 class="grupo-t">Agora na fábrica</h3>
+  <div class="hero">
+   ${k('c3','calendario','Em secagem',fT(s.saldo),(s.temIni?s.lotes.length+' lote(s)':'sem contagem inicial')+gr(s.saldo),'#/psecagem',s.temIni?'':pTxt('parcial','at')+' ','sec')}
    ${k('c5','direita','Disponível para enforna',s.disp==null?'—':fT(s.disp),s.disp==null?'informe o tempo mínimo de secagem':'secos há '+s.diasMin+' dia(s) ou mais','#/psecagem',s.disp!=null&&!s.temIni?pTxt('parcial','at')+' ':'')}
-   ${k('c1','chama','Nos fornos',fT(N.noForno),'em enforna ou em queima','#/pfornadas')}
-   ${k('c4','relogio','Aguardando desenforna',fT(N.aguard),'enfornas confirmadas','#/pfornadas')}
+   ${k('c1','chama','Nos fornos',fT(N.noForno),'em enforna ou em queima','#/pfornadas','','fornos')}
+   ${k('c4','relogio','Aguardando desenforna',fT(N.aguard),'enfornas confirmadas','#/pfornadas','','fornos')}
    ${k('c3','caixa','Tijolos prontos',fT(N.pr.saldo1+N.pr.saldo2),'1ª '+fT(N.pr.saldo1)+' · 2ª '+fT(N.pr.saldo2),'#/ppronto',N.pr.temIni?'':pTxt('parcial','at')+' ')}
-   ${k('c6','aviso','Perdas registradas no mês',fT(N.perdMar+N.perdSec+N.perdDes),'maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec)+' · desenforna '+fT(N.perdDes),'#/prel')}
-   ${k('c5','chama','Fornadas abertas',String(N.abertas),N.pendF?N.pendF+' enforna(s) pendente(s) de confirmação':'todas confirmadas','#/pfornadas')}
+   ${k('c5','chama','Fornadas abertas',String(N.abertas),N.pendF?N.pendF+' enforna(s) pendente(s) de confirmação':'todas confirmadas','#/pfornadas','','fornos')}
   </div>
   <div class="ex2">
    <div class="bloco"><h3>Produção de hoje<a href="#/pmaromba">Maromba</a></h3>${lstV([...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||''))).map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(txtParadas(r.data,r.turno)?' · parado '+txtParadas(r.data,r.turno):'')+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.')}</div>
-   <div class="bloco"><h3>Situação dos fornos<a href="#/pfornadas">Fornadas</a></h3>${lstV(fornosLst,'Nenhum forno cadastrado no Setor da Lenha.')}</div>
+   <div class="bloco"><h3>Enforna e desenforna de hoje<a href="#/pfornadas">Fornadas</a></h3>${lstV(movHoje,'Nenhuma enforna ou desenforna lançada hoje.')}</div>
    <div class="bloco"><h3>Paradas de hoje${N.parH.length?`<span class="n">${N.parH.length}</span>`:''}<a href="#/pparadas">Paradas</a></h3>${lstV(N.parH.sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map(p=>({href:'#/pparadas/'+p.id,ic:'relogio',cls:ehRefeicao(p.motivo)?'':'a-pe',t:p.motivo,s:p.turno+' · '+p.inicio+'–'+p.fim,v:fHm(dur(p.inicio,p.fim))})),'Nenhuma parada registrada hoje.')}</div>
+  </div>
+  <div class="ex2">
+   <div class="bloco"><h3>Situação dos fornos<a href="#/pfornadas">Fornadas</a></h3>${lstV(fornosLst,'Nenhum forno cadastrado no Setor da Lenha.')}</div>
+   <div class="bloco"><h3>Perda na enforna por dia<a href="#/psecmov">Secagem</a></h3>${lstV(pEnfLst,'Lance a saída do secador (grades) para calcular a perda na enforna.')}</div>
+   <div class="bloco"><h3>Perda na desenforna por fornada<a href="#/pdesenf">Desenforna</a></h3>${lstV(queimaLst,'Nenhuma desenforna de fornada neste mês.')}</div>
   </div>`;
+ $$('[data-rel]',c).forEach(a=>a.addEventListener('click',e=>{const R=relProd(a.dataset.rel,N);if(!R)return;e.preventDefault();
+  const v=modalV(R.t,R.h,'Abrir a tela completa',()=>{location.hash=R.href});const m=v.querySelector('.modal');if(m)m.classList.add('v56-modal-larga','pm-rel')}));
  try{if(typeof window.posTelaProdV56==='function')window.posTelaProdV56(c,'setor-producao')}catch(e){console.warn(e)}
 }
 
 /* ---------- secagem ---------- */
 function telaSecagem(c){
  const s=secagem();const ed=pode('psecmov','e');const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;
- const novo=mov=>`<button type="button" class="btn${mov==='Perda'?' pri':''}" data-nmov="${esc(mov)}">${ic(mov==='Perda'?'aviso':'mais')}${mov==='Contagem inicial'?'Contagem inicial':mov==='Perda'?'Registrar perda':'Ajuste'}</button>`;
- c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('calendario')}</span><div><h1>Secagem</h1><p>Saldo final = saldo inicial + entradas − saídas para enforna − perdas ± ajustes. A entrada é a produção líquida confirmada da maromba; a saída, a enforna confirmada.</p></div></div>
-  <div class="acoes"><a class="btn" href="#/psecmov">${ic('livro')}Movimentações</a>${ed?(s.temIni?'':novo('Contagem inicial'))+(s.temIni?novo('Ajuste'):'')+novo('Perda'):''}</div></div>
+ const novo=mov=>`<button type="button" class="btn${mov==='Perda'?' pri':''}" data-nmov="${esc(mov)}">${ic(mov==='Perda'?'aviso':'mais')}${mov==='Contagem inicial'?'Contagem inicial':mov==='Perda'?'Registrar perda':ehGradeSec(mov)?mov:'Ajuste'}</button>`;
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('calendario')}</span><div><h1>Secagem</h1><p>Saldo final = saldo inicial + grades que entraram − grades que saíram − perdas ± ajustes. Entrada e saída são lançadas pela equipe do secador, separadas da produção da maromba. A entrada é a produção líquida confirmada da maromba; a saída, a enforna confirmada.</p></div></div>
+  <div class="acoes"><a class="btn" href="#/psecmov">${ic('livro')}Movimentações</a>${ed?(s.temIni?'':novo('Contagem inicial'))+(s.temIni?novo('Ajuste'):'')+novo('Entrada no secador')+novo('Saída do secador')+novo('Perda'):''}</div></div>
   ${s.temIni?'':`<div class="aviso at" style="margin-bottom:14px"><span><b>Saldo parcial.</b> Ainda não há contagem física inicial da secagem. Até ela ser lançada, o saldo considera só o que foi registrado no sistema e pode estar abaixo do real.</span></div>`}
   ${s.saldo<0?`<div class="aviso pe" style="margin-bottom:14px"><span><b>Saldo negativo.</b> Saiu mais do que entrou: falta lançar produção da maromba, confirmar lançamentos pendentes ou fazer um ajuste com contagem física.</span></div>`:''}
-  <div class="resumo">${b(s.temIni?fT(s.inicial):'—',s.temIni?'Saldo inicial (contagem em '+fData(s.ini.data)+')':'Saldo inicial não confirmado')}${b(fT(s.entradas),'Entradas da maromba')}${b(fT(s.saidas),'Saídas para enforna')}${b(fT(s.perdas),'Perdas')}${b((s.ajustes>0?'+':'')+fT(s.ajustes),'Ajustes')}${b(fT(s.saldo),'Saldo atual (tijolos)')}${b(s.disp==null?'—':fT(s.disp),s.disp==null?'Disponível para enforna: informe o tempo mínimo de secagem':'Seco para enforna ('+s.diasMin+' dia(s) ou mais)')}</div>
+  <div class="resumo">${b(s.temIni?fT(s.inicial):'—',s.temIni?'Saldo inicial (contagem em '+fData(s.ini.data)+')':'Saldo inicial não confirmado')}${b(fT(s.entradas),'Entraram no secador')}${b(fT(s.saidas),'Saíram do secador')}${b(fT(s.perdas),'Perdas')}${b(fT(s.perdasEnf),'Perda na enforna (saiu do secador − enfornado)')}${b((s.ajustes>0?'+':'')+fT(s.ajustes),'Ajustes')}${b(fT(s.saldo),'Saldo atual (tijolos)')}${b(s.disp==null?'—':fT(s.disp),s.disp==null?'Disponível para enforna: informe o tempo mínimo de secagem':'Seco para enforna ('+s.diasMin+' dia(s) ou mais)')}</div>
   ${Object.keys(s.porMotivo).length?`<h3 class="grupo-t">Perdas por motivo</h3><div class="painel tabwrap"><table class="tbl"><thead><tr><th>Motivo</th><th class="num">Tijolos</th><th class="num">% das perdas</th></tr></thead><tbody>${Object.entries(s.porMotivo).sort((a,b)=>b[1]-a[1]).map(([k,q])=>`<tr><td>${esc(k)}</td><td class="num">${fT(q)}</td><td class="num">${s.perdas?fNum(q/s.perdas*100,1)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
   <h3 class="grupo-t">Lotes na secagem</h3>
   ${s.lotes.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Entrada</th><th>Origem</th><th class="num">Entrou</th><th class="num">Ainda na secagem</th><th class="num">Dias na secagem</th><th>Situação</th></tr></thead><tbody>${s.lotes.map(l=>`<tr><td data-l="Entrada">${esc(fData(l.data))}</td><td data-l="Origem">${esc(l.origem)}</td><td data-l="Entrou" class="num">${fT(l.qtd)}</td><td data-l="Ainda na secagem" class="num"><b>${fT(l.resta)}</b></td><td data-l="Dias" class="num">${l.dias}</td><td data-l="Situação">${s.diasMin==null?pTxt('tempo mínimo não configurado',''):l.dias>=s.diasMin?pTxt('seco para enforna','ok'):pTxt('secando','at')}</td></tr>`).join('')}</tbody></table></div>
    <p class="ajuda" style="margin:8px 2px 0">Os lotes saem na ordem de entrada (o mais antigo primeiro) para a enforna, as perdas e os ajustes para menos.</p>`:`<div class="vazio"><b>Nenhum lote na secagem</b>Os lotes aparecem quando houver contagem inicial ou produção confirmada da maromba.</div>`}`;
- $$('[data-nmov]',c).forEach(x=>x.onclick=()=>{PREFILL={mod:'psecmov',dados:{mov:x.dataset.nmov}};location.hash='#/psecmov/novo'});
+ $$('[data-nmov]',c).forEach(x=>x.onclick=()=>{PREFILL={mod:'psecmov',dados:{mov:x.dataset.nmov,...(ehGradeSec(x.dataset.nmov)?{porGrade:n0(pc().tijolosPorGrade)||''}:{})}};location.hash='#/psecmov/novo'});
 }
 
 /* ---------- configurações do setor ---------- */
@@ -15527,6 +15724,14 @@ function telaCfgProd(c){
    ${f('cp_ds','Tempo mínimo de secagem (dias)',C.diasSecagem,'number','Sem este dado, a quantidade disponível para enforna fica indisponível.')}
    ${a('cp_ps','Motivos de perda na secagem',C.motivosPerdaSec,'Um por linha.')}
   </div></fieldset>
+  <fieldset class="sec"><legend>Meta do mês</legend><div class="campos">
+   ${f('cp_metam','Meta da maromba no mês (tijolos)',C.metaMarombaMes,'number','Produção líquida confirmada da maromba no mês.')}
+   ${f('cp_meta','Meta de desenforna no mês (tijolos)',C.metaDesenfMes,'number','Conta tudo o que sai dos fornos na desenforna. O painel mostra o andamento, a projeção e quanto falta por dia útil.')}
+  </div></fieldset>
+  <fieldset class="sec"><legend>Lenha por fornada (m³)</legend><div class="campos">
+   ${f('cp_lfmin','Mínimo por fornada (m³)',C.lenhaFornadaMin,'number')}
+   ${f('cp_lfmax','Máximo por fornada (m³)',C.lenhaFornadaMax,'number','Cada fornada enfornada é comparada com a lenha lançada para aquele forno no Setor da Lenha.')}
+  </div></fieldset>
   <fieldset class="sec"><legend>Referência de lenha por fornada</legend><div class="campos">
    ${f('cp_ll','Lenha (unidades)',C.lenhaRef.lenha,'number')}
    ${f('cp_lc','Milheiros carregados',C.lenhaRef.carregado,'number')}
@@ -15538,19 +15743,23 @@ function telaCfgProd(c){
  bt.onclick=async()=>{
   const v=id=>String($('#'+id,c).value||'').trim();const nr=id=>v(id)===''?'':+String(v(id)).replace(',','.');const ls=id=>v(id).split('\n').map(x=>x.trim()).filter(Boolean);
   const n={tijolosPorGrade:nr('cp_tpg'),turnos:ls('cp_tur'),inicioExpediente:v('cp_ini'),fimExpediente:v('cp_fim'),refeicaoIni:v('cp_ri'),refeicaoFim:v('cp_rf'),
-   diasSecagem:nr('cp_ds'),motivosParada:ls('cp_mot'),motivosPerdaSec:ls('cp_ps'),lenhaRef:{lenha:nr('cp_ll'),carregado:nr('cp_lc'),bons:nr('cp_lb')}};
+   diasSecagem:nr('cp_ds'),motivosParada:ls('cp_mot'),motivosPerdaSec:ls('cp_ps'),lenhaRef:{lenha:nr('cp_ll'),carregado:nr('cp_lc'),bons:nr('cp_lb')},
+   metaMarombaMes:nr('cp_metam'),metaDesenfMes:nr('cp_meta'),lenhaFornadaMin:nr('cp_lfmin'),lenhaFornadaMax:nr('cp_lfmax')};
   const err=[];
   if(n.tijolosPorGrade!==''&&!(n.tijolosPorGrade>0))err.push('Tijolos por grade precisa ser maior que zero.');
   if(!n.turnos.length)err.push('Informe ao menos um turno.');
   if(!n.motivosParada.length)err.push('Informe ao menos um motivo de parada.');
   if(!n.motivosPerdaSec.length)err.push('Informe ao menos um motivo de perda na secagem.');
   if(n.diasSecagem!==''&&!(n.diasSecagem>=0))err.push('Tempo mínimo de secagem inválido.');
+  if((n.metaDesenfMes!==''&&!(n.metaDesenfMes>0))||(n.metaMarombaMes!==''&&!(n.metaMarombaMes>0)))err.push('As metas do mês precisam ser maiores que zero.');
+  if((n.lenhaFornadaMin!==''&&!(n.lenhaFornadaMin>0))||(n.lenhaFornadaMax!==''&&!(n.lenhaFornadaMax>0)))err.push('A lenha por fornada precisa ser maior que zero.');
+  if(n.lenhaFornadaMin!==''&&n.lenhaFornadaMax!==''&&n.lenhaFornadaMin>n.lenhaFornadaMax)err.push('O mínimo de lenha por fornada não pode ser maior que o máximo.');
   if((n.refeicaoIni&&!n.refeicaoFim)||(!n.refeicaoIni&&n.refeicaoFim))err.push('Informe início e fim do intervalo de refeição, ou deixe os dois em branco.');
   if([n.lenhaRef.lenha,n.lenhaRef.carregado,n.lenhaRef.bons].some(x=>x===''||!(x>0)))err.push('Os três números da referência de lenha precisam ser maiores que zero.');
   if(err.length){toast(err.join(' '),'erro');return}
   bt.disabled=true;bt.textContent='Salvando…';
   try{const ant=clone(CFG.producao||{});await salvarCfg({...clone(CFG),producao:n});
-   await registrarLog('pcfg','producao','alterou',ant,n,{tijolosPorGrade:'Tijolos por grade',turnos:'Turnos',inicioExpediente:'Início do expediente',fimExpediente:'Fim do expediente',refeicaoIni:'Refeição: início',refeicaoFim:'Refeição: fim',diasSecagem:'Tempo mínimo de secagem',motivosParada:'Motivos de parada',motivosPerdaSec:'Motivos de perda na secagem',lenhaRef:'Referência de lenha'});
+   await registrarLog('pcfg','producao','alterou',ant,n,{tijolosPorGrade:'Tijolos por grade',turnos:'Turnos',inicioExpediente:'Início do expediente',fimExpediente:'Fim do expediente',refeicaoIni:'Refeição: início',refeicaoFim:'Refeição: fim',diasSecagem:'Tempo mínimo de secagem',motivosParada:'Motivos de parada',motivosPerdaSec:'Motivos de perda na secagem',lenhaRef:'Referência de lenha',metaMarombaMes:'Meta da maromba no mês',metaDesenfMes:'Meta de desenforna no mês',lenhaFornadaMin:'Lenha por fornada: mínimo',lenhaFornadaMax:'Lenha por fornada: máximo'});
    toast('Configurações do setor salvas.','ok')}
   catch(e){toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(e):'erro')+'.','erro')}
   finally{bt.disabled=false;bt.textContent='Salvar configurações'}};
@@ -15563,11 +15772,14 @@ const classD=d=>aprovD(d)+perdasD(d);
 const FORN=id=>DATA.pfornadas.find(f=>f.id===id);
 const nomeFornada=f=>f?nomeForno(f.fornoId)+' · nº '+f.numero:'(fornada removida)';
 /* desenforna com o total do mês importado (sem fornada): mostra isso no lugar de “fornada removida” */
-const nomeFornadaD=d=>d&&d.totalDoMes&&!d.fornadaId?'Total do mês (importado)':nomeFornada(FORN(d&&d.fornadaId));
+const nomeFornadaD=d=>d&&d.totalDoMes&&!d.fornadaId?'Total do mês (importado)':d&&!d.fornadaId&&d.fornoId?nomeForno(d.fornoId)+(ehContinuo(d.fornoId)?'':' · sem enforna lançada'):nomeFornada(FORN(d&&d.fornadaId));
 function htmlConcD(r){
  const f=FORN(r.fornadaId);const t=n0(r.total);const c=classD(r);
- if(!f)return '<span class="ajuda">Escolha a fornada.</span>';
  const lin=[];
+ if(!f){if(!r.fornoId)return '<span class="ajuda">Escolha o forno.</span>';
+  lin.push(`Retirado: <b>${vazio(r.total)?'—':fT(t)}</b>${c===0&&t>0?' '+pTxt('classificação pendente: entra como 1ª','at'):''}`);
+  if(c>0)lin.push(`Classificado: <b>${fT(c)}</b>${!vazio(r.total)?(c===t?' '+pTxt('confere','ok'):' '+pTxt('não confere com o retirado','pe')):''} · bons ${fT(aprovD(r))} · perdas ${fT(perdasD(r))}`);
+  return lin.join('<br>')}
  lin.push(`Carregado na enforna: <b>${fT(f.quantidade)}</b> · retirado: <b>${vazio(r.total)?'—':fT(t)}</b>${!vazio(r.total)&&t!==n0(f.quantidade)?` · diferença de <b>${fT(n0(f.quantidade)-t)}</b>`:''}`);
  lin.push(`Classificado: <b>${fT(c)}</b>${!vazio(r.total)?(c===t?' '+pTxt('confere','ok'):' '+pTxt('não confere com o retirado','pe')):''}`);
  lin.push(`Aprovados: <b>${fT(aprovD(r))}</b> (1ª ${fT(r.primeira)} · 2ª ${fT(r.segunda)}) · perdas efetivas: <b>${fT(perdasD(r))}</b>${t?` · aproveitamento ${fNum(aprovD(r)/t*100,1)}%`:''}`);
@@ -15577,12 +15789,16 @@ const fornadasParaDesenf=id=>DATA.pfornadas.filter(f=>fConf(f)&&(!DATA.pdesenf.s
 MODS.pdesenf={titulo:'Desenforna',sing:'desenforna',ic:'saida',
  desc:'Retirada de cada fornada com a classificação: 1ª e 2ª qualidade, quebrados, trincados ou deformados e outras perdas. Confirmada, entra no estoque de tijolo pronto.',
  fields:[
-  {k:'fornadaId',l:'Fornada',t:'sel',req:1,op:()=>fornadasParaDesenf(GAV&&GAV.id),aj:'Só aparecem fornadas com enforna confirmada e ainda sem desenforna.',s:'Desenforna'},
+  {k:'fornoId',l:'Forno',t:'sel',op:()=>FORNOS().filter(l=>l.situacao!=='Inativo').map(l=>[l.id,nomeLocal(l)]),aj:'Escolha o forno. A fornada aberta desse forno é ligada sozinha.',s:'Desenforna'},
+  {k:'fornadaId',l:'Fornada',t:'sel',sh:()=>false,op:()=>fornadasParaDesenf(GAV&&GAV.id),s:'Desenforna'},
+  {k:'_fornada',l:'Fornada ligada',t:'html',vivo:1,w2:1,calc:r=>{if(!r.fornoId&&!r.fornadaId)return '<span class="ajuda">Escolha o forno.</span>';
+   if(ehContinuo(r.fornoId))return 'Forno contínuo: não tem fornada fechada. A desenforna entra direto no painel.';
+   const f=FORN(r.fornadaId);return f?esc(nomeFornada(f)+' · enforna em '+fData(f.data)+' · '+fT(f.quantidade)+' tijolos carregados'):'<span class="tag at">Este forno não tem enforna aberta no sistema</span> <span class="ajuda">A desenforna pode ser lançada, mas a perda dela não tem como ser calculada.</span>'},s:'Desenforna'},
   {k:'data',l:'Data da desenforna',t:'data',req:1,s:'Desenforna'},
   {k:'hora',l:'Hora',t:'hora',s:'Desenforna'},
   {k:'total',l:'Total retirado do forno (tijolos)',t:'num',req:1,s:'Desenforna'},
-  {k:'primeira',l:'1ª qualidade',t:'num',req:1,s:'Classificação'},
-  {k:'segunda',l:'2ª qualidade',t:'num',req:1,aj:'Fica separada das perdas: é tijolo aproveitado.',s:'Classificação'},
+  {k:'primeira',l:'1ª qualidade',t:'num',aj:'Se a classificação ainda não foi feita, deixe 1ª, 2ª e perdas em branco: o total entra como 1ª e fica marcado como classificação pendente.',s:'Classificação'},
+  {k:'segunda',l:'2ª qualidade',t:'num',aj:'Fica separada das perdas: é tijolo aproveitado.',s:'Classificação'},
   {k:'quebrados',l:'Quebrados',t:'num',s:'Classificação'},
   {k:'trincados',l:'Trincados ou deformados',t:'num',s:'Classificação'},
   {k:'outras',l:'Outras perdas',t:'num',s:'Classificação'},
@@ -15598,28 +15814,38 @@ MODS.pdesenf={titulo:'Desenforna',sing:'desenforna',ic:'saida',
   {k:'_p',l:'Perdas',t:'num',v:r=>esc(fT(perdasD(r))),o:r=>perdasD(r)},
   {k:'_a',l:'Aproveitamento',v:r=>n0(r.total)?esc(fNum(aprovD(r)/n0(r.total)*100,1)+'%'):'—',o:r=>n0(r.total)?aprovD(r)/n0(r.total):0},
   {k:'situacao',l:'Situação',v:r=>tagP(r.situacao)}],
- filtros:[{k:'situacao',l:'Situação',op:[CONF,PEND]},{k:'_forno',l:'Forno',op:()=>FORNOS().map(l=>[l.id,nomeLocal(l)]),fn:(r,v)=>(FORN(r.fornadaId)||{}).fornoId===v},{k:'data',l:'Data',t:'periodo',campo:'data'}],
+ filtros:[{k:'situacao',l:'Situação',op:[CONF,PEND]},{k:'_forno',l:'Forno',op:()=>FORNOS().map(l=>[l.id,nomeLocal(l)]),fn:(r,v)=>(r.fornoId||(FORN(r.fornadaId)||{}).fornoId)===v},{k:'data',l:'Data',t:'periodo',campo:'data'}],
  setorDe:()=>APP.setorGestor||'',
  ordem:['data','desc'],
- padrao:()=>{const op=fornadasParaDesenf(null);return{fornadaId:op.length===1?op[0][0]:'',data:hoje(),hora:horaAgora(),situacao:CONF,quebrados:'',trincados:'',outras:''}},
+ padrao:()=>({fornoId:'',fornadaId:'',data:hoje(),hora:horaAgora(),situacao:CONF,quebrados:'',trincados:'',outras:''}),
+ aoMudar(st,k){if(k==='fornoId'){const ant=DATA.pdesenf.find(x=>x.id===st.id);if(ant&&conf(ant))return;
+  if(!st.fornoId||ehContinuo(st.fornoId)){st.fornadaId='';return}
+  const ab=DATA.pfornadas.filter(f=>f.fornoId===st.fornoId&&fConf(f)&&!DATA.pdesenf.some(d=>d.fornadaId===f.id&&d.id!==st.id)).sort((a,b)=>String(a.data).localeCompare(String(b.data))||(+a.numero||0)-(+b.numero||0));
+  st.fornadaId=ab.length?ab[0].id:''}},
  validar(st){const e={};const f=FORN(st.fornadaId);const ant=DATA.pdesenf.find(x=>x.id===st.id);
+  if(!st.fornoId&&!st.fornadaId)e.fornoId='Escolha o forno.';
   if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
-  if(f&&!fConf(f))e.fornadaId='A enforna desta fornada ainda não foi confirmada.';
+  if(f&&!fConf(f))e.fornoId='A enforna desta fornada ainda não foi confirmada.';
   if(f&&st.data&&st.data<f.data)e.data='A desenforna não pode ser antes da enforna ('+fData(f.data)+').';
-  if(st.fornadaId&&DATA.pdesenf.some(x=>x.id!==st.id&&x.fornadaId===st.fornadaId))e.fornadaId='Esta fornada já tem desenforna lançada.';
+  if(st.fornadaId&&DATA.pdesenf.some(x=>x.id!==st.id&&x.fornadaId===st.fornadaId))e.fornoId='Esta fornada já tem desenforna lançada.';
   ['total','primeira','segunda','quebrados','trincados','outras'].forEach(k=>{if(!vazio(st[k])&&!(Number.isInteger(+st[k])&&+st[k]>=0))e[k]='Informe um número inteiro, zero ou mais.'});
   const t=n0(st.total),c=classD(st);
   if(!vazio(st.total)&&!e.total){if(t<=0)e.total='Informe o total retirado.';else if(f&&t>n0(f.quantidade))e.total='Retirado ('+fT(t)+') maior que o carregado na enforna ('+fT(f.quantidade)+').';
-   else if(c!==t)e.total='A classificação soma '+fT(c)+' e o total retirado é '+fT(t)+'. Os dois precisam bater.'}
+   else if(c>0&&c!==t)e.total='A classificação soma '+fT(c)+' e o total retirado é '+fT(t)+'. Os dois precisam bater.'}
   if(n0(st.outras)>0&&!String(st.motivoOutras||'').trim())e.motivoOutras='Informe o motivo das outras perdas.';
   if(ant&&conf(ant)){
-   if(ant.fornadaId!==st.fornadaId)e.fornadaId='Desenforna confirmada: a fornada não muda.';
+   if(ant.fornadaId!==st.fornadaId)e.fornoId='Desenforna confirmada: a fornada não muda.';
    if(['total','primeira','segunda','quebrados','trincados','outras'].some(k=>n0(ant[k])!==n0(st[k])))e.total='Desenforna confirmada: as quantidades não mudam (já entraram no tijolo pronto). Para corrigir o estoque, use um ajuste no Tijolo pronto.';
    if(st.situacao!==CONF)e.situacao='Uma desenforna confirmada não volta a pendente.';
    if(ant.data!==st.data)e.data='Desenforna confirmada: a data não muda.'}
-  if(f&&!e.total&&t>0&&t<n0(f.quantidade))e._aviso='Foram carregados '+fT(f.quantidade)+' e retirados '+fT(t)+': '+fT(n0(f.quantidade)-t)+' tijolos não estão na classificação. Se se perderam no forno, lance como quebrados ou outras perdas e ajuste o total retirado.';
+  const avD=[];if(st.fornoId&&!ehContinuo(st.fornoId)&&!f)avD.push('Este forno não tem enforna aberta no sistema: a desenforna será lançada sem fornada e a perda dela não será calculada.');
+  if(t>0&&classD(st)===0)avD.push('Sem classificação: o total entra como 1ª qualidade e fica marcado como classificação pendente.');
+  if(avD.length)e._aviso=avD.join(' ');
+  if(f&&!e.total&&t>0&&classD(st)>0&&t<n0(f.quantidade))e._aviso='Foram carregados '+fT(f.quantidade)+' e retirados '+fT(t)+': '+fT(n0(f.quantidade)-t)+' tijolos não estão na classificação. Se se perderam no forno, lance como quebrados ou outras perdas e ajuste o total retirado.';
   return e},
  preparar(rec){rec.tipo='desenforna';['total','primeira','segunda','quebrados','trincados','outras'].forEach(k=>{rec[k]=Math.round(n0(rec[k]))});
+  if(rec.total>0&&classD(rec)===0){rec.primeira=rec.total;rec.classificacaoPendente=true}else if(classD(rec)>0&&rec.classificacaoPendente&&!(DATA.pdesenf.find(x=>x.id===rec.id)||{}).classificacaoPendente)delete rec.classificacaoPendente;
+  if(!rec.fornoId&&rec.fornadaId){const f=FORN(rec.fornadaId);if(f)rec.fornoId=f.fornoId}
   rec.aprovado=aprovD(rec);rec.perdas=perdasD(rec);if(!rec.outras)delete rec.motivoOutras;
   const ant=DATA.pdesenf.find(x=>x.id===rec.id);if(conf(rec)&&!(ant&&conf(ant))){rec.confirmadaEm=new Date().toISOString();rec.confirmadaPor=APP.uid||'local'}},
  resumo(rows){const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const c=rows.filter(conf);const t=soma(c,r=>r.total);
@@ -15863,7 +16089,7 @@ Object.assign(TELAS_V,{
  pmaromba:listaP('pmaromba'),pparadas:listaP('pparadas'),psecmov:el=>shellP(el,'psecmov',c=>telaLista(c,'psecmov')),
  pfornadas:listaP('pfornadas'),psecagem:el=>shellP(el,'psecagem',telaSecagem),pcfg:el=>shellP(el,'pcfg',telaCfgProd),
  pdesenf:listaP('pdesenf'),pprontomov:el=>shellP(el,'pprontomov',c=>telaLista(c,'pprontomov')),ppronto:el=>shellP(el,'ppronto',telaPronto),
- plenha:el=>shellP(el,'plenha',telaLenhaP),prel:el=>shellP(el,'prel',telaRelP),pmes:el=>shellP(el,'pmes',telaMesP)});
+ plenha:el=>shellP(el,'plenha',telaLenhaP),prel:el=>shellP(el,'prel',telaRelP),pmes:el=>shellP(el,'pmes',telaMesP),plancar:el=>shellP(el,'plancar',telaLancarP)});
 telaSetorProducao=function(el){shellP(el,'setor-producao',inicioProd)};
 
 /* ---------- cartão na seleção de setores ---------- */
@@ -21780,7 +22006,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const listaAgentes=()=>[...new Set([...Object.keys(AG_PAD),...Object.keys(AG.docs)])].map(agente);
 
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
- const ROTAS_PROD=['setor-producao','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
+ const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
  const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta'];
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','despesas','documentos','contratos','producao','alimentacao','diarias',
