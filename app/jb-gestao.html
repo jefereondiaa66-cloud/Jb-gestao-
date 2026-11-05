@@ -23426,9 +23426,9 @@ if(window.ROTAS_SETOR_V52)window.ROTAS_SETOR_V52.barro=ROTAS_B.slice();
 /* ================= configurações (um registro só: id cfg) ================= */
 const PRECO_PAD=[{desde:'2026-11-01',valorT:6.1663,origem:'Índices jan–set/2026 – taxa fixa'}];
 const CFG_B={valorCarrada:0,tonCarrada:0,moModo:'hora',moHora:0,moDiaria:0,tonPorMilheiro:'',arrendAtivo:false,maquinas:{},
- pesoCru:2.225,pesoCruMin:2.18,pesoCruMax:2.27,pesoQueimado:1.665,metaMes:3140,consDesde:'2026-11-01',precos:PRECO_PAD};
+ pesoCru:2.225,pesoCruMin:2.18,pesoCruMax:2.27,pesoQueimado:1.665,metaMes:3140,consDesde:'2026-11-01',precos:PRECO_PAD,mostrarExtracao:false};
 const cfgRec=()=>DATA.barroCfg.find(x=>x.id==='cfg')||null;
-function cfgB(){const c=cfgRec()||{};return{...CFG_B,...c,maquinas:{...(c.maquinas||{})},arrendAtivo:c.arrendAtivo===true,precos:clone(Array.isArray(c.precos)&&c.precos.length?c.precos:PRECO_PAD)}}
+function cfgB(){const c=cfgRec()||{};return{...CFG_B,...c,maquinas:{...(c.maquinas||{})},arrendAtivo:c.arrendAtivo===true,mostrarExtracao:c.mostrarExtracao===true,precos:clone(Array.isArray(c.precos)&&c.precos.length?c.precos:PRECO_PAD)}}
 
 /* ================= consultas ================= */
 const JAZ=id=>DATA.barroJaz.find(x=>x.id===id);
@@ -23647,7 +23647,7 @@ MODS.barroCac={titulo:'Caçambas',sing:'caçamba',ic:'cacamba',
   rec.tonCarrada=vazio(rec.tonCarrada)?null:r2(rec.tonCarrada);rec.valorCarrada=vazio(rec.valorCarrada)?null:r2(rec.valorCarrada);if(rec.propriedade!=='Própria')rec.localId=''}};
 
 /* ---------- estoque de barro: saldo inicial, consumo na produção, venda a terceiros, ajustes ---------- */
-const TIPOS_MOV=[['inicial','Saldo inicial (contagem)'],['consumo','Consumo na produção'],['venda','Venda a terceiros'],['ajEnt','Ajuste de entrada'],['ajSai','Ajuste de saída']];
+const TIPOS_MOV=[['inicial','Saldo inicial (contagem)'],['consumo','Consumo do estoque de barro'],['venda','Venda a terceiros'],['ajEnt','Ajuste de entrada'],['ajSai','Ajuste de saída']];
 const NOME_MOV=Object.fromEntries(TIPOS_MOV);
 const sinalMov=t=>t==='consumo'||t==='venda'||t==='ajSai'?-1:1;
 const TIPOS_MOV_NOVO=TIPOS_MOV.filter(t=>t[0]!=='consumo');   /* consumo na produção agora é automático */
@@ -23739,7 +23739,7 @@ function movsBarro(){
  DATA.barroMov.forEach(m=>{const s=sinalMov(m.tipo);L.push({data:m.data,tipo:m.tipo,nome:NOME_MOV[m.tipo]||m.tipo,ton:s*n0(m.ton),car:s*n0(m.carradas),jazidaId:m.jazidaId,href:'#/barroMov/'+m.id,id:m.id,
   det:m.tipo==='venda'?(m.cliente||'')+(+m.valorVenda>0?' · '+fMoeda(m.valorVenda):''):m.motivo||m.obs||''})});
  const ini=inicioEstoque();if(ini){const dia={};consPer(ini,'').forEach(x=>{const d=dia[x.data]||(dia[x.data]={ton:0,tij:0});d.ton+=x.ton;d.tij+=x.tij});
-  Object.entries(dia).forEach(([d,x])=>L.push({data:d,tipo:'consumo',nome:'Consumo na produção',ton:-r2(x.ton),car:0,href:'#/barroCons',id:'cons-'+d,det:'Automático · '+fQtd(x.tij)+' tijolos da maromba',auto:true}))}
+  Object.entries(dia).forEach(([d,x])=>L.push({data:d,tipo:'consumo',nome:'Consumo do estoque de barro',ton:-r2(x.ton),car:0,href:'#/barroCons',id:'cons-'+d,det:'Automático · '+fQtd(x.tij)+' tijolos da maromba',auto:true}))}
  return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||(a.tipo==='inicial'?-1:b.tipo==='inicial'?1:0))}
 let MEMO_E={b:null,v:null};
 function estoqueB(){if(MEMO_E.b===DATA[CB]&&MEMO_E.p===DATA.prodFab)return MEMO_E.v;const L=movsBarro();const v={ton:r2(soma(L,x=>x.ton)),car:r2(soma(L,x=>x.car))};MEMO_E={b:DATA[CB],p:DATA.prodFab,v};return v}
@@ -23753,23 +23753,23 @@ function resumoMes(mes){const L=movsBarro();const ini=r2(soma(L.filter(x=>x.data
 /* ================= casca do setor ================= */
 const ABAS=()=>[
  {r:'#/setor-barro',m:'setor-barro',ic:'painel',l:'Início',at:['setor-barro']},
- {r:'#/barroExt/nova',m:'barroExt',e:1,ic:'mais',l:'Lançar extração',at:['ext-nova']},
- {r:'#/barroLanc',m:'barroLanc',ic:'recibo',l:'Lançamentos',at:['barroLanc','barroExt']},
- {r:'#/barroCons',m:'barroCons',ic:'saida',l:'Consumo na produção',at:['barroCons']},
- {r:'#/barroCusto',m:'barroCusto',ic:'moeda',l:'Custo do barro',at:['barroCusto']},
- {r:'#/barroPagar',m:'barroPagar',ic:'carteira',l:'Motoristas a pagar',at:['barroPagar']},
+ {r:'#/barroCons',m:'barroCons',ic:'saida',l:'Consumo do estoque de barro',at:['barroCons']},
+ {r:'#/barroExt/nova',m:'barroExt',e:1,ext:1,ic:'mais',l:'Lançar extração',at:['ext-nova']},
+ {r:'#/barroLanc',m:'barroLanc',ext:1,ic:'recibo',l:'Lançamentos',at:['barroLanc','barroExt']},
+ {r:'#/barroCusto',m:'barroCusto',ext:1,ic:'moeda',l:'Custo do barro',at:['barroCusto']},
+ {r:'#/barroPagar',m:'barroPagar',ext:1,ic:'carteira',l:'Motoristas a pagar',at:['barroPagar']},
  {r:'#/barroEst',m:'barroEst',ic:'caixa',l:'Estoque de barro',at:['barroEst','barroMov']},
  {r:'#/barroRel',m:'barroRel',ic:'grafico',l:'Relatórios',at:['barroRel']},
- {r:'#/barroJaz',m:'barroJaz',ic:'mapa',l:'Jazidas',at:['barroJaz']},
- {r:'#/barroMot',m:'barroMot',ic:'pessoas',l:'Motoristas',at:['barroMot']},
- {r:'#/barroCac',m:'barroCac',ic:'cacamba',l:'Caçambas',at:['barroCac']},
+ {r:'#/barroJaz',m:'barroJaz',ext:1,ic:'mapa',l:'Jazidas',at:['barroJaz']},
+ {r:'#/barroMot',m:'barroMot',ext:1,ic:'pessoas',l:'Motoristas',at:['barroMot']},
+ {r:'#/barroCac',m:'barroCac',ext:1,ic:'cacamba',l:'Caçambas',at:['barroCac']},
  {r:'#/barroCfg',m:'barroCfg',ic:'engrenagem',l:'Configurações',at:['barroCfg']},
  ...(MODS.barroResp?[{r:'#/barroResp',m:'barroResp',ic:'pessoas',l:'Responsáveis',at:['barroResp']}]:[])];
 const NOME_S='Setor do Barro';
 function shellB(el,ativa,corpo){
  if(typeof marcarSetor==='function')marcarSetor('barro');
- el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot(NOME_S,'Extração · '+razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
-  <nav class="dir-abas sv-abas" aria-label="Telas do ${esc(NOME_S)}">${ABAS().filter(a=>pode(a.m,a.e?'e':'v')).map(a=>{const on=a.at.includes(ativa);return `<a class="dir-aba${on?' on':''}" href="${a.r}"${on?' aria-current="page"':''}>${ic(a.ic)}<span>${esc(a.l)}</span></a>`}).join('')}</nav></div>
+ el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot(NOME_S,(cfgB().mostrarExtracao?'Extração e consumo · ':'Consumo do estoque de barro · ')+razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
+  <nav class="dir-abas sv-abas" aria-label="Telas do ${esc(NOME_S)}">${ABAS().filter(a=>pode(a.m,a.e?'e':'v')&&(!a.ext||cfgB().mostrarExtracao||a.at.includes(ativa))).map(a=>{const on=a.at.includes(ativa);return `<a class="dir-aba${on?' on':''}" href="${a.r}"${on?' aria-current="page"':''}>${ic(a.ic)}<span>${esc(a.l)}</span></a>`}).join('')}</nav></div>
   <main class="sv-corpo" id="svCorpo"></main></div>`;
  const c=$('#svCorpo',el);if(!APP.carregado){carregandoV(c);return}
  try{corpo(c)}catch(e){console.error(e);c.innerHTML='<div class="vazio"><b>Não foi possível montar esta tela</b>'+esc(e&&e.message||String(e))+'</div>'}
@@ -24082,7 +24082,7 @@ function telaEstoque(c){
  const bt=(t,l,i)=>ed?`<button type="button" class="btn${t==='inicial'?' pri':''}" data-mov="${t}">${ic(i)}${esc(l)}</button>`:'';
  const iniE=inicioEstoque();const rit=ritmoCons();const temCons=linhasCons().length>0;
  c.innerHTML=cab('caixa','Estoque de barro','Entra pela extração; sai sozinho pelo consumo na produção (maromba) e pela venda a terceiros. Saldo inicial e ajustes com motivo.',
-  `<a class="btn" href="#/barroCons">${ic('saida')}Consumo na produção</a>${bt('venda','Venda a terceiros','recibo')}${bt('ajEnt','Ajuste','engrenagem')}${!DATA.barroMov.some(x=>x.tipo==='inicial')?bt('inicial','Saldo inicial','entrada'):''}<a class="btn" href="#/barroMov">${ic('livro')}Movimentos lançados</a>`)+
+  `<a class="btn" href="#/barroCons">${ic('saida')}Consumo do estoque de barro</a>${bt('venda','Venda a terceiros','recibo')}${bt('ajEnt','Ajuste','engrenagem')}${!DATA.barroMov.some(x=>x.tipo==='inicial')?bt('inicial','Saldo inicial','entrada'):''}<a class="btn" href="#/barroMov">${ic('livro')}Movimentos lançados</a>`)+
   `${!DATA.barroMov.some(x=>x.tipo==='inicial')?'<div class="aviso in" style="margin-bottom:12px"><span>Ainda não há saldo inicial: o estoque começa do zero na primeira extração. Se já havia barro no pátio, lance o <b>Saldo inicial</b> (contagem).</span></div>':''}
   ${!iniE&&temCons?'<div class="aviso at" style="margin-bottom:12px"><span><b>O consumo da produção ainda não baixa o estoque.</b> Ele passa a baixar a partir do primeiro lançamento deste setor. Lance o <b>Saldo inicial</b> com a contagem do pátio (ou a primeira extração) para o estoque ficar certo.</span></div>':''}
   ${e.ton<0?'<div class="aviso pe" style="margin-bottom:12px"><span>O estoque está negativo: saiu mais barro do que entrou. Confira o saldo inicial, as extrações e o consumo.</span></div>':''}
@@ -24114,7 +24114,7 @@ function telaCons(c){
  const max=Math.max(1,...LM.map(x=>x.ton));const pct=B.meta>0&&t.ton>0?t.ton/B.meta*100:null;
  const antes=m<mDes;const ed=pode('pmaromba','e');
  const fP=v=>fNum(v,3)+' kg';
- c.innerHTML=cab('saida','Consumo e valor do barro na produção','Cada lançamento confirmado da maromba já consome barro: tijolos × peso do tijolo cru ÷ 1.000. O valor é toneladas × R$/t vigente no dia. Nada precisa ser lançado aqui.',
+ c.innerHTML=cab('saida','Consumo do estoque de barro','Cada lançamento confirmado da maromba já consome barro: tijolos × peso do tijolo cru ÷ 1.000. O valor é toneladas × R$/t vigente no dia. Nada precisa ser lançado aqui.',
   `${ed?`<a class="btn pri" href="#/pmaromba/novo">${ic('mais')}Lançar produção</a>`:''}<button type="button" class="btn" id="coExp">${ic('baixar')}Exportar ▾</button>`)+
   `${JB_MES.barra('barroCons')}
   ${antes?`<div class="aviso in" style="margin-bottom:12px"><span><b>${esc(fMes(m))} fica fora deste cálculo.</b> O barro ligado à produção começa em ${esc(fData(B.desde))}: outubro e os meses fechados (jan–set) não são recalculados.</span></div>`:''}
@@ -24161,7 +24161,7 @@ function telaCons(c){
   const q=+($('#coTon',c).value||0);UCO.ton=$('#coTon',c).value;const r2_=$('#coTonR',c);
   r2_.innerHTML=q>0?`<span>Dá para cerca de <b>${esc(fQtd(Math.round(q*1000/B.med)))} tijolos</b> (${esc(fNum(q*1000/B.med/1000,1))} milheiros)${ritmoCons()>0?' · ≈ '+esc(fNum(q/ritmoCons(),0))+' dia(s) no ritmo atual':''}</span>`:''};
  $('#coTij',c).oninput=calc;$('#coTon',c).oninput=calc;calc();
- $('#coExp',c).onclick=()=>exportarMenu($('#coExp',c),'Barro_consumo_'+m,'Consumo e valor do barro na produção · '+fMes(m),
+ $('#coExp',c).onclick=()=>exportarMenu($('#coExp',c),'Barro_consumo_'+m,'Consumo do estoque de barro · '+fMes(m),
   [{k:'data',l:'Data',t:'data'},{k:'n',l:'Lançamentos',t:'num'},{k:'tij',l:'Tijolos',t:'num'},{k:'ton',l:'Barro úmido (t)',t:'num'},{k:'valor',l:'Valor do barro',t:'moeda'},{k:'acT',l:'Acumulado tijolos',t:'num'},{k:'ac',l:'Acumulado barro (t)',t:'num'},{k:'acV',l:'Acumulado valor',t:'moeda'}],
   [...LD.map(d=>({data:d.data,n:d.n,tij:d.tij,ton:r2(d.ton),valor:r2(d.valor),acT:d.acT,ac:r2(d.ac),acV:r2(d.acV)})),{data:'',n:t.n,tij:t.tij,ton:r2(t.ton),valor:r2(t.valor),acT:'',ac:'',acV:''}]);
 }
@@ -24286,7 +24286,7 @@ function docMotorista(r){
  D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
 
 /* ================= relatórios (timbrados, PDF e Excel) ================= */
-const RELS=[['periodo','Extração por período (dia a dia)'],['jazida','Por jazida'],['motorista','Por motorista'],['maquina','Por máquina (horas, litros e custo)'],['mensal','Evolução mensal do custo por tonelada'],['resumo','Resumo mensal do barro (estoque)'],['consdia','Consumo e valor do barro na produção (dia a dia)'],['consmes','Consumo e valor do barro na produção (mês a mês)']];
+const RELS=[['periodo','Extração por período (dia a dia)'],['jazida','Por jazida'],['motorista','Por motorista'],['maquina','Por máquina (horas, litros e custo)'],['mensal','Evolução mensal do custo por tonelada'],['resumo','Resumo mensal do barro (estoque)'],['consdia','Consumo do estoque de barro (dia a dia)'],['consmes','Consumo do estoque de barro (mês a mês)']];
 const UR={id:'periodo',de:'',ate:'',jaz:''};
 function mesesEntre(de,ate){const out=[];let m=String(de).slice(0,7);const fim=String(ate).slice(0,7);let n=0;while(m<=fim&&n++<120){out.push(m);m=JB_MES.somar(m,1)}return out}
 function dadosRel(){
@@ -24380,6 +24380,9 @@ function telaCfg(c){
     ${H.campoM('cfMM','Cobrar por',`<select id="cfMM" data-cf="moModo" ${dis}>${optH([['hora','Hora trabalhada'],['diaria','Diária (um operador por dia)']],C.moModo)}</select>`)}
     ${H.campoM('cfMH','Valor por hora (R$)',`<input id="cfMH" data-cf="moHora" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moHora))}" ${dis}>`)}
     ${H.campoM('cfMD','Diária do operador (R$)',`<input id="cfMD" data-cf="moDiaria" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moDiaria))}" ${dis}>`,'Ajudantes: lance em “Outros custos do dia” como Diária de ajudante.')}</div></section>
+   <section class="bloco"><h3>Parte de extração</h3><div style="padding:12px 16px">
+    <label class="inline"><input type="checkbox" id="cfMx" ${C.mostrarExtracao?'checked':''} ${dis}> Mostrar a parte de extração (lançar extração, lançamentos, custo, motoristas, jazidas e caçambas)</label>
+    <p class="ajuda" style="margin:8px 0 0">Desligado, o setor mostra só o consumo do estoque de barro. Nada é apagado: ligando de novo, tudo volta.</p></div></section>
    <section class="bloco"><h3>Arrendamento da jazida</h3><div style="padding:12px 16px">
     <label class="inline"><input type="checkbox" id="cfAr" ${C.arrendAtivo?'checked':''} ${dis}> Ratear o arrendamento mensal no custo do barro</label>
     <p class="ajuda" style="margin:8px 0 0">Desligado por padrão: hoje o arrendamento é lançado inteiro no custo geral. Ligado, o valor mensal informado em cada jazida é dividido pelas toneladas extraídas no mês daquela jazida.</p></div></section>
@@ -24393,7 +24396,7 @@ function telaCfg(c){
   </div>`;
  c.addEventListener('input',e=>{const t=e.target;if(t.dataset.cf){const k=t.dataset.cf;C[k]=k==='moModo'?t.value:t.dataset.masc==='moeda'?lerMoeda(t.value):(t.value===''?'':+t.value);return}
   if(t.dataset.cm){const x=C.maquinas[t.dataset.cm]||(C.maquinas[t.dataset.cm]={});x[t.dataset.ck]=t.value.trim()===''?0:lerMoeda(t.value)}});
- c.addEventListener('change',e=>{const t=e.target;if(t.id==='cfAr')C.arrendAtivo=t.checked;if(t.dataset.cf==='moModo')C.moModo=t.value;if(t.dataset.cfs)C[t.dataset.cfs]=t.value});
+ c.addEventListener('change',e=>{const t=e.target;if(t.id==='cfAr')C.arrendAtivo=t.checked;if(t.id==='cfMx')C.mostrarExtracao=t.checked;if(t.dataset.cf==='moModo')C.moModo=t.value;if(t.dataset.cfs)C[t.dataset.cfs]=t.value});
  c.addEventListener('input',e=>{const t=e.target;if(t.dataset.po!=null&&C.precos[+t.dataset.po])C.precos[+t.dataset.po].origem=t.value});
  $$('[data-prm]',c).forEach(b=>b.onclick=()=>{C.precos.splice(+b.dataset.prm,1);renderTela()});
  if($('#cfNReal',c))$('#cfNReal',c).onclick=()=>{$('#cfNV',c).value=$('#cfNReal',c).dataset.v;$('#cfNO',c).value='Custo real da extração (lançamentos do Setor do Barro)'};
@@ -24412,15 +24415,52 @@ function telaCfg(c){
   if(!C.precos.length||C.precos.some(p=>!/^\d{4}-\d{2}-\d{2}$/.test(p.desde||'')||!(+p.valorT>=0))){toast('Confira a tabela do valor do barro.','erro');return}
   const maq={};Object.entries(C.maquinas).forEach(([id,x])=>{const m=r2(x.manutHora),d=r2(x.deprecHora);if(m<0||d<0)return;if(m||d)maq[id]={manutHora:m,deprecHora:propMaq(id)==='Arrendada'?0:d}});
   const ant=cfgRec();const n={...(ant?clone(ant):{id:'cfg',data:'2026-01-01',criadoEm:agoraIso(),criadoPor:eu()}),valorCarrada:r2(C.valorCarrada),tonCarrada:r2(C.tonCarrada),tonPorMilheiro:r3(pc_),
-   pesoCru:r3(pc_),pesoCruMin:r3(pmn),pesoCruMax:r3(pmx),pesoQueimado:pq===''?'':r3(pq),metaMes:vazio(C.metaMes)?'':r2(C.metaMes),consDesde:C.consDesde,
+   pesoCru:r3(pc_),pesoCruMin:r3(pmn),pesoCruMax:r3(pmx),pesoQueimado:pq===''?'':r3(pq),metaMes:vazio(C.metaMes)?'':r2(C.metaMes),consDesde:C.consDesde,mostrarExtracao:C.mostrarExtracao===true,
    precos:C.precos.map(p=>({desde:p.desde,valorT:Math.round(+p.valorT*10000)/10000,origem:String(p.origem||'').trim()})).sort((a,b)=>a.desde.localeCompare(b.desde)),
    moModo:C.moModo==='diaria'?'diaria':'hora',moHora:r2(C.moHora),moDiaria:r2(C.moDiaria),arrendAtivo:C.arrendAtivo===true,maquinas:maq,alteradoEm:agoraIso(),alteradoPor:eu()};
-  b.disabled=true;try{await gravar('barroCfg',n,ant);await registrarLog('barroCfg','cfg',ant?'alterou':'criou',ant||{},n,{valorCarrada:'Valor padrão da carrada',tonCarrada:'Toneladas por carrada',tonPorMilheiro:'Toneladas por milheiro',pesoCru:'Peso do tijolo cru',pesoCruMin:'Peso cru mínimo',pesoCruMax:'Peso cru máximo',pesoQueimado:'Peso do tijolo queimado',metaMes:'Necessidade de referência',consDesde:'Começo do cálculo',precos:'Valor do barro (R$/t)',moModo:'Mão de obra por',moHora:'Valor por hora',moDiaria:'Diária do operador',arrendAtivo:'Rateio do arrendamento',maquinas:'Custo-hora das máquinas'});
+  b.disabled=true;try{await gravar('barroCfg',n,ant);await registrarLog('barroCfg','cfg',ant?'alterou':'criou',ant||{},n,{valorCarrada:'Valor padrão da carrada',tonCarrada:'Toneladas por carrada',tonPorMilheiro:'Toneladas por milheiro',pesoCru:'Peso do tijolo cru',pesoCruMin:'Peso cru mínimo',pesoCruMax:'Peso cru máximo',pesoQueimado:'Peso do tijolo queimado',metaMes:'Necessidade de referência',consDesde:'Começo do cálculo',mostrarExtracao:'Mostrar a parte de extração',precos:'Valor do barro (R$/t)',moModo:'Mão de obra por',moHora:'Valor por hora',moDiaria:'Diária do operador',arrendAtivo:'Rateio do arrendamento',maquinas:'Custo-hora das máquinas'});
    RCF=null;toast('Configurações do Setor do Barro salvas.','ok');renderTela()}catch(err){b.disabled=false;toast(msgFalhaSalvar(err),'erro')}};
+}
+
+/* ================= início: consumo do estoque de barro (extração oculta por padrão) ================= */
+async function mostrarExtracao(v){
+ if(!pode('barroCfg','e')){toast('Só o administrador ou o gerente muda esta opção.','erro');return}
+ const ant=cfgRec();const n={...(ant?clone(ant):{id:'cfg',data:'2026-01-01',criadoEm:agoraIso(),criadoPor:eu()}),mostrarExtracao:v===true,alteradoEm:agoraIso(),alteradoPor:eu()};
+ try{await gravar('barroCfg',n,ant);await registrarLog('barroCfg','cfg',ant?'alterou':'criou',ant||{},n,{mostrarExtracao:'Mostrar a parte de extração'});RCF=null;
+  toast(v?'A parte de extração voltou a aparecer.':'A parte de extração foi ocultada. Os dados continuam guardados.','ok');renderTela()}catch(err){toast(msgFalhaSalvar(err),'erro')}}
+const botaoExtracao=()=>pode('barroCfg','e')?`<button type="button" class="btn min" id="bExtr">${cfgB().mostrarExtracao?'Ocultar a parte de extração':'Mostrar a parte de extração'}</button>`:'';
+function ligarBotaoExtracao(c){const b=$('#bExtr',c);if(b)b.onclick=()=>mostrarExtracao(!cfgB().mostrarExtracao)}
+function inicioConsB(c){
+ const h=hoje(),ont=addDias(h,-1),m=JB_MES.de('barro');const B=parB();const pr=precoEm(h);const pMil=+pr.valorT*B.med;
+ const tH=totCons(linhasCons().filter(x=>x.data===h)),tO=totCons(linhasCons().filter(x=>x.data===ont)),tM=totCons(consMes(m));
+ const ed=pode('pmaromba','e');const REG=id=>(DATA.pmaromba||[]).find(r=>r.id===id);
+ const LL=consMes(m).slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||String((REG(b.id)||{}).criadoEm||'').localeCompare(String((REG(a.id)||{}).criadoEm||'')));
+ const dias={};consMes(m).forEach(x=>{(dias[x.data]=dias[x.data]||[]).push(x)});
+ const LD=Object.keys(dias).sort().reverse().map(d=>({d,...totCons(dias[d])}));
+ const nomeDia=d=>d===h?'Hoje':d===ont?'Ontem':fData(d);
+ c.innerHTML=cab('barro','Setor do Barro · Consumo do estoque de barro','Barro que a produção usa, calculado sozinho pelos lançamentos confirmados da maromba: toneladas e valor em R$ por dia e no mês.',
+  `${ed?`<a class="btn pri" href="#/pmaromba/novo">${ic('mais')}Lançar produção</a>`:''}<a class="btn" href="#/barroCons">${ic('saida')}Ver o consumo</a>`)+
+  `${JB_MES.barra('barro')}
+  <div class="hero almp-hero">
+   ${kpiV('c1','saida','Hoje · '+fData(h),esc(fTt(tH.ton)),esc(fMoeda(tH.valor)+' · '+fQtd(tH.tij)+' tijolos'),'#/barroCons')}
+   ${kpiV('c3','saida','Ontem · '+fData(ont),esc(fTt(tO.ton)),esc(fMoeda(tO.valor)+' · '+fQtd(tO.tij)+' tijolos'),'#/barroCons')}
+   ${kpiV('c2','moeda','Total do mês em R$ · '+fMes(m),esc(fMoeda(tM.valor)),esc(tM.dias+' dia(s) com produção · '+fQtd(tM.tij)+' tijolos'),'#/barroCons')}
+   ${kpiV('c4','barro','Total do mês em toneladas · '+fMes(m),esc(fTt(tM.ton)),esc(tM.dias?'média de '+fTt(tM.ton/tM.dias)+' por dia':'sem produção no mês'),'#/barroCons')}
+  </div>
+  <h3 class="grupo-t">Dia a dia de ${esc(JB_MES.longo(m))}</h3>
+  ${LD.length?tabela(['Dia',['Tijolos',1],['Toneladas',1],['Valor (R$)',1]],
+   LD.map(x=>`<tr>${td('Dia','<b>'+esc(nomeDia(x.d))+'</b>'+(x.d===h||x.d===ont?' <span class="ajuda">'+esc(fData(x.d))+'</span>':''))}${td('Tijolos',esc(fQtd(x.tij)),1)}${td('Toneladas',esc(fT(x.ton)),1)}${td('Valor (R$)',esc(fMoeda(x.valor)),1)}</tr>`),
+   ['Total do mês',[esc(fQtd(tM.tij)),1],['<b>'+esc(fT(tM.ton))+'</b>',1],['<b>'+esc(fMoeda(tM.valor))+'</b>',1]])
+   :noNada('Nenhum consumo no mês','O barro aparece aqui assim que a produção da maromba for lançada e confirmada (a partir de '+esc(fData(B.desde))+').')}
+  ${LL.length?`<h3 class="grupo-t">Lançamentos de ${esc(JB_MES.longo(m))} · quem lançou</h3>`+tabela(['Dia','Turno','Lançado por',['Tijolos',1],['Toneladas',1],['Valor (R$)',1]],
+   LL.map(x=>{const r=REG(x.id)||{};return `<tr class="clic" data-go="${esc(x.href)}">${td('Dia',esc(nomeDia(x.data)))}${td('Turno',esc(r.turno||'—')+(x.pesado?' <span class="tag ok">pesado</span>':''))}${td('Lançado por',esc(quem(r)||r.lancadoPor||'—')+(r.criadoEm?' <span class="ajuda">'+esc(fDataHora(r.criadoEm))+'</span>':''))}${td('Tijolos',esc(fQtd(x.tij)),1)}${td('Toneladas',esc(fT(x.ton)),1)}${td('Valor (R$)',esc(fMoeda(x.valor)),1)}</tr>`})):''}
+  <p class="ajuda" style="margin:10px 2px 0">Barro = tijolos × ${esc(fNum(B.med,3))} kg ÷ 1.000 · valor = toneladas × ${esc(fMoeda(+pr.valorT))}/t (${esc(pr.origem||'')}). ${botaoExtracao()}</p>`;
+ JB_MES.ligar(c,'barro');ligarBotaoExtracao(c);$$('[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
 }
 
 /* ================= início do setor ================= */
 function inicioB(c){
+ if(!cfgB().mostrarExtracao){inicioConsB(c);return}
  const h=hoje(),m=JB_MES.de('barro');const xm=DATA.barroExt.filter(e=>String(e.data).startsWith(m));const xh=DATA.barroExt.filter(e=>e.data===h);
  const km=custoDe(xm),kh=custoDe(xh);const est=estoqueB();const C=cfgB();
  const fe=chavesFechadas();const ab=itensPagar().filter(i=>!fe.has(i.k));const fs=fechAtivos().map(f=>({f,s:sitFech(f)})).filter(x=>x.s.saldo>0.004);
@@ -24434,8 +24474,8 @@ function inicioB(c){
   <div class="hero almp-hero">
    ${kpiV('c1','barro','Extraído hoje',esc(fTt(kh.ton)),esc(fC(kh.carradas)+' carradas'),'#/barroLanc')}
    ${kpiV('c3','cacamba','Extraído em '+fMes(m),esc(fTt(km.ton)),esc(fC(km.carradas)+' carradas · '+xm.length+' lançamento(s)'),'#/barroLanc')}
-   ${(()=>{const th=totCons(linhasCons().filter(x=>x.data===h));return kpiV('c1','saida','Usado hoje na produção',esc(fTt(th.ton)),esc(fQtd(th.tij)+' tijolos da maromba · '+fMoeda(th.valor)),'#/barroCons')})()}
-   ${(()=>{const tm=totCons(consMes(m));return kpiV('c4','saida','Usado em '+fMes(m)+' na produção',esc(fTt(tm.ton)),esc(fQtd(tm.tij)+' tijolos · valor '+fMoeda(tm.valor)),'#/barroCons')})()}
+   ${(()=>{const th=totCons(linhasCons().filter(x=>x.data===h));return kpiV('c1','saida','Consumo do estoque hoje',esc(fTt(th.ton)),esc(fQtd(th.tij)+' tijolos da maromba · '+fMoeda(th.valor)),'#/barroCons')})()}
+   ${(()=>{const tm=totCons(consMes(m));return kpiV('c4','saida','Consumo do estoque em '+fMes(m),esc(fTt(tm.ton)),esc(fQtd(tm.tij)+' tijolos · valor '+fMoeda(tm.valor)),'#/barroCons')})()}
    ${kpiV('c4','moeda','Custo por tonelada · '+fMes(m),esc(fMoeda(km.porTon)),esc('custo total '+fMoeda(km.total)),'#/barroCusto')}
    ${kpiV('c2','moeda','Custo por carrada · '+fMes(m),esc(fMoeda(km.porCarrada)),'','#/barroCusto')}
    ${kpiV(est.ton<0?'c6':'c5','caixa','Estoque de barro',esc(fTt(est.ton)),esc(fC(est.car)+' carradas'),'#/barroEst')}
@@ -24446,8 +24486,9 @@ function inicioB(c){
    <div class="bloco"><h3>Quanto pesou cada item · ${esc(fMes(m))}<a href="#/barroCusto">Custo</a></h3>${compHtml(km)}</div>
    <div class="bloco"><h3>A pagar por motorista<a href="#/barroPagar">Motoristas a pagar</a></h3>${lstV((()=>{const g={};ab.forEach(i=>{g[i.motoristaId]=(g[i.motoristaId]||0)+i.valor});fs.forEach(x=>{g[x.f.motoristaId]=(g[x.f.motoristaId]||0)+x.s.saldo});
     return Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([id,v])=>({href:'#/barroPagar',ic:'pessoas',cls:'a-at',t:nomeMot(id),s:(MOT(id)||{}).pix?'PIX '+(MOT(id)||{}).pix:'',v:fMoeda(v)}))})(),'Nada a pagar.')}</div>
-  </div>`;
- JB_MES.ligar(c,'barro');
+  </div>
+  <p class="ajuda" style="margin:10px 2px 0">${botaoExtracao()}</p>`;
+ JB_MES.ligar(c,'barro');ligarBotaoExtracao(c);
 }
 
 /* ================= rotas ================= */
@@ -24465,7 +24506,7 @@ avisosModulo=function(mod){if(mod==='barroMov')return `<div class="aviso in"><sp
 {const BR=FS.BREVE||{};if(BR.barro)delete BR.barro;
  PERM['setor-barro']={v:BV,e:[]};
  const novo={id:'barro',nome:'Setor do Barro',ic:'barro',rota:'#/setor-barro',v:()=>pode('setor-barro'),
-  desc:'Extração do barro e consumo ligado à produção: jazidas, carradas, máquinas, custo por tonelada, barro e valor usados pela maromba, estoque e motoristas a pagar.'};
+  desc:'Consumo do estoque de barro pela produção (toneladas e valor em R$ por dia e no mês) e, se ligada, a parte de extração.'};
  const i=SETORES.findIndex(s=>s.id==='barro');if(i>=0)SETORES.splice(i,1,novo);else SETORES.push(novo)}
 const tsB=telaSetores;
 telaSetores=function(el){tsB.apply(this,arguments);
@@ -24473,8 +24514,8 @@ telaSetores=function(el){tsB.apply(this,arguments);
   const sp=document.createElement('span');sp.className='spot-info';
   if(!APP.carregado)sp.textContent='Carregando os dados…';
   else{const m=mesAtual();const xm=DATA.barroExt.filter(e=>String(e.data).startsWith(m));const k=custoDe(xm);
-   const tc=totCons(consMes(m));const us=tc.ton>0?fTt(tc.ton)+' usadas na produção em '+fMes(m)+' ('+fMoeda(tc.valor)+')':'';
-   sp.textContent=DATA.barroExt.length?fTt(k.ton)+' extraídas em '+fMes(m)+(k.porTon>0?' · '+fMoeda(k.porTon)+'/t':'')+(us?' · '+us:'')+' · estoque '+fTt(estoqueB().ton):us||'Pronto para cadastrar as jazidas, os motoristas e as caçambas'}
+   const tc=totCons(consMes(m));const us=tc.ton>0?'Consumo do estoque em '+fMes(m)+': '+fTt(tc.ton)+' · '+fMoeda(tc.valor):'';
+   sp.textContent=!cfgB().mostrarExtracao?(us||'Consumo do estoque de barro: aparece com a produção da maromba'):DATA.barroExt.length?fTt(k.ton)+' extraídas em '+fMes(m)+(k.porTon>0?' · '+fMoeda(k.porTon)+'/t':'')+(us?' · '+us:'')+' · estoque '+fTt(estoqueB().ton):us||'Pronto para cadastrar as jazidas, os motoristas e as caçambas'}
   b.before(sp)}catch(e){console.warn('V57 setores',e)}};
 
 /* ================= o compromisso do Financeiro gerado aqui só se desfaz aqui ================= */
