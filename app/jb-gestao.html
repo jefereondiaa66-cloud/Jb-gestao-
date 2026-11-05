@@ -31696,6 +31696,133 @@ function iniSecaoConfig(el){
   catch(err){i.checked=!i.checked;toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(err):'erro')+'.','erro')}});
 }
 </script>
+<script id="lenha-editar-v76">
+"use strict";
+/* ================= V76 · correção dos lançamentos de lenha (05/11/2026) =================
+   Pedido do Jeferson: no Setor da Lenha, quem lança a lenha (ex.: Viviane, que mediu errado a
+   metragem) pode corrigir o lançamento quando quiser, sem pedir a ninguém.
+   · Tela da compra de lenha: botão "Corrigir lançamento" (data, hora, metragem e preço de cada item,
+     frete e observação). Total, conta a pagar e estoque se ajustam sozinhos, porque são calculados
+     a partir da própria compra. O que já foi pago continua igual.
+   · Quem pode: quem tem permissão de editar compras no setor (administrador, gerente, estoquista).
+     Compra cancelada não muda. Compra antes de 01/10/2026 (jan–set fechados) ou travada: só quem
+     pode destravar (dono e Bayron).
+   · Histórico: toda correção fica gravada (quem, quando, valor antigo e novo, motivo). Ele NÃO aparece
+     na tela da compra: fica só em Configurações › "Setor da Lenha · correções dos lançamentos".
+   Só acrescenta: nada antigo é apagado, renomeado ou recalculado. */
+(()=>{
+const LS='lenha';
+const FECHADO_ATE='2026-10-01';
+const r2=v=>round2(v);
+const r3=v=>round3(v);
+const ACAO='corrigiu o lançamento';
+const ehLenha=v=>!!v&&v.tipoOp==='compra'&&v.setor===LS;
+const fechada=v=>v.travado===true||!!v.historico||String(v.data||'')<FECHADO_ATE;
+const podeCorrigir=v=>ehLenha(v)&&!cancV(v)&&pode('compra','e')&&(!fechada(v)||podeDestravar());
+const numCampo=s=>{const t=String(s??'').trim().replace(/\s/g,'');if(!t)return NaN;return +(t.includes(',')?t.replace(/\./g,'').replace(',','.'):t)};
+const qtdTxt=(q,u)=>fQtd(q)+(u?' '+u:'');
+
+function totaisDe(atual,itens,frete){
+ const sub=r2(itens.reduce((a,i)=>a+(+i.total||0),0));
+ const desc=atual.descTipo==='pct'?r2(sub*(+atual.descValor||0)/100):r2(+atual.desconto||0);
+ return{sub,desc,total:r2(sub-desc+(+frete||0)+(+atual.outros||0))};
+}
+
+function corrigir(v){
+ const atual=atualOp(v);
+ if(!podeCorrigir(atual)){toast(cancV(atual)?'Compra cancelada não pode ser corrigida.':fechada(atual)?'Esta compra é de um período fechado. Só o Jeferson ou o Bayron podem corrigir.':'Seu perfil não pode corrigir compras neste setor.','erro');return}
+ const pago=r2(finVenda(atual).pago);
+ const linhas=(atual.itens||[]).map((i,k)=>`<tr data-it="${k}"><td data-l="Item"><b>${esc(i.nome||'Item')}</b></td>
+  <td data-l="Quantidade${i.unidade?' ('+esc(i.unidade)+')':''}"><input data-q="${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(i.qtd)}" aria-label="Quantidade de ${esc(i.nome||'item')}" style="max-width:120px"> ${esc(i.unidade||'')}</td>
+  <td data-l="Preço por ${esc(i.unidade||'unidade')}"><input data-p="${k}" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(i.preco))}" aria-label="Preço de ${esc(i.nome||'item')}" style="max-width:120px"></td>
+  <td data-l="Total" class="num" data-t="${k}">${esc(fMoeda(i.total))}</td></tr>`).join('');
+ const corpo=`<p class="ajuda" style="margin:0 0 10px">Corrija o que foi lançado errado, como a metragem. O estoque, o total e a conta a pagar se ajustam sozinhos. A correção fica registrada no histórico com o seu nome.</p>
+  <div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Item</th><th>Quantidade</th><th>Preço unit.</th><th class="num">Total</th></tr></thead><tbody>${linhas}</tbody><tfoot class="vr-sem-total"></tfoot></table></div>
+  <div class="campos" style="grid-template-columns:1fr 1fr;margin-top:10px">
+   <div class="cmp"><label for="lcData">Data<i> *</i></label><input id="lcData" type="date" max="${hoje()}" value="${esc(atual.data||'')}"></div>
+   <div class="cmp"><label for="lcHora">Hora</label><input id="lcHora" type="time" value="${esc(atual.hora||'')}"></div>
+   <div class="cmp"><label for="lcFrete">Frete</label><input id="lcFrete" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(+atual.frete||0))}"></div>
+   <div class="cmp"><label for="lcMotivo">Motivo da correção</label><input id="lcMotivo" placeholder="Ex.: medi errado a carrada"></div>
+   <div class="cmp w2"><label for="lcObs">Observações da compra</label><input id="lcObs" value="${esc(atual.obs||'')}"></div></div>
+  <p class="ajuda" id="lcRes" style="margin:10px 0 0"></p>`;
+ const ler=m=>{
+  const itens=(atual.itens||[]).map((i,k)=>{const q=numCampo($(`[data-q="${k}"]`,m).value);const p=r2(lerMoeda($(`[data-p="${k}"]`,m).value));
+   return{...clone(i),qtd:isNaN(q)?NaN:r3(q),preco:p,total:isNaN(q)?0:r2(r3(q)*p)}});
+  const frete=r2(lerMoeda($('#lcFrete',m).value));
+  return{itens,frete,data:$('#lcData',m).value,hora:$('#lcHora',m).value,obs:$('#lcObs',m).value.trim(),motivo:$('#lcMotivo',m).value.trim(),...totaisDe(atual,itens,frete)};
+ };
+ const resumo=m=>{const d=ler(m);d.itens.forEach((i,k)=>{const t=$(`[data-t="${k}"]`,m);if(t)t.textContent=fMoeda(i.total)});
+  const res=$('#lcRes',m);if(!res)return;
+  res.innerHTML=`Total da compra: <b>${esc(fMoeda(atual.total))}</b> → <b>${esc(fMoeda(d.total))}</b>`+(pago>0?` · já pago: <b>${esc(fMoeda(pago))}</b>`+(d.total+0.004<pago?' <span style="color:var(--perigo,#b3261e)">(o novo total fica menor que o pago)</span>':' · fica a pagar <b>'+esc(fMoeda(Math.max(0,r2(d.total-pago))))+'</b>'):'')};
+ modalV('Corrigir lançamento · compra nº '+fNumV(atual.numero),corpo,'Salvar correção',async m=>{
+  const d=ler(m);const agora=atualOp(v);
+  if(!podeCorrigir(agora)){toast('Esta compra não pode mais ser corrigida (foi cancelada ou mudou de período).','erro');return false}
+  if(d.itens.some(i=>isNaN(i.qtd)||!(i.qtd>0))){toast('Informe a quantidade de cada item (maior que zero).','erro');return false}
+  if(d.itens.some(i=>!(i.preco>=0))){toast('Informe o preço de cada item.','erro');return false}
+  if(!d.data||d.data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  if(fechada({data:d.data})&&!podeDestravar()){toast('A data fica num período fechado (antes de 01/10/2026). Só o Jeferson ou o Bayron podem lançar nesse período.','erro');return false}
+  if(d.desc>d.sub+0.004){toast('O desconto da compra passa do valor dos itens. Ajuste as quantidades ou os preços.','erro');return false}
+  const pagoAgora=r2(finVenda(agora).pago);
+  if(d.total+0.004<pagoAgora){toast('Esta compra já tem '+fMoeda(pagoAgora)+' pagos e o novo total ('+fMoeda(d.total)+') fica menor. Estorne o pagamento a mais antes de corrigir.','erro');return false}
+  const novosItens=d.itens.map(i=>{const x={...i};if(x.baixaEstoque&&x.anterior!=null&&x.anterior!=='')x.atual=r3((+x.anterior||0)+x.qtd);return x});
+  const mud={itens:novosItens,subtotal:d.sub,desconto:d.desc,frete:d.frete,total:d.total,data:d.data,hora:d.hora,obs:d.obs};
+  if(agora.vencimento&&(agora.condicao!=='A prazo'||agora.vencimento===agora.data))mud.vencimento=d.data;
+  const campos=[];
+  (agora.itens||[]).forEach((i,k)=>{const n=novosItens[k];if(!n)return;
+   if(r3(i.qtd)!==n.qtd)campos.push({c:'Quantidade ('+(i.nome||'item')+')',de:qtdTxt(i.qtd,i.unidade),para:qtdTxt(n.qtd,n.unidade)});
+   if(r2(i.preco)!==n.preco)campos.push({c:'Preço ('+(i.nome||'item')+')',de:fMoeda(i.preco),para:fMoeda(n.preco)})});
+  if(r2(+agora.frete||0)!==d.frete)campos.push({c:'Frete',de:fMoeda(+agora.frete||0),para:fMoeda(d.frete)});
+  if(r2(agora.total)!==d.total)campos.push({c:'Total',de:fMoeda(agora.total),para:fMoeda(d.total)});
+  if((agora.data||'')!==d.data)campos.push({c:'Data',de:fData(agora.data),para:fData(d.data)});
+  if((agora.hora||'')!==d.hora)campos.push({c:'Hora',de:agora.hora||'—',para:d.hora||'—'});
+  if((agora.obs||'')!==d.obs)campos.push({c:'Observações',de:(agora.obs||'—').slice(0,80),para:(d.obs||'—').slice(0,80)});
+  if(!campos.length){toast('Nada foi alterado.');return}
+  if(d.motivo)campos.push({c:'Motivo',de:'',para:d.motivo.slice(0,200)});
+  await salvarOpV(agora,mud,ACAO,campos);
+  toast('Lançamento corrigido. O estoque e a conta a pagar já foram ajustados.','ok');
+ },{depois:m=>{resumo(m);m.addEventListener('input',e=>{if(e.target.closest('[data-q],[data-p],#lcFrete'))resumo(m)})}});
+}
+window.corrigirCompraLenhaV76=id=>{const v=(DATA.compras||[]).find(x=>x.id===id);if(v)corrigir(v)};
+
+/* ---------- tela da compra de lenha: botão e histórico fora da tela ---------- */
+{const d0=detalheOpV;detalheOpV=function(c,O,v){d0.apply(this,arguments);
+ try{if(!O||O.K!=='compra'||!ehLenha(v))return;
+  /* o histórico de alterações das compras de lenha fica só em Configurações */
+  $$('.vv-grade .bloco',c).forEach(b=>{const h=b.querySelector('h3');if(h&&h.textContent.trim()==='Histórico de alterações')b.remove()});
+  if(!podeCorrigir(v))return;const ac=$('.sec-cab .acoes',c);if(!ac||$('#vvCorr76',c))return;
+  const h=`<button type="button" class="btn" id="vvCorr76">${ic('editar')}Corrigir lançamento</button>`;
+  const ref=$('#vvComp',c);if(ref)ref.insertAdjacentHTML('afterend',h);else ac.insertAdjacentHTML('afterbegin',h);
+  $('#vvCorr76',c).onclick=()=>corrigir(v);
+ }catch(e){console.warn('V76 corrigir lenha',e)}}}
+
+/* ---------- Configurações › Setor da Lenha · correções dos lançamentos ---------- */
+function correcoes(){
+ return (DATA.log||[]).filter(l=>l&&l.modulo==='compras'&&l.acao===ACAO).map(l=>({l,v:(DATA.compras||[]).find(x=>x.id===l.recId)}))
+  .filter(x=>!x.v||ehLenha(x.v)).sort((a,b)=>String(b.l.ts).localeCompare(String(a.l.ts)));
+}
+function secaoCorrecoes(el){
+ if(!el||el.querySelector('#lenhaCorr76'))return;
+ const L=correcoes();resolverNomes([...new Set(L.map(x=>x.l.uid))]);
+ const ref=[...el.querySelectorAll('fieldset.sec')].find(f=>{const g=f.querySelector('legend');return g&&g.textContent.trim()==='Setor de Combustível'});
+ const n=document.createElement('fieldset');n.className='sec';n.id='lenhaCorr76';
+ const lin=L.slice(0,300).map(({l,v})=>{const mot=(l.campos||[]).find(c=>c.c==='Motivo');const mud=(l.campos||[]).filter(c=>c.c!=='Motivo');
+  return `<tr><td data-l="Quando">${esc(fDataHora(l.ts))}</td><td data-l="Quem">${esc(nomeUsuario(l.uid))}</td>
+   <td data-l="Lançamento">${v?`<a href="#/compra/${esc(v.id)}">Compra nº ${esc(fNumV(v.numero))}</a><div class="ajuda">${esc(parteSnap(v).nome||'')}${v.data?' · '+esc(fData(v.data)):''}</div>`:'<span class="ajuda">compra excluída</span>'}</td>
+   <td data-l="O que mudou">${mud.map(c=>`<div>${esc(c.c)}: ${esc(c.de)} → <b>${esc(c.para)}</b></div>`).join('')||'—'}</td>
+   <td data-l="Motivo">${mot?esc(mot.para):'—'}</td></tr>`}).join('');
+ n.innerHTML=`<legend>Setor da Lenha · correções dos lançamentos</legend>
+  <p style="margin:0 0 10px;color:var(--suave);font-size:13px">Cada vez que alguém corrige uma compra de lenha (metragem, preço, data, frete), fica registrado aqui: quem corrigiu, quando, o valor antigo, o novo e o motivo. Este histórico não aparece na tela do setor.</p>
+  ${L.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Quando</th><th>Quem</th><th>Lançamento</th><th>O que mudou</th><th>Motivo</th></tr></thead><tbody>${lin}</tbody><tfoot class="vr-sem-total"></tfoot></table></div><p class="ajuda" style="margin:8px 0 0">${L.length} correção(ões)${L.length>300?' · mostrando as 300 mais recentes':''}.</p>`:'<p class="ajuda" style="margin:0">Nenhuma correção ainda.</p>'}`;
+ if(ref)ref.after(n);else{const s=el.querySelectorAll('fieldset.sec');if(s.length)s[s.length-1].after(n);else el.appendChild(n)}
+}
+const _ligarAparenciaV76=ligarAparencia;
+ligarAparencia=function(el){
+ _ligarAparenciaV76.apply(this,arguments);
+ try{secaoCorrecoes(el)}catch(e){console.warn('V76 correções lenha · configurações',e)}
+};
+window.V76={corrigir,podeCorrigir,correcoes};
+})();
+</script>
 
 </body>
 </html>
