@@ -7434,7 +7434,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 73 · novembro de 2026';
+const VERSAO='Versão 74 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -20615,7 +20615,7 @@ async function lancarFin(job,K,P,ia,anexos,fornAlmId,R){
  const t0=await aguardar(()=>B.TIT(ids[0]));R.tit=ids[0]?'t:'+ids[0]:'';
  R.passos.push('Financeiro: '+(n>1?n+' parcelas':'compromisso nº '+(t0?t0.numero:''))+' de <b>'+esc(fMoeda(valorFin(job)))+'</b> · '+esc(C.categoria)+(C.centro?' · '+esc(C.centro):'')+' · '+(C.pag.sit==='pago'?'<b>pago</b> via '+esc(C.pag.forma):'<b>em aberto</b>, vence '+esc(P.ls.map(p=>fData(p.venc)).join(', ')))+'.')}
 
-window.LANC_IA_V65={estado:()=>J,adicionar,iniciarLeitura,normalizar,mesclar,lerJson,vincular,semelhanca,calc:()=>J&&J.C?calc(J):null,alertas:()=>J&&J.C?alertas(J):null,promptLeitura,novo};
+window.LANC_IA_V65={motorLeitura,paginasImagem,hashArq,semMotorTxt,msgSample,estado:()=>J,adicionar,iniciarLeitura,normalizar,mesclar,lerJson,vincular,semelhanca,calc:()=>J&&J.C?calc(J):null,alertas:()=>J&&J.C?alertas(J):null,promptLeitura,novo};
 })();
 </script>
 <style id="controladoria-estilos">
@@ -23062,6 +23062,8 @@ const alvosLote=()=>[...DATA.locais.filter(l=>l.setor==='combustivel'&&l.situaca
 function stLote(L){const st={...MC.padrao(),id:L.id||(L.id=novoId()),data:L.data,hora:horaAgora(),produtoId:L.produtoId,quantidade:vazioV(L.quantidade)?'':+L.quantidade,
  totalizador:vazioV(L.totalizador)?'':+L.totalizador,operador:String(L.operador||'').trim(),origem:'Estoque da fábrica',setor:'combustivel'};
  if(L.anexo)st.anexo=L.anexo;
+ if(!vazioV(L.medidor))st.medidor=+L.medidor; /* V74: horímetro/km lido da foto */
+ if(L.obsFoto)st.obs=L.obsFoto;
  if(String(L.alvo).startsWith('t:')){const t=TERC(L.alvo.slice(2));st.abastecidoEm='Veículo de terceiro';st.terceiroId=t?t.id:'';st.terceiroNome=t?t.nome:'';st.terceiroPlaca=t?t.placa||'':'';st.terceiroFinalidade=t?t.finalidade||'':'';st.localId=''}
  else{st.abastecidoEm='Máquina da fábrica';st.localId=String(L.alvo||'').slice(2)}
  return st}
@@ -23078,7 +23080,7 @@ function telaLote(c){
  const op=(ops,sel)=>ops.map(([v,l])=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
  const linha=(L,i)=>{const p=PROD(L.produtoId);const ant=antesLote(i);const un=(p&&p.unidade)||'L';
   return `<tr data-ll="${i}"><td data-l="Data"><input type="date" data-lk="data" max="${hoje()}" value="${esc(L.data)}" aria-label="Data da linha ${i+1}"></td>
-   <td data-l="Máquina ou terceiro"><select data-lk="alvo" aria-label="Máquina ou terceiro da linha ${i+1}"><option value="">Selecione…</option>${op(alvos,L.alvo)}${pode('cTerceiros','e')?'<option value="__novo">+ novo terceiro…</option>':''}</select></td>
+   <td data-l="Máquina ou terceiro"><select data-lk="alvo" aria-label="Máquina ou terceiro da linha ${i+1}"><option value="">Selecione…</option>${op(alvos,L.alvo)}${pode('cTerceiros','e')?'<option value="__novo">+ novo terceiro…</option>':''}</select>${L.dica?`<span class="sub">${esc(L.dica)}</span>`:''}</td>
    <td data-l="Produto"><select data-lk="produtoId" aria-label="Produto da linha ${i+1}"><option value="">Selecione…</option>${op(prods.map(x=>[x.id,nomeProduto(x)]),L.produtoId)}</select></td>
    <td data-l="Totalizador"><input data-lk="totalizador" type="number" step="any" min="0" inputmode="decimal" value="${esc(L.totalizador)}" placeholder="${ant!=null?esc(fQtd(ant)):'sem bomba'}" ${ant==null?'disabled':''} aria-label="Totalizador da linha ${i+1}">${ant!=null?`<span class="sub">antes: ${esc(fQtd(ant))} ${esc(un)}</span>`:''}</td>
    <td data-l="Litros"><input data-lk="quantidade" type="number" step="any" min="0" inputmode="decimal" value="${esc(L.quantidade)}" aria-label="Litros da linha ${i+1}"></td>
@@ -23087,6 +23089,7 @@ function telaLote(c){
    <td class="acs">${LOTE.linhas.length>1?`<button type="button" class="ib" data-lrm="${i}" aria-label="Tirar a linha ${i+1}">${ic('fechar')}</button>`:''}${L.erro?`<span class="er">${esc(L.erro)}</span>`:''}</td></tr>`};
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('planilha')}</span><div><h1>Lançar vários abastecimentos</h1><p>Uma linha por abastecimento. Digitando o totalizador, o sistema calcula os litros. Ao salvar, cada linha passa pelas mesmas conferências do formulário normal.</p></div></div>
   <div class="acoes"><a class="btn" href="#/consumos">${ic('esquerda')}Abastecimentos</a><button type="button" class="btn" id="loLimpar">Limpar</button></div></div>
+  ${LOTE.foto?`<div class="aviso ${LOTE.foto.avisos&&LOTE.foto.avisos.length?'at':'in'}" style="margin-bottom:12px"><span><b>Linhas lidas da foto (${esc(String(LOTE.foto.n))}).</b> Confira máquina, litros e totalizador de cada linha antes de salvar: nada foi gravado ainda.${LOTE.foto.avisos&&LOTE.foto.avisos.length?'<ul style="margin:6px 0 0;padding-left:18px">'+LOTE.foto.avisos.map(a=>`<li>${esc(a)}</li>`).join('')+'</ul>':''}</span></div>`:''}
   <div class="painel tabwrap"><table class="tbl cartao v56-lote"><thead><tr><th>Data</th><th>Máquina ou terceiro</th><th>Produto</th><th>Totalizador</th><th>Litros</th><th>Operador</th><th>Foto</th><th></th></tr></thead><tbody id="loCorpo">${LOTE.linhas.map(linha).join('')}</tbody></table></div>
   <datalist id="v56dlOp">${opsOp.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
   <div class="inline" style="margin:10px 0;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="loAdd">${ic('mais')}Adicionar linha</button><button type="button" class="btn pri" id="loSalvar">${ic('entrada')}Salvar todos</button><span class="ajuda" id="loRes"></span></div>
@@ -23140,6 +23143,9 @@ async function salvarLote(btn,c,redesenha){
   toast((n?n+' linha(s) foram gravadas e saíram da tabela. ':'')+msgFalhaSalvar(err),'erro')}
 }
 
+/* V74: o Lançamento por foto do combustível preenche esta mesma tela (a pessoa confere e salva aqui) */
+window.LOTE_COMB_V56={alvos:()=>alvosLote(),linhaVazia:()=>linhaLote(),preencher(linhas,foto){LOTE={linhas:linhas.map(x=>({...linhaLote(),...x})),foto:foto||null};if(!LOTE.linhas.length)LOTE.linhas=[linhaLote()];
+ LOTE.linhas.forEach((L,i)=>{if(vazioV(L.quantidade)&&!vazioV(L.totalizador)){const x=antesLote(i);if(x!=null&&+L.totalizador>=x)L.quantidade=r3(+L.totalizador-x)}})}};
 /* ================= combustível: abas novas ================= */
 Object.assign(PERM,{cTerceiros:{v:PC,e:['admin','gerente','estoquista']},consLote:{v:PC,e:['admin','gerente','estoquista']},bombasConf:{v:PC,e:[]},meusPend:{v:TODOS_P,e:[]}});
 ['cTerceiros','consLote','bombasConf','meusPend'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
@@ -29485,6 +29491,214 @@ telaSetores=function(el){const r=tsVar.apply(this,arguments);
  return r};
 
 window.VARIACOES_V73={SETS,ORDEM,setorVisivel,setoresVisiveis,val,comparar,fmt,VR};
+})();
+</script>
+<style id="comb-foto-v74-css">
+/* V74 · Lançar abastecimentos por foto (usa as peças visuais do Lançamento Inteligente por Foto) */
+.cf-dica{margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--suave);text-align:left}
+.cf-dica li{margin:3px 0}
+</style>
+<script id="comb-foto-v74">
+"use strict";
+/* ================= V74 · Combustível: lançar abastecimentos por foto (05/11/2026) =================
+   Pedido do Jeferson: o pessoal manda todo dia no WhatsApp a foto do consumo de combustível e lançar à mão
+   é cansativo. Aqui a pessoa tira a foto (ou escolhe da galeria a que veio no WhatsApp); a IA lê cada
+   abastecimento (máquina, combustível, litros, totalizador da bomba, horímetro/km, operador, data) e
+   preenche a tela "Lançar vários". A pessoa confere e clica "Salvar todos".
+   · Nada é gravado sem a pessoa conferir: a gravação é a mesma da tela "Lançar vários" (mesmas conferências
+     do formulário normal, inclusive o totalizador da bomba e lançamento repetido).
+   · Quem lê é o mesmo motor do Lançamento Inteligente por Foto (V65): o Claude da página dentro do Claude;
+     na nuvem, a função jb-ler-documento do servidor (a chave da API fica no Supabase).
+   · A foto vai junto como anexo de cada abastecimento lido dela, para conferência depois.
+   · O que não foi reconhecido (máquina que não existe no cadastro, número borrado) fica em branco com a
+     leitura ao lado, para a pessoa escolher. Nenhum número é inventado. */
+(()=>{
+const LI=window.LANC_IA_V65,LC=window.LOTE_COMB_V56;
+if(!LI||!LC||!LI.motorLeitura){console.warn('V74: leitura por foto ou "Lançar vários" não carregados');return}
+const ROTA='combFoto';
+PERM[ROTA]={v:((PERM.consLote&&PERM.consLote.v)||['admin']).slice(),e:((PERM.consLote&&PERM.consLote.e)||['admin']).slice()};
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+{const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s!=='combustivel'||!pode('consumos','e'))return a;
+ const i=a.findIndex(x=>(x.at||[]).includes('consLote'));a.splice(i<0?a.length:i+1,0,{r:'#/'+ROTA,m:'consumos',e:1,ic:'camera',l:'Lançar por foto',at:[ROTA]});return a}}
+
+/* ---------- utilidades ---------- */
+const noTela=()=>lerRota().mod===ROTA;
+const erroU=(code,msg)=>{const e=new Error(msg);e.code=code;return e};
+const norm=s=>semAcento(String(s||'')).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const txt=(v,m)=>v==null?'':String(v).replace(/\s+/g,' ').trim().slice(0,m||120);
+function num(v){if(v==null||v==='')return null;if(typeof v==='number')return isFinite(v)&&v>=0?v:null;
+ let s=String(v).replace(/[^\d.,-]/g,'');if(!s)return null;
+ if(/,\d{1,3}$/.test(s)&&!/\.\d{1,3}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');else s=s.replace(/,/g,'');
+ const n=+s;return isFinite(n)&&n>=0?n:null}
+function dataOk(v){const s=txt(v,20);if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const d=new Date(s+'T12:00:00');if(!isNaN(d)&&s>'2020-01-01')return s}
+ const m=/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(s);if(m){const a=m[3]?(m[3].length===2?'20'+m[3]:m[3]):hoje().slice(0,4);return dataOk(a+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'))}return ''}
+const toks=s=>norm(s).split(' ').filter(t=>t&&!['de','da','do','e','a','o','maquina','veiculo','terceiro'].includes(t));
+function parecido(a,b){const A=[...new Set(toks(a))],B=[...new Set(toks(b))];if(!A.length||!B.length)return 0;
+ const ig=(x,y)=>x===y||(x.length>=3&&y.length>=3&&(x.startsWith(y)||y.startsWith(x)));
+ const n=A.filter(x=>B.some(y=>ig(x,y))).length;return n/Math.max(A.length,B.length)}
+const prodsComb=()=>DATA.produtos.filter(p=>p.setor==='combustivel'&&p.situacao!=='Inativo');
+const operadores=()=>[...new Set([...DATA.locais.filter(l=>l.setor==='combustivel').map(l=>l.responsavel),...DATA.consumos.filter(c=>c.setor==='combustivel').slice(-400).map(c=>c.operador)].map(x=>txt(x,60)).filter(Boolean))].slice(0,80);
+const temBomba=p=>{try{return !!(p&&window.BOMBA_V55&&BOMBA_V55.temLeitura&&BOMBA_V55.temLeitura(p))}catch(e){return false}};
+
+/* ---------- estado (a leitura continua mesmo se a pessoa sair da tela) ---------- */
+let J={arqs:[],fase:'captura',prog:{txt:'',pct:0},erro:'',ctl:null};
+function atualizar(){if(noTela())renderTela()}
+function prog(txt,pct){J.prog={txt,pct};const t=document.getElementById('cfProgTxt'),b=document.getElementById('cfProgBar');if(t)t.textContent=txt;if(b)b.style.width=pct+'%'}
+const ehImg=f=>/^image\//i.test(f.type||'')||/\.(jpe?g|png|webp|heic|heif)$/i.test(f.name||'');
+function adicionar(files){
+ const fs=[...(files||[])];const ruins=fs.filter(f=>!ehImg(f));
+ fs.filter(ehImg).forEach(f=>{if(J.arqs.length<8)J.arqs.push({id:novoId(),file:f,nome:f.name||'foto.jpg',url:URL.createObjectURL(f)})});
+ if(ruins.length)toast('Só fotos (JPG ou PNG) aqui. '+ruins.length+' arquivo(s) ignorado(s).','erro');
+ if(J.fase==='erro')J.fase='captura';atualizar()}
+function tirar(id){const a=J.arqs.find(x=>x.id===id);if(a&&a.url)URL.revokeObjectURL(a.url);J.arqs=J.arqs.filter(x=>x.id!==id);atualizar()}
+function limpar(){if(J.ctl)J.ctl.abort();J.arqs.forEach(a=>{if(a.url)URL.revokeObjectURL(a.url)});J={arqs:[],fase:'captura',prog:{txt:'',pct:0},erro:'',ctl:null}}
+
+/* ---------- o pedido de leitura ---------- */
+function prompt(parte,total,alvos){
+ const ano=hoje().slice(0,4);
+ return `Você lê fotos do controle diário de abastecimento de combustível de uma cerâmica: folha ou caderno escrito à mão, planilha impressa, quadro, mensagem de WhatsApp com a lista do dia, visor/totalizador da bomba ou cupom de posto. Sua resposta vira saída de combustível do estoque da fábrica: um número errado causa prejuízo.
+${total>1?`\nEsta é a PARTE ${parte+1} DE ${total} das fotos. Extraia só o que aparece nestas imagens.\n`:''}
+Uma foto comprida pode vir em faixas seguidas com pequena sobreposição: o abastecimento que aparece repetido na emenda entra UMA vez só.
+
+REGRAS
+1. Copie só o que está escrito. NUNCA invente, estime ou calcule litros, totalizador, máquina ou data. O que não dá para ler fica null e o nome do campo vai para "ilegiveis".
+2. Cada abastecimento (cada máquina ou veículo abastecido) é um item separado, na ordem em que aparece. Não some nem agrupe.
+3. Números em JSON com ponto decimal e sem separador de milhar (1.250,5 → 1250.5). Datas no formato AAAA-MM-DD; se o ano não aparece, use ${ano}.
+4. Se a folha tem uma data só no topo, coloque em "dataGeral" e também em cada item.
+5. "litros": quantidade abastecida naquele abastecimento. "totalizador": leitura do contador/totalizador da BOMBA depois do abastecimento, só se estiver escrita. "horimetroKm": horímetro ou quilometragem da MÁQUINA, só se estiver escrito. Não confunda um com o outro; na dúvida, deixe null e explique em "observacao".
+6. "maquina": o nome, apelido, número ou placa como está escrito. "maquinaSugerida": copie EXATAMENTE um nome da lista MÁQUINAS E TERCEIROS que seja a mesma máquina; se não tiver certeza, null.
+7. "combustivel": como escrito (S10, S500, diesel, gasolina…). "combustivelSugerido": copie EXATAMENTE um nome da lista COMBUSTÍVEIS ou null.
+8. "operador": quem abasteceu ou operou, como escrito.
+9. "confianca" de cada item: "alta" (nítido), "media" (legível com dúvida), "baixa" (borrado, riscado ou adivinhado).
+10. Se a foto não for de controle de abastecimento, devolva "abastecimentos":[] e explique em "observacoes".
+
+MÁQUINAS E TERCEIROS: ${alvos.map(a=>a[1]).join('; ')||'(nenhuma cadastrada)'}
+COMBUSTÍVEIS: ${prodsComb().map(p=>nomeProduto(p)).join('; ')||'(nenhum cadastrado)'}
+OPERADORES JÁ USADOS: ${operadores().join('; ')||'(nenhum)'}
+
+Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, com estas chaves:
+{"tipo":null,"dataGeral":null,"abastecimentos":[{"data":null,"maquina":null,"maquinaSugerida":null,"combustivel":null,"combustivelSugerido":null,"litros":null,"totalizador":null,"horimetroKm":null,"operador":null,"observacao":null,"confianca":"alta"}],"ilegiveis":[],"observacoes":null}`;
+}
+
+/* ---------- da leitura para as linhas de "Lançar vários" ---------- */
+function acharAlvo(it,alvos){
+ const sug=txt(it.maquinaSugerida,120);if(sug){const a=alvos.find(x=>norm(x[1])===norm(sug));if(a)return a[0]}
+ const lido=txt(it.maquina,120);if(!lido)return '';
+ const exato=alvos.find(x=>norm(x[1])===norm(lido)||norm(x[1]).replace(/^terceiro /,'')===norm(lido));if(exato)return exato[0];
+ const sc=alvos.map(x=>({x,s:parecido(lido,x[1])})).sort((a,b)=>b.s-a.s);
+ if(sc[0]&&sc[0].s>=0.6&&!(sc[1]&&sc[1].s===sc[0].s))return sc[0].x[0];
+ /* nome curto escrito na folha ("Atego", "Pá 924"): vale se só UMA máquina tem todas as palavras lidas */
+ const T=[...new Set(toks(lido))].filter(t=>t.length>=3||/\d/.test(t));if(!T.length)return '';
+ const ig=(x,y)=>x===y||(x.length>=3&&y.length>=3&&(x.startsWith(y)||y.startsWith(x)));
+ const todos=alvos.filter(x=>{const B=toks(x[1]);return T.every(t=>B.some(y=>ig(t,y)))});
+ return todos.length===1?todos[0][0]:'';
+}
+function acharProd(it,alvo){
+ const ps=prodsComb();const sug=txt(it.combustivelSugerido,80);
+ if(sug){const p=ps.find(x=>norm(nomeProduto(x))===norm(sug));if(p)return p.id}
+ const lido=norm(it.combustivel);
+ if(lido){const k=/s ?10\b/.test(lido)?'s10':/s ?500\b/.test(lido)?'s500':/gasol/.test(lido)?'gasol':/etanol|alcool/.test(lido)?'etanol':'';
+  if(k){const p=ps.filter(x=>norm(nomeProduto(x)).replace(/\s/g,'').includes(k));if(p.length===1)return p[0].id}
+  const sc=ps.map(x=>({x,s:parecido(lido,nomeProduto(x))})).sort((a,b)=>b.s-a.s);if(sc[0]&&sc[0].s>=0.6)return sc[0].x.id}
+ if(alvo&&alvo.startsWith('m:')){const l=LOCAL(alvo.slice(2));if(l&&l.combPadraoId&&PROD(l.combPadraoId))return l.combPadraoId}
+ return ps.length===1?ps[0].id:'';
+}
+function montar(L,anexo){
+ const alvos=LC.alvos();const geral=dataOk(L.dataGeral);const avisos=[];const h=hoje();
+ const itens=(Array.isArray(L.abastecimentos)?L.abastecimentos:[]).filter(it=>it&&(num(it.litros)!=null||num(it.totalizador)!=null||txt(it.maquina)));
+ const linhas=itens.map((it,k)=>{
+  let data=dataOk(it.data)||geral;const n=k+1;
+  if(!data){data=h;avisos.push('Linha '+n+': a data não estava na foto; ficou a de hoje.')}
+  else if(data>h){avisos.push('Linha '+n+': a data lida ('+fData(data)+') é depois de hoje; ficou a de hoje.');data=h}
+  const alvo=acharAlvo(it,alvos);const produtoId=acharProd(it,alvo);const p=PROD(produtoId);
+  const litros=num(it.litros),tot=num(it.totalizador),med=num(it.horimetroKm);
+  let op=txt(it.operador,60);if(!op&&alvo.startsWith('m:')){const l=LOCAL(alvo.slice(2));if(l&&l.responsavel)op=l.responsavel}
+  const lidoTxt=[txt(it.maquina,60),txt(it.combustivel,20),litros!=null?fQtd(litros)+' L':'',tot!=null?'bomba '+fQtd(tot):'',med!=null?'horímetro/km '+fQtd(med):''].filter(Boolean).join(' · ');
+  if(!alvo)avisos.push('Linha '+n+': a máquina "'+(txt(it.maquina,60)||'sem nome')+'" não foi achada no cadastro. Escolha na lista ou cadastre.');
+  if(!produtoId)avisos.push('Linha '+n+': escolha o combustível.');
+  if(litros==null&&tot==null)avisos.push('Linha '+n+': os litros não estavam legíveis.');
+  if(it.confianca==='baixa')avisos.push('Linha '+n+': leitura com dúvida (letra borrada ou riscada). Confira com a foto.');
+  if(txt(it.observacao))avisos.push('Linha '+n+': '+txt(it.observacao,160));
+  if(alvo&&litros!=null&&DATA.consumos.some(c=>c.setor==='combustivel'&&c.data===data&&(alvo.startsWith('m:')?c.localId===alvo.slice(2):c.terceiroId===alvo.slice(2))&&Math.abs((+c.quantidade||0)-litros)<0.01))
+   avisos.push('Linha '+n+': parece que já foi lançado (mesma máquina, data e litros). Tire a linha se for repetido.');
+  return{data,alvo,produtoId,quantidade:litros!=null?litros:'',totalizador:tot!=null&&temBomba(p)?tot:'',medidor:med!=null?med:'',operador:op,
+   anexo:anexo||null,dica:'Lido da foto: '+(lidoTxt||'—')+(it.confianca==='media'?' (confiança média)':it.confianca==='baixa'?' (confiança baixa)':''),obsFoto:'Lançado por foto'+(txt(it.observacao)?' · '+txt(it.observacao,160):'')};
+ });
+ const ileg=(Array.isArray(L.ilegiveis)?L.ilegiveis:[]).map(x=>txt(x,60)).filter(Boolean);
+ if(ileg.length)avisos.push('Não deu para ler: '+ileg.slice(0,10).join(', ')+'.');
+ return{linhas,avisos,obs:txt(L.observacoes,300)};
+}
+
+/* ---------- a leitura ---------- */
+async function ler(){
+ if(!J.arqs.length||J.fase==='lendo')return;
+ const ctl=new AbortController();J.ctl=ctl;J.fase='lendo';J.erro='';prog('Preparando as fotos…',3);atualizar();
+ const parar=()=>{if(ctl.signal.aborted)throw erroU('cancelado','')};
+ try{
+  const motor=await LI.motorLeitura();if(!motor)throw erroU('sem_motor',LI.semMotorTxt());
+  if(motor.semImagens)throw erroU('sem_imagem','Esta página do Claude ainda não está autorizada a enviar imagens ao Claude. Use a versão da nuvem.');
+  const imgs=[];for(let i=0;i<J.arqs.length;i++){parar();prog('Preparando a foto '+(i+1)+' de '+J.arqs.length+'…',3+27*(i+1)/J.arqs.length);imgs.push(...await LI.paginasImagem(J.arqs[i].file))}
+  const alvos=LC.alvos();const partes=[];for(let i=0;i<imgs.length;i+=Math.max(1,motor.maxImgs))partes.push(imgs.slice(i,i+Math.max(1,motor.maxImgs)));
+  let R={abastecimentos:[],ilegiveis:[],observacoes:'',dataGeral:null};
+  for(let k=0;k<partes.length;k++){parar();
+   prog((partes.length>1?'A IA está lendo (parte '+(k+1)+' de '+partes.length+')…':'A IA está lendo a foto…')+' Leva de 20 segundos a alguns minutos.',32+60*k/partes.length);
+   const t=await motor.ler(prompt(k,partes.length,alvos),partes[k],ctl.signal);parar();const L=LI.lerJson(t);
+   R.abastecimentos.push(...(Array.isArray(L.abastecimentos)?L.abastecimentos:[]));R.ilegiveis.push(...(Array.isArray(L.ilegiveis)?L.ilegiveis:[]));
+   if(L.observacoes)R.observacoes=[R.observacoes,L.observacoes].filter(Boolean).join(' ');if(!R.dataGeral&&L.dataGeral)R.dataGeral=L.dataGeral}
+  let M=montar(R,null);
+  if(!M.linhas.length)throw erroU('vazio','Nenhum abastecimento foi encontrado na foto.'+(M.obs?' A IA disse: '+M.obs:'')+' Tire a foto de novo, reta e com boa luz, pegando a folha inteira.');
+  /* guarda a foto original como anexo de cada linha lida dela */
+  let anexo=null;
+  if(APP.assets&&APP.assets.upload){prog('Guardando a foto…',95);
+   try{const a=J.arqs[0];const r=await APP.assets.upload(a.file);anexo={id:r.id,nome:a.nome,tipo:r.contentType,tam:r.sizeBytes}}
+   catch(e){M.avisos.push('A foto não foi guardada como anexo (sem conexão?). Os abastecimentos podem ser salvos assim mesmo.')}}
+  if(anexo)M.linhas.forEach(l=>{l.anexo=anexo});
+  LC.preencher(M.linhas,{n:M.linhas.length,avisos:M.avisos});
+  const n=M.linhas.length;limpar();
+  toast(n+' abastecimento(s) lido(s) da foto. Confira e clique em "Salvar todos".','ok');
+  location.hash='#/consLote';
+ }catch(e){
+  if(e&&e.code==='cancelado'||ctl.signal.aborted){J.fase='captura';atualizar();return}
+  console.warn('V74 leitura',e);J.fase='erro';J.erro=(e&&e.message)||(e&&e.code?LI.msgSample(e):'')||'A leitura não deu certo. Tente de novo.';
+  if(!noTela())toast('A leitura da foto do combustível não deu certo. Abra "Lançar por foto" para ver.','erro');atualizar();
+ }finally{if(J.ctl===ctl)J.ctl=null}
+}
+
+/* ---------- a tela ---------- */
+function corpo(c){
+ if(!pode('consumos','e')){c.innerHTML='<div class="vazio"><b>Seu perfil não lança abastecimentos</b>Fale com o administrador.</div>';return}
+ const lendo=J.fase==='lendo';
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('camera')}</span><div><h1>Lançar abastecimentos por foto</h1>
+  <p>Tire a foto da folha ou do caderno de abastecimento (ou escolha da galeria a foto que chegou no WhatsApp). A IA lê cada abastecimento e monta as linhas em “Lançar vários” para você conferir e salvar. Nada é gravado antes disso.</p></div></div>
+  <div class="acoes"><a class="btn" href="#/consLote">${ic('planilha')}Lançar vários</a></div></div>
+  <section class="painel" style="padding:16px">
+   <div class="lia-zona" id="cfZona"><div class="lia-zona-ic">${ic('camera')}</div>
+    <b>${J.arqs.length?J.arqs.length+' foto(s) pronta(s) para ler':'Tire uma foto ou escolha da galeria'}</b>
+    <span class="ajuda">Folha de abastecimento, caderno, quadro, visor da bomba ou print da mensagem · JPG ou PNG · até 8 fotos do mesmo dia.</span>
+    ${lendo?'':`<div class="lia-bts">
+     <label class="btn pri lia-bt">${ic('camera')}<span>${J.arqs.length?'Fotografar mais uma':'Tirar foto'}</span><input type="file" accept="image/*" capture="environment" hidden data-cfarq></label>
+     <label class="btn lia-bt">${ic('clip')}<span>Escolher da galeria</span><input type="file" accept="image/*" multiple hidden data-cfarq></label></div>
+    <ul class="cf-dica"><li>Foto reta, com boa luz, pegando a folha inteira.</li><li>Uma foto por folha. Se a folha é grande, tire em duas partes.</li><li>Máquina com nome diferente do cadastro fica em branco para você escolher.</li></ul>`}</div>
+   ${J.arqs.length?`<div class="lia-mini">${J.arqs.map(a=>`<figure><img src="${esc(a.url)}" alt="${esc(a.nome)}"><figcaption>${esc(a.nome)}</figcaption>${lendo?'':`<button type="button" class="lia-rm" data-cfrm="${esc(a.id)}" aria-label="Tirar ${esc(a.nome)}">×</button>`}</figure>`).join('')}</div>`:''}
+   ${lendo?`<div class="lia-prog" role="status" aria-live="polite"><p id="cfProgTxt">${esc(J.prog.txt)}</p><div class="lia-barra"><i id="cfProgBar" style="width:${J.prog.pct}%"></i></div>
+    <p class="ajuda">Pode continuar usando o sistema: quando terminar, as linhas aparecem em “Lançar vários”.</p><button type="button" class="btn min" id="cfParar">Parar a leitura</button></div>`:''}
+   ${J.fase==='erro'?`<div class="aviso pe" style="margin-top:12px"><span>${esc(J.erro)}</span></div>`:''}
+   ${!lendo&&J.arqs.length?`<div class="inline" style="margin-top:12px;gap:8px;flex-wrap:wrap"><button type="button" class="btn pri" id="cfLer">${ic('faisca')}${J.fase==='erro'?'Tentar de novo':'Ler a foto'}</button><button type="button" class="btn" id="cfLimpar">Começar de novo</button></div>`:''}
+  </section>`;
+ c.querySelectorAll('[data-cfarq]').forEach(i=>i.onchange=e=>{adicionar(e.target.files);e.target.value=''});
+ c.querySelectorAll('[data-cfrm]').forEach(b=>b.onclick=()=>tirar(b.dataset.cfrm));
+ const z=c.querySelector('#cfZona');
+ if(z&&!lendo){z.addEventListener('dragover',e=>{e.preventDefault();z.classList.add('arrastando')});z.addEventListener('dragleave',()=>z.classList.remove('arrastando'));
+  z.addEventListener('drop',e=>{e.preventDefault();z.classList.remove('arrastando');adicionar(e.dataTransfer&&e.dataTransfer.files)})}
+ const b=id=>c.querySelector('#'+id);
+ if(b('cfLer'))b('cfLer').onclick=ler;
+ if(b('cfLimpar'))b('cfLimpar').onclick=()=>{limpar();atualizar()};
+ if(b('cfParar'))b('cfParar').onclick=()=>{if(J.ctl)J.ctl.abort()};
+}
+TELAS_V[ROTA]=el=>{SV='combustivel';if(typeof marcarSetor==='function')marcarSetor('combustivel');
+ shellV(el,ROTA,c=>{if(!APP.carregado){carregandoV(c);return}corpo(c)},{setor:'combustivel'})};
+
+window.COMB_FOTO_V74={prompt,montar,acharAlvo,acharProd,estado:()=>J};
 })();
 </script>
 <script id="jb-cores-nucleo">

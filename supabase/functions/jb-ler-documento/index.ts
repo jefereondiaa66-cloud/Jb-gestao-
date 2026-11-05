@@ -11,7 +11,8 @@
 // · A chave da API fica no cofre de segredos das funções do Supabase
 //   (ANTHROPIC_API_KEY). Ela nunca vai para o navegador nem para o repositório.
 // · Só atende quem está com a sessão do JB válida e pode lançar no
-//   almoxarifado ou no financeiro (ou é administrador).
+//   almoxarifado, no financeiro ou nas compras e consumos (lenha e combustível;
+//   V74: lançar abastecimentos por foto), ou é administrador.
 // · Não lê nem grava dados do sistema. Não guarda as imagens.
 //
 // Corpo: {prompt: string, paginas: [{tipo: "image/jpeg"|"image/png", dados: base64}]}
@@ -50,7 +51,7 @@ async function quem(auth: string) {
   const eu = await r.json().catch(() => null);
   if (!eu || !eu.uid) return null;
   const p = eu.permissoes || {};
-  const pode = !!eu.admin || !!(p.almox && p.almox.criar) || !!(p.financeiro && p.financeiro.criar);
+  const pode = !!eu.admin || !!(p.almox && p.almox.criar) || !!(p.financeiro && p.financeiro.criar) || !!(p.compras && p.compras.criar);
   return { uid: String(eu.uid), pode };
 }
 
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request) => {
   let eu;
   try { eu = await quem(auth); } catch { return falha(503, "servidor", "O servidor não confirmou o seu acesso agora. Tente de novo."); }
   if (!eu) return falha(401, "sessao", "Sua sessão terminou. Entre de novo no sistema.");
-  if (!eu.pode) return falha(403, "permissao", "Seu acesso não permite lançar no Almoxarifado nem no Financeiro.");
+  if (!eu.pode) return falha(403, "permissao", "Seu acesso não permite lançar no Almoxarifado, no Financeiro nem no Combustível.");
   if (!CHAVE_IA) {
     return falha(503, "sem_chave", "A leitura por IA ainda não foi ativada no servidor: falta guardar a chave da API do Claude (ANTHROPIC_API_KEY) nos segredos das funções do Supabase. Avise o administrador.");
   }
@@ -100,7 +101,7 @@ Deno.serve(async (req: Request) => {
       output_config: { effort: "medium" },
       messages: [{ role: "user", content: [...imagens, { type: "text", text: prompt }] }],
     }).finalMessage();
-    if (msg.stop_reason === "refusal") return falha(422, "recusado", "A IA não leu este documento. Confira se é uma nota, cupom, boleto ou fatura.");
+    if (msg.stop_reason === "refusal") return falha(422, "recusado", "A IA não leu esta imagem. Confira se é o documento ou a folha certa e tire a foto de novo.");
     const texto = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
     if (msg.stop_reason === "max_tokens") return falha(422, "cortado", "A leitura veio incompleta (documento grande demais de uma vez). Envie menos páginas.");
     if (!texto.trim()) return falha(502, "vazio", "A IA não devolveu a leitura. Tente de novo.");
