@@ -28254,7 +28254,7 @@ function msRedesenhar(){
    Formato da aba: 'Grupo do menu atual|Opção' ou ['Grupo|Opção','Nome curto na aba'].
    Ações (botões "+" no fim da barra) abrem o formulário de lançamento. */
 const AREAS_MS=[
- {g:'Início',ic:'painel',semBarra:true,abas:[['Início|Dashboard','Painel'],'Início|Alertas e pendências','Início|JB Inteligência']},
+ {g:'Início',ic:'painel',semBarra:true,abas:[['Início|Dashboard','Painel'],'Início|Variações mês a mês','Início|Alertas e pendências','Início|JB Inteligência']},
  {g:'Pessoas',ic:'pessoas',tambem:{ficha:'funcionarios'},
   abas:[['Funcionários|Cadastro de funcionários','Funcionários'],['Funcionários|Funcionários ativos','Ativos'],['Funcionários|Sem carteira assinada','Sem carteira'],
    ['Funcionários|Funcionários desligados','Desligados'],['Admissão|Processos de admissão','Admissões'],['Admissão|Exame admissional (ASO)','Exame admissional'],
@@ -28383,6 +28383,10 @@ function msNavHtml(r){
  if(msOps().length)h+=`<button type="button" class="ms-lancar" data-ms-lancar aria-label="Lançar" title="Lançar produção, falta, hora extra, vale, férias e mais">${ic('mais')}<span>Lançar</span></button>`;
  AREAS_MS.forEach(a=>{
   const vis=msVis(a);if(!vis.length)return;const on=a===at;
+  /* Início continua como lista que abre: o painel não tem barra de abas */
+  if(a.semBarra&&vis.length>1){const ab=MABERTO[a.g]===undefined?on:MABERTO[a.g];const x0=on?msAbaAtiva(a,r):null;
+   h+=`<div class="ngrupo ${ab?'ab':''}"><button type="button" class="ngt" data-ng="${esc(a.g)}" aria-expanded="${ab}"><span class="ngi-ic">${ic(a.ic)}</span><span class="ngt-l">${esc(a.g)}</span><span class="ngt-s">${ic('direita')}</span></button>
+    <div class="ngi">${vis.map(x=>`<a href="#/${x.m}" data-ms-aba="${a.A.indexOf(x)}" data-ms-g="${esc(a.g)}" class="${x===x0?'on':''}"${x===x0?' aria-current="page"':''}><span>${esc(x.l)}</span>${x.m==='alertas'?'<span class="qt" id="qtAlertas" hidden></span>':''}</a>`).join('')}</div></div>`;return}
   h+=`<div class="ngrupo ms-dir${on?' ab':''}"><a class="ngt" href="javascript:void 0" data-ms-area="${esc(a.g)}" data-tip="${esc(a.g)}"${on?' aria-current="page"':''}><span class="ngi-ic">${ic(a.ic)}</span><span class="ngt-l">${esc(a.g)}</span><span class="ngt-s">${ic('direita')}</span></a></div>`;
  });
  /* tudo o que ainda não existe fica num grupo só, sinalizado, sem fingir que funciona */
@@ -28523,6 +28527,7 @@ document.addEventListener('click',e=>{
   const ar=t.closest('[data-ms-area]');if(ar){e.preventDefault();e.stopPropagation();msIrArea(ar.dataset.msArea);return}
   const ab=t.closest('[data-ms-aba]');
   if(ab){if(e.ctrlKey||e.metaKey||e.shiftKey||e.button)return;e.preventDefault();e.stopPropagation();
+   if(ab.closest('#side'))try{fecharMenu()}catch(e2){}
    const a=AREAS_MS.find(x=>x.g===ab.dataset.msG);if(a){MSIM.area=a.g;msAbrirAba(a.A[+ab.dataset.msAba])}return}
   const ac=t.closest('[data-ms-ac]');
   if(ac){e.preventDefault();e.stopPropagation();const a=AREAS_MS.find(x=>x.g===ac.dataset.msG);if(a){MSIM.area=a.g;msAbrirAcao(a.C[+ac.dataset.msAc])}return}
@@ -29188,7 +29193,7 @@ const PAPEIS_TODOS=[...new Set(Object.values(PERM).flatMap(p=>(p&&p.v)||[]).conc
 PERM[ROTA]={v:PAPEIS_TODOS,e:[]};
 PERM[ROTA_DP]={v:((PERM.painel&&PERM.painel.v)||TODOS).slice(),e:[]};
 if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
-try{if(typeof AREAS_MS!=='undefined'){const a=AREAS_MS.find(x=>x.g==='Início');if(a&&!a.itens.some(([m])=>m===ROTA_DP))a.itens.splice(1,0,[ROTA_DP,'Variações mês a mês'])}}catch(e){}
+try{if(typeof msAddAba==='function')msAddAba('Início',ROTA_DP,'Variações mês a mês')}catch(e){}
 
 /* ---------- utilidades ---------- */
 const okM=m=>/^\d{4}-\d{2}$/.test(m||'');
