@@ -31617,15 +31617,17 @@ function iniAcessoHtml(){
 }
 function iniAplicar(){
  const c=document.getElementById('conteudo');if(!c)return;
- const r=lerRota();const eh=r.mod==='painel'&&!!c.querySelector(':scope>.cc-faixa');
+ /* os três visuais: Concretiza tem a faixa preta (.cc-faixa); Branco e laranja e JB têm o
+    cabeçalho "Painel" (.ex-cab) e os quadros de números (.hero). Esse é o "painel de cima" que fica. */
+ const r=lerRota();const eh=r.mod==='painel'&&!!c.querySelector(':scope>.cc-faixa,:scope>.hero,:scope>.ex-cab');
  c.classList.toggle('ini-dp',eh);
  INI_PARTES.forEach(([k])=>c.classList.toggle('ini-sem-'+k,eh&&!iniMostra(k)));
  if(!eh)return;
  const velho=c.querySelector(':scope>#arDP');if(velho)velho.remove();
  const d=document.createElement('div');d.innerHTML=iniAcessoHtml();const s=d.firstElementChild;
- const faixa=c.querySelector(':scope>.cc-faixa');
  const ref=c.querySelector(':scope>.ex2')||c.querySelector(':scope>.ex3')||c.querySelector(':scope>.ex4')||c.querySelector(':scope>.mv')||c.querySelector(':scope>.rodape');
- if(ref)c.insertBefore(s,ref);else faixa.after(s);
+ const topo=c.querySelector(':scope>.hero')||c.querySelector(':scope>.cc-faixa')||c.querySelector(':scope>.ex-cab');
+ if(ref)c.insertBefore(s,ref);else if(topo)topo.after(s);else c.appendChild(s);
  const ops=(()=>{try{return msOps()}catch(e){return[]}})();
  s.querySelectorAll('[data-ar-op]').forEach(b=>b.onclick=()=>{const o=ops[+b.dataset.arOp];if(o)o.ir()});
  s.querySelectorAll('[data-ar-aba]').forEach(b=>b.onclick=()=>{const a=AREAS_MS.find(x=>x.g===b.dataset.arG);if(a){MSIM.area=a.g;msAbrirAba(a.A[+b.dataset.arAba])}});
@@ -31655,7 +31657,7 @@ function iniSecaoConfig(el){
  const ed=pode('config','e');
  const ref=el.querySelector('#msCfg')||el.querySelector('#ndpCfg')||[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
  const n=document.createElement('fieldset');n.className='sec ini-cfg';n.id='iniCfg';
- n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra a faixa de cima (funcionários ativos, carteira, custo e pendências) e o Acesso rápido com todas as funções. As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
+ n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra o painel de cima (funcionários ativos, carteira, custo, admissões e pendências) e o Acesso rápido com todas as funções, nos três visuais. As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
   <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
   <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
