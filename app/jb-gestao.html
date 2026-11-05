@@ -6499,6 +6499,7 @@ function telaDiagnostico(el){
 const MENU=[
 ['Início','painel',[
  {m:'painel',l:'Dashboard'},
+ {m:'dpvariacoes',l:'Variações mês a mês'},
  {m:'lancar',l:'Lançamentos do funcionário'},
  {m:'alertas',l:'Alertas e pendências'},
  {m:'ia',l:'JB Inteligência'},
@@ -7433,7 +7434,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 63 · novembro de 2026';
+const VERSAO='Versão 73 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -28885,6 +28886,533 @@ window.semVencimentoV63=semVenc;
 {const d0=detalheOpV;detalheOpV=function(c,O,v){d0(c,O,v);
  try{if(!semVenc(v))return;$$('.vv-kv dt',c).forEach(dt=>{if(dt.textContent==='Vencimento'){const dd=dt.nextElementSibling;if(dd)dd.textContent='Sem data de vencimento'}})}catch(e){}}}
 window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,semVenc};
+})();
+</script>
+<style id="variacoes-v73-css">
+/* V73 · Variações mês a mês: só cores do tema (variáveis), funciona no claro, no escuro e em todos os visuais */
+.vr-mesbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.vr-mesbar input[type=month]{max-width:170px}
+.vr-mesbar .vr-cmp{color:var(--suave);font-size:13px}
+.vr-mesbar .vr-cmp b{color:var(--tinta)}
+.vr-cab-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.vr-cab-acoes select{max-width:240px}
+.vr-res{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.vr-res>div{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
+.vr-res h4{margin:0 0 8px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--suave);display:flex;gap:6px;align-items:center;font-weight:700}
+.vr-res h4 i{font-style:normal;font-size:13px}
+.vr-res .sobe h4 i{color:var(--ok)}.vr-res .desce h4 i{color:var(--pe)}
+.vr-res ul{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:13px}
+.vr-res li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.vr-res li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-res .vazio-l{color:var(--fraco);font-size:12.5px}
+.vr-frase{margin:0 0 14px;font-size:13.5px;line-height:1.5;color:var(--tinta);background:var(--branco);border:1px solid var(--linha);border-left:3px solid var(--brasa);border-radius:var(--r2);padding:10px 14px}
+.vr-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px;margin-bottom:16px}
+.vr-card{font:inherit;color:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:5px;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:14px 16px 12px;box-shadow:var(--sombra);min-width:0;position:relative;transition:border-color .15s,transform .15s}
+.vr-card:hover{border-color:var(--brasa)}
+.vr-card:focus-visible{outline:2px solid var(--brasa);outline-offset:2px}
+.vr-card.on{border-color:var(--brasa);box-shadow:0 0 0 1px var(--brasa),var(--sombra)}
+.vr-card>span{display:block;min-width:0}
+.vr-card .vr-l{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--suave)}
+.vr-card .vr-v{font-size:22px;font-weight:700;color:var(--tinta);line-height:1.15;overflow-wrap:anywhere}
+.vr-card .vr-sub{font-size:12px;color:var(--suave);line-height:1.4}
+.vr-card .vr-sub b{color:var(--tinta);font-weight:600}
+.vr-card .vr-nota{font-size:11.5px;color:var(--at);font-weight:600}
+.vr-pill{display:inline-flex!important;align-items:center;gap:4px;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;width:max-content;max-width:100%;white-space:nowrap;line-height:1.5}
+.vr-pill.bom{color:var(--ok);background:var(--ok-bg)}
+.vr-pill.ruim{color:var(--pe);background:var(--pe-bg)}
+.vr-pill.neu{color:var(--suave);background:var(--linha2)}
+.vr-pill.mini{font-size:11px;padding:0 7px}
+.vr-gr{display:flex;align-items:stretch;gap:6px;min-width:0}
+.vr-gr .vr-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;cursor:pointer;background:none;border:0;padding:0;font:inherit;color:inherit}
+.vr-gr .vr-plot{display:flex;flex-direction:column;height:var(--vr-h,170px)}
+.vr-gr .vr-ar{display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;min-height:0}
+.vr-gr .vr-ar.n{justify-content:flex-start;border-top:1px solid var(--linha)}
+.vr-gr .vr-ar i{display:block;background:var(--brasa);opacity:.38;border-radius:4px 4px 0 0;min-height:0;transition:opacity .15s}
+.vr-gr .vr-ar.n i{background:var(--pe);border-radius:0 0 4px 4px}
+.vr-gr .vr-col.on .vr-ar i{opacity:1}
+.vr-gr .vr-col:hover .vr-ar i{opacity:.75}
+.vr-gr .vr-col.nd .vr-plot{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--linha2) 6px 7px);border-radius:4px}
+.vr-gr .vr-x{font-size:11px;color:var(--suave);text-align:center;margin-top:6px;white-space:nowrap;overflow:hidden}
+.vr-gr .vr-col.on .vr-x{color:var(--tinta);font-weight:700}
+.vr-gr.mini{gap:3px;margin-top:6px}
+.vr-gr.mini .vr-plot{height:34px}
+.vr-gr.mini .vr-ar i{border-radius:2px 2px 0 0}
+.vr-graf>.vr-in{padding:4px 18px 16px}
+.vr-graf .vr-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.vr-tab-aj{padding:0 18px 14px}
+.vr-graf .vr-chips button{font:inherit;font-size:12.5px;border:1px solid var(--linha);background:var(--branco);color:var(--tinta);border-radius:999px;padding:4px 11px;cursor:pointer}
+.vr-graf .vr-chips button.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
+.vr-graf .vr-sel{font-size:13px;color:var(--suave);margin:0 0 10px}
+.vr-graf .vr-sel b{color:var(--tinta)}
+.vr-tab th,.vr-tab td{white-space:nowrap}
+.vr-tab tbody tr{cursor:pointer}
+.vr-tab tbody tr.on td{background:var(--brasa-bg);font-weight:600}
+.vr-tab td .vr-pill{margin-left:6px}
+.vr-tab td.vr-m{position:sticky;left:0;background:var(--branco);z-index:1}
+.vr-tab tbody tr.on td.vr-m{background:var(--brasa-bg)}
+.vr-ajuda{font-size:12.5px;color:var(--suave);margin:8px 2px 0;line-height:1.5}
+.vr-setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.vr-set{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);box-shadow:var(--sombra);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.vr-set header{display:flex;align-items:center;gap:10px;min-width:0}
+.vr-set header b{flex:1;min-width:0;font-size:15px}
+.vr-set .vr-cont{font-size:12px;color:var(--suave);white-space:nowrap}
+.vr-set .vr-cont .s{color:var(--ok);font-weight:700}.vr-set .vr-cont .d{color:var(--pe);font-weight:700}
+.vr-set ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.vr-set li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.vr-set li span{font-size:12.5px;color:var(--suave);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-set li b{font-size:14.5px;grid-column:1}
+.vr-set li .vr-pill{grid-column:2;grid-row:1/span 2;justify-self:end}
+.vr-set .btn{align-self:flex-start;margin-top:auto}
+.vr-atalho{margin:-4px 0 18px}
+@media (max-width:760px){
+ .vr-res{grid-template-columns:1fr}
+ .vr-grade{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+ .vr-card{padding:12px 12px 10px}
+ .vr-card .vr-v{font-size:19px}
+ .vr-gr{gap:3px}
+ .vr-gr .vr-x{font-size:9.5px}
+ .vr-mesbar .vr-cmp{flex-basis:100%}
+}
+@media print{.vr-card,.vr-set{box-shadow:none}.vr-mesbar button,.vr-cab-acoes{display:none}}
+</style>
+<script id="variacoes-v73">
+"use strict";
+/* ================= V73 · Variações mês a mês em todos os setores (05/11/2026) =================
+   Pedido do Jeferson: em todos os setores, um painel de variações comparando com outros meses,
+   mostrando se cada número cresceu ou diminuiu.
+   · Cada setor ganha a aba "Variações" (logo depois de Início). O Setor Pessoal ganha a opção
+     "Variações mês a mês" no grupo Início do menu. Na tela de seleção de setores, o atalho
+     "Variações de todos os setores" abre a visão geral, um cartão por setor.
+   · SÓ LÊ: nada é gravado e nenhum cálculo existente muda. Cada número sai das mesmas funções que
+     os setores já usam (Produção por mês, custo da lenha, custo da folha × 1,29, vendas faturadas,
+     Controladoria, Financeiro, almoxarifado, paletes e barro).
+   · Compara o mês escolhido com o mês anterior e com a média dos 3 meses anteriores; mostra os
+     últimos 12 meses em gráfico e em tabela. Número que não dá para calcular aparece como "—".
+   · Cor só onde o sentido é claro: verde quando melhorou (venda subiu, custo caiu), vermelho quando
+     piorou; números neutros (funcionários, litros, metros de lenha) ficam em cinza.
+   · Permissão: quem não entra num setor não vê as variações dele; dentro do setor, cada número
+     respeita a permissão da tela de onde ele vem (ex.: custo da folha só para quem vê a folha). */
+(()=>{
+const ROTA='setor-variacoes',ROTA_DP='dpvariacoes';
+
+/* ---------- rotas e permissões (a tela é de todos; cada setor confere o próprio acesso) ---------- */
+const PAPEIS_TODOS=[...new Set(Object.values(PERM).flatMap(p=>(p&&p.v)||[]).concat(typeof TODOS!=='undefined'?TODOS:[],typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[]))];
+PERM[ROTA]={v:PAPEIS_TODOS,e:[]};
+PERM[ROTA_DP]={v:((PERM.painel&&PERM.painel.v)||TODOS).slice(),e:[]};
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+try{if(typeof AREAS_MS!=='undefined'){const a=AREAS_MS.find(x=>x.g==='Início');if(a&&!a.itens.some(([m])=>m===ROTA_DP))a.itens.splice(1,0,[ROTA_DP,'Variações mês a mês'])}}catch(e){}
+
+/* ---------- utilidades ---------- */
+const okM=m=>/^\d{4}-\d{2}$/.test(m||'');
+const em=(d,m)=>String(d||'').startsWith(m);
+const num=v=>v==null||v===''||!isFinite(+v)?null:+v;
+const sm=(xs,f)=>(xs||[]).reduce((a,x)=>a+(+f(x)||0),0);
+const r2=v=>Math.round((+v||0)*100)/100;
+const r3=v=>Math.round((+v||0)*1000)/1000;
+const ant=m=>mesMenos(m,1);
+const NM=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const longo=m=>okM(m)?NM[+m.slice(5,7)-1]+' de '+m.slice(0,4):'';
+const curto=m=>fMes(m);
+const janela=(m,n)=>{const L=[];for(let i=n-1;i>=0;i--)L.push(mesMenos(m,i));return L};
+const fimMes=m=>{const [y,mo]=m.split('-').map(Number);return m+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0')};
+const vendasMes=m=>typeof vendasFatV==='function'?vendasFatV({ini:m+'-01',fim:fimMes(m)}):[];
+
+/* ---------- memória dos cálculos: vale enquanto os dados não mudam ---------- */
+let SIG=null;const CACHE=new Map();
+function conferirMemo(){
+ const s=Object.keys(DATA).map(k=>DATA[k]);s.push(typeof CFG!=='undefined'?CFG:null,APP.papel,APP.canEdit,hoje());
+ if(!SIG||SIG.length!==s.length||s.some((x,i)=>x!==SIG[i])){SIG=s;CACHE.clear()}
+}
+function uma(k,fn){if(CACHE.has(k))return CACHE.get(k);let v;try{v=fn()}catch(e){console.warn('variações',k,e);v=null}CACHE.set(k,v);return v}
+
+/* ================= os números de cada setor =================
+   base(m): o que o setor calcula uma vez para o mês; cada indicador lê dali.
+   u: moeda | qtd | pct | h · bom: '+' (subir é bom), '-' (subir é ruim), 0 (neutro). */
+const SETS={
+ dp:{nome:'Setor Pessoal',curto:'Setor Pessoal',ic:'pessoas',rota:'#/'+ROTA_DP,
+  base:m=>{const fim=fimMes(m);const F=DATA.funcionarios||[];let cf=null;
+   if(pode('folha')&&veSensivel()&&typeof custoFolhaMes==='function'){const c=custoFolhaMes(m,{previa:true});
+    if(c&&c.pessoas)cf={v:(x=>x>0?x:null)(r2(c.prod.comFator+c.prod.semCarteira+c.adm.comFator+c.adm.semCarteira)),fechada:c.fechada}}
+   return{F,fim,cf}},
+  ind:[
+   {k:'ativos',l:'Funcionários em atividade',u:'qtd',suf:'pessoas',bom:0,ok:()=>pode('funcionarios'),
+    v:B=>{const n=B.F.filter(f=>(!f.admissao||f.admissao<=B.fim)&&(!f.dataDesligamento||f.dataDesligamento>B.fim)&&!(f.situacao==='Desligado'&&!f.dataDesligamento)).length;return n||null},ajuda:'no último dia do mês'},
+   {k:'folha',l:'Custo da folha',u:'moeda',bom:'-',ok:()=>pode('folha')&&veSensivel(),v:B=>B.cf?B.cf.v:null,
+    nota:B=>B.cf&&!B.cf.fechada?'folha ainda não fechada (prévia)':'',ajuda:'com carteira × 1,29 (13º, férias e FGTS) + sem carteira'},
+   {k:'extras',l:'Horas extras',u:'qtd',suf:'h',dec:1,bom:'-',ok:()=>pode('horasExtras'),
+    v:(B,m)=>r2(sm((DATA.horasExtras||[]).filter(x=>em(x.data,m)&&!/rejeit|cancel/i.test(x.situacao||'')),x=>x.horas))},
+   {k:'faltas',l:'Faltas registradas',u:'qtd',suf:'falta(s)',bom:'-',ok:()=>pode('diario'),
+    v:(B,m)=>(DATA.diario||[]).filter(x=>em(x.data,m)&&/^falta/i.test(x.tipo||'')).length},
+   {k:'adm',l:'Admissões',u:'qtd',suf:'pessoa(s)',bom:0,ok:()=>pode('funcionarios'),v:(B,m)=>B.F.filter(f=>em(f.admissao,m)).length},
+   {k:'desl',l:'Desligamentos',u:'qtd',suf:'pessoa(s)',bom:'-',ok:()=>pode('funcionarios'),v:(B,m)=>B.F.filter(f=>em(f.dataDesligamento,m)).length},
+   {k:'vales',l:'Vales e adiantamentos',u:'moeda',bom:0,ok:()=>pode('vales'),
+    v:(B,m)=>r2(sm((DATA.vales||[]).filter(x=>em(x.data,m)&&!/cancel|rejeit/i.test(x.situacao||'')),x=>x.valor))}]},
+
+ vendas:{nome:'Setor de Vendas',curto:'Vendas',ic:'recibo',
+  base:m=>{const xs=vendasMes(m);let rec=0;
+   (DATA.vendas||[]).forEach(v=>{if(v.setor!=='vendas'||cancV(v))return;(v.pagamentos||[]).forEach(p=>{if(!p.estornado&&em(p.data,m))rec+=+p.valor||0})});
+   const ehMil=i=>typeof UN_MILHEIRO==='function'?UN_MILHEIRO(i.unidade):/milheiro/i.test(String(i.unidade||''));
+   const mil=typeof milheirosV==='function'?milheirosV(xs):r3(sm(xs,x=>sm((x.itens||[]).filter(ehMil),i=>i.qtd)));
+   return{xs,rec:r2(rec),mil,vmil:sm(xs,x=>sm((x.itens||[]).filter(ehMil),i=>i.total))}},
+  ind:[
+   {k:'fat',l:'Faturamento',u:'moeda',bom:'+',v:B=>r2(sm(B.xs,x=>x.total)),ajuda:'vendas faturadas no mês'},
+   {k:'mil',l:'Milheiros vendidos',u:'qtd',suf:'milheiros',dec:1,bom:'+',v:B=>r3(B.mil)},
+   {k:'nv',l:'Vendas faturadas',u:'qtd',suf:'venda(s)',bom:'+',v:B=>B.xs.length},
+   {k:'pm',l:'Preço médio do milheiro',u:'moeda',bom:'+',v:B=>B.mil>0?r2(B.vmil/B.mil):null},
+   {k:'rec',l:'Recebido no mês',u:'moeda',bom:'+',ok:()=>pode('receber'),v:B=>B.rec},
+   {k:'dev',l:'Descontos e devoluções',u:'moeda',bom:'-',v:B=>r2(sm(B.xs,x=>(+x.descGeral||0)+(+x.devolvido||0)))}]},
+
+ fiscal:{nome:'Setor Fiscal',curto:'Fiscal',ic:'recibo',
+  base:m=>{const ns=(DATA.nfe||[]).filter(n=>n.status!=='descartada'&&n.ambiente==='producao'&&em(n.data,m));
+   const aut=ns.filter(n=>n.status==='autorizada');
+   const vNF=n=>{const t=n.emitido&&n.emitido.totais;return t&&isFinite(+t.vNF)?+t.vNF/100:0};
+   const xs=vendasMes(m);
+   const temNota=x=>!!(x.v&&x.v.fiscal&&x.v.fiscal.numero)||(DATA.nfe||[]).some(n=>n.origem&&n.origem.vendaId===x.id&&n.status==='autorizada'&&n.ambiente==='producao');
+   return{ns,aut,valor:r2(sm(aut,vNF)),xs,comNota:xs.filter(temNota).length}},
+  ind:[
+   {k:'naut',l:'NF-e autorizadas',u:'qtd',suf:'nota(s)',bom:'+',v:B=>B.aut.length,ajuda:'em produção, pela data da nota'},
+   {k:'vaut',l:'Valor das notas autorizadas',u:'moeda',bom:'+',v:B=>B.valor},
+   {k:'canc',l:'Notas canceladas',u:'qtd',suf:'nota(s)',bom:'-',v:B=>B.ns.filter(n=>n.status==='cancelada').length},
+   {k:'rej',l:'Notas rejeitadas',u:'qtd',suf:'nota(s)',bom:'-',v:B=>B.ns.filter(n=>n.status==='rejeitada').length},
+   {k:'cob',l:'Vendas do mês com nota',u:'pct',bom:'+',v:B=>B.xs.length?B.comNota/B.xs.length*100:null,ajuda:'vendas faturadas que já têm NF-e'}]},
+
+ lenha:{nome:'Setor da Lenha',curto:'Lenha',ic:'chama',
+  base:m=>{const L=window.LENHA_V50&&LENHA_V50.calcLenha?uma('lenha:calc',()=>LENHA_V50.calcLenha()):null;return{R:L&&L.rows?L.rows.find(x=>x.m===m)||null:null}},
+  ind:[
+   {k:'cv',l:'Compras de lenha',u:'moeda',bom:'-',v:B=>B.R?r2(B.R.cv):null},
+   {k:'cq',l:'Lenha comprada',u:'qtd',suf:'m³',dec:1,bom:0,v:B=>B.R?r2(B.R.cq):null},
+   {k:'qq',l:'Lenha queimada',u:'qtd',suf:'m³',dec:1,bom:0,v:B=>B.R?r2(B.R.qq):null},
+   {k:'custo',l:'Custo da lenha queimada',u:'moeda',bom:'-',v:B=>B.R?r2(B.R.custo):null},
+   {k:'cm',l:'Custo médio do m³',u:'moeda',bom:'-',v:B=>B.R&&B.R.cm>0?r2(B.R.cm):null,ajuda:'custo médio ponderado do mês'},
+   {k:'rpm',l:'Lenha por milheiro',u:'moeda',bom:'-',v:B=>B.R&&B.R.rpm!=null&&isFinite(B.R.rpm)?r2(B.R.rpm):null,ajuda:'custo da lenha ÷ milheiros queimados'},
+   {k:'fim',l:'Estoque no fim do mês',u:'qtd',suf:'m³',dec:1,bom:0,v:B=>B.R?r2(B.R.fim):null}]},
+
+ combustivel:{nome:'Setor de Combustível',curto:'Combustível',ic:'bomba',
+  base:m=>{const cs=(DATA.consumos||[]).filter(c=>c.setor==='combustivel'&&em(c.data,m));
+   const cp=(DATA.compras||[]).filter(c=>c.setor==='combustivel'&&!cancV(c)&&em(c.data,m));
+   const it=cp.flatMap(c=>c.itens||[]);return{cs,cp,L:sm(it,i=>i.qtd),vit:sm(it,i=>i.total)}},
+  ind:[
+   {k:'lit',l:'Litros abastecidos',u:'qtd',suf:'L',bom:0,v:B=>r2(sm(B.cs,c=>c.quantidade))},
+   {k:'cab',l:'Custo dos abastecimentos',u:'moeda',bom:'-',v:B=>r2(sm(B.cs,c=>c.custoTotal))},
+   {k:'nab',l:'Abastecimentos',u:'qtd',suf:'lançamento(s)',bom:0,v:B=>B.cs.length},
+   {k:'comp',l:'Compras de combustível',u:'moeda',bom:'-',v:B=>r2(sm(B.cp,c=>c.total))},
+   {k:'lcomp',l:'Litros comprados',u:'qtd',suf:'L',bom:0,v:B=>r2(B.L)},
+   {k:'pl',l:'Preço médio do litro',u:'moeda',bom:'-',v:B=>B.L>0?r2(B.vit/B.L):null,ajuda:'nas compras do mês'}]},
+
+ producao:{nome:'Setor de Produção',curto:'Produção',ic:'caixa',
+  base:m=>{const P=window.PRODUCAO_SETOR&&PRODUCAO_SETOR.indicMes?PRODUCAO_SETOR.indicMes(m):null;return{P}},
+  ind:[
+   {k:'des',l:'Produzido (desenforna)',u:'qtd',suf:'milheiros',dec:1,bom:'+',v:B=>B.P?r3((+B.P.des||0)/1000):null,ajuda:'tijolos bons e perdas que saíram do forno'},
+   {k:'liq',l:'Moldado na maromba',u:'qtd',suf:'milheiros',dec:1,bom:'+',v:B=>B.P?r3((+B.P.liq||0)/1000):null},
+   {k:'enf',l:'Enfornado',u:'qtd',suf:'milheiros',dec:1,bom:'+',v:B=>B.P?r3((+B.P.enf||0)/1000):null},
+   {k:'aprov',l:'Aproveitamento',u:'pct',bom:'+',v:B=>B.P&&B.P.aprov!=null?B.P.aprov:null,ajuda:'1ª + 2ª sobre o desenfornado'},
+   {k:'perdas',l:'Perdas no mês',u:'qtd',suf:'milheiros',dec:1,bom:'-',v:B=>B.P?r3((+B.P.perTot||0)/1000):null,ajuda:'maromba + secagem + forno'},
+   {k:'parado',l:'Maromba parada',u:'qtd',suf:'h',dec:1,bom:'-',v:B=>B.P&&(B.P.liq>0||B.P.parado>0)?r2((+B.P.parado||0)/60):null,ajuda:'paradas por falha (sem a refeição)'},
+   {k:'porH',l:'Ritmo da maromba',u:'qtd',suf:'tijolos/h',bom:'+',v:B=>B.P&&B.P.porH!=null&&isFinite(B.P.porH)?Math.round(B.P.porH):null}]},
+
+ financeiro:{nome:'Setor Financeiro',curto:'Financeiro',ic:'moeda',
+  base:m=>{const FS=window.FINANCEIRO_SETOR;const OS=FS&&FS.obrigacoes?uma('fin:obrig',()=>FS.obrigacoes().filter(o=>!o.cancelado))||[]:[];
+   let pago=0,nPag=0;OS.forEach(o=>{const ps=(o.pagamentos||[]).filter(p=>em(p.data,m));if(ps.length){nPag++;pago+=sm(ps,p=>p.valor)}});
+   const due=OS.filter(o=>em(o.venc,m)&&o.valor>0);
+   const ult=o=>(o.pagamentos||[]).map(p=>p.data).filter(Boolean).sort().pop()||'';
+   const pont=due.filter(o=>o.s&&o.s.saldo<=0.004&&ult(o)&&ult(o)<=o.venc).length;
+   const ext=(DATA.fExtrato||[]).filter(l=>!(l.conc&&l.conc.tipo==='duplicada')&&em(l.data,m));
+   return{pago:r2(pago),nPag,venc:r2(sm(due,o=>o.valor)),aberto:r2(sm(due,o=>o.s?o.s.saldo:0)),nDue:due.length,pont:due.length?pont/due.length*100:null,
+    ent:r2(sm(ext.filter(l=>l.valor>0),l=>l.valor)),sai:r2(-sm(ext.filter(l=>l.valor<0),l=>l.valor))}},
+  ind:[
+   {k:'pago',l:'Total pago no mês',u:'moeda',bom:0,v:B=>B.pago,ajuda:'pagamentos registrados com data no mês'},
+   {k:'npag',l:'Contas pagas',u:'qtd',suf:'conta(s)',bom:0,v:B=>B.nPag},
+   {k:'venc',l:'Compromissos do mês',u:'moeda',bom:'-',v:B=>B.venc,ajuda:'contas com vencimento no mês'},
+   {k:'aberto',l:'Do mês, ainda sem pagar',u:'moeda',bom:'-',v:B=>B.aberto,ajuda:'saldo de hoje das contas que vencem no mês'},
+   {k:'pont',l:'Pagas até o vencimento',u:'pct',bom:'+',v:B=>B.pont},
+   {k:'ent',l:'Entradas no banco',u:'moeda',bom:'+',ok:()=>pode('fextrato'),v:B=>B.ent,ajuda:'extratos importados'},
+   {k:'sai',l:'Saídas no banco',u:'moeda',bom:'-',ok:()=>pode('fextrato'),v:B=>B.sai,ajuda:'extratos importados'}]},
+
+ barro:{nome:'Setor do Barro',curto:'Barro',ic:'caixa',
+  base:m=>{const X=window.BARRO_V57;if(!X)return{};const t=X.totCons(X.consMes(m));let r=null;
+   const ini=X.inicioEstoque?X.inicioEstoque():null;if(ini&&ini<=fimMes(m)&&X.resumoMes)r=X.resumoMes(m);
+   const ext=!!(X.cfgB&&X.cfgB().mostrarExtracao);return{t,r,ext}},
+  ind:[
+   {k:'ton',l:'Barro consumido',u:'qtd',suf:'t',dec:2,bom:0,v:B=>B.t?r2(B.t.ton):null,ajuda:'pela produção da maromba'},
+   {k:'valor',l:'Valor do barro consumido',u:'moeda',bom:'-',v:B=>B.t?r2(B.t.valor):null},
+   {k:'porMil',l:'Barro por milheiro',u:'moeda',bom:'-',v:B=>B.t&&B.t.porMil!=null&&isFinite(B.t.porMil)?r2(B.t.porMil):null},
+   {k:'tij',l:'Moldado (base do consumo)',u:'qtd',suf:'milheiros',dec:1,bom:'+',v:B=>B.t?r3((+B.t.tij||0)/1000):null},
+   {k:'fim',l:'Estoque no fim do mês',u:'qtd',suf:'t',dec:2,bom:0,v:B=>B.r?r2(B.r.fim):null},
+   {k:'ext',l:'Barro extraído',u:'qtd',suf:'t',dec:2,bom:0,ok:()=>{try{return !!(window.BARRO_V57&&BARRO_V57.cfgB().mostrarExtracao)}catch(e){return false}},v:B=>B.r?r2(B.r.ext):null}]},
+
+ almox:{nome:'Setor do Almoxarifado / Cozinha',curto:'Almoxarifado',ic:'caixa',
+  base:m=>{const A=window.ALMOX_V52;const T=A&&A.movsAlm?uma('alm:movs',()=>A.movsAlm())||[]:[];const L=T.filter(x=>em(x.data,m));
+   const s=t=>sm(L.filter(x=>x.tipo===t),x=>x.valor);
+   return{ent:r2(s('Entrada')),cons:r2(-(s('Saída')+s('Devolução'))),perdas:r2(-sm(L.filter(x=>/^Ferramenta/.test(x.tipo)||(x.tipo==='Ajuste'&&x.valor<0)),x=>x.valor)),
+    nReq:(DATA.almSaidas||[]).filter(x=>em(x.data,m)).length,epi:r3(sm((DATA.almEpis||[]).filter(x=>em(x.data,m)),x=>x.qtd))}},
+  ind:[
+   {k:'ent',l:'Compras e entradas',u:'moeda',bom:'-',v:B=>B.ent},
+   {k:'cons',l:'Consumo (requisições)',u:'moeda',bom:'-',v:B=>B.cons,ajuda:'saídas para os setores, menos devoluções'},
+   {k:'nreq',l:'Requisições',u:'qtd',suf:'requisição(ões)',bom:0,v:B=>B.nReq},
+   {k:'epi',l:'EPIs entregues',u:'qtd',suf:'peça(s)',bom:0,v:B=>B.epi},
+   {k:'perdas',l:'Perdas e ajustes de saída',u:'moeda',bom:'-',v:B=>B.perdas,ajuda:'ferramentas perdidas ou danificadas e ajustes para menos'}]},
+
+ paletes:{nome:'Setor de Paletes',curto:'Paletes',ic:'caixa',
+  base:m=>{const M=(DATA.paleteMov||[]).filter(x=>em(x.data,m));const q=x=>+x.qtd||0;
+   const vCanc=x=>x.vendaId&&typeof VEN==='function'&&VEN(x.vendaId)&&cancV(VEN(x.vendaId));
+   const t=k=>sm(M.filter(x=>x.tipo===k&&!(k==='cobranca'&&vCanc(x))),q);
+   const bq=x=>(x.bom!==''&&x.bom!=null)||(x.quebrado!==''&&x.quebrado!=null);
+   const dev=M.filter(x=>x.tipo==='devolucao');
+   return{saida:t('saida'),devol:sm(dev,x=>bq(x)?(+x.bom||0)+(+x.quebrado||0):q(x)),quebra:t('quebra')+sm(dev,x=>bq(x)?+x.quebrado||0:0),
+    cobr:t('cobranca'),desc:t('descarte'),gasto:r2(sm((DATA.paleteCompras||[]).filter(x=>em(x.data,m)),x=>x.total))}},
+  ind:[
+   {k:'saida',l:'Enviados a clientes',u:'qtd',suf:'palete(s)',bom:0,v:B=>B.saida},
+   {k:'devol',l:'Devolvidos pelos clientes',u:'qtd',suf:'palete(s)',bom:'+',v:B=>B.devol},
+   {k:'quebra',l:'Quebrados',u:'qtd',suf:'palete(s)',bom:'-',v:B=>B.quebra},
+   {k:'cobr',l:'Cobrados (não devolvidos)',u:'qtd',suf:'palete(s)',bom:'-',v:B=>B.cobr},
+   {k:'desc',l:'Descartados',u:'qtd',suf:'palete(s)',bom:'-',v:B=>B.desc},
+   {k:'gasto',l:'Compras e consertos',u:'moeda',bom:'-',v:B=>B.gasto}]},
+
+ control:{nome:'Setor de Controladoria e Análise',curto:'Controladoria',ic:'grafico',
+  base:m=>{const C=window.CONTROLADORIA;return{R:C&&C.calcMes?C.calcMes(m):null}},
+  ind:[
+   {k:'receita',l:'Receita bruta',u:'moeda',bom:'+',v:B=>B.R&&B.R.v?num(B.R.v.receita):null},
+   {k:'custoProd',l:'Custo de produção',u:'moeda',bom:'-',v:B=>B.R&&B.R.custoProd>0?r2(B.R.custoProd):null},
+   {k:'cpm',l:'Custo por milheiro',u:'moeda',bom:'-',v:B=>B.R&&B.R.cpm!=null&&isFinite(B.R.cpm)?r2(B.R.cpm):null},
+   {k:'pm',l:'Preço médio do milheiro',u:'moeda',bom:'+',v:B=>B.R&&B.R.pm!=null&&isFinite(B.R.pm)?r2(B.R.pm):null},
+   {k:'LL',l:'Lucro líquido',u:'moeda',bom:'+',v:B=>B.R&&B.R.LL!=null&&isFinite(B.R.LL)?r2(B.R.LL):null},
+   {k:'ml',l:'Margem líquida',u:'pct',bom:'+',v:B=>B.R&&B.R.ml!=null&&isFinite(B.R.ml)?B.R.ml*100:null},
+   {k:'MC',l:'Margem de contribuição',u:'moeda',bom:'+',v:B=>B.R&&B.R.MC!=null&&isFinite(B.R.MC)?r2(B.R.MC):null},
+   {k:'idx',l:'Índice de perdas',u:'pct',bom:'-',v:B=>B.R&&B.R.idxPerdas!=null&&isFinite(B.R.idxPerdas)?B.R.idxPerdas*100:null}]}
+};
+const ORDEM=['producao','vendas','fiscal','lenha','barro','combustivel','almox','paletes','financeiro','dp','control'];
+
+/* ---------- quem vê cada setor: as mesmas regras da tela de setores ---------- */
+function setorVisivel(id){
+ if(!SETS[id])return false;
+ const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>x.id===id);if(!s||s.breve||s.prep)return false;
+ try{if(s.v&&!s.v())return false}catch(e){return false}
+ const mod=String(s.rota||'').replace(/^#\/?/,'').split('/')[0];return !!mod&&pode(mod);
+}
+const setoresVisiveis=()=>ORDEM.filter(setorVisivel);
+const rotaVar=id=>id==='dp'?'#/'+ROTA_DP:'#/'+ROTA+'/'+id;
+const indsDe=id=>SETS[id].ind.filter(I=>{try{return !I.ok||I.ok()}catch(e){return false}});
+
+/* ---------- valores ---------- */
+function base(id,m){return uma(id+'|base|'+m,()=>SETS[id].base(m))}
+function val(id,I,m){
+ return uma(id+'|'+I.k+'|'+m,()=>{if(!okM(m)||m>mesAtual())return{v:null};const B=base(id,m);if(!B)return{v:null};
+  let v=null,nota='';try{v=num(I.v(B,m));nota=I.nota?I.nota(B,m)||'':''}catch(e){console.warn('variações',id,I.k,e)}
+  return{v,nota}})||{v:null};
+}
+const media3=(id,I,m)=>{const xs=[1,2,3].map(i=>val(id,I,mesMenos(m,i)).v);return xs.every(x=>x!=null)?xs.reduce((a,b)=>a+b,0)/3:null};
+
+/* ---------- formatos ---------- */
+function fmt(I,v){
+ if(v==null||!isFinite(v))return '—';
+ if(I.u==='moeda')return fMoeda(v);
+ if(I.u==='pct')return fNum(v,1)+'%';
+ return fNum(v,I.dec||0)+(I.suf?' '+I.suf:'');
+}
+function fmtDif(I,d){
+ if(d==null||!isFinite(d))return '';const s=d>0?'+':d<0?'−':'';const a=Math.abs(d);
+ if(I.u==='pct')return s+fNum(a,1)+' p.p.';
+ if(I.u==='moeda')return s+fMoeda(a);
+ return s+fNum(a,I.dec||0)+(I.suf?' '+I.suf:'');
+}
+/* cresceu, diminuiu ou ficou igual; e se isso é bom, ruim ou neutro */
+function comparar(I,a,b){
+ if(a==null||b==null||!isFinite(a)||!isFinite(b))return{dir:'sem',cls:'neu'};
+ const dif=a-b;let rel=null,dir;
+ if(I.u==='pct'){if(Math.abs(dif)<0.05)dir='igual'}
+ else if(b===0){if(Math.abs(a)<1e-9)dir='igual'}
+ else{rel=dif/Math.abs(b)*100;if(Math.abs(rel)<0.5)dir='igual'}
+ if(!dir)dir=dif>0?'sobe':'desce';
+ const cls=dir==='igual'||!I.bom?'neu':(I.bom==='+')===(dif>0)?'bom':'ruim';
+ return{dir,cls,dif,rel,doZero:dir!=='igual'&&b===0&&I.u!=='pct'};
+}
+function pill(I,c,mini){
+ if(!c||c.dir==='sem')return `<span class="vr-pill neu${mini?' mini':''}">${mini?'—':'sem comparação'}</span>`;
+ const seta=c.dir==='sobe'?'▲':c.dir==='desce'?'▼':'=';
+ let t;
+ if(c.dir==='igual')t=mini?'':'estável';
+ else if(I.u==='pct')t=fNum(Math.abs(c.dif),1)+' p.p.';
+ else if(c.doZero)t=mini?'novo':'antes era zero';
+ else{const a=Math.abs(c.rel);t=(a>=1000?'mais de 999':fNum(a,a<10?1:0))+'%'}
+ const tip=c.dir==='sobe'?'cresceu':c.dir==='desce'?'diminuiu':'ficou igual';
+ return `<span class="vr-pill ${c.cls}${mini?' mini':''}" title="${esc(tip)}">${seta}${t?' '+esc(t):''}</span>`;
+}
+
+/* ---------- gráfico de barras (sem biblioteca: funciona sem internet, no tema e na impressão) ---------- */
+function barras(I,pts,sel,mini){
+ const vs=pts.map(p=>p.v).filter(v=>v!=null&&isFinite(v));
+ const mp=Math.max(0,...vs),mn=Math.max(0,...vs.map(v=>-v));const tot=(mp+mn)||1;
+ const hp=mn?mp/tot*100:100,hn=mn/tot*100;
+ return `<div class="vr-gr${mini?' mini':''}" role="img" aria-label="${esc(I.l+': '+pts.map(p=>curto(p.m)+' '+fmt(I,p.v)).join(', '))}">${pts.map(p=>{
+  const v=p.v;const nd=v==null||!isFinite(v);
+  const a=!nd&&v>0&&mp?v/mp*100:0,b=!nd&&v<0&&mn?-v/mn*100:0;
+  return `<${mini?'span':'button type="button"'} class="vr-col${p.m===sel?' on':''}${nd?' nd':''}"${mini?'':` data-vrmes="${esc(p.m)}"`} title="${esc(longo(p.m)+': '+fmt(I,v))}">
+   <span class="vr-plot"><span class="vr-ar p" style="height:${hp.toFixed(2)}%"><i style="height:${a.toFixed(2)}%"></i></span>${mn?`<span class="vr-ar n" style="height:${hn.toFixed(2)}%"><i style="height:${b.toFixed(2)}%"></i></span>`:''}</span>
+   ${mini?'':`<span class="vr-x">${esc(curto(p.m))}</span>`}</${mini?'span':'button'}>`}).join('')}</div>`;
+}
+
+/* ---------- estado da tela ---------- */
+const VR={mes:'',ind:{}};
+function mesSel(){if(!okM(VR.mes))VR.mes=mesMenos(mesAtual(),1);if(VR.mes>mesAtual())VR.mes=mesAtual();return VR.mes}
+function barraMes(m){
+ const atual=m===mesAtual();const dia=+hoje().slice(8,10);
+ return `<div class="painel filtros vr-mesbar" role="group" aria-label="Mês comparado">
+  <button type="button" class="btn min" data-vrnav="-1" aria-label="Mês anterior">${ic('esquerda')}</button>
+  <input type="month" data-vrin value="${esc(m)}" max="${esc(mesAtual())}" aria-label="Mês">
+  <button type="button" class="btn min" data-vrnav="1" aria-label="Mês seguinte"${atual?' disabled':''}>${ic('direita')}</button>
+  ${atual?'':`<button type="button" class="btn min" data-vrhoje>Mês atual</button>`}
+  <span class="vr-cmp"><b>${esc(longo(m))}</b> comparado com <b>${esc(longo(ant(m)))}</b>${atual?` · <span class="tag at">em andamento: dias 1 a ${dia}</span>`:''}</span></div>`;
+}
+function ligarMes(c,redesenhar){
+ const ir=m=>{if(!okM(m))return;VR.mes=m>mesAtual()?mesAtual():m;redesenhar()};
+ $$('[data-vrnav]',c).forEach(b=>b.onclick=()=>ir(mesMenos(mesSel(),-(+b.dataset.vrnav))));
+ $$('[data-vrin]',c).forEach(x=>x.onchange=e=>ir(e.target.value));
+ $$('[data-vrhoje]',c).forEach(b=>b.onclick=()=>ir(mesAtual()));
+}
+function seletorSetor(id){
+ const L=setoresVisiveis();if(L.length<2)return '';
+ return `<select class="vr-setor" aria-label="Ver as variações de outro setor">${L.map(s=>`<option value="${esc(s)}"${s===id?' selected':''}>${esc(SETS[s].curto)}</option>`).join('')}</select>`;
+}
+
+/* ================= painel de um setor ================= */
+function desenhar(c,id){
+ conferirMemo();
+ const S=SETS[id];const m=mesSel();const IS=indsDe(id);
+ const redesenhar=()=>{const y=window.scrollY;desenhar(c,id);window.scrollTo(0,y)};
+ if(!APP.carregado){c.innerHTML=typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>';return}
+ const cab=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações · ${esc(S.curto)}</h1>
+  <p>O que cresceu e o que diminuiu em ${esc(longo(m))}, comparado com ${esc(longo(ant(m)))} e com a média dos 3 meses anteriores. Só leitura: os números vêm dos lançamentos do setor.</p></div></div>
+  <div class="acoes vr-cab-acoes">${seletorSetor(id)}<a class="btn" href="#/${ROTA}">${ic('painel')}Todos os setores</a></div></div>`;
+ if(!IS.length){c.innerHTML=cab+`<div class="vazio"><b>Nenhum número deste setor liberado para o seu perfil</b>Fale com o administrador.</div>`;ligarCab(c,id);return}
+ if(!VR.ind[id]||!IS.some(I=>I.k===VR.ind[id]))VR.ind[id]=IS[0].k;
+ const IA=IS.find(I=>I.k===VR.ind[id]);
+ const res=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,b,c:comparar(I,a.v,b.v)}});
+ const sob=res.filter(x=>x.c.dir==='sobe'),des=res.filter(x=>x.c.dir==='desce'),ig=res.filter(x=>x.c.dir==='igual');
+ const bons=res.filter(x=>x.c.cls==='bom').length,ruins=res.filter(x=>x.c.cls==='ruim').length;
+ const semDado=res.every(x=>x.a.v==null||x.a.v===0)&&res.every(x=>x.b.v==null||x.b.v===0);
+ const it=x=>`<li><span>${esc(x.I.l)}</span>${pill(x.I,x.c,true)}</li>`;
+ const lista=(xs,vz)=>xs.length?`<ul>${xs.map(it).join('')}</ul>`:`<span class="vazio-l">${esc(vz)}</span>`;
+ const frase=(()=>{
+  if(semDado)return `Nenhum lançamento deste setor em ${longo(m)} nem em ${longo(ant(m))}. Escolha outro mês.`;
+  const p=[];const nomes=xs=>xs.slice(0,4).map(x=>x.I.l.toLowerCase()+' ('+(x.c.doZero?'antes era zero':x.I.u==='pct'?fmtDif(x.I,x.c.dif):(x.c.dif>0?'+':'−')+fNum(Math.abs(x.c.rel),Math.abs(x.c.rel)<10?1:0)+'%')+')').join(', ')+(xs.length>4?' e mais '+(xs.length-4):'');
+  if(sob.length)p.push('cresceram '+nomes(sob));if(des.length)p.push('diminuíram '+nomes(des));
+  if(!p.length)return 'Nenhum número mudou de forma relevante em relação a '+longo(ant(m))+'.';
+  return 'Em '+longo(m)+', comparado com '+longo(ant(m))+': '+p.join('; ')+'.'+(bons||ruins?' No total, '+bons+(bons===1?' melhorou':' melhoraram')+' e '+ruins+(ruins===1?' piorou':' pioraram')+'.':'');
+ })();
+ const aviso=m===mesAtual()?`<div class="aviso at" style="margin-bottom:14px"><span><b>${esc(longo(m).replace(/^./,x=>x.toUpperCase()))} ainda está em andamento</b> (lançamentos até ${esc(fData(hoje()))}). Comparar com ${esc(longo(ant(m)))} inteiro tende a mostrar queda; para uma comparação justa, escolha um mês já fechado.</span></div>`:'';
+ const cartao=x=>{const I=x.I;const md=media3(id,I,m);const c3=comparar(I,x.a.v,md);
+  const ult6=janela(m,6).map(mm=>({m:mm,v:val(id,I,mm).v}));
+  return `<button type="button" class="vr-card${I.k===IA.k?' on':''}" data-vrind="${esc(I.k)}" aria-pressed="${I.k===IA.k}">
+   <span class="vr-l">${esc(I.l)}</span>
+   <span class="vr-v">${esc(fmt(I,x.a.v))}</span>
+   ${pill(I,x.c)}
+   <span class="vr-sub">${esc(curto(ant(m)))}: <b>${esc(fmt(I,x.b.v))}</b>${x.c.dif!=null&&x.c.dir!=='igual'?' · '+esc(fmtDif(I,x.c.dif)):''}</span>
+   ${md!=null?`<span class="vr-sub">Média de 3 meses: <b>${esc(fmt(I,md))}</b> ${pill(I,c3,true)}</span>`:''}
+   ${x.a.nota?`<span class="vr-nota">${esc(x.a.nota)}</span>`:''}
+   ${I.ajuda?`<span class="vr-sub">${esc(I.ajuda)}</span>`:''}
+   ${barras(I,ult6,m,true)}</button>`};
+ /* gráfico e tabela: 12 meses até o escolhido (meses vazios do começo saem, ficam pelo menos 2) */
+ let meses=janela(m,12);
+ while(meses.length>2&&IS.every(I=>{const v=val(id,I,meses[0]).v;return v==null||v===0}))meses=meses.slice(1);
+ const pts=meses.map(mm=>({m:mm,v:val(id,IA,mm).v}));
+ const aV=val(id,IA,m).v;
+ const graf=`<div class="bloco vr-graf"><h3>Últimos ${meses.length} meses</h3>
+  <div class="vr-in"><div class="vr-chips" role="group" aria-label="Número do gráfico">${IS.map(I=>`<button type="button" data-vrind="${esc(I.k)}" class="${I.k===IA.k?'on':''}" aria-pressed="${I.k===IA.k}">${esc(I.l)}</button>`).join('')}</div>
+  <p class="vr-sel"><b>${esc(IA.l)}</b> · ${esc(longo(m))}: <b>${esc(fmt(IA,aV))}</b>${IA.ajuda?' · '+esc(IA.ajuda):''}</p>
+  ${barras(IA,pts,m,false)}
+  <p class="vr-ajuda">Toque em uma barra (ou em uma linha da tabela) para comparar aquele mês. Área listrada: mês sem número calculável.</p></div></div>`;
+ const linhas=meses.slice().reverse().map(mm=>`<tr class="${mm===m?'on':''}" data-vrmes="${esc(mm)}"><td class="vr-m" data-l="Mês">${esc(curto(mm))}</td>${IS.map(I=>{const a=val(id,I,mm).v;const c2=comparar(I,a,val(id,I,ant(mm)).v);
+  return `<td class="num" data-l="${esc(I.l)}">${esc(fmt(I,a))}${a!=null&&c2.dir!=='sem'?pill(I,c2,true):''}</td>`}).join('')}</tr>`).join('');
+ const tab=`<div class="bloco"><h3>Mês a mês</h3><div class="tabwrap"><table class="tbl vr-tab"><thead><tr><th>Mês</th>${IS.map(I=>`<th class="num">${esc(I.l)}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody><tfoot class="vr-sem-total"></tfoot></table></div>
+  <p class="vr-ajuda vr-tab-aj">Cada seta compara o mês com o mês anterior. Verde: melhorou. Vermelho: piorou. Cinza: número neutro ou sem mudança.</p></div>`;
+ c.innerHTML=cab+barraMes(m)+aviso+`<p class="vr-frase">${esc(frase)}</p>
+  <div class="vr-res">
+   <div class="sobe"><h4><i>▲</i>Cresceram (${sob.length})</h4>${lista(sob,'Nenhum número cresceu.')}</div>
+   <div class="desce"><h4><i>▼</i>Diminuíram (${des.length})</h4>${lista(des,'Nenhum número diminuiu.')}</div>
+   <div><h4><i>=</i>Sem mudança ou sem comparação (${ig.length+res.filter(x=>x.c.dir==='sem').length})</h4>${lista(ig.concat(res.filter(x=>x.c.dir==='sem')),'Todos os números mudaram.')}</div>
+  </div>
+  <div class="vr-grade">${res.map(cartao).join('')}</div>
+  <div class="ex2" style="grid-template-columns:1fr">${graf}</div>${tab}`;
+ ligarCab(c,id);ligarMes(c,redesenhar);
+ $$('[data-vrind]',c).forEach(b=>b.onclick=()=>{VR.ind[id]=b.dataset.vrind;redesenhar()});
+ $$('[data-vrmes]',c).forEach(b=>b.onclick=()=>{VR.mes=b.dataset.vrmes;redesenhar()});
+}
+function ligarCab(c,id){const s=$('.vr-setor',c);if(s)s.onchange=e=>{location.hash=rotaVar(e.target.value)}}
+
+/* ================= visão geral: um cartão por setor ================= */
+function telaGeral(el){
+ conferirMemo();
+ const m=mesSel();const L=setoresVisiveis();
+ const voltar=`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`;
+ const corpo=()=>{
+  if(!APP.carregado)return typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>';
+  if(!L.length)return `<div class="vazio"><b>Nenhum setor liberado para o seu perfil</b>Fale com o administrador.</div>`;
+  return `<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações de todos os setores</h1>
+   <p>Um resumo de cada setor: os principais números de ${esc(longo(m))} e quanto mudaram em relação a ${esc(longo(ant(m)))}. Abra o setor para ver todos os números, o gráfico e a tabela de 12 meses.</p></div></div></div>
+   ${barraMes(m)}
+   <div class="vr-setores">${L.map(id=>{const S=SETS[id];const IS=indsDe(id);
+    const rs=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,c:comparar(I,a.v,b.v)}});
+    const s=rs.filter(x=>x.c.dir==='sobe').length,d=rs.filter(x=>x.c.dir==='desce').length;
+    return `<article class="vr-set"><header><span class="sec-ic">${ic(S.ic)}</span><b>${esc(S.curto)}</b><span class="vr-cont"><span class="s">▲ ${s}</span> · <span class="d">▼ ${d}</span></span></header>
+     ${rs.length?`<ul>${rs.slice(0,3).map(x=>`<li><span>${esc(x.I.l)}</span><b>${esc(fmt(x.I,x.a.v))}</b>${pill(x.I,x.c)}</li>`).join('')}</ul>`:'<p class="vr-ajuda">Nenhum número liberado para o seu perfil.</p>'}
+     <a class="btn" href="${esc(rotaVar(id))}">Ver variações ${ic('direita')}</a></article>`}).join('')}</div>
+   <p class="vr-ajuda">▲ quantos números cresceram · ▼ quantos diminuíram. Verde: melhorou. Vermelho: piorou. Cinza: neutro.</p>`;
+ };
+ el.innerHTML=`<div class="spot">${cabSpot('Variações',razaoMostra()+' · CNPJ '+cnpjMostra(),voltar)}<main class="spot-corpo">${corpo()}</main></div>`;
+ ligarMes(el,()=>{const y=window.scrollY;telaGeral(el);window.scrollTo(0,y)});
+}
+
+/* ================= telas ================= */
+const INICIO={producao:()=>typeof telaSetorProducao==='function'?telaSetorProducao:null};
+function inicioDe(id){if(INICIO[id])return INICIO[id]();return TELAS_V['setor-'+id]||null}
+TELAS_V[ROTA]=function(el){
+ const id=lerRota().id;
+ if(!id){telaGeral(el);return}
+ if(id==='dp'){location.replace('#/'+ROTA_DP);return}
+ if(!setorVisivel(id)){
+  el.innerHTML=`<div class="spot">${cabSpot('Variações',razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores">${ic('esquerda')}<span>Setores</span></a>`)}
+   <main class="spot-corpo spot-estreito"><div class="vazio"><b>Sem acesso a este setor</b>Seu perfil (${esc(PAPEIS[APP.papel]||APP.papel||'')}) não está liberado para ele. Fale com o administrador.<div class="vazio-acoes"><a class="btn pri" href="#/${ROTA}">Ver os setores liberados</a></div></div></main></div>`;return}
+ if(typeof marcarSetor==='function')marcarSetor(id);
+ /* a casca do próprio setor (cabeçalho e abas, iguais às outras telas dele); o corpo vira o painel */
+ const ini=inicioDe(id);let c=null;
+ if(typeof ini==='function'){try{ini(el)}catch(e){console.warn('variações: início do setor',e)}c=el.querySelector('#svCorpo')}
+ CHARTS.splice(0).forEach(g=>{try{g.destroy()}catch(e){}});
+ if(!c){el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot(SETS[id].nome,razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores">${ic('esquerda')}<span>Setores</span></a>`)}</div><main class="sv-corpo" id="svCorpo"></main></div>`;c=el.querySelector('#svCorpo')}
+ c.classList.add('vr-corpo');desenhar(c,id);
+};
+TELAS_V[ROTA_DP]=function(el){
+ if(!setorVisivel('dp')){el.innerHTML=`<div class="vazio"><b>Sem acesso</b>Seu perfil não inclui o Setor Pessoal.</div>`;return}
+ if(typeof marcarSetor==='function')marcarSetor('dp');
+ el.innerHTML='<div class="vr-dp"></div>';desenhar(el.firstElementChild,'dp');
+};
+
+/* ---------- aba "Variações" nas abas de cada setor (logo depois de Início) ---------- */
+function setorDaNav(nav){
+ const hs=[...nav.querySelectorAll(':scope > a[href]')].map(a=>a.getAttribute('href'));
+ const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>SETS[x.id]&&x.id!=='dp'&&hs.includes(x.rota));return s?s.id:null;
+}
+function abaVariacoes(){
+ const nav=document.querySelector('#conteudo nav.sv-abas');if(!nav||nav.querySelector('[data-vraba]'))return;
+ const id=setorDaNav(nav);if(!id||!setorVisivel(id))return;
+ const r=lerRota();const on=r.mod===ROTA&&r.id===id;
+ const a=document.createElement('a');a.className='dir-aba'+(on?' on':'');a.href='#/'+ROTA+'/'+id;a.dataset.vraba=id;
+ a.innerHTML=ic('grafico')+'<span>Variações</span>';if(on)a.setAttribute('aria-current','page');
+ const prim=nav.querySelector(':scope > a');if(prim&&prim.nextSibling)nav.insertBefore(a,prim.nextSibling);else nav.insertBefore(a,nav.querySelector(':scope > .aba-ind'));
+ if(on)nav.querySelectorAll(':scope > a.on').forEach(x=>{if(x!==a){x.classList.remove('on');x.removeAttribute('aria-current')}});
+ try{if(typeof posAba==='function')posAba(nav)}catch(e){}
+ if(on){try{a.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}}
+}
+const rtVar=renderTela;
+renderTela=function(){const r=rtVar.apply(this,arguments);try{abaVariacoes()}catch(e){console.warn('variações: aba',e)}return r};
+
+/* ---------- atalho na tela de seleção de setores ---------- */
+const tsVar=telaSetores;
+telaSetores=function(el){const r=tsVar.apply(this,arguments);
+ try{if(setoresVisiveis().length&&!el.querySelector('.vr-atalho')){const h=el.querySelector('.spot-corpo h1');if(h){const p=document.createElement('p');p.className='vr-atalho';
+  p.innerHTML=`<a class="btn" href="#/${ROTA}">${ic('grafico')}<span>Variações de todos os setores</span></a>`;h.after(p)}}}catch(e){console.warn('variações: atalho',e)}
+ return r};
+
+window.VARIACOES_V73={SETS,ORDEM,setorVisivel,setoresVisiveis,val,comparar,fmt,VR};
 })();
 </script>
 <script id="jb-cores-nucleo">
