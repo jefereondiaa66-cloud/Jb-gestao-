@@ -12124,11 +12124,11 @@ function inicioConsumoV(c,s){
  const ent=cb?(DATA.fTitulos||[]).filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega'):[];
  const entMes=ent.filter(t=>String(t.data||'').startsWith(m)),entDia=ent.filter(t=>t.data===h);
  const podeEnt=cb&&typeof pode==='function'&&pode('fTitulos','e');
- const blocoEnt=cb?`<div class="bloco"><h3>Combustível para entrega${podeEnt?'<a href="javascript:void 0" class="jb-ent-novo">Lançar</a>':''}</h3>
-  <p class="ajuda" style="margin:0 0 8px">Abastecimento fora, no posto da cidade. Despesa de entrega, não entra no custo da produção.<br>Hoje <b>${fMoeda(soma(entDia,t=>t.valor))}</b> · em ${esc(fMes(m))} <b>${fMoeda(soma(entMes,t=>t.valor))}</b> (${entMes.length} lançamento(s))</p>
+ const blocoEnt=cb?`<div class="bloco"><h3>Combustível para entrega / Despesas<a href="#/combEntrega">Ver todos</a>${podeEnt?'<a href="javascript:void 0" class="jb-ent-novo">Lançar</a>':''}</h3>
+  <p class="ajuda" style="margin:0 0 8px;padding:0 18px">Abastecimento fora, no posto da cidade. Despesa de entrega, não entra no custo da produção.<br>Hoje <b>${fMoeda(soma(entDia,t=>t.valor))}</b> · em ${esc(fMes(m))} <b>${fMoeda(soma(entMes,t=>t.valor))}</b> (${entMes.length} lançamento(s))</p>
   ${lstV(ent.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||(+b.numero||0)-(+a.numero||0)).slice(0,6).map(t=>({href:'#/fTitulos/'+t.id,ic:'bomba',t:t.motorista||t.beneficiarioNome||'—',s:fData(t.data)+(t.descricao?' · '+t.descricao:''),v:fMoeda(+t.valor||0)})),'Nenhum abastecimento de entrega lançado.')}</div>`:'';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
-  <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
+  <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${cb&&pode('fTitulos','e')?`<a class="btn jb-ent-novo" href="javascript:void 0">${ic('mais')}Combustível para entrega</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
   ${semProd||semLocal?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?`Cadastre ${cb?'os combustíveis (diesel, gasolina…)':'os tipos de lenha'}, ${cb?'os veículos e máquinas':'os fornos e locais de consumo'} e os fornecedores; depois registre a primeira compra e os ${cb?'abastecimentos':'consumos'}. `:'Peça ao gerente ou ao estoquista para fazer os cadastros. '}Nenhum número abaixo é inventado.</span></div>`:''}
   ${JB_MES.barra(s)}
   <div class="hero">
@@ -12139,20 +12139,19 @@ function inicioConsumoV(c,s){
    ${escContas?kpiV('c5','moeda','Custo abastecido hoje',fMoeda(soma(csDia,x=>x.custoTotal)),custoPorComb(csDia),'#/consumos'):kpiV('c5','carteira','Contas a pagar',fMoeda(soma(N.aberto,x=>x.f.saldo)),N.aberto.length+' conta(s) em aberto','#/pagar')}
    ${escContas?kpiV('c6','moeda','Custo abastecido em '+fMes(m),fMoeda(soma(csMes,x=>x.custoTotal)),custoPorComb(csMes),'#/consumos'):kpiV('c6','aviso','Contas vencidas',fMoeda(soma(N.venc,x=>x.f.saldo)),N.venc.length?N.venc.length+' conta(s) vencida(s)':'nenhuma vencida','#/pagar')}
   </div>
+  ${cb?`<div style="margin-bottom:14px">${blocoEnt}</div>`:''}
   <div class="ex2">
    <div class="bloco"><h3>${cb?'Abastecimentos':'Consumo'} dos últimos 30 dias<a href="#/consumos">Ver lançamentos</a></h3><div class="cv"><canvas id="gSc1"></canvas></div></div>
    <div class="bloco"><h3>${cb?'Por veículo e máquina':'Por forno e local'} em ${esc(fMes(m))}<a href="#/locais">${esc(S.locais)}</a></h3>${lstV(Object.values(porLocal).sort((a,b)=>b.custo-a.custo).slice(0,6).map(t=>({href:'#/consumos',ic:cb?'bomba':'chama',t:nomeLocal(LOCAL(t.id))||'Sem local',s:t.n+' lançamento(s) · '+fMoeda(t.custo),v:txtUnid(t.qtd)})),'Nenhum lançamento neste mês.')}</div>
    <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+' · custo médio '+fMoeda(custoMedio(p.id)),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum item cadastrado.')}</div>
   </div>
-  ${cb&&!escContas?`<div style="margin-bottom:14px">${blocoEnt}</div>`:''}
-  <div class="${escContas&&!cb?'ex2':'ex3'}">
-   ${escContas?blocoEnt:''}
+  <div class="${escContas?'ex2':'ex3'}">
    <div class="bloco"><h3>Últimas compras<a href="#/compras">Ver todas</a></h3>${lstV(N.vs.slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,6).map(itemOpLst),'Nenhuma compra registrada ainda.')}</div>
    ${escContas?'':`<div class="bloco"><h3>Contas a pagar${N.venc.length?`<span class="n">${N.venc.length}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${lstV(N.aberto.sort((a,b)=>String(a.v.vencimento).localeCompare(String(b.v.vencimento))).slice(0,6).map(x=>({href:'#/compra/'+x.v.id,ic:x.f.status==='Vencido'?'aviso':'calendario',cls:x.f.status==='Vencido'?'a-pe':'a-at',t:parteSnap(x.v).nome||'',s:'Nº '+fNumV(x.v.numero)+' · '+(x.f.status==='Vencido'?'venceu em ':'vence em ')+fData(x.v.vencimento),v:fMoeda(x.f.saldo)})),'Nenhuma conta em aberto.')}</div>`}
    <div class="bloco"><h3>Últimos ${cb?'abastecimentos':'consumos'}<a href="#/consumos">Ver todos</a></h3>${lstV(cs.slice().sort((a,b)=>(b.data+(b.hora||'')).localeCompare(a.data+(a.hora||''))).slice(0,6).map(x=>({href:'#/consumos/'+x.id,ic:cb?'bomba':'chama',t:(cb&&x.abastecidoEm==='Veículo de terceiro'?x.terceiroNome:nomeLocal(LOCAL(x.localId)))||'—',s:fData(x.data)+(x.hora?' '+x.hora:'')+(x.operador?' · '+x.operador:''),v:fQtd(x.quantidade)+' '+(x.unidade||'')+(cb&&x.custoTotal!=null&&x.custoTotal!==''?' · '+fMoeda(+x.custoTotal):'')})),'Nenhum lançamento ainda.')}</div>
   </div>`;
  JB_MES.ligar(c,s);
- c.querySelectorAll('.jb-ent-novo').forEach(a=>a.onclick=()=>{PREFILL={mod:'fTitulos',dados:{categoria:'Combustível para entrega',setorOrigem:'Setor de Combustível',descricao:'Combustível para entrega (posto fora)',beneficiarioTipo:'Outro',beneficiario:'Posto (abastecimento da entrega)',vencimento:h,formaPrevista:'Dinheiro',condicaoT:'À vista (já pago)'}};location.hash='#/fTitulos/novo'});
+ c.querySelectorAll('.jb-ent-novo').forEach(a=>a.onclick=novoCombEntrega);
  const sr=serieDiasV(cs,30,x=>x.quantidade);const un=[...new Set(cs.map(x=>x.unidade))];
  if(sr.val.some(x=>x>0))grafV('gSc1',{type:'bar',data:{labels:sr.lab,datasets:[{data:sr.val,backgroundColor:'#A3461F',borderRadius:4,maxBarThickness:18}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fQtd(v)+(un.length===1?' '+un[0]:'')}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gSc1','Sem lançamentos nos últimos 30 dias.');
@@ -17950,6 +17949,31 @@ posSalvarV=function(mod,rec,ant){
 /* aba Responsáveis e aviso dos números no Setor de Combustível */
 const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s==='combustivel'&&pode('responsaveis'))a.push({r:'#/responsaveis',m:'responsaveis',ic:'pessoas',l:'Responsáveis',at:['responsaveis']});return a};
 TELAS_V.responsaveis=el=>{if(typeof marcarSetor==='function')marcarSetor('combustivel');SV='combustivel';shellV(el,'responsaveis',c=>telaLista(c,'responsaveis'),{setor:'combustivel'})};
+/* Pedido do Jeferson (05/11/2026): aba "Combustível para entrega / Despesas" no Setor de Combustível, para lançar e ver
+   separadamente o abastecimento das entregas feito em posto fora (motorista + valor). Cada lançamento é um compromisso
+   do Financeiro na categoria "Combustível para entrega": despesa de entrega, fora do custo da produção. */
+PERM.combEntrega={get v(){return [...new Set([...((PERM['setor-combustivel']||{}).v||[]),...((PERM.fTitulos||{}).v||[])])]},get e(){return ((PERM.fTitulos||{}).e||[]).slice()}};
+window.novoCombEntrega=()=>{PREFILL={mod:'fTitulos',dados:{categoria:'Combustível para entrega',setorOrigem:'Setor de Combustível',descricao:'Combustível para entrega (posto fora)',beneficiarioTipo:'Outro',beneficiario:'Posto (abastecimento da entrega)',vencimento:hoje(),formaPrevista:'Dinheiro',condicaoT:'À vista (já pago)'}};location.hash='#/fTitulos/novo'};
+const ab1=ABAS_V;ABAS_V=function(s){const a=ab1(s);if(s==='combustivel'&&pode('combEntrega')){const t={r:'#/combEntrega',m:'combEntrega',ic:'bomba',l:'Entrega / Despesas',at:['combEntrega']};const i=a.findIndex(x=>x&&x.r==='#/consumos');a.splice(i<0?a.length:i+1,0,t)}return a};
+TELAS_V.combEntrega=el=>{if(typeof marcarSetor==='function')marcarSetor('combustivel');SV='combustivel';shellV(el,'combEntrega',c=>{if(!APP.carregado){carregandoV(c);return}
+ const h=hoje(),m=h.slice(0,7),a=h.slice(0,4);const L=(DATA.fTitulos||[]).filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega')
+  .sort((x,y)=>String(y.data||'').localeCompare(String(x.data||''))||(+y.numero||0)-(+x.numero||0));
+ const dia=L.filter(t=>t.data===h),mes=L.filter(t=>String(t.data||'').startsWith(m)),ano=L.filter(t=>String(t.data||'').startsWith(a));
+ const porMot={};mes.forEach(t=>{const k=(t.motorista||t.beneficiarioNome||'Sem motorista').toUpperCase();porMot[k]=(porMot[k]||0)+(+t.valor||0)});
+ const sit=t=>{try{const o=OB('t:'+t.id);return o?tagSit(o.s.st):''}catch(e){return ''}};
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('bomba')}</span><div><h1>Combustível para entrega / Despesas</h1><p>Abastecimento das entregas feito em posto fora. É despesa de entrega: não entra no custo da produção nem no diesel da bomba.</p></div></div>
+  <div class="acoes">${pode('fTitulos','e')?`<a class="btn pri jb-ent-novo" href="javascript:void 0">${ic('mais')}Lançar combustível para entrega</a>`:''}</div></div>
+  <div class="hero">
+   ${kpiV('c1','bomba','Hoje',fMoeda(soma(dia,t=>t.valor)),dia.length+' lançamento(s)','#/combEntrega')}
+   ${kpiV('c4','moeda','Em '+fMes(m),fMoeda(soma(mes,t=>t.valor)),mes.length+' lançamento(s)','#/combEntrega')}
+   ${kpiV('c2','calendario','Em '+a,fMoeda(soma(ano,t=>t.valor)),ano.length+' lançamento(s)','#/combEntrega')}
+  </div>
+  <div class="bloco" style="margin-bottom:14px"><h3>Por motorista em ${esc(fMes(m))}</h3>${lstV(Object.entries(porMot).sort((x,y)=>y[1]-x[1]).map(([n,v])=>({href:'#/combEntrega',ic:'pessoas',t:n,s:'',v:fMoeda(v)})),'Nenhum lançamento neste mês.')}</div>
+  <div class="painel"><div class="tabwrap"><table class="tbl"><thead><tr><th>Data</th><th>Motorista</th><th>Descrição</th><th class="num">Valor</th><th>Situação</th></tr></thead><tbody>
+  ${L.length?L.map(t=>`<tr class="clic" data-id="${esc(t.id)}"><td>${esc(fData(t.data))}</td><td>${esc(t.motorista||t.beneficiarioNome||'—')}</td><td>${esc(t.descricao||'')}</td><td class="num">${esc(fMoeda(+t.valor||0))}</td><td>${sit(t)}</td></tr>`).join(''):'<tr><td colspan="5" class="vazio">Nenhum abastecimento de entrega lançado ainda.</td></tr>'}
+  </tbody>${L.length?`<tfoot><tr><td colspan="3">Total</td><td class="num">${esc(fMoeda(soma(L,t=>t.valor)))}</td><td></td></tr></tfoot>`:''}</table></div></div>`;
+ c.querySelectorAll('.jb-ent-novo').forEach(b=>b.onclick=novoCombEntrega);
+ c.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{location.hash='#/fTitulos/'+tr.dataset.id})},{setor:'combustivel'})};
 const sv0=shellV;shellV=function(el,ativa,corpo,opc){const r=sv0.apply(this,arguments);
  try{const s=(opc&&opc.setor&&SETORES_V[opc.setor])?opc.setor:setorAtualV();if(s==='combustivel'){const c=$('#svCorpo',el);if(c&&!c.querySelector('.fi48-nota'))c.insertAdjacentHTML('afterbegin',`<p class="fi48-nota">${esc(NOTA_NUMEROS)}</p>`)}}catch(e){}
  return r};
