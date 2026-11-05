@@ -280,6 +280,11 @@
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
     '#jbadm{position:fixed;left:130px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbadm:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbadm{display:none}}' +
+    '#jbversao{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:2147483001;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:max-content;max-width:min(780px,calc(100% - 24px));box-sizing:border-box;background:#A3461F;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;font:13.5px Inter,system-ui,sans-serif;box-shadow:0 10px 30px -8px rgba(38,28,20,.45)}' +
+    '#jbversao>span{flex:1 1 auto;min-width:0}#jbversao button{flex:none;white-space:nowrap}#jbversao b{font-weight:600}#jbversao small{display:block;opacity:.85;font-size:12px;margin-top:1px}' +
+    '#jbversao button{border:0;border-radius:8px;padding:8px 12px;font:inherit;font-weight:600;cursor:pointer}' +
+    '#jbversao .sim{background:#fff;color:#A3461F}#jbversao .nao{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)}' +
+    '@media(max-width:600px){#jbversao{left:12px;right:12px;transform:none;width:auto;max-width:none;flex-wrap:wrap}#jbversao>span{flex-basis:100%}}' +
     /* selo "Powered by Netlify": o Netlify o põe no canto de baixo à direita, em cima do botão Salvar das
        gavetas. No plano gratuito ele não pode ser escondido; aqui ele só muda de canto e continua visível:
        embaixo à esquerda, acima de "Sair" (computador) ou acima da barra de baixo (tablet em pé e celular) */
@@ -413,6 +418,49 @@
     var r = await sb.storage.from('anexos').createSignedUrl(id, 300);
     if (r.data && r.data.signedUrl) window.open(r.data.signedUrl, '_blank', 'noopener');
   }, true);
+
+  /* ---------------- versão nova publicada ----------------
+     Quem deixava o sistema aberto continuava na versão antiga até recarregar a página por conta
+     própria (foi o que aconteceu em 05/11/2026). A página guarda a versão com que abriu, confere
+     o /versao.json de tempos em tempos e ao voltar para a aba, e avisa quando saiu versão nova.
+     Na tela de login recarrega sozinha (não há nada a perder). Com alguém usando, só avisa:
+     recarregar pede o login de novo (a sessão fica só na memória da aba) e pode haver formulário
+     aberto. "Agora não" esconde o aviso por 30 minutos. */
+  var versaoAberta = null, avisoVersao = null, adiarVersaoAte = 0;
+  function lerVersao() {
+    return fetch('versao.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return j && typeof j.versao === 'string' ? j.versao : null; }, function () { return null; });
+  }
+  function conferirVersao() {
+    if (versaoAberta && document.hidden) return;
+    lerVersao().then(function (v) {
+      if (!v) return;
+      if (!versaoAberta) { versaoAberta = v; return; }
+      if (v === versaoAberta) return;
+      if (!eu) { location.reload(); return; }              // ainda no login: atualiza sem perguntar
+      if (Date.now() >= adiarVersaoAte) mostrarAvisoVersao();
+    });
+  }
+  function mostrarAvisoVersao() {
+    if (avisoVersao || !document.body) return;
+    avisoVersao = el('<div id="jbversao" role="status" aria-live="polite"><span><b>Saiu uma versão nova do sistema.</b>' +
+      '<small>Para ver, atualize a página. Depois é só entrar de novo com seu usuário e senha.</small></span>' +
+      '<button type="button" class="sim">Atualizar agora</button><button type="button" class="nao">Agora não</button></div>');
+    avisoVersao.querySelector('.sim').addEventListener('click', function () {
+      if (document.querySelector('.gaveta') && !window.confirm('Há um formulário aberto. O que ainda não foi salvo se perde ao atualizar. Atualizar mesmo assim?')) return;
+      location.reload();
+    });
+    avisoVersao.querySelector('.nao').addEventListener('click', function () {
+      adiarVersaoAte = Date.now() + 30 * 60 * 1000;
+      if (avisoVersao) { avisoVersao.remove(); avisoVersao = null; }
+    });
+    document.body.appendChild(avisoVersao);
+  }
+  conferirVersao();
+  setInterval(conferirVersao, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) conferirVersao(); });
+  addEventListener('online', conferirVersao);
 
   function iniciarTela() {
     var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
