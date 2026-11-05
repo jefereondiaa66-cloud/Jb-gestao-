@@ -15017,7 +15017,7 @@ ROTAS_SETOR.push(...ROTAS_P.filter(r=>!ROTAS_SETOR.includes(r)));
 
 /* ---------- configuração do setor (fica em Dados da empresa, só o administrador grava) ---------- */
 const PCFG_PAD={tijolosPorGrade:'',turnos:['1º turno','2º turno','3º turno'],inicioExpediente:'',fimExpediente:'',
- refeicaoIni:'11:00',refeicaoFim:'13:00',diasSecagem:'',metaMarombaMes:'',metaDesenfMes:'',lenhaFornadaMin:'',lenhaFornadaMax:'', /* V56: parada automática de refeição das 11h às 13h (o administrador muda em Configurações) */
+ refeicaoIni:'11:00',refeicaoFim:'13:00',diasSecagem:'',mostrarFabrica:false,metaMarombaMes:'',metaDesenfMes:'',lenhaFornadaMin:'',lenhaFornadaMax:'', /* V56: parada automática de refeição das 11h às 13h (o administrador muda em Configurações) */
  motivosParada:['Falta de barro','Quebra ou manutenção da maromba','Falta de energia','Troca de boquilha','Limpeza','Falta de pessoal','Chuva','Intervalo de refeição','Outro'],
  motivosPerdaSec:['Quebra','Trinca','Chuva','Deformação','Outro'],
  lenhaRef:{lenha:60,carregado:58,bons:55}};
@@ -15678,7 +15678,7 @@ function inicioProd(c){
    ${k('c3','aviso','Diferença secador → forno',fT(N.perdEnf),N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia','#/psecmov','','perdEnf')}
    ${k('c3','aviso','Perdas na maromba e secagem',fT(N.perdMar+N.perdSec),'maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec),'#/prel','','perdMS')}
   </div>
-  <h3 class="grupo-t">Agora na fábrica</h3>
+  ${C.mostrarFabrica?`<h3 class="grupo-t">Agora na fábrica</h3>
   <div class="hero">
    ${k('c3','calendario','Em secagem',fT(s.saldo),(s.temIni?s.lotes.length+' lote(s)':'sem contagem inicial')+gr(s.saldo),'#/psecagem',s.temIni?'':pTxt('parcial','at')+' ','sec')}
    ${k('c5','direita','Disponível para enforna',s.disp==null?'—':fT(s.disp),s.disp==null?'informe o tempo mínimo de secagem':'secos há '+s.diasMin+' dia(s) ou mais','#/psecagem',s.disp!=null&&!s.temIni?pTxt('parcial','at')+' ':'')}
@@ -15686,7 +15686,7 @@ function inicioProd(c){
    ${k('c4','relogio','Aguardando desenforna',fT(N.aguard),'enfornas confirmadas','#/pfornadas','','fornos')}
    ${k('c3','caixa','Tijolos prontos',fT(N.pr.saldo1+N.pr.saldo2),'1ª '+fT(N.pr.saldo1)+' · 2ª '+fT(N.pr.saldo2),'#/ppronto',N.pr.temIni?'':pTxt('parcial','at')+' ')}
    ${k('c5','chama','Fornadas abertas',String(N.abertas),N.pendF?N.pendF+' enforna(s) pendente(s) de confirmação':'todas confirmadas','#/pfornadas','','fornos')}
-  </div>
+  </div>`:''}
   <div class="ex2">
    <div class="bloco"><h3>Produção de hoje<a href="#/pmaromba">Maromba</a></h3>${lstV([...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||''))).map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(txtParadas(r.data,r.turno)?' · parado '+txtParadas(r.data,r.turno):'')+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.')}</div>
    <div class="bloco"><h3>Enforna e desenforna de hoje<a href="#/pfornadas">Fornadas</a></h3>${lstV(movHoje,'Nenhuma enforna ou desenforna lançada hoje.')}</div>
@@ -15740,6 +15740,9 @@ function telaCfgProd(c){
    ${f('cp_ds','Tempo mínimo de secagem (dias)',C.diasSecagem,'number','Sem este dado, a quantidade disponível para enforna fica indisponível.')}
    ${a('cp_ps','Motivos de perda na secagem',C.motivosPerdaSec,'Um por linha.')}
   </div></fieldset>
+  <fieldset class="sec"><legend>Painel do Início</legend><div class="campos">
+   <div class="cmp w2"><label class="chk" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="cp_fab" ${C.mostrarFabrica?'checked':''} ${ro}> Mostrar o bloco “Agora na fábrica” (secador, fornos, aguardando desenforna, tijolo pronto e fornadas abertas)</label><span class="ajuda">Desligado, o bloco fica escondido no Início. Os números continuam sendo calculados e as telas de cada parte continuam no menu.</span></div>
+  </div></fieldset>
   <fieldset class="sec"><legend>Meta do mês</legend><div class="campos">
    ${f('cp_metam','Meta da maromba no mês (tijolos)',C.metaMarombaMes,'number','Produção líquida confirmada da maromba no mês.')}
    ${f('cp_meta','Meta de desenforna no mês (tijolos)',C.metaDesenfMes,'number','Conta tudo o que sai dos fornos na desenforna. O painel mostra o andamento, a projeção e quanto falta por dia útil.')}
@@ -15760,7 +15763,7 @@ function telaCfgProd(c){
   const v=id=>String($('#'+id,c).value||'').trim();const nr=id=>v(id)===''?'':+String(v(id)).replace(',','.');const ls=id=>v(id).split('\n').map(x=>x.trim()).filter(Boolean);
   const n={tijolosPorGrade:nr('cp_tpg'),turnos:ls('cp_tur'),inicioExpediente:v('cp_ini'),fimExpediente:v('cp_fim'),refeicaoIni:v('cp_ri'),refeicaoFim:v('cp_rf'),
    diasSecagem:nr('cp_ds'),motivosParada:ls('cp_mot'),motivosPerdaSec:ls('cp_ps'),lenhaRef:{lenha:nr('cp_ll'),carregado:nr('cp_lc'),bons:nr('cp_lb')},
-   metaMarombaMes:nr('cp_metam'),metaDesenfMes:nr('cp_meta'),lenhaFornadaMin:nr('cp_lfmin'),lenhaFornadaMax:nr('cp_lfmax')};
+   mostrarFabrica:!!($('#cp_fab',c)||{}).checked,metaMarombaMes:nr('cp_metam'),metaDesenfMes:nr('cp_meta'),lenhaFornadaMin:nr('cp_lfmin'),lenhaFornadaMax:nr('cp_lfmax')};
   const err=[];
   if(n.tijolosPorGrade!==''&&!(n.tijolosPorGrade>0))err.push('Tijolos por grade precisa ser maior que zero.');
   if(!n.turnos.length)err.push('Informe ao menos um turno.');
@@ -15775,7 +15778,7 @@ function telaCfgProd(c){
   if(err.length){toast(err.join(' '),'erro');return}
   bt.disabled=true;bt.textContent='Salvando…';
   try{const ant=clone(CFG.producao||{});await salvarCfg({...clone(CFG),producao:n});
-   await registrarLog('pcfg','producao','alterou',ant,n,{tijolosPorGrade:'Tijolos por grade',turnos:'Turnos',inicioExpediente:'Início do expediente',fimExpediente:'Fim do expediente',refeicaoIni:'Refeição: início',refeicaoFim:'Refeição: fim',diasSecagem:'Tempo mínimo de secagem',motivosParada:'Motivos de parada',motivosPerdaSec:'Motivos de perda na secagem',lenhaRef:'Referência de lenha',metaMarombaMes:'Meta da maromba no mês',metaDesenfMes:'Meta de desenforna no mês',lenhaFornadaMin:'Lenha por fornada: mínimo',lenhaFornadaMax:'Lenha por fornada: máximo'});
+   await registrarLog('pcfg','producao','alterou',ant,n,{tijolosPorGrade:'Tijolos por grade',turnos:'Turnos',inicioExpediente:'Início do expediente',fimExpediente:'Fim do expediente',refeicaoIni:'Refeição: início',refeicaoFim:'Refeição: fim',diasSecagem:'Tempo mínimo de secagem',motivosParada:'Motivos de parada',motivosPerdaSec:'Motivos de perda na secagem',lenhaRef:'Referência de lenha',mostrarFabrica:'Mostrar “Agora na fábrica” no Início',metaMarombaMes:'Meta da maromba no mês',metaDesenfMes:'Meta de desenforna no mês',lenhaFornadaMin:'Lenha por fornada: mínimo',lenhaFornadaMax:'Lenha por fornada: máximo'});
    toast('Configurações do setor salvas.','ok')}
   catch(e){toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(e):'erro')+'.','erro')}
   finally{bt.disabled=false;bt.textContent='Salvar configurações'}};
