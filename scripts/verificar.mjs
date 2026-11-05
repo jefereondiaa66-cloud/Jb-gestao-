@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, ENVELOPE_CLAUDE, FIM_CLAUDE } from './construir.mjs';
+import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, metaSite, ENVELOPE_CLAUDE, FIM_CLAUDE } from './construir.mjs';
 import { criarServidorFalso } from './lib/servidor-falso.mjs';
 
 const filtro = process.argv[2] || '';
@@ -91,15 +91,19 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     const app = ler('app/jb-gestao.html'), cab = ler('nuvem/cabecalho.html');
     const nuvem = readFileSync(join(tmp, 'dist/index.html'), 'utf8');
     const claude = readFileSync(join(tmp, 'saida/claude.html'), 'utf8');
-    assert.equal(nuvem, montarNuvem(app, cab));
-    assert.equal(nuvem.replace(cab, ''), app, 'a nuvem deve ser o programa + cabeçalho, sem nenhuma outra diferença');
+    assert.match(v.site, /^[0-9a-f]{12}$/);
+    assert.equal(nuvem, montarNuvem(app, metaSite(v.site) + cab));
+    assert.equal(nuvem.replace(metaSite(v.site) + cab, ''), app, 'a nuvem deve ser o programa + cabeçalho (com a versão do site), sem nenhuma outra diferença');
+    assert.ok(nuvem.indexOf('name="jb-site"') < nuvem.indexOf('jb-nuvem.js'), 'a versão do site precisa vir antes do adaptador da nuvem');
+    const adm = readFileSync(join(tmp, 'dist/admin.html'), 'utf8');
+    assert.equal(adm.replace(metaSite(v.site), ''), ler('nuvem/admin.html'), 'o admin.html só ganha a versão do site');
     assert.ok(claude.startsWith(ENVELOPE_CLAUDE) && claude.endsWith(FIM_CLAUDE));
     assert.equal(extrairDoClaude(claude), app, 'ida e volta Claude ⇄ repositório perde algo');
     assert.equal(montarClaude(extrairDoClaude(claude)), claude);
     for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', '_headers', 'versao.json'])
       readFileSync(join(tmp, 'dist', f));
     const vj = JSON.parse(readFileSync(join(tmp, 'dist/versao.json'), 'utf8'));
-    assert.equal(vj.versao, v.versao); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
+    assert.equal(vj.versao, v.versao); assert.equal(vj.site, v.site); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
     assert.ok(nuvem.indexOf('jb-nuvem.js') < nuvem.indexOf('<script id="spot-guarda">'), 'o adaptador da nuvem precisa carregar antes do programa');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

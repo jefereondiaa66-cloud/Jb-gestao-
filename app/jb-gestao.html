@@ -31646,6 +31646,28 @@ renderTela=function(){
  return out;
 };
 
+/* ---------- o que ainda não foi salvo (a nuvem pergunta antes de atualizar para uma versão nova) ----------
+   nativo: gaveta ou Configurações com alteração (o navegador já pergunta ao sair).
+   outro: contrato ou advertência em edição, ou qualquer coisa digitada numa tela inteira (venda, compra,
+   NF-e, lançamento por foto…) desde que a pessoa chegou nela. Pesquisa e filtros não contam. */
+let JB_DIGITOU=false;
+document.addEventListener('input',e=>{try{
+ const t=e.target;if(!t||!t.closest||t.type==='search')return;
+ if(t.closest('.gaveta,.veu,.filtros,.ms-area,.ms-secoes,#arDP,.top,#side,.barra-mob,.busca,#jbl,#jbversao'))return;
+ if(lerRota().mod==='config')return;
+ JB_DIGITOU=true}catch(x){}},true);
+addEventListener('hashchange',()=>{JB_DIGITOU=false});
+window.JB_NAO_SALVO=function(){
+ let nativo=false,outro=JB_DIGITOU;
+ try{nativo=!!((typeof RASC_SUJO!=='undefined'&&RASC_SUJO)||(typeof GAV!=='undefined'&&GAV&&GAV.sujo))}catch(e){}
+ /* o editor de contrato e o de advertência guardam a marca mesmo depois de a pessoa sair da tela:
+    só valem com a tela deles aberta */
+ try{const r=lerRota();
+  if(r.mod==='doc'&&typeof EDT!=='undefined'&&EDT&&EDT.sujo)outro=true;
+  if(r.mod==='disciplinar'&&r.id&&typeof DIS!=='undefined'&&DIS&&DIS.sujo)outro=true}catch(e){}
+ return{nativo,outro};
+};
+
 /* ---------- Configurações › Início do Departamento Pessoal (vale para todos) ---------- */
 const _ligarAparenciaINI=ligarAparencia;
 ligarAparencia=function(el){

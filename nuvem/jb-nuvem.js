@@ -104,6 +104,8 @@
   }
 
   /* ---------------- banco no formato que o sistema já usa ---------------- */
+  var gravando = 0;                 // gravações ainda sem resposta do servidor (o aviso de versão nova pergunta antes de recarregar)
+  async function rpcGravar(nome, args) { gravando++; try { return await sb.rpc(nome, args); } finally { gravando--; } }
   function refDoc(caminho) {
     var p = separar(caminho);
     return {
@@ -111,20 +113,20 @@
       get: async function () { await pronto; return snapDoc(p.colecao, p.id); },
       set: async function (d) {
         await pronto; atividade();
-        var r = await sb.rpc('jb_gravar', { p_colecao: p.colecao, p_id: p.id, p_dados: clone(d) });
+        var r = await rpcGravar('jb_gravar', { p_colecao: p.colecao, p_id: p.id, p_dados: clone(d) });
         if (r.error) throw traduzErro(r.error);
         guardar(p.colecao, p.id, clone(d)); avisar(p.colecao, p.id);
       },
       update: async function (d) {
         await pronto; atividade();
-        var r = await sb.rpc('jb_atualizar', { p_colecao: p.colecao, p_id: p.id, p_campos: clone(d) });
+        var r = await rpcGravar('jb_atualizar', { p_colecao: p.colecao, p_id: p.id, p_campos: clone(d) });
         if (r.error) throw traduzErro(r.error);
         var ant = cache.get(p.colecao + '/' + p.id);
         guardar(p.colecao, p.id, mesclar(ant ? ant.dados : {}, clone(d))); avisar(p.colecao, p.id);
       },
       delete: async function () {
         await pronto; atividade();
-        var r = await sb.rpc('jb_apagar', { p_colecao: p.colecao, p_id: p.id });
+        var r = await rpcGravar('jb_apagar', { p_colecao: p.colecao, p_id: p.id });
         if (r.error) throw traduzErro(r.error);
         guardar(p.colecao, p.id, null); avisar(p.colecao, p.id);
       },
@@ -280,11 +282,15 @@
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
     '#jbadm{position:fixed;left:130px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbadm:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbadm{display:none}}' +
-    '#jbversao{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:2147483001;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:max-content;max-width:min(780px,calc(100% - 24px));box-sizing:border-box;background:#A3461F;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;font:13.5px Inter,system-ui,sans-serif;box-shadow:0 10px 30px -8px rgba(38,28,20,.45)}' +
-    '#jbversao>span{flex:1 1 auto;min-width:0}#jbversao button{flex:none;white-space:nowrap}#jbversao b{font-weight:600}#jbversao small{display:block;opacity:.85;font-size:12px;margin-top:1px}' +
-    '#jbversao button{border:0;border-radius:8px;padding:8px 12px;font:inherit;font-weight:600;cursor:pointer}' +
+    /* aviso de versão nova: logo abaixo da barra do topo (z 20), acima da barra de baixo do celular (45) e
+       abaixo das gavetas (50), das mensagens de salvo/erro (80), do "Sair" e da tela de entrada */
+    '#jbversao{position:fixed;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:49;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:max-content;max-width:min(780px,calc(100% - 24px));box-sizing:border-box;background:#A3461F;color:#fff;border-radius:12px;padding:8px 10px 8px 16px;font:13.5px Inter,system-ui,sans-serif;box-shadow:0 10px 30px -8px rgba(38,28,20,.45)}' +
+    '#jbversao>span{flex:1 1 auto;min-width:0}#jbversao b{font-weight:600}#jbversao small{display:block;opacity:.85;font-size:12px;margin-top:1px}' +
+    '#jbversao button{flex:none;white-space:nowrap;border:0;border-radius:8px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}' +
     '#jbversao .sim{background:#fff;color:#A3461F}#jbversao .nao{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)}' +
-    '@media(max-width:600px){#jbversao{left:12px;right:12px;transform:none;width:auto;max-width:none;flex-wrap:wrap}#jbversao>span{flex-basis:100%}}' +
+    '@media(max-width:960px){#jbversao{left:10px;right:10px;transform:none;width:auto;max-width:none;top:calc(62px + env(safe-area-inset-top,0px));padding:6px 6px 6px 12px;gap:6px;font-size:13px}#jbversao small{display:none}#jbversao button{padding:6px 10px;font-size:12.5px}}' +
+    '@media(max-width:380px){#jbversao b{font-size:12px}#jbversao button{padding:6px 8px}}' +
+    '@media print{#jbversao{display:none}}' +
     /* selo "Powered by Netlify": o Netlify o põe no canto de baixo à direita, em cima do botão Salvar das
        gavetas. No plano gratuito ele não pode ser escondido; aqui ele só muda de canto e continua visível:
        embaixo à esquerda, acima de "Sair" (computador) ou acima da barra de baixo (tablet em pé e celular) */
@@ -421,26 +427,55 @@
 
   /* ---------------- versão nova publicada ----------------
      Quem deixava o sistema aberto continuava na versão antiga até recarregar a página por conta
-     própria (foi o que aconteceu em 05/11/2026). A página guarda a versão com que abriu, confere
-     o /versao.json de tempos em tempos e ao voltar para a aba, e avisa quando saiu versão nova.
-     Na tela de login recarrega sozinha (não há nada a perder). Com alguém usando, só avisa:
-     recarregar pede o login de novo (a sessão fica só na memória da aba) e pode haver formulário
-     aberto. "Agora não" esconde o aviso por 30 minutos. */
-  var versaoAberta = null, avisoVersao = null, adiarVersaoAte = 0;
+     própria (foi o que aconteceu em 05/11/2026). A página sabe a própria versão (<meta name="jb-site">,
+     gravada na construção) e compara com o /versao.json de tempos em tempos e ao voltar para a aba.
+     - Tela de entrada parada e vazia: recarrega sozinha (no máximo uma vez por versão a cada 10 min,
+       para não entrar em laço se o servidor ainda entregar a página antiga).
+     - Com alguém usando: só avisa, com "Atualizar agora" e "Agora não" (30 min). Recarregar pede o login
+       de novo (a sessão fica só na memória da aba), então o botão pergunta antes se há algo digitado
+       e não salvo ou gravação em andamento. */
+  var metaVersao = document.querySelector('meta[name="jb-site"]');
+  var versaoAberta = metaVersao ? metaVersao.getAttribute('content') : null;
+  var campoVersao = metaVersao ? 'site' : 'versao';   // sem a meta (página antiga): usa a primeira leitura
+  var avisoVersao = null, adiarVersaoAte = 0;
   function lerVersao() {
     return fetch('versao.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { return j && typeof j.versao === 'string' ? j.versao : null; }, function () { return null; });
+      .then(function (j) { return j && typeof j[campoVersao] === 'string' ? j[campoVersao] : null; }, function () { return null; });
+  }
+  function entradaParada() {
+    var v = document.getElementById('jbl');
+    if (!v || !v.querySelector('#jblu') || /[?&]instalar\b/.test(location.search)) return false;   // só a tela de entrada comum
+    if ([].some.call(v.querySelectorAll('input'), function (i) { return i.value; })) return false;   // alguém digitando
+    var b = v.querySelector('button'); if (b && b.disabled) return false;                          // entrada em andamento
+    var m = v.querySelector('.msg'); if (m && m.textContent.trim()) return false;                  // há um recado na tela
+    return true;
+  }
+  function recarregarSozinho(nova) {
+    try {
+      var k = 'jb_recarga_versao', a = JSON.parse(sessionStorage.getItem(k) || 'null');   // só a versão, nada da pessoa
+      if (a && a.para === nova && Date.now() - a.em < 10 * 60 * 1000) return;
+      sessionStorage.setItem(k, JSON.stringify({ para: nova, em: Date.now() }));
+    } catch (e) { return; }
+    location.reload();
   }
   function conferirVersao() {
-    if (versaoAberta && document.hidden) return;
+    if (document.hidden) return;
     lerVersao().then(function (v) {
       if (!v) return;
       if (!versaoAberta) { versaoAberta = v; return; }
       if (v === versaoAberta) return;
-      if (!eu) { location.reload(); return; }              // ainda no login: atualiza sem perguntar
+      if (!eu) { if (entradaParada()) recarregarSozinho(v); return; }
       if (Date.now() >= adiarVersaoAte) mostrarAvisoVersao();
     });
+  }
+  /* o programa informa o que ainda não foi salvo: nativo = já tem a pergunta do navegador ao sair
+     (gaveta e Configurações); outro = algo digitado nesta tela que só existe na memória */
+  function naoSalvo() {
+    var r = null;
+    try { if (typeof window.JB_NAO_SALVO === 'function') r = window.JB_NAO_SALVO(); } catch (e) {}
+    if (!r) r = { nativo: false, outro: !!document.querySelector('.gaveta') };
+    return r;
   }
   function mostrarAvisoVersao() {
     if (avisoVersao || !document.body) return;
@@ -448,8 +483,10 @@
       '<small>Para ver, atualize a página. Depois é só entrar de novo com seu usuário e senha.</small></span>' +
       '<button type="button" class="sim">Atualizar agora</button><button type="button" class="nao">Agora não</button></div>');
     avisoVersao.querySelector('.sim').addEventListener('click', function () {
-      if (document.querySelector('.gaveta') && !window.confirm('Há um formulário aberto. O que ainda não foi salvo se perde ao atualizar. Atualizar mesmo assim?')) return;
-      location.reload();
+      if (gravando > 0) { window.alert('Ainda estou gravando o que você salvou. Espere alguns segundos e toque em "Atualizar agora" de novo.'); return; }
+      var ns = naoSalvo();
+      if (ns.outro && !ns.nativo && !window.confirm('Você digitou algo nesta tela. Se ainda não salvou, isso se perde ao atualizar. Atualizar mesmo assim?')) return;
+      location.reload();   // gaveta ou Configurações com alteração: o próprio navegador pergunta
     });
     avisoVersao.querySelector('.nao').addEventListener('click', function () {
       adiarVersaoAte = Date.now() + 30 * 60 * 1000;
