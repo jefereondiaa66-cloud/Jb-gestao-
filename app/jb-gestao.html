@@ -24088,7 +24088,7 @@ function telaEstoque(c){
   ${e.ton<0?'<div class="aviso pe" style="margin-bottom:12px"><span>O estoque está negativo: saiu mais barro do que entrou. Confira o saldo inicial, as extrações e o consumo.</span></div>':''}
   <div class="hero almp-hero">
    ${kpiV(e.ton<0?'c6':'c3','caixa','Estoque agora',esc(fTt(e.ton)),esc(fC(e.car)+' carradas'+(e.ton>0&&rit>0?' · dá para ≈ '+fNum(e.ton/rit,0)+' dia(s) de produção':'')),'javascript:void 0')}
-   ${kpiV('c1','entrada','Extraído em '+fMes(mesAtual()),esc(fTt(m.ext)),'','#/barroLanc')}
+   ${!cfgB().mostrarExtracao?'':kpiV('c1','entrada','Extraído em '+fMes(mesAtual()),esc(fTt(m.ext)),'','#/barroLanc')}
    ${kpiV('c4','saida','Consumido em '+fMes(mesAtual()),esc(fTt(totCons(consMes(mesAtual())).ton)),'na produção (automático)','#/barroCons')}
    ${kpiV('c5','recibo','Vendido em '+fMes(mesAtual()),esc(fTt(m.venda)),'a terceiros','#/barroMov')}
   </div>
@@ -24326,11 +24326,13 @@ function dadosRel(){
  const rows=ms.map(m=>{const r=resumoMes(m);return{mes:fMes(m),ini:r.ini,ext:r.ext,cons:r.cons,venda:r.venda,aj:r2(r.aj+r.inicial),fim:r.fim}});
  return{cols,rows,tot:rows.length?{mes:'Período',ini:rows[0].ini,ext:r2(soma(rows,r=>r.ext)),cons:r2(soma(rows,r=>r.cons)),venda:r2(soma(rows,r=>r.venda)),aj:r2(soma(rows,r=>r.aj)),fim:rows[rows.length-1].fim}:null}}
 function fmtR(c,v){if(v===''||v==null)return '';if(c.t==='moeda')return fMoeda(v);if(c.t==='data')return fData(v);if(c.t==='num')return /^(ton|ini|ext|cons|venda|aj|fim|horas|litros|car|pc|pt|lh|var|fica|sai)$/.test(c.k)?fNum(v,2):fQtd(v);return String(v)}
+const RELS_V=()=>cfgB().mostrarExtracao?RELS:RELS.filter(r=>['consdia','consmes','resumo'].includes(r[0]));
 function telaRel(c){
  if(!UR.de&&!UR.ate){UR.de=hoje().slice(0,4)+'-01-01';UR.ate=hoje()}
+ if(!RELS_V().some(r=>r[0]===UR.id))UR.id='consdia';
  const R=dadosRel();const tit=(RELS.find(x=>x[0]===UR.id)||[,''])[1];const comJaz=!['resumo','consdia','consmes'].includes(UR.id);
  c.innerHTML=cab('grafico','Relatórios do barro','Timbrados, com visualização, PDF e Excel. Escolha o relatório e o período.',`<button type="button" class="btn pri" id="rExp">${ic('baixar')}Visualizar / exportar ▾</button>`)+
-  `<div class="painel filtros" style="margin-bottom:12px"><select id="rId">${optH(RELS,UR.id)}</select><label class="inline">De <input type="date" id="rDe" value="${esc(UR.de)}"></label><label class="inline">Até <input type="date" id="rAte" value="${esc(UR.ate)}"></label>
+  `<div class="painel filtros" style="margin-bottom:12px"><select id="rId">${optH(RELS_V(),UR.id)}</select><label class="inline">De <input type="date" id="rDe" value="${esc(UR.de)}"></label><label class="inline">Até <input type="date" id="rAte" value="${esc(UR.ate)}"></label>
    ${comJaz?`<select id="rJaz"><option value="">Jazida: todas</option>${optH(optsJaz(UR.jaz),UR.jaz)}</select>`:''}</div>
   ${R.rows.length?tabela(R.cols.map(x=>[x.l,x.t==='moeda'||x.t==='num']),R.rows.map(r=>`<tr>${R.cols.map(x=>td(x.l,esc(fmtR(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`),R.tot?R.cols.map(x=>[esc(fmtR(x,R.tot[x.k])),x.t==='moeda'||x.t==='num']):null)
    :noNada('Nada para mostrar','Ajuste o período ou lance a extração.')}
@@ -24351,7 +24353,7 @@ function telaCfg(c){
  c.innerHTML=cab('engrenagem','Configurações do Setor do Barro','Valores padrão do lançamento, barro na produção e valor do barro, mão de obra, custo-hora das máquinas e rateio do arrendamento. Mudar aqui vale para os próximos lançamentos; os já salvos guardam os valores do dia.',
   ed?`<button type="button" class="btn pri" id="cfSalvar">${ic('entrada')}Salvar configurações</button>`:'')+
   `<div class="vv-grade">
-   <section class="bloco"><h3>Carrada (valores padrão)</h3><div class="campos" style="padding:12px 16px">
+   <section class="bloco" data-ext ${C.mostrarExtracao?'':'hidden'}><h3>Carrada (valores padrão)</h3><div class="campos" style="padding:12px 16px">
     ${H.campoM('cfV','Valor padrão da carrada (R$)',`<input id="cfV" data-cf="valorCarrada" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.valorCarrada))}" ${dis}>`,'Pode ser diferente por motorista, caçamba ou jazida (no cadastro de cada um).')}
     ${H.campoM('cfT','Toneladas por carrada (padrão)',`<input id="cfT" data-cf="tonCarrada" type="number" min="0" step="0.01" value="${esc(C.tonCarrada||'')}" ${dis}>`,'Cada caçamba pode ter a sua capacidade.')}</div></section>
    <section class="bloco w2"><h3>Barro na produção (ligado à maromba)</h3>
@@ -24376,17 +24378,17 @@ function telaCfg(c){
      <div class="cmp" style="align-self:end"><button type="button" class="btn" id="cfNAdd">${ic('mais')}Adicionar vigência</button></div>
      ${(()=>{const k=custoDe(DATA.barroExt);return k.porTon>0?`<div class="cmp w2"><span class="ajuda">Custo real das extrações já lançadas: <b>${esc(fMoeda(k.porTon))}/t</b> (${esc(fTt(k.ton))}). <button type="button" class="btn min" id="cfNReal" data-v="${esc(String(r3(k.porTon*1000)/1000))}">Usar este valor</button></span></div>`:''})()}
     </div>`:''}</section>
-   <section class="bloco"><h3>Mão de obra dos operadores</h3><div class="campos" style="padding:12px 16px">
+   <section class="bloco" data-ext ${C.mostrarExtracao?'':'hidden'}><h3>Mão de obra dos operadores</h3><div class="campos" style="padding:12px 16px">
     ${H.campoM('cfMM','Cobrar por',`<select id="cfMM" data-cf="moModo" ${dis}>${optH([['hora','Hora trabalhada'],['diaria','Diária (um operador por dia)']],C.moModo)}</select>`)}
     ${H.campoM('cfMH','Valor por hora (R$)',`<input id="cfMH" data-cf="moHora" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moHora))}" ${dis}>`)}
     ${H.campoM('cfMD','Diária do operador (R$)',`<input id="cfMD" data-cf="moDiaria" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(C.moDiaria))}" ${dis}>`,'Ajudantes: lance em “Outros custos do dia” como Diária de ajudante.')}</div></section>
    <section class="bloco"><h3>Parte de extração</h3><div style="padding:12px 16px">
     <label class="inline"><input type="checkbox" id="cfMx" ${C.mostrarExtracao?'checked':''} ${dis}> Mostrar a parte de extração (lançar extração, lançamentos, custo, motoristas, jazidas e caçambas)</label>
-    <p class="ajuda" style="margin:8px 0 0">Desligado, o setor mostra só o consumo do estoque de barro. Nada é apagado: ligando de novo, tudo volta.</p></div></section>
-   <section class="bloco"><h3>Arrendamento da jazida</h3><div style="padding:12px 16px">
+    <p class="ajuda" style="margin:8px 0 0">Desligado, o setor mostra só o consumo do estoque de barro e as configurações de extração e de custo ficam guardadas e escondidas. Nada é apagado: na próxima extração, ligue aqui e salve.</p></div></section>
+   <section class="bloco" data-ext ${C.mostrarExtracao?'':'hidden'}><h3>Arrendamento da jazida</h3><div style="padding:12px 16px">
     <label class="inline"><input type="checkbox" id="cfAr" ${C.arrendAtivo?'checked':''} ${dis}> Ratear o arrendamento mensal no custo do barro</label>
     <p class="ajuda" style="margin:8px 0 0">Desligado por padrão: hoje o arrendamento é lançado inteiro no custo geral. Ligado, o valor mensal informado em cada jazida é dividido pelas toneladas extraídas no mês daquela jazida.</p></div></section>
-   <section class="bloco w2"><h3>Custo-hora das máquinas</h3>
+   <section class="bloco w2" data-ext ${C.mostrarExtracao?'':'hidden'}><h3>Custo-hora das máquinas</h3>
     <p class="ajuda" style="margin:10px 16px 0">As máquinas são as de Máquinas e veículos do Setor de Combustível (nenhum cadastro novo). Própria ou arrendada vem de lá. Arrendada entra só com a manutenção, sem depreciação. Falta escavadeira ou trator? Cadastre em Setor de Combustível › Máquinas e veículos, com o setor Barro.</p>
     ${tabela(['Máquina','Propriedade',['Manutenção por hora (R$)',1],['Depreciação por hora (R$)',1]],maqs.map(l=>{const x=C.maquinas[l.id]||{};const arr=propMaq(l.id)==='Arrendada';
      return `<tr>${td('Máquina','<b>'+esc(nomeLocal(l))+'</b>'+(l.setorTrabalho?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">setor '+esc(l.setorTrabalho)+'</span>':''))}${td('Propriedade',tag(propMaq(l.id),arr?'at':'in'))}
@@ -24396,7 +24398,7 @@ function telaCfg(c){
   </div>`;
  c.addEventListener('input',e=>{const t=e.target;if(t.dataset.cf){const k=t.dataset.cf;C[k]=k==='moModo'?t.value:t.dataset.masc==='moeda'?lerMoeda(t.value):(t.value===''?'':+t.value);return}
   if(t.dataset.cm){const x=C.maquinas[t.dataset.cm]||(C.maquinas[t.dataset.cm]={});x[t.dataset.ck]=t.value.trim()===''?0:lerMoeda(t.value)}});
- c.addEventListener('change',e=>{const t=e.target;if(t.id==='cfAr')C.arrendAtivo=t.checked;if(t.id==='cfMx')C.mostrarExtracao=t.checked;if(t.dataset.cf==='moModo')C.moModo=t.value;if(t.dataset.cfs)C[t.dataset.cfs]=t.value});
+ c.addEventListener('change',e=>{const t=e.target;if(t.id==='cfAr')C.arrendAtivo=t.checked;if(t.id==='cfMx'){C.mostrarExtracao=t.checked;$$('[data-ext]',c).forEach(x=>{x.hidden=!t.checked})}if(t.dataset.cf==='moModo')C.moModo=t.value;if(t.dataset.cfs)C[t.dataset.cfs]=t.value});
  c.addEventListener('input',e=>{const t=e.target;if(t.dataset.po!=null&&C.precos[+t.dataset.po])C.precos[+t.dataset.po].origem=t.value});
  $$('[data-prm]',c).forEach(b=>b.onclick=()=>{C.precos.splice(+b.dataset.prm,1);renderTela()});
  if($('#cfNReal',c))$('#cfNReal',c).onclick=()=>{$('#cfNV',c).value=$('#cfNReal',c).dataset.v;$('#cfNO',c).value='Custo real da extração (lançamentos do Setor do Barro)'};
