@@ -14058,6 +14058,23 @@ function vendasFatV(U,o){o=o||{};U=U||{};const out=[];
  return out;
 }
 const liquidoV=x=>round2(x.bruto-x.descGeral-x.devolvido+(CFGV().liquidoFrete==='Com frete'?x.frete+x.outros:0));
+/* ---------- custo do milheiro para a receita líquida das vendas (pedido do Jeferson, 05/11/2026) ----------
+   Custo = custo de produção por milheiro bom da Controladoria (custo de produção ÷ milheiros bons) do mês
+   de referência. Até outubro fechar, a base é setembro/2026. Quando outubro fechar, entra uma linha nova
+   {desde:'AAAA-MM-DD', mes:'2026-10'}: as vendas a partir dessa data usam outubro e as anteriores
+   continuam com setembro. Vale para os itens vendidos em milheiro; só quem vê a Controladoria vê o custo. */
+CFGV_PADRAO.custoMilRefs=[{desde:'',mes:'2026-09'}];
+function custoMilRefV(data){const d=String(data||hoje());
+ const L=(CFGV().custoMilRefs||[]).filter(r=>r&&r.mes&&(!r.desde||r.desde<=d)).sort((a,b)=>String(a.desde||'').localeCompare(String(b.desde||'')));
+ const r=L[L.length-1];if(!r)return null;const C=window.CONTROLADORIA;let R=null;try{R=C&&C.calcMes?C.calcMes(r.mes):null}catch(e){R=null}
+ return{mes:r.mes,valor:R&&R.cpm!=null&&isFinite(R.cpm)?R.cpm:null,fechado:!!(R&&R.fechado)}}
+function custoVendasV(xs){let custo=0,mil=0,semBase=0;const ref={};
+ xs.forEach(x=>{const r=custoMilRefV(x.data);x.itens.forEach(i=>{if(!UN_MILHEIRO(i.unidade))return;const q=+i.qtd||0;
+  if(!r||r.valor==null){semBase+=q;return}custo+=q*r.valor;mil+=q;ref[r.mes]=r.valor})});
+ return{custo:round2(custo),mil:round3(mil),semBase:round3(semBase),ref}}
+const refCtl2=ref=>refCustoTxtV(ref);
+const refCustoTxtV=ref=>Object.keys(ref).sort().map(m=>fMoeda(ref[m])+'/milheiro ('+mesLongo(m)+')').join(' e ');
+const podeCustoV=()=>typeof pode==='function'&&pode('setor-control');
 const milheirosV=xs=>round3(soma(xs,x=>soma(x.itens.filter(i=>UN_MILHEIRO(i.unidade)),i=>+i.qtd||0)));
 const pecasV=xs=>{let t=0,ok=true;xs.forEach(x=>x.itens.forEach(i=>{const p=PROD(i.produtoId);if(UN_MILHEIRO(i.unidade)){if(p&&p.pecasMilheiro)t+=(+i.qtd||0)*p.pecasMilheiro;else ok=false}else if(/unidade|peça/i.test(i.unidade||''))t+=+i.qtd||0}));return{t:round3(t),ok}};
 const periodoAntV=U=>{if(!U.ini||!U.fim)return null;const d=diasEntre(U.ini,U.fim)+1;return{...U,ini:addDias(U.ini,-d),fim:addDias(U.ini,-1)}};
@@ -14162,17 +14179,17 @@ function relGerencial(U){const xs=vendasFatV(U);const h=hoje();const tit=titulos
   L('Riscos','',[ven30.length?ven30.length+' título(s) vencido(s) há mais de 30 dias':'',atrC?atrC+' pedido(s) com carregamento atrasado':'',baixos?baixos+' produto(s) abaixo do mínimo ou sem estoque':'',abaixoMin?abaixoMin+' venda(s) abaixo do preço mínimo':''].filter(Boolean).join(' · ')||'nenhum risco identificado nos dados')],
   total:false,nota:'Resumo para a administração. '+periodoTxtV(U)+'. Faturamento não é lucro; a margem só é calculada com custos cadastrados.'}}
 /* margem: receita − desconto − custo dos produtos (custo de referência do cadastro) − custo de transporte conhecido. Sem custo, não calcula. */
-function relMargem(U,por){por=por||'produto';const xs=vendasFatV(U);const g={};let semCusto=new Set();
+function relMargem(U,por){por=por||'produto';const xs=vendasFatV(U);const g={};let semCusto=new Set();const refCtl={};
  xs.forEach(x=>{const tr=ehPedido(x.v)?round2(soma(x.v.entregas||[],e=>+e.custoTransporte||0)):0;const bt=x.bruto||1;
   x.itens.forEach(i=>{const p=PROD(i.produtoId);const k=por==='cliente'?(x.clienteId||x.cli):por==='mes'?String(x.data).slice(0,7):i.produtoId;const nome=por==='cliente'?x.cli:por==='mes'?mesLongo(String(x.data).slice(0,7)):i.nome;
    const t=g[k]||(g[k]={nome,rec:0,desc:0,frete:0,custo:0,trans:0,falta:false});const share=(+i.total||0)/bt;
    t.rec=round2(t.rec+(+i.total||0));t.desc=round2(t.desc+x.descGeral*share+(+x.devolvido||0)*share);t.frete=round2(t.frete+(x.frete+x.outros)*share);t.trans=round2(t.trans+tr*share);
-   const cu=p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:null;if(cu==null){t.falta=true;semCusto.add(i.nome)}else t.custo=round2(t.custo+cu*(+i.qtd||0))})});
+   const rc=UN_MILHEIRO(i.unidade)?custoMilRefV(x.data):null;if(rc&&rc.valor!=null)refCtl[rc.mes]=rc.valor;const cu=rc&&rc.valor!=null?rc.valor:p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:null;if(cu==null){t.falta=true;semCusto.add(i.nome)}else t.custo=round2(t.custo+cu*(+i.qtd||0))})});
  const rows=Object.values(g).map(t=>({nome:t.nome,rec:t.rec,desc:-t.desc,frete:t.frete,trans:-t.trans,custo:t.falta?'':-t.custo,trib:'não informado',mc:t.falta?'':round2(t.rec-t.desc+t.frete-t.trans-t.custo),st:t.falta?'Incompleto: falta custo':'Estimado'})).sort((a,b)=>b.rec-a.rec);
  const completo=rows.every(r=>r.st==='Estimado');const margem=completo&&rows.length?round2(soma(rows,r=>r.mc)):null;
  const resumo=completo?'Estimativa sem tributos (dados fiscais de tributo não cadastrados).':'Resultado incompleto: falta o custo de referência de '+[...semCusto].join(', ')+'. Cadastre o custo no produto.';
  return{cols:[{k:'nome',l:por==='cliente'?'Cliente':por==='mes'?'Mês':'Produto'},{k:'rec',l:'Receita de produtos',t:'moeda'},{k:'desc',l:'Descontos e devoluções',t:'moeda'},{k:'frete',l:'Fretes cobrados',t:'moeda'},{k:'trans',l:'Custo de transporte',t:'moeda'},{k:'custo',l:'Custo dos produtos',t:'moeda'},{k:'trib',l:'Tributos'},{k:'mc',l:'Margem de contribuição estimada',t:'moeda'},{k:'st',l:'Situação do cálculo'}],
-  rows,total:true,margem,resumo,nota:'Margem de contribuição ESTIMADA: receita − descontos e devoluções + fretes cobrados − custo de transporte conhecido − custo dos produtos (custo de referência do cadastro de cada produto). Tributos não entram: o JB Gestão não tem os dados tributários e não inventa percentual. Não é lucro. '+resumo+' '+periodoTxtV(U)+'.'}}
+  rows,total:true,margem,resumo,nota:'Margem de contribuição ESTIMADA: receita − descontos e devoluções + fretes cobrados − custo de transporte conhecido − custo dos produtos ('+(Object.keys(refCtl).length?'milheiro pelo custo de produção da Controladoria: '+refCtl2(refCtl)+'; o resto pelo custo de referência do cadastro':'custo de referência do cadastro de cada produto')+'). Tributos não entram: o JB Gestão não tem os dados tributários e não inventa percentual. Não é lucro. '+resumo+' '+periodoTxtV(U)+'.'}}
 function relMetas(U){const ms=DATA.metas.filter(m=>(!U.ini||m.mes>=String(U.ini).slice(0,7))&&(!U.fim||m.mes<=String(U.fim).slice(0,7))).sort((a,b)=>String(b.mes).localeCompare(a.mes));
  return{cols:[{k:'mes',l:'Mês'},{k:'tipo',l:'Tipo'},{k:'quem',l:'Vendedor / produto'},{k:'meta',l:'Meta'},{k:'real',l:'Realizado'},{k:'pct',l:'% atingido'},{k:'falta',l:'Falta'},{k:'proj',l:'Projeção (estimativa)'}],
   rows:ms.map(m=>{const r=realizadoMetaV(m),pj=projecaoMetaV(m);return{mes:mesLongo(m.mes),tipo:m.tipo,quem:[m.vendedorId?nomeUsuario(m.vendedorId):'Equipe',m.produtoId?nomeProduto(PROD(m.produtoId)):'todos os produtos'].join(' · '),meta:fMeta(m,+m.valor),real:fMeta(m,r),pct:fNum(r/m.valor*100,1)+'%',falta:fMeta(m,Math.max(0,m.valor-r)),proj:pj?fMeta(m,pj.valor):'—'}}),total:false,
@@ -14258,6 +14275,9 @@ inicioVendasV=function(c,s){
    ${K('c3','caixa','Milheiros vendidos',fQtd(mil),pc.ok?fNum(pc.t)+' tijolos (peças)':'peças: cadastre “peças por milheiro”','prod')}${K('c4','moeda','Faturamento bruto',fMoeda(soma(xs,x=>x.bruto)),'produtos a preço negociado','periodo')}
    ${K('c6','aviso','Descontos concedidos',fMoeda(soma(xs,x=>x.desc)),'sobre a tabela + desconto geral','desc')}${K('c2','enviar','Fretes cobrados',fMoeda(soma(xs,x=>x.frete)),'receita de frete (não é custo)','exp')}
    ${K('c2','moeda','Receita líquida comercial',fMoeda(soma(xs,liquidoV)),CFGV().liquidoFrete==='Com frete'?'com frete':'sem frete, menos descontos e devoluções','periodo')}
+   ${podeCustoV()?(()=>{const cv=custoVendasV(xs);const rl=round2(soma(xs,liquidoV));const liq=round2(rl-cv.custo);const ref=refCustoTxtV(cv.ref)||'sem custo na Controladoria';
+    return K('c6','caixa','Custo dos milheiros vendidos',fMoeda(cv.custo),fQtd(cv.mil)+' milheiro(s) × '+ref+(cv.semBase?' · '+fQtd(cv.semBase)+' sem custo':''),'custo')+
+     K('c2','moeda','Receita líquida (após o custo)',fMoeda(liq),(rl?'margem '+fNum(liq/rl*100,1)+'% · ':'')+'receita líquida comercial − custo do milheiro','custo')})():''}
    ${K('c2','entrada','Recebido',fMoeda(rec),'dinheiro que entrou no período','recebido')}${K('c5','carteira','A receber',fMoeda(soma(ab,x=>x.saldo)),ab.length+' título(s) em aberto','receber')}
    ${K('c5','calendario','Vendas a prazo',fMoeda(tot(aPrazo)),aPrazo.length+' venda(s) no período','prazo')}${K('c6','aviso','Clientes inadimplentes',String(inad.size),fMoeda(soma(ven,x=>x.saldo))+' vencido','vencido')}
    ${K('c1','editar','Aguardando aprovação',String(aAprov.length),fMoeda(soma(aAprov,v=>v.total)),'aprov')}${K('c3','caixa','Aguardando carregamento',String(aCarr.length),fMoeda(soma(aCarr,v=>v.total)),'carr')}
@@ -14283,7 +14303,7 @@ inicioVendasV=function(c,s){
   prod:()=>abrirRelV('rv_produtos'),periodo:()=>abrirRelV('rv_periodo'),desc:()=>abrirRelV('rv_descontos'),exp:()=>abrirRelV('rv_expedicao'),recebido:()=>abrirRelV('rv_recebidas'),
   receber:()=>{location.hash='#/receber'},prazo:()=>abrirRelV('rv_periodo',{forma:''}),vencido:()=>{UIRECC.st='Vencido';location.hash='#/receber'},
   aprov:()=>irListaV('vendas',{status:'Aguardando aprovação'}),carr:()=>irListaV('vendas',{status:'Aguardando carregamento'}),ent:()=>{location.hash='#/expedicao'},
-  canc:()=>abrirRelV('rv_cancelamentos'),clientes:()=>abrirRelV('rv_clientes'),produtos:()=>abrirRelV('rv_produtos'),metas:()=>{location.hash='#/metas'}};
+  canc:()=>abrirRelV('rv_cancelamentos'),custo:()=>abrirRelV('rv_margem_mes'),clientes:()=>abrirRelV('rv_clientes'),produtos:()=>abrirRelV('rv_produtos'),metas:()=>{location.hash='#/metas'}};
  $$('[data-k]',c).forEach(a=>a.onclick=e=>{e.preventDefault();const f=rot[a.dataset.k];if(f)f()});
  [['#pvPer','per'],['#pvIni','ini'],['#pvFim','fim'],['#pvCli','cliente'],['#pvProd','produto'],['#pvVend','vendedor']].forEach(([q,k])=>{const x=$(q,c);if(x)x.onchange=e=>{UIPV[k]=e.target.value;renderTela()}});
  if(UIPV.per==='mesx')JB_MES.ligar(c,'vendas');
