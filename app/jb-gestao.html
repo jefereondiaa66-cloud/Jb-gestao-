@@ -15547,8 +15547,8 @@ function relProd(ch,N){
   case 'enfM':return{t:'Enfornado no mês · '+mesTxt,href:'#/pfornadas',h:tab(cabEnf,enfL(N.fM),['Total','','','','<b>'+fT(N.enfM)+'</b>','',''],'Nenhuma enforna no mês.')};
   case 'desH':return{t:'Desenfornado hoje · '+hojeTxt,href:'#/pdesenf',h:tab(cabDes,desL(N.desH),totDes(N.desH),'Nenhuma desenforna hoje.')};
   case 'desM':return{t:'Desenfornado no mês · '+mesTxt,href:'#/pdesenf',h:tab(cabDes,desL(N.dM),totDes(N.dM),'Nenhuma desenforna no mês.')};
-  case 'perdEnf':return{t:'Perda na enforna · '+mesTxt,href:'#/psecmov',h:`<p class="ajuda" style="margin:0 0 10px">Por dia: o que saiu do secador menos o que foi enfornado em todos os fornos (inclusive o contínuo).</p>`+tab([{l:'Dia'},{l:'Saiu do secador',n:1},{l:'Enfornado',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.pEnf.map(x=>[esc(fData(x.data)),fT(x.saiu),x.semEnforna?'enforna não lançada':fT(x.enf),x.semEnforna?'—':'<b>'+fT(x.perda)+'</b>',x.semEnforna?'—':pc_(x.perda,x.saiu)]),['Total',fT(N.baseEnf),'','<b>'+fT(N.perdEnf)+'</b>',pc_(N.perdEnf,N.baseEnf)],'Lance a saída do secador (grades) para calcular.')};
-  case 'perdDes':return{t:'Perda na desenforna · '+mesTxt,href:'#/pdesenf',h:`<p class="ajuda" style="margin:0 0 10px">Por fornada: o que entrou no forno menos os tijolos bons (1ª + 2ª). O forno contínuo e as desenfornas sem enforna lançada não entram nesta conta.</p>`+tab([{l:'Desenforna'},{l:'Fornada'},{l:'Enfornado',n:1},{l:'Bons',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.queima.map(x=>[esc(fData(x.d.data)),esc(nomeFornada(x.f)),fT(x.enf),fT(x.bons),'<b>'+fT(x.perda)+'</b>',pc_(x.perda,x.enf)]),['Total','',fT(N.baseQueima),'','<b>'+fT(N.perdQueima)+'</b>',pc_(N.perdQueima,N.baseQueima)],'Nenhuma desenforna de fornada neste mês.')};
+  case 'perdEnf':return{t:'Diferença entre o secador e o forno · '+mesTxt,href:'#/psecmov',h:`<p class="ajuda" style="margin:0 0 10px">Por dia: o que saiu do secador menos o que foi enfornado em todos os fornos (inclusive o contínuo).</p>`+tab([{l:'Dia'},{l:'Saiu do secador',n:1},{l:'Enfornado',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.pEnf.map(x=>[esc(fData(x.data)),fT(x.saiu),x.semEnforna?'enforna não lançada':fT(x.enf),x.semEnforna?'—':'<b>'+fT(x.perda)+'</b>',x.semEnforna?'—':pc_(x.perda,x.saiu)]),['Total',fT(N.baseEnf),'','<b>'+fT(N.perdEnf)+'</b>',pc_(N.perdEnf,N.baseEnf)],'Lance a saída do secador (grades) para calcular.')};
+  case 'perdDes':return{t:'Perda no forno · '+mesTxt,href:'#/pdesenf',h:`<p class="ajuda" style="margin:0 0 10px">Por fornada: o que entrou no forno menos o que saiu bom (1ª + 2ª). O forno contínuo e as desenfornas de fornos sem enforna lançada não entram nesta conta.</p>`+tab([{l:'Desenforna'},{l:'Fornada'},{l:'Entrou no forno',n:1},{l:'Saiu bom',n:1},{l:'Perda',n:1},{l:'%',n:1}],N.queima.map(x=>[esc(fData(x.d.data)),esc(nomeFornada(x.f)),fT(x.enf),fT(x.bons),'<b>'+fT(x.perda)+'</b>',pc_(x.perda,x.enf)]),['Total','',fT(N.baseQueima),'','<b>'+fT(N.perdQueima)+'</b>',pc_(N.perdQueima,N.baseQueima)],'Nenhuma desenforna de fornada neste mês.')};
   case 'perdMS':{const lin=[...N.okM.filter(r=>calcMar(r).perdas>0).map(r=>[esc(fData(r.data)),'Maromba',esc(r.turno||''),'<b>'+fT(calcMar(r).perdas)+'</b>']),
     ...DATA.psecmov.filter(x=>x.mov==='Perda'&&String(x.data).startsWith(N.m)).map(x=>[esc(fData(x.data)),'Secagem',esc(x.motivo||''),'<b>'+fT(x.quantidade)+'</b>'])].sort((a,b)=>a[0].localeCompare(b[0]));
    return{t:'Perdas na maromba e na secagem · '+mesTxt,href:'#/prel',h:tab([{l:'Data'},{l:'Etapa'},{l:'Turno / motivo'},{l:'Tijolos',n:1}],lin,['Total','','','<b>'+fT(N.perdMar+N.perdSec)+'</b>'],'Nenhuma perda registrada no mês.')}}
@@ -15638,7 +15638,7 @@ function inicioProd(c){
  const pEnfLst=N.pEnf.slice().reverse().map(x=>({href:'#/psecmov',ic:'aviso',cls:x.semEnforna?'a-at':x.perda>0?'a-pe':'a-ok',t:fData(x.data),
   s:'saiu do secador '+fT(x.saiu)+(x.semEnforna?' · enforna do dia ainda não lançada':' · enfornado '+fT(x.enf)),v:x.semEnforna?'—':fT(x.perda)+' ('+pct(x.perda,x.saiu)+')'}));
  const queimaLst=N.queima.slice().sort((a,b)=>String(b.d.data).localeCompare(String(a.d.data))).map(x=>({href:'#/pdesenf/'+x.d.id,ic:'saida',cls:x.perda>0?'a-pe':'a-ok',t:nomeFornada(x.f),
-  s:fData(x.d.data)+' · enfornado '+fT(x.enf)+' · bons '+fT(x.bons),v:fT(x.perda)+' ('+pct(x.perda,x.enf)+')'}));
+  s:fData(x.d.data)+' · entrou '+fT(x.enf)+' · saiu bom '+fT(x.bons),v:fT(x.perda)+' ('+pct(x.perda,x.enf)+')'}));
  const metaHtml=(MM||M)?`<div class="pm-metas">${MM?metaBox('Meta da maromba · '+fMes(N.m),MM,'metaMar'):''}${M?metaBox('Meta de desenforna · '+fMes(N.m),M,'metaDes',`<div><b>${fMilh(N.desMes.aprov)}</b><span>Tijolos bons (1ª + 2ª), milheiros</span></div>`):''}</div>`:'';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('caixa')}</span><div><h1>Setor de Produção</h1><p>Da maromba ao tijolo pronto: produção do dia, secagem, fornos, desenforna e estoque. Números só de lançamentos confirmados.</p></div></div>
   <div class="acoes">${lancaveisP().length?`<a class="btn pri" href="#/plancar">${ic('mais')}Lançar</a>`:''}</div></div>
@@ -15658,8 +15658,8 @@ function inicioProd(c){
    ${k('c1','calendario','Maromba no mês',fT(N.mes),fT(N.gradesM)+' grade(s) · '+N.okM.length+' lançamento(s)','#/pmaromba','','marM')}
    ${k('c5','chama','Enfornado no mês',fT(N.enfM),N.fM.length+' fornada(s)','#/pfornadas','','enfM')}
    ${k('c4','saida','Desenfornado no mês',fT(N.desMes.total),'bons '+fT(N.desMes.aprov)+' · '+N.desMes.n+' desenforna(s)','#/pdesenf','','desM')}
-   ${k('c6','aviso','Perda na enforna',fT(N.perdEnf),N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia','#/psecmov','','perdEnf')}
-   ${k('c6','aviso','Perda na desenforna',fT(N.perdQueima),N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que foi enfornado':'sem desenforna de fornada no mês','#/pdesenf','','perdDes')}
+   ${k('c6','aviso','Perda no forno (entrou − saiu)',fT(N.perdQueima),N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que entrou no forno':'sem fornada desenfornada no mês','#/pdesenf','','perdDes')}
+   ${k('c3','aviso','Diferença secador → forno',fT(N.perdEnf),N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia','#/psecmov','','perdEnf')}
    ${k('c3','aviso','Perdas na maromba e secagem',fT(N.perdMar+N.perdSec),'maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec),'#/prel','','perdMS')}
   </div>
   <h3 class="grupo-t">Agora na fábrica</h3>
@@ -15678,8 +15678,8 @@ function inicioProd(c){
   </div>
   <div class="ex2">
    <div class="bloco"><h3>Situação dos fornos<a href="#/pfornadas">Fornadas</a></h3>${lstV(fornosLst,'Nenhum forno cadastrado no Setor da Lenha.')}</div>
-   <div class="bloco"><h3>Perda na enforna por dia<a href="#/psecmov">Secagem</a></h3>${lstV(pEnfLst,'Lance a saída do secador (grades) para calcular a perda na enforna.')}</div>
-   <div class="bloco"><h3>Perda na desenforna por fornada<a href="#/pdesenf">Desenforna</a></h3>${lstV(queimaLst,'Nenhuma desenforna de fornada neste mês.')}</div>
+   <div class="bloco"><h3>Diferença secador → forno<a href="#/psecmov">Secador</a></h3>${lstV(pEnfLst,'Lance a saída do secador (grades) para comparar com o que entrou nos fornos.')}</div>
+   <div class="bloco"><h3>Perda no forno por fornada<a href="#/pdesenf">Desenforna</a></h3>${lstV(queimaLst,'Nenhuma fornada desenfornada neste mês.')}</div>
   </div>`;
  $$('[data-rel]',c).forEach(a=>a.addEventListener('click',e=>{const R=relProd(a.dataset.rel,N);if(!R)return;e.preventDefault();
   const v=modalV(R.t,R.h,'Abrir a tela completa',()=>{location.hash=R.href});const m=v.querySelector('.modal');if(m)m.classList.add('v56-modal-larga','pm-rel')}));
