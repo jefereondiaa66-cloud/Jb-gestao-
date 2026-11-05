@@ -28634,8 +28634,8 @@ function msSecaoConfig(el){
  if(!el||el.querySelector('#msCfg'))return;
  const ref=el.querySelector('#ndpCfg')||[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
  const v=menuModo();
- const ops=[['atual','Menu atual','O menu de sempre, com todos os grupos e opções, igual ao da Versão 40.'],
-  ['simples','Menu simplificado','Poucos setores (Pessoas, Ponto, Folha, Férias, Afastamentos, Rescisões, Documentos), cada um com tudo do assunto em abas no alto da página, e botão Lançar. Tudo o que o menu atual faz, em menos cliques.']];
+ const ops=[['atual','Menu atual','O menu antigo, com todos os grupos e opções, igual ao da Versão 40.'],
+  ['simples','Menu simplificado (padrão)','Poucos setores (Pessoas, Ponto, Folha, Férias, Afastamentos, Rescisões, Documentos), cada um com tudo do assunto em abas no alto da página, e botão Lançar. Tudo o que o menu atual faz, em menos cliques.']];
  const n=document.createElement('fieldset');n.className='sec ms-cfg';n.id='msCfg';
  n.innerHTML=`<legend>Menu do Departamento Pessoal</legend><p style="margin:0 0 10px;color:var(--suave);font-size:13px">Escolha como o menu aparece para você. Muda só a organização: telas, dados, cálculos, permissões e os outros setores continuam iguais.</p>
   <div class="ndp-escolha" role="radiogroup" aria-label="Menu do Departamento Pessoal">
@@ -31534,5 +31534,130 @@ async function iniciar(){
 }
 iniciar().catch(e=>{console.error(e);$('#conteudo').innerHTML='<div class="vazio"><b>Não foi possível iniciar o sistema</b>Recarregue a página. Se o problema continuar, verifique a conexão.</div>'});
 </script>
+<style id="inicio-dp">
+/* ===== V75 · Início do Departamento Pessoal: faixa de cima + Acesso rápido a todas as funções ===== */
+#conteudo.ini-dp .ex4>.bloco:first-child{display:none}
+#conteudo.ini-dp.ini-sem-saudacao>.cc-saud,#conteudo.ini-dp.ini-sem-lembrete>.cc-lembrete,#conteudo.ini-dp.ini-sem-graficos>.ex2,
+#conteudo.ini-dp.ini-sem-pendencias>.ex3,#conteudo.ini-dp.ini-sem-rotina>.ex4,#conteudo.ini-dp.ini-sem-movimento>.mv,
+#conteudo.ini-dp.ini-sem-indicadores>#detMais{display:none!important}
+#ndpCfg{display:none!important}
+.ar-dp{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:16px 18px 18px;margin:0 0 18px}
+.ar-dp-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ar-dp-cab h2{margin:0;font-size:17px;font-weight:700}
+.ar-dp-cab p{margin:2px 0 0;font-size:12.5px;color:var(--suave)}
+.ar-dp-cab input{min-width:240px;max-width:100%;padding:8px 12px;border:1px solid var(--linha);border-radius:999px;font:inherit;font-size:13.5px;background:var(--branco);color:var(--tinta)}
+.ar-dp-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.ar-g{border:1px solid var(--linha);border-radius:var(--r2);padding:12px 12px 10px}
+.ar-g h3{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.ar-g h3 .ic{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:var(--brasa-bg);color:var(--brasa)}
+.ar-g h3 .ic svg{width:15px;height:15px}
+.ar-l{display:flex;flex-wrap:wrap;gap:6px}
+.ar-l button{border:1px solid var(--linha);background:var(--branco);color:var(--tinta);border-radius:999px;padding:6px 11px;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
+.ar-l button:hover,.ar-l button:focus-visible{border-color:var(--brasa);background:var(--brasa-bg);outline:none}
+.ar-l button.ac{border-color:var(--brasa);color:var(--brasa);font-weight:600}
+.ar-l button.ac:hover,.ar-l button.ac:focus-visible{background:var(--brasa);color:#fff}
+.ar-vazio{display:none;color:var(--suave);font-size:13px;padding:8px 2px}
+.ini-cfg label.ck{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:13.5px;cursor:pointer}
+.ini-cfg label.ck input{margin-top:3px}
+@media (max-width:720px){.ar-dp{padding:14px 12px}.ar-dp-cab input{min-width:0;width:100%}.ar-dp-grade{grid-template-columns:1fr}}
+@media print{.ar-dp{display:none!important}}
+</style>
+<script>
+"use strict";
+/* ================= V75 · Início do Departamento Pessoal (05/11/2026) =================
+   Pedido do dono: no Início fica a faixa de cima (funcionários ativos, carteira, custo, pendências)
+   e, logo abaixo, o Acesso rápido com TODAS as funções do DP, por setor. O resto do painel não sai
+   do sistema: fica oculto para todos e volta pela chave em Configurações › Início do Departamento
+   Pessoal (gravado na configuração da empresa, vale para todo mundo). Padrão: tudo oculto.
+   O menu simplificado passa a ser o padrão de todos (quem quiser volta ao menu atual pela chave). */
+const INI_PARTES=[['saudacao','Saudação (Boa tarde…) e data'],['lembrete','Lembrete do DP (pendências abertas)'],
+ ['graficos','Gráficos: custo de pessoal, distribuição por setor e agenda de férias e vencimentos'],
+ ['pendencias','Pendências prioritárias, comparativo de competências e atividades recentes'],
+ ['rotina','Rotina do mês e cópia dos dados (backup)'],['movimento','Movimento e pessoas (aniversariantes, admitidos, desligados, contratos)'],
+ ['indicadores','Mais indicadores e gráficos']];
+const iniMostra=k=>!!(CFG&&CFG.inicioDP&&CFG.inicioDP[k]===true);
+/* painel do DP: um só para todos (a "nova interface" por pessoa deixa de valer) */
+try{painelModo=function(){return 'atual'}}catch(e){}
+/* menu simplificado: padrão de todos; a escolha antiga não vale mais (só a feita a partir desta versão) */
+try{
+ menuModo=function(){
+  if(PREFS&&(PREFS.menuDP2==='atual'||PREFS.menuDP2==='simples'))return PREFS.menuDP2;
+  try{const v=localStorage.getItem('jb_menu2');if(v==='atual'||v==='simples')return v}catch(e){}
+  return 'simples';
+ };
+ definirMenuModo=async function(v){
+  if(!MENU_MODOS[v])return;const mudou=menuModo()!==v;
+  try{localStorage.setItem('jb_menu2',v)}catch(e){}
+  PREFS={...PREFS,menuDP2:v};msRedesenhar();
+  $$('.ms-cfg-op').forEach(l=>{const on=l.dataset.v===v;l.classList.toggle('on',on);const i=l.querySelector('input');if(i)i.checked=on});
+  if(mudou)toast(v==='simples'?'Menu simplificado ligado.':'Menu atual ligado. Para voltar ao simplificado, use a chave no alto do menu.','ok');
+  try{await salvarPrefs({menuDP2:v})}catch(e){toast('A escolha vale neste navegador, mas não foi possível guardá-la nas suas preferências.','erro')}
+ };
+}catch(e){console.warn('início do DP · menu',e)}
+
+function iniAcessoHtml(){
+ const grupos=[];
+ try{const ops=msOps();if(ops.length)grupos.push({g:'Lançar',ic:'mais',b:ops.map((o,k)=>({t:o.l,d:'data-ar-op="'+k+'"',ac:1}))})}catch(e){}
+ AREAS_MS.forEach(a=>{
+  const vis=msVis(a);const ac=a.C.filter(x=>pode(x.m,'e'));if(!vis.length&&!ac.length)return;
+  grupos.push({g:a.g,ic:a.ic,b:[...vis.map(x=>({t:x.l,d:'data-ar-g="'+esc(a.g)+'" data-ar-aba="'+a.A.indexOf(x)+'"'})),
+   ...ac.map(x=>({t:x.l,d:'data-ar-g="'+esc(a.g)+'" data-ar-ac="'+a.C.indexOf(x)+'"',ac:1}))]});
+ });
+ return `<section class="ar-dp" id="arDP" aria-label="Acesso rápido"><div class="ar-dp-cab"><div><h2>Acesso rápido</h2><p>Todas as funções do Departamento Pessoal, por setor. Um clique abre a tela.</p></div>
+  <input type="search" id="arBusca" placeholder="Procurar função (ex.: holerite, férias vencidas)" aria-label="Procurar função"></div>
+  <div class="ar-dp-grade">${grupos.map(G=>`<div class="ar-g"><h3><span class="ic">${ic(G.ic)}</span>${esc(G.g)}</h3><div class="ar-l">${G.b.map(b=>`<button type="button" class="${b.ac?'ac':''}" ${b.d}>${b.ac?'+ ':''}${esc(b.t)}</button>`).join('')}</div></div>`).join('')}</div>
+  <div class="ar-vazio" id="arVazio">Nenhuma função com esse nome. Tente outra palavra ou use a pesquisa no alto da tela.</div></section>`;
+}
+function iniAplicar(){
+ const c=document.getElementById('conteudo');if(!c)return;
+ const r=lerRota();const eh=r.mod==='painel'&&!!c.querySelector(':scope>.cc-faixa');
+ c.classList.toggle('ini-dp',eh);
+ INI_PARTES.forEach(([k])=>c.classList.toggle('ini-sem-'+k,eh&&!iniMostra(k)));
+ if(!eh)return;
+ const velho=c.querySelector(':scope>#arDP');if(velho)velho.remove();
+ const d=document.createElement('div');d.innerHTML=iniAcessoHtml();const s=d.firstElementChild;
+ const faixa=c.querySelector(':scope>.cc-faixa');
+ const ref=c.querySelector(':scope>.ex2')||c.querySelector(':scope>.ex3')||c.querySelector(':scope>.ex4')||c.querySelector(':scope>.mv')||c.querySelector(':scope>.rodape');
+ if(ref)c.insertBefore(s,ref);else faixa.after(s);
+ const ops=(()=>{try{return msOps()}catch(e){return[]}})();
+ s.querySelectorAll('[data-ar-op]').forEach(b=>b.onclick=()=>{const o=ops[+b.dataset.arOp];if(o)o.ir()});
+ s.querySelectorAll('[data-ar-aba]').forEach(b=>b.onclick=()=>{const a=AREAS_MS.find(x=>x.g===b.dataset.arG);if(a){MSIM.area=a.g;msAbrirAba(a.A[+b.dataset.arAba])}});
+ s.querySelectorAll('[data-ar-ac]').forEach(b=>b.onclick=()=>{const a=AREAS_MS.find(x=>x.g===b.dataset.arG);if(a){MSIM.area=a.g;msAbrirAcao(a.C[+b.dataset.arAc])}});
+ const bus=s.querySelector('#arBusca');
+ bus.oninput=()=>{const q=pqN(bus.value.trim());let tem=0;
+  s.querySelectorAll('.ar-g').forEach(g=>{const tg=pqN(g.querySelector('h3').textContent);let n=0;
+   g.querySelectorAll('.ar-l button').forEach(b=>{const v=!q||pqN(b.textContent).includes(q)||tg.includes(q);b.hidden=!v;if(v)n++});
+   g.hidden=!n;tem+=n});
+  s.querySelector('#arVazio').style.display=tem?'none':'block'};
+}
+const _renderTelaINI=renderTela;
+renderTela=function(){
+ const out=_renderTelaINI.apply(this,arguments);
+ try{iniAplicar()}catch(e){console.warn('início do DP',e)}
+ return out;
+};
+
+/* ---------- Configurações › Início do Departamento Pessoal (vale para todos) ---------- */
+const _ligarAparenciaINI=ligarAparencia;
+ligarAparencia=function(el){
+ _ligarAparenciaINI.apply(this,arguments);
+ try{iniSecaoConfig(el)}catch(e){console.warn('início do DP · configurações',e)}
+};
+function iniSecaoConfig(el){
+ if(!el||el.querySelector('#iniCfg'))return;
+ const ed=pode('config','e');
+ const ref=el.querySelector('#msCfg')||el.querySelector('#ndpCfg')||[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
+ const n=document.createElement('fieldset');n.className='sec ini-cfg';n.id='iniCfg';
+ n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra a faixa de cima (funcionários ativos, carteira, custo e pendências) e o Acesso rápido com todas as funções. As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
+  ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
+  <span class="ajuda">${ed?'Entra na hora, sem precisar salvar.':'Só quem pode alterar as Configurações muda estas opções.'}</span>`;
+ if(ref)ref.after(n);else{const p=el.querySelector('fieldset.sec');if(p)p.after(n);else el.appendChild(n)}
+ n.querySelectorAll('[data-ini]').forEach(i=>i.onchange=async e=>{e.stopPropagation();
+  const ant=clone((CFG&&CFG.inicioDP)||{});const novo={...ant,[i.dataset.ini]:i.checked};
+  try{await salvarCfg({...clone(CFG),inicioDP:novo});CFG.inicioDP=novo;toast(i.checked?'Parte do Início ligada para todos.':'Parte do Início oculta para todos.','ok')}
+  catch(err){i.checked=!i.checked;toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(err):'erro')+'.','erro')}});
+}
+</script>
+
 </body>
 </html>
