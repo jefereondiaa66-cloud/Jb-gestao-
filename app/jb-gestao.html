@@ -484,7 +484,7 @@
 </script>
 <title>JB Gestão</title>
 <script>/* visual escolhido (Concretiza, Branco e laranja ou JB): aplicado antes de desenhar a tela, para não piscar */try{var vj=localStorage.getItem('jb_visual3');if(vj==='nv')document.documentElement.classList.add('vis-nv');else if(vj!=='jb')document.documentElement.classList.add('vis-cc')}catch(e){document.documentElement.classList.add('vis-cc')}</script>
-<script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
+<script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.cores)document.documentElement.setAttribute('data-jbcores','');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -28887,6 +28887,146 @@ window.semVencimentoV63=semVenc;
 window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,semVenc};
 })();
 </script>
+<script id="jb-cores-nucleo">
+"use strict";
+/* ================= Central de cores · V72 · núcleo =================
+   Usado pelo painel Personalizar aparência (V68, ampliado na V72). Só cálculo de cor: conversões,
+   contraste (WCAG), verificação de leitura e harmonia, a biblioteca de 24 famílias × 11 tons e as
+   22 paletas premium. Não lê nem grava dado nenhum. */
+/* ---- núcleo de cor: conversões, contraste e verificação de legibilidade (sem dependências) ---- */
+const JC_PROPS=[
+ ['fundo','Fundo principal','Atrás de todas as telas.'],
+ ['fundo2','Fundo secundário','Faixas, áreas de apoio e o menu lateral do visual Concretiza.'],
+ ['painel','Painéis e cartões','Cartões, tabelas, gavetas e janelas.'],
+ ['menu','Menus','Barra do topo e menu escuro (o texto deles é branco).'],
+ ['pri','Botões principais','Salvar, Confirmar e as ações de destaque.'],
+ ['sec','Botões secundários','Demais botões e, no visual Concretiza, o cabeçalho das tabelas.'],
+ ['destaque','Cor de destaque','Links, marcações, filetes, abas e indicadores ativos.'],
+ ['tx','Textos principais','Títulos, valores e o texto das tabelas.'],
+ ['tx2','Textos secundários','Descrições, legendas e ajudas.'],
+ ['borda','Bordas','Contornos de cartões, campos e linhas das tabelas.'],
+ ['icone','Ícones','Ícones e textos discretos (rótulos, datas, contagens).'],
+ ['sel','Elementos selecionados','Fundo do que está marcado ou escolhido e da seleção de texto.'],
+ ['inter','Estados de interação','Contorno de foco e cor ao passar o mouse ou tocar.']];
+const JC_CHAVES=JC_PROPS.map(p=>p[0]);
+const jcNomeProp=k=>{const p=JC_PROPS.find(x=>x[0]===k);return p?p[1]:k};
+const jcHexOk=h=>typeof h==='string'&&/^#[0-9a-f]{6}$/i.test(h);
+/* as 13 cores completas e válidas, ou null */
+function jcCoresCheias(x){if(!x||typeof x!=='object')return null;const r={};for(const k of JC_CHAVES){const h=jcNorm(x[k]);if(!h)return null;r[k]=h}return r}
+function jcNorm(h){if(typeof h!=='string')return null;let s=h.trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(s))s=s.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(s)?'#'+s.toUpperCase():null}
+const jcRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const jcHex=rgb=>'#'+rgb.map(x=>Math.round(Math.min(255,Math.max(0,x))).toString(16).padStart(2,'0')).join('').toUpperCase();
+function jcLum(h){const [r,g,b]=jcRgb(h).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4});return .2126*r+.7152*g+.0722*b}
+function jcContraste(a,b){const x=jcLum(a),y=jcLum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+/* mistura a com b: t=0 devolve a, t=1 devolve b */
+function jcMix(a,b,t){const x=jcRgb(a),y=jcRgb(b);return jcHex(x.map((v,i)=>v+(y[i]-v)*t))}
+function jcRgba(h,a){const [r,g,b]=jcRgb(h);return `rgba(${r},${g},${b},${a})`}
+const jcEscuro=h=>jcLum(h)<.18;
+/* texto que melhor se lê sobre a cor: branco ou quase preto */
+const jcTextoSobre=h=>jcContraste(h,'#FFFFFF')>=jcContraste(h,'#111114')?'#FFFFFF':'#111114';
+function jcHsl(h){let [r,g,b]=jcRgb(h).map(x=>x/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let H=0,S=0;
+ if(mx!==mn){const d=mx-mn;S=l>.5?d/(2-mx-mn):d/(mx+mn);H=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;H*=60}return [H,S,l]}
+function jcDeHsl(H,S,L){H=((H%360)+360)%360;const c=(1-Math.abs(2*L-1))*S,x=c*(1-Math.abs((H/60)%2-1)),m=L-c/2;
+ const [r,g,b]=H<60?[c,x,0]:H<120?[x,c,0]:H<180?[0,c,x]:H<240?[0,x,c]:H<300?[x,0,c]:[c,0,x];return jcHex([(r+m)*255,(g+m)*255,(b+m)*255])}
+function jcHsv(h){const [r,g,b]=jcRgb(h).map(x=>x/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let H=0;
+ if(d){H=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;H*=60}return [H,mx?d/mx:0,mx]}
+function jcDeHsv(H,S,V){H=((H%360)+360)%360;const c=V*S,x=c*(1-Math.abs((H/60)%2-1)),m=V-c;
+ const [r,g,b]=H<60?[c,x,0]:H<120?[x,c,0]:H<180?[0,c,x]:H<240?[0,x,c]:H<300?[x,0,c]:[c,0,x];return jcHex([(r+m)*255,(g+m)*255,(b+m)*255])}
+/* aproxima a cor do branco ou do preto (o que afastar do fundo) até atingir o contraste pedido */
+function jcAjustar(cor,contra,alvo){
+ const alvoCor=jcLum(contra)>.2?'#000000':'#FFFFFF';
+ for(let t=0;t<=1.0001;t+=.02){const c=jcMix(cor,alvoCor,t);if(jcContraste(c,contra)>=alvo)return c}
+ return alvoCor;
+}
+/* fundo que precisa de texto branco: escurece até o branco ler bem */
+const jcParaBranco=(cor,alvo)=>{for(let t=0;t<=1.0001;t+=.02){const c=jcMix(cor,'#000000',t);if(jcContraste(c,'#FFFFFF')>=alvo)return c}return '#000000'};
+const jcDist=(a,b)=>{const x=jcRgb(a),y=jcRgb(b);return Math.sqrt(x.reduce((s,v,i)=>s+(v-y[i])**2,0))};
+/* verificação de legibilidade e harmonia. visual: 'cc' ou 'jb' */
+function jcVerificar(c,visual){
+ const out=[],f=(nivel,prop,msg,sug)=>out.push({nivel,prop,msg,sug:sug&&jcHexOk(sug)&&sug!==c[prop]?sug:null});
+ const k=(a,b)=>jcContraste(c[a],c[b]),r1=x=>x.toFixed(1).replace('.',',');
+ let x;
+ if((x=k('tx','fundo'))<4.5)f(x<3?'critico':'aviso','tx',`Texto principal sobre o fundo principal: contraste ${r1(x)} (o mínimo é 4,5).`,jcAjustar(c.tx,c.fundo,7));
+ if((x=k('tx','painel'))<4.5)f(x<3?'critico':'aviso','tx',`Texto principal sobre os cartões: contraste ${r1(x)} (o mínimo é 4,5).`,jcAjustar(c.tx,c.painel,7));
+ if((x=k('tx2','painel'))<4.5)f(x<3?'critico':'aviso','tx2',`Texto secundário sobre os cartões: contraste ${r1(x)} (o mínimo é 4,5).`,jcAjustar(c.tx2,c.painel,4.6));
+ if((x=k('icone','painel'))<3)f(x<2?'critico':'aviso','icone',`Ícones sobre os cartões: contraste ${r1(x)} (o mínimo é 3).`,jcAjustar(c.icone,c.painel,3.2));
+ if((x=jcContraste(c.menu,'#FFFFFF'))<4.5)f(x<3?'critico':'aviso','menu',`O texto dos menus é branco: contraste ${r1(x)} com esta cor (o mínimo é 4,5). Use um tom mais escuro.`,jcParaBranco(c.menu,7));
+ if(visual==='cc'){if((x=jcContraste(c.sec,'#FFFFFF'))<4.5)f(x<3?'critico':'aviso','sec',`No visual Concretiza os botões secundários e o cabeçalho das tabelas têm texto branco: contraste ${r1(x)} (o mínimo é 4,5).`,jcParaBranco(c.sec,5))}
+ else if(k('sec','painel')<1.3)f('aviso','sec','O contorno dos botões secundários quase não aparece sobre os cartões.',jcAjustar(c.sec,c.painel,1.6));
+ if((x=jcContraste(c.pri,jcTextoSobre(c.pri)))<4.5)f(x<3?'critico':'aviso','pri',`O texto dos botões principais fica fraco: contraste ${r1(x)}.`,jcAjustar(c.pri,jcTextoSobre(c.pri),4.6));
+ if((x=k('pri','painel'))<1.5)f('aviso','pri','O botão principal quase some sobre os cartões.',jcAjustar(c.pri,c.painel,2.2));
+ if((x=k('destaque','painel'))<3)f(x<2?'critico':'aviso','destaque',`Links e marcações sobre os cartões: contraste ${r1(x)} (o mínimo é 3).`,jcAjustar(c.destaque,c.painel,3.4));
+ if((x=k('borda','painel'))<1.12)f('aviso','borda',`As bordas quase não aparecem sobre os cartões (contraste ${r1(x)}).`,jcAjustar(c.borda,c.painel,1.25));
+ if(k('painel','fundo')<1.025&&k('borda','fundo')<1.15)f('aviso','painel','Cartões e fundo ficaram iguais e sem borda visível: os blocos se misturam.',jcAjustar(c.painel,c.fundo,1.06));
+ if(k('painel','fundo')>6)f('aviso','painel','A diferença entre o fundo e os cartões está muito forte e cansa a vista.',null);
+ if(k('sel','painel')<1.05)f('aviso','sel','O que está selecionado quase não se diferencia do resto.',jcAjustar(c.sel,c.painel,1.12));
+ if((x=k('tx','sel'))<4.5)f(x<3?'critico':'aviso','sel',`Texto sobre os itens selecionados: contraste ${r1(x)}.`,jcMix(c.sel,c.painel,.6));
+ if(jcDist(c.pri,c.sec)<36)f('aviso','sec','Botões principais e secundários ficaram parecidos demais.',jcEscuro(c.painel)?jcMix(c.sec,'#FFFFFF',.15):jcMix(c.sec,'#000000',.25));
+ if(k('tx','tx2')<1.3)f('aviso','tx2','Textos principais e secundários ficaram iguais: some a diferença entre título e descrição.',jcMix(c.tx2,c.painel,.35));
+ if(k('inter','painel')<1.5)f('aviso','inter','O contorno de foco quase não aparece sobre os cartões.',jcAjustar(c.inter,c.painel,2.2));
+ for(const p of ['fundo','painel']){const [,S,L]=jcHsl(c[p]);if(S>.55&&L>.2&&L<.85)f('aviso',p,`${jcNomeProp(p)} muito saturado: cores fortes em áreas grandes cansam a vista.`,jcEscuro(c[p])?jcMix(c[p],'#111114',.6):jcMix(c[p],'#FFFFFF',.85))}
+ {const [h1,s1]=jcHsl(c.pri),[h2,s2]=jcHsl(c.destaque),d=Math.abs(((h1-h2)%360+540)%360-180);
+  if(s1>.65&&s2>.65&&d>150)f('aviso','destaque','Botão principal e destaque são cores fortes e opostas: a combinação fica agressiva.',jcMix(c.destaque,c.pri,.5))}
+ return out;
+}
+/* sugestões harmônicas a partir de uma cor */
+function jcHarmonias(cor){const [H,S,L]=jcHsl(cor);const s=Math.max(S,.18);
+ return [['Complementar',jcDeHsl(H+180,s,L)],['Análoga −30°',jcDeHsl(H-30,s,L)],['Análoga +30°',jcDeHsl(H+30,s,L)],['Tríade',jcDeHsl(H+120,s,L)],['Tríade',jcDeHsl(H+240,s,L)],
+  ['Mais clara',jcMix(cor,'#FFFFFF',.35)],['Mais escura',jcMix(cor,'#000000',.35)],['Suave',jcDeHsl(H,s*.45,Math.min(.92,L+.25))]]}
+/* biblioteca: 24 famílias × 11 tons (do mais claro ao mais escuro), códigos HEX */
+const JC_TONS=['50','100','200','300','400','500','600','700','800','900','950'];
+const JC_BIBLIOTECA=[
+ ['preto','Preto','4A4B4D 3E3F42 333437 2A2B2E 222326 1A1B1E 141518 0F1012 0A0B0C 050506 000000'],
+ ['grafite','Grafite','84868A 76797E 686C72 5B5F65 4E5359 42474D 373B41 2C2F34 212428 171A1D 0E1011'],
+ ['chumbo','Chumbo','9FA5AB 8E979F 7F8992 6F7B85 616D77 545F69 47525B 3B454D 30383F 262C31 1C2023'],
+ ['cinza','Cinza','EDEEF0 D8D9DB C2C4C6 AEB0B2 999B9E 86888A 737577 606264 4F5051 3D3E40 2D2E2F'],
+ ['prata','Prata','F7FAFE EBEEF3 DEE2E7 D1D7DC C5CBD1 BABFC5 AEB4B9 A4A8AD 999DA1 8E9195 848688'],
+ ['branco','Branco','FFFFFF FDFDFD FAFAFB F8FAFC F7F7F5 FBF9F4 FFFDF7 FAF7F0 F6F3EE F5F5F0 F2F4F7'],
+ ['amarelo','Amarelo','FFFBE1 FCEA7C EDD747 DDC400 C8B20B B5A004 A18F05 8E7E01 7C6D04 6A5D00 574E17'],
+ ['dourado','Dourado','FFF4DE FFDE96 F0C970 E1B54C D0A229 BC8F03 A67E02 916E03 7C5E03 664F13 4F401E'],
+ ['ambar','Âmbar','FFF5EB FFDDBA FFC485 FFA93D EE9507 D68607 BF7602 A76807 915902 7B4B03 604019'],
+ ['laranja','Laranja','FFF4EF FFDAC7 FEBE9D FFA06D FF7D2C E96902 CD5C01 B14F03 974201 7D3500 5D2F14'],
+ ['vermelho','Vermelho','FEF2F0 FFD3CD FFB3AA FE9085 FE665C F73433 DA1B21 BB0C17 980E13 751413 521613'],
+ ['vinho','Vinho','FFDFE1 FEBCC3 FF95A3 EF7689 D95C72 C0445D A53049 872038 691429 4A0C1B 2C060E'],
+ ['rosa','Rosa','FEF4F7 FFD5E4 FFB6D1 FF94BF FE6DAD E8589A D04887 B53C75 973562 793050 5B2B3F'],
+ ['roxo','Roxo','F6F3FE E3D7FE D1BAFE C09CFE B07BFF 9F5CF5 8949D9 7339B8 5C2D95 462471 301C4C'],
+ ['lilas','Lilás','FBF6FF F1DCFF E7C1FF D8ABF4 C797E4 B485D1 A174BC 8D66A5 79588D 644C73 50405A'],
+ ['azul','Azul','F0F6FE CBE0FF A7CAFE 81B4FE 589CFF 2882FF 0A6DE5 0159C2 00479E 073777 0B2850'],
+ ['marinho','Azul-marinho','DDE8FE B7CFFF 93B5FC 779CEA 5E84D4 496DBB 35569F 254181 172E61 0C1C41 040C23'],
+ ['ciano','Ciano','F0FBFF B7EDFF 72DEFE 13CCF6 0FB5DB 069FC0 0789A6 03748D 006075 014C5E 033947'],
+ ['verde','Verde','E6FFE6 A7F8AA 83E588 60D269 3FBD4D 1FA736 009125 04791F 026317 094D14 113714'],
+ ['oliva','Verde-oliva','F0F7CB D9E2A8 C3CD87 AEB869 99A34F 848E39 707927 5D651C 4B5115 393E13 282B11'],
+ ['esmeralda','Esmeralda','E2FFF0 97F7CB 6BE4B0 3AD097 02BA82 01A170 09895F 04724F 025C3E 03462F 003220'],
+ ['turquesa','Turquesa','E6FFFC 98F6ED 6CE3D9 3BCFC4 04B9AF 0CA198 088A83 05746D 015F59 034A45 023632'],
+ ['marrom','Marrom','FEE6D8 F3C9B0 E1AF92 CC9676 B67F5D 9F6947 865435 6D4125 533019 3A200F 221107'],
+ ['bronze','Bronze','FFE2C8 FBC99A EEB37B DF9D5D CD8944 B9762E A4651E 8C5516 744715 5C3A17 442D18']
+].map(([id,nome,s])=>({id,nome,tons:s.split(' ').map(h=>'#'+h)}));
+/* ordem das chaves: fundo fundo2 painel menu pri sec destaque tx tx2 borda icone sel inter */
+const JC_PALETAS=[
+ ['black-gold','Black Gold','escuro','Preto profundo com dourado: sofisticado e marcante.','#0E0E10 #141417 #1A1A1E #050506 #B8901E #393942 #D4AF37 #F3EFE6 #B9B2A3 #303037 #8E887D #33291A #E6C65C'],
+ ['midnight-black','Midnight Black','escuro','Preto azulado da meia-noite com azul elétrico contido.','#0B0D12 #10131A #161A22 #05070B #2563EB #2A3140 #60A5FA #E8ECF3 #A3ADBD #272E3A #7C879A #1A2C4A #93C5FD'],
+ ['graphite-premium','Graphite Premium','escuro','Grafite e carvão com laranja queimado, no estilo industrial.','#16181B #1B1E22 #22262B #0F1113 #C0561B #383E46 #F08A3C #ECEDEF #AAB0B7 #343941 #848B93 #3B2A1D #F59E57'],
+ ['industrial-steel','Industrial Steel','escuro','Aço escovado com azul-aço frio.','#1A1F24 #1F252B #262D34 #11151A #1F6F99 #3A444E #6FB3D9 #E6EBEF #A6B1BA #37414B #808D98 #213848 #8CC6E6'],
+ ['carbon-red','Carbon Red','escuro','Carbono com o vermelho da Concretiza, para quem gosta do visual escuro.','#111113 #16161A #1C1C21 #000000 #D3121C #393941 #F0434B #F1F1F3 #ABABB4 #2D2D35 #82828C #3A1518 #FF6B71'],
+ ['royal-purple','Royal Purple','escuro','Ameixa escura com violeta real.','#14111C #191524 #1F1A2C #0C0A12 #7C3AED #3E3554 #A78BFA #EEEAF6 #B3AACA #302941 #877DA2 #2E2350 #C4B5FD'],
+ ['wine-premium','Wine Premium','escuro','Vinho encorpado sobre fundo quase preto.','#160D10 #1C1115 #23161B #0D0709 #9F1239 #4A2F37 #E2577A #F4E9EC #C2A9B0 #3B252D #957B84 #3F1825 #F07C99'],
+ ['copper-industrial','Copper Industrial','escuro','Cobre envelhecido sobre ferro escuro.','#191513 #1F1A17 #26201C #100D0B #A8521F #3D342E #D9824A #F2EBE5 #B9ADA3 #3B322C #8E8279 #3E2A1D #E89C68'],
+ ['bronze-luxury','Bronze Luxury','escuro','Bronze polido e marrom profundo, toque de luxo.','#13110E #191612 #201C17 #0B0A08 #8A5C1F #373027 #C9964F #F1EADF #B8AC9A #372F26 #8C8170 #34291A #DDB073'],
+ ['dark-green','Dark Green','escuro','Verde floresta noturno com verde vivo nos destaques.','#0F1612 #131C17 #18231D #09100C #15803D #283830 #4ADE80 #E7F2EA #A3B9AA #26352A #7A9281 #173A25 #86EFAC'],
+ ['platinum','Platinum','claro','Platina e grafite: limpo, sóbrio e atemporal.','#F2F3F5 #F7F8FA #FFFFFF #2B3036 #2F3A45 #4A5866 #5D6E82 #1C2026 #545C66 #DCE0E5 #7E8792 #E6EBF1 #1F2832'],
+ ['corporate-blue','Corporate Blue','claro','Azul corporativo clássico, confiável e direto.','#F3F6FA #F8FAFD #FFFFFF #0F2A4A #1D5FBF #34465C #2B6CD4 #13202F #4E5D6E #DCE3EC #7A8A9D #E3EDFB #164C99'],
+ ['navy-executive','Navy Executive','claro','Azul-marinho com dourado discreto, tom de diretoria.','#F4F5F8 #F9FAFC #FFFFFF #0B1A33 #1B2D55 #3A4A66 #8E6F25 #141B2B #4F5870 #DDE1E9 #7C8499 #ECEFF6 #2C4580'],
+ ['royal-blue','Royal Blue','claro','Azul royal intenso com fundo arejado.','#F2F5FD #F8FAFF #FFFFFF #102065 #2747D8 #33407A #3757F0 #111A3A #4D5781 #DAE0F3 #7880A6 #E3E9FF #1D36A8'],
+ ['forest-premium','Forest Premium','claro','Verde floresta com fundo natural e calmo.','#F3F5F1 #F8FAF6 #FFFFFF #1B3324 #2D6A3E #475550 #357A4A #17221B #4E5E53 #DCE3DC #7C8A80 #E3EFE5 #23552F'],
+ ['emerald-business','Emerald Business','claro','Esmeralda elegante para um visual de negócios.','#F2F6F5 #F8FBFA #FFFFFF #0D3B33 #047857 #2E4B45 #058B62 #10211D #4A5E59 #D9E4E1 #788C86 #DFF2EB #065F46'],
+ ['burgundy-executive','Burgundy Executive','claro','Bordô executivo com cinzas quentes.','#F7F4F4 #FBF9F9 #FFFFFF #3A0F1C #7F1D35 #4F3239 #A3263F #241418 #5E4B50 #E7DEDF #8F7F83 #F6E6EA #611428'],
+ ['champagne-gold','Champagne Gold','claro','Champanhe e ouro velho sobre branco quente.','#F8F5EF #FCFAF6 #FFFFFF #2B2620 #8E6A22 #4A4237 #A07C33 #221E18 #5E574C #E8E1D4 #8F8676 #F4ECDA #745619'],
+ ['sandstone','Sandstone','claro','Arenito e argila: quente, terroso e acolhedor.','#F5F1EA #FAF7F2 #FFFFFF #3B3127 #8F623A #5A4C3E #A6703F #2A231C #635A50 #E6DED2 #918778 #F2E8D9 #7D5532'],
+ ['terracota-ceramica','Terracota Cerâmica','claro','A cor do tijolo queimado, com marrom de forno.','#F7F2EE #FBF8F5 #FFFFFF #2A1E18 #A84B25 #4E3A30 #B95A34 #241A15 #5F5048 #EADFD6 #928379 #F7E8DF #8E3F1E'],
+ ['arctic-silver','Arctic Silver','claro','Prata gelo com azul polar, leve e luminoso.','#F1F5F8 #F7FAFC #FFFFFF #1E2A33 #256C8C #44525D #2F86AE #15212A #4F5E69 #D8E2E9 #7C8B96 #E1EEF5 #1F6283'],
+ ['modern-neutral','Modern Neutral','claro','Neutros modernos com toque taupe, sem excessos.','#F4F4F2 #F9F9F7 #FFFFFF #262624 #3D3D39 #66665F #8A6E4B #1E1E1C #5A5A55 #E2E2DE #84847D #EFEEEA #1A1A18']
+].map(([id,nome,tipo,desc,s])=>({id,nome,tipo,desc,c:Object.fromEntries(s.split(' ').map((h,i)=>[['fundo','fundo2','painel','menu','pri','sec','destaque','tx','tx2','borda','icone','sel','inter'][i],h]))}));
+</script>
 <style id="temas-v68-estilos">
 /* ===== Personalizar aparência (V68) · só o painel de escolha; o tema em si são as variáveis de cor ===== */
 .jbt-veu{background:rgba(10,12,14,.22);backdrop-filter:none}
@@ -28945,6 +29085,237 @@ window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,s
 @media (max-width:560px){.jbt-grade{grid-template-columns:repeat(2,1fr)}.jbt-modo{font-size:12.5px;padding:8px 6px}.jbt-vis{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.jbt-cartao{transition:none}}
 </style>
+<style id="central-cores-v72">
+/* =====================================================================
+   CENTRAL DE CORES · V72 (amplia o Personalizar aparência da V68)
+   1) Só vale com o atributo data-jbcores no <html> (a pessoa aplicou cores próprias:
+      uma paleta premium, uma paleta dela ou cores uma a uma). Os tokens vêm do mesmo
+      <style id="jb-tema-tokens"> da V68; aqui só ficam os pontos que precisam separar
+      botão principal, botão secundário e destaque, e o texto sobre a cor de destaque.
+   2) Aparência da própria central (classes jc-*).
+   ===================================================================== */
+@media screen{
+html:root[data-jbcores][data-jbcores] ::selection{background:var(--brasa-bg2)}
+html:root[data-jbcores][data-jbcores] .btn.pri{background:var(--jbc-pri);border-color:var(--jbc-pri);color:var(--jbc-pri-tx);box-shadow:0 2px 8px -2px var(--jbc-pri-sombra)}
+html:root[data-jbcores][data-jbcores] .btn.pri:hover{background:var(--jbc-pri-h);border-color:var(--jbc-pri-h);color:var(--jbc-pri-tx)}
+html:root[data-jbcores][data-jbcores] .btn.pri:active{background:var(--jbc-pri-h);border-color:var(--jbc-pri-h)}
+html:root[data-jbcores][data-jbcores] .btn.pri svg{color:inherit}
+html:root[data-jbcores][data-jbcores] .btn.pri:disabled{background:var(--linha2);border-color:var(--linha2);color:var(--fraco);box-shadow:none}
+html:root[data-jbcores][data-jbcores].vis-cc .btn:not(.pri):not(.perigo):not(.ico):not(:disabled){color:var(--jbc-sec-tx)}
+html:root[data-jbcores][data-jbcores]:not(.vis-cc) .btn:not(.pri):not(.perigo):not(.ico):not(:disabled):not(:hover){border-color:var(--jbc-sec)}
+html:root[data-jbcores][data-jbcores] .nav .qt,html:root[data-jbcores][data-jbcores] .fab,html:root[data-jbcores][data-jbcores] .ia-eu,html:root[data-jbcores][data-jbcores] .chip.on,
+html:root[data-jbcores][data-jbcores] .rap a:hover .ic,html:root[data-jbcores][data-jbcores] .fv-abas button.on .fv-n,html:root[data-jbcores][data-jbcores] .dc-chip.on,
+html:root[data-jbcores][data-jbcores] .cc-qt,html:root[data-jbcores][data-jbcores] .ndp-rap a:hover .ic,html:root[data-jbcores][data-jbcores] .jbc-m.eu,
+html:root[data-jbcores][data-jbcores] .ms-lancar,html:root[data-jbcores][data-jbcores] .sino i,html:root[data-jbcores][data-jbcores] .jbt-uso:not(.prev),
+html:root[data-jbcores][data-jbcores].vis-cc .eu .av2,html:root[data-jbcores][data-jbcores].vis-cc .spot-eu .av2,
+html:root[data-jbcores][data-jbcores].vis-jb .ngi a.on,html:root[data-jbcores][data-jbcores]:not(.vis-cc):not(.vis-nv) .ngi a.on,html:root[data-jbcores][data-jbcores]:not(.vis-cc):not(.vis-nv) .ms-modo button.on{color:var(--jbc-dest-tx)}
+/* Branco e laranja: o que tem o degradê (feito da cor do botão principal) usa o texto do botão principal */
+html:root[data-jbcores][data-jbcores].vis-nv .ms-modo button.on,html:root[data-jbcores][data-jbcores].vis-nv .eu .av2,html:root[data-jbcores][data-jbcores].vis-nv .spot-eu .av2,html:root[data-jbcores][data-jbcores].vis-nv .sec-ic{color:var(--jbc-pri-tx)}
+}
+
+/* ---------- gaveta ---------- */
+.jbt-veu.jc-oculto{display:none}
+.jc-gav{width:min(880px,100%)}
+.jc-gav .gav-cab{gap:10px}
+.jc-cab-ic{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--brasa-bg);color:var(--brasa);flex:none}
+.jc-cab-ic svg{width:18px;height:18px}
+.jc-gav .gav-cab .btn.ico svg,.jc-gav .btn svg{width:16px;height:16px}
+.jc-gav .gav-pe{align-items:center}
+.jc-corpo{display:flex;flex-direction:column;gap:14px}
+.jc-corpo>*{flex-shrink:0}
+.jc-topo{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:stretch}
+.jc-resumo{display:flex;flex-direction:column;gap:8px;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
+.jc-rot{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fraco)}
+.jc-nome{font-size:18px;line-height:1.2;color:var(--tinta)}
+.jc-editando{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--brasa);font-weight:600}
+.jc-editando svg{width:14px;height:14px}
+.jc-tira{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px}
+.jc-tira-c{height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);cursor:pointer;padding:0;transition:transform var(--t1,.14s)}
+.jc-tira-c:hover{transform:translateY(-2px)}
+.jc-tira-c.on{outline:2px solid var(--tinta);outline-offset:1px}
+.jc-selo{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:600;border-radius:999px;padding:4px 11px;border:1px solid transparent;cursor:default}
+.jc-selo svg{width:14px;height:14px}
+.jc-selo.ok{background:var(--ok-bg);color:var(--ok)}
+.jc-selo.av{background:var(--at-bg);color:var(--at);border-color:var(--at-li,transparent);cursor:pointer}
+.jc-selo.cr{background:var(--pe-bg);color:var(--pe);border-color:var(--pe-li,transparent);cursor:pointer}
+.jc-resumo .ajuda{font-size:12px;margin:0}
+
+/* prévia em miniatura (usa só as variáveis --m-*, nunca as do sistema) */
+.jc-mock{border-radius:12px;overflow:hidden;border:1px solid var(--linha);background:var(--m-fundo);display:flex;flex-direction:column;min-height:236px;font-size:11.5px;color:var(--m-tx);box-shadow:var(--s2,none)}
+.jc-m-top{display:flex;align-items:center;gap:8px;background:var(--m-menu);padding:8px 10px;border-bottom:2px solid var(--m-dest)}
+.jc-m-logo{width:16px;height:16px;border-radius:5px;background:var(--m-dest)}
+.jc-m-busca{flex:1;max-width:150px;border-radius:6px;padding:3px 8px;background:rgba(255,255,255,.1);color:var(--m-menu-tx);font-size:10.5px}
+.jc-m-av{margin-left:auto;width:18px;height:18px;border-radius:50%;background:var(--m-dest)}
+.jc-m-corpo{flex:1;display:flex;min-height:0}
+.jc-m-side{width:30%;max-width:120px;background:var(--m-side);color:var(--m-side-tx);padding:8px 6px;display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--m-borda)}
+.jc-m-side span{padding:4px 7px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jc-m-side span.on{background:var(--m-sel);color:var(--m-tx);box-shadow:inset 2px 0 0 var(--m-dest);font-weight:600}
+.jc-mock.jb .jc-m-side span.on{background:rgba(255,255,255,.1);color:#fff}
+.jc-m-main{flex:1;min-width:0;padding:10px;display:flex;flex-direction:column;gap:8px}
+.jc-m-tit{font-weight:700;font-size:13px;color:var(--m-tx)}
+.jc-m-tit small{display:block;font-weight:400;font-size:10.5px;color:var(--m-tx2)}
+.jc-m-card{background:var(--m-painel);border:1px solid var(--m-borda);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:3px}
+.jc-m-lin{display:flex;align-items:center;gap:6px;padding:3px 5px;border-radius:5px;border-bottom:1px solid var(--m-borda)}
+.jc-m-lin.sel{background:var(--m-sel)}
+.jc-m-lin b{font-weight:600;color:var(--m-tx)}
+.jc-m-lin span{color:var(--m-tx2)}
+.jc-m-lin em{margin-left:auto;font-style:normal;font-weight:600;color:var(--m-tx)}
+.jc-m-lin a{margin-left:auto;color:var(--m-dest);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.jc-m-ic{width:9px;height:9px;border-radius:3px;border:2px solid var(--m-ic);flex:none}
+.jc-m-campo{margin-top:3px;border:1px solid var(--m-inter);box-shadow:0 0 0 3px var(--m-anel);border-radius:6px;padding:3px 7px;color:var(--m-tx2);background:var(--m-painel)}
+.jc-m-bts{display:flex;gap:6px;margin-top:4px}
+.jc-m-bt{border-radius:6px;padding:4px 10px;font-weight:600;border:1px solid transparent}
+.jc-m-bt.pri{background:var(--m-pri);color:var(--m-pri-tx)}
+.jc-m-bt.sec{background:var(--m-sec-bg);color:var(--m-sec-tx);border-color:var(--m-sec)}
+
+/* abas */
+.jc-abas{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--linha);margin:0 -2px;padding:0 2px;position:sticky;top:-16px;background:var(--papel);z-index:2}
+.jc-abas::-webkit-scrollbar{display:none}
+.jc-abas button{flex:none;font:inherit;font-size:13px;font-weight:600;color:var(--suave);background:none;border:0;border-bottom:2px solid transparent;padding:9px 11px;cursor:pointer;white-space:nowrap}
+.jc-abas button:hover{color:var(--tinta)}
+.jc-abas button.on{color:var(--brasa);border-bottom-color:var(--brasa)}
+.jc-abas button i{font-style:normal;font-size:11px;background:var(--brasa-bg);color:var(--brasa);border-radius:999px;padding:0 6px;margin-left:2px}
+.jc-painel{display:flex;flex-direction:column;gap:12px;min-height:240px}
+.jc-filtros,.jc-linha{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.jc-filtros .chip small{opacity:.75;margin-left:3px}
+.jc-vazio{color:var(--suave);font-size:13px;margin:4px 0}
+.jc-bloco{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.jc-bloco>b{font-size:14px;display:flex;align-items:center;gap:6px}
+.jc-bloco>b svg{width:16px;height:16px}
+.jc-bloco p{margin:0;color:var(--suave);font-size:13px}
+.jc-bloco .ajuda{margin:0}
+.jc-ul{margin:0;padding-left:18px;color:var(--suave);font-size:13px;display:flex;flex-direction:column;gap:4px}
+.jc-linha input:not([type=file]),.jc-bib-busca input,.jc-alvo select,.jc-campos input{border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco);color:var(--tinta);padding:7px 10px;font:inherit;font-size:13.5px;min-width:0}
+.jc-linha input:not([type=file]){flex:1;min-width:200px}
+.jc-gav input:focus,.jc-gav select:focus{outline:none;border-color:var(--brasa2);box-shadow:var(--anel)}
+
+/* cartões de paleta */
+.jc-pal-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.jc-pal{position:relative;display:flex;flex-direction:column;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);overflow:hidden;transition:border-color var(--t1,.14s),box-shadow var(--t1,.14s)}
+.jc-pal:hover{border-color:var(--brasa-bg2)}
+.jc-pal.on{border-color:var(--brasa);box-shadow:0 0 0 1px var(--brasa)}
+.jc-pal.ed{border-style:dashed}
+.jc-pal-esc{display:flex;flex-direction:column;align-items:stretch;gap:0;text-align:left;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
+.jc-pal-am{position:relative;display:block;height:84px;border-bottom:1px solid var(--linha)}
+.jc-pal-am i{position:absolute;display:block}
+.jc-pal-am .t{left:0;right:0;top:0;height:14px}
+.jc-pal-am .d{left:0;right:0;top:14px;height:2px}
+.jc-pal-am .s{left:0;top:16px;bottom:0;width:22%}
+.jc-pal-am .c{left:28%;right:8%;top:28px;bottom:10px;border:1px solid;border-radius:5px;padding:6px}
+.jc-pal-am .c u{display:block;height:4px;border-radius:2px;margin-bottom:4px;width:70%}
+.jc-pal-am .c u+u{width:45%;opacity:.9}
+.jc-pal-am .c em{display:inline-block;width:26px;height:9px;border-radius:3px;margin-right:4px}
+.jc-pal-tx{padding:9px 11px 4px;display:flex;flex-direction:column;gap:2px}
+.jc-pal-tx b{font-size:13.5px}
+.jc-pal-tx small{font-size:12px;color:var(--suave);line-height:1.35}
+.jc-pal-ok{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--brasa);color:var(--jbc-dest-tx,#fff)}
+.jc-pal-ok svg{width:14px;height:14px}
+.jc-pal-ac{display:flex;gap:4px;padding:4px 8px 8px;justify-content:flex-end}
+.jc-pal-ac .btn.ico{width:30px;height:30px;padding:0;justify-content:center}
+.jc-fav-bt.on{color:var(--at)}
+.jc-fav-bt.on svg{fill:currentColor}
+
+/* biblioteca */
+.jc-alvo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:600}
+.jc-alvo select{flex:1;max-width:280px}
+.jc-bib-busca input{width:100%}
+.jc-sw{flex:none;display:inline-block;width:26px;height:26px;border-radius:7px;border:1px solid rgba(127,127,127,.4)}
+.jc-gav code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--suave)}
+.jc-bib{display:flex;flex-direction:column;gap:8px}
+.jc-fam{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px}
+.jc-fam>b{font-size:12.5px;font-weight:600;color:var(--suave)}
+.jc-tons{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:4px}
+.jc-tom{height:28px;min-width:22px;border-radius:6px;border:1px solid rgba(127,127,127,.32);cursor:pointer;padding:0;transition:transform var(--t1,.14s)}
+.jc-tom:hover{transform:scale(1.12);position:relative;z-index:1}
+.jc-tom.on{outline:2px solid var(--tinta);outline-offset:1px}
+
+/* personalização individual */
+.jc-pers{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+.jc-props{display:flex;flex-direction:column;gap:4px}
+.jc-prop{display:flex;align-items:center;gap:4px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);padding:2px 4px 2px 2px}
+.jc-prop.on{border-color:var(--brasa);box-shadow:0 0 0 1px var(--brasa);background:var(--brasa-bg)}
+.jc-prop-bt{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:6px 8px;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.jc-prop-tx{flex:1;min-width:0}
+.jc-prop-tx b{display:block;font-size:13px}
+.jc-prop-tx small{display:block;font-size:11.5px;color:var(--suave);line-height:1.35}
+.jc-rest{width:30px;height:30px;padding:0;justify-content:center;flex:none}
+.jc-gav .btn:disabled{opacity:.45;cursor:default}
+.jc-editor{position:sticky;top:34px;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px;display:flex;flex-direction:column;gap:10px}
+.jc-ed-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.jc-ad{display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--linha)}
+.jc-ad i{width:34px;height:24px}
+.jc-sv{position:relative;height:168px;border-radius:8px;cursor:crosshair;touch-action:none;background-image:linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0))}
+.jc-sv:focus-visible,.jc-hue:focus-visible{outline:2px solid var(--brasa);outline-offset:2px}
+.jc-sv-pt{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.35);pointer-events:none}
+.jc-hue{position:relative;height:16px;border-radius:999px;cursor:pointer;touch-action:none;background:linear-gradient(to right,#f00 0%,#ff0 16.66%,#0f0 33.33%,#0ff 50%,#00f 66.66%,#f0f 83.33%,#f00 100%)}
+.jc-hue-pt{position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.3);pointer-events:none}
+.jc-campos{display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:6px}
+.jc-campos label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--fraco);letter-spacing:.04em}
+.jc-campos input{width:100%;padding:6px 7px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.jc-campos input.erro{border-color:var(--pe)}
+.jc-ed-acoes{display:flex;gap:6px;flex-wrap:wrap}
+.jc-sugs{display:flex;flex-direction:column;gap:6px}
+.jc-sugs>small{font-size:11.5px;font-weight:600;color:var(--fraco);text-transform:uppercase;letter-spacing:.05em}
+.jc-sugs>div{display:flex;flex-wrap:wrap;gap:5px}
+.jc-mini{display:grid!important;grid-template-columns:repeat(12,minmax(0,1fr))}
+.jc-mini .jc-tom{height:22px;min-width:0}
+.jc-chip-cor{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;border:1px solid var(--linha);background:var(--branco);color:var(--tinta);border-radius:999px;padding:3px 9px 3px 4px;cursor:pointer;white-space:nowrap}
+.jc-chip-cor:hover{border-color:var(--brasa)}
+.jc-chip-cor i{width:16px;height:16px;border-radius:50%;border:1px solid rgba(127,127,127,.4)}
+
+/* verificação de leitura */
+.jc-verif{border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.jc-verif.ok{flex-direction:row;align-items:center;gap:10px;background:var(--ok-bg);border-color:transparent;color:var(--tinta);font-size:13px}
+.jc-verif.ok>svg{width:18px;height:18px;color:var(--ok);flex:none}
+.jc-verif-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.jc-verif-cab b{display:flex;align-items:center;gap:6px;font-size:14px}
+.jc-verif-cab b svg{width:16px;height:16px;color:var(--at)}
+.jc-verif ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.jc-verif li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;line-height:1.4;padding:7px 9px;border-radius:8px;background:var(--at-bg)}
+.jc-verif li.critico{background:var(--pe-bg)}
+.jc-niv{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--at)}
+.jc-verif li.critico .jc-niv{color:var(--pe)}
+.jc-vtx{flex:1;min-width:200px;color:var(--tinta)}
+
+/* favoritos e histórico */
+.jc-favs{display:flex;flex-wrap:wrap;gap:8px}
+.jc-fav{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--linha);border-radius:10px;padding:4px 4px 4px 4px;background:var(--papel2)}
+.jc-fav .jc-tom{width:30px;height:30px;min-width:30px}
+.jc-x{display:grid;place-items:center;width:24px;height:24px;border:0;background:none;color:var(--fraco);cursor:pointer;border-radius:6px;padding:0}
+.jc-x:hover{background:var(--linha2);color:var(--tinta)}
+.jc-x svg{width:14px;height:14px}
+.jc-x-fav.on{color:var(--at)}
+.jc-x-fav.on svg{fill:currentColor}
+.jc-ed-banner{border-color:var(--brasa);background:var(--brasa-bg)}
+.jc-io{margin-top:2px}
+
+/* com a central aberta, os avisos sobem para não cobrir os botões do rodapé */
+@media (min-width:961px){body.jc-aberta .toasts{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+
+/* barra da prévia em tela cheia */
+.jc-barra{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;
+ width:max-content;max-width:calc(100% - 24px);background:var(--branco);color:var(--tinta);border:1px solid var(--linha);border-radius:14px;padding:10px 12px 10px 16px;box-shadow:0 18px 40px -12px rgba(0,0,0,.45),0 4px 12px rgba(0,0,0,.12)}
+.jc-barra-tx{display:flex;align-items:center;gap:10px;min-width:0}
+.jc-barra-tx>svg{width:20px;height:20px;color:var(--brasa);flex:none}
+.jc-barra-tx b{display:block;font-size:13.5px}
+.jc-barra-tx small{display:block;font-size:12px;color:var(--suave)}
+.jc-barra-bt{display:flex;gap:8px;flex-wrap:wrap}
+.jc-barra .btn svg{width:16px;height:16px}
+
+/* tablet e celular */
+@media (max-width:760px){
+ .jc-topo,.jc-pers{grid-template-columns:1fr}
+ .jc-editor{position:static}
+ .jc-fam{grid-template-columns:1fr;gap:4px}
+ .jc-tira{grid-template-columns:repeat(13,minmax(0,1fr))}
+ .jc-gav .gav-pe .btn{flex:1;justify-content:center}
+ .jc-gav .gav-pe .esq{flex-basis:100%;margin:0}
+ .jc-gav .gav-pe .esq .btn{flex:1}
+ .jc-barra{left:12px;right:12px;transform:none;width:auto}
+}
+@media (max-width:460px){.jc-tons{grid-template-columns:repeat(6,minmax(0,1fr))}.jc-campos{grid-template-columns:1fr 1fr 1fr 1fr}.jc-campos .jc-hex{grid-column:1/-1}}
+@media (prefers-reduced-motion:reduce){.jc-tom,.jc-tira-c{transition:none}}
+</style>
 <script id="temas-v68">
 /* ================= PERSONALIZAR APARÊNCIA · V68 =================
    Central de temas: 15 paletas de cores e os modos claro, escuro e automático.
@@ -28964,10 +29335,13 @@ window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,s
       adaptador que insere, logo depois de cada regra original, uma cópia com a cor
       equivalente do tema. A ordem da cascata fica a mesma; ao trocar de tema as
       cópias saem. Documentos (folha .fvd) ficam de fora: saem sempre no padrão.
-   4. Os gráficos recebem a cor de destaque do tema e, no escuro, letras e grades claras. */
+   4. Os gráficos recebem a cor de destaque do tema e, no escuro, letras e grades claras.
+   V72: além da paleta e do modo, o tema pode trazer cores próprias (tema.c, as 13 cores da central:
+   paleta premium, paleta da pessoa ou cores escolhidas uma a uma). tokensCores transforma essas
+   cores nas mesmas variáveis; o resto (adaptador, gráficos, impressão) segue igual. */
 (function(){
 'use strict';
-const VERSAO_TEMA='v68';
+const VERSAO_TEMA='v72';
 
 /* ---------- utilidades de cor ---------- */
 const cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
@@ -29074,11 +29448,11 @@ const CHAVE='jb_tema3';
 const OK_P=v=>v===''||!!PAL[v];
 const OK_M=v=>v===''||!!MODOS[v];
 function lerSalvo(){
- try{if(typeof PREFS!=='undefined'&&PREFS&&PREFS.tema&&typeof PREFS.tema==='object'){const p=PREFS.tema.p||'',m=PREFS.tema.m||'';if(OK_P(p)&&OK_M(m))return{p,m}}}catch(e){}
+ try{if(typeof PREFS!=='undefined'&&PREFS&&PREFS.tema&&typeof PREFS.tema==='object'){const p=PREFS.tema.p||'',m=PREFS.tema.m||'';const c=jcCoresCheias(PREFS.tema.c);if(OK_P(p)&&OK_M(m))return{p,m,c,cn:c?String(PREFS.tema.cn||'').slice(0,60):''}}}catch(e){}
  /* sem escolha no banco: usa a cópia deste navegador só se for da mesma pessoa (ou se ainda não se sabe quem entrou) */
  try{const x=JSON.parse(localStorage.getItem(CHAVE)||'null');const uid=typeof APP!=='undefined'&&APP?APP.uid:null;
-  if(x&&OK_P(x.p||'')&&OK_M(x.m||'')&&(!uid||!x.uid||x.uid===uid))return{p:x.p||'',m:x.m||''}}catch(e){}
- return{p:'',m:''};
+  if(x&&OK_P(x.p||'')&&OK_M(x.m||'')&&(!uid||!x.uid||x.uid===uid)){const c=jcCoresCheias(x.c);return{p:x.p||'',m:x.m||'',c,cn:c?String(x.cn||'').slice(0,60):''}}}catch(e){}
+ return{p:'',m:'',c:null,cn:''};
 }
 const mqEscuro=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
 const escuroDe=m=>m==='escuro'||(m==='auto'&&!!(mqEscuro&&mqEscuro.matches));
@@ -29087,7 +29461,26 @@ let NA_TELA=null;          // {p,m,escuro,visual} aplicado agora
 let PREVIA=null;           // {p,m,v} enquanto a pessoa escolhe
 
 /* qual paleta e qual modo valem de fato (padrão + claro = nada muda) */
+/* V72: as 13 cores da central viram as variáveis do sistema (as que não estão nelas vêm do visual) */
+function tokensCores(c,escuro){
+ const v=visualHoje(),B='#FFFFFF',P='#000000';
+ const t=tokens(SEMENTE_PADRAO[v]||SEMENTE_PADRAO.cc,escuro);
+ const priTx=jcTextoSobre(c.pri);
+ Object.assign(t,{'--papel':c.fundo,'--papel2':c.fundo2,'--linha3':jcMix(c.fundo2,c.borda,.35),'--branco':c.painel,'--linha':c.borda,'--linha2':jcMix(c.borda,c.painel,.5),
+  '--tinta':c.tx,'--suave':c.tx2,'--fraco':c.icone,'--marinho':c.sec,'--sec':c.tx2,'--ardosia':c.tx2,'--ardosia-bg':c.fundo2,
+  '--carvao':c.menu,'--carvao2':jcMix(c.menu,B,.07),'--carvao3':jcMix(c.menu,B,.14),'--carvao-tx':jcMix(c.menu,B,.74),
+  '--brasa':c.destaque,'--brasa2':c.inter,'--brasa3':jcMix(c.destaque,B,.2),'--brasa-bg':c.sel,'--brasa-bg2':jcMix(c.sel,c.destaque,.28),
+  '--anel':'0 0 0 3px '+jcRgba(c.inter,escuro?.4:.3),
+  '--cc-preto':c.menu,'--cc-p2':c.sec,'--cc-p3':jcMix(c.menu,B,.09),'--cc-p4':jcMix(c.sec,jcEscuro(c.sec)?B:P,.14),'--cc-borda':jcMix(c.menu,B,.2),'--cc-cinza':jcAjustar(jcMix(c.menu,B,.64),c.menu,4.6),
+  '--cc-verm':jcAjustar(jcMix(c.destaque,B,.28),escuro?c.painel:c.sec,4.6),
+  '--grad':`linear-gradient(135deg,${jcMix(c.pri,B,.18)} 0%,${c.pri} 55%,${jcMix(c.pri,P,.12)} 100%)`,
+  '--jbc-pri':c.pri,'--jbc-pri-h':jcMix(c.pri,priTx===B?P:B,.14),'--jbc-pri-tx':priTx,'--jbc-pri-sombra':jcRgba(c.pri,.35),
+  '--jbc-sec':c.sec,'--jbc-sec-tx':jcTextoSobre(c.sec),'--jbc-dest-tx':jcTextoSobre(c.destaque)});
+ return t;
+}
 function resolver(e){
+ const cs=e&&jcCoresCheias(e.c);
+ if(cs){const esc=jcEscuro(cs.painel);return{pal:{id:'cores',nome:e.cn||'Cores personalizadas',h:jcHsl(cs.fundo)[0],a:cs.destaque,m:cs.menu},escuro:esc,t:tokensCores(cs,esc),c:cs}}
  const escuro=escuroDe(e.m);
  if(!e.p&&!escuro)return null;
  const p=e.p?PAL[e.p]:SEMENTE_PADRAO[visualHoje()]||SEMENTE_PADRAO.cc;
@@ -29202,10 +29595,14 @@ let ATUAL_R=null;
 function aplicarTema(e,{redesenhar=true}={}){
  e=e||lerSalvo();
  const r=resolver(e);const raiz=document.documentElement;
- const chave=JSON.stringify([e.p,e.m,r?r.escuro:false,visualHoje()]);
+ const chave=JSON.stringify([e.p,e.m,r?r.escuro:false,visualHoje(),r&&r.c?r.c:null]);
  const mudou=!NA_TELA||NA_TELA.chave!==chave;
+ /* o adaptador só depende de claro/escuro, do visual e de haver paleta: trocar só as cores não refaz o adaptador */
+ const chaveAd=JSON.stringify([r?r.escuro:false,visualHoje(),r?r.pal.id!=='padrao':false]);
+ const refazAd=!NA_TELA||NA_TELA.chaveAd!==chaveAd;
  ATUAL_R=r;
  let st=document.getElementById('jb-tema-tokens');
+ if(r&&r.c)raiz.setAttribute('data-jbcores','');else raiz.removeAttribute('data-jbcores');
  if(!r){if(st)st.remove();raiz.removeAttribute('data-jbtema');raiz.removeAttribute('data-jbtema-modo');
   /* "Claro" escolhido de propósito: o visual JB não escurece sozinho pelo sistema operacional */
   if(e.m==='claro')raiz.setAttribute('data-theme','light');else raiz.removeAttribute('data-theme');
@@ -29216,13 +29613,13 @@ function aplicarTema(e,{redesenhar=true}={}){
   st.textContent=cssDe(r);raiz.setAttribute('data-jbtema',r.pal.id);raiz.setAttribute('data-jbtema-modo',r.escuro?'escuro':'claro');
   /* o escuro antigo do visual JB (pelo aparelho) não se mistura com o tema claro escolhido */
   if(r.escuro)raiz.removeAttribute('data-theme');else raiz.setAttribute('data-theme','light');
-  if(mudou||!INSERIDAS.length)adaptar(r.escuro,r.pal.id!=='padrao');
+  if(refazAd||!INSERIDAS.length)adaptar(r.escuro,r.pal.id!=='padrao');
   prepararGraficos(r);
  }
- NA_TELA={...e,escuro:r?r.escuro:false,chave};
+ NA_TELA={...e,escuro:r?r.escuro:false,chave,chaveAd};
  /* cópia neste navegador, para a próxima abertura já vir certa (sem piscar) */
  const uidAgora=typeof APP!=='undefined'&&APP?APP.uid||null:null;
- if(!PREVIA&&uidAgora){try{localStorage.setItem(CHAVE,JSON.stringify({uid:uidAgora,p:e.p,m:e.m,css:r?cssDe(r):'',id:r?r.pal.id:'',modo:r?(r.escuro?'escuro':'claro'):'',claro:!r&&e.m==='claro'}))}catch(x){}}
+ if(!PREVIA&&uidAgora){try{localStorage.setItem(CHAVE,JSON.stringify({uid:uidAgora,p:e.p,m:e.m,c:r&&r.c?r.c:null,cn:r&&r.c?e.cn||'':'',cores:!!(r&&r.c),css:r?cssDe(r):'',id:r?r.pal.id:'',modo:r?(r.escuro?'escuro':'claro'):'',claro:!r&&e.m==='claro'}))}catch(x){}}
  if(mudou&&redesenhar)redesenharGraficos();
  return mudou;
 }
@@ -29237,10 +29634,26 @@ try{new MutationObserver(ms=>{if(!ATUAL_R)return;if(!ms.some(m=>[...m.addedNodes
 if(mqEscuro){const f=()=>{const e=PREVIA||lerSalvo();if(e.m==='auto'){aplicarTema(e);if(PREVIA)atualizarPainel()}};
  if(mqEscuro.addEventListener)mqEscuro.addEventListener('change',f);else if(mqEscuro.addListener)mqEscuro.addListener(f)}
 
-/* ---------- painel Personalizar aparência ---------- */
+/* ---------- painel Personalizar aparência (V68) · Central de cores (V72) ----------
+   V72 amplia o mesmo painel: continuam o modo (claro, escuro, automático), as 15 paletas do sistema e o
+   estilo das telas; entram 22 paletas premium completas, a biblioteca de 264 tons, a personalização das
+   13 cores uma a uma (seletor visual, HEX e RGB), minhas paletas, favoritos, histórico, verificação de
+   leitura e a prévia em tela cheia. As cores próprias ficam em tema.c (13 cores) e viram as mesmas
+   variáveis de cor de sempre (tokensCores), passando pelo mesmo adaptador. Biblioteca da pessoa
+   (minhas paletas, favoritos, histórico) em prefs.cores. Nada fora da aparência muda. */
 IC.lua='<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>';
 IC.auto='<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>';
 IC.temaOk='<path d="M5 12.5l4.2 4.2L19 7"/>';
+IC.jcEstrela='<path d="m12 3.2 2.7 5.5 6 .9-4.4 4.2 1 6-5.3-2.8-5.4 2.8 1-6-4.3-4.2 6-.9z"/>';
+IC.jcCopiar='<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>';
+IC.jcDesfazer='<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>';
+IC.jcOlho='<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+IC.jcAviso='<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.3h.01"/>';
+IC.jcBaixar='<path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M4 20h16"/>';
+IC.jcSubir='<path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 20h16"/>';
+IC.jcLixo='<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>';
+IC.jcLapis='<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>';
+IC.jcVarinha='<path d="m4 20 11-11M14 4v3M18.5 5.5l-2 2M20 10h-3M9.5 5.5l2 2"/>';
 const VIS_TXT={cc:['Concretiza','preto e vermelho'],nv:['Branco e laranja','fundo claro e laranja'],jb:['JB','menu escuro e terracota']};
 function amostraHtml(p,escuro){
  const t=tokens(p,escuro);
@@ -29248,98 +29661,442 @@ function amostraHtml(p,escuro){
   <i class="m" style="background:${t['--carvao']}"><b style="background:${t['--brasa']}"></b></i>
   <i class="c" style="background:${t['--branco']};border-color:${t['--linha']}"><u style="background:${t['--tinta']}"></u><u style="background:${t['--fraco']}"></u><em style="background:${t['--brasa']}"></em></i></span>`;
 }
-function painelHtml(){
- const e=PREVIA,salvo=lerSalvo();const escuroPrev=escuroDe(e.m||'claro');
- const modo=e.m||'claro';
- const cartoes=PALETAS.map(p=>{const sel=e.p===p.id,uso=salvo.p===p.id;
-  return `<button type="button" class="jbt-cartao${sel?' sel':''}" data-jbt-p="${p.id}" role="radio" aria-checked="${sel}" title="${esc(p.nome)}">
-   ${amostraHtml(p,escuroPrev)}<span class="jbt-nome">${esc(p.nome)}</span>
-   ${uso?`<span class="jbt-uso">${ic('temaOk')}Em uso</span>`:sel?'<span class="jbt-uso prev">Prévia</span>':''}</button>`}).join('');
- const v=PREVIA.v||visualHoje();
- return `<div class="gav-cab"><h2>Personalizar aparência</h2><button class="x" type="button" data-jbt-fechar aria-label="Fechar">${ic('fechar')}</button></div>
- <div class="gav-corpo jbt-corpo">
-  <p class="jbt-intro">Escolha as cores com que você quer trabalhar. Vale só para você, em todos os setores, e a tela muda na hora para você ver antes de aplicar. Telas, menus e botões continuam nos mesmos lugares; documentos e PDFs continuam no padrão.</p>
-  <h3 class="jbt-tit">Modo</h3>
-  <div class="jbt-modos" role="radiogroup" aria-label="Modo de visualização">
-   ${[['claro','sol','Claro'],['escuro','lua','Escuro'],['auto','auto','Automático']].map(([k,i,l])=>`<button type="button" class="jbt-modo${modo===k?' sel':''}" data-jbt-m="${k}" role="radio" aria-checked="${modo===k}">${ic(i)}<span>${l}</span></button>`).join('')}
-  </div>
-  <p class="jbt-ajuda">${modo==='auto'?'Automático segue o computador ou celular: claro de dia, escuro quando o aparelho estiver no modo escuro (agora: '+(escuroPrev?'escuro':'claro')+').':modo==='escuro'?'Fundo escuro, mais confortável à noite e com pouca luz.':'Fundo claro, como o sistema é hoje.'}</p>
-  <h3 class="jbt-tit">Paleta de cores <small>${e.p?esc(PAL[e.p].nome):'Padrão do sistema (cores de hoje)'}</small></h3>
-  <div class="jbt-grade" role="radiogroup" aria-label="Paleta de cores">${cartoes}</div>
-  <h3 class="jbt-tit">Estilo das telas</h3>
-  <div class="jbt-vis" role="radiogroup" aria-label="Estilo das telas">${['cc','nv','jb'].map(k=>`<button type="button" class="jbt-modo${v===k?' sel':''}" data-jbt-v="${k}" role="radio" aria-checked="${v===k}"><span><b>${VIS_TXT[k][0]}</b><small>${VIS_TXT[k][1]}</small></span></button>`).join('')}</div>
-  <p class="jbt-ajuda">A paleta escolhida pinta qualquer um dos três estilos. Sem paleta, cada estilo usa as cores próprias.</p>
-  <h3 class="jbt-tit">Prévia</h3>
-  <div class="jbt-previa" aria-hidden="true">
-   <div class="jbt-pv-menu"><i></i><i class="on"></i><i></i><i></i></div>
-   <div class="jbt-pv-tela"><div class="jbt-pv-cab"><b>Painel</b><span>Competência atual</span></div>
-    <div class="jbt-pv-kpis"><div><small>Produção do mês</small><b>1.248 mil</b><em class="ok">+6,2%</em></div><div><small>Custo por milheiro</small><b>R$ 412,30</b><em class="pe">+1,8%</em></div></div>
-    <div class="jbt-pv-tab"><div class="h"><span>Setor</span><span>Situação</span></div><div><span>Fornos</span><span class="tag">Em dia</span></div><div><span>Lenha</span><span class="tag at">Atenção</span></div></div>
-    <div class="jbt-pv-bts"><span class="btn pri">Salvar</span><span class="btn">Cancelar</span></div></div>
-  </div>
- </div>
- <div class="gav-pe"><span class="esq"><button type="button" class="btn" data-jbt-padrao>Restaurar padrão</button></span>
-  <button type="button" class="btn" data-jbt-cancelar>Cancelar</button><button type="button" class="btn pri" data-jbt-aplicar>Aplicar tema</button></div>`;
+function amostraCores(c){
+ return `<span class="jbt-amostra" aria-hidden="true" style="background:${c.fundo};border-color:${c.borda}">
+  <i class="m" style="background:${c.menu}"><b style="background:${c.destaque}"></b></i>
+  <i class="c" style="background:${c.painel};border-color:${c.borda}"><u style="background:${c.tx}"></u><u style="background:${c.tx2}"></u><em style="background:${c.pri}"></em></i></span>`;
 }
+const JC_ABAS=[['prontas','Paletas prontas'],['biblioteca','Biblioteca de cores'],['personalizar','Personalização individual'],['minhas','Minhas paletas'],['favoritos','Favoritos'],['historico','Histórico'],['config','Configurações e restauração']];
+const JC_MAX={minhas:60,fav:48,favPal:30,hist:30};
+const JC={aba:'prontas',filtro:'todas',alvo:'destaque',busca:'',editando:null,hsv:null,barra:null,tSalvar:0,dados:null,raf:0};
+const visJc=()=>(PREVIA&&PREVIA.v||visualHoje())==='cc'?'cc':'jb';
+
+/* ---------- biblioteca da pessoa (minhas paletas, favoritos, histórico): prefs.cores ---------- */
+const jcNovoId=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function jcLimparBib(o){
+ const c=o&&typeof o==='object'?o:{};
+ const lista=(a,n)=>Array.isArray(a)?[...new Set(a.map(jcNorm).filter(Boolean))].slice(0,n):[];
+ const minhas=(Array.isArray(c.minhas)?c.minhas:[]).map(p=>{if(!p||typeof p!=='object')return null;const cs=jcCoresCheias(p.c);if(!cs)return null;
+  return {id:String(p.id||jcNovoId()).replace(/[^\w-]/g,'').slice(0,40)||jcNovoId(),nome:String(p.nome||'Minha paleta').trim().slice(0,60)||'Minha paleta',c:cs,em:String(p.em||'').slice(0,10)}}).filter(Boolean).slice(0,JC_MAX.minhas);
+ return {minhas,fav:lista(c.fav,JC_MAX.fav),favPal:[...new Set((Array.isArray(c.favPal)?c.favPal:[]).map(String))].slice(0,JC_MAX.favPal),hist:lista(c.hist,JC_MAX.hist)};
+}
+const jcUid=()=>{try{return typeof APP!=='undefined'&&APP&&APP.uid?APP.uid:''}catch(e){return ''}};
+function jcLerBib(){
+ try{if(typeof PREFS!=='undefined'&&PREFS&&PREFS.cores&&typeof PREFS.cores==='object')return jcLimparBib(PREFS.cores)}catch(e){}
+ try{const x=JSON.parse(localStorage.getItem('jb_cores:'+(jcUid()||'local'))||'null');if(x)return jcLimparBib(x)}catch(e){}
+ return jcLimparBib(null);
+}
+function jcGuardarBib(){JC.dados=jcLimparBib(JC.dados);try{localStorage.setItem('jb_cores:'+(jcUid()||'local'),JSON.stringify(JC.dados))}catch(e){}try{PREFS={...PREFS,cores:JC.dados}}catch(e){}}
+async function jcPersistirBib(){jcGuardarBib();try{await salvarPrefs({cores:JC.dados})}catch(e){toast('Vale neste navegador, mas não foi possível guardar nas suas preferências.','erro')}}
+function jcPersistirDepois(){clearTimeout(JC.tSalvar);jcGuardarBib();JC.tSalvar=setTimeout(()=>{try{salvarPrefs({cores:JC.dados}).catch(()=>{})}catch(e){}},1200)}
+
+/* ---------- as 13 cores de um estado: as próprias (c) ou as que a paleta, o modo e o visual geram ---------- */
+function coresDeTokens(t,v){return {fundo:t['--papel'],fundo2:t['--papel2'],painel:t['--branco'],menu:v==='cc'?t['--cc-preto']:t['--carvao'],pri:t['--brasa'],
+ sec:v==='cc'?t['--cc-p2']:t['--linha'],destaque:t['--brasa'],tx:t['--tinta'],tx2:t['--suave'],borda:t['--linha'],icone:t['--fraco'],sel:t['--brasa-bg'],inter:t['--brasa2']}}
+const NOMES_T=['--papel','--papel2','--branco','--cc-preto','--carvao','--brasa','--cc-p2','--linha','--tinta','--suave','--fraco','--brasa-bg','--brasa2'];
+const BASE_CACHE=new Map();
+function tokensDaTela(){
+ const st=document.getElementById('jb-tema-tokens');if(st)st.disabled=true;
+ const cs=getComputedStyle(document.documentElement);const t={};NOMES_T.forEach(n=>{t[n]=jcNorm(cs.getPropertyValue(n))||'#808080'});
+ if(st)st.disabled=false;return t;
+}
+function coresBase(e){
+ const v=e&&e.v||visualHoje();const k=JSON.stringify([e.p||'',e.m||'',v,!!(mqEscuro&&mqEscuro.matches)]);
+ if(BASE_CACHE.has(k))return BASE_CACHE.get(k);
+ const escuro=escuroDe(e.m);let c;
+ if(e.p||escuro){const p=e.p?PAL[e.p]:SEMENTE_PADRAO[v]||SEMENTE_PADRAO.cc;c=coresDeTokens(tokens(p,escuro),v)}
+ else if(v===visualHoje()){c=coresDeTokens(tokensDaTela(),v)}
+ else return coresDeTokens(tokens(SEMENTE_PADRAO[v]||SEMENTE_PADRAO.cc,false),v);
+ c=jcCoresCheias(c)||c;BASE_CACHE.set(k,c);return c;
+}
+const corrAtual=()=>PREVIA&&PREVIA.c?PREVIA.c:coresBase(PREVIA||lerSalvo());
+const jcIguais=(a,b)=>!!a&&!!b&&JC_CHAVES.every(k=>(a[k]||'')===(b[k]||''));
+const jcAcharPaleta=id=>JC_PALETAS.find(p=>p.id===id)||(JC.dados.minhas||[]).find(p=>p.id===id);
+function nomeDe(e){
+ if(e&&e.c){const p=JC_PALETAS.find(x=>jcIguais(x.c,e.c));if(p)return p.nome;const m=((JC.dados||jcLerBib()).minhas||[]).find(x=>jcIguais(x.c,e.c));if(m)return m.nome;return e.cn||'Cores personalizadas'}
+ return (e&&e.p?PAL[e.p].nome:'Padrão do sistema')+' · '+MODOS[e&&e.m||'claro'].toLowerCase();
+}
+
+/* ---------- desenho ---------- */
+function jcMockEstilo(c){const vis=visJc();
+ return `--m-fundo:${c.fundo};--m-fundo2:${c.fundo2};--m-painel:${c.painel};--m-menu:${c.menu};--m-menu-tx:${jcMix(c.menu,'#FFFFFF',.74)};--m-pri:${c.pri};--m-pri-tx:${jcTextoSobre(c.pri)};--m-sec:${c.sec};--m-sec-tx:${vis==='cc'?jcTextoSobre(c.sec):c.tx};--m-sec-bg:${vis==='cc'?c.sec:c.painel};--m-dest:${c.destaque};--m-tx:${c.tx};--m-tx2:${c.tx2};--m-borda:${c.borda};--m-ic:${c.icone};--m-sel:${c.sel};--m-inter:${c.inter};--m-anel:${jcRgba(c.inter,.3)};--m-side:${vis==='cc'?c.fundo2:c.menu};--m-side-tx:${vis==='cc'?c.tx2:jcMix(c.menu,'#FFFFFF',.74)}`}
+function jcMock(c){
+ return `<div class="jc-mock ${visJc()}" style="${jcMockEstilo(c)}" role="img" aria-label="Prévia das cores escolhidas">
+  <div class="jc-m-top"><span class="jc-m-logo"></span><span class="jc-m-busca">Pesquisar…</span><span class="jc-m-av"></span></div>
+  <div class="jc-m-corpo"><div class="jc-m-side"><span class="on">Painel</span><span>Funcionários</span><span>Produção</span><span>Relatórios</span></div>
+   <div class="jc-m-main"><div class="jc-m-tit">Produção do mês<small>Resumo da competência</small></div>
+    <div class="jc-m-card"><div class="jc-m-lin"><i class="jc-m-ic"></i><b>Milheiros</b><em>412,6</em></div>
+     <div class="jc-m-lin sel"><i class="jc-m-ic"></i><b>Selecionado</b><em>98,0</em></div>
+     <div class="jc-m-lin"><i class="jc-m-ic"></i><span>Descrição</span><a>Ver detalhes</a></div>
+     <div class="jc-m-campo">Campo em foco</div>
+     <div class="jc-m-bts"><span class="jc-m-bt pri">Salvar</span><span class="jc-m-bt sec">Voltar</span></div></div></div></div></div>`;
+}
+function jcSelo(lst){const cr=lst.filter(x=>x.nivel==='critico').length,av=lst.length-cr;
+ return !lst.length?`<span class="jc-selo ok">${ic('temaOk')}Leitura em ordem</span>`:`<button type="button" class="jc-selo ${cr?'cr':'av'}" data-jc-aba="personalizar">${ic('jcAviso')}${cr?cr+(cr>1?' problemas':' problema'):''}${cr&&av?' e ':''}${av?av+(av>1?' avisos':' aviso'):''}</button>`}
+const sujoPrevia=()=>{if(!PREVIA)return false;const s=lerSalvo();return (PREVIA.p||'')!==(s.p||'')||(PREVIA.m||'claro')!==(s.m||'claro')||(PREVIA.v||visualHoje())!==PREVIA.v0||JSON.stringify(PREVIA.c||null)!==JSON.stringify(s.c||null)};
+function painelHtml(){
+ const e=PREVIA,salvo=lerSalvo(),c=corrAtual(),ver=jcVerificar(c,visJc()),sujo=sujoPrevia();
+ const ed=JC.editando&&(JC.dados.minhas||[]).find(p=>p.id===JC.editando);
+ return `<div class="gav-cab"><span class="jc-cab-ic">${ic('paleta')}</span><h2>Personalizar aparência</h2><button class="x" type="button" data-jbt-fechar aria-label="Fechar">${ic('fechar')}</button></div>
+ <div class="gav-corpo jbt-corpo jc-corpo">
+  <div class="jc-topo">${jcMock(c)}
+   <div class="jc-resumo"><small class="jc-rot">${sujo?'Prévia (ainda não aplicada)':'Em uso'}</small><b class="jc-nome">${esc(nomeDe(e))}</b>
+    ${ed?`<span class="jc-editando">${ic('jcLapis')}Editando a paleta “${esc(ed.nome)}”</span>`:''}
+    <div class="jc-tira">${JC_PROPS.map(([k,n])=>`<button type="button" class="jc-tira-c${JC.alvo===k?' on':''}" data-jc-prop="${k}" style="background:${c[k]}" title="${esc(n)} · ${c[k]}" aria-label="${esc(n)}: ${c[k]}"></button>`).join('')}</div>
+    ${jcSelo(ver)}<span class="ajuda">Vale só para você, em todos os setores e aparelhos. A tela já mostra a escolha; nada fica salvo antes de Aplicar. Dados, documentos e PDFs não mudam.</span></div></div>
+  <div class="jc-abas" role="tablist" aria-label="Seções da personalização">${JC_ABAS.map(([k,l])=>`<button type="button" role="tab" aria-selected="${JC.aba===k}" class="${JC.aba===k?'on':''}" data-jc-aba="${k}">${esc(l)}${k==='minhas'&&JC.dados.minhas.length?` <i>${JC.dados.minhas.length}</i>`:''}</button>`).join('')}</div>
+  <div class="jc-painel" role="tabpanel">${abaHtml(c,ver,salvo)}</div>
+ </div>
+ <div class="gav-pe"><span class="esq"><button type="button" class="btn" data-jbt-padrao>${ic('jcDesfazer')}Restaurar padrão</button></span>
+  <button type="button" class="btn" data-jbt-cancelar>Cancelar</button><button type="button" class="btn" data-jc-ver>${ic('jcOlho')}Visualizar</button><button type="button" class="btn pri" data-jbt-aplicar ${sujo?'':'disabled'}>${ic('temaOk')}Aplicar</button></div>`;
+}
+function abaHtml(c,ver,salvo){
+ const e=PREVIA,d=JC.dados,a=JC.aba;
+ if(a==='prontas'){
+  const modo=e.m||'claro',escuroPrev=escuroDe(modo),v=e.v||visualHoje();
+  const cartoes=PALETAS.map(p=>{const sel=!e.c&&e.p===p.id,uso=!salvo.c&&salvo.p===p.id;
+   return `<button type="button" class="jbt-cartao${sel?' sel':''}" data-jbt-p="${p.id}" role="radio" aria-checked="${sel}" title="${esc(p.nome)}">
+    ${amostraHtml(p,escuroPrev)}<span class="jbt-nome">${esc(p.nome)}</span>
+    ${uso?`<span class="jbt-uso">${ic('temaOk')}Em uso</span>`:sel?'<span class="jbt-uso prev">Prévia</span>':''}</button>`}).join('');
+  const lst=JC_PALETAS.filter(p=>JC.filtro==='todas'||p.tipo===JC.filtro),n=t=>JC_PALETAS.filter(p=>t==='todas'||p.tipo===t).length;
+  return `<h3 class="jbt-tit">Modo <small>para as paletas do sistema</small></h3>
+   <div class="jbt-modos" role="radiogroup" aria-label="Modo de visualização">
+    ${[['claro','sol','Claro'],['escuro','lua','Escuro'],['auto','auto','Automático']].map(([k,i,l])=>`<button type="button" class="jbt-modo${!e.c&&modo===k?' sel':''}" data-jbt-m="${k}" role="radio" aria-checked="${!e.c&&modo===k}">${ic(i)}<span>${l}</span></button>`).join('')}
+   </div>
+   <p class="jbt-ajuda">${e.c?'As paletas premium e as suas já definem se a tela é clara ou escura. Escolher um modo volta às paletas do sistema.':modo==='auto'?'Automático segue o computador ou celular: claro de dia, escuro quando o aparelho estiver no modo escuro (agora: '+(escuroPrev?'escuro':'claro')+').':modo==='escuro'?'Fundo escuro, mais confortável à noite e com pouca luz.':'Fundo claro, como o sistema é hoje.'}</p>
+   <h3 class="jbt-tit">Paletas do sistema <small>${!e.c&&e.p?esc(PAL[e.p].nome):!e.c?'Padrão do sistema (cores de hoje)':''}</small></h3>
+   <div class="jbt-grade" role="radiogroup" aria-label="Paletas do sistema">${cartoes}</div>
+   <h3 class="jbt-tit">Paletas premium <small>${JC_PALETAS.length} combinações completas, conferidas na leitura</small></h3>
+   <div class="jc-filtros" role="group" aria-label="Filtrar paletas premium">${[['todas','Todas'],['escuro','Escuras'],['claro','Claras']].map(([k,l])=>`<button type="button" class="chip${JC.filtro===k?' on':''}" data-jc-filtro="${k}">${l} <small>${n(k)}</small></button>`).join('')}</div>
+   <div class="jc-pal-grade">${lst.map(p=>cartaoPaleta(p,c,false,salvo)).join('')}</div>
+   <h3 class="jbt-tit">Estilo das telas</h3>
+   <div class="jbt-vis" role="radiogroup" aria-label="Estilo das telas">${['cc','nv','jb'].map(k=>`<button type="button" class="jbt-modo${v===k?' sel':''}" data-jbt-v="${k}" role="radio" aria-checked="${v===k}"><span><b>${VIS_TXT[k][0]}</b><small>${VIS_TXT[k][1]}</small></span></button>`).join('')}</div>
+   <p class="jbt-ajuda">Qualquer paleta pinta qualquer um dos três estilos. Sem paleta, cada estilo usa as cores próprias.</p>`}
+ if(a==='biblioteca'){
+  const q=JC.busca.trim().toLowerCase();
+  const fams=JC_BIBLIOTECA.filter(f=>!q||f.nome.toLowerCase().includes(q)||f.tons.some(h=>h.toLowerCase().includes(q.replace(/^#?/,'#'))));
+  return `${alvoHtml(c)}<div class="jc-bib-busca"><input type="search" data-jc-busca value="${esc(JC.busca)}" placeholder="Filtrar por família ou código (ex.: azul, dourado, #1D5FBF)" aria-label="Filtrar a biblioteca"></div>
+   <div class="jc-bib">${fams.map(f=>`<div class="jc-fam"><b>${esc(f.nome)}</b><div class="jc-tons">${f.tons.map((h,i)=>`<button type="button" class="jc-tom${c[JC.alvo]===h?' on':''}" data-jc-cor="${h}" style="background:${h}" title="${esc(f.nome)} ${JC_TONS[i]} · ${h}" aria-label="${esc(f.nome)} ${JC_TONS[i]}, ${h}"></button>`).join('')}</div></div>`).join('')||'<p class="jc-vazio">Nenhuma família com esse nome ou código.</p>'}</div>
+   <p class="ajuda">${JC_BIBLIOTECA.length} famílias × ${JC_TONS.length} tons, do mais claro (50) ao mais escuro (950). Toque num tom para usá-lo em <b>${esc(jcNomeProp(JC.alvo))}</b>.</p>`}
+ if(a==='personalizar'){
+  const base=coresBase(e),cor=c[JC.alvo],fav=d.fav.includes(cor),rgb=jcRgb(cor),mud=k=>!!e.c&&e.c[k]!==base[k];
+  return `<div class="jc-pers"><div class="jc-props">${JC_PROPS.map(([k,n,ds])=>`<div class="jc-prop${JC.alvo===k?' on':''}"><button type="button" class="jc-prop-bt" data-jc-prop="${k}" aria-pressed="${JC.alvo===k}"><span class="jc-sw" style="background:${c[k]}"></span><span class="jc-prop-tx"><b>${esc(n)}</b><small>${esc(ds)}</small></span><code>${c[k]}</code></button>
+     <button type="button" class="btn ico min jc-rest" data-jc-rest="${k}" title="Voltar à cor original (${base[k]})" aria-label="Voltar ${esc(n)} à cor original" ${mud(k)?'':'disabled'}>${ic('jcDesfazer')}</button></div>`).join('')}</div>
+   <div class="jc-editor"><div class="jc-ed-cab"><b>${esc(jcNomeProp(JC.alvo))}</b><span class="jc-ad" title="Antes e depois"><i style="background:${base[JC.alvo]}" title="Original: ${base[JC.alvo]}"></i><i class="jc-ad-nova" style="background:${cor}" title="Nova: ${cor}"></i></span></div>
+    <div class="jc-sv" data-jc-sv role="slider" tabindex="0" aria-label="Saturação e brilho (use as setas)"><i class="jc-sv-pt"></i></div>
+    <div class="jc-hue" data-jc-hue role="slider" tabindex="0" aria-label="Matiz (use as setas)" aria-valuemin="0" aria-valuemax="360"><i class="jc-hue-pt"></i></div>
+    <div class="jc-campos"><label class="jc-hex">HEX<input data-jc-hex value="${cor}" maxlength="7" spellcheck="false" autocomplete="off"></label>
+     ${['R','G','B'].map((l,i)=>`<label>${l}<input type="number" min="0" max="255" step="1" data-jc-rgb="${i}" value="${rgb[i]}"></label>`).join('')}</div>
+    <div class="jc-ed-acoes"><button type="button" class="btn min" data-jc-copiar title="Copiar o código">${ic('jcCopiar')}Copiar</button>
+     <button type="button" class="btn min jc-fav-bt${fav?' on':''}" data-jc-fav="${cor}" aria-pressed="${fav}">${ic('jcEstrela')}${fav?'Favorita':'Favoritar'}</button>
+     <button type="button" class="btn min jc-rest-ed" data-jc-rest="${JC.alvo}" ${mud(JC.alvo)?'':'disabled'}>${ic('jcDesfazer')}Original</button></div>
+    <div class="jc-sugs jc-harm"><small>Sugestões harmônicas</small><div>${harmHtml(cor)}</div></div>
+    <div class="jc-sugs"><small>Usadas por último</small><div class="jc-mini">${histMini()}</div></div>
+   </div></div>${verifHtml(ver)}`}
+ if(a==='minhas'){
+  const ed=JC.editando&&d.minhas.find(p=>p.id===JC.editando);
+  return `${ed?`<div class="jc-bloco jc-ed-banner"><b>${ic('jcLapis')}Editando “${esc(ed.nome)}”</b><span class="ajuda">Mude as cores em Personalização individual ou na Biblioteca e depois salve aqui.</span>
+    <div class="jc-linha"><input data-jc-nome-ed value="${esc(ed.nome)}" maxlength="60" aria-label="Nome da paleta"><button type="button" class="btn pri" data-jc-salvar-ed>Salvar alterações na paleta</button><button type="button" class="btn" data-jc-sair-ed>Sair da edição</button></div></div>`:''}
+   <div class="jc-bloco"><b>Salvar as cores da prévia como uma nova paleta</b><div class="jc-linha"><input data-jc-nome-nova maxlength="60" placeholder="Nome da paleta (ex.: Concretiza noturno)" aria-label="Nome da nova paleta"><button type="button" class="btn pri" data-jc-salvar-nova>Salvar paleta</button></div></div>
+   ${d.minhas.length?`<div class="jc-pal-grade">${d.minhas.map(p=>cartaoPaleta(p,c,true,salvo)).join('')}</div>`:'<p class="jc-vazio">Você ainda não tem paletas próprias. Escolha cores e salve acima, ou duplique uma paleta premium.</p>'}
+   <div class="jc-linha jc-io"><button type="button" class="btn" data-jc-export ${d.minhas.length?'':'disabled'}>${ic('jcBaixar')}Exportar minhas paletas</button><label class="btn" tabindex="0">${ic('jcSubir')}Importar paletas<input type="file" accept=".json,application/json" data-jc-import hidden></label><span class="ajuda">Arquivo .json, para levar suas paletas a outro aparelho ou pessoa.</span></div>`}
+ if(a==='favoritos'){
+  const pals=d.favPal.map(jcAcharPaleta).filter(Boolean);
+  return `<div class="jc-bloco"><b>Cores favoritas</b>${d.fav.length?`<div class="jc-favs">${d.fav.map(h=>`<span class="jc-fav"><button type="button" class="jc-tom" data-jc-cor="${h}" style="background:${h}" title="Usar ${h} em ${esc(jcNomeProp(JC.alvo))}" aria-label="Usar ${h}"></button><code>${h}</code><button type="button" class="jc-x" data-jc-fav="${h}" aria-label="Tirar ${h} dos favoritos" title="Tirar dos favoritos">${ic('fechar')}</button></span>`).join('')}</div><span class="ajuda">Toque numa cor para usá-la em <b>${esc(jcNomeProp(JC.alvo))}</b>.</span>`:'<p class="jc-vazio">Nenhuma cor favorita. Use a estrela em Personalização individual.</p>'}</div>
+   <div class="jc-bloco"><b>Paletas favoritas</b>${pals.length?`<div class="jc-pal-grade">${pals.map(p=>cartaoPaleta(p,c,!!d.minhas.find(m=>m.id===p.id),salvo)).join('')}</div>`:'<p class="jc-vazio">Nenhuma paleta favorita. Use a estrela nos cartões das paletas.</p>'}</div>`}
+ if(a==='historico'){
+  return `<div class="jc-bloco"><b>Cores usadas recentemente</b>${d.hist.length?`<div class="jc-favs">${d.hist.map(h=>`<span class="jc-fav"><button type="button" class="jc-tom" data-jc-cor="${h}" style="background:${h}" title="Usar ${h}" aria-label="Usar ${h}"></button><code>${h}</code><button type="button" class="jc-x jc-x-fav${d.fav.includes(h)?' on':''}" data-jc-fav="${h}" aria-label="Favoritar ${h}" title="${d.fav.includes(h)?'Favorita':'Favoritar'}">${ic('jcEstrela')}</button></span>`).join('')}</div>
+   <div class="jc-linha"><button type="button" class="btn" data-jc-limpar-hist>${ic('jcLixo')}Limpar histórico</button></div>`:'<p class="jc-vazio">O histórico guarda as últimas 30 cores que você escolheu.</p>'}</div>`}
+ return `<div class="jc-bloco"><b>Em uso</b><p>${esc(nomeDe(salvo))} · estilo ${esc(VIS_TXT[visualHoje()][0])}.</p>
+   <div class="jc-linha"><button type="button" class="btn" data-jbt-padrao>${ic('jcDesfazer')}Restaurar o padrão</button><button type="button" class="btn" data-jc-aba="personalizar">Restaurar uma cor por vez</button></div>
+   <span class="ajuda">Restaurar volta às cores e ao estilo originais do sistema. Suas paletas, favoritos e histórico continuam guardados.</span></div>
+  <div class="jc-bloco"><b>Cópia das suas configurações de cor</b><div class="jc-linha"><button type="button" class="btn" data-jc-export-tudo>${ic('jcBaixar')}Exportar tudo</button><label class="btn" tabindex="0">${ic('jcSubir')}Importar<input type="file" accept=".json,application/json" data-jc-import hidden></label></div>
+   <span class="ajuda">Leva as cores em uso, suas paletas e favoritos. Importar só acrescenta: nada do que você tem é apagado.</span></div>
+  <div class="jc-bloco"><b>Limpeza</b><div class="jc-linha"><button type="button" class="btn" data-jc-limpar-hist ${d.hist.length?'':'disabled'}>Limpar histórico (${d.hist.length})</button><button type="button" class="btn" data-jc-limpar-fav ${d.fav.length||d.favPal.length?'':'disabled'}>Limpar favoritos (${d.fav.length+d.favPal.length})</button></div></div>
+  <div class="jc-bloco"><b>Como funciona</b><ul class="jc-ul"><li>As cores ficam nas <b>suas preferências</b>: valem para você em todos os aparelhos e não mudam a tela de mais ninguém.</li>
+   <li>Nada de cadastro, lançamento, cálculo, relatório ou PDF é alterado. Telas, menus e botões continuam nos mesmos lugares.</li>
+   <li>Ao escolher, a tela já mostra a prévia; <b>Cancelar</b> volta ao que estava e <b>Aplicar</b> guarda.</li>
+   <li>A verificação de leitura avisa quando um texto, menu ou botão fica difícil de ler e sugere a correção.</li></ul></div>`;
+}
+function cartaoPaleta(p,c,minha,salvo){
+ const on=jcIguais(p.c,c),uso=!!salvo.c&&jcIguais(p.c,salvo.c),fav=JC.dados.favPal.includes(p.id),pc=p.c;
+ return `<div class="jc-pal${on?' on':''}${JC.editando===p.id?' ed':''}"><button type="button" class="jc-pal-esc" data-jc-pal="${esc(p.id)}" aria-pressed="${on}">
+  <span class="jc-pal-am" aria-hidden="true" style="background:${pc.fundo}"><i class="t" style="background:${pc.menu}"></i><i class="s" style="background:${visJc()==='cc'?pc.fundo2:pc.menu}"></i><i class="c" style="background:${pc.painel};border-color:${pc.borda}"><u style="background:${pc.tx}"></u><u style="background:${pc.tx2}"></u><em style="background:${pc.pri}"></em><em style="background:${pc.sec}"></em></i><i class="d" style="background:${pc.destaque}"></i></span>
+  <span class="jc-pal-tx"><b>${esc(p.nome)}</b>${p.desc?`<small>${esc(p.desc)}</small>`:minha&&p.em?`<small>Criada em ${esc(p.em.split('-').reverse().join('/'))}</small>`:''}</span>${uso?`<span class="jbt-uso">${ic('temaOk')}Em uso</span>`:on?'<span class="jbt-uso prev">Prévia</span>':''}</button>
+  <span class="jc-pal-ac"><button type="button" class="btn ico min jc-fav-bt${fav?' on':''}" data-jc-favpal="${esc(p.id)}" aria-pressed="${fav}" title="${fav?'Tirar dos favoritos':'Favoritar a paleta'}" aria-label="Favoritar ${esc(p.nome)}">${ic('jcEstrela')}</button>
+   <button type="button" class="btn ico min" data-jc-dup="${esc(p.id)}" title="Duplicar em Minhas paletas" aria-label="Duplicar ${esc(p.nome)}">${ic('jcCopiar')}</button>
+   ${minha?`<button type="button" class="btn ico min" data-jc-editar="${esc(p.id)}" title="Editar" aria-label="Editar ${esc(p.nome)}">${ic('jcLapis')}</button><button type="button" class="btn ico min perigo" data-jc-excluir="${esc(p.id)}" title="Excluir" aria-label="Excluir ${esc(p.nome)}">${ic('jcLixo')}</button>`:''}</span></div>`;
+}
+const harmHtml=cor=>jcHarmonias(cor).map(([n,h])=>`<button type="button" class="jc-chip-cor" data-jc-cor="${h}" title="${esc(n)} · ${h}"><i style="background:${h}"></i>${esc(n)}</button>`).join('');
+const histMini=()=>JC.dados.hist.slice(0,12).map(h=>`<button type="button" class="jc-tom" data-jc-cor="${h}" style="background:${h}" title="${h}" aria-label="${h}"></button>`).join('')||'<span class="jc-vazio">Ainda nenhuma.</span>';
+function alvoHtml(c){return `<div class="jc-alvo"><label for="jcAlvo">Aplicar em</label><select id="jcAlvo" data-jc-alvo>${JC_PROPS.map(([k,n])=>`<option value="${k}" ${JC.alvo===k?'selected':''}>${esc(n)}</option>`).join('')}</select><span class="jc-sw" style="background:${c[JC.alvo]}" title="${c[JC.alvo]}"></span><code>${c[JC.alvo]}</code></div>`}
+function verifHtml(ver){
+ if(!ver.length)return `<div class="jc-verif ok">${ic('temaOk')}<span><b>Leitura e contraste em ordem.</b> Textos, menus, botões e bordas estão legíveis com estas cores.</span></div>`;
+ return `<div class="jc-verif"><div class="jc-verif-cab"><b>${ic('jcAviso')}Verificação de leitura</b><button type="button" class="btn min" data-jc-corrigir>${ic('jcVarinha')}Corrigir automaticamente</button></div>
+  <ul>${ver.map(x=>`<li class="${x.nivel}"><span class="jc-niv">${x.nivel==='critico'?'Crítico':'Aviso'}</span><span class="jc-vtx"><b>${esc(jcNomeProp(x.prop))}:</b> ${esc(x.msg)}</span>${x.sug?`<button type="button" class="jc-chip-cor" data-jc-sug="${x.prop}:${x.sug}" title="Usar ${x.sug} em ${esc(jcNomeProp(x.prop))}"><i style="background:${x.sug}"></i>Usar ${x.sug}</button>`:''}</li>`).join('')}</ul></div>`;
+}
+
+/* ---------- prévia: a tela inteira mostra a escolha na hora (como no V68) ---------- */
 let VEU=null;
-function atualizarPainel(){if(!VEU)return;const g=VEU.querySelector('.gaveta');const sc=(g.querySelector('.gav-corpo')||{}).scrollTop||0;g.innerHTML=painelHtml();const c=g.querySelector('.gav-corpo');if(c)c.scrollTop=sc;ligarPainel(g)}
+function atualizarPainel(){if(!VEU)return;const g=VEU.querySelector('.gaveta');const sc=(g.querySelector('.gav-corpo')||{}).scrollTop||0;g.innerHTML=painelHtml();const c=g.querySelector('.gav-corpo');if(c)c.scrollTop=sc;if(JC.aba==='personalizar')pintarSeletor()}
 function previa(){
  const vAntes=visualHoje();
  if(PREVIA.v&&PREVIA.v!==vAntes){document.documentElement.classList.toggle('vis-cc',PREVIA.v==='cc');document.documentElement.classList.toggle('vis-nv',PREVIA.v==='nv')}
- const mudou=aplicarTema({p:PREVIA.p,m:PREVIA.m},{redesenhar:false});
- if(PREVIA.v!==vAntes){try{if(acessoOk())renderCasca()}catch(e){}try{if(lerRota().mod!=='config')renderTela()}catch(e){}}
+ const mudou=aplicarTema({p:PREVIA.p,m:PREVIA.m,c:PREVIA.c,cn:PREVIA.cn},{redesenhar:false});
+ if(PREVIA.v!==vAntes){BASE_CACHE.clear();try{if(acessoOk())renderCasca()}catch(e){}try{if(lerRota().mod!=='config')renderTela()}catch(e){}}
  else if(mudou)redesenharGraficos();
  atualizarPainel();
 }
-function fecharPainel(){if(!VEU)return;const v=VEU;VEU=null;document.removeEventListener('keydown',escPainel,true);try{if(typeof animarSaida==='function')animarSaida(v)}catch(e){}setTimeout(()=>v.remove(),200);
+/* enquanto arrasta ou digita: só as variáveis (um quadro por vez), sem redesenhar o painel */
+function previaLeve(){cancelAnimationFrame(JC.raf);JC.raf=requestAnimationFrame(()=>{try{aplicarTema({p:PREVIA.p,m:PREVIA.m,c:PREVIA.c,cn:PREVIA.cn},{redesenhar:false})}catch(e){}})}
+function fecharPainel(){if(!VEU)return;const v=VEU;VEU=null;JC.editando=null;document.body.classList.remove('jc-aberta');if(JC.barra){JC.barra.remove();JC.barra=null}
+ document.removeEventListener('keydown',escPainel,true);try{if(typeof animarSaida==='function')animarSaida(v)}catch(e){}setTimeout(()=>v.remove(),200);
  if(window.__jbtFoco&&window.__jbtFoco.focus)try{window.__jbtFoco.focus()}catch(e){}}
 function cancelar(){
  if(!PREVIA)return fecharPainel();
  const v0=PREVIA.v0;PREVIA=null;
  const vAgora=visualHoje();
- if(v0!==vAgora){document.documentElement.classList.toggle('vis-cc',v0==='cc');document.documentElement.classList.toggle('vis-nv',v0==='nv')}
+ if(v0!==vAgora){document.documentElement.classList.toggle('vis-cc',v0==='cc');document.documentElement.classList.toggle('vis-nv',v0==='nv');BASE_CACHE.clear()}
  aplicarTema(lerSalvo(),{redesenhar:false});
  if(v0!==vAgora){try{redesenharVisual()}catch(e){}}else redesenharGraficos();
  fecharPainel();
 }
+async function fecharPerguntando(){
+ const s=lerSalvo();
+ if(PREVIA&&PREVIA.c&&JSON.stringify(PREVIA.c)!==JSON.stringify(s.c||null)&&!await confirmar('Descartar a escolha de cores?','As cores escolhidas ainda não foram aplicadas. Saindo agora, o sistema volta às cores em uso.',{ok:'Descartar',perigo:true}))return;
+ cancelar();
+}
 async function gravar(e,v,msg){
- const tema={p:e.p||'',m:e.m||''};
+ const tema={p:e.p||'',m:e.m||''};if(e.c){tema.c={...e.c};tema.cn=String(e.cn||'').slice(0,60)}
  PREVIA=null;
  try{localStorage.setItem('jb_visual3',v)}catch(x){}
  try{PREFS={...PREFS,tema,visual3:v}}catch(x){}
+ BASE_CACHE.clear();
  aplicarTema(tema,{redesenhar:false});
  try{if(aplicarVisual())redesenharVisual();else redesenharGraficos()}catch(x){}
  fecharPainel();
  toast(msg,'ok');
  try{await salvarPrefs({tema,visual3:v})}catch(x){toast('A aparência mudou nesta tela, mas não foi salva no banco. Ela volta na próxima vez que você entrar.','erro')}
 }
-function escPainel(ev){if(ev.key==='Escape'&&VEU&&!document.querySelector('.modal')){ev.stopPropagation();cancelar()}}
-function ligarPainel(g){
- g.querySelectorAll('[data-jbt-p]').forEach(b=>b.onclick=()=>{PREVIA.p=b.dataset.jbtP;previa()});
- g.querySelectorAll('[data-jbt-m]').forEach(b=>b.onclick=()=>{PREVIA.m=b.dataset.jbtM;previa()});
- g.querySelectorAll('[data-jbt-v]').forEach(b=>b.onclick=()=>{PREVIA.v=b.dataset.jbtV;previa()});
- const q=s=>g.querySelector(s);
- q('[data-jbt-fechar]').onclick=cancelar;q('[data-jbt-cancelar]').onclick=cancelar;
- q('[data-jbt-aplicar]').onclick=()=>{const e={p:PREVIA.p,m:PREVIA.m||'claro'};gravar(e,PREVIA.v||visualHoje(),'Tema aplicado: '+(e.p?PAL[e.p].nome:'Padrão do sistema')+' · modo '+MODOS[e.m].toLowerCase()+'.')};
- q('[data-jbt-padrao]').onclick=()=>gravar({p:'',m:''},'cc','Aparência padrão restaurada.');
- /* setas do teclado andam entre as paletas */
- const grade=q('.jbt-grade');if(grade)grade.onkeydown=ev=>{const bs=[...grade.querySelectorAll('[data-jbt-p]')];const i=bs.indexOf(document.activeElement);if(i<0)return;
-  const d={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[ev.key];if(!d)return;ev.preventDefault();const n=bs[(i+d+bs.length)%bs.length];n.focus();n.click();setTimeout(()=>{const x=VEU&&VEU.querySelector(`[data-jbt-p="${n.dataset.jbtP}"]`);if(x)x.focus()},0)};
+async function aplicarPrevia(){
+ const c=PREVIA.c;
+ const crit=c?jcVerificar(c,visJc()).filter(x=>x.nivel==='critico'):[];
+ if(crit.length&&!await confirmar('Há problemas de leitura',`${crit.length===1?'Uma combinação deixa':crit.length+' combinações deixam'} textos, menus ou botões difíceis de ler. Use "Corrigir automaticamente" em Personalização individual ou aplique mesmo assim.`,{ok:'Aplicar mesmo assim',perigo:true}))return;
+ const e={p:PREVIA.p,m:c?'':(PREVIA.m||'claro'),c,cn:c?nomeDe(PREVIA):''};
+ gravar(e,PREVIA.v||visualHoje(),'Aparência aplicada: '+nomeDe(e)+'. Vale só para você.');
 }
-function abrirPainel(){
+async function restaurarPadrao(){
+ if(!await confirmar('Restaurar a aparência padrão?','Voltam as cores e o estilo originais do sistema (Concretiza). Suas paletas, favoritos e histórico continuam guardados.',{ok:'Restaurar padrão'}))return;
+ gravar({p:'',m:''},'cc','Aparência padrão restaurada.');
+}
+function visualizarTelaCheia(){
+ VEU.classList.add('jc-oculto');
+ if(!JC.barra){const b=document.createElement('div');b.className='jc-barra';b.setAttribute('role','region');b.setAttribute('aria-label','Prévia das cores');document.body.appendChild(b);JC.barra=b;
+  b.addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;if(t.dataset.b==='voltar')voltarDaTelaCheia();else if(t.dataset.b==='cancelar')cancelar();else if(t.dataset.b==='aplicar')aplicarPrevia()})}
+ JC.barra.innerHTML=`<span class="jc-barra-tx">${ic('jcOlho')}<span><b>Prévia: ${esc(nomeDe(PREVIA))}</b><small>Navegue pelo sistema para ver. Nada foi salvo ainda.</small></span></span>
+  <span class="jc-barra-bt"><button type="button" class="btn" data-b="voltar">Voltar à personalização</button><button type="button" class="btn" data-b="cancelar">Cancelar</button><button type="button" class="btn pri" data-b="aplicar" ${sujoPrevia()?'':'disabled'}>${ic('temaOk')}Aplicar</button></span>`;
+ setTimeout(()=>{const b=JC.barra&&JC.barra.querySelector('[data-b="voltar"]');if(b)b.focus()},30);
+}
+function voltarDaTelaCheia(){if(JC.barra){JC.barra.remove();JC.barra=null}if(VEU){VEU.classList.remove('jc-oculto');atualizarPainel()}}
+function escPainel(ev){if(ev.key!=='Escape'||!VEU||document.querySelector('.modal'))return;ev.stopPropagation();if(JC.barra)voltarDaTelaCheia();else fecharPerguntando()}
+
+/* ---------- personalização individual ---------- */
+function definirCor(k,h,{leve=false,hist=true}={}){
+ h=jcNorm(h);if(!h||!PREVIA)return;
+ const base=coresBase(PREVIA);
+ if(!PREVIA.c)PREVIA.c={...base};
+ PREVIA.c={...PREVIA.c,[k]:h};
+ if(jcIguais(PREVIA.c,base)){PREVIA.c=null;PREVIA.cn=''}else PREVIA.cn=nomeDe({c:PREVIA.c});
+ if(hist){JC.dados.hist=[h,...JC.dados.hist.filter(x=>x!==h)].slice(0,JC_MAX.hist);jcPersistirDepois()}
+ previaLeve();
+ if(leve)atualizarLeve();else atualizarParcial();
+}
+function pintarSeletor(){
+ const g=VEU&&VEU.querySelector('.gaveta');if(!g)return;
+ const cor=corrAtual()[JC.alvo];
+ if(!JC.hsv||jcDeHsv(...JC.hsv)!==cor)JC.hsv=jcHsv(cor);
+ const [H,S,V]=JC.hsv,sv=g.querySelector('.jc-sv'),hu=g.querySelector('.jc-hue');if(!sv||!hu)return;
+ sv.style.backgroundColor=jcDeHsv(H,1,1);
+ const pt=sv.querySelector('.jc-sv-pt');pt.style.left=(S*100)+'%';pt.style.top=((1-V)*100)+'%';pt.style.background=cor;
+ sv.setAttribute('aria-valuetext',`saturação ${Math.round(S*100)}%, brilho ${Math.round(V*100)}%`);
+ const hp=hu.querySelector('.jc-hue-pt');hp.style.left=(H/360*100)+'%';hu.setAttribute('aria-valuenow',Math.round(H));
+}
+function atualizarLeve(){
+ const g=VEU&&VEU.querySelector('.gaveta');if(!g)return;
+ const c=corrAtual(),cor=c[JC.alvo];
+ const m=g.querySelector('.jc-mock');if(m)m.setAttribute('style',jcMockEstilo(c));
+ const hx=g.querySelector('[data-jc-hex]');if(hx&&document.activeElement!==hx)hx.value=cor;
+ const rgb=jcRgb(cor);g.querySelectorAll('[data-jc-rgb]').forEach(i=>{if(document.activeElement!==i)i.value=rgb[+i.dataset.jcRgb]});
+ const sw=g.querySelector('.jc-prop.on .jc-sw');if(sw)sw.style.background=cor;
+ const cd=g.querySelector('.jc-prop.on code');if(cd)cd.textContent=cor;
+ const nv=g.querySelector('.jc-ad-nova');if(nv)nv.style.background=cor;
+ const ti=g.querySelector(`.jc-tira-c[data-jc-prop="${JC.alvo}"]`);if(ti)ti.style.background=cor;
+ pintarSeletor();
+}
+/* atualiza a central sem redesenhar: o foco e o que está sendo digitado não se perdem */
+function atualizarParcial(){
+ const g=VEU&&VEU.querySelector('.gaveta');if(!g)return;
+ const c=corrAtual(),base=coresBase(PREVIA),ver=jcVerificar(c,visJc()),cor=c[JC.alvo],mud=k=>!!PREVIA.c&&PREVIA.c[k]!==base[k];
+ atualizarLeve();
+ g.querySelectorAll('.jc-prop').forEach(el=>{const b=el.querySelector('[data-jc-prop]');if(!b)return;const k=b.dataset.jcProp;
+  const sw=el.querySelector('.jc-sw'),cd=el.querySelector('code'),r=el.querySelector('.jc-rest');if(sw)sw.style.background=c[k];if(cd)cd.textContent=c[k];if(r)r.disabled=!mud(k)});
+ g.querySelectorAll('.jc-tira-c').forEach(b=>{b.style.background=c[b.dataset.jcProp];b.title=jcNomeProp(b.dataset.jcProp)+' · '+c[b.dataset.jcProp]});
+ const nm=g.querySelector('.jc-nome');if(nm)nm.textContent=nomeDe(PREVIA);
+ const rot=g.querySelector('.jc-rot');if(rot)rot.textContent=sujoPrevia()?'Prévia (ainda não aplicada)':'Em uso';
+ const se=g.querySelector('.jc-selo');if(se)se.outerHTML=jcSelo(ver);
+ const vf=g.querySelector('.jc-verif');if(vf)vf.outerHTML=verifHtml(ver);
+ const ap=g.querySelector('[data-jbt-aplicar]');if(ap)ap.disabled=!sujoPrevia();
+ const fb=g.querySelector('.jc-editor [data-jc-fav]');if(fb){const f=JC.dados.fav.includes(cor);fb.dataset.jcFav=cor;fb.classList.toggle('on',f);fb.setAttribute('aria-pressed',f);fb.innerHTML=ic('jcEstrela')+(f?'Favorita':'Favoritar')}
+ const ro=g.querySelector('.jc-rest-ed');if(ro)ro.disabled=!mud(JC.alvo);
+ const hs=g.querySelector('.jc-harm>div');if(hs)hs.innerHTML=harmHtml(cor);
+ const mi=g.querySelector('.jc-mini');if(mi)mi.innerHTML=histMini();
+ g.querySelectorAll('.jc-bib .jc-tom').forEach(b=>b.classList.toggle('on',b.dataset.jcCor===cor));
+ const as=g.querySelector('.jc-alvo .jc-sw'),ac=g.querySelector('.jc-alvo code');if(as)as.style.background=cor;if(ac)ac.textContent=cor;
+}
+function arrastar(el,tipo,ev){
+ ev.preventDefault();try{el.setPointerCapture(ev.pointerId)}catch(x){}
+ const mover=e2=>{const r=el.getBoundingClientRect(),x=Math.min(1,Math.max(0,(e2.clientX-r.left)/r.width)),y=Math.min(1,Math.max(0,(e2.clientY-r.top)/r.height));
+  const [H,S,V]=JC.hsv||[0,0,0];JC.hsv=tipo==='sv'?[H,x,1-y]:[x*360,S,V];const hsv=JC.hsv;definirCor(JC.alvo,jcDeHsv(...hsv),{leve:true,hist:false});JC.hsv=hsv;pintarSeletor()};
+ mover(ev);
+ const fim=()=>{el.removeEventListener('pointermove',mover);el.removeEventListener('pointerup',fim);el.removeEventListener('pointercancel',fim);
+  const hsv=JC.hsv;definirCor(JC.alvo,corrAtual()[JC.alvo],{hist:true});JC.hsv=hsv;pintarSeletor();redesenharGraficos()};
+ el.addEventListener('pointermove',mover);el.addEventListener('pointerup',fim);el.addEventListener('pointercancel',fim);
+}
+function corrigirTudo(){
+ for(let i=0;i<6;i++){const ver=jcVerificar(corrAtual(),visJc()).filter(x=>x.sug);if(!ver.length)break;
+  const feitos=new Set();ver.forEach(x=>{if(feitos.has(x.prop))return;feitos.add(x.prop);definirCor(x.prop,x.sug,{leve:true,hist:false})})}
+ const rest=jcVerificar(corrAtual(),visJc());JC.hsv=null;atualizarPainel();
+ toast(rest.length?'Ajustes feitos. Ainda há '+rest.length+' aviso(s) para conferir.':'Pronto: leitura e contraste em ordem.',rest.length?undefined:'ok');
+}
+async function copiar(h){
+ let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(h);ok=true}}catch(e){}
+ if(!ok){try{const a=document.createElement('textarea');a.value=h;a.setAttribute('readonly','');a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();ok=document.execCommand('copy');a.remove()}catch(e){}}
+ toast(ok?'Código '+h+' copiado.':'Não foi possível copiar aqui. O código é '+h+'.',ok?'ok':undefined);
+}
+
+/* ---------- minhas paletas ---------- */
+const hojeIso=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+function nomeLivre(n){const nomes=new Set(JC.dados.minhas.map(p=>p.nome.toLowerCase()));if(!nomes.has(n.toLowerCase()))return n;let i=2;while(nomes.has((n+' '+i).toLowerCase()))i++;return n+' '+i}
+function escolherCores(c,ref){PREVIA.c=c?{...c}:null;PREVIA.cn=c?nomeDe({c}):'';JC.hsv=null;if(JC.editando&&JC.editando!==ref)JC.editando=null;previa()}
+async function salvarNova(){
+ const i=VEU.querySelector('[data-jc-nome-nova]'),nome=String(i&&i.value||'').trim().slice(0,60);
+ if(!nome){toast('Dê um nome para a paleta.','erro');if(i)i.focus();return}
+ if(JC.dados.minhas.length>=JC_MAX.minhas){toast('Limite de '+JC_MAX.minhas+' paletas próprias. Exclua alguma para salvar outra.','erro');return}
+ const p={id:jcNovoId(),nome:nomeLivre(nome),c:{...corrAtual()},em:hojeIso()};
+ JC.dados.minhas=[p,...JC.dados.minhas];atualizarPainel();toast('Paleta “'+p.nome+'” salva em Minhas paletas.','ok');await jcPersistirBib();
+}
+async function salvarEdicao(){
+ const p=JC.dados.minhas.find(x=>x.id===JC.editando);if(!p){JC.editando=null;atualizarPainel();return}
+ const i=VEU.querySelector('[data-jc-nome-ed]'),nome=String(i&&i.value||'').trim().slice(0,60)||p.nome;
+ JC.dados.minhas=JC.dados.minhas.map(x=>x.id===p.id?{...x,nome,c:{...corrAtual()}}:x);
+ JC.editando=null;if(PREVIA.c)PREVIA.cn=nome;atualizarPainel();toast('Paleta “'+nome+'” atualizada.','ok');await jcPersistirBib();
+}
+async function duplicar(id){
+ const p=jcAcharPaleta(id);if(!p)return;
+ if(JC.dados.minhas.length>=JC_MAX.minhas){toast('Limite de '+JC_MAX.minhas+' paletas próprias.','erro');return}
+ const n={id:jcNovoId(),nome:nomeLivre(p.nome+' (cópia)'),c:{...p.c},em:hojeIso()};
+ JC.dados.minhas=[n,...JC.dados.minhas];JC.editando=n.id;JC.aba='minhas';escolherCores(n.c,n.id);
+ toast('Cópia “'+n.nome+'” criada. Ajuste as cores e salve as alterações.','ok');await jcPersistirBib();
+}
+async function excluir(id){
+ const p=JC.dados.minhas.find(x=>x.id===id);if(!p)return;
+ if(!await confirmar('Excluir a paleta “'+p.nome+'”?','Só esta paleta sua é apagada. As paletas prontas, as cores em uso e os dados do sistema não mudam.',{ok:'Excluir paleta',perigo:true}))return;
+ JC.dados.minhas=JC.dados.minhas.filter(x=>x.id!==id);JC.dados.favPal=JC.dados.favPal.filter(x=>x!==id);if(JC.editando===id)JC.editando=null;
+ atualizarPainel();toast('Paleta excluída.','ok');await jcPersistirBib();
+}
+async function exportar(tudo){
+ const d=JC.dados,dados={app:'JB Gestão Cerâmica',tipo:'jb-paletas-de-cores',versao:1,exportado:new Date().toISOString(),minhas:d.minhas};
+ if(tudo)Object.assign(dados,{tema:lerSalvo(),fav:d.fav,favPal:d.favPal});
+ const ok=await salvarArquivo('jb-paletas-de-cores-'+hojeIso()+'.json',new Blob([JSON.stringify(dados,null,1)],{type:'application/json'}));
+ if(ok)toast('Arquivo de paletas gerado.','ok');
+}
+async function importar(f){
+ if(f.size>512*1024){toast('Arquivo grande demais para ser de paletas. Nada foi importado.','erro');return}
+ let o;try{o=JSON.parse(await f.text())}catch(e){toast('Arquivo inválido: não é um .json de paletas. Nada foi importado.','erro');return}
+ const lst=Array.isArray(o)?o:o&&(o.minhas||o.paletas);
+ const lim=jcLimparBib({minhas:Array.isArray(lst)?lst:[],fav:o&&o.fav});
+ const ids=new Set(JC.dados.minhas.map(p=>p.id));let n=0;
+ for(const p of lim.minhas){if(JC.dados.minhas.length>=JC_MAX.minhas)break;
+  if(JC.dados.minhas.some(m=>jcIguais(m.c,p.c)&&m.nome===p.nome))continue;
+  const id=ids.has(p.id)?jcNovoId():p.id;JC.dados.minhas.push({...p,id,nome:nomeLivre(p.nome)});ids.add(id);n++}
+ const fa=JC.dados.fav.length;JC.dados.fav=[...new Set([...JC.dados.fav,...lim.fav])].slice(0,JC_MAX.fav);const nf=JC.dados.fav.length-fa;
+ if(!n&&!nf){toast('Nenhuma paleta nova no arquivo (ou todas já existem).');return}
+ JC.aba='minhas';atualizarPainel();toast(`${n} paleta(s)${nf?' e '+nf+' cor(es) favorita(s)':''} importada(s). Nada foi substituído.`,'ok');await jcPersistirBib();
+}
+
+/* ---------- cliques, teclas e campos do painel ---------- */
+async function clique(ev){
+ const t=ev.target.closest('button,[data-jc-cor]');if(!t||t.disabled)return;const ds=t.dataset;
+ if('jbtFechar' in ds)return fecharPerguntando();
+ if('jbtCancelar' in ds)return cancelar();
+ if('jbtAplicar' in ds)return aplicarPrevia();
+ if('jbtPadrao' in ds)return restaurarPadrao();
+ if('jcVer' in ds)return visualizarTelaCheia();
+ if(ds.jbtP){PREVIA.p=ds.jbtP;PREVIA.c=null;PREVIA.cn='';JC.editando=null;JC.hsv=null;return previa()}
+ if(ds.jbtM){PREVIA.m=ds.jbtM;PREVIA.c=null;PREVIA.cn='';JC.editando=null;JC.hsv=null;return previa()}
+ if(ds.jbtV){PREVIA.v=ds.jbtV;JC.hsv=null;return previa()}
+ if(ds.jcAba){JC.aba=ds.jcAba;atualizarPainel();if(t.closest('.jc-abas')){const b=VEU.querySelector(`.jc-abas [data-jc-aba="${ds.jcAba}"]`);if(b)b.focus()}else{const p=VEU.querySelector('.jc-painel');if(p)p.scrollIntoView({block:'start',behavior:'smooth'})}return}
+ if(ds.jcFiltro){JC.filtro=ds.jcFiltro;return atualizarPainel()}
+ if(ds.jcPal){const p=jcAcharPaleta(ds.jcPal);if(p)escolherCores(p.c,p.id);return}
+ if(ds.jcProp){JC.alvo=ds.jcProp;JC.hsv=null;if(t.classList.contains('jc-tira-c')&&JC.aba!=='personalizar'&&JC.aba!=='biblioteca')JC.aba='personalizar';return atualizarPainel()}
+ if(ds.jcRest){const k=ds.jcRest;JC.hsv=null;definirCor(k,coresBase(PREVIA)[k],{hist:false});toast(jcNomeProp(k)+': cor original de volta.');return}
+ if(ds.jcCor){JC.hsv=null;definirCor(JC.alvo,ds.jcCor);return}
+ if(ds.jcSug){const [k,h]=ds.jcSug.split(':');JC.hsv=null;definirCor(k,h);return}
+ if('jcCorrigir' in ds)return corrigirTudo();
+ if('jcCopiar' in ds)return copiar(corrAtual()[JC.alvo]);
+ if(ds.jcFav){const h=ds.jcFav,d=JC.dados;if(d.fav.includes(h))d.fav=d.fav.filter(x=>x!==h);else{if(d.fav.length>=JC_MAX.fav){toast('Limite de '+JC_MAX.fav+' cores favoritas.','erro');return}d.fav=[h,...d.fav]}jcPersistirDepois();return JC.aba==='personalizar'?atualizarParcial():atualizarPainel()}
+ if(ds.jcFavpal){const id=ds.jcFavpal,d=JC.dados;if(d.favPal.includes(id))d.favPal=d.favPal.filter(x=>x!==id);else{if(d.favPal.length>=JC_MAX.favPal){toast('Limite de '+JC_MAX.favPal+' paletas favoritas.','erro');return}d.favPal=[id,...d.favPal]}jcPersistirDepois();return atualizarPainel()}
+ if(ds.jcDup)return duplicar(ds.jcDup);
+ if(ds.jcEditar){const p=JC.dados.minhas.find(x=>x.id===ds.jcEditar);if(!p)return;JC.editando=p.id;JC.aba='minhas';return escolherCores(p.c,p.id)}
+ if(ds.jcExcluir)return excluir(ds.jcExcluir);
+ if('jcSalvarNova' in ds)return salvarNova();
+ if('jcSalvarEd' in ds)return salvarEdicao();
+ if('jcSairEd' in ds){JC.editando=null;return atualizarPainel()}
+ if('jcExport' in ds)return exportar(false);
+ if('jcExportTudo' in ds)return exportar(true);
+ if('jcLimparHist' in ds){if(!await confirmar('Limpar o histórico de cores?','Só a lista de cores usadas recentemente é apagada.',{ok:'Limpar'}))return;JC.dados.hist=[];atualizarPainel();return jcPersistirBib()}
+ if('jcLimparFav' in ds){if(!await confirmar('Limpar os favoritos?','As cores e paletas favoritas saem da lista. As paletas em si continuam.',{ok:'Limpar favoritos'}))return;JC.dados.fav=[];JC.dados.favPal=[];atualizarPainel();return jcPersistirBib()}
+}
+function digitar(ev){
+ const t=ev.target;
+ if(t.matches('[data-jc-hex]')){const h=jcNorm(t.value);t.classList.toggle('erro',!h&&t.value.length>=4);if(h&&t.value.replace('#','').length===6){JC.hsv=null;definirCor(JC.alvo,h,{leve:true,hist:false})}}
+ else if(t.matches('[data-jc-rgb]')){const i=+t.dataset.jcRgb,v=Math.round(+t.value);if(t.value===''||!(v>=0&&v<=255))return;const rgb=jcRgb(corrAtual()[JC.alvo]);rgb[i]=v;JC.hsv=null;definirCor(JC.alvo,jcHex(rgb),{leve:true,hist:false})}
+ else if(t.matches('[data-jc-busca]')){JC.busca=t.value;const pos=t.selectionStart;atualizarPainel();const n=VEU&&VEU.querySelector('[data-jc-busca]');if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(x){}}}
+}
+function mudar(ev){
+ const t=ev.target;
+ if(t.matches('[data-jc-alvo]')){JC.alvo=t.value;JC.hsv=null;atualizarPainel()}
+ else if(t.matches('[data-jc-hex],[data-jc-rgb]')){definirCor(JC.alvo,corrAtual()[JC.alvo]);redesenharGraficos()}
+ else if(t.matches('[data-jc-import]')){const f=t.files&&t.files[0];t.value='';if(f)importar(f)}
+}
+function tecla(ev){
+ const sv=ev.target.closest('[data-jc-sv]'),hu=ev.target.closest('[data-jc-hue]');
+ if(sv||hu){const p=ev.shiftKey?.1:.02,m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[ev.key];if(!m)return;ev.preventDefault();
+  let [H,S,V]=JC.hsv||[0,0,0];if(sv){S=Math.min(1,Math.max(0,S+m[0]*p));V=Math.min(1,Math.max(0,V-m[1]*p))}else H=(H+(m[0]||-m[1])*(ev.shiftKey?15:3)+360)%360;
+  JC.hsv=[H,S,V];const hsv=JC.hsv;definirCor(JC.alvo,jcDeHsv(H,S,V),{hist:false});JC.hsv=hsv;pintarSeletor();return}
+ if((ev.key==='Enter'||ev.key===' ')&&ev.target.matches('label.btn')){const i=ev.target.querySelector('input[type=file]');if(i){ev.preventDefault();i.click()}return}
+ if(ev.key==='Enter'&&ev.target.matches('[data-jc-nome-nova]')){ev.preventDefault();salvarNova();return}
+ if(ev.key==='Enter'&&ev.target.matches('[data-jc-hex]')){ev.preventDefault();const h=jcNorm(ev.target.value);if(h)definirCor(JC.alvo,h);else toast('Código inválido. Use 6 dígitos, como #1D5FBF.','erro');return}
+ /* setas do teclado andam entre as paletas do sistema (como no V68) */
+ const grade=ev.target.closest('.jbt-grade');if(grade){const bs=[...grade.querySelectorAll('[data-jbt-p]')];const i=bs.indexOf(document.activeElement);if(i<0)return;
+  const d={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[ev.key];if(!d)return;ev.preventDefault();const n=bs[(i+d+bs.length)%bs.length];n.click();setTimeout(()=>{const x=VEU&&VEU.querySelector(`[data-jbt-p="${n.dataset.jbtP}"]`);if(x)x.focus()},0)}
+}
+document.addEventListener('pointerdown',ev=>{if(!VEU)return;const sv=ev.target.closest&&ev.target.closest('[data-jc-sv]'),hu=ev.target.closest&&ev.target.closest('[data-jc-hue]');if(sv)arrastar(sv,'sv',ev);else if(hu)arrastar(hu,'hue',ev)});
+function abrirPainel(aba){
  if(VEU)return;
  window.__jbtFoco=document.activeElement;
  const s=lerSalvo();const v0=visualHoje();
- PREVIA={p:s.p,m:s.m||'claro',v:v0,v0};
+ PREVIA={p:s.p,m:s.m||'claro',v:v0,v0,c:s.c||null,cn:s.cn||''};
+ JC.dados=jcLerBib();JC.editando=null;JC.hsv=null;if(aba)JC.aba=aba;BASE_CACHE.clear();
  const v=document.createElement('div');v.className='veu jbt-veu';
- v.innerHTML='<div class="gaveta jbt-gaveta" role="dialog" aria-modal="true" aria-label="Personalizar aparência"></div>';
- v.addEventListener('mousedown',ev=>{if(ev.target===v)cancelar()});
- document.body.appendChild(v);VEU=v;
+ v.innerHTML='<div class="gaveta jbt-gaveta jc-gav" role="dialog" aria-modal="true" aria-label="Personalizar aparência"></div>';
+ v.addEventListener('mousedown',ev=>{if(ev.target===v)fecharPerguntando()});
+ const g=v.firstElementChild;g.addEventListener('click',clique);g.addEventListener('input',digitar);g.addEventListener('change',mudar);g.addEventListener('keydown',tecla);
+ document.body.appendChild(v);VEU=v;document.body.classList.add('jc-aberta');
  document.addEventListener('keydown',escPainel,true);
  atualizarPainel();
- const s0=v.querySelector('.jbt-cartao.sel')||v.querySelector('[data-jbt-m].sel');if(s0)s0.focus();
+ const s0=v.querySelector('.jc-abas [aria-selected="true"]');if(s0)s0.focus();
 }
-
 /* ---------- entradas: botão de paleta (todos os usuários) e Configurações › Aparência ---------- */
 document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-visual-troca]');if(!b)return;
  ev.preventDefault();ev.stopImmediatePropagation();abrirPainel()},true);
@@ -29352,11 +30109,11 @@ cabSpot=function(){const h=_cabSpotTema.apply(this,arguments);try{return h.repla
 const _htmlAparenciaTema=htmlAparencia;
 htmlAparencia=function(){
  const s=lerSalvo();
- return `<div class="jbt-cfg"><div><b class="vis-tit">PERSONALIZAR APARÊNCIA</b><span class="ajuda">15 paletas de cores, modo claro, escuro ou automático. Cada pessoa escolhe a sua, com prévia antes de aplicar. Em uso por você: <b>${esc(s.p?PAL[s.p].nome:'Padrão do sistema')}</b> · ${esc(MODOS[s.m||'claro'])}.</span></div>
+ return `<div class="jbt-cfg"><div><b class="vis-tit">PERSONALIZAR APARÊNCIA</b><span class="ajuda">${JC_PALETAS.length} paletas premium e ${PALETAS.length} do sistema, biblioteca de ${JC_BIBLIOTECA.length*JC_TONS.length} tons, cada cor ajustável, suas próprias paletas, modo claro, escuro ou automático. Cada pessoa escolhe a sua, com prévia antes de aplicar. Em uso por você: <b>${esc(nomeDe(s))}</b>.</span></div>
   <button type="button" class="btn pri" data-jbt-abrir>${ic('paleta')}Personalizar aparência</button></div>`+_htmlAparenciaTema.apply(this,arguments);
 };
 const _ligarAparenciaTema=ligarAparencia;
-ligarAparencia=function(el){_ligarAparenciaTema.apply(this,arguments);try{(el||document).querySelectorAll('[data-jbt-abrir]').forEach(b=>b.onclick=e=>{e.preventDefault();abrirPainel()})}catch(e){}};
+ligarAparencia=function(el){_ligarAparenciaTema.apply(this,arguments);try{(el||document).querySelectorAll('[data-jbt-abrir]').forEach(b=>b.onclick=e=>{e.preventDefault();abrirPainel()});JC.dados=JC.dados||jcLerBib()}catch(e){}};
 
 /* as preferências chegam do banco depois da primeira tela: confere e aplica a do usuário */
 const _atualizarSinoTema=atualizarSino;
@@ -29366,7 +30123,7 @@ atualizarSino=function(){const r=_atualizarSinoTema.apply(this,arguments);
 const _redesenharVisualTema=redesenharVisual;
 redesenharVisual=function(){try{if(!PREVIA)aplicarTema(lerSalvo(),{redesenhar:false})}catch(e){}return _redesenharVisualTema.apply(this,arguments)};
 
-window.JB_TEMA=Object.freeze({versao:VERSAO_TEMA,paletas:PALETAS.map(p=>({id:p.id,nome:p.nome})),modos:MODOS,tokens:(id,escuro)=>tokens(PAL[id]||SEMENTE_PADRAO[id]||SEMENTE_PADRAO.cc,!!escuro),
+window.JB_TEMA=Object.freeze({versao:VERSAO_TEMA,paletas:PALETAS.map(p=>({id:p.id,nome:p.nome})),premium:JC_PALETAS.map(p=>({id:p.id,nome:p.nome,tipo:p.tipo})),previa:()=>PREVIA,central:()=>JC,modos:MODOS,tokens:(id,escuro)=>tokens(PAL[id]||SEMENTE_PADRAO[id]||SEMENTE_PADRAO.cc,!!escuro),
  contraste,aplicar:aplicarTema,abrir:abrirPainel,atual:()=>NA_TELA,salvo:lerSalvo,adaptadas:()=>INSERIDAS.length});
 try{aplicarTema(lerSalvo(),{redesenhar:false})}catch(e){console.warn('tema',e)}
 })();
