@@ -12138,14 +12138,15 @@ function inicioConsumoV(c,s){
    ${kpiV('c2','carrinho','Compras em '+fMes(m),fMoeda(soma(N.mes,v=>v.total)),N.mes.length+' compra(s)','#/compras')}
    ${escContas?kpiV('c5','moeda','Custo abastecido hoje',fMoeda(soma(csDia,x=>x.custoTotal)),custoPorComb(csDia),'#/consumos'):kpiV('c5','carteira','Contas a pagar',fMoeda(soma(N.aberto,x=>x.f.saldo)),N.aberto.length+' conta(s) em aberto','#/pagar')}
    ${escContas?kpiV('c6','moeda','Custo abastecido em '+fMes(m),fMoeda(soma(csMes,x=>x.custoTotal)),custoPorComb(csMes),'#/consumos'):kpiV('c6','aviso','Contas vencidas',fMoeda(soma(N.venc,x=>x.f.saldo)),N.venc.length?N.venc.length+' conta(s) vencida(s)':'nenhuma vencida','#/pagar')}
+   ${cb?kpiV('c1','bomba','Combustível para entrega',fMoeda(soma(entMes,t=>t.valor)),'em '+esc(fMes(m))+' · hoje '+fMoeda(soma(entDia,t=>t.valor)),'#/combEntrega'):''}
   </div>
-  ${cb?`<div style="margin-bottom:14px">${blocoEnt}</div>`:''}
   <div class="ex2">
    <div class="bloco"><h3>${cb?'Abastecimentos':'Consumo'} dos últimos 30 dias<a href="#/consumos">Ver lançamentos</a></h3><div class="cv"><canvas id="gSc1"></canvas></div></div>
    <div class="bloco"><h3>${cb?'Por veículo e máquina':'Por forno e local'} em ${esc(fMes(m))}<a href="#/locais">${esc(S.locais)}</a></h3>${lstV(Object.values(porLocal).sort((a,b)=>b.custo-a.custo).slice(0,6).map(t=>({href:'#/consumos',ic:cb?'bomba':'chama',t:nomeLocal(LOCAL(t.id))||'Sem local',s:t.n+' lançamento(s) · '+fMoeda(t.custo),v:txtUnid(t.qtd)})),'Nenhum lançamento neste mês.')}</div>
    <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+' · custo médio '+fMoeda(custoMedio(p.id)),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum item cadastrado.')}</div>
   </div>
-  <div class="${escContas?'ex2':'ex3'}">
+  <div class="${escContas&&!cb?'ex2':'ex3'}">
+   ${escContas?blocoEnt:''}
    <div class="bloco"><h3>Últimas compras<a href="#/compras">Ver todas</a></h3>${lstV(N.vs.slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,6).map(itemOpLst),'Nenhuma compra registrada ainda.')}</div>
    ${escContas?'':`<div class="bloco"><h3>Contas a pagar${N.venc.length?`<span class="n">${N.venc.length}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${lstV(N.aberto.sort((a,b)=>String(a.v.vencimento).localeCompare(String(b.v.vencimento))).slice(0,6).map(x=>({href:'#/compra/'+x.v.id,ic:x.f.status==='Vencido'?'aviso':'calendario',cls:x.f.status==='Vencido'?'a-pe':'a-at',t:parteSnap(x.v).nome||'',s:'Nº '+fNumV(x.v.numero)+' · '+(x.f.status==='Vencido'?'venceu em ':'vence em ')+fData(x.v.vencimento),v:fMoeda(x.f.saldo)})),'Nenhuma conta em aberto.')}</div>`}
    <div class="bloco"><h3>Últimos ${cb?'abastecimentos':'consumos'}<a href="#/consumos">Ver todos</a></h3>${lstV(cs.slice().sort((a,b)=>(b.data+(b.hora||'')).localeCompare(a.data+(a.hora||''))).slice(0,6).map(x=>({href:'#/consumos/'+x.id,ic:cb?'bomba':'chama',t:(cb&&x.abastecidoEm==='Veículo de terceiro'?x.terceiroNome:nomeLocal(LOCAL(x.localId)))||'—',s:fData(x.data)+(x.hora?' '+x.hora:'')+(x.operador?' · '+x.operador:''),v:fQtd(x.quantidade)+' '+(x.unidade||'')+(cb&&x.custoTotal!=null&&x.custoTotal!==''?' · '+fMoeda(+x.custoTotal):'')})),'Nenhum lançamento ainda.')}</div>
