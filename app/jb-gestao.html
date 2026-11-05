@@ -31823,6 +31823,315 @@ ligarAparencia=function(el){
 window.V76={corrigir,podeCorrigir,correcoes};
 })();
 </script>
+<style id="resumo-dia-v77-css">
+/* ================= V77 · Resumo do dia ================= */
+.rd-entrar{display:flex;align-items:center;gap:14px;margin:0 0 18px;padding:14px 16px;border-radius:var(--r2);background:var(--branco);border:1px solid var(--linha);border-left:4px solid var(--brasa);box-shadow:var(--sombra);color:var(--tinta);text-decoration:none;cursor:pointer;width:100%;text-align:left;font:inherit}
+.rd-entrar:hover{background:var(--brasa-bg)}
+.rd-entrar .rd-eic{flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;background:var(--brasa);color:#fff}
+.rd-entrar .rd-eic svg{width:22px;height:22px}
+.rd-entrar .rd-etx{flex:1;min-width:0}
+.rd-entrar .rd-etx b{display:block;font-size:16px}
+.rd-entrar .rd-etx small{display:block;color:var(--suave);font-size:12.5px;margin-top:2px}
+.rd-entrar .rd-eir{flex:none;font-weight:600;color:var(--brasa);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.rd-nav{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px}
+.rd-nav input[type=date]{min-height:38px;padding:0 10px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco)}
+.rd-nav .rd-dia{font-weight:600;margin-left:4px}
+.rd-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.rd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:0 0 16px}
+.rd-k{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);box-shadow:var(--sombra);padding:12px 14px;min-width:0}
+.rd-k small{display:block;font-size:12px;color:var(--suave)}
+.rd-k b{display:block;font-size:20px;line-height:1.25;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-k span{display:block;font-size:12px;color:var(--fraco);margin-top:2px}
+.rd-k.ent b{color:var(--ok)}.rd-k.sai b{color:var(--pe)}
+.rd-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;align-items:start}
+.rd-sec{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);box-shadow:var(--sombra);overflow:hidden;min-width:0}
+.rd-sec>header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--linha2)}
+.rd-sec>header .sec-ic{flex:none}
+.rd-sec>header h2{flex:1;min-width:0;margin:0;font-size:15px}
+.rd-sec>header a{font-size:12.5px;white-space:nowrap}
+.rd-res{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 16px;border-bottom:1px solid var(--linha2);font-size:12.5px;color:var(--suave)}
+.rd-res b{color:var(--tinta);font-size:14px;margin-right:3px}
+.rd-sec h3{margin:0;padding:10px 16px 2px;font-size:12px;font-weight:600;color:var(--fraco);text-transform:uppercase;letter-spacing:.3px}
+.rd-sec .lst a,.rd-sec .lst .li{padding:9px 16px}
+.rd-sec .lst b,.rd-sec .lst small{white-space:normal}
+.rd-sec .ex-vazio{padding:16px;font-size:12.5px}
+.rd-cat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 16px;font-size:13px;border-top:1px solid var(--linha2)}
+.rd-cat span{color:var(--suave);font-size:12px}
+.rd-cat b{text-align:right}
+.rd-sec details{border-top:1px solid var(--linha2)}
+.rd-sec details>summary{cursor:pointer;padding:10px 16px;font-size:13px;font-weight:600;color:var(--in)}
+.rd-aviso{padding:8px 16px;font-size:12px;color:var(--at);background:var(--at-bg)}
+.rd-rod{color:var(--fraco);font-size:12px;margin:16px 0 0}
+@media (max-width:700px){.rd-grade{grid-template-columns:1fr}.rd-kpis{grid-template-columns:1fr 1fr}.rd-k b{font-size:17px}.rd-acoes{margin-left:0;width:100%}.rd-acoes .btn{flex:1}}
+@media print{.rd-nav,.rd-acoes,.spot-cab .btn,.rd-sec>header a{display:none!important}.rd-sec details{display:block}.rd-sec details>summary{display:none}.rd-grade{display:block}.rd-sec{break-inside:avoid;margin-bottom:10px;box-shadow:none}}
+</style>
+<script id="resumo-dia-v77">
+"use strict";
+/* ================= V77 · Resumo do dia (05/11/2026) =================
+   Pedido do Jeferson: um botão "Resumo do dia" na tela principal (seleção de setores). O dono,
+   ele ou qualquer funcionário clica e vê, numa tela só, tudo o que aconteceu no dia: o que entrou,
+   o que saiu e o que cada setor fez (ex.: "abasteceu a caçamba, 100 L de S10, R$ 759,17").
+   · Só leitura: nada é gravado, nada é recalculado. Tudo vem dos lançamentos dos próprios setores.
+   · Cada pessoa vê só os setores liberados para o perfil dela (a mesma regra da seleção de setores).
+     Entradas e saídas de dinheiro aparecem para quem tem acesso ao Setor Financeiro.
+   · Dia escolhido pela data (anterior, próximo, hoje). Endereço: #/resumo-dia ou #/resumo-dia/AAAA-MM-DD.
+   · Enviar por WhatsApp (texto pronto), copiar o texto e imprimir / salvar em PDF. */
+(()=>{
+const ROTA='resumo-dia';
+const PAPEIS=[...new Set(Object.values(PERM).flatMap(p=>(p&&p.v)||[]).concat(typeof TODOS!=='undefined'?TODOS:[],typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[]))];
+PERM[ROTA]={v:PAPEIS,e:[]};
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+
+/* ---------- utilidades ---------- */
+const okD=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
+const n=v=>v===''||v==null||!isFinite(+v)?0:+v;
+const sm=(xs,f)=>(xs||[]).reduce((a,x)=>a+n(f(x)),0);
+const r2=v=>Math.round(n(v)*100)/100;
+const L=k=>Array.isArray(DATA[k])?DATA[k]:[];
+const fM=v=>fMoeda(r2(v));
+const fI=v=>fNum(Math.round(n(v)));
+const juntar=(...a)=>a.filter(x=>x!=null&&String(x).trim()!=='').join(' · ');
+let DIA=null;
+function diaSel(){const r=lerRota();if(okD(r.id))return r.id;return okD(DIA)?DIA:hoje()}
+function irPara(d){DIA=d;const h='#/'+ROTA+(d===hoje()?'':'/'+d);if(location.hash!==h)location.hash=h;else renderTela()}
+
+/* setor liberado para o perfil: a mesma regra dos cartões da seleção de setores */
+function vis(id){
+ const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>x.id===id);if(!s||s.breve)return false;
+ try{if(s.v&&!s.v())return false}catch(e){return false}
+ const mod=String(s.rota||'').replace(/^#\/?/,'').split('/')[0];return !!mod&&pode(mod);
+}
+const verFin=()=>vis('financeiro')&&!!window.FINANCEIRO_SETOR;
+
+/* ---------- nomes ---------- */
+const nomeLoc=id=>{const l=typeof LOCAL==='function'?LOCAL(id):null;return l?nomeLocal(l):''};
+const nomeProd=id=>{const p=typeof PROD==='function'?PROD(id):null;return p?String(p.nome||''):''};
+const colO=(mod,k,r)=>{try{const c=((MODS[mod]||{}).cols||[]).find(x=>x.k===k);return c&&c.o?c.o(r):''}catch(e){return ''}};
+const rotOp=(mod,campo,v)=>{try{const f=((MODS[mod]||{}).fields||[]).find(x=>x.k===campo);const op=f&&(typeof f.op==='function'?f.op({}):f.op);
+ if(Array.isArray(op)){const o=op.find(x=>Array.isArray(x)?x[0]===v:x===v);if(o)return Array.isArray(o)?o[1]:o}}catch(e){}return v||''};
+const milheirosDe=v=>sm((v.itens||[]).filter(i=>/milheiro/i.test(i.unidade||'')),i=>i.qtd);
+
+/* ================= o resumo de cada parte =================
+   Cada parte devolve {id,nome,ic,href,res:[[valor,rótulo]],grupos:[{t,itens:[{t,s,v,href,ic,cls}]}],extra,txt:[linhas]} ou null. */
+const PARTES=[];
+const parte=(id,fn)=>PARTES.push({id,fn});
+const it=(t,s,v,href,ico,cls)=>({t,s,v,href:href||'',ic:ico||'recibo',cls:cls||''});
+
+/* dinheiro: o que entrou (recebimentos de vendas) e o que saiu (pagamentos informados no Financeiro) */
+function dinheiro(d){
+ const ent=[];
+ L('vendas').filter(v=>v.tipoOp!=='compra'&&!cancV(v)&&!v.historico).forEach(v=>(v.pagamentos||[]).filter(p=>!p.estornado&&p.data===d).forEach(p=>ent.push({v,p})));
+ let sai=[],abertasHoje=[];
+ if(verFin()){const F=window.FINANCEIRO_SETOR;const OS=F.obrigacoes();
+  sai=OS.flatMap(o=>(o.pagamentos||[]).filter(p=>p.data===d).map(p=>({o,p})));
+  const ab=(F.h&&F.h.abertaO)||(o=>!o.cancelado&&o.s&&o.s.saldo>0.004);
+  abertasHoje=OS.filter(o=>ab(o)&&(o.prog||o.venc)===d)}
+ return{ent,sai,abertasHoje,totEnt:r2(sm(ent,x=>x.p.valor)),totSai:r2(sm(sai,x=>x.p.valor))};
+}
+
+parte('financeiro',d=>{
+ if(!verFin())return null;const D=dinheiro(d);
+ const cats={};D.sai.forEach(x=>{const k=x.o.categoria||'Sem categoria';const c=cats[k]||(cats[k]={v:0,q:0});c.v+=n(x.p.valor);c.q++});
+ const catL=Object.entries(cats).sort((a,b)=>b[1].v-a[1].v);
+ const saiL=D.sai.slice().sort((a,b)=>n(b.p.valor)-n(a.p.valor)).map(x=>it(x.o.benef||x.o.descricao||'—',juntar(x.o.categoria,x.o.descricao&&x.o.benef?x.o.descricao:'',x.p.forma),fM(x.p.valor),x.o.href||(/^t:/.test(x.o.ref||'')?'#/fTitulos/'+String(x.o.ref).slice(2):'#/fpagar'),'saida','a-pe'));
+ const entL=D.ent.map(x=>it(parteSnap(x.v).nome||'Cliente não informado',juntar('Venda nº '+fNumV(x.v.numero),x.p.forma),fM(x.p.valor),'#/venda/'+x.v.id,'entrada','a-ok'));
+ const abL=D.abertasHoje.map(o=>it(o.benef||o.descricao||'—',juntar(o.categoria,'falta pagar'),fM(o.s.saldo),'#/fdia','calendario','a-at'));
+ return{id:'financeiro',nome:'Dinheiro: entrou e saiu',ic:'moeda',href:'#/fdia',
+  res:[[fM(D.totEnt),'entrou'],[fM(D.totSai),'saiu'],[fM(D.totEnt-D.totSai),'saldo do dia'],[String(D.sai.length),'pagamento(s)']],
+  grupos:[{t:'Entrou',itens:entL,vazio:'Nenhum recebimento registrado neste dia.'},
+   {t:'Saiu por categoria',cats:catL.map(([k,c])=>({t:k,s:c.q+' pagamento(s)',v:fM(c.v)})),vazio:'Nenhum pagamento informado neste dia.'},
+   {t:'Todos os pagamentos ('+saiL.length+')',itens:saiL,fechado:saiL.length>6},
+   ...(abL.length?[{t:'Programado para o dia e ainda não pago',itens:abL}]:[])],
+  txt:['💰 *Dinheiro*','Entrou: '+fM(D.totEnt),'Saiu: '+fM(D.totSai)+' ('+D.sai.length+' pagamento(s))','Saldo do dia: '+fM(D.totEnt-D.totSai),
+   ...catL.slice(0,8).map(([k,c])=>'  · '+k+': '+fM(c.v)),...(abL.length?['Ainda a pagar hoje: '+fM(sm(D.abertasHoje,o=>o.s.saldo))]:[])]};
+});
+
+parte('vendas',d=>{
+ if(!vis('vendas'))return null;
+ const vs=L('vendas').filter(v=>v.tipoOp!=='compra'&&!cancV(v)&&v.data===d).sort((a,b)=>(+a.numero||0)-(+b.numero||0));
+ const tot=sm(vs,v=>v.total),mil=sm(vs,milheirosDe);const rec=sm(vs,v=>finVenda(v).pago),abr=sm(vs,v=>finVenda(v).saldo);
+ const itens=vs.map(v=>{const f=finVenda(v);const q=milheirosDe(v);
+  return it(parteSnap(v).nome||'Cliente não informado',juntar('Nº '+fNumV(v.numero),q?fQtd(q)+' milheiro(s)':'',v.tipoVenda,f.saldo>0.004?'a receber '+fM(f.saldo):(v.forma||'recebido')),fM(v.total),'#/venda/'+v.id,'recibo',f.saldo>0.004?'a-at':'a-ok')});
+ return{id:'vendas',nome:'Vendas',ic:'recibo',href:'#/setor-vendas',
+  res:[[fM(tot),'vendido'],[fQtd(mil),'milheiro(s)'],[fM(rec),'recebido'],[fM(abr),'a receber'],[String(vs.length),'venda(s)']],
+  grupos:[{t:'Vendas do dia',itens,vazio:'Nenhuma venda lançada neste dia.'}],
+  txt:['🧱 *Vendas*',vs.length?vs.length+' venda(s) · '+fQtd(mil)+' milheiro(s) · '+fM(tot)+(abr>0.004?' (a receber '+fM(abr)+')':''):'Nenhuma venda lançada.']};
+});
+
+parte('combustivel',d=>{
+ if(!vis('combustivel'))return null;
+ const cs=L('consumos').filter(c=>c.setor==='combustivel'&&c.data===d).sort((a,b)=>String(a.hora||'').localeCompare(String(b.hora||'')));
+ const porComb={};cs.forEach(c=>{const k=nomeProd(c.produtoId)||'Combustível';const p=porComb[k]||(porComb[k]={l:0,v:0});p.l+=n(c.quantidade);p.v+=n(c.custoTotal)});
+ const quem=c=>c.localId?nomeLoc(c.localId)||'Veículo ou máquina':c.terceiroNome?c.terceiroNome+(/terceir/i.test(c.terceiroNome)?'':' (terceiro)'):c.abastecidoEm||'Abastecimento';
+ const abL=cs.map(c=>it(quem(c),juntar(nomeProd(c.produtoId),c.hora,c.responsavelNome||c.operador,fQtd(c.quantidade)+' '+(c.unidade||'L')),fM(c.custoTotal),'#/consumos/'+c.id,'bomba',c.terceiroId?'a-at':'a-ok'));
+ const cp=L('compras').filter(v=>v.tipoOp==='compra'&&v.setor==='combustivel'&&!cancV(v)&&v.data===d);
+ const cpL=cp.map(v=>it(parteSnap(v).nome||'Fornecedor',juntar('Compra nº '+fNumV(v.numero),(v.itens||[]).map(i=>fQtd(i.qtd)+' '+(i.unidade||'')+' '+(i.nome||'')).join(', ')),fM(v.total),'#/compra/'+v.id,'carrinho'));
+ const ent=L('fTitulos').filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega'&&t.data===d);
+ const entL=ent.map(t=>it(t.motorista||t.beneficiarioNome||t.beneficiario||'Motorista',juntar('Combustível para entrega',t.descricao),fM(t.valor),'#/fTitulos/'+t.id,'bomba','a-at'));
+ const litros=sm(cs,c=>c.quantidade),custo=sm(cs,c=>c.custoTotal);
+ return{id:'combustivel',nome:'Combustível',ic:'bomba',href:'#/setor-combustivel',
+  res:[[fQtd(litros)+' L','abastecido'],[fM(custo),'custo'],...Object.entries(porComb).map(([k,p])=>[fQtd(p.l)+' L · '+fM(p.v),k]),...(ent.length?[[fM(sm(ent,t=>t.valor)),'para entrega']]:[])],
+  grupos:[{t:'Abastecimentos ('+cs.length+')',itens:abL,vazio:'Nenhum abastecimento lançado neste dia.'},
+   ...(entL.length?[{t:'Combustível para entrega (posto da cidade)',itens:entL}]:[]),...(cpL.length?[{t:'Compras de combustível',itens:cpL}]:[])],
+  txt:['⛽ *Combustível*',cs.length?fQtd(litros)+' L abastecidos · '+fM(custo):'Nenhum abastecimento.',...cs.map(c=>'  · '+quem(c)+': '+fQtd(c.quantidade)+' L '+nomeProd(c.produtoId)+' · '+fM(c.custoTotal)),
+   ...ent.map(t=>'  · Entrega '+(t.motorista||t.beneficiarioNome||'')+': '+fM(t.valor)),...cp.map(v=>'  · Compra '+(parteSnap(v).nome||'')+': '+fM(v.total))]};
+});
+
+parte('lenha',d=>{
+ if(!vis('lenha'))return null;
+ const cp=L('compras').filter(v=>v.tipoOp==='compra'&&v.setor==='lenha'&&!cancV(v)&&v.data===d);
+ const qtd=v=>sm(v.itens,i=>i.qtd);const un=v=>((v.itens||[])[0]||{}).unidade||'m³';
+ const cpL=cp.map(v=>it(parteSnap(v).nome||'Fornecedor',juntar('Compra nº '+fNumV(v.numero),fQtd(qtd(v))+' '+un(v),v.hora),fM(v.total),'#/compra/'+v.id,'carrinho'));
+ const cs=L('consumos').filter(c=>c.setor==='lenha'&&c.data===d);
+ const csL=cs.map(c=>it(nomeLoc(c.localId)||'Forno',juntar(c.fornada,c.auto?'baixa automática da desenforna':''),fQtd(c.quantidade)+' '+(c.unidade||'m³'),'#/consumos/'+c.id,'chama'));
+ let est='';try{const ps=L('produtos').filter(p=>p.setor==='lenha'&&controla(p));if(ps.length)est=txtUnid(porUnidade(ps,p=>saldoP(p.id),p=>p.unidade),1)}catch(e){}
+ const mC=sm(cp,qtd),mU=sm(cs,c=>c.quantidade);
+ return{id:'lenha',nome:'Lenha',ic:'chama',href:'#/setor-lenha',
+  res:[[fQtd(mC)+' m³','comprado'],[fM(sm(cp,v=>v.total)),'valor das compras'],[fQtd(mU)+' m³','usado nos fornos'],...(est?[[est,'estoque agora']]:[])],
+  grupos:[{t:'Compras de lenha ('+cp.length+')',itens:cpL,vazio:'Nenhuma compra de lenha neste dia.'},{t:'Lenha usada nos fornos',itens:csL,vazio:'Nenhuma baixa de lenha neste dia.'}],
+  txt:['🔥 *Lenha*','Comprado: '+fQtd(mC)+' m³ · '+fM(sm(cp,v=>v.total))+' ('+cp.length+' carrada(s))','Usado nos fornos: '+fQtd(mU)+' m³',...cp.map(v=>'  · '+(parteSnap(v).nome||'')+': '+fQtd(qtd(v))+' m³ · '+fM(v.total))]};
+});
+
+parte('producao',d=>{
+ const P=window.PRODUCAO_SETOR;if(!vis('producao')||!P)return null;
+ const conf=P.conf||(r=>r&&r.situacao==='Confirmado');const liq=r=>{try{return P.calcMar(r).liquida}catch(e){return n(r.liquida)}};
+ const mar=L('pmaromba').filter(r=>r.data===d),marOk=mar.filter(conf),marP=mar.filter(r=>!conf(r));
+ const enf=L('pfornadas').filter(f=>f.data===d);
+ const des=L('pdesenf').filter(x=>x.data===d);
+ const desQ=x=>n(x.total)||n(x.primeira)+n(x.segunda)+n(x.quebrados)+n(x.trincados)+n(x.outras);
+ const perd=x=>n(x.quebrados)+n(x.trincados)+n(x.outras);
+ const par=L('pparadas').filter(p=>p.data===d&&!(P.ehRefeicao&&P.ehRefeicao(p.motivo)));
+ const perdSec=L('psecmov').filter(x=>x.data===d&&x.mov==='Perda');
+ const marL=mar.map(r=>it('Maromba'+(r.turno?' · '+r.turno:''),juntar(r.operador,r.horaInicio&&r.horaFim?r.horaInicio+'–'+r.horaFim:'',conf(r)?'':'aguardando confirmação'),fI(liq(r))+' tijolos','#/pmaromba/'+r.id,'caixa',conf(r)?'a-ok':'a-at'));
+ const enfL=enf.map(f=>it('Enfornou · '+(nomeLoc(f.fornoId)||'Forno'),juntar(f.numero&&!/cont/i.test(f.fornoId||'')?'fornada nº '+f.numero:'',f.hora),fI(f.quantidade)+' tijolos','#/pfornadas/'+f.id,'chama'));
+ const desL=des.map(x=>it('Desenfornou · '+(nomeLoc(x.fornoId)||'Forno'),juntar(n(x.primeira)?'1ª '+fI(x.primeira):'',n(x.segunda)?'2ª '+fI(x.segunda):'',perd(x)?'perdas '+fI(perd(x)):'',x.classificacaoPendente?'classificação não informada':''),fI(desQ(x))+' tijolos','#/pdesenf/'+x.id,'saida'));
+ const parL=par.map(p=>it('Parada · '+(p.motivo||'motivo não informado'),juntar(p.turno,p.inicio&&p.fim?p.inicio+'–'+p.fim:''),'','#/pparadas/'+p.id,'aviso','a-pe'));
+ const prod=sm(marOk,liq);
+ let barro=null;try{if(vis('barro')&&window.BARRO_V57){const B=window.BARRO_V57;const t=B.totCons(B.consPer(d,d));if(t&&t.n)barro=t}}catch(e){}
+ return{id:'producao',nome:'Produção',ic:'caixa',href:'#/setor-producao',
+  res:[[fI(prod),'tijolos na maromba'],[fI(sm(enf,f=>f.quantidade)),'enfornados'],[fI(sm(des,desQ)),'desenfornados'],...(perdSec.length?[[fI(sm(perdSec,x=>x.quantidade)),'perda na secagem']]:[]),...(barro?[[fNum(barro.ton,1)+' t','de barro ('+fM(barro.valor)+')']]:[])],
+  aviso:marP.length?marP.length+' lançamento(s) da maromba aguardando confirmação: não entram no total.':'',
+  grupos:[{t:'Maromba',itens:marL,vazio:'Nenhuma produção da maromba lançada neste dia.'},{t:'Fornos',itens:[...enfL,...desL],vazio:'Nenhuma enforna ou desenforna neste dia.'},...(parL.length?[{t:'Paradas',itens:parL}]:[])],
+  txt:['🏭 *Produção*','Maromba: '+fI(prod)+' tijolos'+(marP.length?' (+'+marP.length+' aguardando confirmação)':''),
+   ...enf.map(f=>'  · Enfornou '+(nomeLoc(f.fornoId)||'forno')+': '+fI(f.quantidade)),...des.map(x=>'  · Desenfornou '+(nomeLoc(x.fornoId)||'forno')+': '+fI(desQ(x))),
+   ...(par.length?['Paradas: '+par.length]:[]),...(barro?['Barro consumido: '+fNum(barro.ton,1)+' t · '+fM(barro.valor)]:[])]};
+});
+
+parte('almox',d=>{
+ if(!vis('almox'))return null;
+ const en=L('almEntradas').filter(e=>e.data===d&&!e.cancelado);
+ const sa=L('almSaidas').filter(s=>s.data===d&&!s.cancelado);
+ const enL=en.map(e=>it(colO('almEntradas','_f',e)||'Fornecedor',juntar(e.nota?'nota '+e.nota:'',(e.itens||[]).length+' item(ns)',e.forma==='prazo'?'a prazo':e.forma==='vista'?'à vista':''),fM(e.total),'#/almEntradas/'+e.id,'entrada'));
+ const vS=s=>n(colO('almSaidas','_v',s));
+ const saL=sa.map(s=>it(juntar(s.setor,colO('almSaidas','_m',s))||'Requisição',juntar(s.solicitante?'pediu: '+s.solicitante:'',s.finalidade,(s.itens||[]).length+' item(ns)'),fM(vS(s)),'#/almSaida/'+s.id,'saida'));
+ return{id:'almox',nome:'Almoxarifado / Cozinha',ic:'cozinha',href:'#/setor-almox',
+  res:[[fM(sm(en,e=>e.total)),'compras recebidas'],[String(en.length),'entrada(s)'],[fM(sm(sa,vS)),'saiu do estoque'],[String(sa.length),'requisição(ões)']],
+  grupos:[{t:'Entradas (compras)',itens:enL,vazio:'Nenhuma entrada neste dia.'},{t:'Requisições (saídas)',itens:saL,vazio:'Nenhuma requisição neste dia.'}],
+  txt:['📦 *Almoxarifado / Cozinha*',...(en.length||sa.length?['Compras recebidas: '+fM(sm(en,e=>e.total))+' ('+en.length+')','Requisições: '+sa.length]:['Nada lançado.'])]};
+});
+
+parte('paletes',d=>{
+ if(!vis('paletes'))return null;
+ const ms=L('paleteMov').filter(m=>m.data===d&&!m.cancelado);if(!ms.length)return{id:'paletes',nome:'Paletes',ic:'palete',href:'#/setor-paletes',res:[],grupos:[{t:'Movimentações',itens:[],vazio:'Nenhuma movimentação de paletes neste dia.'}],txt:[]};
+ const q=m=>n(m.qtd)||n(m.bom)+n(m.quebrado);
+ const cli=m=>{try{const c=CLI(m.clienteId);return c?nomeCliente(c):''}catch(e){return ''}};
+ const msL=ms.map(m=>it(rotOp('paleteMov','tipo',m.tipo)||'Movimentação',juntar(cli(m),rotOp('paleteMov','palTipo',m.palTipo)),fI(q(m))+' palete(s)','#/paleteMov/'+m.id,'palete'));
+ return{id:'paletes',nome:'Paletes',ic:'palete',href:'#/setor-paletes',res:[[String(ms.length),'movimentação(ões)']],grupos:[{t:'Movimentações',itens:msL}],
+  txt:['🪵 *Paletes*',...ms.map(m=>'  · '+(rotOp('paleteMov','tipo',m.tipo)||'')+': '+fI(q(m))+(cli(m)?' · '+cli(m):''))]};
+});
+
+parte('dp',d=>{
+ if(!vis('dp'))return null;
+ const G=[];const txt=['👷 *Setor Pessoal*'];const res=[];
+ if(pode('funcionarios')){
+  const ad=L('funcionarios').filter(f=>f.admissao===d),de=L('funcionarios').filter(f=>f.dataDesligamento===d);
+  res.push([String(ad.length),'admissão(ões)'],[String(de.length),'desligamento(s)']);
+  if(ad.length||de.length)G.push({t:'Entradas e saídas de pessoas',itens:[...ad.map(f=>it(f.nome||'—',juntar('Admissão',f.cargo,f.setor),'','#/funcionarios/'+f.id,'pessoas','a-ok')),...de.map(f=>it(f.nome||'—',juntar('Desligamento',f.cargo,f.setor),'','#/funcionarios/'+f.id,'pessoas','a-pe'))]});
+  if(ad.length)txt.push('Admissões: '+ad.map(f=>f.nome).join(', '));if(de.length)txt.push('Desligamentos: '+de.map(f=>f.nome).join(', '))}
+ if(pode('vales')){const vs=L('vales').filter(v=>v.data===d);if(vs.length){res.push([fM(sm(vs,v=>v.valor)),'em vales']);
+  G.push({t:'Vales e adiantamentos',itens:vs.map(v=>it(nomeF(v.funcionarioId)||'—',juntar(v.tipo,v.formaPagamento),fM(v.valor),'#/vales/'+v.id,'carteira'))});txt.push('Vales: '+fM(sm(vs,v=>v.valor))+' ('+vs.length+')')}}
+ if(pode('diario')){const fs=L('diario').filter(x=>x.data===d&&/^falta/i.test(x.tipo||''));if(fs.length){res.push([String(fs.length),'falta(s)']);
+  G.push({t:'Faltas',itens:fs.map(x=>it(nomeF(x.funcionarioId)||'—',juntar(x.tipo,x.obs),'','#/diario/'+x.id,'relogio','a-at'))});txt.push('Faltas: '+fs.map(x=>nomeF(x.funcionarioId)).join(', '))}}
+ if(!G.length)G.push({t:'',itens:[],vazio:'Nenhuma admissão, desligamento, vale ou falta lançados neste dia.'});
+ if(txt.length===1)txt.push('Nada lançado.');
+ return{id:'dp',nome:'Setor Pessoal',ic:'pessoas',href:'#/painel',res,grupos:G,txt};
+});
+
+/* ---------- montagem ---------- */
+function calcular(d){const out=[];PARTES.forEach(p=>{try{const r=p.fn(d);if(r)out.push(r)}catch(e){console.warn('resumo do dia',p.id,e)}});return out}
+const lst=(itens,vazio)=>itens.length?`<ul class="lst">${itens.map(x=>{const h=x.href?`href="${esc(x.href)}"`:'';const tag=x.href?'a':'div';
+ return `<li><${tag} ${h} class="${x.href?'':'li'}"><span class="av${x.cls?' '+x.cls:''}">${ic(x.ic||'recibo')}</span><span class="tx"><b>${esc(x.t)}</b>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${x.v?`<span class="vl">${esc(x.v)}</span>`:''}</${tag}></li>`}).join('')}</ul>`:(vazio?`<div class="ex-vazio">${esc(vazio)}</div>`:'');
+function secHtml(S){
+ const g=S.grupos.map(G=>{
+  const corpo=G.cats?(G.cats.length?G.cats.map(c=>`<div class="rd-cat"><div>${esc(c.t)}<br><span>${esc(c.s)}</span></div><b>${esc(c.v)}</b></div>`).join(''):`<div class="ex-vazio">${esc(G.vazio||'')}</div>`):lst(G.itens||[],G.vazio);
+  if(G.fechado)return `<details><summary>${esc(G.t)}</summary>${corpo}</details>`;
+  if(!G.t)return corpo;
+  return `<h3>${esc(G.t)}</h3>${corpo}`}).join('');
+ return `<section class="rd-sec" data-rd="${esc(S.id)}"><header><span class="sec-ic">${ic(S.ic)}</span><h2>${esc(S.nome)}</h2>${S.href?`<a href="${esc(S.href)}">Abrir o setor</a>`:''}</header>
+  ${S.res&&S.res.length?`<div class="rd-res">${S.res.map(([v,l])=>`<span><b>${esc(v)}</b>${esc(l)}</span>`).join('')}</div>`:''}
+  ${S.aviso?`<div class="rd-aviso">${esc(S.aviso)}</div>`:''}${g}</section>`;
+}
+const diaLongo=d=>DIAS_SEM[dt(d).getDay()]+', '+fData(d);
+function textoResumo(d,SS){
+ const cab=['*Resumo do dia · '+diaLongo(d)+'*',razaoMostra()];
+ return [...cab,'',...SS.filter(S=>S.txt&&S.txt.length).flatMap(S=>[...S.txt,'']),'Gerado no '+SPOT_NOME+' por '+(APP.nome||'—')].join('\n');
+}
+
+function telaResumoDia(el){
+ const d=diaSel();
+ const voltar=`<a class="btn" href="#/setores">${ic('esquerda')}<span>Setores</span></a>`;
+ if(!APP.carregado){el.innerHTML=`<div class="spot">${cabSpot('Resumo do dia',razaoMostra()+' · CNPJ '+cnpjMostra(),voltar)}<main class="spot-corpo">${typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>'}</main></div>`;return}
+ const SS=calcular(d);
+ const F=SS.find(S=>S.id==='financeiro'),V=SS.find(S=>S.id==='vendas'),C=SS.find(S=>S.id==='combustivel'),P=SS.find(S=>S.id==='producao'),Le=SS.find(S=>S.id==='lenha');
+ const D=verFin()?dinheiro(d):null;const ks=[];
+ if(D){ks.push(['ent','Entrou',fM(D.totEnt),D.ent.length+' recebimento(s)'],['sai','Saiu',fM(D.totSai),D.sai.length+' pagamento(s)'],['','Saldo do dia',fM(D.totEnt-D.totSai),'entrou − saiu'])}
+ if(V)ks.push(['','Vendido',V.res[0][0],V.res[1][0]+' milheiro(s) · '+V.res[4][0]+' venda(s)']);
+ if(P)ks.push(['','Produzido na maromba',P.res[0][0]+' tij.',P.res[2][0]+' desenfornados']);
+ if(C)ks.push(['','Combustível',C.res[0][0],C.res[1][0]]);
+ if(Le)ks.push(['','Lenha comprada',Le.res[0][0],Le.res[1][0]]);
+ const corpo=SS.length?`<div class="rd-kpis">${ks.map(([c,l,v,s])=>`<div class="rd-k ${c}"><small>${esc(l)}</small><b>${esc(v)}</b><span>${esc(s)}</span></div>`).join('')}</div>
+  <div class="rd-grade">${SS.map(secHtml).join('')}</div>`:`<div class="vazio"><b>Nenhum setor liberado para o seu perfil</b>Fale com o administrador.</div>`;
+ el.innerHTML=`<div class="spot">${cabSpot('Resumo do dia',razaoMostra()+' · CNPJ '+cnpjMostra(),voltar)}<main class="spot-corpo">
+  <div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('calendario')}</span><div><h1>Resumo do dia</h1><p>Tudo o que entrou, saiu e aconteceu em cada setor no dia escolhido. Só mostra o que foi lançado no sistema e os setores liberados para o seu perfil.</p></div></div></div>
+  <div class="rd-nav"><button class="btn" data-rd-d="-1" aria-label="Dia anterior">${ic('esquerda')}</button><input type="date" id="rdDia" value="${esc(d)}" max="${esc(hoje())}" aria-label="Dia do resumo"><button class="btn" data-rd-d="1" aria-label="Próximo dia" ${d>=hoje()?'disabled':''}>${ic('direita')}</button>
+   ${d!==hoje()?`<button class="btn" data-rd-d="0">Hoje</button>`:`<button class="btn" data-rd-d="-1">Ontem</button>`}<span class="rd-dia">${esc(diaLongo(d))}${d===hoje()?' (hoje)':''}</span>
+   <span class="rd-acoes"><a class="btn pri" id="rdWa" href="https://wa.me/?text=${encodeURIComponent(textoResumo(d,SS))}" target="_blank" rel="noopener">${ic('enviar')}Enviar no WhatsApp</a><button class="btn" id="rdCop">${ic('doc')}Copiar texto</button><button class="btn" id="rdImp">${ic('baixar')}Imprimir / PDF</button></span></div>
+  ${corpo}
+  <p class="rd-rod">Os números vêm dos lançamentos de cada setor. O que ainda não foi lançado não aparece. Pagamento conta no dia em que foi informado como pago; venda, no dia da venda.</p>
+ </main></div>`;
+ $('#rdDia',el).onchange=e=>{const v=e.target.value;if(okD(v))irPara(v>hoje()?hoje():v)};
+ $$('[data-rd-d]',el).forEach(b=>b.onclick=()=>{const k=+b.dataset.rdD;irPara(k===0?hoje():addDias(d,k)>hoje()?hoje():addDias(d,k))});
+ $('#rdCop',el).onclick=async()=>{const t=textoResumo(d,SS);try{await navigator.clipboard.writeText(t);toast('Resumo copiado. É só colar no WhatsApp ou onde quiser.','ok')}catch(e){
+  const a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand('copy')}catch(x){}a.remove();toast(ok?'Resumo copiado.':'Não foi possível copiar neste navegador.',ok?'ok':'erro')}};
+ $('#rdImp',el).onclick=()=>{$$('details',el).forEach(x=>x.open=true);setTimeout(()=>window.print(),50)};
+}
+TELAS_V[ROTA]=telaResumoDia;
+
+/* ---------- o botão na tela principal (seleção de setores) ---------- */
+function numerosBotao(){
+ if(!APP.carregado)return 'Tudo o que entrou, saiu e aconteceu em cada setor hoje';
+ const p=[];const d=hoje();
+ try{if(verFin()){const D=dinheiro(d);p.push('entrou '+fM(D.totEnt),'saiu '+fM(D.totSai))}}catch(e){}
+ try{if(vis('combustivel')){const cs=L('consumos').filter(c=>c.setor==='combustivel'&&c.data===d);if(cs.length)p.push(cs.length+' abastecimento(s)')}}catch(e){}
+ try{if(vis('vendas')){const vs=L('vendas').filter(v=>v.tipoOp!=='compra'&&!cancV(v)&&v.data===d);if(vs.length)p.push(vs.length+' venda(s)')}}catch(e){}
+ return p.length?'Hoje: '+p.join(' · '):'Tudo o que entrou, saiu e aconteceu em cada setor hoje';
+}
+const _telaSetoresRD=telaSetores;
+telaSetores=function(el){const r=_telaSetoresRD.apply(this,arguments);
+ try{if(!el.querySelector('.rd-entrar')){const h=el.querySelector('.spot-corpo h1');if(h){const a=document.createElement('a');a.className='rd-entrar';a.href='#/'+ROTA;
+  a.innerHTML=`<span class="rd-eic">${ic('calendario')}</span><span class="rd-etx"><b>Resumo do dia</b><small>${esc(numerosBotao())}</small></span><span class="rd-eir">Ver resumo${ic('direita')}</span>`;
+  const ref=el.querySelector('.spot-boas')||h;ref.before(a)}}}catch(e){console.warn('resumo do dia: botão',e)}
+ return r};
+
+/* na pesquisa do sistema (Ctrl K) */
+if(typeof pqEntradas==='function'){const _pqRD=pqEntradas;pqEntradas=function(){const E=_pqRD.apply(this,arguments);
+ try{const t='Resumo do dia',s='Tudo o que entrou, saiu e aconteceu em cada setor';
+  E.push({g:'Telas',t,s,ic:'calendario',k:pqN(t+' '+s+' resumo diario fechamento do dia entradas saidas o que aconteceu hoje'),ir:()=>{location.hash='#/'+ROTA},h:'#/'+ROTA,ix:E.length})}catch(e){}
+ return E}}
+
+window.RESUMO_DIA_V77={calcular,dinheiro,textoResumo,vis};
+})();
+</script>
 
 </body>
 </html>
