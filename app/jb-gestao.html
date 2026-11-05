@@ -31541,6 +31541,7 @@ iniciar().catch(e=>{console.error(e);$('#conteudo').innerHTML='<div class="vazio
 #conteudo.ini-dp.ini-sem-pendencias>.ex3,#conteudo.ini-dp.ini-sem-rotina>.ex4,#conteudo.ini-dp.ini-sem-movimento>.mv,
 #conteudo.ini-dp.ini-sem-indicadores>#detMais{display:none!important}
 #ndpCfg{display:none!important}
+html.sem-menu-antigo .ms-modo,html.sem-menu-antigo #msCfg{display:none!important}
 .ar-dp{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:16px 18px 18px;margin:0 0 18px}
 .ar-dp-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .ar-dp-cab h2{margin:0;font-size:17px;font-weight:700}
@@ -31569,18 +31570,24 @@ iniciar().catch(e=>{console.error(e);$('#conteudo').innerHTML='<div class="vazio
    e, logo abaixo, o Acesso rápido com TODAS as funções do DP, por setor. O resto do painel não sai
    do sistema: fica oculto para todos e volta pela chave em Configurações › Início do Departamento
    Pessoal (gravado na configuração da empresa, vale para todo mundo). Padrão: tudo oculto.
-   O menu simplificado passa a ser o padrão de todos (quem quiser volta ao menu atual pela chave). */
+   O menu antigo fica desativado para todos: só o simplificado aparece, sem a chave de escolha.
+   O dono reativa em Configurações (config/empresa › menuAntigoDP); aí a chave volta e cada um escolhe. */
 const INI_PARTES=[['saudacao','Saudação (Boa tarde…) e data'],['lembrete','Lembrete do DP (pendências abertas)'],
  ['graficos','Gráficos: custo de pessoal, distribuição por setor e agenda de férias e vencimentos'],
  ['pendencias','Pendências prioritárias, comparativo de competências e atividades recentes'],
  ['rotina','Rotina do mês e cópia dos dados (backup)'],['movimento','Movimento e pessoas (aniversariantes, admitidos, desligados, contratos)'],
  ['indicadores','Mais indicadores e gráficos']];
+/* menu antigo do DP: desativado para todos; o dono libera em Configurações (configuração da empresa) */
+const menuAntigoLiberado=()=>!!(CFG&&CFG.menuAntigoDP===true);
+function menuAntigoMarcar(){try{document.documentElement.classList.toggle('sem-menu-antigo',!menuAntigoLiberado())}catch(e){}}
+menuAntigoMarcar();
 const iniMostra=k=>!!(CFG&&CFG.inicioDP&&CFG.inicioDP[k]===true);
 /* painel do DP: um só para todos (a "nova interface" por pessoa deixa de valer) */
 try{painelModo=function(){return 'atual'}}catch(e){}
 /* menu simplificado: padrão de todos; a escolha antiga não vale mais (só a feita a partir desta versão) */
 try{
  menuModo=function(){
+  if(!menuAntigoLiberado())return 'simples';
   if(PREFS&&(PREFS.menuDP2==='atual'||PREFS.menuDP2==='simples'))return PREFS.menuDP2;
   try{const v=localStorage.getItem('jb_menu2');if(v==='atual'||v==='simples')return v}catch(e){}
   return 'simples';
@@ -31633,7 +31640,7 @@ function iniAplicar(){
 const _renderTelaINI=renderTela;
 renderTela=function(){
  const out=_renderTelaINI.apply(this,arguments);
- try{iniAplicar()}catch(e){console.warn('início do DP',e)}
+ try{menuAntigoMarcar();iniAplicar()}catch(e){console.warn('início do DP',e)}
  return out;
 };
 
@@ -31650,8 +31657,15 @@ function iniSecaoConfig(el){
  const n=document.createElement('fieldset');n.className='sec ini-cfg';n.id='iniCfg';
  n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra a faixa de cima (funcionários ativos, carteira, custo e pendências) e o Acesso rápido com todas as funções. As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
-  <span class="ajuda">${ed?'Entra na hora, sem precisar salvar.':'Só quem pode alterar as Configurações muda estas opções.'}</span>`;
+  <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
+  <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
+  <span class="ajuda">${ed?'Entra na hora, sem precisar salvar. Vale para todos os usuários.':'Só quem pode alterar as Configurações muda estas opções.'}</span>`;
  if(ref)ref.after(n);else{const p=el.querySelector('fieldset.sec');if(p)p.after(n);else el.appendChild(n)}
+ const ma=n.querySelector('#iniMenuAntigo');
+ if(ma)ma.onchange=async e=>{e.stopPropagation();const v=ma.checked;
+  try{await salvarCfg({...clone(CFG),menuAntigoDP:v});CFG.menuAntigoDP=v;menuAntigoMarcar();msRedesenhar();
+   toast(v?'Menu antigo ativado: a chave de escolha voltou ao alto do menu.':'Menu antigo desativado: todos usam o menu simplificado.','ok')}
+  catch(err){ma.checked=!v;toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(err):'erro')+'.','erro')}};
  n.querySelectorAll('[data-ini]').forEach(i=>i.onchange=async e=>{e.stopPropagation();
   const ant=clone((CFG&&CFG.inicioDP)||{});const novo={...ant,[i.dataset.ini]:i.checked};
   try{await salvarCfg({...clone(CFG),inicioDP:novo});CFG.inicioDP=novo;toast(i.checked?'Parte do Início ligada para todos.':'Parte do Início oculta para todos.','ok')}
