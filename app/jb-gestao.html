@@ -22704,7 +22704,7 @@ FORMATO: comece pela resposta. Use tabela quando listar várias pessoas, setores
    if((!b||b.data<hoje())&&!await confirmar('Baixe um backup do estado atual antes','Restaurar substitui registros pelos do arquivo. Não há backup dos dados de hoje: baixe um em Configurações › Dados e backup (ou no Controle Central) antes de seguir. Restaurar mesmo assim?',{ok:'Restaurar mesmo assim',perigo:true}))return;
    await jbcAud({tipo:'backup',acao:'iniciou a restauração de um backup',comando:file&&file.name||'',resultado:'em andamento'});return rb0.apply(this,arguments)}}
   /* menu simplificado do Setor Pessoal: a mesma entrada */
-  try{if(typeof AREAS_MS!=='undefined'){const a=AREAS_MS.find(x=>x.g==='Empresa e sistema');if(a&&!a.itens.some(([m])=>m==='jbc'))a.itens.push(['jbc','Controle Central — JB'])}}catch(e){}
+  try{if(typeof msAddAba==='function')msAddAba('Empresa e sistema','jbc','Controle Central — JB')}catch(e){}
  }
  addEventListener('DOMContentLoaded',()=>{try{ganchos()}catch(e){console.warn('controle central: ganchos',e)}});
  window.CONTROLE_CENTRAL={salvarPolitica,pol,agente,listaAgentes,acessoEfetivo,jbcAlertas,jbcSetores,rotasDe,nivelPerfil,jbcAplicar,duplicidades,proporAcao,executar,conferirArquivo,jbcFerramentas,CMD,POL,AG,AUD,jbcAud,jbcCarregarAud,operacoes,ultimoBackup};
@@ -28156,6 +28156,7 @@ html.vis-cc .ms-modo button.on{background:#000;color:#fff}
 html.vis-cc .ms-sub{color:var(--fraco)}
 .ms-dir>a.ngt{text-decoration:none}
 .ms-dir.ab>.ngt .ngt-s{transform:none}
+.ms-dir.ab>.ngt .ngt-s svg,.ms-dir .ngt .ngi-ic svg{transform:none}
 #app.recolhe .ms-dir .ngt:after{display:none}
 /* área: as telas da mesma atividade lado a lado, no alto da página */
 .ms-area{display:flex;align-items:stretch;gap:2px;margin:0 0 16px;border-bottom:1px solid var(--linha);overflow-x:auto;scrollbar-width:none;white-space:nowrap}
@@ -28164,6 +28165,14 @@ html.vis-cc .ms-sub{color:var(--fraco)}
 .ms-area a:hover,.ms-area a:focus-visible{color:var(--tinta);background:var(--linha2);outline:none}
 .ms-area a.on{color:var(--tinta);font-weight:600}
 .ms-area a.on:after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2.5px;border-radius:3px 3px 0 0;background:var(--brasa)}
+/* V42: setor completo. No computador as abas quebram em linhas (nada escondido); no celular, rolam de lado */
+@media (min-width:721px){.ms-area{flex-wrap:wrap;white-space:normal;overflow:visible}.ms-area a{white-space:nowrap}}
+.ms-area .ms-n{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--linha2);color:var(--suave);font-size:11px;font-weight:600;line-height:18px;text-align:center}
+.ms-area a.on .ms-n{background:var(--brasa-bg);color:var(--brasa)}
+.ms-acoes{display:flex;gap:6px;align-items:center;margin-left:auto;padding:4px 0 6px 10px;flex:none}
+.ms-ac{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--brasa);background:var(--branco);color:var(--brasa);border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.ms-ac svg{width:14px;height:14px;flex:none}
+.ms-ac:hover,.ms-ac:focus-visible{background:var(--brasa);color:#fff;outline:none}
 .ms-secoes{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 16px;align-items:center}
 .ms-secoes>span{font-size:12px;color:var(--fraco);margin-right:2px}
 .ms-secoes button{border:1px solid var(--linha);background:var(--branco);border-radius:999px;padding:4px 11px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--tinta)}
@@ -28209,9 +28218,12 @@ body.modo-setor .ms-area,body.modo-setor .ms-secoes{display:none!important}
    abre a tela que já existe, e o lançamento grava no mesmo registro de sempre.
    Não muda dado, cálculo, regra, permissão, relatório, recibo ou documento, e nenhuma tela sai:
    as opções do menu atual continuam abrindo pela pesquisa com o nome antigo, e as telas de cada
-   área ficam lado a lado numa barra no alto da página. Padrão para todos: menu atual. */
+   área ficam lado a lado numa barra no alto da página. Padrão para todos: menu atual.
+   V42: cada área virou um setor completo. As abas trazem também os recortes do menu atual
+   (férias vencidas e a vencer, cálculo de férias, tipos de afastamento, simulação de rescisão,
+   banco de horas, custo com fator 1,29 etc.), então nada do menu atual fica de fora. */
 const MENU_MODOS={atual:'Menu atual',simples:'Menu simplificado'};
-const MSIM={modoDesenhado:null,secao:''};
+const MSIM={modoDesenhado:null,secao:'',area:''};
 function menuModo(){
  if(PREFS&&(PREFS.menuDP==='atual'||PREFS.menuDP==='simples'))return PREFS.menuDP;
  try{const v=localStorage.getItem('jb_menu');if(v==='atual'||v==='simples')return v}catch(e){}
@@ -28235,33 +28247,126 @@ function msRedesenhar(){
  try{if(lerRota().mod==='config'){if(typeof padronizar==='function')padronizar()}else renderTela()}catch(e){console.warn('menu simplificado',e)}
 }
 
-/* ---------- as áreas: cada tela do DP aparece uma vez só ---------- */
+/* ---------- os setores: cada um reúne TUDO do assunto, em abas no alto da página (V42) ----------
+   Cada aba aponta para uma opção do menu atual: mesma tela, mesmo filtro, mesma aba ou mesmo relatório.
+   Assim tudo o que o menu atual faz o simplificado também faz, só que agrupado por assunto: tudo de
+   férias dentro de Férias, tudo de afastamento dentro de Afastamentos, tudo da folha dentro da Folha.
+   Formato da aba: 'Grupo do menu atual|Opção' ou ['Grupo|Opção','Nome curto na aba'].
+   Ações (botões "+" no fim da barra) abrem o formulário de lançamento. */
 const AREAS_MS=[
- {g:'Início',ic:'painel',semBarra:true,itens:[['painel','Painel'],['alertas','Alertas e pendências'],['ia','JB Inteligência']]},
- {g:'Pessoas',ic:'pessoas',tambem:{ficha:'funcionarios'},itens:[['funcionarios','Funcionários'],['admissoes','Admissões'],['alteracoes','Alterações salariais e contratuais'],
-  ['desligamentos','Desligamentos e rescisões'],['dependentes','Dependentes'],['importar','Importar planilha']]},
- {g:'Lançamentos e ponto',ic:'relogio',itens:[['lancar','Lançar para o funcionário'],['ponto','Espelho de ponto'],['diario','Diário: faltas e ocorrências'],
-  ['horasExtras','Horas extras'],['producao','Produção'],['vales','Vales e adiantamentos']]},
- {g:'Folha de pagamento',ic:'folha',itens:[['folha','Folha mensal e fechamento'],['quinzena','Folha quinzenal'],['conferencia','Conferência da folha'],
-  ['holerite','Holerite'],['extrato','Extrato do funcionário'],['direitos','Direitos do empregado']]},
- {g:'Férias e afastamentos',ic:'sol',itens:[['ferias','Programação de férias'],['feriasvenc','Férias vencidas e a vencer'],['feriasctrl','Períodos aquisitivos'],
-  ['afastamentos','Afastamentos'],['exames','Exames e ASO']]},
- {g:'Documentos',ic:'contrato',itens:[['documentos','Documentos arquivados'],['termos','Comprovantes e recibos'],['central','Modelos de contrato'],
-  ['contratos','Contratos e vencimentos'],['disciplinar','Advertências'],['relatdocs','Relatórios de documentos']],
-  extras:[['advertencias','Registro de advertências']]},
- {g:'Relatórios',ic:'grafico',direto:true,itens:[['relatorios','Relatórios']]},
- {g:'Custos e benefícios',ic:'moeda',itens:[['despesas','Custo com pessoal'],['alimentacao','Alimentação'],['diarias','Diárias e deslocamentos']]},
- {g:'Empresa e sistema',ic:'engrenagem',itens:[['config','Configurações'],['usuarios','Usuários e acessos'],['diagnostico','Autodiagnóstico'],['instalar','Instalar o aplicativo']]}
+ {g:'Início',ic:'painel',semBarra:true,abas:[['Início|Dashboard','Painel'],'Início|Alertas e pendências','Início|JB Inteligência']},
+ {g:'Pessoas',ic:'pessoas',tambem:{ficha:'funcionarios'},
+  abas:[['Funcionários|Cadastro de funcionários','Funcionários'],['Funcionários|Funcionários ativos','Ativos'],['Funcionários|Sem carteira assinada','Sem carteira'],
+   ['Funcionários|Funcionários desligados','Desligados'],['Admissão|Processos de admissão','Admissões'],['Admissão|Exame admissional (ASO)','Exame admissional'],
+   'Funcionários|Histórico salarial',['Funcionários|Alterações de cargo, setor e jornada','Alterações de cargo e jornada'],'Funcionários|Dependentes',
+   'Funcionários|Cargos','Funcionários|Importar planilha'],
+  acoes:[['Admissão|Nova admissão','Nova admissão'],['Funcionários|Lançar alteração salarial','Alteração salarial']]},
+ {g:'Ponto e lançamentos',ic:'relogio',
+  abas:[['Início|Lançamentos do funcionário','Lançar'],'Ponto e jornada|Espelho de ponto',['Ponto e jornada|Diário do DP','Diário de ocorrências'],'Ponto e jornada|Faltas',
+   'Ponto e jornada|Horas extras','Ponto e jornada|Banco de horas','Ponto e jornada|Adicional noturno',['Folha de pagamento|Pagamento por produção','Produção'],
+   ['Folha de pagamento|Adiantamentos e vales','Vales e adiantamentos'],'Ponto e jornada|Jornadas e horários','Ponto e jornada|Feriados',
+   ['Relatórios|Ponto e horas extras','Relatório de ponto'],['Relatórios|Produção por funcionário','Relatório de produção'],['Relatórios|Vales e adiantamentos','Relatório de vales']]},
+ {g:'Folha de pagamento',ic:'folha',
+  abas:[['Folha de pagamento|Folha mensal','Folha mensal e fechamento'],'Folha de pagamento|Folha quinzenal','Folha de pagamento|Quem recebe por quinzena',
+   'Folha de pagamento|Conferência da folha','Folha de pagamento|Holerite',['Folha de pagamento|Controle do funcionário','Extrato do funcionário'],
+   ['Consultas|Direitos do empregado','Direitos e 13º'],'Folha de pagamento|Custo com pessoal',['Folha de pagamento|Custo da folha (fator 1,29)','Custo com fator 1,29'],
+   'Folha de pagamento|Custo da folha mês a mês','Encargos e tributos|Provisão de férias e 13º',['Relatórios|Folha estimada do mês','Folha estimada'],
+   'Benefícios|Alimentação',['Benefícios|Diárias e deslocamentos','Diárias'],'Encargos e tributos|Tabelas de INSS e IRRF']},
+ {g:'Férias',ic:'sol',
+  abas:[['Férias|Programação de férias','Programação'],'Férias|Períodos aquisitivos',['Férias|Férias vencidas','Vencidas'],['Férias|Férias a vencer','A vencer'],
+   ['Férias|Cálculo e comprovante','Cálculo e recibo'],['Funcionários|Em férias','Quem está de férias'],['Relatórios|Controle de férias','Relatório de férias'],
+   ['Relatórios|Provisão de férias e 13º','Provisão de férias']],
+  acoes:[{m:'ferias',l:'Programar férias'}]},
+ {g:'Afastamentos',ic:'cruz',
+  abas:[['Afastamentos|Todos os afastamentos','Todos'],'Afastamentos|Em andamento','Afastamentos|Doença',['Afastamentos|Acidente de trabalho','Acidente'],
+   'Afastamentos|Maternidade','Afastamentos|Paternidade',['Afastamentos|Retorno ao trabalho','Retornos'],['Funcionários|Funcionários afastados','Quem está afastado'],
+   ['Saúde e segurança (SST)|Exames e ASO','Exames e ASO'],['Saúde e segurança (SST)|Exames vencidos e a vencer','Exames vencidos'],
+   ['Relatórios|Afastamentos','Relatório de afastamentos']],
+  acoes:[{m:'afastamentos',l:'Registrar afastamento'},['Saúde e segurança (SST)|Lançar exame','Lançar exame']]},
+ {g:'Rescisões',ic:'saida',
+  abas:[['Rescisão|Checklist de desligamento','Todas'],['Rescisão|Rescisões em andamento','Em andamento'],['Rescisão|Simulação de rescisão','Simulação'],
+   ['Rescisão|Documentos da rescisão','Documentos'],['Rescisão|Rescisões no custo (já guardado × custo novo)','Rescisões no custo'],
+   ['Funcionários|Funcionários desligados','Desligados'],['Relatórios|Admissões e desligamentos','Admissões e desligamentos']],
+  acoes:[['Rescisão|Nova rescisão','Nova rescisão']]},
+ {g:'Documentos',ic:'contrato',
+  abas:[['Contratos e documentos|Documentos arquivados','Documentos'],['Contratos e documentos|Comprovantes','Comprovantes e recibos'],
+   'Contratos e documentos|Comprovantes de pagamento',['Admissão|Documentação','Documentos de admissão'],['Contratos e documentos|Contratos','Modelos de contrato'],
+   ['Contratos e documentos|Controle de contratos','Contratos e vencimentos'],['Admissão|Contrato de experiência','Contratos de experiência'],
+   ['Contratos e documentos|Advertências e medidas disciplinares','Advertências'],'Contratos e documentos|Registro de advertências',
+   ['Contratos e documentos|Relatórios de contratos e documentos','Relatórios de documentos'],'Relatórios|Documentos pendentes']},
+ {g:'Relatórios',ic:'grafico',direto:true,abas:[['Relatórios|Relação de funcionários','Relatórios']]},
+ {g:'Empresa e sistema',ic:'engrenagem',
+  abas:[['Configurações|Parâmetros gerais','Configurações'],'Empresa|Dados da empresa',['Empresa|Setores','Departamentos, setores e cargos'],
+   'Configurações|Checklists','Configurações|Categorias de despesa','Configurações|Backup e restauração',['Usuários e acessos|Controle de usuários','Usuários e acessos'],
+   'Início|Autodiagnóstico','Configurações|Instalar o aplicativo']}
 ];
 const MS_PREV='Em preparação';
-function msAreaDe(mod){return AREAS_MS.find(a=>a.itens.some(([m])=>m===mod)||(a.extras||[]).some(([m])=>m===mod)||(a.tambem&&a.tambem[mod]))||null}
-function msAtiva(mod){const a=msAreaDe(mod);return a&&a.tambem&&a.tambem[mod]?a.tambem[mod]:mod}
-function msRotulo(mod){for(const a of AREAS_MS){const x=a.itens.find(([m])=>m===mod)||(a.extras||[]).find(([m])=>m===mod);if(x)return x[1]}return ''}
-/* rótulo da tela na trilha: o da opção antiga quando ela trouxe um recorte (filtro, aba ou relatório) */
+/* liga cada aba à opção do menu atual; opção que não existir mais só fica de fora (e avisa no console) */
+function msRef(ref){
+ if(ref&&!Array.isArray(ref)&&typeof ref==='object')return{i:-1,m:ref.m,l:ref.l,it:{m:ref.m,l:ref.l}};
+ const [k,l2]=Array.isArray(ref)?ref:[ref];const p=String(k).split('|');
+ const i=MITENS.findIndex(x=>x.g===p[0]&&x.l===p[1]);
+ if(i<0||!MITENS[i].m){console.warn('menu simplificado: opção não encontrada',k);return null}
+ return{i,m:MITENS[i].m,l:l2||p[1],it:MITENS[i]};
+}
+AREAS_MS.forEach(a=>{a.A=a.abas.map(msRef).filter(Boolean);a.C=(a.acoes||[]).map(msRef).filter(Boolean)});
+/* outra parte do sistema pode pôr uma tela sua dentro de um setor (o Controle Central, por exemplo) */
+function msAddAba(g,m,l){const a=AREAS_MS.find(x=>x.g===g);if(a&&!a.A.some(x=>x.m===m))a.A.push({i:-1,m,l,it:{m,l}})}
+const msRec=x=>!!(x.it.f||x.it.a||x.it.r);
+const msVis=a=>a.A.filter(x=>pode(x.m));
+/* a aba "de casa" de uma tela: a do menu atual que representa a tela, senão a primeira sem recorte */
+function msCasa(a,mod){
+ if(a.tambem&&a.tambem[mod])mod=a.tambem[mod];
+ return a.A.find(x=>x.m===mod&&!msRec(x)&&x.it.l===CASA[mod])||a.A.find(x=>x.m===mod&&!msRec(x))||(a.direto&&a.A[0]&&a.A[0].m===mod?a.A[0]:null);
+}
+/* em qual setor a pessoa está: o da aba clicada; sem aba, o setor "de casa" da tela */
+function msAreaDe(mod){
+ const it=MITENS[MI_AT];let L=[];
+ if(it&&it.m===mod)L=AREAS_MS.filter(a=>a.A.some(x=>x.i===MI_AT));
+ if(!L.length)L=AREAS_MS.filter(a=>{const c=msCasa(a,mod);return c&&c.it.l===CASA[a.tambem&&a.tambem[mod]||mod]});
+ if(!L.length)L=AREAS_MS.filter(a=>msCasa(a,mod));
+ if(!L.length)L=AREAS_MS.filter(a=>a.A.some(x=>x.m===mod));
+ if(!L.length)return null;
+ return L.find(a=>a.g===MSIM.area)||L[0];
+}
+function msAbaAtiva(a,r){
+ const mod=a.tambem&&a.tambem[r.mod]?a.tambem[r.mod]:r.mod;
+ return a.A.find(x=>x.i>=0&&x.i===MI_AT&&x.m===mod)||msCasa(a,mod)||a.A.find(x=>x.m===mod)||null;
+}
+/* chaves de filtro que alguma aba usa em cada tela: trocar de aba limpa o filtro da aba anterior */
+const MS_FK={};
+AREAS_MS.forEach(a=>a.A.forEach(x=>{if(x.it.f&&MODS[x.m]&&x.m!=='feriasctrl'&&x.m!=='feriasvenc')Object.keys(x.it.f).forEach(k=>{(MS_FK[x.m]=MS_FK[x.m]||new Set()).add(k)})}));
+function msAbrirAba(x){
+ if(!x)return;
+ if(x.i<0){MI_AT=-1;const h='#/'+x.m;if(location.hash===h){renderCasca();renderTela()}else location.hash=h;return}
+ try{
+  if(MS_FK[x.m]){const st=ui(x.m);const fs=MODS[x.m].filtros||[];
+   MS_FK[x.m].forEach(k=>{if(x.it.f&&k in x.it.f)return;const fl=fs.find(y=>y.k===k);if(fl&&fl.pad==='ativos')st.f[k]='__ativos';else delete st.f[k]});st.pag=0}
+  if(x.m==='direitos'&&!x.it.a&&typeof DIR!=='undefined')DIR.aba='resumo';
+ }catch(e){console.warn('menu simplificado · filtro',e)}
+ abrirItem(x.i);
+}
+function msAbrirAcao(x){
+ if(!x)return;
+ if(x.i>=0){abrirItem(x.i);return}
+ MI_AT=-1;location.hash='#/'+x.m+'/novo';
+}
+function msIrArea(g){
+ const a=AREAS_MS.find(x=>x.g===g);if(!a)return;
+ const vis=msVis(a);if(!vis.length)return;
+ MSIM.area=g;try{fecharMenu()}catch(e){}
+ /* Relatórios abre no último relatório visto */
+ if(a.direto){MI_AT=-1;const h='#/'+vis[0].m;if(location.hash===h){renderCasca();renderTela()}else location.hash=h;return}
+ msAbrirAba(vis[0]);
+}
+/* quantos registros cada aba com filtro mostra hoje (só o que existe de fato) */
+function msConta(x){
+ if(x.i<0||!x.it.f||!Object.keys(x.it.f).length||x.m==='feriasctrl'||x.m==='feriasvenc')return 0;
+ try{return contaItem(x.it)||0}catch(e){return 0}
+}
 function msRotuloTela(r){
- const it=MITENS[MI_AT];
- if(it&&it.m===r.mod&&(it.f||it.a||it.r))return it.l;
- return msRotulo(r.mod)||(MODS[r.mod]&&MODS[r.mod].titulo)||'';
+ const a=msAreaDe(r.mod);const x=a&&msAbaAtiva(a,r);
+ return (x&&x.l)||(MODS[r.mod]&&MODS[r.mod].titulo)||'';
 }
 /* seções de Configurações a que cada opção antiga do menu levava */
 const MS_CFG_SEC={'Dados da empresa':'Empresa','Responsáveis':'Empresa','Configurações da empresa':'Empresa','Departamentos':'Estrutura da empresa',
@@ -28269,22 +28374,16 @@ const MS_CFG_SEC={'Dados da empresa':'Empresa','Responsáveis':'Empresa','Config
  'Tabelas de INSS e IRRF':'Tabelas legais','Tabelas legais':'Tabelas legais','Categorias de despesa':'Categorias de despesa','Checklists':'Checklists',
  'Backup e restauração':'Dados, backup'};
 
-/* ---------- menu lateral ---------- */
+/* ---------- menu lateral: um setor por linha, um clique só ---------- */
 const msChaveHtml=()=>{const v=menuModo();
  return `<div class="ms-modo" role="radiogroup" aria-label="Tipo de menu">${[['atual','Menu atual'],['simples','Simplificado']].map(([k,l])=>
   `<button type="button" role="radio" aria-checked="${v===k}" class="${v===k?'on':''}" data-ms-modo="${k}">${l}</button>`).join('')}</div>`};
 function msNavHtml(r){
- const ativa=msAtiva(r.mod);let h='';
+ const at=r.mod==='breve'?null:msAreaDe(r.mod);let h='';
  if(msOps().length)h+=`<button type="button" class="ms-lancar" data-ms-lancar aria-label="Lançar" title="Lançar produção, falta, hora extra, vale, férias e mais">${ic('mais')}<span>Lançar</span></button>`;
  AREAS_MS.forEach(a=>{
-  const vis=a.itens.filter(([m])=>pode(m));if(!vis.length)return;
-  const tem=vis.some(([m])=>m===ativa)||(a.extras||[]).some(([m])=>m===ativa);
-  if(a.direto){const [m]=vis[0];
-   h+=`<div class="ngrupo ms-dir${tem?' ab':''}"><a class="ngt" href="#/${m}" data-tip="${esc(a.g)}"><span class="ngi-ic">${ic(a.ic)}</span><span class="ngt-l">${esc(a.g)}</span><span class="ngt-s">${ic('direita')}</span></a></div>`;return}
-  const ab=MABERTO[a.g]===undefined?tem:MABERTO[a.g];
-  const pai=(a.extras||[]).some(([m])=>m===ativa)?'disciplinar':ativa;
-  h+=`<div class="ngrupo ${ab?'ab':''}"><button type="button" class="ngt" data-ng="${esc(a.g)}" aria-expanded="${ab}"><span class="ngi-ic">${ic(a.ic)}</span><span class="ngt-l">${esc(a.g)}</span><span class="ngt-s">${ic('direita')}</span></button>
-   <div class="ngi">${vis.map(([m,l])=>`<a href="#/${m}" class="${m===pai?'on':''}"${m===pai?' aria-current="page"':''}><span>${esc(l)}</span>${m==='alertas'?'<span class="qt" id="qtAlertas" hidden></span>':''}</a>`).join('')}</div></div>`;
+  const vis=msVis(a);if(!vis.length)return;const on=a===at;
+  h+=`<div class="ngrupo ms-dir${on?' ab':''}"><a class="ngt" href="javascript:void 0" data-ms-area="${esc(a.g)}" data-tip="${esc(a.g)}"${on?' aria-current="page"':''}><span class="ngi-ic">${ic(a.ic)}</span><span class="ngt-l">${esc(a.g)}</span><span class="ngt-s">${ic('direita')}</span></a></div>`;
  });
  /* tudo o que ainda não existe fica num grupo só, sinalizado, sem fingir que funciona */
  const prev=[];MITENS.forEach((it,i)=>{if(!it.m)prev.push([it,i])});
@@ -28304,22 +28403,24 @@ navHtml=function(r){
  try{return h+msNavHtml(r)}catch(e){console.warn('menu simplificado',e);return h+_navHtmlMS.apply(this,arguments)}
 };
 
-/* ---------- trilha: Área › Tela ---------- */
+/* ---------- trilha: Setor › Aba ---------- */
 function msTrilhaMio(r){
  if(r.mod==='grupo')return null;
  if(r.mod==='breve'){const it=MITENS[+r.id];return it?`<span>${MS_PREV}</span><i>›</i><b>${esc(it.l)}</b>`:null}
  const a=msAreaDe(r.mod);if(!a)return null;
  if(a.direto)return `<b>${esc(a.g)}</b>`;
- const ini=`<a href="#/${a.itens[0][0]}">${esc(a.g)}</a><i>›</i>`;
+ const ini=`<a href="javascript:void 0" data-ms-area="${esc(a.g)}">${esc(a.g)}</a><i>›</i>`;
  if(r.mod==='ficha'){const f=F(r.id);return ini+`<a href="#/funcionarios">Funcionários</a><i>›</i><b>${esc(f?f.nome:'Ficha do funcionário')}</b>`}
  return ini+`<b>${esc(msRotuloTela(r))}</b>`;
 }
 function msAreaBarra(r){
  const a=msAreaDe(r.mod);if(!a||a.semBarra||a.direto)return null;
- const ativa=msAtiva(r.mod);
- const l=[...a.itens,...(a.extras||[])].filter(([m])=>pode(m));if(l.length<2)return null;
- return{k:a.g+'|'+ativa+'|'+l.map(x=>x[0]).join(','),g:a.g,
-  html:l.map(([m,t])=>`<a href="#/${m}" class="${m===ativa?'on':''}"${m===ativa?' aria-current="page"':''}>${esc(t)}</a>`).join('')};
+ const at=msAbaAtiva(a,r);
+ const l=msVis(a);const ac=a.C.filter(x=>pode(x.m,'e'));if(l.length+ac.length<2)return null;
+ const html=l.map(x=>{const on=x===at;const n=msConta(x);
+   return `<a href="#/${x.m}" data-ms-aba="${a.A.indexOf(x)}" data-ms-g="${esc(a.g)}" class="${on?'on':''}"${on?' aria-current="page"':''}>${esc(x.l)}${n?`<span class="ms-n">${n}</span>`:''}</a>`}).join('')
+  +(ac.length?`<span class="ms-acoes">${ac.map(x=>`<button type="button" class="ms-ac" data-ms-ac="${a.C.indexOf(x)}" data-ms-g="${esc(a.g)}">${ic('mais')}<span>${esc(x.l)}</span></button>`).join('')}</span>`:'');
+ return{k:a.g+'|'+html.length+'|'+(at?a.A.indexOf(at):'')+'|'+l.map(x=>msConta(x)).join(','),g:a.g,html};
 }
 function msSecoes(c){
  const L=[...c.querySelectorAll('fieldset.sec>legend')].map(l=>l.textContent.trim()).filter(Boolean);
@@ -28418,6 +28519,14 @@ document.addEventListener('click',e=>{
  const t=e.target;if(!t||!t.closest)return;
  const b=t.closest('[data-ms-lancar]');if(b){e.preventDefault();msAbrirFolha();return}
  const m=t.closest('[data-ms-modo]');if(m){e.preventDefault();definirMenuModo(m.dataset.msModo);return}
+ if(menuSimples()){
+  const ar=t.closest('[data-ms-area]');if(ar){e.preventDefault();e.stopPropagation();msIrArea(ar.dataset.msArea);return}
+  const ab=t.closest('[data-ms-aba]');
+  if(ab){if(e.ctrlKey||e.metaKey||e.shiftKey||e.button)return;e.preventDefault();e.stopPropagation();
+   const a=AREAS_MS.find(x=>x.g===ab.dataset.msG);if(a){MSIM.area=a.g;msAbrirAba(a.A[+ab.dataset.msAba])}return}
+  const ac=t.closest('[data-ms-ac]');
+  if(ac){e.preventDefault();e.stopPropagation();const a=AREAS_MS.find(x=>x.g===ac.dataset.msG);if(a){MSIM.area=a.g;msAbrirAcao(a.C[+ac.dataset.msAc])}return}
+ }
  /* aba escolhida à mão na tela de lançamentos: vale até o fim da sessão */
  if(t.closest('[data-la]'))UIL._msManual=true;
  /* opção do menu simplificado: a trilha mostra o nome da área, não o de uma opção antiga */
@@ -28487,14 +28596,15 @@ pqEntradas=function(){
  if(!menuSimples())return E;
  try{
   const out=E.filter(e=>!(e.h&&/^#\/grupo\//.test(e.h)));
+  const areaDoItem=i=>AREAS_MS.find(a=>a.A.some(x=>x.i===i))||null;
   out.forEach(e=>{if(e.mi==null)return;const it=MITENS[e.mi];if(!it)return;
-   if(!it.m){e.s=MS_PREV+' · em breve';return}const a=msAreaDe(it.m);if(a)e.s=a.g});
-  const ja=new Set(out.filter(e=>e.g==='Telas').map(e=>pqN(e.t)));
-  AREAS_MS.forEach(a=>{const vis=[...a.itens,...(a.extras||[])].filter(([m])=>pode(m));if(!vis.length)return;
-   vis.forEach(([m,l])=>{if(ja.has(pqN(l)))return;ja.add(pqN(l));
-    out.push({g:'Telas',t:l,s:a.g,ic:(MODS[m]&&MODS[m].ic)||a.ic,k:pqN(l+' '+a.g+' '+((MODS[m]&&MODS[m].titulo)||'')),ir:()=>{MI_AT=-1;location.hash='#/'+m},h:'#/'+m,ix:out.length})});
-   if(!a.direto&&!ja.has(pqN(a.g))){ja.add(pqN(a.g));
-    out.push({g:'Telas',t:a.g,s:'Área do menu · '+vis.map(x=>x[1]).join(', '),ic:a.ic,k:pqN(a.g+' '+vis.map(x=>x[1]).join(' ')),ir:()=>{MI_AT=-1;location.hash='#/'+vis[0][0]},h:'#/'+vis[0][0],ix:out.length})}});
+   if(!it.m){e.s=MS_PREV+' · em breve';return}const a=areaDoItem(e.mi)||msAreaDe(it.m);if(a){e.s=a.g;const ir0=e.ir;e.ir=()=>{MSIM.area=a.g;const x=a.A.find(y=>y.i===e.mi);if(x)msAbrirAba(x);else ir0()}}});
+  const jaMi=new Set(out.filter(e=>e.mi!=null).map(e=>e.mi));
+  AREAS_MS.forEach(a=>{const vis=msVis(a);if(!vis.length)return;
+   vis.forEach(x=>{if(x.i>=0&&jaMi.has(x.i))return;
+    out.push({g:'Telas',t:x.l,s:a.g,ic:(MODS[x.m]&&MODS[x.m].ic)||a.ic,k:pqN(x.l+' '+a.g+' '+((MODS[x.m]&&MODS[x.m].titulo)||'')),ir:()=>{MSIM.area=a.g;msAbrirAba(x)},h:'#/'+x.m,ix:out.length})});
+   if(!a.direto){
+    out.push({g:'Telas',t:a.g,s:'Setor · '+vis.map(x=>x.l).join(', '),ic:a.ic,k:pqN(a.g+' setor '+vis.map(x=>x.l).join(' ')),ir:()=>msIrArea(a.g),h:'#/'+vis[0].m,ix:out.length})}});
   return out;
  }catch(e){console.warn('menu simplificado · pesquisa',e);return E}
 };
@@ -28520,7 +28630,7 @@ function msSecaoConfig(el){
  const ref=el.querySelector('#ndpCfg')||[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
  const v=menuModo();
  const ops=[['atual','Menu atual','O menu de sempre, com todos os grupos e opções, igual ao da Versão 40.'],
-  ['simples','Menu simplificado','Poucas áreas, sem opção repetida, botão Lançar no alto e as telas de cada área lado a lado. Nenhuma tela sai.']];
+  ['simples','Menu simplificado','Poucos setores (Pessoas, Ponto, Folha, Férias, Afastamentos, Rescisões, Documentos), cada um com tudo do assunto em abas no alto da página, e botão Lançar. Tudo o que o menu atual faz, em menos cliques.']];
  const n=document.createElement('fieldset');n.className='sec ms-cfg';n.id='msCfg';
  n.innerHTML=`<legend>Menu do Departamento Pessoal</legend><p style="margin:0 0 10px;color:var(--suave);font-size:13px">Escolha como o menu aparece para você. Muda só a organização: telas, dados, cálculos, permissões e os outros setores continuam iguais.</p>
   <div class="ndp-escolha" role="radiogroup" aria-label="Menu do Departamento Pessoal">
