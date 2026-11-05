@@ -15376,6 +15376,7 @@ function htmlLenhaF(r){
  if(!r.fornoId||!n0(r.quantidade))return '<span class="ajuda">Escolha o forno e informe a quantidade para ver a referência de lenha.</span>';
  const l=lenhaFornada(r);const ref=pc().lenhaRef;
  if(l.ref2)return `Referência por fornada: <b>${fNum(l.ref2.min)}${l.ref2.max!==l.ref2.min?' a '+fNum(l.ref2.max):''} m³</b> de lenha<br>
+  ${ehContinuo(r.fornoId)?'':`Ao confirmar a enforna, o sistema lança sozinho <b>${fNum(lenhaPorFornada(),1)} m³</b> de consumo de lenha deste forno e tira do estoque.<br>`}
   Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>${l.difRef!=null?` · ${l.difRef>0?'<span class="tag pe">'+fNum(l.difRef,1)+' acima da referência</span>':'<span class="tag ok">dentro da referência</span>'}`:''}`;
  return `Referência pelo carregado: <b>${l.est==null?'—':fNum(l.est,1)}</b>${l.estB!=null?` · pelos tijolos bons (${fT(l.bons)}): <b>${fNum(l.estB,1)}</b>`:''} unidades de lenha <span class="tag at">estimativa</span> <span class="ajuda">(${fNum(ref.lenha)} para ${fNum(ref.carregado)} milheiros carregados; unidade ainda a confirmar entre m³ e st)</span><br>
   Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>`;
@@ -15424,12 +15425,27 @@ MODS.pfornadas={titulo:'Fornos e fornadas',sing:'fornada',ic:'chama',
   if(st.fornoId&&!ehContinuo(st.fornoId)){const ab=DATA.pfornadas.find(x=>x.id!==st.id&&x.fornoId===st.fornoId&&['Em enforna','Em queima'].includes(sitF(x)));if(ab&&!ant)av.push('O '+nomeForno(st.fornoId)+' ainda tem a fornada nº '+ab.numero+' em '+ab.situacao.toLowerCase()+'.')}
   if(av.length)e._aviso=av.join(' ');
   return e},
+ aposGravar(rec,ant){if(fConf(rec)&&!(ant&&fConf(ant)))baixaLenhaEnforna(rec)},
  preparar(rec){rec.tipo='fornada';rec.quantidade=Math.round(n0(rec.quantidade));rec.numero=+rec.numero;
   const ant=DATA.pfornadas.find(x=>x.id===rec.id);if(rec.confirmacao==='Confirmada'&&!(ant&&fConf(ant))){rec.confirmadaEm=new Date().toISOString();rec.confirmadaPor=APP.uid||'local'}},
  resumo(rows){const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const c=rows.filter(fConf);
   return `<div class="resumo">${b(rows.length,'Fornadas no filtro')}${b(fT(soma(c.filter(f=>['Em enforna','Em queima'].includes(sitF(f))),f=>f.quantidade)),'Tijolos nos fornos')}${b(fT(soma(c.filter(f=>sitF(f)==='Aguardando desenforna'),f=>f.quantidade)),'Aguardando desenforna')}${b(fNum(soma(c,f=>f.quantidade)/1000,1),'Milheiros enfornados (confirmados)')}${b(rows.filter(f=>!fConf(f)).length,'Enfornas pendentes')}</div>`},
  semExcluir:true};
 
+/* enforna confirmada = fogo aceso: lança sozinho o consumo de lenha do forno (média entre o mínimo e o máximo por fornada)
+   e tira do estoque da lenha. Uma vez por fornada; o forno contínuo não tem fornada fechada e fica de fora. */
+const lenhaPorFornada=()=>{const C=pc();const a=n0(C.lenhaFornadaMin),b=n0(C.lenhaFornadaMax)||a;return a&&b?round3((a+b)/2):(b||0)};
+const produtoLenha=()=>(DATA.produtos||[]).find(p=>p.setor==='lenha'&&/lenha/i.test(String(p.nome||''))&&p.ativo!==false&&p.situacao!=='Inativo')||null;
+async function baixaLenhaEnforna(f){
+ if(!f||!fConf(f)||ehContinuo(f.fornoId))return;
+ if((DATA.consumos||[]).some(c=>c.enfornaId===f.id))return;
+ const q=lenhaPorFornada();const p=produtoLenha();if(!(q>0)||!p||!MODS.consumos)return;
+ const st={id:novoId(),setor:'lenha',produtoId:p.id,localId:f.fornoId,quantidade:q,data:f.data,hora:f.hora||horaAgora(),auto:true,enfornaId:f.id,
+  fornada:nomeFornada(f),milheiros:round3(n0(f.quantidade)/1000),
+  obs:'Baixa automática da enforna: '+fNum(q,1)+' '+(p.unidade||'m³')+' de lenha por fornada (referência de '+fNum(n0(pc().lenhaFornadaMin))+' a '+fNum(n0(pc().lenhaFornadaMax))+').'};
+ try{await gravarRegistro('consumos',st,null,true);toast('Lenha: '+fNum(q,1)+' '+(p.unidade||'m³')+' lançados como consumo do '+nomeForno(f.fornoId)+'.','ok')}
+ catch(e){console.warn('baixa de lenha',e);toast('A enforna foi salva, mas o consumo de lenha não foi lançado: lance no Setor da Lenha.','erro')}
+}
 /* ---------- estimativa do fim do dia ---------- */
 function estimativaDia(){
  const C=pc();const fimE=minDe(C.fimExpediente);const h=hoje();
