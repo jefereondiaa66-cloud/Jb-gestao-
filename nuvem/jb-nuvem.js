@@ -425,6 +425,41 @@
     if (r.data && r.data.signedUrl) window.open(r.data.signedUrl, '_blank', 'noopener');
   }, true);
 
+  /* imagens "/_blob/<id>" (foto da ficha, fotos do ponto): a página pede a imagem pelo código e aqui
+     ela é trocada por um endereço temporário e privado do armazenamento (vale 1 hora). Os códigos
+     que o armazenamento não reconhece ficam 5 minutos sem nova tentativa (sem repetir pedidos). */
+  var blobUrls = {}, blobPedindo = {}, blobAgendado = false;
+  function blobVarrer() {
+    blobAgendado = false;
+    if (!sb || !sessao) return;
+    var agora = Date.now(), faltam = [];
+    document.querySelectorAll('img[src^="/_blob/"]').forEach(function (img) {
+      var id = img.getAttribute('src').slice(7), c = blobUrls[id];
+      if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) return;
+      if (c && c.ate > agora) { if (c.url) { img.setAttribute('data-blob', id); img.src = c.url; } return; }
+      if (!blobPedindo[id] && faltam.indexOf(id) < 0) faltam.push(id);
+    });
+    if (!faltam.length) return;
+    faltam.forEach(function (id) { blobPedindo[id] = true; });
+    sb.storage.from('anexos').createSignedUrls(faltam, 3600).then(function (r) {
+      var ok = {};
+      (r && r.data || []).forEach(function (x) { if (x && x.path && x.signedUrl) { ok[x.path] = 1; blobUrls[x.path] = { url: x.signedUrl, ate: Date.now() + 3300000 }; } });
+      faltam.forEach(function (id) { if (!ok[id]) blobUrls[id] = { url: '', ate: Date.now() + 300000 }; });
+    }).catch(function () {
+      faltam.forEach(function (id) { blobUrls[id] = { url: '', ate: Date.now() + 60000 }; });
+    }).then(function () {
+      faltam.forEach(function (id) { delete blobPedindo[id]; });
+      blobAgendar();
+    });
+  }
+  function blobAgendar() { if (!blobAgendado) { blobAgendado = true; setTimeout(blobVarrer, 30); } }
+  new MutationObserver(function (ms) {
+    for (var i = 0; i < ms.length; i++) {
+      var m = ms[i];
+      if (m.type === 'attributes' ? m.target.tagName === 'IMG' && (m.target.getAttribute('src') || '').indexOf('/_blob/') === 0 : m.addedNodes.length) { blobAgendar(); return; }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
   /* ---------------- versão nova publicada ----------------
      Quem deixava o sistema aberto continuava na versão antiga até recarregar a página por conta
      própria (foi o que aconteceu em 05/11/2026). A página sabe a própria versão (<meta name="jb-site">,

@@ -107,6 +107,15 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     assert.ok(nuvem.indexOf('jb-nuvem.js') < nuvem.indexOf('<script id="spot-guarda">'), 'o adaptador da nuvem precisa carregar antes do programa');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
+teste('programa', 'ponto com foto: câmera liberada só para o próprio site e perfil "Celular do ponto" no painel', () => {
+  const h = ler('nuvem/_headers');
+  assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o celular do ponto precisa da câmera: nuvem/_headers deve ter camera=(self)');
+  assert.match(h, /Permissions-Policy:[^\n]*microphone=\(\)/, 'o microfone continua bloqueado');
+  const app = ler('app/jb-gestao.html');
+  assert.equal(app.split('<script id="ponto-foto-v78">').length - 1, 1, 'bloco do ponto com foto ausente ou repetido');
+  assert.match(ler('nuvem/admin.html'), /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
+  assert.match(ler('nuvem/jb-nuvem.js'), /createSignedUrls\(/, 'a nuvem precisa trocar as imagens "/_blob/" por endereço temporário');
+});
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));
   try {
