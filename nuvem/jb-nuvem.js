@@ -429,6 +429,8 @@
      ela é trocada por um endereço temporário e privado do armazenamento (vale 1 hora). Os códigos
      que o armazenamento não reconhece ficam 5 minutos sem nova tentativa (sem repetir pedidos). */
   var blobUrls = {}, blobPedindo = {}, blobAgendado = false;
+  /* a página pode montar a imagem já com o endereço guardado (sem pedir "/_blob/" de novo a cada redesenho) */
+  window.JB_BLOB_URL = function (id) { var c = blobUrls[id]; return c && c.url && c.ate > Date.now() + 60000 ? c.url : ''; };
   function blobVarrer() {
     blobAgendado = false;
     if (!sb || !sessao) return;
@@ -436,7 +438,11 @@
     document.querySelectorAll('img[src^="/_blob/"]').forEach(function (img) {
       var id = img.getAttribute('src').slice(7), c = blobUrls[id];
       if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) return;
-      if (c && c.ate > agora) { if (c.url) { img.setAttribute('data-blob', id); img.src = c.url; } return; }
+      if (c && c.ate > agora) {
+        if (c.url) { img.setAttribute('data-blob', id); img.src = c.url; }
+        else if (!img.hasAttribute('data-blob-falhou')) { img.setAttribute('data-blob-falhou', '1'); img.dispatchEvent(new Event('error')); }   // o armazenamento não tem essa foto
+        return;
+      }
       if (!blobPedindo[id] && faltam.indexOf(id) < 0) faltam.push(id);
     });
     if (!faltam.length) return;

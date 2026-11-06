@@ -11277,7 +11277,7 @@ function esqueletoTela(){
 }
 
 /* ---------- 18. foto do funcionário ---------- */
-const fotoSrc=f=>f&&f.foto?(f.foto.id?'/_blob/'+f.foto.id:f.foto.src||''):'';
+const fotoSrc=f=>f&&f.foto?(f.foto.id?((window.JB_BLOB_URL&&window.JB_BLOB_URL(f.foto.id))||'/_blob/'+f.foto.id):f.foto.src||''):'';
 const iniciaisDe=n=>String(n||'?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
 function avatarFunc(f,cls){const s=fotoSrc(f);
  return `<span class="avatar ${cls||''} ${s?'com-foto':''}" ${s?'':`data-ini="${esc(iniciaisDe(f&&f.nome))}"`} aria-hidden="true">${s?`<img src="${esc(s)}" alt="" loading="lazy">`:''}</span>`}
@@ -32157,11 +32157,12 @@ html.vis-nv body.com-trilho[data-rota="pontoFoto"],html.vis-cc body.com-trilho[d
 .pf-vazio{grid-column:1/-1}
 .pf-rod{margin:22px 0 0;font-size:12.5px;line-height:1.5;color:var(--fraco)}
 /* a camada da batida: tela inteira, escura, com a câmera no meio */
-.pf-cam{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px 16px;overflow:auto;background:#1d1714;color:#fff;text-align:center;font-family:Inter,system-ui,sans-serif}
+body.pf-celular #jbsair,body.pf-celular #jbversao{display:none!important}   /* no celular da parede ninguém desconecta o aparelho com um toque */
+.pf-cam{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:14px;padding:20px 16px;overflow:auto;background:#1d1714;color:#fff;text-align:center;font-family:Inter,system-ui,sans-serif}
 .pf-cam .pf-nome{max-width:90vw;font:600 26px/1.2 'Lora',Georgia,serif;overflow-wrap:anywhere}
 .pf-cam .pf-tipo{font-size:15px;color:rgba(255,255,255,.8)}
 .pf-cam .pf-tipo b{display:inline-block;margin-top:6px;padding:6px 16px;border-radius:999px;background:var(--brasa,#A3461F);color:#fff;font-size:19px;letter-spacing:.01em}
-.pf-video{position:relative;width:min(78vw,50vh,420px);aspect-ratio:1/1;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 4px rgba(255,255,255,.2)}
+.pf-video{position:relative;flex:none;width:min(78vw,50vh,420px);aspect-ratio:1/1;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 4px rgba(255,255,255,.2)}
 .pf-video video,.pf-video img{display:block;width:100%;height:100%;object-fit:cover}
 .pf-video video{transform:scaleX(-1)}
 .pf-conta{position:absolute;inset:0;display:grid;place-items:center;font:700 110px/1 Inter,system-ui,sans-serif;color:#fff;text-shadow:0 4px 22px rgba(0,0,0,.7);pointer-events:none}
@@ -32195,6 +32196,7 @@ html.vis-nv body.com-trilho[data-rota="pontoFoto"],html.vis-cc body.com-trilho[d
 .pf-fm figcaption{margin-top:4px}
 .pf-fm figcaption b{color:var(--tinta)}
 @media (max-width:720px){.pf-hora{font-size:42px}.pf-hora .pf-seg{font-size:22px}.pf-acoes{margin-left:0}.pf-grade{grid-template-columns:1fr}}
+@media (orientation:landscape) and (max-height:480px){.pf-cam{gap:8px;padding:10px 16px}.pf-cam .pf-nome{font-size:20px}.pf-cam .pf-tipo b{font-size:16px;padding:4px 12px}.pf-video{width:min(60vh,300px)}}
 </style>
 <script id="ponto-foto-v78">
 "use strict";
@@ -32223,6 +32225,13 @@ const LANCAM=((PERM.ponto&&PERM.ponto.e)||['admin','rh','dp','gestor']).filter(p
 PERM[ROTA]={v:[...LANCAM,PAPEL],e:[...LANCAM,PAPEL]};
 if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
 const ehCelular=()=>APP.papel===PAPEL;
+/* o Controle Central (suspender o Setor Pessoal, bloquear o DP de alguém) vale também para esta tela:
+   quem perdeu o Espelho de ponto perde o ponto com foto; o celular olha a regra do DP diretamente */
+function politicaDP(){try{const P=window.CONTROLE_CENTRAL&&CONTROLE_CENTRAL.pol&&CONTROLE_CENTRAL.pol();if(!P||APP.isOwner)return '';
+ if((P.setoresSuspensos||[]).includes('dp'))return 'suspenso';if(((P.concessoes||{})[APP.uid]||{}).dp==='bloquear')return 'bloqueado'}catch(e){}return ''}
+const liberado=()=>ehCelular()?!politicaDP():pode('ponto');
+const motivoBloqueio=()=>!pode(ROTA,'e')?'Seu perfil não registra ponto.':politicaDP()==='suspenso'?'O Setor Pessoal está suspenso no Controle Central. O ponto com foto fica parado até o dono liberar.'
+ :'O acesso ao Setor Pessoal foi bloqueado para este usuário no Controle Central. Fale com o dono.';
 
 /* ---------- relógio: a hora do servidor do site corrige o relógio do celular ---------- */
 const REL={dif:0,medida:null,quando:0};
@@ -32245,63 +32254,85 @@ function presencas(datas){
   const k=r.funcionarioId+'|'+r.data,a=m.get(k);if(!a||(!(a.entrada||a.saida)&&(r.entrada||r.saida)))m.set(k,r)}
  return m;
 }
-/* momento de uma marcação: o carimbo da foto (com segundos) ou a hora HH:MM do registro */
+/* momento de uma marcação: o carimbo da foto (com segundos), se ainda for o mesmo horário do registro
+   (o DP pode ter corrigido a hora ou apagado a marcação depois), ou a hora HH:MM do registro */
+const hhmm=t=>{const d=new Date(t);return pad(d.getHours())+':'+pad(d.getMinutes())};
 function msDe(r,k){
- if(!r)return NaN;const f=r.fotosPonto&&r.fotosPonto[k];
- if(f&&f.em){const t=Date.parse(f.em);if(Number.isFinite(t))return t}
- const h=r[k];if(!/^\d{2}:\d{2}$/.test(h||''))return NaN;
+ if(!r)return NaN;const f=r.fotosPonto&&r.fotosPonto[k],h=r[k];
+ if(f&&f.em&&h){const t=Date.parse(f.em);if(Number.isFinite(t)&&hhmm(t)===h)return t}
+ if(!/^\d{2}:\d{2}$/.test(h||''))return NaN;
  const [a,b]=h.split(':').map(Number),d=dt(r.data);d.setHours(a,b,0,0);
  const e=minutos(r.entrada);if(k!=='entrada'&&e!=null&&a*60+b<e)d.setDate(d.getDate()+1);   // passou da meia-noite
  return d.getTime();
 }
 function semIntervalo(fid,data){const e=esperadoDia(F(fid),data);return !!(e&&!e.i)}
-/* o que pode ser marcado agora; a primeira opção é a sugerida */
-function opcoes(r,fid,data){
+/* só com a entrada: está mais perto da saída do fim do dia ou da saída para o intervalo?
+   (quem esquece de bater o almoço não ganha uma "saída para intervalo" às 17:00) */
+function pareceSaida(r,fid,data,agora){
+ const t=msDe(r,'entrada');if(!agora||!Number.isFinite(t))return false;
+ const passou=(agora.getTime()-t)/60000;let oi=240,os=540;                 // sem jornada: 4 h até o almoço, 9 h até a saída
+ const hj=horariosJornada(F(fid),data),me=hj&&minutos(hj.entrada);
+ const dist=h=>{const m=minutos(h);return me==null||m==null?null:((m-me)%1440+1440)%1440};
+ if(hj&&hj.saidaIntervalo){const a=dist(hj.saidaIntervalo),b=dist(hj.saida);if(a!=null)oi=a;if(b!=null)os=b}
+ return Math.abs(passou-os)<Math.abs(passou-oi);
+}
+/* o que pode ser marcado agora; a primeira opção é a sugerida, as outras ficam no "Não é isso?" */
+function opcoes(r,fid,data,agora){
  if(!r||!r.entrada)return['entrada'];
  if(r.saida)return[];
  if(r.retornoIntervalo)return['saida'];
- if(r.saidaIntervalo)return['retornoIntervalo'];
- return semIntervalo(fid,data)?['saida','saidaIntervalo']:['saidaIntervalo','saida'];
+ if(r.saidaIntervalo)return['retornoIntervalo','saida'];                    // saiu no intervalo e não volta mais
+ return semIntervalo(fid,data)||pareceSaida(r,fid,data,agora)?['saida','saidaIntervalo']:['saidaIntervalo','saida'];
 }
 /* a jornada de hoje ou, no turno da noite, a de ontem que ainda está aberta */
 function alvo(fid,agora,idx){
  const H=isoDe(agora),O=isoDe(new Date(agora.getTime()-864e5));
  const P=idx||presencas([H,O]),rh=P.get(fid+'|'+H)||null,ro=P.get(fid+'|'+O)||null;
  if(!(rh&&rh.entrada)&&ro&&ro.entrada&&!ro.saida){const d=agora.getTime()-msDe(ro,'entrada');
-  if(d>=0&&d<NOITE_MS){const op=opcoes(ro,fid,O);if(op.length)return{data:O,ant:ro,op}}}
- return{data:H,ant:rh,op:opcoes(rh,fid,H)};
+  if(d>=0&&d<NOITE_MS){const op=opcoes(ro,fid,O,agora);if(op.length)return{data:O,ant:ro,op}}}
+ return{data:H,ant:rh,op:opcoes(rh,fid,H,agora)};
 }
 const ULT=new Map();   // última batida feita neste aparelho (a lista local leva um instante para atualizar)
 function conferir(fid,agora){
  if(!APP.carregado)return{ok:false,msg:'Ainda carregando os dados. Tente de novo em alguns segundos.'};
  const f=F(fid);if(!f||f.situacao==='Desligado')return{ok:false,msg:'Funcionário não encontrado. Fale com o DP.'};
- const a=alvo(fid,agora);
- const ult=Math.max(0,ULT.get(fid)||0,...ORDEM.map(k=>msDe(a.ant,k)).filter(Number.isFinite));
- const passou=agora.getTime()-ult;
- if(ult&&passou>=0&&passou<MIN_MS)return{ok:false,msg:'Você já bateu o ponto há menos de 2 minutos. Não precisa bater de novo.'};
+ const a=alvo(fid,agora),u=ULT.get(fid)||0,ag=agora.getTime();
+ const ts=[u,...ORDEM.map(k=>msDe(a.ant,k))].filter(t=>Number.isFinite(t)&&t>0);
+ if(ts.some(t=>Math.abs(ag-t)<MIN_MS))return{ok:false,msg:'Você já bateu o ponto há menos de 2 minutos. Não precisa bater de novo.'};
+ /* batida antes de outra já feita neste celular: o relógio mudou no meio (não grava fora de ordem) */
+ const fotos=[u,...ORDEM.map(k=>a.ant&&a.ant.fotosPonto&&a.ant.fotosPonto[k]&&a.ant[k]?msDe(a.ant,k):NaN)].filter(t=>Number.isFinite(t)&&t>0);
+ if(fotos.some(t=>t-ag>=MIN_MS)){REL.quando=0;medirRelogio();return{ok:false,msg:'O relógio deste celular mudou. Espere um instante e toque no seu nome de novo; se continuar, avise o DP.'}}
  if(!a.op.length)return{ok:false,msg:'As marcações de '+(a.data===isoDe(agora)?'hoje':fData(a.data))+' já estão completas. Se precisar corrigir, fale com o DP.'};
  return{ok:true,...a};
 }
 
 /* ---------- gravação: pelo mesmo caminho do resto do sistema ---------- */
 const rotulos=()=>({...rotulosDe(MODS.diario),fotosPonto:'Fotos do ponto'});
+const ONDE=()=>window.JB_NUVEM?'nuvem':'claude';   // cada lugar guarda as fotos no próprio armazenamento
+const PRAZO_FOTO=15000;
 async function enviarFoto(blob,data,k){
- const r=await APP.assets.upload(new File([blob],'ponto-'+data+'-'+k+'.jpg',{type:'image/jpeg'}));
- return{id:r.id,tam:r.sizeBytes||blob.size};
+ let tm;const prazo=new Promise((_,no)=>{tm=setTimeout(()=>{const e=new Error('a foto demorou demais');e.code='timeout';no(e)},PRAZO_FOTO)});
+ try{const r=await Promise.race([APP.assets.upload(new File([blob],'ponto-'+data+'-'+k+'.jpg',{type:'image/jpeg'})),prazo]);
+  return{id:r.id,tam:r.sizeBytes||blob.size}}
+ finally{clearTimeout(tm)}
 }
 async function gravarBatida(fid,k,c,agora,foto){
  const uid=APP.uid||'local',em=agora.toISOString(),hora=pad(agora.getHours())+':'+pad(agora.getMinutes());
  const ant=c.ant?clone(c.ant):null;
- const marca={em,por:uid,origem:'Celular do ponto',...(foto?{id:foto.id,tam:foto.tam}:{semFoto:true}),...(REL.dif?{relogioCorrigidoSeg:Math.round(REL.dif/1000)}:{})};
+ /* a marca vai sempre com todas as chaves (null no que não houver): o banco junta campo a campo
+    e uma foto antiga não pode ficar presa numa batida nova sem foto */
+ const marca={em,por:uid,origem:'Celular do ponto',onde:ONDE(),id:foto?foto.id:null,tam:foto?foto.tam:null,semFoto:!foto,relogioCorrigidoSeg:REL.dif?Math.round(REL.dif/1000):null};
  const id=ant?ant.id:(DATA.diario.some(x=>x.id===idDoDia(fid,c.data))?novoId():idDoDia(fid,c.data));
- const base=ant?{id,funcionarioId:ant.funcionarioId,data:ant.data}
+ /* registro que já existe: vão junto só os campos que identificam o registro (se o DP o apagou no
+    mesmo instante, ele volta inteiro em vez de virar um item sem tipo); o resto o banco mantém */
+ const base=ant?{id,funcionarioId:ant.funcionarioId,data:ant.data,tipo:ant.tipo,setor:ant.setor||setorF(ant.funcionarioId),statusAjuste:ant.statusAjuste||'Não se aplica',lancadoPor:ant.lancadoPor||uid,criadoEm:ant.criadoEm||em,criadoPor:ant.criadoPor||uid}
   :{id,data:c.data,funcionarioId:fid,setor:setorF(fid),tipo:'Presença normal',statusAjuste:'Não se aplica',lancadoPor:uid,criadoEm:em,criadoPor:uid};
- /* só o que muda: o banco junta campo a campo e mantém o que o DP alterou ao mesmo tempo */
  const parte={...base,[k]:hora,fotosPonto:{[k]:marca},alteradoEm:em,alteradoPor:uid};
  await gravar('diario',parte,ant);
  ULT.set(fid,agora.getTime());
  const novo={...(ant||{}),...parte,fotosPonto:{...((ant&&ant.fotosPonto)||{}),[k]:marca}};
- try{await registrarLog('diario',id,ant?'alterou':'criou',ant,novo,rotulos())}catch(e){console.warn('ponto com foto: histórico',e)}
+ /* o histórico não segura a fila: a batida já está gravada */
+ Promise.resolve().then(()=>registrarLog('diario',id,ant?'alterou':'criou',ant,novo,rotulos())).catch(e=>console.warn('ponto com foto: histórico',e));
  return{hora,data:c.data,k,id,semFoto:!foto};
 }
 function motivoBatida(e){const c=e&&e.code;
@@ -32312,18 +32343,21 @@ function motivoBatida(e){const c=e&&e.code;
 }
 
 /* ---------- câmera da frente ---------- */
-const CAM={st:null,tm:null};
+const CAM={st:null,tm:null,p:null};
 const camViva=()=>!!(CAM.st&&CAM.st.getVideoTracks().some(t=>t.readyState==='live'));
+const pararStream=st=>{if(st)st.getTracks().forEach(t=>{try{t.stop()}catch(e){}})};
 async function ligarCamera(){
  clearTimeout(CAM.tm);if(camViva())return CAM.st;
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){const e=new Error('sem câmera');e.name='NotSupportedError';throw e}
- CAM.st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
- return CAM.st;
+ /* duas aberturas ao mesmo tempo (cancelar e tocar em outro nome) usam o mesmo pedido: nunca sobra câmera ligada sem dono */
+ if(!CAM.p)CAM.p=navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false})
+  .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
+ return CAM.p;
 }
 /* fica ligada um minuto depois da batida (fila de gente chegando) e então desliga */
 function desligarCamera(ms){
  clearTimeout(CAM.tm);
- const f=()=>{if(CAM.st){CAM.st.getTracks().forEach(t=>{try{t.stop()}catch(e){}});CAM.st=null}};
+ const f=()=>{if(CAM.p&&!ms){CAM.p.then(()=>{if(!CAPA){pararStream(CAM.st);CAM.st=null}},()=>{})}pararStream(CAM.st);CAM.st=null};
  if(ms)CAM.tm=setTimeout(f,ms);else f();
 }
 const motivoCamera=e=>e&&e.name==='NotAllowedError'?'a permissão da câmera foi negada neste navegador':e&&e.name==='NotFoundError'?'nenhuma câmera foi encontrada'
@@ -32350,7 +32384,7 @@ let CAPA=null;
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const EXCL='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v8"/><path d="M12 18.2v.1"/></svg>';
 function fecharCapa(){
- if(!CAPA)return;const c=CAPA;CAPA=null;c.vivo=false;clearInterval(c.cont);clearTimeout(c.tm);
+ if(!CAPA)return;const c=CAPA;CAPA=null;c.vivo=false;clearInterval(c.cont);clearTimeout(c.tm);clearTimeout(c.vigia);
  document.removeEventListener('keydown',c.tecla,true);c.v.remove();desligarCamera(60000);
  UI.busca='';const b=document.getElementById('pfBusca');if(b)b.value='';desenharLista();
 }
@@ -32365,12 +32399,13 @@ async function abrirBatida(fid){
  if(CAPA)return;
  const f=F(fid);if(!f)return;
  const v=document.createElement('div');v.className='pf-cam';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Bater o ponto');
- const c={v,fid,f,k:null,op:[],modo:'camera',vivo:true,cont:null,tm:null,ocupado:false};
- c.tecla=e=>{if(e.key==='Escape'&&!c.ocupado){e.preventDefault();fecharCapa()}};
+ const c={v,fid,f,k:null,op:[],modo:'camera',vivo:true,cont:null,tm:null,vigia:null,ocupado:false,toque:Date.now()};
+ c.tecla=e=>{if(e.key==='Escape'&&(!c.ocupado||c.solto)){e.preventDefault();fecharCapa()}};
  CAPA=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
+ v.addEventListener('pointerdown',()=>{c.toque=Date.now()});
  v.addEventListener('click',e=>clicarCapa(c,e));
  v.addEventListener('change',e=>{const i=e.target.closest('input[data-pf-arq]');if(i&&i.files&&i.files[0])usarArquivo(c,i.files[0])});
- if(!pode(ROTA,'e')){resultado(c,false,'Seu perfil não registra ponto.');return}
+ if(!pode(ROTA,'e')||!liberado()){resultado(c,false,motivoBloqueio());return}
  const k0=conferir(fid,agoraPF());
  if(!k0.ok){resultado(c,false,k0.msg);return}
  c.op=k0.op;c.k=k0.op[0];
@@ -32380,9 +32415,19 @@ async function abrirBatida(fid){
   <div class="pf-msg" id="pfMsg">Abrindo a câmera…</div>
   <div class="pf-bts" id="pfBts"></div>`;
  desenharBotoes(c);
- try{const st=await ligarCamera();if(!c.vivo)return;const vid=v.querySelector('video');vid.srcObject=st;await esperarVideo(vid);if(!c.vivo)return;contar(c)}
+ try{const st=await ligarCamera();
+  if(!c.vivo){if(!CAPA)desligarCamera(lerRota().mod===ROTA?60000:0);return}   // fechou enquanto a câmera abria
+  const vid=v.querySelector('video');vid.srcObject=st;await esperarVideo(vid);if(!c.vivo)return;contar(c)}
  catch(e){if(c.vivo)semCamera(c,e)}
 }
+/* fecha sozinha quando ninguém mexe (não enquanto a câmera do próprio celular está aberta por cima) */
+function armarFechar(c,ms){
+ clearTimeout(c.tm);
+ c.tm=setTimeout(()=>{if(!c.vivo||c.ocupado)return;
+  if(document.visibilityState!=='visible'||Date.now()-c.toque<ms-500){armarFechar(c,ms);return}
+  fecharCapa()},ms);
+}
+document.addEventListener('visibilitychange',()=>{if(CAPA&&document.visibilityState==='visible')CAPA.toque=Date.now()});
 function contar(c){
  clearInterval(c.cont);let n=3;const el=c.v.querySelector('#pfConta'),m=c.v.querySelector('#pfMsg');
  if(m)m.textContent='Olhe para a câmera. A foto sai sozinha.';if(el)el.textContent=n;
@@ -32399,7 +32444,7 @@ function semCamera(c,e){
  clearInterval(c.cont);c.modo='arquivo';
  const w=c.v.querySelector('.pf-video');if(w)w.innerHTML='<div class="pf-conta pf-conta-txt">Câmera indisponível</div>';
  const m=c.v.querySelector('#pfMsg');if(m)m.textContent='A câmera não abriu ('+motivoCamera(e)+'). Toque em "Tirar foto" para usar a câmera do celular.';
- desenharBotoes(c);
+ desenharBotoes(c);c.toque=Date.now();armarFechar(c,45000);
 }
 async function usarArquivo(c,file){
  if(c.ocupado||!c.vivo)return;
@@ -32407,8 +32452,13 @@ async function usarArquivo(c,file){
  catch(e){const m=c.v.querySelector('#pfMsg');if(m)m.textContent='Não foi possível ler a foto. Tente de novo.'}
 }
 async function registrar(c,blob,previa){
- if(c.ocupado||!c.vivo)return;c.ocupado=true;clearInterval(c.cont);
+ if(c.ocupado||!c.vivo)return;c.ocupado=true;clearInterval(c.cont);clearTimeout(c.tm);
  const agora=agoraPF();   // a hora da batida é a do momento da foto
+ /* servidor sem resposta: depois de 25 s a fila pode seguir; a gravação continua por trás e,
+    se chegar, o código fixo do dia faz uma nova tentativa só repetir o mesmo campo */
+ c.vigia=setTimeout(()=>{if(!c.vivo||!c.ocupado)return;c.solto=true;
+  const mm=c.v.querySelector('#pfMsg');if(mm)mm.textContent='O servidor ainda não respondeu. A batida pode ter sido registrada: confira seu nome na lista antes de bater de novo.';
+  const bb=c.v.querySelector('#pfBts');if(bb)bb.innerHTML='<button type="button" class="btn pf-grande" data-pf="soltar">Fechar</button>'},25000);
  const w=c.v.querySelector('.pf-video');if(w&&previa)w.innerHTML=`<img src="${previa}" alt="Foto tirada agora">`;
  const b=c.v.querySelector('#pfBts');if(b)b.innerHTML='';
  const m=c.v.querySelector('#pfMsg');if(m)m.textContent='Registrando…';
@@ -32416,7 +32466,7 @@ async function registrar(c,blob,previa){
  if(blob&&APP.assets){
   try{foto=await enviarFoto(blob,isoDe(agora),c.k)}
   catch(e){if(e&&(e.code==='unavailable'||e.code==='revoked')){c.ocupado=false;resultado(c,false,motivoBatida(e),true);return}
-   aviso='A foto não pôde ser guardada; a batida ficou registrada sem foto.'}}
+   aviso=e&&e.code==='timeout'?'A foto demorou demais para subir; a batida ficou registrada sem foto.':'A foto não pôde ser guardada; a batida ficou registrada sem foto.'}}
  else if(blob)aviso='Neste modo a foto não é guardada; a batida ficou registrada sem foto.';
  const k1=conferir(c.fid,agora);   // a lista pode ter mudado enquanto a foto subia
  if(!k1.ok){c.ocupado=false;resultado(c,false,k1.msg);return}
@@ -32425,7 +32475,7 @@ async function registrar(c,blob,previa){
  catch(e){c.ocupado=false;resultado(c,false,motivoBatida(e),true)}
 }
 function resultado(c,ok,r,repetir,aviso){
- if(!c.vivo)return;clearInterval(c.cont);clearTimeout(c.tm);
+ if(!c.vivo)return;clearInterval(c.cont);clearTimeout(c.tm);clearTimeout(c.vigia);c.solto=false;
  c.v.className='pf-cam '+(ok?'pf-res-ok':'pf-res-erro');
  if(ok){
   c.v.innerHTML=`<div class="pf-sinal">${CHECK}</div><div class="pf-res-h">${esc(NOME_K(r.k))} registrada</div><div class="pf-nome">${esc(c.f.nome)}</div><div class="pf-res-hora">${esc(r.hora)}</div>
@@ -32446,6 +32496,7 @@ function clicarCapa(c,e){
   desenharBotoes(c);if(c.modo==='camera'&&camViva())contar(c);return}
  const a=b.dataset.pf;
  if(a==='sair'){if(!c.ocupado)fecharCapa();return}
+ if(a==='soltar'){fecharCapa();return}
  if(a==='denovo'){const fid=c.fid;fecharCapa();abrirBatida(fid);return}
  if(a==='semfoto'){registrar(c,null,'');return}
 }
@@ -32477,10 +32528,14 @@ function desenharAvisos(){
  if(!pode(ROTA,'e'))a.push(['at','Seu perfil só consulta: não registra ponto.']);
  box.innerHTML=a.map(([c,t])=>`<div class="aviso ${c}" style="margin:0 0 12px">${esc(t)}</div>`).join('');
 }
-let TICK=null,HORA_ANT='';
+let TICK=null,HORA_ANT='',PASSO=null;
 function tique(){
  const h=document.getElementById('pfHora');
- if(!h||lerRota().mod!==ROTA){clearInterval(TICK);TICK=null;return}
+ if(!h||lerRota().mod!==ROTA){clearInterval(TICK);TICK=null;PASSO=null;return}
+ /* o relógio do aparelho pulou (alguém acertou a hora com a tela aberta): a correção antiga não vale mais */
+ const pn=performance.now(),dn=Date.now();
+ if(PASSO&&Math.abs((dn-PASSO.d)-(pn-PASSO.p))>3000){REL.dif=0;REL.medida=null;REL.quando=0;desenharAvisos()}
+ PASSO={d:dn,p:pn};
  const d=agoraPF();h.innerHTML=`${pad(d.getHours())}:${pad(d.getMinutes())}<span class="pf-seg">:${pad(d.getSeconds())}</span><small>${DIAS[d.getDay()]}, ${fData(isoDe(d))}</small>`;
  const m=isoDe(d)+' '+d.getHours();if(m!==HORA_ANT){if(HORA_ANT&&!CAPA)desenharLista();HORA_ANT=m}   // virada do dia e turno da noite
  if(Date.now()-REL.quando>15*60000)medirRelogio();
@@ -32498,10 +32553,13 @@ window.addEventListener('hashchange',()=>{if(lerRota().mod!==ROTA){if(CAPA)fecha
 function telaPontoFoto(el){
  const voltar=ehCelular()?'':`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`;
  if(!APP.carregado){el.innerHTML=`<div class="spot">${cabSpot('Ponto com foto','Carregando…',voltar)}<main class="spot-corpo pf-corpo">${typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>'}</main></div>`;return}
- /* a tela é montada uma vez; os redesenhos (a cada gravação) só trocam a lista, sem apagar a busca */
- if(!el.querySelector('#pfRaiz')){
+ if(!liberado()){if(CAPA)fecharCapa();desligarCamera(0);
+  el.innerHTML=`<div class="spot">${cabSpot('Ponto com foto','',voltar)}<main class="spot-corpo pf-corpo"><div class="vazio"><b>Ponto com foto indisponível</b>${esc(motivoBloqueio())}</div></main></div>`;return}
+ /* a tela é montada uma vez por perfil; os redesenhos (a cada gravação) só trocam a lista, sem apagar a busca */
+ const rz=el.querySelector('#pfRaiz');
+ if(!rz||rz.dataset.papel!==String(APP.papel)){
   const cheia=!!document.documentElement.requestFullscreen;
-  el.innerHTML=`<div class="spot" id="pfRaiz">${cabSpot('Ponto com foto','Toque no seu nome para bater o ponto',voltar)}<main class="spot-corpo pf-corpo">
+  el.innerHTML=`<div class="spot" id="pfRaiz" data-papel="${esc(APP.papel)}">${cabSpot('Ponto com foto','Toque no seu nome para bater o ponto',voltar)}<main class="spot-corpo pf-corpo">
    <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes">${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
    <div id="pfAvisos"></div>
    <input type="search" id="pfBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" enterkeyhint="search" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
@@ -32524,7 +32582,8 @@ TELAS_V[ROTA]=telaPontoFoto;
    para este perfil, qualquer rota volta para o ponto com foto. */
 const _renderCascaPF=renderCasca;
 renderCasca=function(){const r=_renderCascaPF.apply(this,arguments);
- try{if(acessoOk()&&ehCelular()&&lerRota().mod!==ROTA)setTimeout(()=>{if(ehCelular()&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)},0)}catch(e){}
+ try{document.body.classList.toggle('pf-celular',acessoOk()&&ehCelular());
+  if(acessoOk()&&ehCelular()&&lerRota().mod!==ROTA)setTimeout(()=>{if(ehCelular()&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)},0)}catch(e){}
  return r};
 
 /* ---------- menu do Setor Pessoal (Ponto e jornada), acesso rápido e pesquisa ---------- */
@@ -32533,18 +32592,28 @@ try{const g=MENU.find(x=>x[0]==='Ponto e jornada');
   MI_IX.set(it,MITENS.length);MITENS.push({...it,g:g[0],notaG:g[3]});GRUPO_DE[ROTA]=g[0];ROTULO_DE[ROTA]=it.l}}catch(e){console.warn('ponto com foto: menu',e)}
 try{if(typeof msAddAba==='function'){msAddAba('Ponto e lançamentos',ROTA,'Ponto com foto');
  const a=AREAS_MS.find(x=>x.g==='Ponto e lançamentos'),i=a?a.A.findIndex(x=>x.m===ROTA):-1,p=a?a.A.findIndex(x=>x.m==='ponto'):-1;
- if(i>=0&&p>=0&&i!==p+1){const[x]=a.A.splice(i,1);a.A.splice(p+1,0,x)}}}catch(e){console.warn('ponto com foto: menu simplificado',e)}
+ if(i>=0&&p>=0&&i!==p+1){const[x]=a.A.splice(i,1);a.A.splice(p+1,0,x)}
+ /* a aba aponta para o item do menu: a pesquisa (Ctrl K) mostra "Ponto com foto" uma vez só */
+ const x=a&&a.A.find(y=>y.m===ROTA),j=MITENS.findIndex(m=>m.m===ROTA);if(x&&j>=0){x.i=j;x.it=MITENS[j]}}}catch(e){console.warn('ponto com foto: menu simplificado',e)}
 try{if(typeof ICONE_TELA==='object')ICONE_TELA[ROTA]='camera'}catch(e){}
 try{if(typeof PQ_SINON==='object')PQ_SINON[ROTA]='foto selfie camera celular parede quiosque bater ponto marcar batida relogio'}catch(e){}
 try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===ROTA)return 'Celular na parede: a pessoa toca no nome, a câmera tira a foto e a batida entra no ponto.';return d0.apply(this,arguments)}}}catch(e){}
 
 /* ---------- "Fotos do dia": o DP confere quem bateu ---------- */
+/* cada lugar (nuvem ou Claude) só abre as fotos guardadas no próprio armazenamento */
+const fotoAqui=fp=>!!(fp&&fp.id&&(fp.onde||'nuvem')===ONDE());
+const ondeFoto=fp=>(fp&&fp.onde||'nuvem')==='nuvem'?'Foto guardada na nuvem':'Foto guardada no Claude';
+const srcFoto=id=>(window.JB_BLOB_URL&&window.JB_BLOB_URL(id))||'/_blob/'+id;
+/* a hora em que a foto foi tirada, quando o DP mudou o horário depois */
+function horaDaFoto(r,k,fp){const t=fp&&Date.parse(fp.em||'');const h=Number.isFinite(t)?hhmm(t):'';return h&&h!==r[k]?h:''}
 function falhaImagem(box){
  $$('img[data-pf-img]',box).forEach(i=>i.addEventListener('error',()=>{
-  const s=i.getAttribute('src')||'';if(window.JB_NUVEM&&s.startsWith('/_blob/'))return;   // na nuvem o endereço temporário ainda vai chegar
-  const x=document.createElement('span');x.className='pf-falta';x.textContent=window.JB_NUVEM?'Foto indisponível':'Foto guardada na nuvem';(i.closest('a')||i).replaceWith(x)}));
+  const s=i.getAttribute('src')||'';
+  if(window.JB_NUVEM&&s.startsWith('/_blob/')&&!i.hasAttribute('data-blob-falhou'))return;   // na nuvem o endereço temporário ainda vai chegar
+  const x=document.createElement('span');x.className='pf-falta';x.textContent='Foto indisponível';(i.closest('a')||i).replaceWith(x)}));
 }
 function modalFotos(dia){
+ if(ehCelular()||!pode(ROTA)||!liberado())return;   // o celular da parede não mostra as fotos dos outros
  let d=dia||hoje();
  const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
  v.innerHTML=`<div class="modal pf-modal" role="dialog" aria-modal="true" aria-label="Fotos do ponto"><h3>Fotos do ponto</h3>
@@ -32556,10 +32625,11 @@ function modalFotos(dia){
   const box=$('#pfFotosC',v);
   box.innerHTML=rs.length?`<div class="pf-fotos">${rs.map(r=>`<div class="pf-fp"><b>${esc(nomeF(r.funcionarioId))}</b><div class="pf-fm">${ORDEM.filter(k=>r.fotosPonto[k]||r[k]).map(k=>{
     const fp=r.fotosPonto[k];
-    const img=fp&&fp.id?`<a href="/_blob/${esc(fp.id)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="/_blob/${esc(fp.id)}" alt="Foto da ${esc(NOME_K(k).toLowerCase())} de ${esc(nomeF(r.funcionarioId))}" loading="lazy" data-pf-img></a>`
-     :`<span class="pf-falta">${fp?'Sem foto':'Lançada pelo DP'}</span>`;
-    const rel=fp&&fp.relogioCorrigidoSeg?`<br><small>relógio do celular corrigido em ${Math.max(1,Math.round(Math.abs(fp.relogioCorrigidoSeg)/60))} min</small>`:'';
-    return `<figure>${img}<figcaption>${esc(NOME_K(k))} <b>${esc(r[k]||'—')}</b>${rel}</figcaption></figure>`}).join('')}</div></div>`).join('')}</div>`
+    const img=fotoAqui(fp)?`<a href="/_blob/${esc(fp.id)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(srcFoto(fp.id))}" alt="Foto da ${esc(NOME_K(k).toLowerCase())} de ${esc(nomeF(r.funcionarioId))}" loading="lazy" data-pf-img></a>`
+     :`<span class="pf-falta">${fp&&fp.id?ondeFoto(fp):fp?'Sem foto':'Lançada pelo DP'}</span>`;
+    const hf=horaDaFoto(r,k,fp);
+    const obs=(hf?`<br><small>foto às ${esc(hf)}; horário alterado depois</small>`:'')+(fp&&fp.relogioCorrigidoSeg?`<br><small>relógio do celular corrigido em ${Math.max(1,Math.round(Math.abs(fp.relogioCorrigidoSeg)/60))} min</small>`:'');
+    return `<figure>${img}<figcaption>${esc(NOME_K(k))} <b>${esc(r[k]||'—')}</b>${obs}</figcaption></figure>`}).join('')}</div></div>`).join('')}</div>`
    :'<div class="vazio"><b>Nenhuma batida com foto neste dia</b>As batidas feitas no celular do ponto aparecem aqui.</div>';
   falhaImagem(box);
  };
@@ -32573,7 +32643,7 @@ const _telaPontoPF=telaPonto;
 telaPonto=function(el){const r=_telaPontoPF.apply(this,arguments);try{decorarEspelho(el)}catch(e){console.warn('ponto com foto: espelho',e)}return r};
 function decorarEspelho(el){
  const ac=el.querySelector('.cab .acoes');
- if(ac&&pode(ROTA)&&!ac.querySelector('[data-pf-ir]'))ac.insertAdjacentHTML('afterbegin',`<a class="btn" data-pf-ir href="#/${ROTA}">${ic('camera')}Ponto com foto</a><button type="button" class="btn" data-pf-fotos>${ic('camera')}Fotos do dia</button>`);
+ if(ac&&pode(ROTA)&&liberado()&&!ac.querySelector('[data-pf-ir]'))ac.insertAdjacentHTML('afterbegin',`<a class="btn" data-pf-ir href="#/${ROTA}">${ic('camera')}Ponto com foto</a><button type="button" class="btn" data-pf-fotos>${ic('camera')}Fotos do dia</button>`);
  const bf=ac&&ac.querySelector('[data-pf-fotos]');if(bf)bf.onclick=()=>modalFotos(hoje());
  /* o link da foto fica dentro da linha que abre o registro: o clique no link não abre o registro */
  $$('tr[data-go]',el).forEach(tr=>tr.onclick=e=>{if(e.target.closest('a,button'))return;location.hash=tr.dataset.go});
@@ -32583,12 +32653,13 @@ function decorarEspelho(el){
  [...tb.rows].forEach((tr,i)=>{
   const d=mes+'-'+pad(i+1);const mr=doMes.find(r=>r.data===d&&(r.entrada||r.saida));if(!mr||!mr.fotosPonto)return;
   ORDEM.forEach(k=>{const fp=mr.fotosPonto[k],td=col[k]>=0?tr.cells[col[k]]:null;if(!fp||!td||!mr[k])return;
-   td.insertAdjacentHTML('beforeend',fp.id?`<a class="pf-mini" href="/_blob/${esc(fp.id)}" target="_blank" rel="noopener" title="Ver a foto (${esc(NOME_K(k).toLowerCase())} no celular do ponto)" aria-label="Ver a foto">${ic('camera')}</a>`
-    :`<span class="pf-mini pf-sem" title="Batida no celular do ponto sem foto">${ic('camera')}</span>`)})});
+   const hf=horaDaFoto(mr,k,fp),q=hf?'; foto às '+hf+', horário alterado depois':'';
+   td.insertAdjacentHTML('beforeend',fotoAqui(fp)?`<a class="pf-mini" href="/_blob/${esc(fp.id)}" target="_blank" rel="noopener" title="Ver a foto (${esc(NOME_K(k).toLowerCase())} no celular do ponto${esc(q)})" aria-label="Ver a foto">${ic('camera')}</a>`
+    :`<span class="pf-mini pf-sem" title="${esc(fp.id?ondeFoto(fp):'Batida no celular do ponto sem foto')}${esc(q)}">${ic('camera')}</span>`)})});
 }
 
 /* ---------- fim ---------- */
-window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL};
+window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,liberado,camera:()=>({ligada:camViva(),abrindo:!!CAM.p})};
 })();
 </script>
 

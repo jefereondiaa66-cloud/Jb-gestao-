@@ -162,6 +162,48 @@ try {
   ok(r5.c.ok && r5.c.data === r5.ontem && r5.c.op[0] === 'saidaIntervalo', 'turno da noite: de madrugada continua a jornada que começou ontem');
   ok(r5.c2.data === H && r5.c2.op[0] === 'entrada', 'depois de 16 h sem saída, a batida começa uma jornada nova');
 
+  /* ---------- 5b. correções da revisão ---------- */
+  const r5b = await page.evaluate(async (H) => {
+    const P = window.PONTO_FOTO_V78;
+    const as = (h) => { const d = dt(H); const [a, b] = h.split(':').map(Number); d.setHours(a, b, 0, 0); return d; };
+    const almoco = P.opcoes({ entrada: '07:00', data: H }, 'f1', H, as('11:05'));
+    const fimDia = P.opcoes({ entrada: '07:00', data: H }, 'f1', H, as('17:02'));
+    const semRetorno = P.opcoes({ entrada: '07:00', saidaIntervalo: '11:00', data: H }, 'f1', H, as('16:00'));
+    // foto antiga não fica presa: o DP apaga a entrada da Bruna e a nova batida sai sem foto
+    await gravar('diario', { id: 'velho1', data: H, funcionarioId: 'f3', tipo: 'Presença normal', statusAjuste: 'Não se aplica', entrada: '', fotosPonto: { entrada: { em: new Date(Date.now() - 3600e3).toISOString(), id: 'FOTO_DE_OUTRA_PESSOA_000000000000', tam: 99, onde: 'claude' } } }, null);
+    await new Promise((ok) => { const t = setInterval(() => { if (DATA.diario.some((x) => x.id === 'velho1')) { clearInterval(t); ok(); } }, 30); });
+    const ant = DATA.diario.find((x) => x.id === 'velho1');
+    const c = P.conferir('f3', new Date());
+    await P.gravarBatida('f3', 'entrada', { ...c, data: H, ant }, new Date(), null);
+    await new Promise((ok) => setTimeout(ok, 400));
+    const fp = window.__srv.estado.docs.get('diario/' + H).dados.items.velho1.fotosPonto.entrada;
+    // registro apagado no meio: a batida devolve o registro inteiro, com tipo
+    const apagado = { ...ant, id: 'apagado1', entrada: '06:00' };
+    await P.gravarBatida('f3', 'saidaIntervalo', { data: H, ant: apagado }, new Date(Date.now() + 5 * 60000), null);
+    await new Promise((ok) => setTimeout(ok, 400));
+    const ap = window.__srv.estado.docs.get('diario/' + H).dados.items.apagado1;
+    // a pesquisa (Ctrl K) mostra o item uma vez só
+    const pq = typeof pqEntradas === 'function' ? pqEntradas().filter((e) => e.t === 'Ponto com foto').length : 1;
+    return { almoco, fimDia, semRetorno, fp, apTipo: ap && ap.tipo, pq };
+  }, H);
+  ok(r5b.almoco[0] === 'saidaIntervalo', 'só com a entrada, perto do almoço: sugere a saída para o intervalo');
+  ok(r5b.fimDia[0] === 'saida' && r5b.fimDia.includes('saidaIntervalo'), 'só com a entrada, no fim do dia: sugere a saída (quem não bateu o almoço)');
+  ok(r5b.semRetorno.join() === 'retornoIntervalo,saida', 'saiu para o intervalo: dá para marcar a saída sem voltar');
+  ok(r5b.fp && r5b.fp.id === null && r5b.fp.semFoto === true, 'batida sem foto não herda a foto antiga da marcação');
+  ok(r5b.apTipo === 'Presença normal', 'batida sobre registro apagado no meio volta com o tipo (não vira item sem tipo)');
+  ok(r5b.pq === 1, `pesquisa (Ctrl K) mostra "Ponto com foto" uma vez só (${r5b.pq})`);
+
+  // cancelar e tocar em outro nome enquanto a câmera abre: ao sair da tela, nenhuma câmera fica ligada
+  await page.click('#pfLista [data-pf-f="f2"]');
+  await page.click('.pf-cam [data-pf="sair"]');
+  await page.click('#pfLista [data-pf-f="f2"]');
+  await page.waitForSelector('.pf-cam [data-pf="sair"]');
+  await page.click('.pf-cam [data-pf="sair"]');
+  await page.evaluate(() => { location.hash = '#/ponto'; });
+  await page.waitForTimeout(1500);
+  const cam = await page.evaluate(() => window.PONTO_FOTO_V78.camera());
+  ok(!cam.ligada && !cam.abrindo, 'cancelar e tocar de novo: ao sair da tela a câmera desliga');
+
   /* ---------- 6. Espelho de ponto e Fotos do dia ---------- */
   await page.evaluate(() => { UIP.func = 'f1'; UIP.mes = hoje().slice(0, 7); location.hash = '#/ponto'; });
   await page.waitForSelector('table.espelho', { timeout: 10000 });
@@ -170,8 +212,10 @@ try {
   await page.click('.cab .acoes [data-pf-fotos]');
   await page.waitForSelector('.pf-modal', { timeout: 5000 });
   await page.waitForFunction(() => [...document.querySelectorAll('.pf-modal img[data-pf-img]')].some((i) => i.complete && i.naturalWidth > 0), null, { timeout: 5000 }).catch(() => {});
-  const r6 = await page.evaluate(() => ({ pessoas: document.querySelectorAll('.pf-modal .pf-fp').length, fotos: [...document.querySelectorAll('.pf-modal img[data-pf-img]')].filter((i) => i.complete && i.naturalWidth > 0).length }));
-  ok(r6.pessoas === 1 && r6.fotos === 2, `"Fotos do dia" mostra as fotos de quem bateu (${r6.pessoas} pessoa, ${r6.fotos} fotos)`);
+  const r6 = await page.evaluate(() => { const ana = [...document.querySelectorAll('.pf-modal .pf-fp')].find((c) => /Ana Teste Souza/.test(c.textContent));
+    return { ana: !!ana, fotos: ana ? [...ana.querySelectorAll('img[data-pf-img]')].filter((i) => i.complete && i.naturalWidth > 0).length : 0, semFoto: /Sem foto/.test(document.querySelector('.pf-modal').textContent) }; });
+  ok(r6.ana && r6.fotos === 2, `"Fotos do dia" mostra as fotos de quem bateu (Ana: ${r6.fotos} fotos)`);
+  ok(r6.semFoto, '"Fotos do dia" avisa a batida que ficou sem foto');
   await page.click('.pf-modal [data-r]');
 
   /* ---------- 7. perfil "Celular do ponto" ---------- */
@@ -184,20 +228,42 @@ try {
     location.hash = '#/painel';
     await new Promise((ok) => setTimeout(ok, 600));
     const h2 = location.hash;
-    const r = { rotas, h1, h2, nome: PAPEIS.celularPonto, voltar: !!document.querySelector('#pfRaiz a[href="#/ponto"]'), fotos: !!document.getElementById('pfFotos') };
-    APP.papel = 'admin'; renderCasca();
+    const r = { rotas, h1, h2, nome: PAPEIS.celularPonto, voltar: !!document.querySelector('#pfRaiz a[href="#/ponto"]'), fotos: !!document.getElementById('pfFotos'), classe: document.body.classList.contains('pf-celular') };
+    // Controle Central: Setor Pessoal suspenso para o celular
+    const pol0 = CONTROLE_CENTRAL.pol, dono0 = APP.isOwner;
+    CONTROLE_CENTRAL.pol = () => ({ ...pol0(), setoresSuspensos: ['dp'], concessoes: {} }); APP.isOwner = false;
+    renderTela();
+    r.suspenso = /indisponível/.test(document.getElementById('conteudo').textContent) && !document.getElementById('pfLista');
+    CONTROLE_CENTRAL.pol = pol0; APP.isOwner = dono0;
+    APP.papel = 'admin'; renderCasca(); renderTela();
+    r.voltou = !!document.getElementById('pfFotos');   // a tela se remonta com o perfil novo
+    // quem perdeu o Espelho de ponto (Controle Central) perde também o ponto com foto
+    const v0 = PERM.ponto.v; PERM.ponto.v = v0.filter((x) => x !== 'admin');
+    renderTela();
+    r.semEspelho = /indisponível/.test(document.getElementById('conteudo').textContent);
+    PERM.ponto.v = v0; renderTela();
+    r.classeDepois = document.body.classList.contains('pf-celular');
     return r;
   });
+  ok(r7.classe && !r7.classeDepois, 'no celular da parede somem os botões "Sair" e "Atualizar agora" da nuvem');
+  ok(r7.suspenso, 'Setor Pessoal suspenso no Controle Central: o celular para de bater');
+  ok(r7.semEspelho, 'quem perdeu o Espelho de ponto no Controle Central perde também o ponto com foto');
+  ok(r7.voltou, 'trocar o perfil com a tela aberta remonta a tela');
   ok(r7.rotas.join() === 'pontoFoto', `o perfil só tem a tela do ponto com foto (${r7.rotas.join(', ')})`);
   ok(r7.h1 === '#/pontoFoto' && r7.h2 === '#/pontoFoto', 'de qualquer endereço volta para a tela do ponto');
   ok(r7.nome === 'Celular do ponto', 'perfil "Celular do ponto" aparece para o administrador escolher');
   ok(!r7.voltar && !r7.fotos, 'no celular não aparecem o Espelho nem as fotos de outras pessoas');
   ok(semErros(erros).length === 0, `sem erros de JavaScript${semErros(erros).length ? ': ' + semErros(erros).slice(0, 3).join(' | ') : ''}`);
-  await page.setViewportSize({ width: 412, height: 860 });
-  await page.evaluate(() => { location.hash = '#/pontoFoto'; });
-  await page.waitForSelector('#pfLista [data-pf-f]');
-  ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no celular (412 px) a tela cabe sem rolar para o lado');
-  await page.screenshot({ path: join(RAIZ, 'saida/tela-ponto-foto.png') });
+  // o celular da parede, em pé (412 e 360 px de largura)
+  for (const w of [412, 360]) {
+    await page.setViewportSize({ width: w, height: 860 });
+    await page.evaluate(() => { APP.papel = 'celularPonto'; location.hash = '#/pontoFoto'; renderCasca(); renderTela(); });
+    await page.waitForSelector('#pfLista [data-pf-f]');
+    await page.waitForTimeout(300);
+    ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `celular da parede (${w} px): a tela cabe sem rolar para o lado`);
+    if (w === 412) await page.screenshot({ path: join(RAIZ, 'saida/tela-ponto-foto.png') });
+  }
+  await page.evaluate(() => { APP.papel = 'admin'; renderCasca(); renderTela(); });
   await ctx.close();
 
   /* ---------- 8. sem câmera ---------- */
