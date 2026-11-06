@@ -33085,5 +33085,79 @@ window.RELOGIO_PONTO_V79={interpretar,montarDias,lerArquivo,linhasDoTexto,numNor
 })();
 </script>
 
+<style id="resp-relatorio-v80-css">
+/* ================= V80 · Responsável escolhido ao gerar o relatório ================= */
+.rr-modal{max-width:440px}
+.rr-ops{display:flex;flex-direction:column;gap:8px;margin:4px 0 14px}
+.rr-op{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--linha);border-radius:var(--r2,10px);background:var(--branco);cursor:pointer;font-size:14px}
+.rr-op:has(input:checked){border-color:var(--pri,#c0392b);box-shadow:0 0 0 1px var(--pri,#c0392b) inset}
+.rr-op input{margin:0;flex:none}
+.rr-op span{display:flex;flex-direction:column;min-width:0}
+.rr-op small{font-size:12px;color:var(--suave)}
+</style>
+
+<script id="resp-relatorio-v80">
+"use strict";
+/* ================= V80 · Responsável escolhido na hora de gerar o relatório (06/11/2026) =================
+   Pedido do Bayron: ao gerar qualquer relatório, escolher quem é o responsável: ele (Bayron Silva Freitas)
+   ou o Jeferson (Jeferson Dias de Azevedo). Se o setor tem encarregado principal (V58/V59), ele também
+   aparece como opção. O nome escolhido sai no cabeçalho e no quadro de parâmetros do relatório.
+   Vale para Visualizar e Exportar PDF (os dois caminhos de todo relatório). Documentos que não são
+   relatório (contratos, termos, recibos, holerites) não mudam. O Setor Pessoal (Departamento Pessoal)
+   fica de fora: só o dono mexe nele. */
+(function(){
+const RESP_FIXOS=['Bayron Silva Freitas','Jeferson Dias de Azevedo'];
+const CHAVE='jb_resp_rel';
+const lerUlt=()=>{try{return localStorage.getItem(CHAVE)||''}catch(e){return ''}};
+const gravarUlt=v=>{try{localStorage.setItem(CHAVE,v)}catch(e){}};
+const norm=t=>(typeof semAcento==='function'?semAcento(String(t||'')):String(t||'')).trim().toLowerCase();
+/* telas comuns a todos os setores e telas do Setor Pessoal registradas fora do DP */
+const COMUNS=['setores','documento','breve','grupo','ficha','instalar','resumo-dia','setor-variacoes'];
+const DP_EXTRA=['pontoFoto','relogioPonto','dpvariacoes'];
+function rotaOrigem(){const r=lerRota();if(r.mod==='documento'&&typeof DOC_VER!=='undefined'&&DOC_VER&&DOC_VER.origem)return DOC_VER.origem;return r.mod||''}
+function doDP(mod){if(!mod)return false;if(DP_EXTRA.includes(mod))return true;if(COMUNS.includes(mod))return false;
+ if(/^setor-/.test(mod))return false;return !(typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(mod))}
+function ehRelatorio(D){if(!D||typeof D!=='object')return false;if(/^RELAT[ÓO]RIO/i.test(String(D.tipo||'')))return true;
+ return (D.meta||[]).some(m=>m&&m[0]==='Situação'&&m[1]==='Relatório')}
+const precisa=D=>ehRelatorio(D)&&!D.respRel&&!doDP(rotaOrigem());
+function opcoes(D){
+ const L=RESP_FIXOS.map(nome=>({nome,cargo:''}));
+ const ja=(D.meta||[]).find(m=>m&&m[0]==='Responsável');
+ const rs=typeof REL_RESP!=='undefined'&&REL_RESP&&REL_RESP.nome?REL_RESP:null;
+ const nomeS=ja?String(ja[1]||''):rs?rs.nome:'';
+ if(nomeS&&!L.some(x=>norm(x.nome)===norm(nomeS)))L.push({nome:nomeS,cargo:rs&&norm(rs.nome)===norm(nomeS)?String(rs.cargo||''):'',doSetor:true});
+ return L}
+function escolher(D){return new Promise(res=>{
+ const L=opcoes(D);const ult=norm(lerUlt());let sel=L.findIndex(x=>norm(x.nome)===ult);
+ if(sel<0){const eu=norm(APP.nome);if(eu)sel=L.findIndex(x=>norm(x.nome)===eu||norm(x.nome).split(' ')[0]===eu.split(' ')[0])}
+ if(sel<0)sel=0;
+ const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ v.innerHTML=`<div class="modal rr-modal" role="dialog" aria-modal="true" aria-labelledby="rrTit"><h3 id="rrTit">Quem é o responsável por este relatório?</h3>
+  <p>O nome escolhido sai no cabeçalho e nos parâmetros do relatório.</p>
+  <div class="rr-ops" role="radiogroup" aria-labelledby="rrTit">${L.map((x,i)=>`<label class="rr-op"><input type="radio" name="rrResp" value="${i}" ${i===sel?'checked':''}><span><b>${esc(x.nome)}</b>${x.doSetor?`<small>Responsável do setor${x.cargo?' · '+esc(x.cargo):''}</small>`:''}</span></label>`).join('')}</div>
+  <div class="acoes"><button type="button" class="btn" data-r="0">Cancelar</button><button type="button" class="btn pri" data-r="1">Gerar relatório</button></div></div>`;
+ let feito=false;const fim=r=>{if(feito)return;feito=true;if(typeof animarSaida==='function')animarSaida(v);else v.remove();res(r)};
+ v.addEventListener('click',e=>{if(e.target===v)return fim(null);const b=e.target.closest('[data-r]');if(!b)return;if(b.dataset.r!=='1')return fim(null);
+  const c=v.querySelector('input[name="rrResp"]:checked');fim(c?L[+c.value]||null:null)});
+ v.addEventListener('keydown',e=>{if(e.key==='Escape')fim(null)});
+ document.body.appendChild(v);const b1=v.querySelector('[data-r="1"]');if(b1)b1.focus()})}
+function aplicar(D,r){
+ const tirar=a=>(a||[]).filter(x=>!(x&&x[0]==='Responsável'));
+ D.meta=tirar(D.meta);const iS=D.meta.findIndex(x=>x&&x[0]==='Situação');D.meta.splice(iS<0?D.meta.length:iS,0,['Responsável',r.nome]);
+ const q=D.quadros&&D.quadros[0];if(q&&q.rot==='PARÂMETROS'&&Array.isArray(q.campos)){q.campos=tirar(q.campos);q.campos.push(['Responsável',r.nome+(r.cargo?' · '+r.cargo:'')])}
+ /* a linha de assinatura do encarregado do setor (V58) só fica quando ele é o escolhido */
+ if(!r.doSetor)D.assinaturas=(D.assinaturas||[]).filter(a=>!(a&&/^Responsável/.test(String(a.sub||''))));
+ D.respRel=r.nome;return D}
+async function preparar(D){if(!precisa(D))return true;const r=await escolher(D);if(!r)return false;gravarUlt(r.nome);aplicar(D,r);return true}
+const verDoc0=verDoc;
+verDoc=function(D){const t=this,a=arguments;if(!precisa(D))return verDoc0.apply(t,a);
+ preparar(D).then(ok=>{if(ok)verDoc0.apply(t,a)}).catch(e=>{console.warn('responsável do relatório',e);verDoc0.apply(t,a)})};
+const pdf0=emitirPdfDoc;
+emitirPdfDoc=async function(D){if(!(await preparar(D)))return false;return pdf0.apply(this,arguments)};
+if(typeof baixarPdfDoc==='function'){const b0=baixarPdfDoc;baixarPdfDoc=async function(D){if(!(await preparar(D)))return false;return b0.apply(this,arguments)}}
+window.RESP_REL_V80={ehRelatorio,doDP,opcoes,aplicar,precisa};
+})();
+</script>
+
 </body>
 </html>
