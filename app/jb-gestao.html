@@ -32714,7 +32714,7 @@ function numDe(f,tmp){
  const m=cfgR().ids||{};if(m[f.id]!=null&&m[f.id]!=='')return numNorm(m[f.id]);
  return numNorm(f.matricula);
 }
-const semAcento=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const semAcento=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 /* quem é o número N do relógio: escolha feita na conferência > número salvo > matrícula > nome igual */
 function resolvedor(escolhas){
  const fs=DATA.funcionarios.filter(f=>!ehPrestador(f.tipoContratacao));
@@ -32786,7 +32786,7 @@ function linhasDaAba(ws){
  return out;
 }
 function linhasDoTexto(t){
- const ls=String(t).replace(/^﻿/,'').split(/\r\n|\n|\r/).filter(l=>l.trim());
+ const ls=String(t).replace(/^\uFEFF/,'').split(/\r\n|\n|\r/).filter(l=>l.trim());
  const sep=['\t',';',','].find(s=>ls.slice(0,20).filter(l=>l.includes(s)).length>=Math.min(3,ls.length))||null;
  return ls.map(l=>sep?l.split(sep).map(x=>x.replace(/^"|"$/g,'').trim()):l.trim().split(/\s{2,}|\t/).map(x=>x.trim()));
 }
@@ -32796,7 +32796,7 @@ async function lerArquivo(file){
  const u8=new Uint8Array(buf);
  const ehZipOuXls=(u8[0]===0x50&&u8[1]===0x4B)||(u8[0]===0xD0&&u8[1]===0xCF);
  if(['txt','dat','csv','log'].includes(ext)&&!ehZipOuXls){
-  let t=new TextDecoder('utf-8').decode(u8);if(t.includes('�'))t=new TextDecoder('windows-1252').decode(u8);
+  let t=new TextDecoder('utf-8').decode(u8);if(t.includes('\uFFFD'))t=new TextDecoder('windows-1252').decode(u8);
   return[{aba:nome,linhas:linhasDoTexto(t)}];
  }
  if(!window.XLSX){try{await garantirBibliotecas()}catch(e){}}
