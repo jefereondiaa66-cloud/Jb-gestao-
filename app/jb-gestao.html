@@ -32663,5 +32663,427 @@ window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,lib
 })();
 </script>
 
+<style id="relogio-ponto-v79-css">
+/* ================= V79 · Relógio de ponto de digital (importação das batidas) ================= */
+.rp-passos{margin:0;padding-left:20px;font-size:13.5px;line-height:1.6;color:var(--tinta)}
+.rp-passos li{margin:0 0 4px}
+.rp-arq{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px}
+.rp-arq .rp-nome{font-size:13px;color:var(--suave);overflow-wrap:anywhere}
+.rp-res{display:flex;gap:8px;flex-wrap:wrap;margin:0 12px 10px}
+.rp-res span{padding:5px 11px;border:1px solid var(--linha);border-radius:999px;font-size:12.6px;background:var(--branco)}
+.rp-res b{font-variant-numeric:tabular-nums}
+.rp-sem{margin:0 12px 12px;padding:10px 12px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--papel)}
+.rp-sem>b{display:block;margin-bottom:8px;font-size:13.5px}
+.rp-sem-l{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.rp-sem-l label{display:flex;align-items:center;gap:8px;font-size:13px}
+.rp-sem-l select{flex:1;min-width:0}
+.rp-hs{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rp-hs s{color:var(--fraco)}
+.rp-num{width:90px}
+.rp-obs{display:block;margin-top:2px;font-size:11.8px;color:var(--suave)}
+.rp-mais{margin:8px 12px 12px;font-size:12.5px;color:var(--suave)}
+@media (max-width:720px){.rp-hs{white-space:normal}.rp-obs{text-align:right}.rp-sem-l{grid-template-columns:1fr}}
+</style>
+<script id="relogio-ponto-v79">
+"use strict";
+/* ================= V79 · Relógio de ponto de digital (06/11/2026) =================
+   A Concretiza usa um relógio de digital simples (CST-BIO X4 = Knup KP-1028): ele guarda as digitais e
+   as batidas, sem rede, e entrega uma planilha pelo pen drive (ou pelo cabo mini USB, que abre como
+   um pen drive no computador). Esta tela lê essa planilha e leva as batidas para o Diário do DP:
+   · cada funcionário do JB fica ligado ao número dele no relógio (padrão: a matrícula);
+   · a planilha é lida sozinha: lista de batidas (número + data e hora) ou grade do mês (dias nas colunas);
+   · mostra a conferência antes de gravar; batida repetida (até 2 min) conta uma vez só;
+   · nunca apaga nem troca o que o DP já lançou: horário diferente fica como está e aparece na conferência;
+   · importar o mesmo arquivo de novo não duplica nada.
+   Registro gerencial, como o resto do ponto: não é o REP da Portaria MTE 671/2021. */
+(()=>{
+const ROTA='relogioPonto';
+const ORDEM=['entrada','saidaIntervalo','retornoIntervalo','saida'];
+const CURTO={entrada:'Entrada',saidaIntervalo:'Intervalo',retornoIntervalo:'Volta',saida:'Saída'};
+const REPETIDA_MIN=2;
+const ED=((PERM.ponto&&PERM.ponto.e)||['admin','rh','dp','gestor']).filter(p=>p!=='celularPonto');
+PERM[ROTA]={v:ED.slice(),e:ED.slice()};
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+
+/* ---------- números no relógio ---------- */
+const soDig=x=>String(x??'').replace(/\D/g,'');
+const numNorm=x=>{const d=soDig(x);return d?String(+d.slice(-12)):''};          // "007" e "7" são o mesmo número
+const cfgR=()=>(CFG&&CFG.relogioPonto)||{};
+function numDe(f,tmp){
+ const t=tmp&&tmp[f.id];if(t!=null)return numNorm(t);
+ const m=cfgR().ids||{};if(m[f.id]!=null&&m[f.id]!=='')return numNorm(m[f.id]);
+ return numNorm(f.matricula);
+}
+const semAcento=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+/* quem é o número N do relógio: escolha feita na conferência > número salvo > matrícula > nome igual */
+function resolvedor(escolhas){
+ const fs=DATA.funcionarios.filter(f=>!ehPrestador(f.tipoContratacao));
+ const porNum=new Map(),dup=new Set();
+ const ativos=fs.filter(f=>f.situacao!=='Desligado'),outros=fs.filter(f=>f.situacao==='Desligado');
+ for(const grupo of [ativos,outros])for(const f of grupo){const n=numDe(f);if(!n)continue;
+  if(porNum.has(n)){if(grupo===ativos&&porNum.get(n).situacao!=='Desligado')dup.add(n);continue}porNum.set(n,f)}
+ const porNome=new Map();
+ for(const f of ativos){const k=semAcento(f.nome);porNome.set(k,porNome.has(k)?null:f)}
+ return(num,nome)=>{
+  if(escolhas[num])return{f:F(escolhas[num]),como:'escolhido agora'};
+  if(porNum.has(num)&&!dup.has(num))return{f:porNum.get(num),como:'número'};
+  if(dup.has(num))return{f:null,como:'dois funcionários com o número '+num};
+  const k=semAcento(nome);
+  if(k){if(porNome.get(k))return{f:porNome.get(k),como:'nome'};
+   const c=ativos.filter(f=>{const n=semAcento(f.nome);return n.startsWith(k+' ')||(k.length>=4&&n.split(' ')[0]===k)});
+   if(c.length===1)return{f:c[0],como:'nome'}}
+  return{f:null,como:''};
+ };
+}
+
+/* ---------- leitura do arquivo ---------- */
+const RX_HORA=/(?:^|[^\d:])([01]?\d|2[0-3])[:hH]([0-5]\d)(?::([0-5]\d))?(?![\d])/g;
+const RX_DATA=/(?:^|[^\d])(?:(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})|(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2}))(?![\d])/;
+let MDY=false;                                                     // a planilha escreve mês/dia (formato americano)?
+function dataDe(txt){
+ const m=RX_DATA.exec(String(txt||''));if(!m)return null;let y,mo,d;
+ if(m[1]){y=+m[1];mo=+m[2];d=+m[3]}else{d=+m[4];mo=+m[5];y=+m[6];if(y<100)y+=2000;if(MDY){const t=d;d=mo;mo=t}}
+ if(mo<1||mo>12||d<1||d>31||y<2000||y>2100)return null;
+ const x=new Date(y,mo-1,d);if(x.getMonth()!==mo-1)return null;
+ return{iso:y+'-'+pad(mo)+'-'+pad(d),fim:m.index+m[0].length,ini:m.index};
+}
+function horasDe(txt,depois){
+ const s=String(txt||'').slice(depois||0),out=[];let m;
+ /* relatório que cola as horas sem espaço ("07:5812:0313:0218:05"): de 5 em 5 */
+ const junto=s.replace(/\s+/g,'');
+ if(junto.length>5&&/^(?:[0-2]\d:[0-5]\d)+$/.test(junto)){for(let i=0;i<junto.length;i+=5){const h=+junto.slice(i,i+2);if(h<24)out.push({h:junto.slice(i,i+5),s:0})}return out}
+ RX_HORA.lastIndex=0;
+ while((m=RX_HORA.exec(s)))out.push({h:pad(+m[1])+':'+m[2],s:m[3]?+m[3]:0});
+ return out;
+}
+/* datas como dd/mm ou mm/dd: se algum "mês" passa de 12 e nenhum "dia" passa, a planilha é americana */
+function detectarMDY(linhas){
+ let a=0,b=0;const rx=/(?:^|[^\d])(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})(?![\d])/g;
+ for(const l of linhas)for(const c of l){let m;rx.lastIndex=0;while((m=rx.exec(String(c))))if(+m[1]>12)a++;else if(+m[2]>12)b++}
+ return b>0&&a===0;
+}
+/* célula do Excel: data de verdade vira "AAAA-MM-DD HH:MM:SS" (sem fuso), o resto vira texto */
+function textoCelula(c){
+ if(!c)return '';
+ if(c.t==='n'&&c.z&&window.XLSX&&XLSX.SSF&&XLSX.SSF.is_date(c.z)){
+  const v=+c.v;if(!Number.isFinite(v))return String(c.w||'');
+  const dias=Math.floor(v),seg=Math.round((v-dias)*86400);
+  const hh=pad(Math.floor(seg/3600)%24),mm=pad(Math.floor(seg/60)%60),ss=pad(seg%60);
+  if(dias<1)return hh+':'+mm+':'+ss;
+  const d=new Date(Date.UTC(1899,11,30)+dias*864e5);
+  const iso=d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate());
+  return seg?iso+' '+hh+':'+mm+':'+ss:iso;
+ }
+ if(c.t==='d'&&c.v instanceof Date){const d=c.v;return isoDe(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())}
+ return String(c.w!=null&&c.t!=='n'?c.w:c.v??'').trim();
+}
+function linhasDaAba(ws){
+ if(!ws||!ws['!ref'])return[];
+ const R=XLSX.utils.decode_range(ws['!ref']),out=[];
+ for(let r=R.s.r;r<=Math.min(R.e.r,R.s.r+60000);r++){const l=[];
+  for(let c=R.s.c;c<=Math.min(R.e.c,R.s.c+80);c++)l.push(textoCelula(ws[XLSX.utils.encode_cell({r,c})]));
+  if(l.some(x=>x!==''))out.push(l)}
+ return out;
+}
+function linhasDoTexto(t){
+ const ls=String(t).replace(/^﻿/,'').split(/\r\n|\n|\r/).filter(l=>l.trim());
+ const sep=['\t',';',','].find(s=>ls.slice(0,20).filter(l=>l.includes(s)).length>=Math.min(3,ls.length))||null;
+ return ls.map(l=>sep?l.split(sep).map(x=>x.replace(/^"|"$/g,'').trim()):l.trim().split(/\s{2,}|\t/).map(x=>x.trim()));
+}
+async function lerArquivo(file){
+ const nome=file.name||'arquivo',ext=(nome.split('.').pop()||'').toLowerCase();
+ const buf=await file.arrayBuffer();
+ const u8=new Uint8Array(buf);
+ const ehZipOuXls=(u8[0]===0x50&&u8[1]===0x4B)||(u8[0]===0xD0&&u8[1]===0xCF);
+ if(['txt','dat','csv','log'].includes(ext)&&!ehZipOuXls){
+  let t=new TextDecoder('utf-8').decode(u8);if(t.includes('�'))t=new TextDecoder('windows-1252').decode(u8);
+  return[{aba:nome,linhas:linhasDoTexto(t)}];
+ }
+ if(!window.XLSX){try{await garantirBibliotecas()}catch(e){}}
+ if(!window.XLSX)throw new Error('A leitura de Excel ainda não carregou (precisa de internet). Tente de novo em alguns segundos.');
+ const wb=XLSX.read(u8,{type:'array',cellDates:false,cellNF:true});
+ return wb.SheetNames.map(n=>({aba:n,linhas:linhasDaAba(wb.Sheets[n])}));
+}
+
+/* ----- formato 1: lista de batidas (uma linha por batida, ou uma linha por pessoa e dia) ----- */
+const RX_CAB_ID=[/^en ?no\.?$/,/^ac[- ]?no\.?$/,/^(user|usuario) ?(id|no)$/,/^id( do (usuario|funcionario))?$/,/^pin$/,/^matr(icula|\.)?$/,/^cod(igo)?( do funcionario)?\.?$/,/^(n|no|nº|n°|numero)( do funcionario| no relogio| do usuario)?\.?$/,/^(employee|person|badge|card) ?(id|no)\.?$/,/^cartao$/];
+const RX_CAB_FORA=/total|horas|trabalhad|extra|atraso|saldo|falta|duracao|hours|late|early|overtime|jornada|turno|shift|escala|previst/;
+const RX_CAB_NOME=/^(nome( do funcionario)?|name|funcionario|usuario|employee|colaborador)$/;
+function lerLista(linhas,aba){
+ let cab=-1,cId=-1,cNome=-1;const fora=new Set();
+ for(let i=0;i<Math.min(linhas.length,25)&&cab<0;i++){const l=linhas[i].map(semAcento);
+  if(l.some(c=>dataDe(c)))continue;
+  for(const rx of RX_CAB_ID){const j=l.findIndex(c=>rx.test(c));if(j>=0){cab=i;cId=j;break}}
+  if(cab>=0){cNome=l.findIndex(c=>RX_CAB_NOME.test(c));l.forEach((c,j)=>{if(RX_CAB_FORA.test(c))fora.add(j)})}}
+ const corpo=linhas.slice(cab+1);
+ /* a data e as horas de cada linha */
+ const info=corpo.map(l=>{let d=null,dc=-1;for(let j=0;j<l.length;j++){if(j===cId)continue;const x=dataDe(l[j]);if(x){d=x;dc=j;break}}
+  if(!d)return null;const hs=[];
+  l.forEach((c,j)=>{if(j===cId||j===cNome||fora.has(j))return;hs.push(...horasDe(c,j===dc?d.fim:0))});
+  return{l,d,dc,hs}}).filter(x=>x&&x.hs.length);
+ if(info.length<1)return null;
+ if(cId<0){                                                          // sem cabeçalho: a coluna do número vem antes da data
+  const dc=Math.min(...info.map(x=>x.dc)),cand=[];
+  for(let j=0;j<dc;j++){const v=info.map(x=>x.l[j]);if(!v.every(c=>/^\s*\d{1,12}\s*$/.test(c)))continue;
+   const ns=v.map(Number),dist=new Set(ns).size;
+   const seq=ns.length>3&&ns.every((n,i)=>!i||n===ns[i-1]+1);
+   cand.push({j,dist,seq})}
+  const bons=cand.filter(c=>!c.seq&&(c.dist>1||cand.length===1||info.length<3));
+  const esc1=bons[0]||cand[0];if(!esc1)return null;cId=esc1.j;
+  if(cNome<0){for(let j=0;j<dc;j++){if(j===cId)continue;if(info.every(x=>/[A-Za-zÀ-ú]{2,}/.test(x.l[j]||'')&&!dataDe(x.l[j])))cNome=j}}
+ }
+ const bat=[];
+ for(const x of info){const num=numNorm(x.l[cId]);if(!num)continue;const nome=cNome>=0?String(x.l[cNome]||'').trim():'';
+  for(const h of x.hs)bat.push({num,nome,data:x.d.iso,hora:h.h,seg:h.s})}
+ return bat.length?{formato:'lista de batidas',aba,bat}:null;
+}
+
+/* ----- formato 2: grade do mês (dias nas colunas, as horas dentro da célula) ----- */
+function lerGrade(linhas,aba,mesEscolhido){
+ let hi=-1,cols=[];
+ for(let i=0;i<Math.min(linhas.length,40)&&hi<0;i++){
+  const c=[];linhas[i].forEach((v,j)=>{const t=String(v).trim();
+   if(/^\d{1,2}$/.test(t)&&+t>=1&&+t<=31)c.push({j,d:+t,iso:null});
+   else{const x=dataDe(t);if(x&&t.length<=12)c.push({j,d:+x.iso.slice(8),iso:x.iso})}});
+  let seguidos=0;for(let k=1;k<c.length;k++)if(c[k].d===c[k-1].d+1||(c[k].d===1&&c[k-1].d>=28))seguidos++;
+  if(c.length>=5&&seguidos>=c.length-2){hi=i;cols=c}}
+ if(hi<0)return null;
+ /* o mês: da própria coluna, de uma data escrita no alto da planilha ou da escolha na tela */
+ let base=mesEscolhido||'';
+ if(!cols.some(c=>c.iso)){
+  if(!base)for(let i=0;i<hi&&!base;i++)for(const v of linhas[i]){const x=dataDe(v);if(x){base=x.iso.slice(0,7);break}
+   const m=/(\d{4})[-\/.](\d{1,2})(?![\d])/.exec(String(v));if(m&&+m[2]>=1&&+m[2]<=12){base=m[1]+'-'+pad(+m[2]);break}}
+  let [y,mo]=(base||mesAtual()).split('-').map(Number),ant=0;
+  /* período que vira o mês (de 26 a 25): quando o dia volta, passa para o mês seguinte */
+  for(const c of cols){if(ant&&c.d<ant){mo++;if(mo>12){mo=1;y++}}ant=c.d;
+   const x=new Date(y,mo-1,c.d);c.iso=x.getMonth()===mo-1?y+'-'+pad(mo)+'-'+pad(c.d):null}
+ }
+ const rxId=/(?:^|[^a-z])(?:id|no\.?|n[ºo°]\.?|matr\w*\.?|c[oó]d\w*\.?|ac-?no\.?|en ?no\.?|pin|user ?id|numero)\s*[:：]\s*(\d{1,12})/i;
+ const rxNome=/(?:nome|name)\s*[:：]\s*([^:：\t|]+?)(?=\s{2,}|\s+(?:dept|depart|setor|id|no\.?)\b|$)/i;
+ const prim=cols[0].j,bat=[];let atual=null;
+ for(let i=hi+1;i<linhas.length;i++){
+  const l=linhas[i],junto=l.join('  ');
+  const mi=rxId.exec(junto);
+  if(mi){const mn=rxNome.exec(junto);atual={num:numNorm(mi[1]),nome:mn?mn[1].trim():''}}
+  else{const a=l.slice(0,prim).map(x=>String(x).trim()).filter(Boolean);
+   const n=a.find(x=>/^\d{1,12}$/.test(x));
+   if(n&&cols.some(c=>horasDe(l[c.j]).length)){atual={num:numNorm(n),nome:a.find(x=>/[A-Za-zÀ-ú]{2,}/.test(x))||''}}}
+  if(!atual)continue;
+  for(const c of cols){if(!c.iso)continue;for(const h of horasDe(l[c.j]))bat.push({num:atual.num,nome:atual.nome,data:c.iso,hora:h.h,seg:h.s})}
+ }
+ const c0=cols.find(c=>c.iso);
+ return bat.length?{formato:'grade do mês',aba,bat,mes:c0?c0.iso.slice(0,7):base}:null;
+}
+const RX_ABA_FORA=/estat|statistic|resumo|summary|exce|anormal|abnormal|turno|shift|schedule|escala|horario|config|setting/i;
+function interpretar(abas,mesEscolhido){
+ MDY=detectarMDY(abas.flatMap(a=>a.linhas.slice(0,3000)));
+ const achados=[];
+ /* abas de resumo, exceções e escalas só entram se nenhuma outra tiver batidas */
+ const boas=abas.filter(a=>!RX_ABA_FORA.test(a.aba));
+ for(const a of (boas.length?boas:abas)){const g=lerGrade(a.linhas,a.aba,mesEscolhido),l=g?null:lerLista(a.linhas,a.aba);const r=g||l;if(r)achados.push(r)}
+ if(!achados.length)return null;
+ /* prefere a aba com as batidas originais (lista) e, entre iguais, a com mais batidas */
+ achados.sort((x,y)=>(x.formato===y.formato?0:x.formato==='lista de batidas'?-1:1)||y.bat.length-x.bat.length);
+ return achados[0];
+}
+
+/* ---------- das batidas aos dias do ponto ---------- */
+const minDe=h=>{const[a,b]=h.split(':').map(Number);return a*60+b};
+function montarDias(bat,escolhas){
+ const quem=resolvedor(escolhas),grupos=new Map(),semFunc=new Map();
+ for(const b of bat){const r=quem(b.num,b.nome);
+  if(!r.f){const s=semFunc.get(b.num)||{num:b.num,nome:b.nome,n:0,motivo:r.como};s.n++;if(!s.nome&&b.nome)s.nome=b.nome;semFunc.set(b.num,s);continue}
+  const k=r.f.id+'|'+b.data;const g=grupos.get(k)||{f:r.f,como:r.como,num:b.num,data:b.data,hs:[]};g.hs.push(b);grupos.set(k,g)}
+ const dias=[];
+ for(const g of grupos.values()){
+  g.hs.sort((a,b)=>minDe(a.hora)*60+a.seg-(minDe(b.hora)*60+b.seg));
+  const uni=[];for(const h of g.hs){const u=uni[uni.length-1];if(u&&minDe(h.hora)-minDe(u.hora)<REPETIDA_MIN)continue;uni.push(h)}
+  const lido=uni.map(h=>h.hora),repetidas=g.hs.length-uni.length;
+  /* duas batidas: entrada e saída; senão, na ordem (entrada, intervalo, volta, saída) */
+  const quer={};
+  if(uni.length===2){quer.entrada=uni[0].hora;quer.saida=uni[1].hora}
+  else ORDEM.forEach((k,i)=>{if(uni[i])quer[k]=uni[i].hora});
+  const sobra=uni.slice(4).map(h=>h.hora);
+  /* o que já está no Diário desse dia */
+  const rs=DATA.diario.filter(r=>r.funcionarioId===g.f.id&&r.data===g.data);
+  const ant=rs.find(r=>TIPOS_PRESENCA.includes(r.tipo)&&(r.entrada||r.saida))||rs.find(r=>TIPOS_PRESENCA.includes(r.tipo))||null;
+  const outro=!ant&&rs.find(r=>!TIPOS_PRESENCA.includes(r.tipo));
+  const novo={},iguais=[],difs=[];
+  for(const k of ORDEM){if(!quer[k])continue;const ex=ant&&ant[k];
+   if(!ex)novo[k]=quer[k];else if(ex===quer[k])iguais.push(k);else difs.push({k,ex,rel:quer[k]})}
+  let sit;
+  if(outro)sit='outro';
+  else if(!Object.keys(novo).length)sit=difs.length?'diferente':'igual';
+  else sit=ant?'completa':'novo';
+  const incompleto=uni.length===1||uni.length===3;
+  dias.push({fid:g.f.id,nome:g.f.nome,num:g.num,como:g.como,data:g.data,lido,repetidas,quer,novo,iguais,difs,sobra,ant,outro:outro||null,sit,incompleto});
+ }
+ dias.sort((a,b)=>a.data.localeCompare(b.data)||a.nome.localeCompare(b.nome));
+ return{dias,semFunc:[...semFunc.values()].sort((a,b)=>+a.num-+b.num)};
+}
+
+/* ---------- gravação ---------- */
+const idDoDia=(fid,data)=>'pt'+data.replace(/-/g,'')+String(fid).replace(/[^A-Za-z0-9_-]/g,'');
+async function gravarDia(d,arquivo){
+ const uid=APP.uid||'local',em=new Date().toISOString();
+ const ant=d.ant?clone(d.ant):null;
+ const id=ant?ant.id:(DATA.diario.some(x=>x.id===idDoDia(d.fid,d.data))?novoId():idDoDia(d.fid,d.data));
+ const marcas={};Object.keys(d.novo).forEach(k=>{marcas[k]={em,por:uid,origem:'Relógio de digital',arquivo:String(arquivo||'').slice(0,120),numero:d.num}});
+ /* como no ponto com foto: vão só os campos que identificam o registro e o que muda; o banco junta campo a campo */
+ const base=ant?{id,funcionarioId:ant.funcionarioId,data:ant.data,tipo:ant.tipo,setor:ant.setor||setorF(ant.funcionarioId),statusAjuste:ant.statusAjuste||'Não se aplica',lancadoPor:ant.lancadoPor||uid,criadoEm:ant.criadoEm||em,criadoPor:ant.criadoPor||uid}
+  :{id,data:d.data,funcionarioId:d.fid,setor:setorF(d.fid),tipo:'Presença normal',statusAjuste:'Não se aplica',lancadoPor:uid,criadoEm:em,criadoPor:uid};
+ const parte={...base,...d.novo,relogioPonto:marcas,alteradoEm:em,alteradoPor:uid};
+ await gravar('diario',parte,ant);
+ const novo={...(ant||{}),...parte,relogioPonto:{...((ant&&ant.relogioPonto)||{}),...marcas}};
+ Promise.resolve().then(()=>registrarLog('diario',id,ant?'alterou':'criou',ant,novo,{...rotulosDe(MODS.diario),relogioPonto:'Batidas do relógio'})).catch(e=>console.warn('relógio de ponto: histórico',e));
+ return id;
+}
+async function salvarNumeros(mapa){
+ if(!CFG)throw new Error('configuração não carregada');
+ const atual=cfgR(),ids={...(atual.ids||{})};
+ Object.entries(mapa).forEach(([fid,n])=>{const v=numNorm(n);if(v)ids[fid]=v;else delete ids[fid]});
+ const novo={...clone(CFG),relogioPonto:{...atual,ids}};
+ await salvarCfg(novo);CFG.relogioPonto=novo.relogioPonto;
+}
+async function anotarImportacao(reg){
+ try{const atual=cfgR(),hist=[reg,...(atual.hist||[])].slice(0,15);
+  const novo={...clone(CFG),relogioPonto:{...atual,hist}};await salvarCfg(novo);CFG.relogioPonto=novo.relogioPonto}catch(e){console.warn('relógio de ponto: histórico de importações',e)}
+}
+
+/* ---------- a tela ---------- */
+const UI={abas:null,arquivo:'',res:null,escolhas:{},mes:'',erro:'',gravando:false,feito:null,nums:{},filtro:'pendentes'};
+const SIT={novo:['Novo','ok'],completa:['Completa o dia','ok'],igual:['Já está no ponto',''],diferente:['Diferente do ponto','at'],outro:['Dia com ocorrência','at']};
+function recalcular(){
+ if(!UI.abas){UI.res=null;return}
+ const r=interpretar(UI.abas,UI.mes);
+ if(!r){UI.res=null;UI.erro='Não encontrei batidas neste arquivo. Ele precisa ter o número do funcionário e a data e a hora de cada batida. Mande o arquivo para o Claude que ele ajusta a leitura.';return}
+ UI.erro='';UI.res={...r,...montarDias(r.bat,UI.escolhas)};
+}
+const horasTxt=d=>ORDEM.filter(k=>d.quer[k]).map(k=>CURTO[k]+' '+d.quer[k]).join(' · ');
+function linhaDia(d){
+ const [t,c]=SIT[d.sit];
+ const vai=Object.keys(d.novo).length?ORDEM.filter(k=>d.novo[k]).map(k=>CURTO[k]+' '+d.novo[k]).join(' · '):'—';
+ const obs=[];
+ if(d.difs.length)obs.push('Mantido o que já estava: '+d.difs.map(x=>CURTO[x.k]+' '+x.ex+' (relógio '+x.rel+')').join(', '));
+ if(d.outro)obs.push('O Diário tem "'+d.outro.tipo+'" neste dia: nada é gravado.');
+ if(d.incompleto&&d.sit!=='igual')obs.push(d.lido.length===1?'Só uma batida no dia.':'Três batidas: falta uma (confira a saída).');
+ if(d.sobra.length)obs.push('Batidas a mais, não usadas: '+d.sobra.join(', ')+'.');
+ if(d.repetidas)obs.push(d.repetidas+' batida(s) repetida(s) em menos de '+REPETIDA_MIN+' min, contada(s) uma vez.');
+ if(d.como==='nome')obs.push('Ligado pelo nome (número '+d.num+' no relógio).');
+ return `<tr><td data-l="Data">${fData(d.data)}</td><td data-l="Funcionário">${esc(d.nome)}<span class="rp-obs">nº ${esc(d.num)} no relógio</span></td>
+  <td data-l="No relógio" class="rp-hs">${esc(d.lido.join('  '))}</td><td data-l="Vai para o ponto" class="rp-hs">${esc(vai)}</td>
+  <td data-l="Situação">${tag(t,c)}${obs.length?`<span class="rp-obs">${esc(obs.join(' '))}</span>`:''}</td></tr>`;
+}
+function blocoImportar(ed){
+ const r=UI.res;
+ let h=`<div class="painel" style="margin-bottom:14px"><div class="filtros"><b style="font-size:13.5px">Importar as batidas do relógio</b></div>
+  <div class="rp-arq">${ed?`<label class="btn pri" style="cursor:pointer">${ic('planilha')}Escolher arquivo do relógio<input type="file" id="rpArq" accept=".xls,.xlsx,.xlsm,.csv,.txt,.dat,.log" hidden></label>`:''}
+  <span class="rp-nome">${UI.arquivo?'Arquivo: <b>'+esc(UI.arquivo)+'</b>':'Escolha a planilha que o relógio gravou no pen drive (ou que aparece no computador pelo cabo).'}</span>
+  ${UI.arquivo&&!UI.gravando?'<button type="button" class="btn min" id="rpLimpar">Escolher outro</button>':''}</div>`;
+ if(UI.erro)h+=`<div class="aviso at" style="margin:0 12px 12px">${esc(UI.erro)}</div>`;
+ if(UI.feito)h+=`<div class="aviso ok" style="margin:0 12px 12px">${esc(UI.feito)}</div>`;
+ if(r){
+  const n=s=>r.dias.filter(d=>d.sit===s).length;
+  const grava=r.dias.filter(d=>Object.keys(d.novo).length&&!d.outro);
+  const datas=r.dias.map(d=>d.data).sort();
+  h+=`<div class="rp-res"><span>Leitura: <b>${esc(r.formato)}</b>${r.aba&&UI.abas.length>1?' (aba '+esc(r.aba)+')':''}</span><span><b>${r.bat.length}</b> batidas</span>
+   ${datas.length?`<span>De <b>${fData(datas[0])}</b> a <b>${fData(datas[datas.length-1])}</b></span>`:''}
+   <span><b>${n('novo')+n('completa')}</b> dia(s) para gravar</span><span><b>${n('igual')}</b> já no ponto</span>${n('diferente')+n('outro')?`<span><b>${n('diferente')+n('outro')}</b> para conferir</span>`:''}</div>`;
+  if(r.formato==='grade do mês')h+=`<div class="filtros" style="margin:0 12px 10px"><label for="rpMes" style="font-size:13px">Mês da planilha</label> <input type="month" id="rpMes" value="${esc(r.mes||UI.mes||mesAtual())}"><span style="font-size:12.5px;color:var(--suave)">Confira: a planilha mostra só o dia, o mês vem daqui.</span></div>`;
+  if(r.semFunc.length){
+   const lista=DATA.funcionarios.filter(f=>f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao)).sort((a,b)=>a.nome.localeCompare(b.nome));
+   h+=`<div class="rp-sem"><b>Números do relógio sem funcionário no JB (${r.semFunc.length})</b><div class="rp-sem-l">${r.semFunc.map(s=>`<label>Nº ${esc(s.num)}${s.nome?' · '+esc(s.nome):''} <small>(${s.n} batida${s.n>1?'s':''})</small>
+    <select data-rp-num="${esc(s.num)}" ${ed?'':'disabled'}><option value="">Escolha quem é…</option>${lista.map(f=>`<option value="${esc(f.id)}">${esc(f.nome)}</option>`).join('')}</select></label>`).join('')}</div>
+    <small style="display:block;margin-top:8px;color:var(--suave)">${r.semFunc.some(s=>s.motivo&&/dois/.test(s.motivo))?'Há número repetido em dois funcionários: corrija em "Funcionários no relógio". ':''}Ao gravar, o JB guarda essa ligação para as próximas importações.</small></div>`;
+  }
+  const vis=UI.filtro==='todos'?r.dias:r.dias.filter(d=>d.sit!=='igual');
+  const lim=vis.slice(0,400);
+  h+=`<div class="filtros" style="margin:0 12px 6px"><select id="rpFiltro" aria-label="Mostrar"><option value="pendentes" ${UI.filtro!=='todos'?'selected':''}>Mostrar o que muda</option><option value="todos" ${UI.filtro==='todos'?'selected':''}>Mostrar todos os dias</option></select>
+   <span style="flex:1"></span>${ed?`<button type="button" class="btn pri" id="rpGravar" ${grava.length&&!UI.gravando?'':'disabled'}>${UI.gravando?'Gravando…':'Gravar '+grava.length+' dia(s) no ponto'}</button>`:''}</div>
+   ${lim.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Funcionário</th><th>No relógio</th><th>Vai para o ponto</th><th>Situação</th></tr></thead><tbody>${lim.map(linhaDia).join('')}</tbody></table></div>`
+    :`<div class="vazio" style="margin:0 12px 12px"><b>${r.dias.length?'Nada novo para gravar':'Nenhum dia ligado a um funcionário'}</b>${r.dias.length?'Todas as batidas deste arquivo já estão no ponto.':'Ligue os números do relógio aos funcionários acima.'}</div>`}
+   ${vis.length>lim.length?`<p class="rp-mais">Mostrando ${lim.length} de ${vis.length} dias. Todos são gravados.</p>`:''}`;
+ }
+ return h+'</div>';
+}
+function blocoNumeros(ed){
+ const fs=funcsPonto();
+ const cont=new Map();fs.forEach(f=>{const n=numDe(f,UI.nums);if(n)cont.set(n,(cont.get(n)||0)+1)});
+ const mudou=Object.keys(UI.nums).length>0;
+ return `<div class="painel"><div class="filtros"><b style="font-size:13.5px">Funcionários no relógio</b><span style="flex:1"></span>${ed?`<button type="button" class="btn min pri" id="rpSalvarN" ${mudou?'':'disabled'}>Salvar números</button>`:''}</div>
+  <p style="margin:0 12px 10px;font-size:13px;color:var(--suave)">Cadastre cada pessoa no relógio com este número e a digital dela lá mesmo. Sem número salvo, o JB usa a matrícula.</p>
+  <div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Funcionário</th><th>Setor</th><th>Matrícula</th><th>Nº no relógio</th></tr></thead><tbody>${fs.map(f=>{const n=numDe(f,UI.nums),dup=n&&cont.get(n)>1;
+   return `<tr><td data-l="Funcionário">${esc(f.nome)}</td><td data-l="Setor">${esc(f.setor||'')}</td><td data-l="Matrícula">${esc(f.matricula||'')}</td>
+    <td data-l="Nº no relógio"><input class="rp-num" inputmode="numeric" maxlength="12" data-rp-f="${esc(f.id)}" value="${esc(n)}" ${ed?'':'disabled'} aria-label="Número de ${esc(f.nome)} no relógio">${dup?' '+tag('Número repetido','at'):!n?' '+tag('Sem número','pe'):''}</td></tr>`}).join('')}</tbody></table></div></div>`;
+}
+function telaRelogio(el){
+ const ed=pode(ROTA,'e');
+ if(!APP.carregado){el.innerHTML='<div class="carrega">Carregando…</div>';return}
+ if(UI.abas&&!UI.gravando)recalcular();
+ const hist=(cfgR().hist||[]).slice(0,5);
+ el.innerHTML=`<div class="cab"><div><h1>Relógio de digital</h1><p>Traz para o ponto as batidas do relógio de digital (CST-BIO X4 / Knup KP-1028), pelo pen drive ou pelo cabo.</p></div><div class="acoes"><a class="btn" href="#/ponto">${ic('relogio')}Espelho de ponto</a></div></div>
+  <div class="painel" style="margin-bottom:14px"><div class="filtros"><b style="font-size:13.5px">Como usar</b></div><ol class="rp-passos" style="margin:0 12px 12px">
+   <li><b>Uma vez por funcionário:</b> no menu do relógio, cadastre a pessoa com o número dela da tabela "Funcionários no relógio" (abaixo) e cadastre a digital.</li>
+   <li><b>Para buscar as batidas:</b> coloque um pen drive vazio (FAT32) no relógio e use a opção do menu que baixa os registros para o pen drive. Pelo cabo mini USB ligado ao computador, o relógio aparece como um pen drive.</li>
+   <li>Aqui, toque em <b>Escolher arquivo do relógio</b>, escolha a planilha, confira e toque em <b>Gravar</b>. Pode importar o mesmo arquivo de novo: o que já entrou não duplica.</li></ol></div>
+  ${blocoImportar(ed)}
+  ${hist.length?`<div class="painel" style="margin-bottom:14px"><div class="filtros"><b style="font-size:13.5px">Últimas importações</b></div><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Quando</th><th>Arquivo</th><th>Dias gravados</th><th>Por</th></tr></thead><tbody>${hist.map(x=>`<tr><td data-l="Quando">${esc(fData(String(x.em||'').slice(0,10)))} ${esc(String(x.em||'').slice(11,16))}</td><td data-l="Arquivo">${esc(x.arquivo||'')}</td><td data-l="Dias gravados">${esc(String(x.dias||0))}${x.periodo?' · '+esc(x.periodo):''}</td><td data-l="Por">${esc(x.porNome||'')}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${blocoNumeros(ed)}
+  <div class="aviso at" style="margin-top:14px"><b>Registro gerencial.</b> O relógio de digital simples não é um registrador certificado (REP-C) e não emite comprovante; o ponto importado serve como controle interno, como o resto desta área (Portaria MTE 671/2021).</div>`;
+ const arq=$('#rpArq',el);if(arq)arq.onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
+  UI.arquivo=f.name;UI.res=null;UI.erro='';UI.feito=null;UI.escolhas={};UI.mes='';UI.abas=null;
+  try{UI.abas=await lerArquivo(f)}catch(err){UI.erro='Não foi possível abrir o arquivo: '+(err&&err.message||'erro')+'.'}
+  renderTela()};
+ const lp=$('#rpLimpar',el);if(lp)lp.onclick=()=>{Object.assign(UI,{abas:null,arquivo:'',res:null,escolhas:{},mes:'',erro:'',feito:null});renderTela()};
+ const ms=$('#rpMes',el);if(ms)ms.onchange=e=>{if(/^\d{4}-\d{2}$/.test(e.target.value)){UI.mes=e.target.value;renderTela()}};
+ const fl=$('#rpFiltro',el);if(fl)fl.onchange=e=>{UI.filtro=e.target.value;renderTela()};
+ $$('select[data-rp-num]',el).forEach(s=>s.onchange=()=>{const n=s.dataset.rpNum;if(s.value)UI.escolhas[n]=s.value;else delete UI.escolhas[n];renderTela()});
+ $$('input[data-rp-f]',el).forEach(i=>i.onchange=()=>{const f=F(i.dataset.rpF);if(!f)return;const v=numNorm(i.value);
+  if(v===numDe(f))delete UI.nums[f.id];else UI.nums[f.id]=v;renderTela()});
+ const sn=$('#rpSalvarN',el);if(sn)sn.onclick=async()=>{sn.disabled=true;
+  try{await salvarNumeros(UI.nums);UI.nums={};toast('Números do relógio salvos.','ok');renderTela()}catch(err){sn.disabled=false;toast('Não foi possível salvar: '+motivoErro(err)+'.','erro')}};
+ const gb=$('#rpGravar',el);if(gb)gb.onclick=()=>gravarTudo();
+}
+async function gravarTudo(){
+ const r=UI.res;if(!r||UI.gravando||!pode(ROTA,'e'))return;
+ const lista=r.dias.filter(d=>Object.keys(d.novo).length&&!d.outro);if(!lista.length)return;
+ const confl=r.dias.filter(d=>d.difs.length||d.outro).length;
+ if(!await confirmar('Gravar '+lista.length+' dia(s) no ponto?',(confl?confl+' dia(s) diferentes do que já está no ponto ficam como estão. ':'')+'Nada do que o DP já lançou é apagado ou trocado.',{ok:'Gravar no ponto'}))return;
+ UI.gravando=true;UI.feito=null;renderTela();
+ let n=0,falha=null;
+ try{
+  /* as ligações escolhidas agora ficam salvas para a próxima importação */
+  const lig={};Object.entries(UI.escolhas).forEach(([num,fid])=>{if(fid)lig[fid]=num});
+  if(Object.keys(lig).length){try{await salvarNumeros(lig)}catch(e){console.warn('relógio de ponto: ligações',e)}}
+  for(const d of lista){await gravarDia(d,UI.arquivo);n++;
+   if(n%10===0){const b=document.getElementById('rpGravar');if(b)b.textContent='Gravando… '+n+' de '+lista.length}}
+ }catch(e){falha=e}
+ UI.gravando=false;
+ const datas=lista.map(d=>d.data).sort();
+ if(n)await anotarImportacao({em:new Date().toISOString(),arquivo:UI.arquivo.slice(0,120),dias:n,batidas:r.bat.length,periodo:datas.length?fData(datas[0])+' a '+fData(datas[datas.length-1]):'',por:APP.uid||'local',porNome:(APP.nome||'')});
+ if(falha){UI.feito=null;toast((n?n+' dia(s) gravados antes do erro. ':'')+'Erro: '+motivoErro(falha)+'. Importe o arquivo de novo: o que já entrou não duplica.','erro')}
+ else{UI.feito=n+' dia(s) gravados no ponto. Confira no Espelho de ponto.';toast(UI.feito,'ok')}
+ UI.escolhas={};renderTela();
+}
+TELAS_V[ROTA]=telaRelogio;
+
+/* ---------- menu, pesquisa e botão no Espelho de ponto ---------- */
+try{const g=MENU.find(x=>x[0]==='Ponto e jornada');
+ if(g&&!g[2].some(i=>i.m===ROTA)){const it={m:ROTA,l:'Relógio de digital'};let p=g[2].findIndex(i=>i.m==='pontoFoto');if(p<0)p=g[2].findIndex(i=>i.m==='ponto');g[2].splice(p<0?g[2].length:p+1,0,it);
+  MI_IX.set(it,MITENS.length);MITENS.push({...it,g:g[0],notaG:g[3]});GRUPO_DE[ROTA]=g[0];ROTULO_DE[ROTA]=it.l}}catch(e){console.warn('relógio de ponto: menu',e)}
+try{if(typeof msAddAba==='function'){msAddAba('Ponto e lançamentos',ROTA,'Relógio de digital');
+ const a=AREAS_MS.find(x=>x.g==='Ponto e lançamentos'),x=a&&a.A.find(y=>y.m===ROTA),j=MITENS.findIndex(m=>m.m===ROTA);if(x&&j>=0){x.i=j;x.it=MITENS[j]}}}catch(e){console.warn('relógio de ponto: menu simplificado',e)}
+try{if(typeof ICONE_TELA==='object')ICONE_TELA[ROTA]='relogio'}catch(e){}
+try{if(typeof PQ_SINON==='object')PQ_SINON[ROTA]='relogio digital biometria biometrico impressao digital pendrive pen drive importar batidas knup cst leitor'}catch(e){}
+try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===ROTA)return 'Importa as batidas do relógio de digital (pen drive ou cabo) para o ponto.';return d0.apply(this,arguments)}}}catch(e){}
+const _telaPontoRP=telaPonto;
+telaPonto=function(el){const r=_telaPontoRP.apply(this,arguments);
+ try{const ac=el.querySelector('.cab .acoes');if(ac&&pode(ROTA)&&!ac.querySelector('[data-rp-ir]'))ac.insertAdjacentHTML('afterbegin',`<a class="btn" data-rp-ir href="#/${ROTA}">${ic('relogio')}Relógio de digital</a>`)}catch(e){console.warn('relógio de ponto: espelho',e)}
+ return r};
+
+window.RELOGIO_PONTO_V79={interpretar,montarDias,lerArquivo,linhasDoTexto,numNorm};
+})();
+</script>
+
 </body>
 </html>
