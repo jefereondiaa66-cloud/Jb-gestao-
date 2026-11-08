@@ -345,7 +345,7 @@
       campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'Cerâmica Concretiza · JB Gestão') + '</div></form></div>');
     (document.body || document.documentElement).appendChild(v);
     /* logotipo da Concretiza (o mesmo do topo do sistema), quando o programa já o carregou */
-    try { if (typeof window.LOGO_CC === 'string' && /^data:image\//.test(window.LOGO_CC)) { var lg = v.querySelector('.lg'); lg.style.backgroundImage = 'url("' + window.LOGO_CC + '")'; lg.classList.add('img'); } } catch (e) {}
+    try { var lgGuardada = ''; try { lgGuardada = (JSON.parse(localStorage.getItem('jb_carrega') || '{}') || {}).img || ''; } catch (e2) {} var lgSrc = /^data:image\//.test(lgGuardada) ? lgGuardada : window.LOGO_CC; if (typeof lgSrc === 'string' && /^data:image\//.test(lgSrc)) { var lg = v.querySelector('.lg'); lg.style.backgroundImage = 'url("' + lgSrc + '")'; lg.classList.add('img'); } } catch (e) {}
     /* olho: mostra e esconde a senha digitada */
     v.addEventListener('click', function (e) {
       var o = e.target.closest && e.target.closest('.olho'); if (!o) return;

@@ -11184,13 +11184,13 @@ function prepararImagem(file,maxW,maxH){
 }
 /* o histórico de alterações não guarda a imagem inteira, só a indicação */
 function semImagens(c){if(!c||!c.marcaImg)return c;const o={...c,marcaImg:{}};Object.keys(c.marcaImg).forEach(k=>{const v=c.marcaImg[k];o.marcaImg[k]=v&&v.src?'imagem '+(v.nome||'')+' ('+v.w+'×'+v.h+')':v});return o}
-const IMG_SLOTS=[['menu','Imagem do menu','Aparece no alto do menu lateral, no lugar das iniciais. Funciona melhor quadrada (símbolo ou logo).',160,160],
- ['doc','Imagem dos documentos','Sai centralizada no topo de contratos, recibos, holerites, relatórios e da ficha de férias, acima do nome.',600,200]];
+const IMG_SLOTS=[['menu','Logo da empresa','Troca a logo em todo o sistema: topo, menu e cabeçalho dos relatórios. Funciona melhor quadrada ou redonda, com fundo transparente (PNG).',320,320],
+ ['doc','Logo só nos documentos (opcional)','Use apenas se quiser uma imagem diferente em contratos, recibos, holerites e relatórios. Sem ela, os documentos usam a Logo da empresa.',600,200]];
 function htmlAparencia(R){
  const m=R.marcaImg||{};
  return `<div class="ap-grade">${IMG_SLOTS.map(([k,l,aj])=>{const v=m[k];return `<div class="ap-slot">
   <div class="ap-prev ${k}">${v&&v.src?`<img src="${esc(v.src)}" alt="${esc(l)}">`:k==='menu'&&window.LOGO_CC?`<img src="${esc(LOGO_CC)}" alt="Logo da Cerâmica Concretiza">`:'<span>Nenhuma imagem</span>'}</div>
-  <div class="ap-tx"><b>${esc(l)}</b><span class="ajuda">${esc(aj)}</span>${k==='menu'&&!(v&&v.src)&&window.LOGO_CC?'<span class="ajuda">Sem imagem enviada, aparece a logo da Cerâmica Concretiza.</span>':''}
+  <div class="ap-tx"><b>${esc(l)}</b><span class="ajuda">${esc(aj)}</span>${k==='menu'&&!(v&&v.src)&&window.LOGO_CC?'<span class="ajuda">Sem imagem enviada, aparece a logo atual da Cerâmica Concretiza.</span>':''}
    <div class="inline" style="margin-top:8px"><label class="btn min" style="cursor:pointer">${ic('mais')}${v&&v.src?'Trocar imagem':'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp" data-img="${k}" hidden></label>
    ${v&&v.src?`<button type="button" class="btn min perigo" data-rmimg="${k}">Remover</button>`:''}</div></div></div>`}).join('')}</div>
   <p class="ajuda" style="margin:10px 0 0">PNG, JPG ou WEBP. A imagem é reduzida automaticamente e só passa a valer depois de <b>Salvar</b>.</p>
@@ -27330,7 +27330,7 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 /* ===== Documentos · visual Concretiza (V40) =====
    Peças usadas pelo desenho da tela/impressão (htmlDoc, ficha de férias) e pelos PDFs (pdfDoc,
    ficha de férias). Só aparência: nenhum dado, cálculo ou campo é mudado. */
-function logoDocSrc(){const l=imgMarca('doc');return l&&l.src?l.src:(window.LOGO_CC||'')}
+function logoDocSrc(){const l=imgMarca('doc')||imgMarca('menu');return l&&l.src?l.src:(window.LOGO_CC||'')}
 /* a linha da empresa sem repetir a razão social, que já está em destaque na faixa */
 function linhaEmpDoc(marca,linha){const m=semAcento(marca||'');return String(linha||'').split(' · ').filter(p=>p&&semAcento(p)!==m).join(' · ')}
 function cabDocHtml(marca,linha,tituloHtml){const lg=logoDocSrc();
