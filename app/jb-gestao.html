@@ -3085,6 +3085,10 @@ const ic=(n,extra='')=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const APP={modo:'carregando',db:null,user:null,assets:null,downloads:null,uid:null,nome:'',avatar:'',isOwner:false,canEdit:false,papel:'consulta',setorGestor:'',acessoEstado:'carregando',pronto:false};
 const DATA={funcionarios:[],alteracoes:[],exames:[],sensivel:[],contratos:[],ferias:[],afastamentos:[],admissoes:[],desligamentos:[],documentos:[],advertencias:[],diario:[],horasExtras:[],producao:[],alimentacao:[],diarias:[],vales:[],despesas:[],folhas:[],quinzenas:[],log:[],comprovantes:[],diagnostico:[],uso:[],dependentes:[],docsEmitidos:[]};
 let CFG=null, USUARIOS={papeis:{}}, PREFS={lidas:{}};
+/* padrão de cores de todos (config/aparencia): dono = quem pode trocar; tema = o padrão atual */
+let APARENCIA=null;
+const podeTemaPadrao=()=>APP.modo==='local'||!!(APARENCIA&&APARENCIA.dono&&APARENCIA.dono===APP.uid);
+const temaPadraoVale=()=>{const t=APARENCIA&&APARENCIA.tema;return !!(t&&t.em)&&!(PREFS&&PREFS.tema&&PREFS.tema.b===t.em)};
 /* lançamentos ficam agrupados em documentos por dia ou por mês; os mensais são divididos em partes
    (pelo identificador do registro) para nunca passar do limite de tamanho de cada documento */
 const BUCKET={diario:'dia',log:'mes',horasExtras:'mes',producao:'mes',alimentacao:'mes',diarias:'mes',vales:'mes',despesas:'mes'};
@@ -3230,6 +3234,7 @@ function assinar(){
  });
  ouvir('_cfg',()=>APP.db.doc('config/empresa'),s=>{CFG=cfgMesclada(s.exists?clone(s.data()):null);APP.cfgExiste=s.exists;try{const mk=document.querySelector('#side .marca');if(mk&&acessoOk())mk.outerHTML=marcaHtml()}catch(e){}try{guardarCarrega()}catch(e){}agendarRender()});
  ouvir('_usu',()=>APP.db.doc('config/usuarios'),s=>{USUARIOS=s.exists?clone(s.data()):{papeis:{}};if(!USUARIOS.papeis)USUARIOS.papeis={};definirPapel();agendarRender()});
+ ouvir('_aparencia',()=>APP.db.doc('config/aparencia'),s=>{APARENCIA=s.exists?clone(s.data()):null;try{if(window.JB_TEMA)window.JB_TEMA.reaplicar()}catch(e){console.warn('tema',e)}});
  if(APP.uid)ouvir('_prefs',()=>APP.db.doc('data/users/'+APP.uid+'/prefs'),s=>{PREFS=s.exists?clone(s.data()):{lidas:{}};if(!PREFS.lidas)PREFS.lidas={};atualizarSino()});
 }
 async function salvarPrefs(extra){PREFS={...PREFS,...extra};if(APP.uid)await contarEscrita(()=>tentar(()=>APP.db.doc('data/users/'+APP.uid+'/prefs').set(clone(PREFS))))}
@@ -14496,6 +14501,7 @@ IC.paleta='<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/>
 const VISUAIS={cc:'Concretiza',nv:'Branco e laranja',jb:'JB'};
 const VIS_OK=v=>v==='nv'||v==='cc'||v==='jb';
 function visualAtual(){
+ if(temaPadraoVale()&&VIS_OK(APARENCIA.tema.v))return APARENCIA.tema.v;
  if(PREFS&&VIS_OK(PREFS.visual3))return PREFS.visual3;
  try{const v=localStorage.getItem('jb_visual3');if(VIS_OK(v))return v}catch(e){}
  return 'cc';
@@ -14519,6 +14525,8 @@ function redesenharVisual(){
 async function definirVisual(v){
  if(!VIS_OK(v))return;
  try{localStorage.setItem('jb_visual3',v)}catch(e){}
+ /* quem troca o estilo por conta própria sai do padrão de todos, mantendo as cores dele, até o dono escolher outro */
+ if(temaPadraoVale()){const t=APARENCIA.tema;PREFS={...PREFS,tema:{p:t.p||'',m:t.m||'',...(t.c?{c:t.c,cn:t.cn||''}:{}),b:t.em}}}
  PREFS={...PREFS,visual3:v};
  aplicarVisual();redesenharVisual();
  $$('.vis-op').forEach(l=>{const on=l.classList.contains(v);l.classList.toggle('on',on);const i=l.querySelector('input');if(i)i.checked=on});
@@ -29614,12 +29622,23 @@ function tokens(p,escuro){
 const CHAVE='jb_tema3';
 const OK_P=v=>v===''||!!PAL[v];
 const OK_M=v=>v===''||!!MODOS[v];
+/* Padrão de todos (config/aparencia → tema): o que o dono aplica vale para todo mundo, na hora.
+   Cada pessoa pode escolher a dela (tema.b guarda de qual padrão ela partiu); quando o dono escolhe
+   um padrão novo, a data muda e todos passam para ele, até escolherem outra vez. */
+function lerPadrao(){
+ try{const d=APARENCIA&&APARENCIA.tema;if(!d||!d.em)return null;const p=d.p||'',m=d.m||'';if(!OK_P(p)||!OK_M(m))return null;
+  const c=jcCoresCheias(d.c);return{p,m,c,cn:c?String(d.cn||'').slice(0,60):'',v:d.v==='nv'||d.v==='jb'?d.v:'cc',em:String(d.em)}}catch(e){return null}
+}
 function lerSalvo(){
- try{if(typeof PREFS!=='undefined'&&PREFS&&PREFS.tema&&typeof PREFS.tema==='object'){const p=PREFS.tema.p||'',m=PREFS.tema.m||'';const c=jcCoresCheias(PREFS.tema.c);if(OK_P(p)&&OK_M(m))return{p,m,c,cn:c?String(PREFS.tema.cn||'').slice(0,60):''}}}catch(e){}
+ const d=lerPadrao(),s=lerProprio();
+ return d&&s.b!==d.em?{p:d.p,m:d.m,c:d.c,cn:d.cn,b:d.em}:s;
+}
+function lerProprio(){
+ try{if(typeof PREFS!=='undefined'&&PREFS&&PREFS.tema&&typeof PREFS.tema==='object'){const p=PREFS.tema.p||'',m=PREFS.tema.m||'';const c=jcCoresCheias(PREFS.tema.c);if(OK_P(p)&&OK_M(m))return{p,m,c,cn:c?String(PREFS.tema.cn||'').slice(0,60):'',b:String(PREFS.tema.b||'')}}}catch(e){}
  /* sem escolha no banco: usa a cópia deste navegador só se for da mesma pessoa (ou se ainda não se sabe quem entrou) */
  try{const x=JSON.parse(localStorage.getItem(CHAVE)||'null');const uid=typeof APP!=='undefined'&&APP?APP.uid:null;
-  if(x&&OK_P(x.p||'')&&OK_M(x.m||'')&&(!uid||!x.uid||x.uid===uid)){const c=jcCoresCheias(x.c);return{p:x.p||'',m:x.m||'',c,cn:c?String(x.cn||'').slice(0,60):''}}}catch(e){}
- return{p:'',m:'',c:null,cn:''};
+  if(x&&OK_P(x.p||'')&&OK_M(x.m||'')&&(!uid||!x.uid||x.uid===uid)){const c=jcCoresCheias(x.c);return{p:x.p||'',m:x.m||'',c,cn:c?String(x.cn||'').slice(0,60):'',b:String(x.b||'')}}}catch(e){}
+ return{p:'',m:'',c:null,cn:'',b:''};
 }
 const mqEscuro=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
 const escuroDe=m=>m==='escuro'||(m==='auto'&&!!(mqEscuro&&mqEscuro.matches));
@@ -29786,7 +29805,7 @@ function aplicarTema(e,{redesenhar=true}={}){
  NA_TELA={...e,escuro:r?r.escuro:false,chave,chaveAd};
  /* cópia neste navegador, para a próxima abertura já vir certa (sem piscar) */
  const uidAgora=typeof APP!=='undefined'&&APP?APP.uid||null:null;
- if(!PREVIA&&uidAgora){try{localStorage.setItem(CHAVE,JSON.stringify({uid:uidAgora,p:e.p,m:e.m,c:r&&r.c?r.c:null,cn:r&&r.c?e.cn||'':'',cores:!!(r&&r.c),css:r?cssDe(r):'',id:r?r.pal.id:'',modo:r?(r.escuro?'escuro':'claro'):'',claro:!r&&e.m==='claro'}))}catch(x){}}
+ if(!PREVIA&&uidAgora){try{localStorage.setItem(CHAVE,JSON.stringify({uid:uidAgora,p:e.p,m:e.m,b:e.b||'',c:r&&r.c?r.c:null,cn:r&&r.c?e.cn||'':'',cores:!!(r&&r.c),css:r?cssDe(r):'',id:r?r.pal.id:'',modo:r?(r.escuro?'escuro':'claro'):'',claro:!r&&e.m==='claro'}))}catch(x){}}
  if(mudou&&redesenhar)redesenharGraficos();
  return mudou;
 }
@@ -29900,7 +29919,10 @@ function jcMock(c){
 }
 function jcSelo(lst){const cr=lst.filter(x=>x.nivel==='critico').length,av=lst.length-cr;
  return !lst.length?`<span class="jc-selo ok">${ic('temaOk')}Leitura em ordem</span>`:`<button type="button" class="jc-selo ${cr?'cr':'av'}" data-jc-aba="personalizar">${ic('jcAviso')}${cr?cr+(cr>1?' problemas':' problema'):''}${cr&&av?' e ':''}${av?av+(av>1?' avisos':' aviso'):''}</button>`}
-const sujoPrevia=()=>{if(!PREVIA)return false;const s=lerSalvo();return (PREVIA.p||'')!==(s.p||'')||(PREVIA.m||'claro')!==(s.m||'claro')||(PREVIA.v||visualHoje())!==PREVIA.v0||JSON.stringify(PREVIA.c||null)!==JSON.stringify(s.c||null)};
+const sujoPrevia=()=>{if(!PREVIA)return false;const s=lerSalvo();return (PREVIA.p||'')!==(s.p||'')||(PREVIA.m||'claro')!==(s.m||'claro')||(PREVIA.v||visualHoje())!==PREVIA.v0||JSON.stringify(PREVIA.c||null)!==JSON.stringify(s.c||null)||(podeTemaPadrao()&&difereDoPadrao())};
+/* o dono pode publicar para todos o que já está usando: o botão Aplicar fica ligado se isso ainda não for o padrão */
+function difereDoPadrao(){const d=lerPadrao()||{p:'',m:'',c:null,v:'cc'};return (PREVIA.p||'')!==(d.p||'')||(PREVIA.m||'claro')!==(d.m||'claro')||(PREVIA.v||visualHoje())!==d.v||JSON.stringify(PREVIA.c||null)!==JSON.stringify(d.c||null)}
+const txtAplicar=()=>podeTemaPadrao()?'Aplicar para todos':'Aplicar';
 function painelHtml(){
  const e=PREVIA,salvo=lerSalvo(),c=corrAtual(),ver=jcVerificar(c,visJc()),sujo=sujoPrevia();
  const ed=JC.editando&&(JC.dados.minhas||[]).find(p=>p.id===JC.editando);
@@ -29910,12 +29932,12 @@ function painelHtml(){
    <div class="jc-resumo"><small class="jc-rot">${sujo?'Prévia (ainda não aplicada)':'Em uso'}</small><b class="jc-nome">${esc(nomeDe(e))}</b>
     ${ed?`<span class="jc-editando">${ic('jcLapis')}Editando a paleta “${esc(ed.nome)}”</span>`:''}
     <div class="jc-tira">${JC_PROPS.map(([k,n])=>`<button type="button" class="jc-tira-c${JC.alvo===k?' on':''}" data-jc-prop="${k}" style="background:${c[k]}" title="${esc(n)} · ${c[k]}" aria-label="${esc(n)}: ${c[k]}"></button>`).join('')}</div>
-    ${jcSelo(ver)}<span class="ajuda">Vale só para você, em todos os setores e aparelhos. A tela já mostra a escolha; nada fica salvo antes de Aplicar. Dados, documentos e PDFs não mudam.</span></div></div>
+    ${jcSelo(ver)}<span class="ajuda">${podeTemaPadrao()?'O que você aplicar aqui vira o padrão de todos e muda na hora para todas as pessoas, em todos os setores e aparelhos.':'Vale só para você, em todos os setores e aparelhos. Quando o dono escolher um novo padrão, ele passa a valer para todos.'} A tela já mostra a escolha; nada fica salvo antes de Aplicar. Dados, documentos e PDFs não mudam.</span></div></div>
   <div class="jc-abas" role="tablist" aria-label="Seções da personalização">${JC_ABAS.map(([k,l])=>`<button type="button" role="tab" aria-selected="${JC.aba===k}" class="${JC.aba===k?'on':''}" data-jc-aba="${k}">${esc(l)}${k==='minhas'&&JC.dados.minhas.length?` <i>${JC.dados.minhas.length}</i>`:''}</button>`).join('')}</div>
   <div class="jc-painel" role="tabpanel">${abaHtml(c,ver,salvo)}</div>
  </div>
  <div class="gav-pe"><span class="esq"><button type="button" class="btn" data-jbt-padrao>${ic('jcDesfazer')}Restaurar padrão</button></span>
-  <button type="button" class="btn" data-jbt-cancelar>Cancelar</button><button type="button" class="btn" data-jc-ver>${ic('jcOlho')}Visualizar</button><button type="button" class="btn pri" data-jbt-aplicar ${sujo?'':'disabled'}>${ic('temaOk')}Aplicar</button></div>`;
+  <button type="button" class="btn" data-jbt-cancelar>Cancelar</button><button type="button" class="btn" data-jc-ver>${ic('jcOlho')}Visualizar</button><button type="button" class="btn pri" data-jbt-aplicar ${sujo?'':'disabled'}>${ic('temaOk')}${txtAplicar()}</button></div>`;
 }
 function abaHtml(c,ver,salvo){
  const e=PREVIA,d=JC.dados,a=JC.aba;
@@ -30033,8 +30055,16 @@ async function fecharPerguntando(){
  if(PREVIA&&PREVIA.c&&JSON.stringify(PREVIA.c)!==JSON.stringify(s.c||null)&&!await confirmar('Descartar a escolha de cores?','As cores escolhidas ainda não foram aplicadas. Saindo agora, o sistema volta às cores em uso.',{ok:'Descartar',perigo:true}))return;
  cancelar();
 }
-async function gravar(e,v,msg){
+async function gravar(e,v,msg,{todos=false,seguir=false}={}){
  const tema={p:e.p||'',m:e.m||''};if(e.c){tema.c={...e.c};tema.cn=String(e.cn||'').slice(0,60)}
+ if(todos){
+  /* o dono: grava primeiro o padrão de todos; se não gravar, nada muda na tela de ninguém */
+  const em=new Date().toISOString();
+  const novo={...(APARENCIA||{}),tema:{...tema,v,em,por:APP.uid||''}};
+  try{await contarEscrita(()=>tentar(()=>APP.db.doc('config/aparencia').set(clone(novo))))}
+  catch(x){toast('Não foi possível gravar o padrão de todos. Nada mudou. Tente de novo.','erro');return}
+  APARENCIA=novo;tema.b=em;
+ }else if(!seguir){const d=lerPadrao();if(d)tema.b=d.em}
  PREVIA=null;
  try{localStorage.setItem('jb_visual3',v)}catch(x){}
  try{PREFS={...PREFS,tema,visual3:v}}catch(x){}
@@ -30050,18 +30080,24 @@ async function aplicarPrevia(){
  const crit=c?jcVerificar(c,visJc()).filter(x=>x.nivel==='critico'):[];
  if(crit.length&&!await confirmar('Há problemas de leitura',`${crit.length===1?'Uma combinação deixa':crit.length+' combinações deixam'} textos, menus ou botões difíceis de ler. Use "Corrigir automaticamente" em Personalização individual ou aplique mesmo assim.`,{ok:'Aplicar mesmo assim',perigo:true}))return;
  const e={p:PREVIA.p,m:c?'':(PREVIA.m||'claro'),c,cn:c?nomeDe(PREVIA):''};
- gravar(e,PREVIA.v||visualHoje(),'Aparência aplicada: '+nomeDe(e)+'. Vale só para você.');
+ const todos=podeTemaPadrao();
+ gravar(e,PREVIA.v||visualHoje(),todos?'Novo padrão de todos: '+nomeDe(e)+'. Já mudou para todas as pessoas.':'Aparência aplicada: '+nomeDe(e)+'. Vale só para você.',{todos});
 }
 async function restaurarPadrao(){
- if(!await confirmar('Restaurar a aparência padrão?','Voltam as cores e o estilo originais do sistema (Concretiza). Suas paletas, favoritos e histórico continuam guardados.',{ok:'Restaurar padrão'}))return;
- gravar({p:'',m:''},'cc','Aparência padrão restaurada.');
+ const todos=podeTemaPadrao(),d=lerPadrao();
+ if(todos){
+  if(!await confirmar('Voltar às cores originais para todos?','Todas as pessoas voltam para as cores e o estilo originais do sistema (Concretiza). Suas paletas, favoritos e histórico continuam guardados.',{ok:'Voltar para todos'}))return;
+  return gravar({p:'',m:''},'cc','Padrão original de volta para todas as pessoas.',{todos:true});
+ }
+ if(!await confirmar('Restaurar a aparência padrão?',(d?'Você volta para o padrão escolhido pelo dono do sistema.':'Voltam as cores e o estilo originais do sistema (Concretiza).')+' Suas paletas, favoritos e histórico continuam guardados.',{ok:'Restaurar padrão'}))return;
+ gravar({p:'',m:''},d?d.v:'cc','Aparência padrão restaurada.',{seguir:true});
 }
 function visualizarTelaCheia(){
  VEU.classList.add('jc-oculto');
  if(!JC.barra){const b=document.createElement('div');b.className='jc-barra';b.setAttribute('role','region');b.setAttribute('aria-label','Prévia das cores');document.body.appendChild(b);JC.barra=b;
   b.addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;if(t.dataset.b==='voltar')voltarDaTelaCheia();else if(t.dataset.b==='cancelar')cancelar();else if(t.dataset.b==='aplicar')aplicarPrevia()})}
  JC.barra.innerHTML=`<span class="jc-barra-tx">${ic('jcOlho')}<span><b>Prévia: ${esc(nomeDe(PREVIA))}</b><small>Navegue pelo sistema para ver. Nada foi salvo ainda.</small></span></span>
-  <span class="jc-barra-bt"><button type="button" class="btn" data-b="voltar">Voltar à personalização</button><button type="button" class="btn" data-b="cancelar">Cancelar</button><button type="button" class="btn pri" data-b="aplicar" ${sujoPrevia()?'':'disabled'}>${ic('temaOk')}Aplicar</button></span>`;
+  <span class="jc-barra-bt"><button type="button" class="btn" data-b="voltar">Voltar à personalização</button><button type="button" class="btn" data-b="cancelar">Cancelar</button><button type="button" class="btn pri" data-b="aplicar" ${sujoPrevia()?'':'disabled'}>${ic('temaOk')}${txtAplicar()}</button></span>`;
  setTimeout(()=>{const b=JC.barra&&JC.barra.querySelector('[data-b="voltar"]');if(b)b.focus()},30);
 }
 function voltarDaTelaCheia(){if(JC.barra){JC.barra.remove();JC.barra=null}if(VEU){VEU.classList.remove('jc-oculto');atualizarPainel()}}
@@ -30291,7 +30327,9 @@ const _redesenharVisualTema=redesenharVisual;
 redesenharVisual=function(){try{if(!PREVIA)aplicarTema(lerSalvo(),{redesenhar:false})}catch(e){}return _redesenharVisualTema.apply(this,arguments)};
 
 window.JB_TEMA=Object.freeze({versao:VERSAO_TEMA,paletas:PALETAS.map(p=>({id:p.id,nome:p.nome})),premium:JC_PALETAS.map(p=>({id:p.id,nome:p.nome,tipo:p.tipo})),previa:()=>PREVIA,central:()=>JC,modos:MODOS,tokens:(id,escuro)=>tokens(PAL[id]||SEMENTE_PADRAO[id]||SEMENTE_PADRAO.cc,!!escuro),
- contraste,aplicar:aplicarTema,abrir:abrirPainel,atual:()=>NA_TELA,salvo:lerSalvo,adaptadas:()=>INSERIDAS.length});
+ contraste,aplicar:aplicarTema,abrir:abrirPainel,atual:()=>NA_TELA,salvo:lerSalvo,padrao:lerPadrao,adaptadas:()=>INSERIDAS.length,
+ /* o padrão de todos mudou no banco: entra na hora em quem está com o sistema aberto (quem está escolhendo termina antes) */
+ reaplicar(){if(PREVIA)return;BASE_CACHE.clear();aplicarTema(lerSalvo(),{redesenhar:false});try{if(aplicarVisual())redesenharVisual();else redesenharGraficos()}catch(e){console.warn('tema',e)}}});
 try{aplicarTema(lerSalvo(),{redesenhar:false})}catch(e){console.warn('tema',e)}
 })();
 </script>
