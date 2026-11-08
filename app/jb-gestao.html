@@ -30009,6 +30009,7 @@ function abaHtml(c,ver,salvo){
     ${[['claro','sol','Claro'],['escuro','lua','Escuro'],['auto','auto','Automático']].map(([k,i,l])=>`<button type="button" class="jbt-modo${!e.c&&modo===k?' sel':''}" data-jbt-m="${k}" role="radio" aria-checked="${!e.c&&modo===k}">${ic(i)}<span>${l}</span></button>`).join('')}
    </div>
    <p class="jbt-ajuda">${e.c?'As paletas premium e as suas já definem se a tela é clara ou escura. Escolher um modo volta às paletas do sistema.':modo==='auto'?'Automático segue o computador ou celular: claro de dia, escuro quando o aparelho estiver no modo escuro (agora: '+(escuroPrev?'escuro':'claro')+').':modo==='escuro'?'Fundo escuro, mais confortável à noite e com pouca luz.':'Fundo claro, como o sistema é hoje.'}</p>
+   ${window.JB_CAB?JB_CAB.html():''}
    <h3 class="jbt-tit">Paletas do sistema <small>${!e.c&&e.p?esc(PAL[e.p].nome):!e.c?'Padrão do sistema (cores de hoje)':''}</small></h3>
    <div class="jbt-grade" role="radiogroup" aria-label="Paletas do sistema">${cartoes}</div>
    <h3 class="jbt-tit">Paletas premium <small>${JC_PALETAS.length} combinações completas, conferidas na leitura</small></h3>
@@ -31166,17 +31167,18 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
 </style>
 <script>
 "use strict";
-/* ================= Casca nova: barra preta, trilho de ícones e acesso rápido =================
+/* ================= Casca nova: cabeçalho integrado, seletor de setores e acesso rápido =================
    Monta a navegação em volta das telas que já existem. Lê o que cada setor já mostra
    (as abas do setor, o menu do Setor Pessoal, os botões do topo) e só reorganiza:
    nada é criado por suposição e tudo respeita o que o perfil pode ver. */
 (function(){
  const LS='jb_casca';
- const ligada=()=>{try{return localStorage.getItem(LS)!=='antiga'}catch(e){return true}};
+ /* 08/11/2026 · pedido do dono: o layout anterior deixa de existir; esta é a única interface */
+ const ligada=()=>true;
  /* modelos de tela para o dono comparar: 1 = barra preta no alto e quadradinhos; 2 = trilho preto e faixa
     preta de indicadores; 3 = estilo da imagem de referência. Escolha só deste navegador. */
  const MOD_LS='jb_modelo',MODELO_PADRAO='m3';
- const MODELOS={m1:{n:'Modelo 1',d:'Barra preta no alto e quadradinhos coloridos'},m2:{n:'Modelo 2',d:'Trilho preto ao lado, faixa preta de números e cartões por grupo'},m3:{n:'Modelo 3',d:'Olá, busca grande, favoritos e módulos coloridos'}};
+ const MODELOS={m1:{n:'Modelo 1',d:'Quadradinhos coloridos e atalhos'},m2:{n:'Modelo 2',d:'Faixa de números e cartões por grupo'},m3:{n:'Modelo 3',d:'Olá, busca grande, favoritos e módulos coloridos'}};
  const modelo=()=>{const vf=APARENCIA&&APARENCIA.versao&&APARENCIA.versao.modelo;if(MODELOS[vf])return vf;try{const v=localStorage.getItem(MOD_LS);return MODELOS[v]?v:MODELO_PADRAO}catch(e){return MODELO_PADRAO}};
  Object.assign(IC,{
   c2grade:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -31262,11 +31264,11 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const h=`<a class="c2 c2-logo" href="#/setores" aria-label="Seleção de setores">${logoHtml()}</a>
   ${w('setor',`<button type="button" class="c2-setor" aria-haspopup="true"><span class="c2-sic" id="c2sic"></span><span class="c2-stx"><b id="c2snome"></b><small>${esc(nomeEmpresa())}</small></span>${ic('c2baixo')}</button>`,'<div id="c2setores"></div>','esq c2-pop-setor')}
   <span class="c2 c2-sep"></span>
-  ${w('funcoes',`<button type="button" class="c2-tb" data-tip2="Funções do setor" aria-label="Funções do setor">${ic('c2grade')}</button>`,'<div id="c2mega"></div>','esq c2-mega')}
+  ${w('funcoes',`<button type="button" class="c2-tb c3-rot" data-tip2="Todas as telas do setor" aria-label="Módulos do setor">${ic('c2grade')}<span>Módulos</span></button>`,'<div id="c2mega"></div>','esq c2-mega')}
   <span class="c2 c2-trilha">${dp&&modelo()!=='m2'&&typeof trilhaHtml==='function'?trilhaHtml(r):''}</span>
   <span class="c2 c2-esp"></span>
-  ${top.querySelector(':scope>.busca')?(modelo()==='m2'?'<div class="c2 c2-buscain"></div>':w('busca',`<button type="button" class="c2-tb" data-tip2="Pesquisar (Ctrl K)" aria-label="Pesquisar">${ic('lupa')}</button>`,'','c2-pop-busca')):''}
-  ${w('novo',`<button type="button" class="c2-tb" data-tip2="Novo lançamento" aria-label="Novo lançamento">${ic('c2mais')}</button>`,'<div id="c2novo"></div>')}
+  ${top.querySelector(':scope>.busca')?(w('busca',`<button type="button" class="c2-tb" data-tip2="Pesquisar (Ctrl K)" aria-label="Pesquisar">${ic('lupa')}</button>`,'','c2-pop-busca')):''}
+  ${w('novo',`<button type="button" class="c2-tb c3-rot c3-novo" data-tip2="Novo lançamento" aria-label="Novo lançamento">${ic('c2mais')}<span>Novo</span></button>`,'<div id="c2novo"></div>')}
   ${comp?w('comp',`<button type="button" class="c2-tb comp" data-tip2="Competência" aria-label="Competência">${ic('calendario')}<span>${esc(fMes(COMP.mes)).replace(/^./,c=>c.toUpperCase())}</span></button>`,'<div class="c2-pt">Competência (mês de trabalho)</div>','c2-pop-comp'):''}
   <span class="c2 c2-sep"></span>
   ${w('ia',`<button type="button" class="c2-tb" data-tip2="JB Inteligência e Editar com IA" aria-label="Inteligência">${ic('faisca')}</button>`,`<div class="c2-pt">Inteligência</div>${pode('ia')?`<a class="c2-op" href="#/ia">${ic('faisca')}<span>JB Inteligência<small>Pergunte sobre os dados do sistema</small></span></a>`:''}<div id="c2eia"></div>`,'c2-pop-ia')}
@@ -31275,7 +31277,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   ${w('eu',`<button type="button" class="c2-eu" aria-label="Usuário">${avatar()}${ic('c2baixo')}</button>`,menuEu(dp),'c2-pop-eu')}`;
   top.insertAdjacentHTML('beforeend',h);
   /* elementos originais (com tudo o que já faziam) vão para dentro das janelinhas */
-  const bu=top.querySelector(':scope>.busca');if(bu){const dest=top.querySelector('.c2-buscain')||top.querySelector('[data-c2=busca] .c2-pop');if(dest)dest.appendChild(bu)}
+  const bu=top.querySelector(':scope>.busca');if(bu){const dest=top.querySelector('[data-c2=busca] .c2-pop');if(dest)dest.appendChild(bu)}
   if(comp)top.querySelector('[data-c2=comp] .c2-pop').appendChild(comp);
   const si=top.querySelector(':scope>#sinc');if(si)$('#c2sinc').appendChild(si);
   moverEia();
@@ -31292,9 +31294,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   ${pode('config')?`<a class="c2-op" href="#/config">${ic('engrenagem')}Configurações</a>`:''}
   <div class="c2-linha c2-so-dono"></div><div class="c2-pt c2-so-dono">Modelo de tela</div>
   ${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="c2-op c2-opmod ${modelo()===k?'on':''}" data-c2modelo="${k}"><span class="c2-mnum">${k.slice(1)}</span><span>${esc(o.n)}<small>${esc(o.d)}</small></span></button>`).join('')}
-  <div id="c2euextra"></div>
-  <div class="c2-linha"></div>
-  <button type="button" class="c2-op" data-c2antiga>${ic('c2voltar')}<span>Usar o layout anterior<small>Volta a barra e o menu de antes</small></span></button>`;
+  <div id="c2euextra"></div>`;
  }
  function moverEia(){
   const top=document.getElementById('top');const box=document.getElementById('c2eia');if(!top||!box)return;
@@ -31312,7 +31312,6 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    if(ab&&wr.dataset.c2==='busca'){const i=document.getElementById('buscaG');if(i)setTimeout(()=>{i.focus();i.select()},30)}
    if(ab&&wr.dataset.c2==='funcoes'){const f=document.getElementById('c2filtro');if(f&&matchMedia('(min-width:861px)').matches)setTimeout(()=>f.focus(),30)}});
   top.querySelectorAll('.c2-pop').forEach(p=>p.onclick=e=>{
-   if(e.target.closest('[data-c2antiga]')){alternar(false);return}
    const md=e.target.closest('[data-c2modelo]');if(md){fecharTudo();definirModelo(md.dataset.c2modelo);return}
    if(e.target.closest('[data-c2sair]')){fecharTudo();const b=document.getElementById('jbsair');if(b)b.click();else if(typeof window.JB_SAIR==='function')window.JB_SAIR();return}
    if(e.target.closest('[data-c2menu]')){fecharTudo();abrirMenuCompleto();return}
@@ -31340,8 +31339,16 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  }
  function abrirMenuCompleto(){if(abrirFuncoes())return;const s=$('#side'),v=$('#veuNav');if(s)s.classList.add('aberto');if(v)v.classList.add('aberto')}
  function irSetor(id){const s=SETORES.find(x=>x.id===id);if(!s)return;try{marcarSetor(s.id)}catch(e){}location.hash=s.rota}
+ /* cor do cabeçalho: acompanha o tema, ou preto se a pessoa escolher (cada um escolhe o seu) */
+ const cabPreto=()=>{try{return !!PREFS&&PREFS.cabecalho==='preto'}catch(e){return false}};
+ function cabHtml(){const p=cabPreto();return `<h3 class="jbt-tit">Cabeçalho <small>a barra do alto do sistema</small></h3>
+   <div class="jbt-modos" role="radiogroup" aria-label="Cor do cabeçalho">${[['tema','sol','Acompanha o tema',!p],['preto','lua','Preto',p]].map(([k,i,l,s])=>`<button type="button" class="jbt-modo${s?' sel':''}" data-c3cab="${k}" role="radio" aria-checked="${s}">${ic(i)}<span>${l}</span></button>`).join('')}</div>`}
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-c3cab]');if(!b)return;e.preventDefault();
+  Promise.resolve(salvarPrefs({cabecalho:b.dataset.c3cab==='preto'?'preto':''})).catch(x=>console.warn('cabeçalho',x));aplicarClasse();
+  $$('[data-c3cab]').forEach(x=>{const s=x.dataset.c3cab===(cabPreto()?'preto':'tema');x.classList.toggle('sel',s);x.setAttribute('aria-checked',s)})});
+ window.JB_CAB={html:cabHtml};
  function alternar(on){try{localStorage.setItem(LS,on?'nova':'antiga')}catch(e){}aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}if(!on)toast('Layout anterior em uso. Para voltar ao novo, use o botão "Novo layout" no alto.','ok')}
- function aplicarClasse(){const on=ligada()&&acessoOk();const h=document.documentElement;h.classList.toggle('casca2',on);const m=modelo();Object.keys(MODELOS).forEach(k=>h.classList.toggle('c2-'+k,on&&k===m));if(!on){document.body.classList.remove('c2-tem-mob','c2-semtrilho')}}
+ function aplicarClasse(){const on=ligada()&&acessoOk();const h=document.documentElement;h.classList.toggle('casca2',on);h.classList.toggle('c3-cab-preto',on&&cabPreto());const m=modelo();Object.keys(MODELOS).forEach(k=>h.classList.toggle('c2-'+k,on&&k===m));if(!on){document.body.classList.remove('c2-tem-mob','c2-semtrilho')}}
  VERSAO_LER.modelo=()=>modelo();VERSAO_APOS.push(()=>{aplicarClasse();C2.chave='';renderCasca();renderTela()});
  function definirModelo(v){if(!MODELOS[v])return;if(versaoTravada())return avisoVersao();try{localStorage.setItem(MOD_LS,v)}catch(e){}if(APP.modo!=='local'&&APARENCIA&&APARENCIA.dono===APP.uid)gravarVersao({modelo:v});aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}toast(MODELOS[v].n+' em uso neste navegador. Para trocar, use “Modelo de tela” no menu do usuário.','ok')}
 
@@ -31376,13 +31383,14 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const novos=dp?[...(MITENS.filter(it=>it.m==='lancar'&&miAtivo(it)).slice(0,1)),...MITENS.filter(it=>it.novo&&miAtivo(it))].map(it=>({l:it.l,i:miIndex(it)})):itens.filter(ehNovo);
   $('[data-c2=novo]').classList.toggle('c2-oculto',!novos.length);
   $('#c2novo').innerHTML=`<div class="c2-pt">Novo lançamento</div>`+novos.map(x=>dp?`<a class="c2-op" href="javascript:void 0" data-c2mi="${x.i}">${ic('c2mais')}${esc(x.l)}</a>`:`<a class="c2-op" href="${esc(x.href)}">${x.svg}${esc(x.l)}</a>`).join('');
-  montarTrilho(dp,itens,grupos,st);
+  montarTrilho();
+  montarAbas(dp,itens);
   montarMob(dp,itens);
   atualizarAlertas();
  }
 
  /* ---------- trilho lateral ---------- */
- function montarTrilho(dp,itens,grupos,st){
+ function montarTrilho(){
   let rail=document.getElementById('c2rail');
   if(!rail){rail=document.createElement('nav');rail.id='c2rail';rail.setAttribute('aria-label','Navegação do setor');document.body.appendChild(rail);
    const tip=document.createElement('div');tip.id='c2tip';document.body.appendChild(tip);
@@ -31395,49 +31403,20 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     if(t.closest('#c2rail')){tp.style.left=(r.right+10)+'px';tp.style.top=(r.top+r.height/2-14)+'px'}else{tp.style.left=Math.min(innerWidth-tp.offsetWidth-8,Math.max(8,r.left+r.width/2-tp.offsetWidth/2))+'px';tp.style.top=(r.bottom+8)+'px'}});
    rail.addEventListener('scroll',()=>{const tp=document.getElementById('c2tip');if(tp)tp.style.display='none'});
   }
-  /* 08/11/2026 · pedido do dono: no Setor Pessoal o trilho lateral sai; os módulos do Início,
-     o botão de funções do alto e o menu já levam a cada tela */
-  const semTrilho=dp||modelo()==='m1'||!(dp?grupos.length:itens.length);
-  document.body.classList.toggle('c2-semtrilho',semTrilho);
-  if(semTrilho){rail.innerHTML='';return}
-  const r=lerRota();
-  let h=`<a class="c2-rlogo" href="#/setores" data-tip2="Seleção de setores">${logoHtml()}</a>`;
-  if(dp){
-   const atual=miAtual(r);
-   h+=`<a class="c2-ri ${r.mod==='painel'?'at':''}" href="#/painel" data-tip2="Painel do Setor Pessoal">${ic('c2casa')}</a>`;
-   h+=grupos.filter(g=>g.g!=='Início').map(g=>{const at=g.itens.some(it=>it.i===atual)||(atual<0&&GRUPO_DE&&GRUPO_DE[r.mod]===g.g);
-    return `<button type="button" class="c2-ri ${at?'at':''}" data-c2g="${g.gi}" data-tip2="${esc(g.g)}" aria-label="${esc(g.g)}">${ic(g.ico)}</button>`}).join('');
-   h+=`<span class="c2-resp"></span><span class="c2-rsep"></span>`;
-   const ini=grupos.find(g=>g.g==='Início');
-   if(ini){const iaI=ini.itens.find(it=>it.m==='ia');const alI=ini.itens.find(it=>it.m==='alertas');
-    if(alI)h+=`<a class="c2-ri ${r.mod==='alertas'?'at':''}" href="javascript:void 0" data-c2mi="${alI.i}" data-tip2="Alertas e pendências">${ic('sino')}<i class="c2-rqt" hidden></i></a>`;
-    if(iaI)h+=`<a class="c2-ri ${r.mod==='ia'?'at':''}" href="javascript:void 0" data-c2mi="${iaI.i}" data-tip2="JB Inteligência">${ic('faisca')}</a>`}
-   h+=`<button type="button" class="c2-ri" data-c2menu data-tip2="Menu completo">${ic('c2listas')}</button>`;
-  }else{
-   h+=itens.map(x=>`<a class="c2-ri ${x.on?'at':''}" href="${esc(x.href)}" data-tip2="${esc(x.l)}${x.qt?' ('+esc(x.qt)+')':''}" aria-label="${esc(x.l)}">${x.svg}${x.qt?'<i></i>':''}</a>`).join('');
-   h+=`<span class="c2-resp"></span><span class="c2-rsep"></span>`;
-  }
-  h+=`<a class="c2-ri" href="#/setores" data-tip2="Trocar de setor">${ic('c2grade')}</a>`;
-  rail.innerHTML=h;
-  rail.onclick=e=>{
-   const g=e.target.closest('[data-c2g]');if(g){e.stopPropagation();abrirFly(g);return}
-   const mi=e.target.closest('[data-c2mi]');if(mi){e.preventDefault();fecharTudo();abrirItem(+mi.dataset.c2mi);return}
-   if(e.target.closest('[data-c2menu]')){fecharTudo();abrirMenuCompleto();return}
-   fecharTudo();};
- }
- function abrirFly(btn){
-  const fly=document.getElementById('c2fly');const gi=+btn.dataset.c2g;
-  if(fly.classList.contains('ab')&&fly.dataset.g===String(gi)){fecharFly();return}
-  fecharTudo('fly');
-  const g=C2.grupos.find(x=>x.gi===gi);if(!g)return;const atual=miAtual(lerRota());
-  fly.dataset.g=gi;
-  fly.innerHTML=`<h4><span>${ic(g.ico)}</span>${esc(g.g)}</h4>${g.itens.map(it=>`<a class="c2-op ${it.i===atual?'on':''}" href="javascript:void 0" data-c2mi="${it.i}">${esc(it.l)}</a>`).join('')}`;
-  $$('#c2rail .c2-ri.ab').forEach(x=>x.classList.remove('ab'));btn.classList.add('ab');
-  fly.classList.add('ab');
-  const r=btn.getBoundingClientRect();const alt=fly.offsetHeight;
-  fly.style.top=Math.max(10,Math.min(innerHeight-alt-10,r.top-8))+'px';
+  /* 08/11/2026 · pedido do dono: sem barra lateral em nenhum setor; a navegação fica no alto */
+  document.body.classList.add('c2-semtrilho');rail.innerHTML='';
  }
  function fecharFly(){const f=document.getElementById('c2fly');if(f)f.classList.remove('ab');$$('#c2rail .c2-ri.ab').forEach(x=>x.classList.remove('ab'))}
+
+ /* ---------- telas do setor, a um clique, logo abaixo do cabeçalho ---------- */
+ function montarAbas(dp,itens){
+  const top=document.getElementById('top');if(!top||!top.parentNode)return;
+  let n=document.getElementById('c3abas');
+  if(!n){n=document.createElement('nav');n.id='c3abas';n.setAttribute('aria-label','Telas do setor');top.insertAdjacentElement('afterend',n)}
+  const tem=!dp&&itens.length>1;document.body.classList.toggle('c3-tem-abas',tem);
+  n.innerHTML=tem?itens.map(x=>`<a href="${esc(x.href)}" class="${x.on?'on':''}"${x.on?' aria-current="page"':''}>${x.svg}<span>${esc(x.l)}</span>${x.qt?`<em>${esc(x.qt)}</em>`:''}</a>`).join(''):'';
+  const at=n.querySelector('a.on');if(at&&n.scrollWidth>n.clientWidth)n.scrollLeft=Math.max(0,at.offsetLeft-n.clientWidth/2+at.offsetWidth/2);
+ }
 
  /* ---------- barra de baixo no celular, nos setores ---------- */
  function montarMob(dp,itens){
@@ -31577,7 +31556,9 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  const rc0=renderCasca;
  renderCasca=function(){rc0.apply(this,arguments);try{montarTopo()}catch(e){console.warn('casca nova',e)}};
  const as0=atualizarSino;
- atualizarSino=function(){as0.apply(this,arguments);try{atualizarAlertas()}catch(e){}};
+ atualizarSino=function(){as0.apply(this,arguments);try{aplicarClasse();atualizarAlertas()}catch(e){}};
+ /* a linha fina do cabeçalho só aparece com a tela rolada */
+ const rolou=()=>document.body.classList.toggle('c3-rolou',scrollY>4);window.addEventListener('scroll',rolou,{passive:true});
  function vigiar(){
   const c=document.getElementById('conteudo'),top=document.getElementById('top');if(!c||!top||C2.obs)return;
   let t=null;C2.obs=new MutationObserver(()=>{clearTimeout(t);t=setTimeout(()=>{try{atualizarContexto(false)}catch(e){console.warn('casca nova',e)}},30)});
@@ -35588,5 +35569,149 @@ addEventListener('hashchange',marca);marca();
 })();
 </script>
 <!-- ================= Centro de Inventário: fim ================= -->
+<style id="casca-clara">
+/* ================= Reformulação global da interface (08/11/2026) =================
+   Pedido do dono: sem cabeçalho preto, sem aparência de programa dentro de moldura e sem
+   barra lateral. O cabeçalho acompanha o tema (claro ou escuro) e o preto virou escolha
+   da pessoa em Personalizar aparência (html.c3-cab-preto). Só aparência e navegação:
+   as telas, os cálculos, os dados e as permissões são os mesmos. Documentos para
+   imprimir não mudam. */
+html.casca2{--c2-verm:var(--brasa,#D3121C);--c2-verm2:var(--brasa2,#B00E17);--c2-vli:var(--brasa-bg,#FDECEC);--c2-preto:var(--brasa,#D3121C);
+ --c3-sup:var(--papel);--c3-tx:var(--tinta);--c3-sv:var(--suave);--c3-fr:var(--fraco);--c3-hv:var(--linha2);--c3-bd:var(--linha);--c3-campo:var(--branco)}
+html.casca2.c3-cab-preto{--c3-sup:#0B0B0D;--c3-tx:#fff;--c3-sv:#C8C8D0;--c3-fr:#8E8E98;--c3-hv:#222228;--c3-bd:#2E2E36;--c3-campo:#16161A}
+/* cabeçalho: parte natural da página; a linha fina só aparece quando a tela rola */
+html.casca2 #top{padding:0 26px;gap:6px;background:var(--c3-sup)!important;color:var(--c3-tx);border-bottom:1px solid transparent!important;box-shadow:none;transition:border-color .15s,box-shadow .15s}
+html.casca2 body.c3-rolou #top{border-bottom-color:var(--c3-bd)!important;box-shadow:0 8px 20px -16px rgba(16,24,40,.35)}
+html.casca2 .c2-sep{display:none}
+html.casca2 .c2-logo img{box-shadow:0 0 0 1px var(--c3-bd)}
+html.casca2 .c2-setor{color:var(--c3-tx)}
+html.casca2 .c2-setor>svg,html.casca2 .c2-stx small,html.casca2 .c2-eu{color:var(--c3-fr)}
+html.casca2 .c2-setor:hover,html.casca2 .c2-w.ab>.c2-setor,html.casca2 .c2-eu:hover,html.casca2 .c2-w.ab>.c2-eu{background:var(--c3-hv)}
+html.casca2 .c2-sic{background:var(--brasa-bg,#FDECEC);border:0;color:var(--brasa,#D3121C)}
+html.casca2 .c2-trilha,html.casca2 .c2-trilha .trilha,html.casca2 .c2-trilha a{color:var(--c3-fr)}
+html.casca2 .c2-trilha a:hover,html.casca2 .c2-trilha b{color:var(--c3-tx)}
+html.casca2 .c2-tb{color:var(--c3-sv)}
+html.casca2 .c2-tb:hover,html.casca2 .c2-w.ab>.c2-tb{background:var(--c3-hv);color:var(--c3-tx);box-shadow:none}
+html.casca2 .c2-tb.c3-rot{padding:0 11px;font-size:13px;font-weight:600}
+html.casca2 .c2-tb.c3-rot svg{width:17px;height:17px}
+html.casca2 .c2-tb.c3-novo{background:var(--brasa,#D3121C);color:#fff}
+html.casca2 .c2-tb.c3-novo:hover,html.casca2 .c2-w.ab>.c2-tb.c3-novo{background:var(--brasa2,#B00E17);color:#fff}
+html.casca2 .c2-tb.comp{background:var(--c3-campo);border-color:var(--c3-bd);color:var(--c3-tx);box-shadow:none}
+html.casca2 .c2-tb.comp svg{color:var(--c3-fr)}
+html.casca2 .c2-bdg,html.casca2 .c2-dot{box-shadow:0 0 0 2px var(--c3-sup)}
+html.casca2 .c2-av{box-shadow:none}
+/* janelinhas no mesmo tema da tela */
+html.casca2 .c2-pop{background:var(--branco);color:var(--tinta);box-shadow:0 22px 50px rgba(16,24,40,.2),0 0 0 1px var(--linha)}
+html.casca2 .c2-op{color:var(--tinta)}
+html.casca2 .c2-op:hover{background:var(--linha2)}
+html.casca2 .c2-op svg{color:var(--suave)}
+html.casca2 .c2-op.on{background:var(--brasa-bg,#FDECEC);color:var(--brasa,#D3121C)}
+html.casca2 .c2-op.on svg{color:var(--brasa,#D3121C)}
+html.casca2 .c2-op small,html.casca2 .c2-pt,html.casca2 .c2-mega-cab p,html.casca2 .c2-mega-rod .d{color:var(--fraco)}
+html.casca2 .c2-linha,html.casca2 .c2-mega-cab{background-color:transparent;border-color:var(--linha)}
+html.casca2 .c2-linha{background:var(--linha)}
+html.casca2 .c2-mg h5,html.casca2 .c2-mega-rod,html.casca2 .c2-pop-sinc p{color:var(--suave)}
+html.casca2 .c2-mg h5 span,html.casca2 .c2-opmod .c2-mnum{background:var(--linha2)}
+html.casca2 .c2-mega-rod{background:var(--papel);border-color:var(--linha)}
+html.casca2 .c2-filtro{background:var(--papel);border-color:var(--linha);color:var(--fraco)}
+html.casca2 .c2-filtro input{color:var(--tinta)}
+html.casca2 .c2-pop-busca .busca input,html.casca2 .c2-pop-comp .comp{background:var(--c3-campo)!important;color:var(--tinta)!important;border-color:var(--linha)!important}
+html.casca2 .c2-pop-comp .comp input{color:var(--tinta)!important;color-scheme:normal!important}
+html.casca2 .c2-pop-comp .comp .cl>span,html.casca2 .c2-pop-comp .comp .cx{color:var(--suave)!important}
+html.casca2 .top .comp .cl[data-mes]::after{color:var(--tinta)}
+html.casca2 .c2-pop-ia .eia-btop{color:var(--tinta)!important}
+html.casca2 .c2-pop-ia .eia-btop:hover{background:var(--linha2)!important}
+/* pesquisa global sempre à vista no computador */
+@media (min-width:861px){
+ html.casca2 .c2-w[data-c2=busca]{flex:0 1 400px;min-width:170px;margin:0 6px}
+ html.casca2 .c2-w[data-c2=busca]>button{display:none}
+ html.casca2 .c2-w[data-c2=busca]>.c2-pop{display:block;position:static;width:100%;min-width:0;max-width:none;padding:0;background:none;box-shadow:none;border-radius:0;animation:none;z-index:auto}
+ html.casca2 .c2-pop-busca .busca input{height:38px;padding-left:36px;border-radius:10px;background:var(--c3-campo)!important;color:var(--c3-tx)!important;border:1px solid var(--c3-bd)!important}
+ html.casca2 .c2-pop-busca .busca>svg{color:var(--c3-fr)!important}
+ html.casca2 .c2-pop-busca .pq-kbd{background:none!important;color:var(--c3-fr)!important;border-color:var(--c3-bd)!important}
+}
+@media (max-width:1239px){html.casca2 .c2-trilha{display:none}}
+@media (max-width:1100px){html.casca2 .c2-tb.c3-rot span{display:none}html.casca2 .c2-tb.c3-rot{padding:0;width:38px}}
+/* acesso rápido às telas do setor, no lugar da barra lateral */
+#c3abas{display:none}
+@media (min-width:861px){html.casca2 body.c3-tem-abas #c3abas{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;padding:2px 26px 4px}}
+#c3abas::-webkit-scrollbar{display:none}
+#c3abas a{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:9px;color:var(--suave);font-size:13px;font-weight:550;white-space:nowrap;text-decoration:none;flex:none}
+#c3abas a svg{width:16px;height:16px;color:var(--fraco)}
+#c3abas a:hover{background:var(--linha2);color:var(--tinta)}
+#c3abas a.on{background:var(--brasa-bg,#FDECEC);color:var(--brasa,#D3121C);font-weight:650}
+#c3abas a.on svg{color:var(--brasa,#D3121C)}
+#c3abas em{font-style:normal;font-size:11px;font-weight:700;background:var(--linha2);color:var(--suave);border-radius:9px;padding:0 6px}
+/* sem barra lateral e sem largura presa: o conteúdo ocupa a tela */
+html.casca2 #c2rail,html.casca2 #c2fly{display:none!important}
+html.casca2 .app{padding-left:0}
+html.casca2 body:not(.doc-setor) .conteudo{max-width:none!important}
+html.casca2 .sv-corpo{max-width:none;padding-left:26px;padding-right:26px}
+html.casca2 .pm-sub{max-width:none;padding-left:26px;padding-right:26px}
+html.casca2.casca2 .main{background:var(--papel)!important}
+html.casca2 .spot-corpo{max-width:1440px}
+html.casca2 .conteudo,html.casca2 .sv-corpo{overflow-x:clip}
+@media (max-width:860px){html.casca2 #top{padding:0 8px}html.casca2 .sv-corpo{padding-left:16px;padding-right:16px}}
+html.casca2 #c2mob,html.casca2 .barra-mob{background:color-mix(in srgb,var(--branco) 95%,transparent)!important}
+/* preto deixa de ser fixo dentro das telas */
+html.casca2 .ms-area a.on,html.casca2 #conteudo .abas>button.on,html.casca2 #conteudo .dir-abas:not(.sv-abas)>.dir-aba.on,html.casca2 .rel-lista a.on,html.casca2 .ms-modo button.on{background:var(--brasa-bg,#FDECEC)!important;border-color:transparent!important;color:var(--brasa,#D3121C)!important}
+html.casca2 #conteudo .dir-abas:not(.sv-abas)>.dir-aba.on svg{color:var(--brasa,#D3121C)}
+html.casca2 .ms-area a.on .ms-n{background:var(--brasa,#D3121C)}
+html.casca2 .c2-chip.on{background:var(--brasa,#D3121C);border-color:var(--brasa,#D3121C);color:#fff}
+html.casca2 input[type=file]::file-selector-button{background:var(--linha2);color:var(--tinta)}
+html.casca2 .c2-comparar{background:var(--branco);color:var(--tinta);border:1px solid var(--linha)}
+html.casca2 .c2-comparar svg{color:var(--brasa,#D3121C)}
+html.casca2 .c2-comparar button{background:var(--papel);border-color:var(--linha);color:var(--suave)}
+html.casca2 .c2-comparar button.on{background:var(--brasa,#D3121C);border-color:var(--brasa,#D3121C);color:#fff}
+html.casca2 .c2-comparar .c2-cmp-ok{background:var(--branco);border-color:var(--brasa,#D3121C);color:var(--brasa,#D3121C)}
+html.c2-m1.casca2 .c2-al.baixa{background:var(--branco);border-color:var(--linha);color:var(--tinta)}
+html.c2-m1.casca2 .c2-al.baixa small{color:var(--suave)}
+html.c2-m1.casca2 .c2-al.baixa .c2-ai{background:var(--linha2);color:var(--suave)}
+html.c2-m1.casca2 .c2-pill:first-child{background:var(--brasa,#D3121C);border-color:var(--brasa,#D3121C);color:#fff}
+html.c2-m2.casca2 .c2-av{background:var(--brasa,#D3121C);box-shadow:none}
+/* números principais: cartão claro, sem bloco escuro */
+html.casca2 .cc-faixa{background:var(--branco)!important;color:var(--tinta);border:1px solid var(--linha)!important;box-shadow:var(--pn-sh)}
+html.casca2 .cc-faixa-tx b,html.casca2 .cc-faixa-comp b,html.casca2 .cc-faixa .cc-kpi:not(.neg) b{color:var(--tinta)}
+html.casca2 .cc-faixa .cc-kpi.neg b{color:var(--pe,#C0392B)}
+html.casca2 .cc-kpis{border-top-color:var(--linha)!important}
+html.casca2 .ndp .cc-kpi.ndp-k:hover{background:var(--linha2)}
+html.casca2 .ndp .cc-kpi.ndp-k:hover small{color:var(--tinta)}
+html.casca2 .cc-faixa-tx span,html.casca2 .cc-faixa .cc-kpi small,html.casca2 .cc-faixa .cc-kpi span,html.casca2 .cc-faixa .cc-kpi em:not(.cai){color:var(--suave)}
+html.casca2 .cc-faixa .cc-kpi.fin small,html.casca2 .cc-faixa .cc-kpi em.cai{color:var(--brasa,#D3121C)}
+html.casca2 .cc-faixa-comp small{color:var(--brasa,#D3121C)}
+html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest,html.c2-m2.casca2 .sv-corpo .hero .kpi{background:var(--branco)!important;color:var(--tinta);box-shadow:var(--pn-sh)!important;border:1px solid var(--linha)!important}
+html.c2-m2.casca2 .sv-corpo .hero .kpi:hover{background:var(--linha2)!important}
+html.casca2 .sv-corpo .hero>.kpi.c2-kdest .ic{background:var(--brasa,#D3121C)!important}
+html.casca2 .sv-corpo .hero>.kpi.c2-kdest .l,html.casca2 .sv-corpo .hero>.kpi.c2-kdest .delta,html.casca2 .sv-corpo .hero>.kpi.c2-kdest .delta b,html.c2-m2.casca2 .sv-corpo .hero .kpi .l,html.c2-m2.casca2 .sv-corpo .hero .kpi .delta{color:var(--suave)!important}
+html.casca2 .sv-corpo .hero>.kpi.c2-kdest .v,html.c2-m2.casca2 .sv-corpo .hero .kpi .v{color:var(--tinta)!important}
+html.casca2 .pp-hero{background:var(--branco);border-color:var(--linha);color:var(--tinta);box-shadow:var(--pn-sh)}
+html.casca2 .pp-hero .pp-ki{background:var(--brasa,#D3121C)}
+html.casca2 .pp-hero .pp-kl,html.casca2 .pp-hero .pp-kv small,html.casca2 .pp-hero .pp-ks,html.casca2 .pp-hero .pp-sparkl,html.casca2 .pp-hero .pp-progl,html.casca2 .pp-hero .pp-mini span{color:var(--suave)}
+html.casca2 .pp-hero .pp-kv,html.casca2 .pp-hero .pp-mini b{color:var(--tinta)}
+html.casca2 .pp-hero .pp-spark i{background:var(--linha)}
+html.casca2 .pp-hero .pp-spark i:last-child{background:var(--brasa,#D3121C)}
+html.casca2 .pp-hero .pp-bar{background:var(--linha2)}
+html.casca2 .pp-hero .pp-bar i{background:var(--brasa,#D3121C)}
+html.casca2 .pp-hero .pp-mini div{background:var(--papel);border-color:var(--linha)}
+html.casca2 .c2-tile.pri .c2-ti,html.casca2 #c2mob .c2-fab span{background:linear-gradient(145deg,var(--brasa,#D3121C),var(--brasa2,#B00E17));box-shadow:0 8px 18px -6px color-mix(in srgb,var(--brasa,#D3121C) 45%,transparent)}
+html.casca2 .pp-mb i{background:var(--brasa,#D3121C)!important}
+/* Centro de Inventário nas cores do tema */
+html.casca2 .inv{--inv-v:var(--brasa,#D3121C);--inv-p:var(--brasa,#D3121C)}
+html.casca2 .inv-kpi.dest{background:var(--branco);border-color:var(--linha);color:var(--tinta)}
+html.casca2 .inv-kpi.dest small,html.casca2 .inv-kpi.dest em{color:var(--suave)}
+/* início dos setores nas cores do tema (claro ou escuro) */
+html.casca2 .c2-ola h1,html.casca2 .c2-st h2,html.casca2 .c2-pill,html.casca2 .c2-tile{color:var(--tinta)}
+html.casca2 .c2-ola p{color:var(--suave)}
+html.casca2 .c2-ola .c2-desc,html.c2-m1.casca2 .c2-favblk .c2-st h2{color:var(--fraco)}
+html.c2-m1.casca2 .c2-pill{background:var(--branco);border-color:var(--linha)}
+html.c2-m1.casca2 .c2-pill:first-child{background:var(--brasa,#D3121C);border-color:var(--brasa,#D3121C);color:#fff}
+html[data-jbtema-modo="escuro"].casca2 .c2-tile{background:var(--branco);box-shadow:none;outline:1px solid var(--linha)}
+html[data-jbtema-modo="escuro"].casca2 .c2-tile .c2-ti:not(.pri *){color:#1B1A2E}
+html[data-jbtema-modo="escuro"].casca2 .c2-tile.pri .c2-ti{color:#fff}
+@media (min-width:861px){html.casca2 .c2-pop-busca .busca input{text-overflow:ellipsis}}
+@media (min-width:1441px){html.casca2 .c2-pop-busca .busca input{padding-right:68px}}
+@media (max-width:640px){html.c2-m1.casca2 .c2-favs{flex:1 1 100%}}
+@media print{#c3abas{display:none!important}}
+</style>
 </body>
 </html>

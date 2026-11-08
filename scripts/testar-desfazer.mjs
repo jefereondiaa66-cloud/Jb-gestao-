@@ -262,12 +262,10 @@ try {
       await page.keyboard.press('Escape');
       ok(await page.evaluate(() => document.getElementById('jbhPainel').hidden), 'Esc fecha o histórico');
 
-      // layout anterior
-      await page.evaluate(() => { const b = document.querySelector('[data-c2antiga]'); if (b) b.click(); }); await espera(page, 500);
-      await ir(page, '#/painel');
-      ok(await page.evaluate(() => { const b = document.querySelector('#top .jbh-antigo'); return !!b && !!b.offsetParent; }), 'no layout anterior, os botões ficam na barra do Setor Pessoal');
-      await ir(page, '#/setor-lenha');
-      ok(await page.evaluate(() => { const b = document.querySelector('.spot-cab .jbh-spot'); return !!b && !!b.offsetParent; }), 'no layout anterior, os botões ficam no cabeçalho dos setores');
+      // o layout anterior deixou de existir (pedido do dono, 08/11/2026): mesmo com a escolha antiga guardada, fica o novo
+      await page.evaluate(() => { localStorage.setItem('jb_casca', 'antiga'); location.hash = '#/painel'; });
+      await page.waitForTimeout(400);
+      ok(await page.evaluate(() => { const b = document.querySelector('#top .jbh.c2'); return document.documentElement.classList.contains('casca2') && !!b && !!b.offsetParent; }), 'com a escolha antiga guardada, continua o layout novo com os botões no alto');
       await page.evaluate(() => { const b = document.querySelector('.c2-volta'); if (b) b.click(); }); await espera(page, 500);
 
       // sobrevive a recarregar a página
