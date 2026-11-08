@@ -41,8 +41,23 @@ export const PAPEIS_ACAO = Object.freeze({
   inutilizar_numeracao: Object.freeze(['admin', 'gerente']),
   auditoria: Object.freeze(['admin', 'gerente']),
 });
-/* ações que também respeitam a lista "Quem pode emitir e cancelar" das Configurações fiscais */
-const COM_LISTA = new Set(['emitir_nfe', 'cancelar_nfe', 'inutilizar_numeracao']);
+/* ações que transmitem à SEFAZ e também respeitam a lista "Quem pode emitir e cancelar" das Configurações fiscais */
+export const ACOES_COM_LISTA = Object.freeze(['emitir_nfe', 'cancelar_nfe', 'inutilizar_numeracao']);
+const COM_LISTA = new Set(ACOES_COM_LISTA);
+
+/** Lista "Quem pode emitir e cancelar" (fiscalCfg/geral.autorizados) a partir da leitura que a função faz no
+    banco com a credencial interna (GET /rest/v1/docs?select=dados&colecao=eq.fiscalCfg&id=eq.geral).
+    Devolve a lista (vazia = sem configuração ou ninguém marcado: vale só o perfil) ou null quando a leitura
+    não respondeu 200 com um resultado válido. Com null, quem transmite recusa: a regra não pode sumir. */
+export function autorizadosDaLeitura(status, linhas) {
+  if (status !== 200 || !Array.isArray(linhas) || linhas.length > 1) return null;
+  if (!linhas.length) return [];
+  const d = linhas[0] && linhas[0].dados;
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  if (d.autorizados === undefined || d.autorizados === null) return [];
+  if (!Array.isArray(d.autorizados) || d.autorizados.some((u) => !((typeof u === 'string' && u) || Number.isFinite(u)))) return null;
+  return d.autorizados.map(String);
+}
 const NOME_PAPEL = { admin: 'administrador', gerente: 'gerente', financeiro: 'financeiro', vendedor: 'vendedor', consulta: 'consulta' };
 const O_QUE = {
   status_servico: 'verificar o serviço fiscal', emitir_nfe: 'emitir notas fiscais', consultar_nfe: 'consultar notas fiscais', baixar_xml_nfe: 'baixar o XML',
@@ -53,6 +68,7 @@ const REF = /^[A-Za-z0-9_.-]{1,80}$/;
 const TEMPO_FOCUS = 20000;                      // cada pedido à Focus
 const ESPERAS_PADRAO = [1000, 2000, 3000, 4000, 5000];   // acompanhamento depois do envio (~15 s)
 const EM_ANDAMENTO_S = 180;                     // envio sem resposta há menos que isso: ainda "em andamento"
+const COM_XML = new Set(['autorizado', 'cancelado', 'denegado']);   // situações em que a Focus tem o XML da nota com protocolo
 
 /* ---------------- utilidades ---------------- */
 const digitos = (v) => String(v ?? '').replace(/\D/g, '');
@@ -437,12 +453,13 @@ export function criarServico(opc) {
   const marcar = async (amb, ref, situacao, detalhe) => { try { await banco.marcar(amb, ref, situacao, detalhe ? curto(detalhe, 500) : null); } catch (e) { aviso('jb-fiscal: situação do envio não gravada', e); } };
 
   async function consultaCompleta(amb, ref) { return focus(amb, 'GET', caminhoNfe(ref), { consulta: { completa: 1 } }); }
-  /* documento + protocolo do XML (para "autorizado") */
+  /* documento + protocolo do XML. Também para cancelada e denegada: o XML da nota (nfeProc) traz o protocolo,
+     a data e o valor, que não podem voltar nulos numa consulta e apagar o que o programa já gravou. */
   async function documentoCompleto(amb, j, ref) {
     j = { ...(j || {}) };
     if (vazio(j.ref) && ref) j.ref = ref;
     let x = null;
-    if (j.status === 'autorizado') {
+    if (COM_XML.has(j.status)) {
       let caminho = j.caminho_xml_nota_fiscal;
       if (!caminho) { const c = await consultaCompleta(amb, j.ref); if (c.ok && c.json) { j = { ...j, ...c.json }; caminho = j.caminho_xml_nota_fiscal; } }
       if (caminho) { const a = await arquivo(amb, caminho); if (a.ok) x = lerProtocoloXml(new TextDecoder('utf-8').decode(a.bytes)); }
@@ -486,7 +503,8 @@ export function criarServico(opc) {
         : t.rede || t.status >= 500 ? nao('A Focus NFe não respondeu agora.')
           : t.status === 401 || t.status === 403 ? nao(`A Focus NFe recusou o token ${VAR_TOKEN[amb]}.`)
             : t.ok ? { ok: true } : nao(`A Focus NFe respondeu com o código ${t.status}.`);
-      /* 2) cadastro da empresa na Focus (certificado A1). Com FOCUSNFE_TOKEN_CONTA (opcional), usa o token da conta. */
+      /* 2) cadastro da empresa na Focus (certificado A1). Com FOCUSNFE_TOKEN_CONTA, usa o token da conta (a Focus
+            costuma exigir esse token aqui; sem o certificado, o programa não libera a produção). */
       let empresa = nao('Guarde CNPJ_EMITENTE (só números) nos segredos do Supabase para ver o cadastro da empresa na Focus NFe.');
       let certificado = nao('O certificado aparece aqui quando o cadastro da empresa na Focus NFe puder ser lido.');
       let crt = null;

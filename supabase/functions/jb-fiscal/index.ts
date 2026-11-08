@@ -21,16 +21,21 @@
 //   cancelar e inutilizar: administrador, gerente
 //   auditoria: administrador, gerente
 // e, se a lista "Quem pode emitir e cancelar" (fiscalCfg/geral.autorizados) tiver
-// alguém, só essas pessoas (e o administrador) emitem, cancelam e inutilizam.
+// alguém, só essas pessoas (e o administrador) emitem, cancelam e inutilizam. Essa lista
+// é lida com a credencial interna da função (não com a sessão de quem chama); se a leitura
+// falhar, emitir, cancelar e inutilizar são recusados (503 "indisponivel", nada enviado).
 //
 // Segredos (Supabase → Edge Functions → Secrets), nunca no repositório:
 //   FOCUSNFE_TOKEN_HOMOLOGACAO  token da empresa na Focus NFe, ambiente de homologação
 //   FOCUSNFE_TOKEN_PRODUCAO     token da empresa na Focus NFe, ambiente de produção
 //   PRODUCAO_LIBERADA           "sim" libera produção; qualquer outro valor recusa produção
-//   CNPJ_EMITENTE               (recomendado) CNPJ da cerâmica, só números: a função só emite
-//                               para ele e precisa dele para inutilizar números
-//   FOCUSNFE_TOKEN_CONTA        (opcional) token principal da conta, só para ler o cadastro
-//                               da empresa (validade do certificado) na tela "Serviço"
+//   CNPJ_EMITENTE               (OBRIGATÓRIO) CNPJ da cerâmica, só os 14 números: a função confere
+//                               que a nota é dele, inutiliza números e lê o cadastro da empresa
+//   FOCUSNFE_TOKEN_CONTA        token principal da conta Focus NFe: necessário para a tela "Serviço"
+//                               ler o cadastro da empresa e o certificado A1; sem ele o programa não
+//                               libera a produção (bloqueio de propósito)
+//   JB_ORIGENS                  (opcional, o mesmo da jb-auth) sites que podem chamar a função pelo
+//                               navegador, separados por vírgula; padrão https://jb-gestao-ceramica.netlify.app
 // Publicar SEM conferência de token (verify_jwt = false): a chamada do banco não
 // tem sessão; a função confere a sessão ou o segredo ela mesma.
 //
@@ -38,21 +43,25 @@
 // {erro: {tipo, mensagem, problemas?}, retryable?} com código HTTP de erro.
 // Cada chamada fica registrada em jbcore.fiscal_auditoria (ação "auditoria").
 // =====================================================================
-import { ACOES, criarServico } from "./nucleo.js";
+import { ACOES, ACOES_COM_LISTA, autorizadosDaLeitura, criarServico } from "./nucleo.js";
 
 const SB_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SB_SERVICO = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+/* a mesma regra da jb-auth: só os sites da lista recebem a autorização do navegador (CORS) */
+const ORIGENS = (Deno.env.get("JB_ORIGENS") || "https://jb-gestao-ceramica.netlify.app").split(",").map((s) => s.trim()).filter(Boolean);
 
-const CORS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, apikey, content-type, x-client-info",
-  "access-control-allow-methods": "POST, OPTIONS",
-};
-const resp = (status: number, corpo: unknown) =>
-  new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
-const erro = (status: number, tipo: string, mensagem: string, retryable?: boolean) =>
-  resp(status, retryable === undefined ? { erro: { tipo, mensagem } } : { erro: { tipo, mensagem, retryable }, retryable });
+function cors(req: Request): Record<string, string> {
+  const origem = req.headers.get("origin") || "";
+  const permitida = ORIGENS.includes("*") ? "*" : (ORIGENS.includes(origem) ? origem : ORIGENS[0] || "");
+  return {
+    "Access-Control-Allow-Origin": permitida,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "7200",
+    "Vary": "Origin",
+  };
+}
 
 /* as variáveis são lidas a cada pedido: trocar um segredo no Supabase vale na hora */
 const lerEnv = () => ({
@@ -101,8 +110,28 @@ async function lerDoc(auth: string, colecao: string, id: string): Promise<Record
   return Array.isArray(l) && l[0] && l[0].dados && typeof l[0].dados === "object" ? l[0].dados as Record<string, unknown> : null;
 }
 
-/** pessoa logada na nuvem: sessão conferida no banco (jb_eu) e perfil do documento acesso/<uid> */
-async function quemDaNuvem(auth: string): Promise<Quem | null> {
+/** Lista "Quem pode emitir e cancelar" (fiscalCfg/geral.autorizados) lida com a credencial interna da
+    função (service_role): a regra não pode depender do que a sessão de quem chama consegue ler.
+    null = o banco não respondeu 200 com um resultado válido (ver autorizadosDaLeitura em nucleo.js). */
+async function autorizadosDoServidor(): Promise<string[] | null> {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/docs?select=dados&colecao=eq.fiscalCfg&id=eq.geral`, {
+      headers: { apikey: SB_SERVICO, authorization: `Bearer ${SB_SERVICO}`, accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const t = await r.text();
+    let linhas: unknown = undefined;
+    try { linhas = JSON.parse(t); } catch { linhas = undefined; }
+    return autorizadosDaLeitura(r.status, linhas);
+  } catch {
+    return null;
+  }
+}
+class SemListaAutorizados extends Error {}
+
+/** pessoa logada na nuvem: sessão conferida no banco (jb_eu) e perfil do documento acesso/<uid>.
+    Para emitir, cancelar e inutilizar, também a lista de autorizados; sem ela, SemListaAutorizados. */
+async function quemDaNuvem(auth: string, acao: string): Promise<Quem | null> {
   const r = await fetch(`${SB_URL}/rest/v1/rpc/jb_eu`, {
     method: "POST",
     headers: { apikey: SB_ANON, authorization: auth, "content-type": "application/json" },
@@ -119,13 +148,24 @@ async function quemDaNuvem(auth: string): Promise<Quem | null> {
     const ac = await lerDoc(auth, "acesso", uid).catch(() => null);
     if (ac && ac.ativo !== false && typeof ac.papel === "string") papel = ac.papel;
   }
-  const cfg = await lerDoc(auth, "fiscalCfg", "geral").catch(() => null);
-  const autorizados = cfg && Array.isArray(cfg.autorizados) ? (cfg.autorizados as unknown[]).map(String) : [];
+  /* consultas seguem só a regra por perfil; quem transmite precisa da lista confirmada pelo servidor */
+  let autorizados: string[] = [];
+  if (ACOES_COM_LISTA.includes(acao)) {
+    const l = await autorizadosDoServidor();
+    if (l === null) throw new SemListaAutorizados();
+    autorizados = l;
+  }
   return { origem: "nuvem", uid, nome: String(eu.nome || eu.usuario || ""), papel, autorizados };
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  const h = cors(req);
+  const resp = (status: number, corpo: unknown) =>
+    new Response(JSON.stringify(corpo), { status, headers: { ...h, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  const erro = (status: number, tipo: string, mensagem: string, retryable?: boolean) =>
+    resp(status, retryable === undefined ? { erro: { tipo, mensagem } } : { erro: { tipo, mensagem, retryable }, retryable });
+
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: h });
   if (req.method !== "POST") return erro(405, "pedido", "Use POST.");
   if (!SB_URL || !SB_ANON || !SB_SERVICO) return erro(503, "configuracao", "A função fiscal está sem acesso ao banco do Supabase. Nada foi enviado.", false);
   let b: Record<string, unknown>;
@@ -146,7 +186,12 @@ Deno.serve(async (req: Request) => {
     // (a) pessoa logada na nuvem
     const auth = req.headers.get("authorization") ?? "";
     if (!/^Bearer\s+\S+/.test(auth)) return erro(401, "autenticacao", "Entre no sistema de novo para usar o Setor Fiscal. Nada foi enviado.", false);
-    try { quem = await quemDaNuvem(auth); } catch { return erro(503, "indisponivel", "O servidor não confirmou o seu acesso agora. Nada foi enviado. Tente de novo.", true); }
+    try { quem = await quemDaNuvem(auth, acao); } catch (e) {
+      if (e instanceof SemListaAutorizados) {
+        return erro(503, "indisponivel", "O servidor não conseguiu ler agora as Configurações fiscais (quem pode emitir e cancelar). Nada foi enviado. Tente de novo em instantes.", true);
+      }
+      return erro(503, "indisponivel", "O servidor não confirmou o seu acesso agora. Nada foi enviado. Tente de novo.", true);
+    }
     if (!quem) return erro(401, "autenticacao", "Sua sessão terminou. Entre de novo no sistema. Nada foi enviado.", false);
   }
 

@@ -8,7 +8,7 @@
 //   node scripts/testar-fiscal.mjs        (também roda dentro de scripts/verificar.mjs)
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { criarServico, traduzirInfNFe, lerProtocoloXml, documentoDaFocus, BASES, ACOES } from '../supabase/functions/jb-fiscal/nucleo.js';
+import { criarServico, traduzirInfNFe, lerProtocoloXml, documentoDaFocus, autorizadosDaLeitura, BASES, ACOES, ACOES_COM_LISTA } from '../supabase/functions/jb-fiscal/nucleo.js';
 
 /* ---------------- dados de exemplo (fictícios) ---------------- */
 const CNPJ = '11222333000181';          // CNPJ de exemplo (dígitos válidos), não é de ninguém do sistema
@@ -77,7 +77,8 @@ function focusFalsa(o = {}) {
     if (n.status_sefaz) Object.assign(c, { status_sefaz: n.status_sefaz, mensagem_sefaz: n.mensagem_sefaz });
     if (['autorizado', 'cancelado', 'denegado'].includes(n.status)) {
       Object.assign(c, { chave_nfe: 'NFe' + CHAVE, numero: String(n.corpo.numero), serie: String(n.corpo.serie) });
-      if (n.status !== 'denegado') { c.caminho_xml_nota_fiscal = n.caminhoXml; c.caminho_danfe = n.caminhoDanfe; }
+      c.caminho_xml_nota_fiscal = n.caminhoXml;              // denegada também tem o XML (com o protocolo da denegação)
+      if (n.status !== 'denegado') c.caminho_danfe = n.caminhoDanfe;
     }
     if (n.status === 'cancelado') c.caminho_xml_cancelamento = n.caminhoCanc;
     return c;
@@ -111,6 +112,7 @@ function focusFalsa(o = {}) {
       arquivos.set(b + n.caminhoDanfe, { tipo: 'application/pdf', corpo: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]), token: TOKENS[amb] });
       arquivos.set(b + n.caminhoCanc, { tipo: 'application/xml', corpo: xmlCancelamento(), token: TOKENS[amb] });
       if (o.postFalha === 'depois') throw new TypeError('fetch failed');   // a Focus recebeu, a resposta se perdeu
+      if (o.imediato) { Object.assign(n, o.final || { status: 'autorizado', status_sefaz: '100', mensagem_sefaz: 'Autorizado o uso da NF-e' }); return json(201, consultaDe(n)); }
       return json(202, { cnpj_emitente: CNPJ, ref, status: 'processando_autorizacao' });
     }
     if (metodo === 'GET' && p === '/v2/nfe/inutilizacoes') return json(200, inut.filter((x) => x.amb === amb && x.cnpj === u.searchParams.get('cnpj')));
@@ -567,6 +569,174 @@ t('toda ação do programa existe e erro sempre vem como {erro:{tipo, mensagem}}
   const { run } = servico();
   const r = await run('apagar_tudo', {});
   assert.equal(r.status, 400); assert.equal(typeof r.corpo.erro.tipo, 'string'); assert.equal(typeof r.corpo.erro.mensagem, 'string');
+});
+
+t('consultar nota cancelada ou denegada: protocolo, data e valor vêm do XML (nada volta nulo)', async () => {
+  const { run } = servico();
+  await run('emitir_nfe', { ambiente: 'homologacao', referencia: 'jb-d1-t1', infNFe: infSimples() });
+  await run('cancelar_nfe', { ambiente: 'homologacao', id: 'jb-d1-t1', justificativa: 'Cliente desistiu da compra antes da entrega' });
+  const c = await run('consultar_nfe', { ambiente: 'homologacao', id: 'jb-d1-t1' });
+  const d = c.corpo.documento;
+  assert.equal(d.status, 'cancelado');
+  assert.equal(d.autorizacao.numero_protocolo, PROT, 'protocolo da autorização, lido do XML da nota');
+  assert.equal(d.autorizacao.data_recebimento, '2026-11-08T10:00:05-03:00');
+  assert.equal(d.autorizacao.digest_value, 'abc123=');
+  assert.equal(d.data_emissao, '2026-11-08T10:00:00-03:00'); assert.equal(d.valor_total, 1400); assert.equal(d.chave, CHAVE);
+  const den = servico({ focusOpc: { final: { status: 'denegado', status_sefaz: '302', mensagem_sefaz: 'Uso Denegado: Irregularidade fiscal do destinatario' }, xml: { cStat: 302 } } });
+  const e = await den.run('emitir_nfe', { ambiente: 'homologacao', referencia: 'jb-d2-t1', infNFe: infSimples() });
+  const g = e.corpo.documento;
+  assert.equal(g.status, 'denegado'); assert.equal(g.autorizacao.codigo_status, 302); assert.match(g.autorizacao.motivo_status, /Denegado/);
+  assert.equal(g.autorizacao.numero_protocolo, PROT); assert.equal(g.valor_total, 1400); assert.equal(g.data_emissao, '2026-11-08T10:00:00-03:00');
+  const g2 = (await den.run('consultar_nfe', { ambiente: 'homologacao', id: 'jb-d2-t1' })).corpo.documento;
+  assert.deepEqual(g2, g, 'a consulta devolve o mesmo documento');
+});
+
+t('lista "Quem pode emitir e cancelar": só vale a leitura 200 com resultado válido', () => {
+  assert.deepEqual([...ACOES_COM_LISTA].sort(), ['cancelar_nfe', 'emitir_nfe', 'inutilizar_numeracao']);
+  assert.deepEqual(autorizadosDaLeitura(200, []), [], 'sem configuração fiscal: vale só o perfil');
+  assert.deepEqual(autorizadosDaLeitura(200, [{ dados: { natOp: 'VENDA' } }]), [], 'ninguém marcado');
+  assert.deepEqual(autorizadosDaLeitura(200, [{ dados: { autorizados: null } }]), []);
+  assert.deepEqual(autorizadosDaLeitura(200, [{ dados: { autorizados: ['u_A', 'u_B'] } }]), ['u_A', 'u_B']);
+  for (const [st, l] of [[401, []], [403, []], [500, []], [0, undefined], [200, undefined], [200, null], [200, {}], [200, 'x'], [200, [{}]], [200, [{ dados: [] }]],
+    [200, [{ dados: { autorizados: 'u_A' } }]], [200, [{ dados: { autorizados: [{ id: 'u_A' }] } }]], [200, [{ dados: {} }, { dados: {} }]]]) {
+    assert.equal(autorizadosDaLeitura(st, l), null, `leitura ${st} ${JSON.stringify(l)} não é válida`);
+  }
+});
+
+/* ---------- a função de verdade (index.ts) num Deno simulado, com banco e Focus falsos ----------
+   Precisa do Node que lê TypeScript (22.18 ou mais novo, o do GitHub e do Netlify); num Node mais antigo, pula. */
+const SB = 'https://jb-teste.supabase.co', CH_ANON = 'chave-anon-teste', CH_SRV = 'chave-servico-teste';
+const NUVEM = 'https://jb-gestao-ceramica.netlify.app';
+let cargaFuncao = 0;
+async function comFuncao(o, fn) {
+  const env = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: CH_ANON, SUPABASE_SERVICE_ROLE_KEY: CH_SRV, ...ENV, ...(o.env || {}) };
+  const f = focusFalsa({ imediato: true }), b = bancoFalso();
+  const lidas = [];               // leituras de documentos (coleção, id, chave usada)
+  const cfgServidor = o.cfg === undefined ? { autorizados: [] } : o.cfg;
+  async function fetchFalso(url, init = {}) {
+    const u = String(url);
+    if (!u.startsWith(SB)) return f.fetch(u, init);
+    const h = init.headers || {};
+    const json = (status, corpo) => new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } });
+    const p = new URL(u);
+    if (p.pathname === '/rest/v1/rpc/jb_eu') {
+      const s = { 'Bearer sessao-gerente': { uid: 'u_GER', nome: 'Gerente', admin: false }, 'Bearer sessao-vendedor': { uid: 'u_VEN', nome: 'Vendedor', admin: false } }[h.authorization];
+      return s ? json(200, s) : json(401, { message: 'JWT inválido' });
+    }
+    if (p.pathname === '/rest/v1/docs') {
+      const col = (p.searchParams.get('colecao') || '').replace(/^eq\./, ''), id = (p.searchParams.get('id') || '').replace(/^eq\./, '');
+      const servico = h.apikey === CH_SRV && h.authorization === 'Bearer ' + CH_SRV;
+      lidas.push({ col, id, servico });
+      if (col === 'acesso') return json(200, [{ dados: { papel: id === 'u_GER' ? 'gerente' : 'vendedor', ativo: true } }]);
+      if (col === 'fiscalCfg' && id === 'geral') {
+        if (!servico) return json(200, []);                     // a sessão da pessoa não enxerga a configuração (regra de leitura)
+        if (cfgServidor === 'rede') throw new TypeError('fetch failed');
+        if (typeof cfgServidor === 'number') return json(cfgServidor, { message: 'erro' });
+        if (cfgServidor === 'invalido') return json(200, { inesperado: true });
+        return json(200, cfgServidor ? [{ dados: cfgServidor }] : []);
+      }
+      return json(200, []);
+    }
+    const m = /^\/rest\/v1\/rpc\/(jb_fiscal_\w+)$/.exec(p.pathname);
+    if (m && h.apikey === CH_SRV) {
+      const a = JSON.parse(init.body || '{}');
+      const r = {
+        jb_fiscal_reservar: () => b.reservar(a.p_ambiente, a.p_referencia, a.p_sha256, a.p_uid_app),
+        jb_fiscal_marcar: () => b.marcar(a.p_ambiente, a.p_referencia, a.p_situacao, a.p_detalhe),
+        jb_fiscal_envio: () => b.envio(a.p_ambiente, a.p_referencia),
+        jb_fiscal_registrar: () => b.registrar(a.p),
+        jb_fiscal_auditoria: () => b.auditoria(a.p_limite),
+        jb_fiscal_confere: () => false,
+      }[m[1]];
+      if (r) return json(200, (await r()) ?? null);
+    }
+    return json(404, { message: 'não existe' });
+  }
+  const antes = { fetch: globalThis.fetch, Deno: globalThis.Deno };
+  let atender = null;
+  globalThis.Deno = { env: { get: (k) => env[k] }, serve: (h) => { atender = h; } };
+  globalThis.fetch = fetchFalso;
+  try {
+    try { await import(new URL('../supabase/functions/jb-fiscal/index.ts?carga=' + ++cargaFuncao, import.meta.url).href); }
+    catch (e) {
+      if (e && /ERR_UNKNOWN_FILE_EXTENSION|ERR_NO_TYPESCRIPT|ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING/.test(String(e.code))) { console.log('      (pulado: este Node não lê TypeScript; use o Node 22.18 ou mais novo)'); return; }
+      throw e;
+    }
+    assert.equal(typeof atender, 'function', 'index.ts precisa chamar Deno.serve');
+    const pedir = (acao, args, cab = {}) => atender(new Request(SB + '/functions/v1/jb-fiscal', { method: 'POST',
+      headers: { 'content-type': 'application/json', origin: NUVEM, authorization: 'Bearer sessao-gerente', ...cab }, body: JSON.stringify({ acao, args }) }));
+    const corpo = async (r) => ({ status: r.status, ...(await r.json()) });
+    await fn({ pedir, corpo, atender, f, b, lidas });
+  } finally {
+    globalThis.fetch = antes.fetch;
+    if (antes.Deno === undefined) delete globalThis.Deno; else globalThis.Deno = antes.Deno;
+  }
+}
+const EMITIR = (ref) => ({ ambiente: 'homologacao', referencia: ref, infNFe: infSimples() });
+const CANCELAR = { ambiente: 'homologacao', id: 'jb-qq-t1', justificativa: 'Cliente desistiu da compra antes da entrega' };
+const INUTILIZAR = { ambiente: 'homologacao', ano: 26, serie: 1, numero_inicial: 9, numero_final: 9, justificativa: 'Numeracao reservada e nao utilizada no sistema JB Gestao' };
+
+t('função: sem a lista de autorizados lida pelo servidor, emitir, cancelar e inutilizar são recusados (nada enviado)', async () => {
+  for (const cfg of ['rede', 500, 401, 'invalido']) {
+    await comFuncao({ cfg }, async ({ pedir, corpo, f, b, lidas }) => {
+      for (const [acao, args] of [['emitir_nfe', EMITIR('jb-i1-t1')], ['cancelar_nfe', CANCELAR], ['inutilizar_numeracao', INUTILIZAR]]) {
+        const r = await corpo(await pedir(acao, args));
+        assert.equal(r.status, 503, acao + ' com leitura ' + cfg);
+        assert.equal(r.erro.tipo, 'indisponivel'); assert.equal(r.retryable, true); assert.equal(r.erro.retryable, true);
+        assert.match(r.erro.mensagem, /Nada foi enviado/);
+      }
+      assert.equal(f.chamadas.length, 0, 'nada pode ir para a Focus NFe');
+      assert.equal(b.envios.size, 0, 'nem reserva de envio');
+      const cfgs = lidas.filter((x) => x.col === 'fiscalCfg');
+      assert.equal(cfgs.length, 3); assert.ok(cfgs.every((x) => x.servico), 'a configuração fiscal é lida com a credencial interna da função');
+      /* consultas seguem pela regra do perfil, sem depender dessa leitura */
+      const c = await corpo(await pedir('consultar_cep', { cep: '65680000' }));
+      assert.equal(c.status, 200, JSON.stringify(c)); assert.equal(c.endereco.municipio, 'Passagem Franca');
+      assert.equal(lidas.filter((x) => x.col === 'fiscalCfg').length, 3, 'consulta não lê a configuração fiscal');
+    });
+  }
+});
+
+t('função: a lista de autorizados vem do servidor, mesmo quando a sessão da pessoa não a enxerga', async () => {
+  await comFuncao({ cfg: { autorizados: ['u_OUTRO'] } }, async ({ pedir, corpo, f }) => {
+    const r = await corpo(await pedir('emitir_nfe', EMITIR('jb-i2-t1')));
+    assert.equal(r.status, 403); assert.equal(r.erro.tipo, 'permissao', 'gerente fora da lista não emite');
+    assert.equal(f.posts().length, 0);
+  });
+  await comFuncao({ cfg: { autorizados: ['u_GER'] } }, async ({ pedir, corpo, f, b }) => {
+    const r = await corpo(await pedir('emitir_nfe', EMITIR('jb-i3-t1')));
+    assert.equal(r.status, 200, JSON.stringify(r)); assert.equal(r.documento.status, 'autorizado');
+    assert.equal(f.posts().length, 1);
+    assert.deepEqual([b.registros.at(-1).origem, b.registros.at(-1).uid_app, b.registros.at(-1).papel], ['nuvem', 'u_GER', 'gerente']);
+  });
+  await comFuncao({ cfg: null }, async ({ pedir, corpo }) => {
+    const r = await corpo(await pedir('emitir_nfe', EMITIR('jb-i4-t1')));
+    assert.equal(r.status, 200, 'sem configuração fiscal gravada: vale o perfil');
+    const v = await corpo(await pedir('emitir_nfe', EMITIR('jb-i5-t1'), { authorization: 'Bearer sessao-vendedor' }));
+    assert.equal(v.erro.tipo, 'permissao', 'vendedor não emite');
+    const s = await corpo(await pedir('consultar_nfe', { ambiente: 'homologacao', id: 'jb-i4-t1' }, { authorization: 'Bearer sessao-x' }));
+    assert.equal(s.status, 401);
+  });
+});
+
+t('função: CORS só para os sites da lista (JB_ORIGENS, padrão a nuvem), com "Vary: Origin"', async () => {
+  await comFuncao({}, async ({ pedir, atender }) => {
+    const ok = await pedir('consultar_cep', { cep: '65680000' });
+    assert.equal(ok.headers.get('access-control-allow-origin'), NUVEM); assert.match(ok.headers.get('vary') || '', /Origin/);
+    const fora = await pedir('consultar_cep', { cep: '65680000' }, { origin: 'https://outro-site.example.com' });
+    assert.notEqual(fora.headers.get('access-control-allow-origin'), 'https://outro-site.example.com');
+    assert.notEqual(fora.headers.get('access-control-allow-origin'), '*');
+    assert.match(fora.headers.get('vary') || '', /Origin/);
+    const pre = await atender(new Request(SB + '/functions/v1/jb-fiscal', { method: 'OPTIONS', headers: { origin: NUVEM } }));
+    assert.equal(pre.status, 204); assert.equal(pre.headers.get('access-control-allow-origin'), NUVEM);
+    assert.match(pre.headers.get('access-control-allow-headers') || '', /authorization/);
+  });
+  await comFuncao({ env: { JB_ORIGENS: 'https://a.example.com, https://b.example.com' } }, async ({ pedir }) => {
+    const r = await pedir('consultar_cep', { cep: '65680000' }, { origin: 'https://b.example.com' });
+    assert.equal(r.headers.get('access-control-allow-origin'), 'https://b.example.com');
+    const n = await pedir('consultar_cep', { cep: '65680000' });
+    assert.notEqual(n.headers.get('access-control-allow-origin'), NUVEM, 'a nuvem fora da lista configurada');
+  });
 });
 
 /* ---------- execução direta ---------- */

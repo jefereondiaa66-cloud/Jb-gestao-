@@ -20,7 +20,8 @@ Maranhão é a **Focus NFe**. A ligação entre os dois é a função **jb-fisca
 3. Enviar o **certificado digital A1** (arquivo `.pfx` e a senha dele) no painel da Focus NFe.
    O certificado e a senha ficam **só lá**: não vão para o JB, para o Supabase nem para o repositório.
 4. Pegar os **dois tokens da empresa** no painel: o de **homologação** e o de **produção**.
-   (Opcional) o **token principal da conta**, se quiser ver a validade do certificado na tela "Serviço".
+   Pegar também o **token principal da conta**: sem ele a tela "Serviço" não mostra o certificado
+   e o JB não libera a produção (veja a tabela abaixo).
 5. Numeração: o JB manda o número e a série de cada nota. Confira no painel da Focus a série usada
    e informe no JB (Setor Fiscal › Configurações › Numeração) o último número já usado por outro sistema.
 
@@ -33,8 +34,20 @@ Supabase → projeto **JB Gestão** → **Edge Functions** → **Secrets** → a
 | `FOCUSNFE_TOKEN_HOMOLOGACAO` | token de homologação da empresa | sim |
 | `FOCUSNFE_TOKEN_PRODUCAO` | token de produção da empresa | só para produção |
 | `PRODUCAO_LIBERADA` | `nao` até terminar os testes; `sim` para liberar | sim |
-| `CNPJ_EMITENTE` | CNPJ da cerâmica, só os 14 números | recomendado (sem ele não dá para inutilizar números, e o servidor não confere o CNPJ da nota) |
-| `FOCUSNFE_TOKEN_CONTA` | token principal da conta Focus NFe | opcional (só para ler o certificado na tela "Serviço") |
+| `CNPJ_EMITENTE` | CNPJ da cerâmica, só os 14 números | **sim, OBRIGATÓRIO** |
+| `FOCUSNFE_TOKEN_CONTA` | token principal da conta Focus NFe | **sim, para liberar a produção pelo JB** |
+| `JB_ORIGENS` | endereço do site que pode chamar a função (o mesmo da jb-auth) | não (padrão: `https://jb-gestao-ceramica.netlify.app`) |
+
+**Por que `CNPJ_EMITENTE` é obrigatório:** é com ele que o servidor confere que cada nota é da
+cerâmica (nota de outro CNPJ é recusada antes do envio), inutiliza números e lê o cadastro da
+empresa na Focus NFe. Sem ele, a inutilização é recusada, o servidor não confere o CNPJ da nota e a tela "Serviço"
+não mostra a empresa nem o certificado (e por isso a produção não é liberada).
+
+**Por que `FOCUSNFE_TOKEN_CONTA` é necessário:** o cadastro da empresa na Focus NFe (com a validade
+do certificado A1) é lido com o token principal da conta; o token da empresa normalmente não tem esse acesso. Sem ele, a tela "Serviço" não consegue
+mostrar o certificado, o item "Certificado digital A1 na Focus NFe" fica pendente e o botão
+**Conferir requisitos e liberar a produção** não libera. Esse bloqueio é **de propósito**: o JB só
+libera a produção com o certificado conferido. A emissão em homologação funciona sem ele.
 
 Nunca cole token no chat, no programa, em planilha ou no repositório (ele é público).
 Trocar um token: é só salvar o novo valor no mesmo nome; vale no pedido seguinte.
@@ -50,7 +63,8 @@ Trocar um token: é só salvar o novo valor no mesmo nome; vale no pedido seguin
    a chamada do banco não tem sessão; a função confere a sessão ou o segredo ela mesma.
 4. Publicar o programa (commit na `main` → nuvem; `saida/claude.html` → artifact do Claude).
 5. No JB: **Setor Fiscal › Serviço e auditoria › Verificar agora**. Deve aparecer "Focus NFe", o token
-   guardado, a ligação com a Focus aceita e, com `CNPJ_EMITENTE`, a empresa e o certificado.
+   guardado, a ligação com a Focus aceita e, com `CNPJ_EMITENTE` e `FOCUSNFE_TOKEN_CONTA`, a empresa
+   e o certificado.
 
 ## 4. Testes em homologação (antes de liberar a produção)
 
@@ -65,7 +79,8 @@ Faça cada um e confira o resultado na nota e na auditoria do serviço:
 ## 5. Liberar a produção
 
 1. Testes de homologação feitos e perfis tributários conferidos pelo contador.
-2. No Supabase: `FOCUSNFE_TOKEN_PRODUCAO` guardado e `PRODUCAO_LIBERADA` = `sim`.
+2. No Supabase: `CNPJ_EMITENTE`, `FOCUSNFE_TOKEN_CONTA` e `FOCUSNFE_TOKEN_PRODUCAO` guardados e
+   `PRODUCAO_LIBERADA` = `sim`. A tela "Serviço" precisa mostrar o certificado A1 válido.
 3. No JB: Configurações fiscais → **Conferir requisitos e liberar a produção** → escolher o ambiente
    "Produção" e salvar.
 
@@ -96,7 +111,13 @@ inclusive consultas) e, no JB, **Bloquear a produção de novo**.
 - **Quem pode** (a mesma regra do programa): ver e consultar — administrador, gerente, financeiro e
   vendedor; emitir — administrador, gerente e financeiro; cancelar e inutilizar — administrador e gerente;
   auditoria — administrador e gerente. Se a lista "Quem pode emitir e cancelar" tiver alguém marcado,
-  só essas pessoas (e o administrador) emitem, cancelam e inutilizam.
+  só essas pessoas (e o administrador) emitem, cancelam e inutilizam. O servidor lê essa lista com a
+  própria credencial; se não conseguir ler, recusa emitir, cancelar e inutilizar (nada é enviado).
+- **No Claude, o Setor Fiscal só usa a ligação com o banco central.** Se ela não estiver ligada nesta
+  página (ou a pessoa não for administradora), o pedido é recusado na hora e nada é enviado. O antigo
+  conector "JB Fiscal" nunca é usado para emitir, cancelar ou inutilizar.
+- **Consultar uma nota cancelada ou denegada não apaga o protocolo** já gravado: o serviço lê o XML
+  da nota, e o JB só troca um dado gravado quando a resposta nova traz esse dado.
 - Todo erro vem em português, dizendo se algo foi enviado ou não.
 
 ## O que a ligação ainda não envia
@@ -124,6 +145,8 @@ acrescentar em `supabase/functions/jb-fiscal/nucleo.js` (mapas `M_*`) com teste 
 | "A Focus NFe recusou o acesso" | conferir o token do ambiente e se a empresa está habilitada para NF-e na Focus |
 | "A produção está bloqueada no servidor" | `PRODUCAO_LIBERADA` = `sim` (só depois dos testes) |
 | "A nota é do CNPJ …, mas o serviço está configurado para …" | o CNPJ das Configurações fiscais e o `CNPJ_EMITENTE` precisam ser iguais |
+| Certificado não aparece na tela "Serviço" / produção não libera | guardar `CNPJ_EMITENTE` e `FOCUSNFE_TOKEN_CONTA` no Supabase |
+| "O servidor não conseguiu ler agora as Configurações fiscais" | nada foi enviado; tentar de novo em instantes |
 | "A nota usa dados que a ligação com a Focus NFe ainda não sabe enviar" | ver a lista acima; nada foi enviado |
 | "O serviço fiscal não respondeu" / "Aguardando consulta" | esperar um pouco e usar **Consultar situação**; nunca reenviar antes |
 | Na nuvem, pessoa sem administrador não consegue salvar a nota | as coleções `nfe`, `fiscalCfg`, `nfeXml`, `nfePayload` precisam estar nas permissões do servidor (`seg.colecoes`); pedir ao agente JB CORE |

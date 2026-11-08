@@ -112,8 +112,13 @@ teste('programa', 'Setor Fiscal: chamarF usa a função jb-fiscal (nuvem e ponte
   const i = app.indexOf('async function chamarF('), f = app.indexOf('async function statusServicoF(');
   assert.ok(i > 0 && f > i, 'chamarF não encontrado');
   assert.match(app.slice(i, f), /const via = transporteF\(\);/, 'chamarF precisa usar a ligação nova primeiro');
-  assert.ok(app.includes("if (nv && typeof nv.fiscal === 'function') return (t, a) => nv.fiscal(t, a);"), 'nuvem: JB_NUVEM_API.fiscal');
-  assert.ok(app.includes("pt.api.estado().modo === 'central') return (t, a) => pt.api.fiscal(t, a);"), 'Claude: só com a ponte no modo central');
+  assert.match(app.slice(i, f), /if \(TRANSMITE_F\.has\(tool\)\)[^\n]*throw e; \}\n  const m = await mcpF\(\);/, 'o conector antigo nunca pode transmitir (emitir, cancelar, inutilizar)');
+  const e1 = app.indexOf('async function emitirTravadaF('), e2 = app.indexOf('async function consultarNotaF(');
+  assert.ok(e1 > 0 && e2 > e1, 'emitirTravadaF não encontrado');
+  const emitir = app.slice(e1, e2);
+  assert.ok(!/mcpF|callTool|FISC\.mcp/.test(emitir), 'emitirTravadaF não pode usar o conector MCP antigo');
+  assert.match(emitir, /const lg = ligacaoF\(\);\n  if \(!lg\.via \|\| lg\.motivo\) return \{ ok: false, parar: true/, 'emitirTravadaF para antes de numerar quando a ligação recusaria');
+  assert.ok(emitir.indexOf('ligacaoF()') < emitir.indexOf('reservarNumeroF('), 'a ligação é conferida antes de reservar o número');
   const nada = /const NADA_ENVIADO = new Set\(\[([^\]]*)\]\)/.exec(app);
   assert.ok(nada, 'lista NADA_ENVIADO não encontrada');
   for (const c of ['sem_resposta', 'prazo_fiscal', 'rede', 'upstream_error', 'server_unavailable']) assert.ok(!nada[1].includes("'" + c + "'"), c + ' é incerto: não pode estar em NADA_ENVIADO');
@@ -408,6 +413,84 @@ teste('ponte', 'serviço fiscal fora do modo central: recusa sem pedir nada ao b
   await assert.rejects(api.fiscal('status_servico', { ambiente: 'homologacao' }), (e) => e.code === 'desligado');
   assert.equal(srv.estado.fiscal.pedidos.length, 0);
 }));
+
+/* ---------- Setor Fiscal do programa: por onde cada pedido vai (chamarF de verdade, num contexto isolado) ---------- */
+function ligacaoFiscal(janela) {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('const FISC = {'), f = app.indexOf('async function statusServicoF(');
+  assert.ok(i > 0 && f > i, 'trecho da ligação fiscal não encontrado');
+  const g = { window: janela, Error, Set, Object, String, Promise, JSON, Array };
+  vm.createContext(g);
+  vm.runInContext("const SERVIDOR_FISCAL = 'JB Fiscal';\n" + app.slice(i, f) + '\nglobalThis.__f = { chamarF, ligacaoF, NADA_ENVIADO };', g, { filename: 'ligacao-fiscal' });
+  return g.__f;
+}
+function conectorAntigo() {   // o conector MCP "JB Fiscal": anota cada chamada
+  const chamadas = [];
+  return { chamadas, claude: { use: async (n) => (n === 'mcp' ? { callTool: async (...a) => { chamadas.push(a.slice(0, 2)); return { structuredContent: { ok: true } }; } } : null) } };
+}
+const TRANSMITEM = [['emitir_nfe', { ambiente: 'homologacao', referencia: 'jb-x-t1' }], ['cancelar_nfe', { ambiente: 'homologacao', id: 'jb-x-t1', justificativa: 'x'.repeat(20) }],
+  ['inutilizar_numeracao', { ambiente: 'homologacao', serie: 1, numero_inicial: 5, numero_final: 5 }]];
+teste('programa', 'Setor Fiscal no Claude: com a ponte, tudo vai por ela; o conector antigo nunca é usado', async () => {
+  const antigo = conectorAntigo();
+  const amb = ambiente();
+  try {
+    const ponte = carregarPonte(amb);                         // ainda não ligada ao banco central
+    const F = ligacaoFiscal({ JB_CORE_PONTE: ponte, claude: antigo.claude });
+    assert.match(F.ligacaoF().motivo, /banco central/, 'fora do modo central, a emissão para antes de numerar');
+    for (const [acao, args] of [...TRANSMITEM, ['consultar_nfe', { ambiente: 'homologacao', id: 'jb-x-t1' }], ['status_servico', { ambiente: 'homologacao' }], ['consultar_cep', { cep: '65680000' }]]) {
+      await assert.rejects(F.chamarF(acao, args), (e) => e.code === 'desligado' && F.NADA_ENVIADO.has(e.code), acao + ': a ponte recusa (nada enviado)');
+    }
+    const semFiscal = ligacaoFiscal({ JB_CORE_PONTE: { api: { estado: () => ({ modo: 'central' }) } }, claude: antigo.claude });
+    await assert.rejects(semFiscal.chamarF('emitir_nfe', {}), (e) => e.code === 'desligado', 'ponte sem o serviço fiscal: recusa, sem conector');
+    assert.ok(semFiscal.ligacaoF().motivo);
+    assert.equal(antigo.chamadas.length, 0, 'o conector "JB Fiscal" não pode ser chamado quando a ponte existe');
+  } finally { amb.limpar(); }
+  await cenario(async ({ amb: a2, srv }) => {
+    const { ponte } = await ligar(a2, srv, CFG_FISCAL);       // administrador, banco central ligado
+    const F = ligacaoFiscal({ JB_CORE_PONTE: ponte, claude: antigo.claude });
+    assert.equal(F.ligacaoF().motivo, '');
+    const r = await F.chamarF('consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' });
+    assert.equal(r.documento.status, 'autorizado');
+    await assert.rejects(F.chamarF('emitir_nfe', { ambiente: 'producao' }), (e) => e.code === 'tool_error' && e.erro.tipo === 'configuracao');
+    assert.deepEqual(srv.estado.fiscal.pedidos.map((p) => p.acao), ['consultar_nfe', 'emitir_nfe']);
+    assert.equal(antigo.chamadas.length, 0);
+  }, { srv: SRV_FISCAL() });
+});
+teste('programa', 'Setor Fiscal na nuvem e sem ligação nenhuma: o conector antigo nunca transmite', async () => {
+  const antigo = conectorAntigo();
+  const pedidos = [];
+  const nuvem = ligacaoFiscal({ JB_NUVEM_API: { fiscal: async (a) => { pedidos.push(a); return { ok: true }; } }, JB_CORE_PONTE: { api: { fiscal: async () => { throw new Error('não era para a ponte'); }, estado: () => ({ modo: 'central' }) } }, claude: antigo.claude });
+  for (const [acao, args] of TRANSMITEM) assert.deepEqual({ ...(await nuvem.chamarF(acao, args)) }, { ok: true });
+  assert.deepEqual(pedidos, ['emitir_nfe', 'cancelar_nfe', 'inutilizar_numeracao'], 'na nuvem vai pela função jb-fiscal');
+  const velha = ligacaoFiscal({ JB_NUVEM_API: {}, claude: antigo.claude });   // adaptador da nuvem desatualizado
+  await assert.rejects(velha.chamarF('emitir_nfe', {}), (e) => e.code === 'desligado' && /Atualize a página/.test(e.message));
+  const nada = ligacaoFiscal({ claude: antigo.claude });                        // nem nuvem nem ponte
+  for (const [acao, args] of TRANSMITEM) await assert.rejects(nada.chamarF(acao, args), (e) => e.code === 'sem_mcp' && nada.NADA_ENVIADO.has(e.code), acao);
+  assert.equal(antigo.chamadas.length, 0, 'emitir, cancelar e inutilizar nunca passam pelo conector antigo');
+  assert.ok(nada.ligacaoF().motivo, 'sem ligação, a emissão para antes de numerar');
+  await nada.chamarF('consultar_cep', { cep: '65680000' });                     // só consulta, por compatibilidade
+  assert.deepEqual(antigo.chamadas, [['JB Fiscal', 'consultar_cep']]);
+});
+teste('programa', 'Setor Fiscal: consulta nunca apaga o protocolo já gravado na nota', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('function mesclarSefazF('), f = app.indexOf('/** Aplica a resposta oficial do provedor/SEFAZ à nota.');
+  assert.ok(i > 0 && f > i, 'mesclarSefazF não encontrado');
+  const a1 = app.indexOf('async function aplicarDocumentoF('), a2 = app.indexOf('async function vincularVendaF(');
+  const aplicar = app.slice(a1, a2);
+  assert.match(aplicar, /const sefaz = mesclarSefazF\(n\.sefaz, novo\);/);
+  assert.ok(!/\.\.\.\(n\.sefaz \|\| \{\}\), \.\.\.sefaz/.test(aplicar), 'a mescla antiga apagava o protocolo com null');
+  const g = { Object };
+  vm.createContext(g);
+  vm.runInContext(app.slice(i, f) + '\nglobalThis.mesclar = mesclarSefazF;', g);
+  const gravado = { provedorId: 'jb-n1-t1', chave: '2'.repeat(44), protocolo: '121260000012345', codigo: 100, motivo: 'Autorizado o uso da NF-e', mensagem: null, dataRecebimento: '2026-11-08T10:00:05-03:00', dataEmissao: '2026-11-08T10:00:00-03:00', valorTotal: 1400, statusProvedor: 'autorizado', digest: 'abc=', atualizadoEm: 'antes' };
+  const vazio = { provedorId: 'jb-n1-t1', chave: null, protocolo: null, codigo: 135, motivo: null, mensagem: 'aviso novo', dataRecebimento: null, dataEmissao: null, valorTotal: null, statusProvedor: 'cancelado', digest: null, atualizadoEm: 'agora' };
+  const m = JSON.parse(JSON.stringify(g.mesclar(gravado, vazio)));
+  assert.deepEqual(m, { ...gravado, codigo: 135, mensagem: 'aviso novo', statusProvedor: 'cancelado', atualizadoEm: 'agora' });
+  assert.equal(JSON.parse(JSON.stringify(g.mesclar(gravado, { ...vazio, mensagem: null }))).mensagem, null, 'o aviso é sempre o da resposta nova');
+  const outra = { ...vazio, provedorId: 'jb-n1-t2' };
+  assert.deepEqual(JSON.parse(JSON.stringify(g.mesclar(gravado, outra))), outra, 'outra referência é outro documento');
+  assert.deepEqual(JSON.parse(JSON.stringify(g.mesclar(null, vazio))), vazio);
+});
 
 /* =====================================================================
    4. JB Fiscal (Focus NFe): tradução e idempotência, sem rede (scripts/testar-fiscal.mjs)

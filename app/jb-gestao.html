@@ -25407,17 +25407,34 @@ async function sha256Txt(t) {
 }
 
 /* ================= ligação com o serviço fiscal (Focus NFe pela função jb-fiscal do Supabase) =================
-   Um ponto só: chamarF. Na nuvem, JB_NUVEM_API.fiscal (sessão de quem clica); no Claude, com o banco central
-   ligado, JB_CORE_PONTE.api.fiscal (só administradores). Sem nenhum dos dois, fica o caminho antigo do
-   conector MCP "JB Fiscal" (compatibilidade), que não existe mais na prática. */
+   Um ponto só: chamarF. Na nuvem, JB_NUVEM_API.fiscal (sessão de quem clica). No Claude a ponte do banco
+   central (JB_CORE_PONTE) existe sempre, e o serviço fiscal vai SEMPRE por ela: fora do modo central ela
+   mesma recusa ("desligado", nada enviado; só administradores ligam o modo central). O conector MCP antigo
+   "JB Fiscal" nunca é usado quando a nuvem ou a ponte existem; sem as duas, ele só vale para consultas:
+   emitir, cancelar e inutilizar (as ações que transmitem à SEFAZ) nunca passam por ele. */
 const FISC = { mcp: undefined, status: {}, carregandoStatus: false, rasc: null, imp: null, lote: null, ultimoErro: null };
-function transporteF() {
+const TRANSMITE_F = new Set(['emitir_nfe', 'cancelar_nfe', 'inutilizar_numeracao']);
+const desligadoF = (m) => Object.assign(new Error(m), { code: 'desligado' });
+/** {via, motivo}: via = (ação, args) → resposta do serviço (null = só o conector antigo); motivo = por que,
+    agora, o pedido certamente seria recusado sem nada enviado ('' = ligação pronta). */
+function ligacaoF() {
   const nv = window.JB_NUVEM_API;
-  if (nv && typeof nv.fiscal === 'function') return (t, a) => nv.fiscal(t, a);
+  if (nv) {
+    if (typeof nv.fiscal === 'function') return { via: (t, a) => nv.fiscal(t, a), motivo: '' };
+    const m = 'A versão da nuvem abriu sem a ligação com o serviço fiscal (página desatualizada). Atualize a página e tente de novo. Nada foi enviado.';
+    return { via: () => { throw desligadoF(m); }, motivo: m };
+  }
   const pt = window.JB_CORE_PONTE;
-  try { if (pt && pt.api && typeof pt.api.fiscal === 'function' && pt.api.estado().modo === 'central') return (t, a) => pt.api.fiscal(t, a); } catch (e) { /* ponte indisponível */ }
-  return null;
+  if (pt) {
+    let est = null;
+    try { est = pt.api && typeof pt.api.fiscal === 'function' ? pt.api.estado() : null; } catch (e) { est = null; }
+    const m = 'O Claude chama o serviço fiscal pelo banco central, e ele não está ligado nesta página' + (est && est.motivo ? ' (' + est.motivo + ')' : '') + '. Só administradores emitem pelo Claude. Nada foi enviado. Use a versão da nuvem para emitir.';
+    const via = (t, a) => { if (!pt.api || typeof pt.api.fiscal !== 'function') throw desligadoF(m); return pt.api.fiscal(t, a); };
+    return { via, motivo: est && est.modo === 'central' ? '' : m };
+  }
+  return { via: null, motivo: msgConector({ code: 'sem_mcp' }) };
 }
+const transporteF = () => ligacaoF().via;
 async function mcpF() {
   if (FISC.mcp !== undefined) return FISC.mcp;
   const w = window.claude;
@@ -25461,6 +25478,8 @@ async function chamarF(tool, args) {
     }
     return p || {};
   }
+  /* sem nuvem e sem ponte: o conector antigo nunca transmite (emitir, cancelar, inutilizar) */
+  if (TRANSMITE_F.has(tool)) { const e = new Error(msgConector({ code: 'sem_mcp' })); e.code = 'sem_mcp'; throw e; }
   const m = await mcpF();
   if (!m) { const e = new Error(msgConector({ code: 'sem_mcp' })); e.code = 'sem_mcp'; throw e; }
   try {
@@ -25590,10 +25609,20 @@ async function registrarXmlF(n, tipo) {
   await tentar(() => APP.db.doc('nfeXml/' + id).set({ id, nfeId: n.id, tipo, chave: (n.sefaz || {}).chave || '', ambiente: n.ambiente, xml, sha256: r.sha256 || '', tamanho: bytes.length, em: new Date().toISOString(), por: APP.uid || 'local' }));
   return { sha256: r.sha256 || '', tamanho: bytes.length, em: new Date().toISOString() };
 }
+/** Junta a resposta nova ao que a nota já tem do MESMO documento (mesma referência no provedor): campo que veio
+    vazio (null/undefined) não apaga o que já estava gravado (protocolo, chave, datas, valor). A "mensagem" é o
+    aviso do serviço sobre esta resposta e vale sempre a nova. Outra referência é outro documento: vale só a nova. */
+function mesclarSefazF(ant, novo) {
+  if (!ant || !ant.provedorId || ant.provedorId !== novo.provedorId) return novo;
+  const m = { ...ant, mensagem: novo.mensagem ?? null };
+  Object.keys(novo).forEach((k) => { if (novo[k] !== null && novo[k] !== undefined) m[k] = novo[k]; });
+  return m;
+}
 /** Aplica a resposta oficial do provedor/SEFAZ à nota. Não inventa nada: só copia o que veio. */
 async function aplicarDocumentoF(n, doc, acao) {
   const a = doc.autorizacao || {};
-  const sefaz = { provedorId: doc.id, chave: doc.chave || null, protocolo: a.numero_protocolo || null, codigo: a.codigo_status ?? null, motivo: a.motivo_status || null, mensagem: a.mensagem || null, dataRecebimento: a.data_recebimento || null, dataEmissao: doc.data_emissao || null, valorTotal: doc.valor_total ?? null, statusProvedor: doc.status, digest: a.digest_value || null, atualizadoEm: new Date().toISOString() };
+  const novo = { provedorId: doc.id, chave: doc.chave || null, protocolo: a.numero_protocolo || null, codigo: a.codigo_status ?? null, motivo: a.motivo_status || null, mensagem: a.mensagem || null, dataRecebimento: a.data_recebimento || null, dataEmissao: doc.data_emissao || null, valorTotal: doc.valor_total ?? null, statusProvedor: doc.status, digest: a.digest_value || null, atualizadoEm: new Date().toISOString() };
+  const sefaz = mesclarSefazF(n.sefaz, novo);
   const st = doc.status;
   if (st === 'autorizado') {
     await mudarStatusF(n, 'autorizada', acao || 'NF-e autorizada pela SEFAZ', `${sefaz.codigo || ''} ${sefaz.motivo || ''} · protocolo ${sefaz.protocolo || '—'}`, { sefaz, numero: doc.numero || n.numero, serie: doc.serie ?? n.serie });
@@ -25602,7 +25631,7 @@ async function aplicarDocumentoF(n, doc, acao) {
   } else if (st === 'rejeitado') await mudarStatusF(n, 'rejeitada', 'SEFAZ rejeitou a NF-e', `${sefaz.codigo || ''} ${sefaz.motivo || ''}`, { sefaz });
   else if (st === 'denegado') { await mudarStatusF(n, 'denegada', 'SEFAZ denegou o uso da NF-e', `${sefaz.codigo || ''} ${sefaz.motivo || ''}`, { sefaz }); await vincularVendaF(n); }
   else if (st === 'cancelado') {
-    await mudarStatusF(n, 'cancelada', 'Cancelamento confirmado na consulta', '', { sefaz: { ...(n.sefaz || {}), ...sefaz } });
+    await mudarStatusF(n, 'cancelada', 'Cancelamento confirmado na consulta', '', { sefaz });
     await vincularVendaF(n);
   } else if (st === 'pendente') await mudarStatusF(n, 'aguardando', 'Provedor recebeu; aguardando a SEFAZ', 'Situação pendente: consulte em instantes.', { sefaz });
   else if (st === 'erro') await mudarStatusF(n, 'erro', 'O provedor registrou erro técnico', sefaz.motivo || sefaz.mensagem || 'Sem detalhe do provedor.', { sefaz });
@@ -25641,7 +25670,10 @@ async function emitirTravadaF(n, c) {
   /* relê depois da trava: se outra aba mudou a situação nesse meio-tempo, não envia */
   const atual = NFE(n.id);
   if (!atual || atual.status !== 'pronta') return { ok: false, msg: 'A nota mudou de situação (' + (ST_NFE[(atual || {}).status] || '—') + '). Atualize a tela.' };
-  try { if (!transporteF()) { await mcpF(); if (!FISC.mcp) throw Object.assign(new Error(msgConector({ code: 'sem_mcp' })), { code: 'sem_mcp' }); } } catch (e) { return { ok: false, parar: true, msg: e.message }; }
+  /* só pela nuvem ou pela ponte (nunca pelo conector antigo); ligação que certamente recusaria: para aqui,
+     antes de reservar número ou registrar envio (nada foi enviado) */
+  const lg = ligacaoF();
+  if (!lg.via || lg.motivo) return { ok: false, parar: true, msg: lg.motivo || msgConector({ code: 'sem_mcp' }) };
   /* 1) número (reservado uma vez; a nota rejeitada reaproveita o próprio número) */
   if (!n.numero) {
     try { const r = await reservarNumeroF(n); n.serie = r.serie; n.numero = r.numero; } catch (e) { return { ok: false, parar: true, msg: 'Não foi possível reservar o número agora. Nada foi enviado. Tente de novo.' }; }
@@ -26573,7 +26605,7 @@ function servicoFis(c) {
    </div>
    <section class="bloco"><h3>Como o emissor está ligado (Focus NFe pelo Supabase)</h3><ol class="fis-passos">
     <li>Na <b>Focus NFe</b>, a empresa está cadastrada, com o <b>certificado digital A1</b> enviado no painel deles. A Focus guarda o certificado, assina e transmite à SEFAZ.</li>
-    <li>No <b>Supabase</b> (Edge Functions › Secrets), o administrador guarda os tokens da Focus NFe: <b>FOCUSNFE_TOKEN_HOMOLOGACAO</b> e <b>FOCUSNFE_TOKEN_PRODUCAO</b>, e o CNPJ da cerâmica em <b>CNPJ_EMITENTE</b>.</li>
+    <li>No <b>Supabase</b> (Edge Functions › Secrets), o administrador guarda os tokens da Focus NFe: <b>FOCUSNFE_TOKEN_HOMOLOGACAO</b> e <b>FOCUSNFE_TOKEN_PRODUCAO</b>, o CNPJ da cerâmica em <b>CNPJ_EMITENTE</b> (obrigatório) e o token principal da conta em <b>FOCUSNFE_TOKEN_CONTA</b> (sem ele esta tela não mostra o certificado e a produção não é liberada).</li>
     <li>A produção só funciona com <b>PRODUCAO_LIBERADA = sim</b> no Supabase e depois da conferência em Configurações fiscais. Até lá, tudo é homologação (teste, sem valor fiscal).</li>
     <li>Quem emite: na <b>versão da nuvem</b>, cada pessoa entra com o próprio usuário e senha e o servidor confere o perfil; no <b>Claude</b>, só administradores, pelo banco central.</li>
     <li>Clique em <b>Verificar agora</b> para conferir a ligação. Só conta como autorizada a nota que volta da SEFAZ com protocolo.</li></ol>
