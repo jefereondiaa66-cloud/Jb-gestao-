@@ -11449,7 +11449,7 @@ function telaSetores(el){
  const ult=setorUlt();const vis=SETORES.filter(s=>!s.v||s.v());
  el.innerHTML=`<div class="spot">${cabSpot(razaoMostra(),'CNPJ '+cnpjMostra()+' · '+SPOT_NOME)}
   <main class="spot-corpo">
-   <p class="spot-boas">Bem-vindo ao ${esc(SPOT_NOME)}. Selecione o setor em que deseja trabalhar.</p>
+   <p class="spot-boas">${typeof saudacaoNome==='function'?`<b>${esc(saudacaoNome())}</b> `:''}Bem-vindo ao ${esc(SPOT_NOME)}. Selecione o setor em que deseja trabalhar.</p>
    <h1>Em qual setor você deseja entrar?</h1>
    <div class="spot-grade">${vis.map(s=>`<article class="spot-card${s.prep?' prep':''}${ult===s.id?' ult':''}">
     <div class="spot-topo"><span class="spot-ic">${ic(s.ic)}</span>${ult===s.id?'<span class="spot-ult">Último acesso</span>':''}${s.prep?'<span class="tag at">Em preparação</span>':''}</div>
@@ -30674,7 +30674,9 @@ const INI_PARTES=[['saudacao','Saudação (Boa tarde…) e data'],['lembrete','L
 const menuAntigoLiberado=()=>!!(CFG&&CFG.menuAntigoDP===true);
 function menuAntigoMarcar(){try{document.documentElement.classList.toggle('sem-menu-antigo',!menuAntigoLiberado())}catch(e){}}
 menuAntigoMarcar();
-const iniMostra=k=>!!(CFG&&CFG.inicioDP&&CFG.inicioDP[k]===true);
+/* V83: a saudação com o nome volta a aparecer por padrão (pedido do dono: saudação em todos os setores);
+   quem desligar a chave em Configurações grava false e ela continua oculta */
+const iniMostra=k=>{const v=CFG&&CFG.inicioDP?CFG.inicioDP[k]:undefined;return k==='saudacao'?v!==false:v===true};
 /* painel do DP: um só para todos (a "nova interface" por pessoa deixa de valer) */
 try{painelModo=function(){return 'atual'}}catch(e){}
 /* menu simplificado: padrão de todos; a escolha antiga não vale mais (só a feita a partir desta versão) */
@@ -32234,7 +32236,7 @@ html.vis-cc .rel-lista a.on::after{color:var(--brasa)}
 /* aviso só com texto e link: texto corrido (o "flex" quebrava a frase em colunas em volta do link) */
 .aviso:not(:has(> :not(a,b,strong,em,br,i:empty))){display:block}
 /* painel: rótulos dos números quebram em duas linhas em vez de cortar com reticências */
-.cc-kpi small{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25}
+.cc-kpi small,html.vis-cc .cc-faixa .cc-kpi small{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25}
 /* Controladoria: valores grandes quebram a linha em vez de sumir em "R$ 1.234.5…" */
 .ctl-hero .ctl-kpi .v,html.vis-cc .ctl-hero .ctl-kpi .v{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;font-size:clamp(17px,4.6vw,23px)}
 /* calendário financeiro: no celular mostra o valor curto inteiro (R$ 12,3 mil) em vez de "R$…" */
@@ -32290,6 +32292,13 @@ html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
 .pv-hero>.pv-grupo{grid-column:1/-1;font:700 12px/1.2 var(--f-tit,var(--fonte));letter-spacing:.09em;text-transform:uppercase;color:var(--suave);margin:8px 2px -2px}
 .pv-hero>.pv-grupo:first-child{margin-top:0}
 
+/* saudação com o nome no início de cada setor (V83), no mesmo desenho da saudação do Setor Pessoal */
+.v83-saud{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:0 0 14px}
+.v83-saud b{font-family:var(--f-tit,var(--fonte));font-size:28px;font-weight:700;line-height:1.1;color:var(--tinta)}
+.v83-saud span{color:var(--suave);font-size:15px}
+@media (max-width:720px){.v83-saud b{font-size:24px}}
+.spot-boas b{color:var(--tinta)}
+
 /* ---------- 7. impressão: nada disso vai para o papel ---------- */
 @media print{.v82-rola-dir,.v82-rola-esq{-webkit-mask-image:none!important;mask-image:none!important}.v82-secoes{display:none}}
 </style>
@@ -32338,6 +32347,26 @@ html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
  document.addEventListener('change',e=>{if(e.target&&e.target.id==='compMes')rotuloMes()},true);
  document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.comp [data-comp]'))setTimeout(rotuloMes,60)},true);
  setTimeout(rotuloMes,0);
+})();
+/* ================= V83: saudação com o nome de quem entrou no início de todos os setores =================
+   "Bom dia / Boa tarde / Boa noite, <nome>!" e a data, como no início do Setor Pessoal. Só aparência. */
+function saudacaoNome(){
+ const h=new Date().getHours();const sd=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
+ const nome=String((typeof APP!=='undefined'&&APP&&APP.nome)||'').trim().split(/\s+/)[0];
+ return sd+(nome&&nome!=='Você'?', '+nome:'')+'!';
+}
+(function(){
+ /* início de cada setor (o Setor Pessoal já tem a sua, no painel) */
+ const INICIOS=['setor-vendas','setor-lenha','setor-combustivel','setor-producao','setor-financeiro','setor-almox','setor-paletes','setor-barro','setor-control','setor-fiscal','jbc'];
+ function porSaudacao(){try{
+  const r=lerRota();if(!INICIOS.includes(r.mod)||r.id)return;
+  const alvo=document.getElementById('svCorpo')||document.getElementById('conteudo');if(!alvo||alvo.querySelector(':scope>.v83-saud'))return;
+  let data=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});data=data.charAt(0).toUpperCase()+data.slice(1);
+  const p=document.createElement('p');p.className='v83-saud';
+  const b=document.createElement('b');b.textContent=saudacaoNome();const sp=document.createElement('span');sp.textContent=data;
+  p.append(b,sp);alvo.prepend(p);
+ }catch(e){console.warn('v83 saudação',e)}}
+ try{const _rt=renderTela;renderTela=function(){const r=_rt.apply(this,arguments);porSaudacao();requestAnimationFrame(porSaudacao);return r}}catch(e){console.warn('v83',e)}
 })();
 </script>
 
