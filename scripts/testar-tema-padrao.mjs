@@ -118,6 +118,39 @@ try {
   ok((await tema(reab)) === 'grafite', '"Restaurar padrão" volta ao padrão do dono');
   ok(reab.erros.length === 0, 'sem erro de JavaScript: ' + reab.erros.join(' | '));
 
+  console.log('\nversão definitiva:');
+  const VER = { visual3: 'nv', compacto: false, menu: 'simples', modelo: 'm1' };
+  const tr = await abrir('u_OUTRA', [['config', 'aparencia', { dono: 'u_DONO', versao: VER }], ['data/users/u_OUTRA', 'prefs', { lidas: {}, visual3: 'jb' }]]);
+  ok(await tr.evaluate(() => document.documentElement.classList.contains('vis-nv')), 'quem não é dono abre na versão do dono, mesmo tendo outra salva');
+  ok(await tr.evaluate(() => document.documentElement.classList.contains('jb-versao-fixa')), 'a versão fica travada para quem não é dono');
+  await tr.evaluate(() => definirVisual('jb'));
+  await tr.waitForTimeout(300);
+  ok(await tr.evaluate(() => document.documentElement.classList.contains('vis-nv')), 'trocar o estilo não funciona para quem não é dono');
+  await tr.evaluate(() => definirCompacto(true));
+  await tr.waitForTimeout(300);
+  ok(await tr.evaluate(() => !document.body.classList.contains('compacto')), 'o modo compacto não muda para quem não é dono');
+  await tr.evaluate(() => JB_TEMA.abrir('prontas'));
+  await tr.waitForSelector('[data-jbt-p="azul"]', { timeout: 5000 });
+  ok(await tr.evaluate(() => { const e = document.querySelector('.jbt-vis'); return !e || getComputedStyle(e).display === 'none'; }), 'no painel some a escolha de estilo, ficam as cores');
+  await tr.click('[data-jbt-p="azul"]');
+  await aplicar(tr);
+  ok((await tema(tr)) === 'azul', 'as cores ela continua podendo escolher');
+  ok(await tr.evaluate(() => document.documentElement.classList.contains('vis-nv')), 'escolher cor não mexe na versão');
+  await daNuvem(tr, 'config', 'aparencia', { dono: 'u_DONO', versao: { ...VER, visual3: 'jb' } });
+  await tr.waitForFunction(() => !document.documentElement.classList.contains('vis-nv') && !document.documentElement.classList.contains('vis-cc'), null, { timeout: 40000 }).catch(() => {});
+  ok(await tr.evaluate(() => !document.documentElement.classList.contains('vis-nv') && !document.documentElement.classList.contains('vis-cc')), 'quando o dono muda a versão, muda para ela também');
+  ok(tr.erros.length === 0, 'sem erro de JavaScript: ' + tr.erros.join(' | '));
+
+  const dv = await abrir('u_DONO', [['config', 'aparencia', { dono: 'u_DONO' }]]);
+  await dv.waitForFunction(() => { const d = window.__srv.estado.docs.get('config/aparencia'); return d && d.dados.versao && d.dados.versao.visual3; }, null, { timeout: 15000 }).catch(() => {});
+  const v0 = (await noBanco(dv, 'config', 'aparencia')).versao;
+  ok(v0 && v0.visual3 === 'cc' && !!v0.modelo && !!v0.menu && v0.compacto === false, 'a versão do dono é guardada sozinha: ' + JSON.stringify(v0));
+  ok(await dv.evaluate(() => !document.documentElement.classList.contains('jb-versao-fixa')), 'para o dono nada fica travado');
+  await dv.evaluate(() => definirVisual('nv'));
+  await dv.waitForFunction(() => window.__srv.estado.docs.get('config/aparencia').dados.versao.visual3 === 'nv', null, { timeout: 15000 }).catch(() => {});
+  ok((await noBanco(dv, 'config', 'aparencia')).versao.visual3 === 'nv', 'o dono troca o estilo e a versão de todos acompanha');
+  ok(dv.erros.length === 0, 'sem erro de JavaScript: ' + dv.erros.join(' | '));
+
   console.log('\ndono publicando o que já usa:');
   const prefsDono = { lidas: {}, tema: { p: 'marrom', m: 'claro' }, visual3: 'cc' };
   const dono2 = await abrir('u_DONO', [['config', 'aparencia', { dono: 'u_DONO' }], ['data/users/u_DONO', 'prefs', prefsDono]]);

@@ -3088,7 +3088,26 @@ let CFG=null, USUARIOS={papeis:{}}, PREFS={lidas:{}};
 /* padrão de cores de todos (config/aparencia): dono = quem pode trocar; tema = o padrão atual */
 let APARENCIA=null;
 const podeTemaPadrao=()=>APP.modo==='local'||!!(APARENCIA&&APARENCIA.dono&&APARENCIA.dono===APP.uid);
-const temaPadraoVale=()=>{const t=APARENCIA&&APARENCIA.tema;return !!(t&&t.em)&&!(PREFS&&PREFS.tema&&PREFS.tema.b===t.em)};
+/* versão definitiva (config/aparencia → versao): o estilo das telas, o modelo de tela, o menu e o modo compacto do dono
+   valem para todos, e só ele muda. As cores cada pessoa pode escolher (até o dono escolher as dele). */
+const versaoTravada=()=>!podeTemaPadrao()&&!!(APARENCIA&&APARENCIA.versao);
+const versaoFixa=k=>versaoTravada()?APARENCIA.versao[k]:undefined;
+const avisoVersao=()=>toast('A versão do sistema é definida pelo dono. Você pode escolher só as cores.','erro');
+const VERSAO_LER={},VERSAO_APOS=[];
+let PREFS_OK=false,tVersao=0;
+function agendarVersao(){clearTimeout(tVersao);tVersao=setTimeout(()=>{try{const c={};Object.keys(VERSAO_LER).forEach(k=>{c[k]=VERSAO_LER[k]()});if(PREFS_OK&&APP.modo!=='local'&&APARENCIA&&APARENCIA.dono===APP.uid)gravarVersao(c)}catch(e){console.warn('versão',e)}},1500)}
+async function gravarVersao(campos){
+ const at=(APARENCIA&&APARENCIA.versao)||{};if(Object.keys(campos).every(k=>at[k]===campos[k]))return;
+ const nv={...APARENCIA,versao:{...at,...campos}};APARENCIA=nv;
+ try{await contarEscrita(()=>tentar(()=>APP.db.doc('config/aparencia').set(clone(nv))))}catch(e){console.warn('versão',e)}
+}
+function receberAparencia(d){
+ const antes=JSON.stringify((APARENCIA&&APARENCIA.versao)||null);APARENCIA=d;
+ document.documentElement.classList.toggle('jb-versao-fixa',versaoTravada());
+ try{if(window.JB_TEMA)window.JB_TEMA.reaplicar()}catch(e){console.warn('tema',e)}
+ if(versaoTravada()&&antes!==JSON.stringify(APARENCIA.versao)){try{if(APARENCIA.versao.modelo)localStorage.setItem('jb_modelo',APARENCIA.versao.modelo)}catch(e){}VERSAO_APOS.forEach(f=>{try{f()}catch(e){console.warn('versão',e)}})}
+ agendarVersao();
+}
 /* lançamentos ficam agrupados em documentos por dia ou por mês; os mensais são divididos em partes
    (pelo identificador do registro) para nunca passar do limite de tamanho de cada documento */
 const BUCKET={diario:'dia',log:'mes',horasExtras:'mes',producao:'mes',alimentacao:'mes',diarias:'mes',vales:'mes',despesas:'mes'};
@@ -3234,10 +3253,10 @@ function assinar(){
  });
  ouvir('_cfg',()=>APP.db.doc('config/empresa'),s=>{CFG=cfgMesclada(s.exists?clone(s.data()):null);APP.cfgExiste=s.exists;try{const mk=document.querySelector('#side .marca');if(mk&&acessoOk())mk.outerHTML=marcaHtml()}catch(e){}try{guardarCarrega()}catch(e){}agendarRender()});
  ouvir('_usu',()=>APP.db.doc('config/usuarios'),s=>{USUARIOS=s.exists?clone(s.data()):{papeis:{}};if(!USUARIOS.papeis)USUARIOS.papeis={};definirPapel();agendarRender()});
- ouvir('_aparencia',()=>APP.db.doc('config/aparencia'),s=>{APARENCIA=s.exists?clone(s.data()):null;try{if(window.JB_TEMA)window.JB_TEMA.reaplicar()}catch(e){console.warn('tema',e)}});
- if(APP.uid)ouvir('_prefs',()=>APP.db.doc('data/users/'+APP.uid+'/prefs'),s=>{PREFS=s.exists?clone(s.data()):{lidas:{}};if(!PREFS.lidas)PREFS.lidas={};atualizarSino()});
+ ouvir('_aparencia',()=>APP.db.doc('config/aparencia'),s=>receberAparencia(s.exists?clone(s.data()):null));
+ if(APP.uid)ouvir('_prefs',()=>APP.db.doc('data/users/'+APP.uid+'/prefs'),s=>{PREFS=s.exists?clone(s.data()):{lidas:{}};if(!PREFS.lidas)PREFS.lidas={};PREFS_OK=true;agendarVersao();atualizarSino()});
 }
-async function salvarPrefs(extra){PREFS={...PREFS,...extra};if(APP.uid)await contarEscrita(()=>tentar(()=>APP.db.doc('data/users/'+APP.uid+'/prefs').set(clone(PREFS))))}
+async function salvarPrefs(extra){PREFS={...PREFS,...extra};agendarVersao();if(APP.uid)await contarEscrita(()=>tentar(()=>APP.db.doc('data/users/'+APP.uid+'/prefs').set(clone(PREFS))))}
 async function salvarCfg(novo){await contarEscrita(()=>tentar(()=>APP.db.doc('config/empresa').set(clone(novo))))}
 
 /* ================= histórico de alterações ================= */
@@ -11205,9 +11224,10 @@ function ligarAparencia(el,R,sujo){
  const cc=$('#cfCompacto',el);if(cc)cc.onchange=e=>{e.stopPropagation();definirCompacto(cc.checked)};
 }
 /* modo compacto: preferência de cada usuário (com cópia neste navegador) */
-function compactoLigado(){if(PREFS&&PREFS.compacto!=null)return !!PREFS.compacto;try{return localStorage.getItem('jb_compacto')==='1'}catch(e){return false}}
+function compactoLigado(){const vf=versaoFixa('compacto');if(vf!=null)return !!vf;if(PREFS&&PREFS.compacto!=null)return !!PREFS.compacto;try{return localStorage.getItem('jb_compacto')==='1'}catch(e){return false}}
 function aplicarCompacto(){document.body.classList.toggle('compacto',compactoLigado())}
-async function definirCompacto(v){try{localStorage.setItem('jb_compacto',v?'1':'0')}catch(e){}
+VERSAO_LER.compacto=()=>compactoLigado();VERSAO_APOS.push(()=>aplicarCompacto());
+async function definirCompacto(v){if(versaoTravada())return avisoVersao();try{localStorage.setItem('jb_compacto',v?'1':'0')}catch(e){}
  try{await salvarPrefs({compacto:!!v})}catch(e){}aplicarCompacto();toast(v?'Modo compacto ligado.':'Modo compacto desligado.','ok')}
 
 </script>
@@ -14501,7 +14521,7 @@ IC.paleta='<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/>
 const VISUAIS={cc:'Concretiza',nv:'Branco e laranja',jb:'JB'};
 const VIS_OK=v=>v==='nv'||v==='cc'||v==='jb';
 function visualAtual(){
- if(temaPadraoVale()&&VIS_OK(APARENCIA.tema.v))return APARENCIA.tema.v;
+ const vf=versaoFixa('visual3');if(VIS_OK(vf))return vf;
  if(PREFS&&VIS_OK(PREFS.visual3))return PREFS.visual3;
  try{const v=localStorage.getItem('jb_visual3');if(VIS_OK(v))return v}catch(e){}
  return 'cc';
@@ -14510,6 +14530,7 @@ const ehCC=()=>document.documentElement.classList.contains('vis-cc');
 const ehNV=()=>document.documentElement.classList.contains('vis-nv');
 const visualNaTela=()=>ehCC()?'cc':ehNV()?'nv':'jb';
 /* devolve true quando o visual mudou (a tela precisa ser redesenhada) */
+VERSAO_LER.visual3=()=>visualAtual();
 function aplicarVisual(){
  const v=visualAtual();const muda=v!==visualNaTela();
  document.documentElement.classList.toggle('vis-cc',v==='cc');
@@ -14524,9 +14545,8 @@ function redesenharVisual(){
 }
 async function definirVisual(v){
  if(!VIS_OK(v))return;
+ if(versaoTravada())return avisoVersao();
  try{localStorage.setItem('jb_visual3',v)}catch(e){}
- /* quem troca o estilo por conta própria sai do padrão de todos, mantendo as cores dele, até o dono escolher outro */
- if(temaPadraoVale()){const t=APARENCIA.tema;PREFS={...PREFS,tema:{p:t.p||'',m:t.m||'',...(t.c?{c:t.c,cn:t.cn||''}:{}),b:t.em}}}
  PREFS={...PREFS,visual3:v};
  aplicarVisual();redesenharVisual();
  $$('.vis-op').forEach(l=>{const on=l.classList.contains(v);l.classList.toggle('on',on);const i=l.querySelector('input');if(i)i.checked=on});
@@ -29932,7 +29952,7 @@ function painelHtml(){
    <div class="jc-resumo"><small class="jc-rot">${sujo?'Prévia (ainda não aplicada)':'Em uso'}</small><b class="jc-nome">${esc(nomeDe(e))}</b>
     ${ed?`<span class="jc-editando">${ic('jcLapis')}Editando a paleta “${esc(ed.nome)}”</span>`:''}
     <div class="jc-tira">${JC_PROPS.map(([k,n])=>`<button type="button" class="jc-tira-c${JC.alvo===k?' on':''}" data-jc-prop="${k}" style="background:${c[k]}" title="${esc(n)} · ${c[k]}" aria-label="${esc(n)}: ${c[k]}"></button>`).join('')}</div>
-    ${jcSelo(ver)}<span class="ajuda">${podeTemaPadrao()?'O que você aplicar aqui vira o padrão de todos e muda na hora para todas as pessoas, em todos os setores e aparelhos.':'Vale só para você, em todos os setores e aparelhos. Quando o dono escolher um novo padrão, ele passa a valer para todos.'} A tela já mostra a escolha; nada fica salvo antes de Aplicar. Dados, documentos e PDFs não mudam.</span></div></div>
+    ${jcSelo(ver)}<span class="ajuda">${podeTemaPadrao()?'O que você aplicar aqui vira o padrão de todos e muda na hora para todas as pessoas, em todos os setores e aparelhos.':'As cores valem só para você, em todos os setores e aparelhos. Quando o dono escolher as dele, elas passam a valer para todos.'} A tela já mostra a escolha; nada fica salvo antes de Aplicar. Dados, documentos e PDFs não mudam.</span></div></div>
   <div class="jc-abas" role="tablist" aria-label="Seções da personalização">${JC_ABAS.map(([k,l])=>`<button type="button" role="tab" aria-selected="${JC.aba===k}" class="${JC.aba===k?'on':''}" data-jc-aba="${k}">${esc(l)}${k==='minhas'&&JC.dados.minhas.length?` <i>${JC.dados.minhas.length}</i>`:''}</button>`).join('')}</div>
   <div class="jc-painel" role="tabpanel">${abaHtml(c,ver,salvo)}</div>
  </div>
@@ -29958,7 +29978,7 @@ function abaHtml(c,ver,salvo){
    <h3 class="jbt-tit">Paletas premium <small>${JC_PALETAS.length} combinações completas, conferidas na leitura</small></h3>
    <div class="jc-filtros" role="group" aria-label="Filtrar paletas premium">${[['todas','Todas'],['escuro','Escuras'],['claro','Claras']].map(([k,l])=>`<button type="button" class="chip${JC.filtro===k?' on':''}" data-jc-filtro="${k}">${l} <small>${n(k)}</small></button>`).join('')}</div>
    <div class="jc-pal-grade">${lst.map(p=>cartaoPaleta(p,c,false,salvo)).join('')}</div>
-   <h3 class="jbt-tit">Estilo das telas</h3>
+   <h3 class="jbt-tit jbt-tit-estilo">Estilo das telas</h3>
    <div class="jbt-vis" role="radiogroup" aria-label="Estilo das telas">${['cc','nv','jb'].map(k=>`<button type="button" class="jbt-modo${v===k?' sel':''}" data-jbt-v="${k}" role="radio" aria-checked="${v===k}"><span><b>${VIS_TXT[k][0]}</b><small>${VIS_TXT[k][1]}</small></span></button>`).join('')}</div>
    <p class="jbt-ajuda">Qualquer paleta pinta qualquer um dos três estilos. Sem paleta, cada estilo usa as cores próprias.</p>`}
  if(a==='biblioteca'){
@@ -30608,6 +30628,7 @@ html.casca2 .top>:not(.c2){display:none!important}
 .c2-pop.esq{left:0;right:auto}
 .c2-w.ab>.c2-pop{display:block;animation:c2-in .14s ease-out}
 @keyframes c2-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+html.jb-versao-fixa :is(.vis-escolha,.ap-comp,.ap-comp+.ajuda,#msCfg,#ndpCfg,[data-ms-modo],[data-ndp-modo],.c2-opmod,.c2-so-dono,.c2-comparar,.jbt-tit-estilo,.jbt-vis){display:none!important}
 .c2-pt{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8E8E98;padding:8px 10px 6px}
 .c2-op{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:9px;color:#141418;text-decoration:none;background:none;border:0;cursor:pointer;font:inherit;text-align:left}
 .c2-op:hover{background:#F3F3F5}
@@ -31119,7 +31140,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     preta de indicadores; 3 = estilo da imagem de referência. Escolha só deste navegador. */
  const MOD_LS='jb_modelo',MODELO_PADRAO='m3';
  const MODELOS={m1:{n:'Modelo 1',d:'Barra preta no alto e quadradinhos coloridos'},m2:{n:'Modelo 2',d:'Trilho preto ao lado, faixa preta de números e cartões por grupo'},m3:{n:'Modelo 3',d:'Olá, busca grande, favoritos e módulos coloridos'}};
- const modelo=()=>{try{const v=localStorage.getItem(MOD_LS);return MODELOS[v]?v:MODELO_PADRAO}catch(e){return MODELO_PADRAO}};
+ const modelo=()=>{const vf=APARENCIA&&APARENCIA.versao&&APARENCIA.versao.modelo;if(MODELOS[vf])return vf;try{const v=localStorage.getItem(MOD_LS);return MODELOS[v]?v:MODELO_PADRAO}catch(e){return MODELO_PADRAO}};
  Object.assign(IC,{
   c2grade:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   c2nuvem:'<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/>',
@@ -31232,7 +31253,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
 
   <button type="button" class="c2-op" data-visual-troca>${ic('paleta')||ic('engrenagem')}Trocar o visual das cores</button>
   ${pode('config')?`<a class="c2-op" href="#/config">${ic('engrenagem')}Configurações</a>`:''}
-  <div class="c2-linha"></div><div class="c2-pt">Modelo de tela</div>
+  <div class="c2-linha c2-so-dono"></div><div class="c2-pt c2-so-dono">Modelo de tela</div>
   ${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="c2-op c2-opmod ${modelo()===k?'on':''}" data-c2modelo="${k}"><span class="c2-mnum">${k.slice(1)}</span><span>${esc(o.n)}<small>${esc(o.d)}</small></span></button>`).join('')}
   <div id="c2euextra"></div>
   <div class="c2-linha"></div>
@@ -31284,7 +31305,8 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  function irSetor(id){const s=SETORES.find(x=>x.id===id);if(!s)return;try{marcarSetor(s.id)}catch(e){}location.hash=s.rota}
  function alternar(on){try{localStorage.setItem(LS,on?'nova':'antiga')}catch(e){}aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}if(!on)toast('Layout anterior em uso. Para voltar ao novo, use o botão "Novo layout" no alto.','ok')}
  function aplicarClasse(){const on=ligada()&&acessoOk();const h=document.documentElement;h.classList.toggle('casca2',on);const m=modelo();Object.keys(MODELOS).forEach(k=>h.classList.toggle('c2-'+k,on&&k===m));if(!on){document.body.classList.remove('c2-tem-mob','c2-semtrilho')}}
- function definirModelo(v){if(!MODELOS[v])return;try{localStorage.setItem(MOD_LS,v)}catch(e){}aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}toast(MODELOS[v].n+' em uso neste navegador. Para trocar, use “Modelo de tela” no menu do usuário.','ok')}
+ VERSAO_LER.modelo=()=>modelo();VERSAO_APOS.push(()=>{aplicarClasse();C2.chave='';renderCasca();renderTela()});
+ function definirModelo(v){if(!MODELOS[v])return;if(versaoTravada())return avisoVersao();try{localStorage.setItem(MOD_LS,v)}catch(e){}if(APP.modo!=='local'&&APARENCIA&&APARENCIA.dono===APP.uid)gravarVersao({modelo:v});aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}toast(MODELOS[v].n+' em uso neste navegador. Para trocar, use “Modelo de tela” no menu do usuário.','ok')}
 
  /* ---------- o que muda conforme a tela: nome do setor, funções, trilho, atalhos ---------- */
  function atualizarContexto(forcar){
@@ -31464,7 +31486,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
      ${g.its.map(t=>`<a class="c2-gl ${t.cls==='pri'?'pri':''}" href="${esc(t.href||'javascript:void 0')}" ${t.mi!=null?`data-c2mi="${t.mi}"`:''}><span class="c2-gli">${t.svg||ic(t.ico||'painel')}</span><span class="c2-glt">${esc(t.titulo||t.l)}</span>${t.qt?`<em>${esc(t.qt)}</em>`:''}${ic('direita')}</a>`).join('')}</div>`).join('')}</div></section>`};
   const corpo=(dp?alertasHtml():'')+(M==='m2'?gruposHtml():favHtml+tilesHtml);
   /* barra para o dono comparar os modelos (some depois que ele escolher) */
-  const podeComparar=(typeof souDono==='function'&&souDono())||APP.papel==='admin';
+  const podeComparar=podeTemaPadrao();
   let escolheu=false;try{escolheu=localStorage.getItem('jb_modelo_ok')==='1'}catch(e){}
   const comparar=podeComparar&&!escolheu?`<div class="c2-comparar"><span>${ic('faisca')}<b>Compare os modelos de tela:</b></span>${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="${k===M?'on':''}" data-c2modelo="${k}" title="${esc(o.d)}">${esc(o.n)}</button>`).join('')}<button type="button" class="c2-cmp-ok" data-c2modok>Ficar com o ${esc(MODELOS[M].n)}</button></div>`:'';
   /* monta: cabeçalho; nos modelos 1 e 2 os números vêm logo abaixo; depois alertas e funções */
@@ -32127,12 +32149,14 @@ try{painelModo=function(){return 'atual'}}catch(e){}
 try{
  menuModo=function(){
   if(!menuAntigoLiberado())return 'simples';
+  const vf=versaoFixa('menu');if(vf==='atual'||vf==='simples')return vf;
   if(PREFS&&(PREFS.menuDP2==='atual'||PREFS.menuDP2==='simples'))return PREFS.menuDP2;
   try{const v=localStorage.getItem('jb_menu2');if(v==='atual'||v==='simples')return v}catch(e){}
   return 'simples';
  };
+ VERSAO_LER.menu=()=>menuModo();VERSAO_APOS.push(()=>msRedesenhar());
  definirMenuModo=async function(v){
-  if(!MENU_MODOS[v])return;const mudou=menuModo()!==v;
+  if(!MENU_MODOS[v])return;if(versaoTravada())return avisoVersao();const mudou=menuModo()!==v;
   try{localStorage.setItem('jb_menu2',v)}catch(e){}
   PREFS={...PREFS,menuDP2:v};msRedesenhar();
   $$('.ms-cfg-op').forEach(l=>{const on=l.dataset.v===v;l.classList.toggle('on',on);const i=l.querySelector('input');if(i)i.checked=on});
@@ -32233,8 +32257,8 @@ function iniSecaoConfig(el){
  n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra os módulos (atalhos para cada função) e o painel de cima (funcionários ativos, carteira, custo, admissões e pendências). As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
   <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
-  <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
-  <label class="ck"><input type="checkbox" id="iniMenuLado" ${menuLadoLigado()?'checked':''} ${ed?'':'disabled'}><span>Mostrar o menu do lado (versão antiga). Desligado, o botão Menu abre as Funções do Setor Pessoal, que têm as mesmas telas.</span></label>
+  <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed&&!versaoTravada()?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
+  <label class="ck"><input type="checkbox" id="iniMenuLado" ${menuLadoLigado()?'checked':''} ${ed&&!versaoTravada()?'':'disabled'}><span>Mostrar o menu do lado (versão antiga). Desligado, o botão Menu abre as Funções do Setor Pessoal, que têm as mesmas telas.</span></label>
   <span class="ajuda">${ed?'Entra na hora, sem precisar salvar. Vale para todos os usuários.':'Só quem pode alterar as Configurações muda estas opções.'}</span>${iniPrevHtml()}`;
  if(ref)ref.after(n);else{const p=el.querySelector('fieldset.sec');if(p)p.after(n);else el.appendChild(n)}
  n.querySelectorAll('[data-ini-prev]').forEach(x=>x.onclick=e=>{e.preventDefault();abrirItem(+x.dataset.iniPrev)});
