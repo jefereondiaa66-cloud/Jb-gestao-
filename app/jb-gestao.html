@@ -31238,7 +31238,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     "menu" abre as Funções do setor (as mesmas telas, no padrão novo); o que está em preparação fica em
     Configurações › Início do Departamento Pessoal. O menu antigo só volta com "Usar o layout anterior". */
  function abrirFuncoes(){
-  if(!ligada()||!acessoOk())return false;
+  if(!ligada()||!acessoOk()||document.documentElement.classList.contains('com-menu-lado'))return false;
   const wf=$('[data-c2=funcoes]');if(!wf||wf.classList.contains('c2-oculto'))return false;
   fecharTudo(wf);wf.classList.add('ab');scrollTo({top:0});const f=document.getElementById('c2filtro');if(f&&innerWidth>860)setTimeout(()=>f.focus(),40);return true;
  }
@@ -32031,7 +32031,7 @@ iniciar().catch(e=>{console.error(e);$('#conteudo').innerHTML='<div class="vazio
 #conteudo.ini-dp.ini-sem-pendencias>.ex3,#conteudo.ini-dp.ini-sem-rotina>.ex4,#conteudo.ini-dp.ini-sem-movimento>.mv,
 #conteudo.ini-dp.ini-sem-indicadores>#detMais{display:none!important}
 #ndpCfg{display:none!important}
-html.casca2 #side,html.casca2 #veuNav{display:none!important}
+html.casca2:not(.com-menu-lado) #side,html.casca2:not(.com-menu-lado) #veuNav{display:none!important}
 html.sem-menu-antigo .ms-modo,html.sem-menu-antigo #msCfg{display:none!important}
 .ar-dp{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:16px 18px 18px;margin:0 0 18px}
 .ar-dp-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
@@ -32076,7 +32076,9 @@ const INI_PARTES=[['saudacao','Saudação (Boa tarde…) e data'],['lembrete','L
  ['indicadores','Mais indicadores e gráficos']];
 /* menu antigo do DP: desativado para todos; o dono libera em Configurações (configuração da empresa) */
 const menuAntigoLiberado=()=>!!(CFG&&CFG.menuAntigoDP===true);
-function menuAntigoMarcar(){try{document.documentElement.classList.toggle('sem-menu-antigo',!menuAntigoLiberado())}catch(e){}}
+/* 08/11/2026 · menu do lado (versão antiga): desligado por padrão; o dono religa em Configurações (menuLadoDP) */
+const menuLadoLigado=()=>!!(CFG&&CFG.menuLadoDP===true);
+function menuAntigoMarcar(){try{document.documentElement.classList.toggle('sem-menu-antigo',!menuAntigoLiberado());document.documentElement.classList.toggle('com-menu-lado',menuLadoLigado())}catch(e){}}
 menuAntigoMarcar();
 /* V83: a saudação com o nome volta a aparecer por padrão (pedido do dono: saudação em todos os setores);
    quem desligar a chave em Configurações grava false e ela continua oculta */
@@ -32194,9 +32196,15 @@ function iniSecaoConfig(el){
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
   <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
   <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
+  <label class="ck"><input type="checkbox" id="iniMenuLado" ${menuLadoLigado()?'checked':''} ${ed?'':'disabled'}><span>Mostrar o menu do lado (versão antiga). Desligado, o botão Menu abre as Funções do Setor Pessoal, que têm as mesmas telas.</span></label>
   <span class="ajuda">${ed?'Entra na hora, sem precisar salvar. Vale para todos os usuários.':'Só quem pode alterar as Configurações muda estas opções.'}</span>${iniPrevHtml()}`;
  if(ref)ref.after(n);else{const p=el.querySelector('fieldset.sec');if(p)p.after(n);else el.appendChild(n)}
  n.querySelectorAll('[data-ini-prev]').forEach(x=>x.onclick=e=>{e.preventDefault();abrirItem(+x.dataset.iniPrev)});
+ const ml=n.querySelector('#iniMenuLado');
+ if(ml)ml.onchange=async e=>{e.stopPropagation();const v=ml.checked;
+  try{await salvarCfg({...clone(CFG),menuLadoDP:v});CFG.menuLadoDP=v;menuAntigoMarcar();
+   toast(v?'Menu do lado ligado: o botão Menu volta a abri-lo.':'Menu do lado desligado: o botão Menu abre as Funções do Setor Pessoal.','ok')}
+  catch(err){ml.checked=!v;toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(err):'erro')+'.','erro')}};
  const ma=n.querySelector('#iniMenuAntigo');
  if(ma)ma.onchange=async e=>{e.stopPropagation();const v=ma.checked;
   try{await salvarCfg({...clone(CFG),menuAntigoDP:v});CFG.menuAntigoDP=v;menuAntigoMarcar();msRedesenhar();
