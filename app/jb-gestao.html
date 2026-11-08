@@ -693,6 +693,7 @@ fieldset.sec legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--ard
 .relgrid{display:grid;grid-template-columns:260px 1fr;gap:14px}
 .rel-lista a{display:block;padding:8px 12px;border-bottom:1px solid var(--linha2);text-decoration:none;color:var(--tinta);font-size:13px}
 .rel-lista a.on{background:var(--brasa-bg);color:var(--brasa2);font-weight:600}
+.rel-trocar{display:none}
 .cfg-sec{margin-bottom:16px}.cfg-sec>h3{font-size:15px;margin:0 0 8px}
 .lista-ed{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .lista-ed span{background:var(--papel);border:1px solid var(--linha);border-radius:14px;padding:3px 6px 3px 10px;font-size:12.5px;display:inline-flex;gap:4px;align-items:center}
@@ -710,6 +711,14 @@ fieldset.sec legend{font-weight:600;font-size:13px;padding:0 6px;color:var(--ard
   .top .menu{display:flex}
   .conteudo{padding:16px 14px}
   .relgrid{grid-template-columns:1fr}
+  .rel-trocar{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:8px 12px;border:0;background:none;color:var(--tinta);font:inherit;text-align:left;cursor:pointer}
+  .rel-trocar span:first-child{min-width:0}
+  .rel-trocar small{display:block;font-size:11.5px;color:var(--suave)}
+  .rel-trocar b{display:block;font-size:14.5px;font-weight:700;overflow-wrap:anywhere}
+  .rel-trocar .ac{flex:none;font-size:13px;font-weight:600;color:var(--brasa2)}
+  .rel-lista:not(.fechada) .rel-trocar{border-bottom:1px solid var(--linha2)}
+  .rel-lista.fechada .rel-itens{display:none}
+  .relgrid>*{min-width:0}
   .modo{display:none}
 }
 @media (max-width:720px){
@@ -31108,6 +31117,7 @@ html.casca2 .acoes-li .ib svg,html.casca2 button.ib svg{width:16px;height:16px}
 html.casca2 .pag .acoes{align-items:center}
 html.casca2 .relgrid{align-items:start!important}
 html.casca2 .relgrid>.rel-lista{align-self:start;position:sticky;top:76px}
+@media (max-width:960px){html.casca2 .relgrid>.rel-lista{position:static}}
 html.casca2 .relgrid .painel>p.ajuda,html.casca2 .painel>p.ajuda{padding:0 16px;margin:12px 0}
 html.casca2 .painel>h3.grupo-t{padding:0 16px;margin:16px 0 10px!important}
 html.casca2 .painel>.kpis{padding:0 14px 14px;margin:0}
@@ -31830,8 +31840,11 @@ function filtrosTxtRel(el,R,U){
  if(f.includes('setor')&&APP.papel==='gestor'&&APP.setorGestor)p.push('Setor: '+APP.setorGestor);
  return p.length?p.join(' · '):(f.length?'nenhum (todos os registros)':'');
 }
+/* tela estreita: a lista de relatórios fica acima do relatório. Ela fecha ao escolher e reabre pela barrinha */
+const REL_LISTA={chave:'',fechada:false};
 function telaRelatorios(el,cfg){
  cfg=cfg||{};const L=cfg.rels||RELS,U=cfg.ui||UIR;
+ const chaveL=(cfg.h1||'')+'|'+location.hash;if(REL_LISTA.chave!==chaveL){REL_LISTA.chave=chaveL;REL_LISTA.fechada=false}
  const vis=L.filter(r=>pode(r.m)&&(!r.s||r.s(U)));if(!vis.find(r=>r.id===U.id))U.id=vis[0]&&vis[0].id;const R=vis.find(r=>r.id===U.id);
  let res={cols:[],rows:[]};try{res=R?R.b(U):res}catch(e){console.error(e)}
  const ext=R&&R.extra?(typeof R.extra.op==='function'?R.extra.op():R.extra.op):[];
@@ -31840,7 +31853,7 @@ function telaRelatorios(el,cfg){
  const naoSoma=c=>c.semTotal||/\bavos\b|\bdias\b|\bmeses\b|%|percent|\bm[ée]di[ao]s?\b|unit[áa]ri|valor (da |por )?di[áa]ria\b/i.test(String(c.l||''));
  const totais=res.total&&typeof res.total==='object'?res.total:res.total?Object.fromEntries(res.cols.filter(c=>['moeda','num','hm'].includes(c.t)&&!naoSoma(c)).map(c=>[c.k,soma(res.rows,r=>r[c.k])])):null;
  el.innerHTML=`<div class="cab"><div><h1>${esc(cfg.h1||'Relatórios gerenciais')}</h1><p>${esc(cfg.p||'Escolha o relatório, ajuste os filtros e exporte em Excel, PDF ou CSV.')}</p></div></div>
- <div class="relgrid"><div class="painel rel-lista">${vis.map(r=>`<a href="javascript:void 0" data-rel="${r.id}" class="${r.id===U.id?'on':''}">${esc(r.n)}</a>`).join('')}</div>
+ <div class="relgrid"><div class="painel rel-lista${REL_LISTA.fechada?' fechada':''}">${R?`<button type="button" class="rel-trocar" aria-expanded="${REL_LISTA.fechada?'false':'true'}"><span><small>Relatório aberto</small><b>${esc(R.n)}</b></span><span class="ac">${REL_LISTA.fechada?'Trocar':'Fechar'}</span></button>`:''}<div class="rel-itens">${vis.map(r=>`<a href="javascript:void 0" data-rel="${r.id}" class="${r.id===U.id?'on':''}">${esc(r.n)}</a>`).join('')}</div></div>
  <div class="painel">${R?`<div class="filtros">
   ${R.f.includes('rapido')&&typeof RAPIDOS_V!=='undefined'?`<select data-r="rapido" aria-label="Período">${RAPIDOS_V.map(([k,l])=>`<option value="${k}" ${U.rapido===k?'selected':''}>${l}</option>`).join('')}</select>`:''}
   ${R.f.includes('periodo')&&U.rapido==='mesesc'?`<label class="inline" style="font-size:12.5px;color:var(--suave)">Mês <input type="month" data-r="mesrel" value="${esc(U.mesrel||String(U.ini||hoje()).slice(0,7))}" aria-label="Mês do relatório"></label>`:''}
@@ -31854,7 +31867,9 @@ function telaRelatorios(el,cfg){
   <div class="tabwrap">${res.rows.length?`<table class="tbl cartao"><thead><tr>${res.cols.map(c=>`<th class="${['moeda','num','hm'].includes(c.t)?'num':''}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${res.rows.map(r=>`<tr>${res.cols.map(c=>`<td data-l="${esc(c.l)}" class="${['moeda','num','hm'].includes(c.t)?'num':''}">${celula(c,r)}</td>`).join('')}</tr>`).join('')}</tbody>${totais?`<tfoot><tr>${res.cols.map((c,i)=>`<td class="${c.k in totais?'num':''}">${c.k in totais?celula(c,totais):i===0?'Total':''}</td>`).join('')}</tr></tfoot>`:''}</table>`:'<div class="vazio"><b>Sem dados para estes filtros</b>Ajuste o período ou os filtros.</div>'}</div>
   ${res.nota?`<p class="ajuda" style="margin:10px 2px 0">${esc(res.nota)}</p>`:''}
   <div class="pag"><span>${res.rows.length} linha(s)</span></div>`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
- $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';renderTela()});
+ $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';REL_LISTA.fechada=true;renderTela();
+  if(matchMedia('(max-width:960px)').matches){const g=document.querySelector('.relgrid');if(g)window.scrollTo(0,Math.max(0,g.getBoundingClientRect().top+window.scrollY-84))}});
+ {const tr=el.querySelector('.rel-trocar'),li=el.querySelector('.rel-lista');if(tr&&li)tr.onclick=()=>{REL_LISTA.fechada=!REL_LISTA.fechada;li.classList.toggle('fechada',REL_LISTA.fechada);tr.setAttribute('aria-expanded',String(!REL_LISTA.fechada));tr.querySelector('.ac').textContent=REL_LISTA.fechada?'Trocar':'Fechar'}}
  $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='mesrel'){const pr=typeof periodoDoMesV==='function'?periodoDoMesV(i.value):null;if(pr){U.mesrel=i.value;U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'&&i.value==='mesesc'&&typeof periodoDoMesV==='function'){U.rapido='mesesc';U.mesrel=U.mesrel||(U.ini?U.ini.slice(0,7):hoje().slice(0,7));const pr=periodoDoMesV(U.mesrel);if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
  $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;const perTit=R.f.includes('periodo')&&typeof periodoTxtV==='function'?periodoTxtV(U):'';const mesArq=perTit&&typeof mesInteiroV==='function'?mesInteiroV(U):'';try{exportar(b.dataset.x,R.n+'_'+(mesArq||hoje()),res.cols,rows,R.n+(perTit?' · '+perTit:''),{filtros:filtrosTxtRel(el,R,U)})}finally{REL_RESP=null}});
  resolverNomes(DATA.diario.map(r=>r.lancadoPor));
