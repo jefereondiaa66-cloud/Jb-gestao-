@@ -28227,14 +28227,23 @@ window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,s
    · Cor só onde o sentido é claro: verde quando melhorou (venda subiu, custo caiu), vermelho quando
      piorou; números neutros (funcionários, litros, metros de lenha) ficam em cinza.
    · Permissão: quem não entra num setor não vê as variações dele; dentro do setor, cada número
-     respeita a permissão da tela de onde ele vem (ex.: custo da folha só para quem vê a folha). */
+     respeita a permissão da tela de onde ele vem (ex.: custo da folha só para quem vê a folha).
+   · V85 (08/11/2026), pedido do Jeferson: as Variações são exclusivas dele e do Bayron, em todos os
+     setores. Para os outros usuários (administradores inclusive) somem a aba, o item do menu do
+     Setor Pessoal e o atalho da tela de setores, e o endereço direto responde "sem acesso".
+     A conferência é pelo código do usuário, porque na nuvem todo administrador conta como isOwner. */
 (()=>{
 const ROTA='setor-variacoes',ROTA_DP='dpvariacoes';
+const SO_ESTES=['u_FZmOBZqQYLD0VE7xkGL8AA','u_IUQfnrH8QROQdTs42EhcUQ']; /* Jeferson e Bayron */
+const veVariacoes=()=>APP.modo==='local'||SO_ESTES.includes(APP.uid);
+/* a permissão é calculada na hora: fica fora do que o Controle Central copia e restaura em PERM */
+function soEstes(rota,papeis){Object.defineProperty(PERM,rota,{enumerable:true,configurable:true,
+ get(){return{v:veVariacoes()?papeis.slice():[],e:[]}},set(){}})}
 
 /* ---------- rotas e permissões (a tela é de todos; cada setor confere o próprio acesso) ---------- */
 const PAPEIS_TODOS=[...new Set(Object.values(PERM).flatMap(p=>(p&&p.v)||[]).concat(typeof TODOS!=='undefined'?TODOS:[],typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[]))];
-PERM[ROTA]={v:PAPEIS_TODOS,e:[]};
-PERM[ROTA_DP]={v:((PERM.painel&&PERM.painel.v)||TODOS).slice(),e:[]};
+soEstes(ROTA,PAPEIS_TODOS);
+soEstes(ROTA_DP,((PERM.painel&&PERM.painel.v)||TODOS).slice());
 if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
 try{if(typeof msAddAba==='function')msAddAba('Início',ROTA_DP,'Variações mês a mês')}catch(e){}
 
@@ -28628,6 +28637,7 @@ function setorDaNav(nav){
  const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>SETS[x.id]&&x.id!=='dp'&&hs.includes(x.rota));return s?s.id:null;
 }
 function abaVariacoes(){
+ if(!veVariacoes())return;
  const nav=document.querySelector('#conteudo nav.sv-abas');if(!nav||nav.querySelector('[data-vraba]'))return;
  const id=setorDaNav(nav);if(!id||!setorVisivel(id))return;
  const r=lerRota();const on=r.mod===ROTA&&r.id===id;
@@ -28644,11 +28654,11 @@ renderTela=function(){const r=rtVar.apply(this,arguments);try{abaVariacoes()}cat
 /* ---------- atalho na tela de seleção de setores ---------- */
 const tsVar=telaSetores;
 telaSetores=function(el){const r=tsVar.apply(this,arguments);
- try{if(setoresVisiveis().length&&!el.querySelector('.vr-atalho')){const h=el.querySelector('.spot-corpo h1');if(h){const p=document.createElement('p');p.className='vr-atalho';
+ try{if(veVariacoes()&&setoresVisiveis().length&&!el.querySelector('.vr-atalho')){const h=el.querySelector('.spot-corpo h1');if(h){const p=document.createElement('p');p.className='vr-atalho';
   p.innerHTML=`<a class="btn" href="#/${ROTA}">${ic('grafico')}<span>Variações de todos os setores</span></a>`;h.after(p)}}}catch(e){console.warn('variações: atalho',e)}
  return r};
 
-window.VARIACOES_V73={SETS,ORDEM,setorVisivel,setoresVisiveis,val,comparar,fmt,VR};
+window.VARIACOES_V73={SETS,ORDEM,setorVisivel,setoresVisiveis,val,comparar,fmt,VR,veVariacoes};
 })();
 </script>
 <style id="comb-foto-v74-css">
