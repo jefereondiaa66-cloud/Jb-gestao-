@@ -2971,6 +2971,9 @@ const fDataHora=iso=>{if(!iso)return '';const d=new Date(iso);return fData(isoDe
 const fMes=m=>{if(!m)return '';const n=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];return n[+m.slice(5,7)-1]+'/'+m.slice(2,4)};
 const moedaF=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const fMoeda=v=>moedaF.format(+v||0);
+/* valor curto para espaços pequenos (calendário no celular, eixos dos gráficos): R$ 950 · R$ 12,3 mil · R$ 1,2 mi */
+const fMoedaCurta=v=>{v=+v||0;const a=Math.abs(v),n=(x,c)=>x.toLocaleString('pt-BR',{maximumFractionDigits:c});
+ return 'R$ '+(a>=1e6?n(v/1e6,1)+' mi':a>=1e3?n(v/1e3,a>=1e5?0:1)+' mil':n(v,0))};
 const fNum=(v,d=0)=>(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fHm=min=>{min=Math.round(+min||0);const s=min<0?'-':'';min=Math.abs(min);return s+pad(Math.floor(min/60))+':'+pad(min%60)};
 const minutos=hm=>{if(!hm||!/^\d{1,2}:\d{2}$/.test(hm))return null;const[a,b]=hm.split(':').map(Number);return a*60+b};
@@ -8558,7 +8561,7 @@ function ligarExec(D){
  const serie=meses.map(m=>custoDoMes(m));
  if(serie.some(v=>v>0))mk('gEx1',{type:'line',data:{labels:meses.map(fMes),datasets:[{data:serie,
    borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.32,pointBackgroundColor:'#A3461F'}]},
-  options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+  options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('gEx1','Sem despesas lançadas nos últimos meses.');
 
  const setores=[...new Set(DATA.funcionarios.filter(f=>f.situacao!=='Desligado').map(f=>f.setor||'Sem setor'))];
@@ -8581,7 +8584,7 @@ function ligarExec(D){
    {label:fMes(ant),data:cats.map(c=>round2(soma(desp.filter(r=>r.competencia===ant&&r.categoria===c),r=>r.valorRealizado))),backgroundColor:'#D39B80'},
    {label:fMes(mes),data:cats.map(c=>round2(soma(desp.filter(r=>r.competencia===mes&&r.categoria===c),r=>r.valorRealizado))),backgroundColor:'#A3461F'}]},
   options:{plugins:{legend:{display:true,position:'top',align:'end',labels:{boxWidth:9,boxHeight:9,font:{size:11}}}},
-   scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+   scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('gEx3','Sem despesas para comparar '+fMes(ant)+' com '+fMes(mes)+'.');
 }
 function vaziaCv(id,txt){
@@ -8599,9 +8602,9 @@ function graficosPainel(D,funcs,custo){
  const mk=(id,cfg,onPick)=>{const c=$('#'+id);if(!c)return;cfg.options=Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10}}},onClick:(e,els)=>{if(els.length&&onPick)onPick(els[0].index,els[0].datasetIndex)},onHover:(e,els)=>{e.native.target.style.cursor=els.length&&onPick?'pointer':'default'}},cfg.options||{});CHARTS.push(new Chart(c,cfg))};
  const despAll=DATA.despesas.filter(r=>r.situacao!=='Cancelado'&&natCat(r.categoria)==='custo'&&D.porF(r));
  const cD=[{k:'competencia',l:'Comp.',v:r=>fMes(r.competencia)},{k:'categoria',l:'Categoria'},{k:'descricao',l:'Descrição'},{k:'valorPrevisto',l:'Previsto',t:'moeda'},{k:'valorRealizado',l:'Realizado',t:'moeda'}];
- mk('g1',{type:'line',data:{labels:meses.map(fMes),datasets:[{label:'Realizado',data:meses.map(m=>round2(soma(despAll.filter(r=>r.competencia===m),r=>r.valorRealizado))),borderColor:CORES[0],backgroundColor:CORES[0],tension:.25},{label:'Previsto',data:meses.map(m=>round2(soma(despAll.filter(r=>r.competencia===m),r=>r.valorPrevisto))),borderColor:CORES[1],backgroundColor:CORES[1],borderDash:[5,4],tension:.25}]},options:{scales:{y:{ticks:{callback:v=>fMoeda(v)}}}}},i=>abrirDetalhe('Despesas de '+fMes(meses[i]),'despesas',despAll.filter(r=>r.competencia===meses[i]),cD));
+ mk('g1',{type:'line',data:{labels:meses.map(fMes),datasets:[{label:'Realizado',data:meses.map(m=>round2(soma(despAll.filter(r=>r.competencia===m),r=>r.valorRealizado))),borderColor:CORES[0],backgroundColor:CORES[0],tension:.25},{label:'Previsto',data:meses.map(m=>round2(soma(despAll.filter(r=>r.competencia===m),r=>r.valorPrevisto))),borderColor:CORES[1],backgroundColor:CORES[1],borderDash:[5,4],tension:.25}]},options:{scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}}}}},i=>abrirDetalhe('Despesas de '+fMes(meses[i]),'despesas',despAll.filter(r=>r.competencia===meses[i]),cD));
  const cats=['Salários','Horas extras','Alimentação','Diárias','Férias','Rescisões'];
- mk('g2',{type:'bar',data:{labels:cats,datasets:[{label:'Realizado',data:cats.map(c=>round2(soma(custo.filter(r=>r.categoria===c),r=>r.valorRealizado))),backgroundColor:CORES.slice(0,6)}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fMoeda(v)}}}}},i=>abrirDetalhe(cats[i]+' no período','despesas',custo.filter(r=>r.categoria===cats[i]),cD));
+ mk('g2',{type:'bar',data:{labels:cats,datasets:[{label:'Realizado',data:cats.map(c=>round2(soma(custo.filter(r=>r.categoria===c),r=>r.valorRealizado))),backgroundColor:CORES.slice(0,6)}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}}}}},i=>abrirDetalhe(cats[i]+' no período','despesas',custo.filter(r=>r.categoria===cats[i]),cD));
  const ativos=funcs.filter(f=>f.situacao!=='Desligado');const cF=[{k:'nome',l:'Nome'},{k:'cargo',l:'Cargo'},{k:'setor',l:'Setor'},{k:'tipoContratacao',l:'Contratação'},{k:'situacao',l:'Situação',v:r=>tag(r.situacao)}];
  const setores=[...new Set(ativos.map(f=>f.setor||'Sem setor'))];
  mk('g3',{type:'bar',data:{labels:setores,datasets:[{label:'Funcionários',data:setores.map(s=>ativos.filter(f=>(f.setor||'Sem setor')===s).length),backgroundColor:CORES[1]}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{precision:0}}}}},i=>abrirDetalhe('Setor: '+setores[i],'funcionarios',ativos.filter(f=>(f.setor||'Sem setor')===setores[i]),cF));
@@ -8613,7 +8616,7 @@ function graficosPainel(D,funcs,custo){
  const sits=['Ativo','Em férias','Afastado','Desligado'];
  mk('g7',{type:'doughnut',data:{labels:sits,datasets:[{data:sits.map(s=>funcs.filter(f=>f.situacao===s).length),backgroundColor:[CORES[2],CORES[4],CORES[3],CORES[5]]}]}},i=>abrirDetalhe(sits[i],'funcionarios',funcs.filter(f=>f.situacao===sits[i]),cF));
  if(temOrc){const nM=mesesRange(PF.ini,PF.fim).length;const cs=Object.keys(CFG.orcamento).filter(c=>+CFG.orcamento[c]>0);
-  mk('g8',{type:'bar',data:{labels:cs,datasets:[{label:'Planejado',data:cs.map(c=>round2(+CFG.orcamento[c]*nM)),backgroundColor:CORES[1]},{label:'Realizado',data:cs.map(c=>round2(soma(custo.filter(r=>r.categoria===c),r=>r.valorRealizado))),backgroundColor:CORES[0]}]},options:{scales:{y:{ticks:{callback:v=>fMoeda(v)}}}}},i=>abrirDetalhe(cs[i]+' no período','despesas',custo.filter(r=>r.categoria===cs[i]),cD))}
+  mk('g8',{type:'bar',data:{labels:cs,datasets:[{label:'Planejado',data:cs.map(c=>round2(+CFG.orcamento[c]*nM)),backgroundColor:CORES[1]},{label:'Realizado',data:cs.map(c=>round2(soma(custo.filter(r=>r.categoria===c),r=>r.valorRealizado))),backgroundColor:CORES[0]}]},options:{scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}}}}},i=>abrirDetalhe(cs[i]+' no período','despesas',custo.filter(r=>r.categoria===cs[i]),cD))}
 }
 </script>
 <script>
@@ -12096,7 +12099,7 @@ function inicioVendasV(c,s){
    <div class="bloco"><h3>Clientes que mais compraram no mês${pode('clientes')?'<a href="#/clientes">Clientes</a>':''}</h3>${lstV(N.par.slice(0,6).map(t=>({href:t.id===SEM_CLIENTE?'#/vendas':'#/clientes/'+t.id,ic:'pessoas',t:t.nome,s:t.n+' compra(s)',v:fMoeda(t.total)})),'Nenhuma venda neste mês.')}</div>
   </div>`;
  const sr=serieDiasV(N.ok,30,v=>v.total);
- if(sr.val.some(x=>x>0))grafV('gSv1',{type:'line',data:{labels:sr.lab,datasets:[{data:sr.val,borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#A3461F'}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
+ if(sr.val.some(x=>x>0))grafV('gSv1',{type:'line',data:{labels:sr.lab,datasets:[{data:sr.val,borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#A3461F'}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gSv1','Sem vendas nos últimos 30 dias.');
 }
 function inicioConsumoV(c,s){
@@ -12363,14 +12366,14 @@ function detalheOpV(c,O,v){
    <section class="bloco"><h3>${venda?'Recebimento e conta a receber':'Pagamento e conta a pagar'}${pode(O.modFin)?`<a href="#/${O.modFin}">${O.finTit}</a>`:''}</h3>${kvV([['Situação',tagV(f.status)],['Total',esc(fMoeda(f.total))],[venda?'Recebido':'Pago',esc(fMoeda(f.pago))],[venda?'Saldo a receber':'Saldo a pagar',esc(fMoeda(f.saldo))],['Vencimento',esc(fData(v.vencimento))],canc&&f.devolver?[venda?'A devolver ao cliente':'A receber de volta do fornecedor',esc(fMoeda(f.devolver))]:null])}
     ${pgs.length?`<div class="tabwrap"><table class="tbl"><thead><tr><th>Data</th><th>Forma</th><th class="num">Valor</th><th>Registro</th><th></th></tr></thead><tbody>${pgs.map(p=>`<tr${p.estornado?' class="vv-estornado"':''}><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma)}${p.obs?`<div class="ajuda">${esc(p.obs)}</div>`:''}${p.contaId&&window.FINANCEIRO_SETOR&&window.FINANCEIRO_SETOR.h?`<div class="ajuda">Conta: ${esc(window.FINANCEIRO_SETOR.h.nomeConta(p.contaId))}</div>`:''}${p.milheiros?`<div class="ajuda">${esc(fQtd(p.milheiros)+' milheiro(s) × '+fMoeda(p.precoMilheiro))}</div>`:''}${p.comprovante&&p.comprovante.id?`<div class="ajuda"><a href="/_blob/${esc(p.comprovante.id)}" target="_blank" rel="noopener">comprovante</a></div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}</td>
      <td data-l="Registro">${esc(nomeUsuario(p.por))}${p.estornado?`<div class="ajuda">Estornado em ${esc(fDataHora(p.estornado.em))}: ${esc(p.estornado.motivo)}</div>`:''}</td>
-     <td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-vrec="${esc(p.id)}" data-tip="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}">${ic('doc')}</button>`}${!p.estornado&&pode(O.modFin,'e')?`<button type="button" class="ib" data-vest="${esc(p.id)}" data-tip="Estornar">${ic('fechar')}</button>`:''}</span></td></tr>`).join('')}</tbody></table></div>`:`<p class="ajuda" style="margin:0 17px 14px">Nenhum ${venda?'recebimento':'pagamento'} registrado.</p>`}</section>
+     <td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-vrec="${esc(p.id)}" data-tip="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}" aria-label="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}">${ic('doc')}</button>`}${!p.estornado&&pode(O.modFin,'e')?`<button type="button" class="ib" data-vest="${esc(p.id)}" data-tip="Estornar" aria-label="Estornar">${ic('desfazer')}</button>`:''}</span></td></tr>`).join('')}</tbody></table></div>`:`<p class="ajuda" style="margin:0 17px 14px">Nenhum ${venda?'recebimento':'pagamento'} registrado.</p>`}</section>
    <section class="bloco"><h3>${venda?'Comprovante':'Registro da compra'}</h3><p class="vv-tx">${venda?'Comprovante no padrão dos documentos do sistema, com empresa, setor, cliente, produtos, valores, pagamento e responsável.':'Registro da entrada no padrão dos documentos do sistema, para conferência e arquivo junto com a nota do fornecedor.'}</p>
     <div class="inline vv-bt"><button type="button" class="btn" id="vvComp2">${ic('doc')}Visualizar e imprimir</button><button type="button" class="btn" id="vvPdf">${ic('baixar')}Gerar PDF</button>
     ${venda&&wa?`<a class="btn" href="https://wa.me/${wa.length<=11?'55':''}${esc(wa)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('enviar')}WhatsApp</a>`:''}${venda&&cx.email?`<a class="btn" href="mailto:${esc(cx.email)}?subject=${encodeURIComponent('Comprovante de venda nº '+fNumV(v.numero)+' · '+razaoMostra())}&body=${encodeURIComponent(msg)}">${ic('enviar')}E-mail</a>`:''}</div>
     ${venda?'<p class="ajuda" style="margin:8px 17px 14px">WhatsApp e e-mail levam o resumo da venda. Para mandar o PDF, use “Compartilhar” na tela do comprovante.</p>':''}</section>
    <section class="bloco"><h3>${venda?'Documento fiscal':'Nota do fornecedor'}</h3>${kvV([['Situação',`<span class="tag ${COR_V[fs.status]||''}">${esc(fs.status||'Pendente')}</span>`],['Modelo',esc(fs.modelo||'—')],['Número',esc(fs.numero||'—')],['Série',esc(fs.serie||'—')],['Data de emissão',esc(fData(fs.data)||'—')],['Chave de acesso',fs.chave?`<span class="vv-chave">${esc(fs.chave)}</span>`:'—',1],
      ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['PDF / DANFE',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—']])}
-    <p class="ajuda" style="margin:0 17px 10px">${venda?'O JB Gestão não emite nota fiscal nem transmite à SEFAZ. Emita no seu emissor e vincule aqui o número, a chave e os arquivos. A venda já guarda esses campos para uma integração no futuro.':'Guarde aqui os dados e os arquivos da nota que o fornecedor emitiu. O JB Gestão não consulta a SEFAZ.'}</p>
+    <p class="ajuda" style="margin:0 17px 10px">${venda?'A NF-e pode ser emitida pelo Setor Fiscal do JB (quando o serviço fiscal está ligado). Se a nota saiu em outro emissor, vincule aqui o número, a chave e os arquivos.':'Guarde aqui os dados e os arquivos da nota que o fornecedor emitiu. O JB Gestão não consulta a SEFAZ.'}</p>
     ${podeFis?`<div class="inline vv-bt"><button type="button" class="btn" id="vvFis">${ic('editar')}${fs.numero||fs.status!=='Pendente'?'Atualizar':'Vincular'} ${venda?'documento fiscal':'nota'}</button></div>`:''}</section>
    <section class="bloco"><h3>Relatórios</h3><p class="vv-tx">Esta ${O.sing} aparece nos relatórios do ${esc(S.nome||'setor')}: ${venda?'vendas, faturamento, produtos vendidos, clientes e contas a receber':'compras, compras por fornecedor, contas a pagar e estoque'}.</p>
     ${pode('relvendas')&&par?`<div class="inline vv-bt"><button type="button" class="btn" id="vvRel">${ic('grafico')}Ver tudo deste ${O.parte}</button></div>`:''}</section>
@@ -12456,7 +12459,7 @@ function modalCancelarV(v){
 function modalFiscalV(v){
  const O=opDe(v);const venda=O.K==='venda';const fs={...(v.fiscal||{status:'Pendente'})};const anexos={xml:fs.xml||null,pdf:fs.pdf||null};const sts=venda?ST_FISCAL:ST_NOTA_COMPRA;
  const campoArq=(k,rot,acc)=>`<div class="cmp"><label>${esc(rot)}</label><div class="inline" data-fa="${k}"><span class="ajuda" data-fn="${k}">${anexos[k]?esc(anexos[k].nome):'Nenhum arquivo.'}</span>${APP.assets?`<label class="btn min" style="cursor:pointer">${anexos[k]?'Trocar':'Anexar'}<input type="file" accept="${acc}" hidden data-fup="${k}"></label>`:''}</div>${APP.assets?'':'<span class="ajuda">Anexos funcionam na versão publicada, com armazenamento em nuvem.</span>'}</div>`;
- modalV((venda?'Documento fiscal':'Nota do fornecedor')+' · '+O.sing+' nº '+fNumV(v.numero),`<p class="ajuda" style="margin:0 0 10px">${venda?'Registre aqui a nota emitida no seu emissor. O JB Gestão não emite nem transmite nota fiscal.':'Registre a nota que o fornecedor emitiu, com os arquivos.'}</p>
+ modalV((venda?'Documento fiscal':'Nota do fornecedor')+' · '+O.sing+' nº '+fNumV(v.numero),`<p class="ajuda" style="margin:0 0 10px">${venda?'Registre aqui a nota emitida em outro emissor. Para emitir pelo JB, use o Setor Fiscal.':'Registre a nota que o fornecedor emitiu, com os arquivos.'}</p>
   <div class="campos" style="grid-template-columns:1fr 1fr">
    <div class="cmp"><label for="mfSt">Situação<i> *</i></label><select id="mfSt">${sts.map(x=>`<option ${fs.status===x?'selected':''}>${x}</option>`).join('')}</select></div>
    <div class="cmp"><label for="mfMod">Modelo</label><select id="mfMod"><option value="">Selecione…</option>${MODELOS_FISCAIS.map(x=>`<option ${fs.modelo===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
@@ -13649,7 +13652,7 @@ function blocosPedidoExtraV(v){
     <td>${t.saldo>0&&pode('titulos','e')&&v.status!=='Cancelado'?`<button type="button" class="btn min" data-xa="receber" data-id="${esc(t.id)}">Receber</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}
   ${pode('titulos','e')&&v.status!=='Cancelado'&&!tits.length&&PED_RESERVA.includes(st)?`<div class="inline vv-bt" style="margin-top:8px"><button type="button" class="btn" data-xa="faturar">Gerar contas a receber agora</button><span class="ajuda">Use quando a cerâmica faturar antes do evento configurado.</span></div>`:''}
   ${pgs.length?`<h4 class="cm-sub">Recebimentos</h4><div class="tabwrap"><table class="tbl"><thead><tr><th>Recibo</th><th>Data</th><th>Forma</th><th class="num">Valor</th><th>Título</th><th>Registro</th><th></th></tr></thead><tbody>${pgs.map(p=>{const t=tits.find(x=>x.id===p.tituloId);return `<tr${p.estornado?' class="vv-estornado"':''}><td data-l="Recibo">${p.recibo?'nº '+esc(fNumV(p.recibo)):'—'}</td><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma)}${p.conta?`<div class="ajuda">${esc(p.conta)}</div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}${p.juros||p.multa?`<div class="ajuda">+ juros ${esc(fMoeda(p.juros||0))} · multa ${esc(fMoeda(p.multa||0))}</div>`:''}${p.descontoFin?`<div class="ajuda">desconto ${esc(fMoeda(p.descontoFin))}</div>`:''}</td><td data-l="Título">${esc(t?t.numero:p.tituloNumero||'—')}</td>
-    <td data-l="Registro">${esc(nomeUsuario(p.por))}${p.estornado?`<div class="ajuda">Estornado em ${esc(fDataHora(p.estornado.em))}: ${esc(p.estornado.motivo)}</div>`:''}</td><td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-xa="recibo" data-id="${esc(p.id)}" data-tip="Recibo">${ic('doc')}</button>`}${!p.estornado&&pode('titulos','e')?`<button type="button" class="ib" data-xa="estornar" data-id="${esc(p.id)}" data-tip="Estornar">${ic('fechar')}</button>`:''}</span></td></tr>`}).join('')}</tbody></table></div>`:''}</section>
+    <td data-l="Registro">${esc(nomeUsuario(p.por))}${p.estornado?`<div class="ajuda">Estornado em ${esc(fDataHora(p.estornado.em))}: ${esc(p.estornado.motivo)}</div>`:''}</td><td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-xa="recibo" data-id="${esc(p.id)}" data-tip="Recibo" aria-label="Recibo">${ic('doc')}</button>`}${!p.estornado&&pode('titulos','e')?`<button type="button" class="ib" data-xa="estornar" data-id="${esc(p.id)}" data-tip="Estornar" aria-label="Estornar">${ic('desfazer')}</button>`:''}</span></td></tr>`}).join('')}</tbody></table></div>`:''}</section>
  ${typeof blocoDevolucaoV==='function'?blocoDevolucaoV(v):''}`;
 }
 function ligarPedidoExtraV(c,v){$$('[data-xa]',c).forEach(b=>b.onclick=()=>acaoExpV(v,b.dataset.xa,b.dataset.id))}
@@ -14262,18 +14265,18 @@ inicioVendasV=function(c,s){
    <select id="pvVend" aria-label="Vendedor"><option value="">Vendedor: todos</option>${[...new Set(DATA.vendas.filter(v=>v.setor==='vendas').map(v=>v.vendedor||v.criadoPor).filter(Boolean))].map(u=>`<option value="${esc(u)}" ${UIPV.vendedor===u?'selected':''}>${esc(nomeUsuario(u))}</option>`).join('')}</select>
    <span class="ajuda">Período: ${esc(ini?fData(ini):'início')} a ${esc(fData(fim))}</span></div>
   <div class="hero pv-hero">
-   ${K('c1','recibo','Vendas do dia',fMoeda(tot(dia)),dia.length+' venda(s) faturada(s)','dia')}${K('c4','moeda','Vendas do mês',fMoeda(tot(mes)),mes.length+' venda(s)','mes')}${K('c4','grafico','Vendas do ano',fMoeda(tot(ano)),ano.length+' venda(s)','ano')}
+   <div class="pv-grupo">Vendas e faturamento</div>${K('c1','recibo','Vendas do dia',fMoeda(tot(dia)),dia.length+' venda(s) faturada(s)','dia')}${K('c4','moeda','Vendas do mês',fMoeda(tot(mes)),mes.length+' venda(s)','mes')}${K('c4','grafico','Vendas do ano',fMoeda(tot(ano)),ano.length+' venda(s)','ano')}
    ${K('c3','caixa','Milheiros vendidos',fQtd(mil),pc.ok?fNum(pc.t)+' tijolos (peças)':'peças: cadastre “peças por milheiro”','prod')}${K('c4','moeda','Faturamento bruto',fMoeda(soma(xs,x=>x.bruto)),'produtos a preço negociado','periodo')}
    ${K('c6','aviso','Descontos concedidos',fMoeda(soma(xs,x=>x.desc)),'sobre a tabela + desconto geral','desc')}${K('c2','enviar','Fretes cobrados',fMoeda(soma(xs,x=>x.frete)),'receita de frete (não é custo)','exp')}
    ${K('c2','moeda','Receita líquida comercial',fMoeda(soma(xs,liquidoV)),CFGV().liquidoFrete==='Com frete'?'com frete':'sem frete, menos descontos e devoluções','periodo')}
    ${podeCustoV()?(()=>{const cv=custoVendasV(xs);const rl=round2(soma(xs,liquidoV));const liq=round2(rl-cv.custo);const ref=refCustoTxtV(cv.ref)||'sem custo na Controladoria';
     return K('c6','caixa','Custo dos milheiros vendidos',fMoeda(cv.custo),fQtd(cv.mil)+' milheiro(s) × '+ref+(cv.semBase?' · '+fQtd(cv.semBase)+' sem custo':''),'custo')+
      K('c2','moeda','Receita líquida (após o custo)',fMoeda(liq),(rl?'margem '+fNum(liq/rl*100,1)+'% · ':'')+'receita líquida comercial − custo do milheiro','custo')})():''}
-   ${K('c2','entrada','Recebido',fMoeda(rec),'dinheiro que entrou no período','recebido')}${K('c5','carteira','A receber',fMoeda(soma(ab,x=>x.saldo)),ab.length+' título(s) em aberto','receber')}
+   <div class="pv-grupo">Dinheiro</div>${K('c2','entrada','Recebido',fMoeda(rec),'dinheiro que entrou no período','recebido')}${K('c5','carteira','A receber',fMoeda(soma(ab,x=>x.saldo)),ab.length+' título(s) em aberto','receber')}
    ${K('c5','calendario','Vendas a prazo',fMoeda(tot(aPrazo)),aPrazo.length+' venda(s) no período','prazo')}${K('c6','aviso','Clientes inadimplentes',String(inad.size),fMoeda(soma(ven,x=>x.saldo))+' vencido','vencido')}
-   ${K('c1','editar','Aguardando aprovação',String(aAprov.length),fMoeda(soma(aAprov,v=>v.total)),'aprov')}${K('c3','caixa','Aguardando carregamento',String(aCarr.length),fMoeda(soma(aCarr,v=>v.total)),'carr')}
+   <div class="pv-grupo">Pedidos em andamento</div>${K('c1','editar','Aguardando aprovação',String(aAprov.length),fMoeda(soma(aAprov,v=>v.total)),'aprov')}${K('c3','caixa','Aguardando carregamento',String(aCarr.length),fMoeda(soma(aCarr,v=>v.total)),'carr')}
    ${K('c2','enviar','Aguardando entrega',String(aEnt.length),'carregados ou em trânsito','ent')}${K('c6','fechar','Canceladas e devolvidas',String(cancD.length),fMoeda(soma(cancD,x=>x.valor))+' no período','canc')}
-   ${K('c4','recibo','Ticket médio',fMoeda(xs.length?tot(xs)/xs.length:0),'por venda faturada','clientes')}${K('c4','moeda','Preço médio por milheiro',mil?fMoeda(recM/mil):'—','realizado no período','produtos')}
+   <div class="pv-grupo">Médias e meta</div>${K('c4','recibo','Ticket médio',fMoeda(xs.length?tot(xs)/xs.length:0),'por venda faturada','clientes')}${K('c4','moeda','Preço médio por milheiro',mil?fMoeda(recM/mil):'—','realizado no período','produtos')}
    ${K('c1','grafico','Meta do mês',metaM?fNum(realizadoMetaV(metaM)/metaM.valor*100,1)+'%':'sem meta',metaM?'de '+fMoeda(metaM.valor)+(pj?' · projeção '+fMoeda(pj.valor)+' (estimativa)':''):'cadastre em Metas','metas')}
   </div>
   ${atrC.length||atrE.length||ven.length||baixos.length||orcVence.length||abaixoMin.length?`<div class="bloco pv-alertas"><h3>Alertas</h3><ul class="vd-avisos" style="margin:0;padding:0 17px 14px">
@@ -14299,7 +14302,7 @@ inicioVendasV=function(c,s){
  [['#pvPer','per'],['#pvIni','ini'],['#pvFim','fim'],['#pvCli','cliente'],['#pvProd','produto'],['#pvVend','vendedor']].forEach(([q,k])=>{const x=$(q,c);if(x)x.onchange=e=>{UIPV[k]=e.target.value;renderTela()}});
  if(UIPV.per==='mesx')JB_MES.ligar(c,'vendas');
  const lab=[],val=[];for(let i=29;i>=0;i--){const d=addDias(h,-i);lab.push(fData(d).slice(0,5));val.push(round2(soma(vendasFatV({...U,ini:d,fim:d}),x=>x.total)))}
- if(val.some(x=>x>0))grafV('gSv1',{type:'line',data:{labels:lab,datasets:[{data:val,borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#A3461F'}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
+ if(val.some(x=>x>0))grafV('gSv1',{type:'line',data:{labels:lab,datasets:[{data:val,borderColor:'#A3461F',backgroundColor:'rgba(163,70,31,.08)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#A3461F'}]},options:{scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gSv1','Sem vendas faturadas nos últimos 30 dias.');
 };
 
@@ -14320,7 +14323,7 @@ function textoEmissorV(v){const e=CFG.empresa||{};const c=CLI(v.clienteId)||{};
 function blocoFiscalPedV(v){const fs=v.fiscal||{status:'Pendente'};const pend=pendenciasFiscaisV(v);
  return `<section class="bloco w2"><h3>Documento fiscal</h3>${kvV([['Situação',`<span class="tag ${COR_V[fs.status]||''}">${esc(fs.status||'Pendente')}</span>`],['Modelo',esc(fs.modelo||'—')],['Número / série',esc([fs.numero,fs.serie].filter(Boolean).join(' / ')||'—')],['Emissão',esc(fData(fs.data)||'—')],['Chave de acesso',fs.chave?`<span class="vv-chave">${esc(fs.chave)}</span>`:'—',1],
    ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['DANFE / PDF',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—']])}
-  <p class="ajuda" style="margin:0 17px 8px">O JB Gestão não emite nota fiscal nem fala com a SEFAZ: a nota é emitida no emissor da cerâmica${CFGV().emissor?' ('+esc(CFGV().emissor)+')':''} e aqui se registram o número, a chave e os arquivos. Nota só conta como emitida com a autorização real.</p>
+  <p class="ajuda" style="margin:0 17px 8px">A nota pode ser emitida pelo Setor Fiscal do JB (quando o serviço fiscal está ligado) ou no emissor da cerâmica${CFGV().emissor?' ('+esc(CFGV().emissor)+')':''}; nesse caso, aqui se registram o número, a chave e os arquivos. Nota só conta como emitida com a autorização real.</p>
   ${fs.status!=='Autorizada'?`<p class="ajuda" style="margin:0 17px 8px">Para emitir, ainda falta: ${esc(pend.join('; '))}.</p>`:''}
   <div class="inline vv-bt">${pode('vfiscal','e')?`<button type="button" class="btn" data-fz="registrar">${ic('editar')}${fs.numero||fs.status!=='Pendente'?'Atualizar':'Registrar'} documento fiscal</button>`:''}<button type="button" class="btn" data-fz="dados">${ic('doc')}Dados para o emissor</button></div></section>`}
 const blocosPedidoExtraV0=blocosPedidoExtraV;
@@ -14362,6 +14365,7 @@ if(typeof TELAS_PED!=='undefined'){Object.assign(TELAS_V,TELAS_PED);ROTAS_SETOR.
    Jeferson, o padrão volta a ser o Concretiza (preto e vermelho), agora também com os setores no trilho
    do lado e os cartões novos da tela de setores. A escolha fica em "visual3"; as anteriores ("visual" e
    "visual2") não valem mais, para que todos abram uma vez no padrão e troquem se quiserem. */
+IC.desfazer='<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>';
 IC.paleta='<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7h2c3.1 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z"/>';
 const VISUAIS={cc:'Concretiza',nv:'Branco e laranja',jb:'JB'};
 const VIS_OK=v=>v==='nv'||v==='cc'||v==='jb';
@@ -16654,11 +16658,11 @@ function telaPainelF(c){
  const infS=sem.map(([a,b])=>r2(soma(pags.filter(x=>noPer(x.p.data,a,b)),x=>x.p.valor)));
  const banS=sem.map(([a,b])=>r2(-soma(saiId.filter(l=>noPer(l.data,a,b)),l=>l.valor)));
  if([...prevS,...infS,...banS].some(x=>x>0))grafV('gF1',{type:'bar',data:{labels:sem.map(([a,b])=>a.slice(8)+'–'+b.slice(8)),datasets:[{label:'Previsto',data:prevS,backgroundColor:'#A3461F',borderRadius:3},{label:'Informado',data:infS,backgroundColor:'#3D5B66',borderRadius:3},{label:'Banco',data:banS,backgroundColor:'#16A34A',borderRadius:3}]},
-  options:{plugins:{legend:{display:true,position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:true,position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gF1','Sem compromissos, pagamentos ou extrato neste mês.');
  const cat={};OS.filter(o=>!o.cancelado&&noPer(o.dataCal||o.lanc,ini,fim)).forEach(o=>{const k2=o.categoria||'Sem categoria';cat[k2]=r2((cat[k2]||0)+o.valor)});
  const cs=Object.entries(cat).sort((a,b)=>b[1]-a[1]).slice(0,10);
- if(cs.length)grafV('gF2',{type:'bar',data:{labels:cs.map(x=>x[0]),datasets:[{data:cs.map(x=>x[1]),backgroundColor:'#A3461F',borderRadius:3,maxBarThickness:20}]},options:{indexAxis:'y',scales:{x:{beginAtZero:true,ticks:{callback:v=>fMoeda(v)}},y:{grid:{display:false}}}}});
+ if(cs.length)grafV('gF2',{type:'bar',data:{labels:cs.map(x=>x[0]),datasets:[{data:cs.map(x=>x[1]),backgroundColor:'#A3461F',borderRadius:3,maxBarThickness:20}]},options:{indexAxis:'y',scales:{x:{beginAtZero:true,ticks:{callback:v=>fMoedaCurta(v)}},y:{grid:{display:false}}}}});
  else if(typeof vaziaCv==='function')vaziaCv('gF2','Nenhum compromisso neste mês.');
  $$('a[href^="#/fpagar?"]',c).forEach(a=>a.onclick=e=>{e.preventDefault();const q=a.getAttribute('href').split('?')[1];Object.assign(UP,{sit:q==='vencidas'?'Vencido':q==='parcial'?'Parcial':q==='divergente'?'Divergente':q==='semdoc'?'_semdoc':q==='semdata'?'_semdata':'',q:''});location.hash='#/fpagar'});
  $$('[data-oref]',c).forEach(a=>a.onclick=e=>{e.preventDefault();abrirObrig(a.dataset.oref)});
@@ -16946,7 +16950,7 @@ function telaCal(c){
  let corpo='';
  if(UC.modo==='mes'){const m=UC.mes;const p=dt(m+'-01');const ini=addDias(m+'-01',-p.getDay());const dias=[];for(let i=0;i<42;i++){const d=addDias(ini,i);if(i>=35&&d.slice(0,7)!==m)break;dias.push(d)}
   corpo=`<div class="fi-cal">${DIAS_SEM.map(x=>`<div class="dsem">${x}</div>`).join('')}${dias.map(d=>{const xs=por[d]||[];const ab=xs.filter(abertaO);
-   return `<button type="button" class="cel${d.slice(0,7)!==m?' fora':''}${d===hoje()?' hoje':''}" data-dia="${d}" aria-label="${esc(fData(d))}: ${xs.length} compromisso(s)"><span class="n">${+d.slice(8)}</span>${xs.length?`<span class="t">${esc(fMoeda(ab.length?soma(ab,o=>o.s.saldo):soma(xs,o=>o.valor)))}</span><span class="q">${xs.length} item(ns)${ab.length?' · '+ab.length+' a pagar':''}</span><span class="pts">${xs.slice(0,8).map(o=>`<i class="${corPt(o)}"></i>`).join('')}</span>`:''}</button>`}).join('')}</div>`}
+   return `<button type="button" class="cel${d.slice(0,7)!==m?' fora':''}${d===hoje()?' hoje':''}" data-dia="${d}" aria-label="${esc(fData(d))}: ${xs.length} compromisso(s)"><span class="n">${+d.slice(8)}</span>${xs.length?`${(v=>`<span class="t"><span class="t-l">${esc(fMoeda(v))}</span><span class="t-c" aria-hidden="true">${esc(fMoedaCurta(v))}</span></span>`)(ab.length?soma(ab,o=>o.s.saldo):soma(xs,o=>o.valor))}<span class="q">${xs.length} item(ns)${ab.length?' · '+ab.length+' a pagar':''}</span><span class="pts">${xs.slice(0,8).map(o=>`<i class="${corPt(o)}"></i>`).join('')}</span>`:''}</button>`}).join('')}</div>`}
  else{const p=dt(UC.sem);const ini=addDias(UC.sem,-p.getDay());const dias=Array.from({length:7},(_,i)=>addDias(ini,i));
   corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-dia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-oref="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(o.s.st)}${o.parcela?' · '+esc(o.parcela):''}</span></div>`).join('')||'<div class="it" style="cursor:default;color:var(--fraco)">—</div>'}</div>`}).join('')}</div>`}
  c.innerHTML=cabF('calendario','Calendário financeiro','Compromissos pela data programada (ou, sem programação, pelo vencimento). Toque no dia para abrir os pagamentos daquele dia.',
@@ -20684,6 +20688,9 @@ window.LANC_IA_V65={motorLeitura,paginasImagem,hashArq,semMotorTxt,msgSample,est
 .ctl-svg{width:100%;height:auto;display:block;padding:6px 14px 12px;color:var(--tinta)}
 .ctl-svgt{font-size:13px;fill:currentColor;font-family:inherit}
 .ctl-svgt.cl{fill:#fff;font-size:11.5px;font-weight:600}
+/* legenda do ciclo (V82): os nomes e os dias de cada trecho em texto normal, legível no celular */
+.ctl-leg{list-style:none;margin:0;padding:0 14px 14px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--suave)}
+.ctl-leg li{display:flex;align-items:center;gap:6px}.ctl-leg i{width:10px;height:10px;border-radius:3px;flex:none}.ctl-leg b{color:var(--tinta);font-weight:600}
 .ctl-sim,.ctl-calc{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 14px;align-items:end;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:14px;margin-bottom:12px}
 .ctl-aj .ctl-aj-v{font-size:26px;font-weight:700;margin:2px 0 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .ctl-aj .ctl-aj-v small{font-size:12px;font-weight:500;color:var(--suave)}
@@ -21333,14 +21340,14 @@ function telaPainelC(c){
    {label:'Receita bruta',data:Rs.map(x=>x.v.receita),backgroundColor:corC[0],order:2},
    {label:'Custos e despesas',data:Rs.map(gasto),backgroundColor:corC[2],order:2},
    {label:'Lucro líquido',data:Rs.map(x=>x.LL),type:'line',borderColor:corC[1],backgroundColor:corC[1],tension:.25,order:1,spanGaps:true}]},
-  options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,boxHeight:10}},tooltip:{callbacks:{label:x=>x.dataset.label+': '+fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,boxHeight:10}},tooltip:{callbacks:{label:x=>x.dataset.label+': '+fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgRes','Sem receita lançada nos últimos meses.');
  const al3=ms.map(x=>alvo3(x).ret);
  if(Rs.some(x=>x.pm!=null||x.precoSug!=null))grafC('cgPreco',{type:'line',data:{labels:ms.map(fMes),datasets:[
    {label:'Praticado',data:Rs.map(x=>x.pm),borderColor:corC[0],backgroundColor:corC[0],tension:.25,spanGaps:true},
    {label:'Sugerido geral',data:Rs.map(x=>x.precoSug),borderColor:corC[1],backgroundColor:corC[1],tension:.25,spanGaps:true},
    {label:'Alvo de retirada (3 meses)',data:al3,borderColor:corC[2],backgroundColor:corC[2],borderDash:[5,4],tension:.25,spanGaps:true}]},
-  options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,boxHeight:10}},tooltip:{callbacks:{label:x=>x.dataset.label+': '+fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,boxHeight:10}},tooltip:{callbacks:{label:x=>x.dataset.label+': '+fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgPreco','Sem preço calculado nos últimos meses.');
  $$('[data-esq]',c).forEach(a=>a.addEventListener('click',()=>{UC.foco=a.dataset.esq}));
 }
@@ -21478,7 +21485,7 @@ function telaCustosC(c){
   ${tabC(['Item',['Valor',1],['% da receita',1]],[['comissoes'],['fretes'],['adm'],['folhaAdm'],['comerciais'],['deprecAdm'],['frotaDeprec'],['frotaPecas'],['frotaOutros'],['financeiras']].map(([k])=>{const x=+v[k]||0;return `<tr>${tdC('Item',esc(ROT[k]))}${tdC('Valor',esc(fMoeda(x)),1)}${tdC('% da receita',esc(fPct(dv(x,v.receita))),1)}</tr>`}))}`;
  const its=[...CV,...CF].map(k=>[ROT[k],+v[k]||0]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
  if(its.length)grafC('cgComp',{type:'bar',data:{labels:its.map(x=>x[0]),datasets:[{label:'Valor',data:its.map(x=>r2(x[1])),backgroundColor:its.map((x,i)=>i===0?corC[1]:corC[0])}]},
-  options:{indexAxis:'y',plugins:{tooltip:{callbacks:{label:x=>fMoeda(x.raw)+' · '+fPct(cp?x.raw/cp:null)}}},scales:{x:{ticks:{callback:v=>fMoeda(v)}},y:{grid:{display:false}}}}});
+  options:{indexAxis:'y',plugins:{tooltip:{callbacks:{label:x=>fMoeda(x.raw)+' · '+fPct(cp?x.raw/cp:null)}}},scales:{x:{ticks:{callback:v=>fMoedaCurta(v)}},y:{grid:{display:false}}}}});
  else vaziaCv('cgComp','Nenhum custo lançado em '+fMes(m)+'.');
 }
 
@@ -21623,14 +21630,15 @@ function ncgCom(R,pz){/* recalcula a NCG do mês com outros prazos (simulador �
  return{AC,PC,NCG:AC-PC,CO:PME+PMF+PMV+PMR,CF:PME+PMF+PMV+PMR-PMP}}
 function svgCiclo(g){
  const tot=Math.max(g.CO,g.PMP,1);const W=760,x0=20,L=W-40;const s=d=>x0+L*Math.max(0,d)/tot;
- const seg=[['Lenha no estoque',g.PMElenha,'#8A8A94'],['Em produção',g.PMF,'#3D5B66'],['No pátio',g.PMV,'#B47A0C'],['Recebimento',g.PMR,'#111114']];let a=0;
+ const seg=[['Lenha no estoque',g.PMElenha,'#8A8A94'],['Em produção',g.PMF,'#3D5B66'],['No pátio',g.PMV,'#B47A0C'],['Recebimento',g.PMR,'#5E5E66']];let a=0;
  const bar=seg.map(([n,d,cor])=>{const r=`<rect x="${s(a)}" y="34" width="${Math.max(0,s(a+d)-s(a))}" height="26" fill="${cor}" rx="3"><title>${esc(n)}: ${esc(fDias(d))}</title></rect>${d>=tot*0.08?`<text x="${(s(a)+s(a+d))/2}" y="51" text-anchor="middle" class="ctl-svgt cl">${esc(n)} · ${esc(fNum(d,0))}d</text>`:''}`;a+=d;return r}).join('');
  return `<svg viewBox="0 0 ${W} 150" style="max-width:900px" class="ctl-svg" role="img" aria-label="Linha do tempo do ciclo operacional e financeiro">
   <text x="${x0}" y="22" class="ctl-svgt">Ciclo operacional: ${esc(fDias(g.CO))}</text>${bar}
   <line x1="${s(0)}" x2="${s(g.PMP)}" y1="84" y2="84" stroke="#D3121C" stroke-width="3"/><circle cx="${s(g.PMP)}" cy="84" r="5" fill="#D3121C"/>
   <text x="${s(0)}" y="104" class="ctl-svgt">Pagamento aos fornecedores: ${esc(fDias(g.PMP))}</text>
   ${g.CF>0?`<line x1="${s(g.PMP)}" x2="${s(g.CO)}" y1="124" y2="124" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4"/><text x="${x0+L}" y="142" text-anchor="end" class="ctl-svgt">Ciclo financeiro: ${esc(fDias(g.CF))} bancados pela empresa</text>`:`<text x="${s(0)}" y="134" class="ctl-svgt">Ciclo financeiro: ${esc(fDias(g.CF))} — os fornecedores financiam todo o ciclo</text>`}
-  <line x1="${x0}" x2="${x0+L}" y1="70" y2="70" stroke="currentColor" stroke-opacity=".15"/></svg>`}
+  <line x1="${x0}" x2="${x0+L}" y1="70" y2="70" stroke="currentColor" stroke-opacity=".15"/></svg>
+  <ul class="ctl-leg" aria-label="Trechos do ciclo">${seg.map(([n,d,cor])=>`<li><i style="background:${cor}"></i>${esc(n)} <b>${esc(fDias(d))}</b></li>`).join('')}<li><i style="background:#D3121C"></i>Pagamento aos fornecedores <b>${esc(fDias(g.PMP))}</b></li></ul>`}
 function telaGiroC(c){
  const m=mesSel();const R=calcMes(m);const g=R.g;const C=cfgC();const v=R.v;const L=listaMeses().filter(x=>x<=m);
  if(!UC.sim||UC.sim.m!==m)UC.sim={m,PME:g.PMElenha,PMF:g.PMF,PMV:g.PMV,PMR:g.PMR,PMP:g.PMP};
@@ -21685,7 +21693,7 @@ function telaGiroC(c){
   ['cpProd','cpVend','cpPreco'].forEach(id=>$('#'+id,c).addEventListener('input',proj));proj()}
  const ms=L.slice(-12);const ns=ms.map(x=>calcMes(x).g.NCG);
  if(ns.some(x=>x!=null))grafC('cgNcg',{type:'line',data:{labels:ms.map(fMes),datasets:[{label:'NCG',data:ns,borderColor:corC[1],backgroundColor:corC[1],tension:.25,spanGaps:true}]},
-  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoeda(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgNcg','Sem NCG nos últimos meses.');
 }
 
@@ -29867,8 +29875,8 @@ function telaPonto(el){
  ${!f?'<div class="vazio"><b>Cadastre funcionários com jornada</b>O espelho aparece para empregados ativos (prestadores não têm controle de jornada).</div>':`
  ${!f.jornadaId&&!(f.entrada&&f.saida)?'<div class="aviso at" style="margin:12px">Este funcionário não tem jornada cadastrada. Sem ela, todas as horas aparecem como extras. <a href="#/funcionarios/'+f.id+'">Completar a ficha</a>.</div>':''}
  <div class="resumo" style="margin:12px">${[[fHm(tot('trab')),'Trabalhado'],[fHm(soma(esp.filter(r=>r.data<=hoje()),r=>r.previsto)),'Previsto até hoje'],[fHm(tot('atraso')),'Atrasos'],[fHm(tot('antecipada')),'Saídas antecipadas'],[fHm(tot('extra')),'Horas além da jornada'],[fHm(tot('noturno')),'Em horário noturno'],[esp.filter(r=>r.falta).length,'Faltas não justificadas'],[esp.filter(r=>r.semReg).length,'Dias sem registro']].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>
- <div class="tabwrap"><table class="tbl espelho"><thead><tr>${COLS_ESP.map(c=>`<th class="${c.t==='hm'?'num':''}">${c.l}</th>`).join('')}</tr></thead><tbody>${esp.map(r=>`<tr class="${r.id?'clic':''}" ${r.id?`data-go="#/diario/${r.id}"`:''}>${COLS_ESP.map(c=>{let v=c.t==='data'?fData(r.data):c.t==='hm'?(r[c.k]?fHm(r[c.k]):''):esc(r[c.k]);if(c.k==='ocorrencia'&&r.semReg)v=tag('Sem registro','pe');if(c.k==='ocorrencia'&&r.incompleto)v+=' '+tag('Incompleto','at');if(c.k==='ajuste'&&r.ajuste)v=tag(r.ajuste);return `<td class="${c.t==='hm'?'num':''} ${r.fds&&!r.id?'fds':''}">${v}</td>`}).join('')}</tr>`).join('')}</tbody>
- <tfoot><tr><td colspan="6">Totais do mês</td>${['trab','previsto','atraso','antecipada','extra','noturno'].map(k=>`<td class="num">${fHm(tot(k))}</td>`).join('')}<td colspan="2"></td></tr></tfoot></table></div>`}</div>`;
+ <div class="tabwrap"><table class="tbl espelho"><thead><tr>${COLS_ESP.map(c=>`<th class="${c.t==='hm'?'num':''}">${c.l}</th>`).join('')}</tr></thead><tbody>${esp.map(r=>`<tr class="${r.id?'clic':''}" ${r.id?`data-go="#/diario/${r.id}"`:''}>${COLS_ESP.map(c=>{let v=c.t==='data'?fData(r.data):c.t==='hm'?(r[c.k]?fHm(r[c.k]):''):esc(r[c.k]);if(c.k==='ocorrencia'&&r.semReg)v=tag('Sem registro','pe');if(c.k==='ocorrencia'&&r.incompleto)v+=' '+tag('Incompleto','at');if(c.k==='ajuste'&&r.ajuste)v=tag(r.ajuste);return `<td class="${c.t==='hm'?'num':''} ${r.fds&&!r.id?'fds':''}" data-l="${esc(c.l)}">${v}</td>`}).join('')}</tr>`).join('')}</tbody>
+ <tfoot><tr><td colspan="6">Totais do mês</td>${['trab','previsto','atraso','antecipada','extra','noturno'].map(k=>`<td class="num" data-l="${esc((COLS_ESP.find(c=>c.k===k)||{}).l||'')}">${fHm(tot(k))}</td>`).join('')}<td colspan="2"></td></tr></tfoot></table></div>`}</div>`;
  $('#pnF')&&($('#pnF').onchange=e=>{UIP.func=e.target.value;renderTela()});$('#pnM').onchange=e=>setComp(e.target.value);
  $$('tr[data-go]',el).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
  $$('[data-exp]',el).forEach(b=>b.onclick=()=>{if(!f)return;exportar(b.dataset.exp,'Espelho_'+f.nome+'_'+UIP.mes,COLS_ESP,esp.map(r=>({...r,ocorrencia:r.semReg?'Sem registro':r.ocorrencia})),'Espelho de ponto (gerencial) · '+f.nome+' · '+fMes(UIP.mes))});
@@ -30240,26 +30248,28 @@ const APP_URL='https://claude.ai/artifact/Q85LGnmgzu5EXYjssm6WC5';
 function plataforma(){const u=navigator.userAgent||'';if(/android/i.test(u))return 'android';if(/iphone|ipad|ipod/i.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))return 'ios';if(/windows/i.test(u))return 'windows';if(/mac os/i.test(u))return 'mac';return 'outro'}
 function telaInstalar(el){
  const p=plataforma();
+ /* na nuvem o endereço é o do próprio site e a entrada é pelo usuário e senha do JB; no Claude, o link do artifact e a conta do Claude */
+ const nuvem=!!window.JB_NUVEM,URL_SIS=nuvem?location.origin+'/':APP_URL,conta=nuvem?'entre com seu usuário e senha do JB':'entre na sua conta do Claude',contaSe=nuvem?'entre com seu usuário e senha do JB':'entre na sua conta do Claude, se pedir';
  const cartoes={
   windows:['Computador com Windows','Ícone na área de trabalho e no Menu Iniciar, abrindo o sistema numa janela própria.',
-   `<p style="margin:0 0 8px"><b>Opção 1 · Kit de instalação (recomendada)</b></p><ol><li>Baixe o arquivo <b>Sistema-RH-DP-Windows.zip</b> que o Claude entregou na conversa.</li><li>Clique com o botão direito no arquivo e escolha <b>Extrair tudo</b>.</li><li>Na pasta extraída, dê dois cliques em <b>Instalar.bat</b>. Se o Windows mostrar um aviso de proteção, clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.</li><li>Aparece o ícone <b>Sistema RH e DP</b> na área de trabalho. Na primeira vez, entre na sua conta do Claude.</li></ol>
-   <p style="margin:12px 0 8px"><b>Opção 2 · Atalho feito à mão</b></p><ol><li>Clique com o botão direito na área de trabalho › <b>Novo</b> › <b>Atalho</b>.</li><li>No local do item, cole: <code style="word-break:break-all">msedge --app=${APP_URL}</code></li><li>Avance, dê o nome <b>Sistema RH e DP</b> e conclua.</li></ol>`],
+   `${nuvem?'':`<p style="margin:0 0 8px"><b>Opção 1 · Kit de instalação (recomendada)</b></p><ol><li>Baixe o arquivo <b>Sistema-RH-DP-Windows.zip</b> que o Claude entregou na conversa.</li><li>Clique com o botão direito no arquivo e escolha <b>Extrair tudo</b>.</li><li>Na pasta extraída, dê dois cliques em <b>Instalar.bat</b>. Se o Windows mostrar um aviso de proteção, clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.</li><li>Aparece o ícone <b>Sistema RH e DP</b> na área de trabalho. Na primeira vez, entre na sua conta do Claude.</li></ol>`}
+   <p style="margin:${nuvem?'0':'12px'} 0 8px"><b>${nuvem?'Atalho na área de trabalho':'Opção 2 · Atalho feito à mão'}</b></p><ol><li>Clique com o botão direito na área de trabalho › <b>Novo</b> › <b>Atalho</b>.</li><li>No local do item, cole: <code style="word-break:break-all">msedge --app=${URL_SIS}</code></li><li>Avance, dê o nome <b>Sistema RH e DP</b> e conclua.</li></ol>`],
   android:['Celular Android','Ícone na tela inicial que abre direto o sistema.',
-   `<ol><li>Abra o link acima no <b>Google Chrome</b> e entre na sua conta do Claude, se pedir.</li><li>Espere o sistema carregar e toque nos <b>três pontinhos</b> (canto superior direito).</li><li>Toque em <b>Adicionar à tela inicial</b>. Se aparecer a escolha, prefira <b>Criar atalho</b>.</li><li>Dê o nome <b>Sistema RH</b> e confirme. O ícone aparece na tela inicial.</li></ol>`],
+   `<ol><li>Abra o link acima no <b>Google Chrome</b> e ${contaSe}.</li><li>Espere o sistema carregar e toque nos <b>três pontinhos</b> (canto superior direito).</li><li>Toque em <b>Adicionar à tela inicial</b>. Se aparecer a escolha, prefira <b>Criar atalho</b>.</li><li>Dê o nome <b>Sistema RH</b> e confirme. O ícone aparece na tela inicial.</li></ol>`],
   ios:['iPhone ou iPad','Ícone na Tela de Início que abre direto o sistema.',
-   `<ol><li>Abra o link acima no <b>Safari</b> e entre na sua conta do Claude, se pedir.</li><li>Toque no botão <b>Compartilhar</b> (quadrado com uma seta para cima).</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Dê o nome <b>Sistema RH</b> e toque em <b>Adicionar</b>.</li></ol>`],
+   `<ol><li>Abra o link acima no <b>Safari</b> e ${contaSe}.</li><li>Toque no botão <b>Compartilhar</b> (quadrado com uma seta para cima).</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Dê o nome <b>Sistema RH</b> e toque em <b>Adicionar</b>.</li></ol>`],
   mac:['Computador Mac','Atalho no Dock.',
-   `<ol><li>Abra o link acima no <b>Safari</b> e entre na sua conta do Claude.</li><li>No menu <b>Arquivo</b>, escolha <b>Adicionar ao Dock</b> e confirme o nome <b>Sistema RH</b>.</li></ol>`]};
+   `<ol><li>Abra o link acima no <b>Safari</b> e ${conta}.</li><li>No menu <b>Arquivo</b>, escolha <b>Adicionar ao Dock</b> e confirme o nome <b>Sistema RH</b>.</li></ol>`]};
  const ordem=[p,...['windows','android','ios','mac'].filter(x=>x!==p)].filter(x=>cartoes[x]);
  el.innerHTML=`<div class="cab"><div><h1>Instalar o aplicativo</h1><p>Coloque o sistema como ícone no computador e no celular. Todos os aparelhos abrem o mesmo sistema e o mesmo banco de dados.</p></div></div>
  ${APP.modo==='local'?'<div class="aviso at"><b>Você está usando a cópia local.</b> Ela guarda os dados só neste navegador e não sincroniza com outros aparelhos. Para ter os mesmos dados no computador e no celular, use o endereço publicado abaixo.</div>':''}
- <div class="inst-link"><span style="flex:1;min-width:200px"><b>Endereço do sistema:</b><br><span id="instUrl">${APP_URL}</span></span><button class="btn min" id="bCopiar">Copiar link</button></div>
+ <div class="inst-link"><span style="flex:1;min-width:200px"><b>Endereço do sistema:</b><br><span id="instUrl">${esc(URL_SIS)}</span></span><button class="btn min" id="bCopiar">Copiar link</button></div>
  ${ordem.map((k,i)=>{const [t,sub,corpo]=cartoes[k];return i===0&&p!=='outro'?`<div class="inst-cartao rec"><h3>${t} <span class="tag br">este aparelho</span></h3><p class="sub">${sub}</p>${corpo}</div>`:`<details class="inst-cartao"><summary>${t}</summary><p class="sub">${sub}</p>${corpo}</details>`}).join('')}
- <div class="inst-cartao"><h3>Como os aparelhos compartilham os dados</h3><p class="sub" style="margin:0">Os dados não ficam no computador nem no celular: ficam no banco de dados deste sistema, nos servidores da Anthropic, ligado à conta de quem publicou. Cada aparelho só mostra e grava nesse mesmo banco. Por isso um funcionário cadastrado no computador aparece no celular em poucos segundos. A barra superior mostra <b>Sincronizado</b>, <b>Salvando…</b> ou <b>Sem conexão</b>. Sem internet, não grave nada: espere a conexão voltar.</p></div>
- <div class="inst-cartao"><h3>Trabalhar junto com outra pessoa</h3>${typeof VERSAO_IND!=='undefined'?`<ol><li>Mande o endereço acima para a pessoa (WhatsApp, e-mail).</li><li>Ela abre, instala o ícone e faz os lançamentos no aparelho dela.</li><li>Quando quiser passar para você: <b>Configurações › Baixar backup</b> e te envia o arquivo.</li><li>Você abre <b>Configurações › Receber dados de outra pessoa</b>, escolhe o arquivo e pronto: os lançamentos dela aparecem aqui e você pode ver, editar e apagar.</li><li>Para devolver correções, faça o mesmo caminho ao contrário.</li></ol><p class="sub" style="margin:8px 0 0">Nesta versão a troca é por arquivo, não é ao vivo. Para todos mexerem no mesmo banco ao mesmo tempo, com login e permissões, é preciso o plano Team ou Enterprise do Claude, usando a versão sincronizada do sistema.</p>`:`<ol><li>Abra o sistema, toque no menu do topo da página do Claude e use <b>Compartilhar</b>.</li><li>Dê à pessoa o nível <b>Pode interagir</b> (lança e edita) ou <b>Pode editar</b> (também vê CPF, salários, afastamentos e documentos).</li><li>Em <b>Configurações › Usuários e permissões</b>, escolha o perfil dela (RH, DP, Financeiro, Gestor de setor ou Consulta).</li><li>Tudo que ela lançar aparece para você em segundos, e você pode editar.</li></ol><p class="sub" style="margin:8px 0 0">Isso exige que a pessoa esteja na mesma organização do Claude que você (planos Team e Enterprise). Se o compartilhamento não oferecer essa opção, use a versão independente e a troca por arquivo em <b>Receber dados de outra pessoa</b>.</p>`}</div>
+ <div class="inst-cartao"><h3>Como os aparelhos compartilham os dados</h3><p class="sub" style="margin:0">Os dados não ficam no computador nem no celular: ficam no banco central do JB Gestão, o mesmo para a versão da nuvem e para a do Claude. Cada aparelho só mostra e grava nesse mesmo banco. Por isso um funcionário cadastrado no computador aparece no celular em poucos segundos. A barra superior mostra <b>Sincronizado</b>, <b>Salvando…</b> ou <b>Sem conexão</b>. Sem internet, espere a conexão voltar antes de lançar.</p></div>
+ <div class="inst-cartao"><h3>Trabalhar junto com outra pessoa</h3>${nuvem?`<ol><li>Peça ao administrador para criar o usuário da pessoa em <b>Usuários e segurança</b>, com o perfil certo (RH, DP, Financeiro, Gestor de setor ou Consulta).</li><li>Mande para ela o endereço acima.</li><li>Ela entra com o usuário e a senha dela e lança no aparelho dela. Tudo aparece para todos em poucos segundos.</li></ol>`:typeof VERSAO_IND!=='undefined'?`<ol><li>Mande o endereço acima para a pessoa (WhatsApp, e-mail).</li><li>Ela abre, instala o ícone e faz os lançamentos no aparelho dela.</li><li>Quando quiser passar para você: <b>Configurações › Baixar backup</b> e te envia o arquivo.</li><li>Você abre <b>Configurações › Receber dados de outra pessoa</b>, escolhe o arquivo e pronto: os lançamentos dela aparecem aqui e você pode ver, editar e apagar.</li><li>Para devolver correções, faça o mesmo caminho ao contrário.</li></ol><p class="sub" style="margin:8px 0 0">Nesta versão a troca é por arquivo, não é ao vivo. Para todos mexerem no mesmo banco ao mesmo tempo, com login e permissões, é preciso o plano Team ou Enterprise do Claude, usando a versão sincronizada do sistema.</p>`:`<ol><li>Abra o sistema, toque no menu do topo da página do Claude e use <b>Compartilhar</b>.</li><li>Dê à pessoa o nível <b>Pode interagir</b> (lança e edita) ou <b>Pode editar</b> (também vê CPF, salários, afastamentos e documentos).</li><li>Em <b>Configurações › Usuários e permissões</b>, escolha o perfil dela (RH, DP, Financeiro, Gestor de setor ou Consulta).</li><li>Tudo que ela lançar aparece para você em segundos, e você pode editar.</li></ol><p class="sub" style="margin:8px 0 0">Isso exige que a pessoa esteja na mesma organização do Claude que você (planos Team e Enterprise). Se o compartilhamento não oferecer essa opção, use a versão independente e a troca por arquivo em <b>Receber dados de outra pessoa</b>.</p>`}</div>
  <div class="inst-cartao"><h3>Atualizações</h3><p class="sub" style="margin:0">Não é preciso reinstalar. Quando o sistema é atualizado, todos os ícones abrem a versão nova na próxima vez, com os dados preservados. A versão atual aparece no rodapé do menu: <b>${VERSAO}</b>.</p></div>
  <div class="inst-cartao"><h3>Teste rápido de sincronização (1 minuto)</h3><ol><li>No computador, abra <b>Diário do DP</b> e crie um registro de teste para você mesmo.</li><li>No celular, abra o sistema e confira se o registro aparece.</li><li>Exclua o registro de teste pelo celular e veja que ele some do computador.</li></ol></div>`;
- $('#bCopiar').onclick=async()=>{try{await navigator.clipboard.writeText(APP_URL);toast('Link copiado.','ok')}catch(e){const r=document.createRange();r.selectNodeContents($('#instUrl'));const sl=getSelection();sl.removeAllRanges();sl.addRange(r);toast('Link selecionado. Use Copiar do seu aparelho.')}};
+ $('#bCopiar').onclick=async()=>{try{await navigator.clipboard.writeText(URL_SIS);toast('Link copiado.','ok')}catch(e){const r=document.createRange();r.selectNodeContents($('#instUrl'));const sl=getSelection();sl.removeAllRanges();sl.addRange(r);toast('Link selecionado. Use Copiar do seu aparelho.')}};
 }
 
 /* ================= inicialização ================= */
@@ -31874,6 +31884,158 @@ window.RELOGIO_PONTO_V79={interpretar,montarDias,lerArquivo,linhasDoTexto,numNor
 .rr-op span{display:flex;flex-direction:column;min-width:0}
 .rr-op small{font-size:12px;color:var(--suave)}
 </style>
+<style id="visual-v82">
+/* ===== V82 · acabamento do visual Concretiza e acertos no celular · só pintura =====
+   Nada muda de lugar, de nome ou de funcionamento. As cores vêm sempre das variáveis do tema
+   (Personalizar aparência / Central de cores): este bloco não define cor própria, para que a paleta
+   escolhida, clara ou escura, continue valendo. Cantos, sombras, listras e acertos de corte só. */
+
+/* ---------- 1. cartões com sombra suave e cantos maiores (camadas em vez de branco liso) ---------- */
+html.vis-cc{--v82-r:16px;--v82-sombra:0 1px 2px rgba(16,18,27,.05),0 8px 24px -12px rgba(16,18,27,.2)}
+html.vis-cc[data-jbtema-modo="escuro"]{--v82-sombra:0 1px 0 rgba(255,255,255,.03) inset,0 12px 28px -14px rgba(0,0,0,.7)}
+html.vis-cc :is(.bloco,.painel,.graf,.cfg-sec,.inst-cartao):not(:is(.bloco,.painel,.gav,.gaveta,.modal) *){
+ border-radius:var(--v82-r);border-color:var(--linha2);box-shadow:var(--v82-sombra)}
+html.vis-cc :is(.kpi,.resumo>div){border-top:1px solid var(--linha2);border-radius:var(--v82-r);box-shadow:var(--v82-sombra)}
+html.vis-cc .kpi.dest .v{color:var(--brasa)}
+html.vis-cc .sec-ic{border-radius:14px}
+
+/* ---------- 2. tabelas: listras leves e total destacado ---------- */
+html.vis-cc .tbl tbody>tr:nth-child(even)>td{background-color:var(--linha3)}
+html.vis-cc .tbl tbody td{border-bottom-color:var(--linha2)}
+html.vis-cc .tbl tr.clic:hover>td{background-color:var(--brasa-bg)}
+html.vis-cc .tbl tfoot td{background:var(--linha2);font-weight:700;border-top:2px solid var(--linha)}
+html.vis-cc .tbl :is(td,th).num{font-variant-numeric:tabular-nums}
+
+/* ---------- 3. botões, etiquetas e campos: cantos maiores ---------- */
+html.vis-cc .btn{border-radius:12px}
+html.vis-cc .btn:not(.ico):not(.perigo):not(:disabled){box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 6px 14px -8px rgba(0,0,0,.45)}
+html.vis-cc .tag{border-radius:999px}
+html.vis-cc :is(#conteudo,.gaveta,.modal) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea){border-radius:12px}
+
+/* ---------- 4. tela vazia com ícone ---------- */
+html.vis-cc .vazio:not(:has(svg,img)){border:2px dashed var(--linha);border-radius:var(--v82-r);background:transparent}
+html.vis-cc .vazio:not(:has(svg,img))::before{content:"";display:block;width:40px;height:40px;margin:0 auto 10px;background:var(--fraco);opacity:.6;
+ -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-6l-2 3h-4l-2-3H2'/%3E%3Cpath d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/%3E%3C/svg%3E") center/26px no-repeat;
+ mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-6l-2 3h-4l-2-3H2'/%3E%3Cpath d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/%3E%3C/svg%3E") center/26px no-repeat}
+
+/* ---------- 5. lista de relatórios: a mesma lista, no mesmo lugar, mais fácil de tocar ---------- */
+html.vis-cc .rel-lista{padding:6px;border-radius:var(--v82-r)}
+html.vis-cc .rel-lista a{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:10px 12px;border-radius:10px;border-bottom:1px solid var(--linha2);font-size:14px}
+html.vis-cc .rel-lista a::after{content:"›";color:var(--fraco);font-size:18px;line-height:1}
+html.vis-cc .rel-lista a:hover{background:var(--linha3)}
+html.vis-cc .rel-lista a.on{font-weight:700}
+html.vis-cc .rel-lista a.on::after{color:var(--brasa)}
+
+/* ---------- 6. acertos de corte e de toque no celular e no tablet (todos os visuais) ---------- */
+/* aviso só com texto e link: texto corrido (o "flex" quebrava a frase em colunas em volta do link) */
+.aviso:not(:has(> :not(a,b,strong,em,br,i:empty))){display:block}
+/* painel: rótulos dos números quebram em duas linhas em vez de cortar com reticências */
+.cc-kpi small{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25}
+/* Controladoria: valores grandes quebram a linha em vez de sumir em "R$ 1.234.5…" */
+.ctl-hero .ctl-kpi .v,html.vis-cc .ctl-hero .ctl-kpi .v{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;font-size:clamp(17px,4.6vw,23px)}
+/* calendário financeiro: no celular mostra o valor curto inteiro (R$ 12,3 mil) em vez de "R$…" */
+.fi-cal .cel .t .t-c{display:none}
+@media (max-width:720px){.fi-cal .cel .t .t-l{display:none}.fi-cal .cel .t .t-c{display:inline}.fi-cal .cel .t{font-size:11px;overflow:visible;text-overflow:clip;white-space:normal;line-height:1.15}}
+/* cabeçalho dos setores no celular: nome da empresa numa linha, botões na linha de baixo (antes ficava tudo por cima) */
+html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
+@media (max-width:720px){
+ html.vis-cc .spot-cab{flex-wrap:wrap;row-gap:10px}
+ html.vis-cc .spot-cab .spot-id{flex:1 1 calc(100% - 64px);min-width:0}
+ html.vis-cc .spot-cab .spot-id b{font-size:22px}
+ html.vis-cc .spot-cab .spot-id small{white-space:normal;font-size:10.5px;line-height:1.3}
+ html.vis-cc .spot-cab .v56-pend-lk{margin-left:auto;margin-right:0}
+ html.vis-cc .spot-cab .spot-eu{margin-left:0}
+ html.vis-cc .spot-cab>.vis-bt{order:3}
+ html.vis-cc .spot-cab>.v56-pend-lk{order:4}
+ html.vis-cc .spot-cab>.spot-eu{order:5}
+}
+/* mês do topo no celular: "nov/2026" por cima do campo de mês (que escrevia "novembro de 2026" e não cabia) */
+@media (max-width:720px){
+ html .top .comp .cl[data-mes]{position:relative}
+ html .top .comp .cl[data-mes] input#compMes{width:96px;color:transparent}
+ html .top .comp .cl[data-mes] input#compMes::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:auto;height:auto;opacity:0;cursor:pointer}
+ html .top .comp .cl[data-mes]::after{content:attr(data-mes);position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-weight:700;font-size:14px;color:var(--tinta)}
+ html.vis-cc .top .comp .cl[data-mes]::after{color:#fff}
+}
+/* botão Pendências no topo do celular: só o ícone e o número (o nome continua para leitores de tela), senão passava da borda */
+@media (max-width:720px){
+ #top .pd-bt{height:36px;min-width:36px;padding:0 8px;justify-content:center}
+ #top .pd-bt>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ #top .pd-bt svg{width:16px;height:16px}
+ html .top .comp .cl[data-mes] input#compMes{width:84px}
+ html.vis-cc #top{gap:6px}
+ html.vis-cc #top .comp .cx{width:30px;min-width:30px}
+ html.vis-cc #top .comp .cl{padding-left:2px;padding-right:2px}
+ #top .pd-bt{padding:0 5px;gap:3px}
+}
+/* dicas de "passar o mouse": no toque elas não abrem e, escondidas fora da tela, alargavam a página para o lado */
+@media (hover:none){[data-tip]:not(:focus-visible):after{display:none}}
+/* nada passa da largura da tela no celular (as tabelas continuam rolando dentro da própria caixa) */
+@media (max-width:720px){body{overflow-x:clip}}
+/* tabelas e faixas de abas que continuam para o lado: a borda some aos poucos, mostrando que dá para arrastar */
+.v82-rola-dir{-webkit-mask-image:linear-gradient(to left,transparent 0,#000 44px);mask-image:linear-gradient(to left,transparent 0,#000 44px)}
+.v82-rola-esq{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 44px);mask-image:linear-gradient(to right,transparent 0,#000 44px)}
+.v82-rola-esq.v82-rola-dir{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%)}
+/* atalhos das partes do formulário (gaveta): ficam presos no alto enquanto a gaveta rola */
+.v82-secoes{position:sticky;top:-18px;z-index:2;display:flex;gap:6px;overflow-x:auto;margin:0 0 12px;padding:8px 0;background:var(--branco);border-bottom:1px solid var(--linha2);scrollbar-width:none}
+.v82-secoes::-webkit-scrollbar{display:none}
+.v82-secoes button{flex:none;min-height:38px;border:1px solid var(--linha);border-radius:999px;background:var(--papel2,var(--papel));color:var(--tinta);font:600 13px/1 var(--fonte);padding:0 13px;cursor:pointer;white-space:nowrap}
+.v82-secoes button:hover{border-color:var(--brasa);color:var(--brasa)}
+.gaveta #frm>fieldset.sec{scroll-margin-top:64px}
+/* painel de Vendas: os mesmos quadros, na mesma ordem, com um título pequeno a cada grupo */
+.pv-hero>.pv-grupo{grid-column:1/-1;font:700 12px/1.2 var(--f-tit,var(--fonte));letter-spacing:.09em;text-transform:uppercase;color:var(--suave);margin:8px 2px -2px}
+.pv-hero>.pv-grupo:first-child{margin-top:0}
+
+/* ---------- 7. impressão: nada disso vai para o papel ---------- */
+@media print{.v82-rola-dir,.v82-rola-esq{-webkit-mask-image:none!important;mask-image:none!important}.v82-secoes{display:none}}
+</style>
+<script>
+"use strict";
+/* ================= V82: aviso de "tem mais para o lado", totais com nome no celular, mês curto e atalhos do formulário =================
+   Só aparência e navegação dentro da tela: nada é gravado e nada muda de lugar. */
+(function(){
+ const SEL='.tabwrap,.dir-abas,.sv-abas,.ms-secoes';
+ const marcar=el=>{const sw=el.scrollWidth,cw=el.clientWidth,sl=Math.abs(el.scrollLeft);
+  el.classList.toggle('v82-rola-esq',sl>2);el.classList.toggle('v82-rola-dir',sw-cw-sl>2)};
+ /* linhas de total: no celular cada número aparece com o nome da coluna (como as linhas comuns) */
+ function rotularTotais(){
+  document.querySelectorAll('#conteudo table.tbl tfoot tr, .gaveta table.tbl tfoot tr').forEach(tr=>{
+   const t=tr.closest('table');const h=t&&t.tHead&&t.tHead.rows[0];if(!h)return;
+   const rot=[];[...h.cells].forEach(th=>{for(let k=0;k<(th.colSpan||1);k++)rot.push((th.textContent||'').trim())});
+   let col=0;[...tr.cells].forEach(td=>{const span=td.colSpan||1;
+    if(!td.dataset.l&&span===1&&col>0&&rot[col]&&(td.textContent||'').trim())td.dataset.l=rot[col];col+=span});
+  });
+ }
+ let pend=0;
+ function marcarTudo(){pend=0;try{document.querySelectorAll(SEL).forEach(marcar)}catch(e){}try{rotularTotais()}catch(e){}}
+ window.v82MarcarRolagens=()=>{if(!pend)pend=requestAnimationFrame(marcarTudo)};
+ document.addEventListener('scroll',e=>{const t=e.target;if(t&&t.nodeType===1&&t.matches&&t.matches(SEL))marcar(t)},true);
+ window.addEventListener('resize',window.v82MarcarRolagens);
+ window.addEventListener('hashchange',()=>setTimeout(window.v82MarcarRolagens,120));
+ /* mês do topo no celular */
+ const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+ function rotuloMes(){try{const i=document.getElementById('compMes');if(!i)return;const l=i.closest('.cl');if(!l)return;
+  const m=/^(\d{4})-(\d{2})$/.exec(i.value||'');if(m)l.dataset.mes=MESES[+m[2]-1]+'/'+m[1];else delete l.dataset.mes}catch(e){}}
+ /* formulários longos: fileira de atalhos no alto da gaveta para cada parte numerada */
+ function atalhosForm(){try{
+  const f=document.querySelector('.gaveta #frm');if(!f||f.parentNode.querySelector('.v82-secoes'))return;
+  const fs=[...f.querySelectorAll(':scope > fieldset.sec')].filter(x=>!x.hidden);if(fs.length<4)return;
+  const nav=document.createElement('nav');nav.className='v82-secoes';nav.setAttribute('aria-label','Ir para a parte do formulário');
+  fs.forEach((x,i)=>{const lg=x.querySelector(':scope > legend');const b=document.createElement('button');b.type='button';
+   b.textContent=(i+1)+' · '+((lg&&lg.textContent)||'Parte '+(i+1)).trim();
+   b.onclick=()=>{if(x.hidden)return;x.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});const c=x.querySelector('input,select,textarea');if(c)try{c.focus({preventScroll:true})}catch(e){}};
+   nav.appendChild(b)});
+  f.parentNode.insertBefore(nav,f);
+ }catch(e){console.warn('v82 atalhos',e)}}
+ try{const _rt=renderTela;renderTela=function(){const r=_rt.apply(this,arguments);window.v82MarcarRolagens();return r}}catch(e){console.warn('v82',e)}
+ try{const _rc=renderCasca;renderCasca=function(){const r=_rc.apply(this,arguments);window.v82MarcarRolagens();rotuloMes();return r}}catch(e){console.warn('v82',e)}
+ try{const _ar=abrirRegistro;abrirRegistro=function(){const r=_ar.apply(this,arguments);setTimeout(atalhosForm,0);return r}}catch(e){console.warn('v82',e)}
+ document.addEventListener('input',e=>{if(e.target&&e.target.id==='compMes')rotuloMes()},true);
+ document.addEventListener('change',e=>{if(e.target&&e.target.id==='compMes')rotuloMes()},true);
+ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.comp [data-comp]'))setTimeout(rotuloMes,60)},true);
+ setTimeout(rotuloMes,0);
+})();
+</script>
 
 <script id="resp-relatorio-v80">
 "use strict";

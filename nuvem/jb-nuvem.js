@@ -268,16 +268,33 @@
   });
 
   /* ---------------- tela de entrada ---------------- */
-  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;background:#F6F3EF;display:flex;align-items:center;justify-content:center;padding:16px;font:14px Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#221C18}' +
-    '#jbl .c{background:#fff;border:1px solid #E8E1DA;border-radius:16px;box-shadow:0 12px 28px -10px rgba(38,28,20,.18);width:100%;max-width:380px;padding:28px 26px}' +
-    '#jbl .m{display:flex;align-items:center;gap:12px;margin-bottom:20px}#jbl .lg{width:42px;height:42px;border-radius:11px;background:linear-gradient(150deg,#C2603A,#8A3A19);color:#fff;display:grid;place-items:center;font-weight:700}' +
-    '#jbl h1{font-size:18px;margin:0;font-weight:600}#jbl small{color:#5C534C;font-size:12.5px}' +
-    '#jbl label{display:block;font-size:12.5px;font-weight:500;color:#5C534C;margin:12px 0 4px}' +
-    '#jbl input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #E8E1DA;border-radius:8px;font:inherit;font-size:16px;background:#FAF8F5}' +
-    '#jbl input:focus{outline:none;border-color:#A3461F;box-shadow:0 0 0 3px rgba(163,70,31,.18);background:#fff}' +
-    '#jbl button{width:100%;margin-top:18px;padding:11px;border:0;border-radius:8px;background:#A3461F;color:#fff;font:inherit;font-weight:600;cursor:pointer}' +
-    '#jbl button:disabled{opacity:.6;cursor:wait}#jbl .msg{min-height:18px;margin-top:12px;font-size:13px;color:#B3302A}#jbl .ok{color:#16784A}' +
-    '#jbl .rod{margin-top:16px;font-size:11.5px;color:#9C9188;text-align:center}' +
+  /* visual V57: fundo grafite com brilho vermelho, logotipo da Concretiza, campos com ícone e olho da senha.
+     Os mesmos elementos de antes, na mesma ordem: logo e nome, usuário, senha, botão Entrar, aviso e rodapé. */
+  var IC_U = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8F9A' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6'/%3E%3C/svg%3E\")";
+  var IC_L = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8F9A' stroke-width='2' stroke-linecap='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E\")";
+  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;' +
+      'background:radial-gradient(900px 520px at 85% -10%,rgba(211,18,28,.35),transparent 60%),linear-gradient(160deg,#16171C,#0B0C0F);' +
+      'font:15px Barlow,Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#121318}' +
+    '#jbl .c{background:#fff;border:1px solid #E6E8ED;border-radius:22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.55);width:100%;max-width:400px;padding:32px 28px 24px;margin:auto}' +
+    '#jbl .m{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin-bottom:22px}' +
+    '#jbl .lg{width:84px;height:84px;border-radius:50%;background:linear-gradient(150deg,#E3232D,#8F0B12) center/cover no-repeat;color:#fff;display:grid;place-items:center;font-weight:700;font-size:22px;box-shadow:0 0 0 3px #D3121C,0 10px 24px -8px rgba(211,18,28,.55)}' +
+    '#jbl .lg.img{background-color:#000;font-size:0}' +
+    '#jbl h1{font-family:"Barlow Condensed",Barlow,Inter,sans-serif;font-size:28px;margin:0;font-weight:700;letter-spacing:.02em}#jbl small{color:#4E5260;font-size:14px}' +
+    '#jbl label{display:block;font-size:13px;font-weight:600;color:#4E5260;margin:14px 0 6px;letter-spacing:.02em}' +
+    '#jbl input{width:100%;box-sizing:border-box;height:50px;padding:0 14px 0 44px;border:1px solid #D7DAE1;border-radius:14px;font:inherit;font-size:16px;color:#121318;background:#F5F6F8 no-repeat 14px 50%/20px}' +
+    '#jbl input[type=text],#jbl input[type=email]{background-image:' + IC_U + '}' +
+    '#jbl input[type=password],#jbl .cs input{background-image:' + IC_L + ';padding-right:52px}' +
+    '#jbl input:focus{outline:none;border-color:#D3121C;box-shadow:0 0 0 4px rgba(211,18,28,.16);background-color:#fff}' +
+    '#jbl .cs{position:relative}' +
+    '#jbl .olho{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#4E5260;display:grid;place-items:center;cursor:pointer;padding:0;margin:0}' +
+    '#jbl .olho:hover,#jbl .olho[aria-pressed=true]{color:#D3121C}#jbl .olho:focus-visible{outline:3px solid #D3121C;outline-offset:1px}' +
+    '#jbl button[type=submit]{width:100%;height:52px;margin-top:20px;border:0;border-radius:14px;background:linear-gradient(180deg,#E3232D,#B90F18);color:#fff;font:inherit;font-size:17px;font-weight:700;letter-spacing:.02em;cursor:pointer;box-shadow:0 10px 22px -10px rgba(211,18,28,.8)}' +
+    '#jbl button[type=submit]:hover{background:linear-gradient(180deg,#EA2E38,#A80D15)}#jbl button[type=submit]:focus-visible{outline:3px solid #121318;outline-offset:2px}' +
+    '#jbl button[type=submit]:disabled{opacity:.75;cursor:wait}' +
+    '#jbl .msg{min-height:18px;margin-top:12px;font-size:14px;color:#B3302A}#jbl .msg:not(:empty){background:#FDECEE;border:1px solid #F6C7CB;border-radius:12px;padding:10px 12px}' +
+    '#jbl .ok{color:#16784A}#jbl .msg.ok:not(:empty){background:#E6F4EC;border-color:#BFE3CD}' +
+    '#jbl .rod{margin-top:16px;font-size:12px;color:#868A97;text-align:center}' +
+    '@media (prefers-reduced-motion:no-preference){#jbl .c{animation:jblEntra .25s ease-out}@keyframes jblEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}' +
     '#jbsair{position:fixed;left:12px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
     '#jbadm{position:fixed;left:130px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
@@ -300,13 +317,27 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function caixa(titulo, sub, campos, botao, rodape) {
     var v = document.getElementById('jbl'); if (v) v.remove();
-    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><span class="lg">JB</span><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
-      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'JB Gestão de Cerâmica e Controladoria') + '</div></form></div>');
+    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><span class="lg" aria-hidden="true">JB</span><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
+      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'Cerâmica Concretiza · JB Gestão') + '</div></form></div>');
     (document.body || document.documentElement).appendChild(v);
+    /* logotipo da Concretiza (o mesmo do topo do sistema), quando o programa já o carregou */
+    try { if (typeof window.LOGO_CC === 'string' && /^data:image\//.test(window.LOGO_CC)) { var lg = v.querySelector('.lg'); lg.style.backgroundImage = 'url("' + window.LOGO_CC + '")'; lg.classList.add('img'); } } catch (e) {}
+    /* olho: mostra e esconde a senha digitada */
+    v.addEventListener('click', function (e) {
+      var o = e.target.closest && e.target.closest('.olho'); if (!o) return;
+      var i = o.parentNode.querySelector('input'); var mostra = i.type === 'password';
+      i.type = mostra ? 'text' : 'password'; o.setAttribute('aria-pressed', mostra ? 'true' : 'false');
+      o.setAttribute('aria-label', mostra ? 'Esconder a senha' : 'Mostrar a senha'); i.focus();
+    });
     var f = v.querySelector('input'); if (f) setTimeout(function () { f.focus(); }, 30);
     return v;
   }
-  function campo(id, rot, tipo, auto) { return '<label for="' + id + '">' + esc(rot) + '</label><input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '" required>'; }
+  var OLHO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  function campo(id, rot, tipo, auto) {
+    var i = '<input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '" required' + (tipo === 'text' ? ' autocapitalize="none" spellcheck="false"' : '') + '>';
+    if (tipo === 'password') i = '<div class="cs">' + i + '<button type="button" class="olho" aria-label="Mostrar a senha" aria-pressed="false" aria-controls="' + id + '">' + OLHO + '</button></div>';
+    return '<label for="' + id + '">' + esc(rot) + '</label>' + i;
+  }
   async function post(acao, corpo, token) {
     var h = { 'Content-Type': 'application/json' }; if (token) h.Authorization = 'Bearer ' + token;
     var r; try { r = await fetch(AUTH + acao, { method: 'POST', headers: h, body: JSON.stringify(corpo || {}) }); }
@@ -325,7 +356,7 @@
     fetch(AUTH + 'ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function () {});
   }
   function etapa(v, texto) {
-    var b = v.querySelector('button'); if (b) b.textContent = texto;
+    var b = v.querySelector('button[type=submit]'); if (b) b.textContent = texto;
     var m = v.querySelector('.msg'); if (m) { m.className = 'msg ok'; m.textContent = ''; }
   }
   function tela(aviso, encerrada) {
@@ -336,7 +367,7 @@
     ['focusin', 'input'].forEach(function (ev) { v.addEventListener(ev, acordarLogin); });
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var b = v.querySelector('button'), u = v.querySelector('#jblu').value.trim().toLowerCase(), s = v.querySelector('#jbls').value;
+      var b = v.querySelector('button[type=submit]'), u = v.querySelector('#jblu').value.trim().toLowerCase(), s = v.querySelector('#jbls').value;
       if (!u || !s) { msg.textContent = 'Informe usuário e senha.'; return; }
       b.disabled = true; msg.textContent = ''; etapa(v, 'Conferindo a senha…');
       try {
@@ -354,7 +385,7 @@
     var msg = v.querySelector('.msg');
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var a = v.querySelector('#jbla').value, n = v.querySelector('#jbln').value, rr = v.querySelector('#jblr').value, b = v.querySelector('button');
+      var a = v.querySelector('#jbla').value, n = v.querySelector('#jbln').value, rr = v.querySelector('#jblr').value, b = v.querySelector('button[type=submit]');
       if (n !== rr) { msg.textContent = 'As duas senhas novas não são iguais.'; return; }
       b.disabled = true; msg.textContent = '';
       try {
@@ -372,7 +403,7 @@
     var msg = v.querySelector('.msg');
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var g = function (i) { return v.querySelector(i).value; }, b = v.querySelector('button');
+      var g = function (i) { return v.querySelector(i).value; }, b = v.querySelector('button[type=submit]');
       if (g('#jbis') !== g('#jbir')) { msg.textContent = 'As duas senhas não são iguais.'; return; }
       b.disabled = true; msg.textContent = '';
       try {
@@ -488,7 +519,7 @@
     var v = document.getElementById('jbl');
     if (!v || !v.querySelector('#jblu') || /[?&]instalar\b/.test(location.search)) return false;   // só a tela de entrada comum
     if ([].some.call(v.querySelectorAll('input'), function (i) { return i.value; })) return false;   // alguém digitando
-    var b = v.querySelector('button'); if (b && b.disabled) return false;                          // entrada em andamento
+    var b = v.querySelector('button[type=submit]'); if (b && b.disabled) return false;              // entrada em andamento
     var m = v.querySelector('.msg'); if (m && m.textContent.trim()) return false;                  // há um recado na tela
     return true;
   }
