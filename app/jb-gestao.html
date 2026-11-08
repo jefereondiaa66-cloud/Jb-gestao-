@@ -9088,7 +9088,7 @@ function htmlFichaFerias(d){
  const mon=x=>sens?fMoeda(x):'•••';
  const lista=pf.lista.slice().reverse();
  return `<article class="fvd" id="fvdDoc">
-  ${cabDocHtml(String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),id,'<h2 class="fvd-tit">FICHA DE CONTROLE DE FÉRIAS</h2><div class="fvd-sub">PERÍODOS AQUISITIVOS, PRAZOS E VALORES</div>')}
+  ${cabDocHtml(String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),id,'<h2 class="fvd-tit">FICHA DE CONTROLE DE FÉRIAS</h2><div class="fvd-sub">PERÍODOS AQUISITIVOS, PRAZOS E VALORES</div>',f.matricula?['MATRÍCULA',String(f.matricula)]:null)}
   <section class="fvd-quadro"><div class="fvd-rot">EMPREGADO</div>
    <div class="fvd-grade">${cmp('Nome',f.nome,'w2')}${sens?cmp('CPF',s.cpf?mascCPF(s.cpf):''):''}${cmp('Matrícula',f.matricula)}${cmp('Cargo',f.cargo)}${cmp('Setor',f.setor)}
     ${cmp('Admissão',f.admissao?fData(f.admissao):'')}${cmp('Contratação',f.tipoContratacao)}${sens?cmp('Salário base',v.sal?fMoeda(v.sal):'não cadastrado'):''}
@@ -9148,16 +9148,16 @@ function fichaFeriasPDF(fid){
  const cor=(c,fn)=>doc[fn](c[0],c[1],c[2]);
  const centro=(t,yy,cs)=>{if(cs&&doc.getTextWidth){const w=doc.getTextWidth(t)+cs*(t.length-1);doc.text(t,(W-w)/2,yy,{charSpace:cs})}else doc.text(t,W/2,yy,{align:'center'})};
  const id=[emp.cnpj?'CNPJ '+emp.cnpj:'',emp.endereco||'',emp.cidade||''].filter(Boolean).join('  ·  ');
- y=cabPdfCC(doc,W,{marca:String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),linha:id,titulo:'FICHA DE CONTROLE DE FÉRIAS',sub:'PERÍODOS AQUISITIVOS, PRAZOS E VALORES',M})-20;
- /* quadro do empregado: fundo bege com barra terracota */
+ y=cabPdfCC(doc,W,{marca:String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),linha:id,titulo:'FICHA DE CONTROLE DE FÉRIAS',sub:'PERÍODOS AQUISITIVOS, PRAZOS E VALORES',M,ident:f.matricula?['MATRÍCULA',String(f.matricula)]:null})-20;
+ /* quadro do empregado: título com o quadrado vermelho e campos tracejados */
  const campos=[['Nome',f.nome],...(sens?[['CPF',s.cpf?mascCPF(s.cpf):'—']]:[]),['Matrícula',f.matricula||'—'],['Cargo',f.cargo||'—'],['Setor',f.setor||'—'],
   ['Admissão',f.admissao?fData(f.admissao):'—'],['Contratação',f.tipoContratacao||'—'],...(sens?[['Salário base',v.sal?fMoeda(v.sal):'não cadastrado']]:[])];
- const linhasQ=Math.ceil(campos.length/2);const hQ=26+linhasQ*26;y+=20;
- if(doc.setFillColor&&doc.rect){cor(BG,'setFillColor');doc.rect(M,y,L,hQ,'F');cor(TC,'setFillColor');doc.rect(M,y,3,hQ,'F')}
- doc.setFont('helvetica','bold');doc.setFontSize(8.4);cor(TC,'setTextColor');doc.text('EMPREGADO',M+16,y+16);
- campos.forEach(([l,val],k)=>{const cx=M+16+(k%2)*(L/2),cy=y+34+Math.floor(k/2)*26;
+ const linhasQ=Math.ceil(campos.length/2);const hQ=10+linhasQ*26;y+=20;
+ tituloPdfCC(doc,M,y,'','EMPREGADO');y+=8;
+ if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,hQ,'S')}
+ campos.forEach(([l,val],k)=>{const cx=M+16+(k%2)*(L/2),cy=y+15+Math.floor(k/2)*26;
   doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(l,cx,cy);
-  doc.setFont('helvetica','bold');doc.setFontSize(10.4);cor(TX,'setTextColor');doc.text(String(val).slice(0,52),cx,cy+12)});
+  doc.setFont('helvetica','bold');doc.setFontSize(10.4);cor(TX,'setTextColor');doc.text(String(val).slice(0,52),cx,cy+12);tracoPdfCC(doc,cx,cx+L/2-32,cy+16)});
  y+=hQ+18;
  /* situação */
  const corSit=st.cls==='pe'?[170,30,30]:st.cls==='at'?[150,100,0]:TX;
@@ -9167,8 +9167,7 @@ function fichaFeriasPDF(fid){
  if(!temCarteira(f.tipoContratacao)){doc.setFont('helvetica','italic');doc.setFontSize(8.6);cor(CZ,'setTextColor');const lo=doc.splitTextToSize('Vínculo cadastrado sem carteira assinada: os períodos e valores mostram o que seria devido se o vínculo fosse registrado. Servem para medir o risco.',L);doc.text(lo,M,y+4);y+=lo.length*11+4}
  const tab={theme:'plain',margin:{left:M,right:M},styles:{font:'helvetica',fontSize:8.8,cellPadding:4.2,textColor:TX,lineColor:FI,lineWidth:.4},
   headStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold',fontSize:8.6},alternateRowStyles:{fillColor:BG2},didDrawCell:filetePdfCC(doc)};
- const secao=(n,t)=>{y+=20;doc.setFont('helvetica','bold');doc.setFontSize(12);cor(CZ,'setTextColor');doc.text(n,M,y);cor(TC,'setTextColor');doc.text(t,M+14,y);
-  cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=12};
+ const secao=(n,t)=>{y+=20;tituloPdfCC(doc,M,y,n,t);y+=12};
  if(!pf.erro){
   secao('1','Períodos aquisitivos e prazos');
   doc.autoTable({...tab,startY:y,head:[['Período aquisitivo','Conceder até','Situação','Direito','Tirados','Programados','Em aberto']],
@@ -9735,7 +9734,7 @@ function htmlDoc(D,opc){
   return '';
  };
  return `<article class="fvd fvd-doc${D.paisagem?' paisagem':''}" id="fvdDoc">
-  ${cabDocHtml(D.marca,linhaEmpDoc(D.marca,D.empresaLinha),`<h2 class="fvd-tit">${esc(D.tipo)}</h2>${D.sub?`<div class="fvd-sub">${esc(String(D.sub).toUpperCase())}</div>`:''}`)}
+  ${cabDocHtml(D.marca,linhaEmpDoc(D.marca,D.empresaLinha),`<h2 class="fvd-tit">${esc(D.tipo)}</h2>${D.sub?`<div class="fvd-sub">${esc(String(D.sub).toUpperCase())}</div>`:''}`,identDoc(D))}
   <div class="fvd-meta">${D.meta.map(([l,x])=>`<span><i>${esc(l)}</i> ${esc(x)}</span>`).join('')}</div>
   ${D.quadros.map(q=>`<section class="fvd-quadro"><div class="fvd-rot">${esc(q.rot)}</div><div class="fvd-grade">${q.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x,ed)}</b></div>`).join('')}</div></section>`).join('')}
   ${D.blocos.map(bloco).join('')}
@@ -9779,33 +9778,32 @@ function pdfDoc(D){
   const pr=b.w&&b.h?b.h/b.w:(()=>{try{const p=doc.getImageProperties(b.src);return p.height/p.width}catch(e){return .5}})();
   let w=Math.min(L,b.larg||L),h=w*pr;const hMax=BOT-62-(b.titulo?22:0)-10;if(h>hMax){h=hMax;w=h/pr}
   cabe(h+(b.titulo?22:0)+8);y+=4;
-  if(b.titulo){doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(TC,'setTextColor');doc.text(tx(String(b.titulo).toUpperCase()),M,y,{charSpace:.4});cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=16}
+  if(b.titulo){doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(PT,'setTextColor');doc.text(tx(String(b.titulo).toUpperCase()),M,y,{charSpace:.4});cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=16}
   try{doc.addImage(b.src,/^data:image\/png/i.test(b.src)?'PNG':'JPEG',M+(L-w)/2,y,w,h)}catch(e){console.warn('imagem no PDF',e)}
   y+=h+10;if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})};
  /* cabeçalho: faixa preta com a logo e a empresa; título e subtítulo à direita */
- y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,D.empresaLinha)),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M});
+ y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,D.empresaLinha)),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M,ident:identDoc(D).map(tx)});
  if(D.meta&&D.meta.length){doc.setFont('helvetica','normal');doc.setFontSize(8.4);const mt=doc.splitTextToSize(tx(D.meta.map(([l,x])=>l+' '+x).join('   ·   ')),L-24);const hm=12+mt.length*10.5;
   if(doc.setFillColor&&doc.rect){cor(BG2,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(M,y,L,hm,'FD')}cor(CZ,'setTextColor');doc.text(mt,W/2,y+14,{align:'center'});y+=hm+16}
  /* quadros */
  D.quadros.forEach(q=>{const colW=(L-32)/2;const linhas=[];let fila=[];
   q.campos.forEach(([l,x,w])=>{if(w){if(fila.length){linhas.push(fila);fila=[]}linhas.push([[l,x,1]])}else{fila.push([l,x,0]);if(fila.length===2){linhas.push(fila);fila=[]}}});if(fila.length)linhas.push(fila);
-  doc.setFontSize(10);const alt=linhas.map(f=>Math.max(...f.map(([,x,w])=>doc.splitTextToSize(tx(x),w?L-32:colW-8).length))*12+14);
-  const hQ=24+alt.reduce((a,b)=>a+b,0)+6;cabe(hQ);
-  if(doc.setFillColor&&doc.rect){cor(BG,'setFillColor');doc.rect(M,y,L,hQ,'F');cor(TC,'setFillColor');doc.rect(M,y,3,hQ,'F')}
-  doc.setFont('helvetica','bold');doc.setFontSize(8.2);cor(TC,'setTextColor');doc.text(tx(q.rot),M+16,y+16,{charSpace:1});
-  let yy=y+30;linhas.forEach((f,i)=>{f.forEach(([l,x,w],j)=>{const cx=M+16+j*(colW+8);doc.setFont('helvetica','normal');doc.setFontSize(7.6);cor(CZ,'setTextColor');doc.text(tx(l),cx,yy);
-   doc.setFont('helvetica','bold');doc.setFontSize(10);cor(TX,'setTextColor');doc.text(doc.splitTextToSize(tx(x),w?L-32:colW-8),cx,yy+11)});yy+=alt[i]});
-  y+=hQ+12});
+  doc.setFontSize(10);const alt=linhas.map(f=>Math.max(...f.map(([,x,w])=>doc.splitTextToSize(tx(x),w?L-32:colW-8).length))*12+17);
+  const hQ=alt.reduce((a,b)=>a+b,0)+14;cabe(hQ+24);
+  y+=8;tituloPdfCC(doc,M,y,'',tx(q.rot));y+=8;
+  if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,hQ,'S')}
+  let yy=y+17;linhas.forEach((f,i)=>{f.forEach(([l,x,w],j)=>{const cx=M+16+j*(colW+8);doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(tx(l),cx,yy);
+   doc.setFont('helvetica','bold');doc.setFontSize(10);cor(TX,'setTextColor');doc.text(doc.splitTextToSize(tx(x),w?L-32:colW-8),cx,yy+11);tracoPdfCC(doc,cx,cx+(w?L-32:colW-8),yy+alt[i]-13)});yy+=alt[i]});
+  y+=hQ+14});
  /* corpo */
  D.blocos.forEach(b=>{
   if(b.tipo==='p')paragrafo(b.texto);
   else if(b.tipo==='tabela')tabela(b);
   else if(b.tipo==='imagem')imagem(b);
   else if(b.tipo==='aviso'){paragrafo(b.texto,{size:9,cz:true})}
-  else if(b.tipo==='clausula'){cabe(40);y+=4;doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(TC,'setTextColor');
+  else if(b.tipo==='clausula'){cabe(40);y+=4;doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(PT,'setTextColor');
    doc.splitTextToSize(tx(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase()),L).forEach(l=>{doc.text(l,M,y,{charSpace:.4});y+=12.5});y+=2;paragrafo(b.texto)}
-  else if(b.tipo==='secao'){cabe(46);y+=8;doc.setFont('helvetica','bold');doc.setFontSize(12);cor(CZ,'setTextColor');doc.text(String(b.n),M,y);cor(TC,'setTextColor');doc.text(tx(b.titulo),M+14,y);
-   cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=18;
+  else if(b.tipo==='secao'){cabe(46);y+=10;tituloPdfCC(doc,M,y,b.n,tx(b.titulo));y+=12;
    if(b.campos&&b.campos.length){tabela({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])})}
    (b.paras||[]).forEach(p=>paragrafo(p));if(b.tabela)tabela(b.tabela);if(b.vazio)paragrafo(b.vazio,{cz:true});if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})}
  });
@@ -9819,12 +9817,12 @@ function pdfDoc(D){
  const wA=205;
  for(let i=0;i<D.assinaturas.length;i+=2){y+=52;const par=D.assinaturas.slice(i,i+2);
   if(par.length===1)linhaAss(par[0],(W-wA)/2,wA);else{linhaAss(par[0],M,wA);linhaAss(par[1],W-M-wA,wA)}y+=16}
- if(D.testemunhas){y+=26;doc.setFont('helvetica','bold');doc.setFontSize(8);cor(TC,'setTextColor');doc.text('TESTEMUNHAS',M,y,{charSpace:1});y+=34;
+ if(D.testemunhas){y+=26;tituloPdfCC(doc,M,y,'','TESTEMUNHAS');y+=34;
   D.testemunhas.forEach((t,i)=>{const x=i?W-M-wA:M;linhaAss({nome:t.nome||'Testemunha '+(i+1),sub:t.cpf?'CPF '+t.cpf:'Nome e CPF'},x,wA)});y+=26}
- if(D.observacoes){const ls=doc.splitTextToSize(tx(D.observacoes),L-24);const h=22+ls.length*12;cabe(h+10);y+=10;
-  if(doc.setFillColor&&doc.rect){cor(BG,'setFillColor');doc.rect(M,y,L,h,'F');cor(TC,'setFillColor');doc.rect(M,y,3,h,'F')}
-  doc.setFont('helvetica','bold');doc.setFontSize(8);cor(TC,'setTextColor');doc.text('OBSERVAÇÕES',M+14,y+14,{charSpace:1});
-  doc.setFont('helvetica','normal');doc.setFontSize(9.4);cor(TX,'setTextColor');doc.text(ls,M+14,y+27);y+=h+8}
+ if(D.observacoes){const ls=doc.splitTextToSize(tx(D.observacoes),L-24);const h=28+ls.length*12;cabe(h+20);y+=20;
+  if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,h,'S')}
+  tituloPdfCC(doc,M+12,y+16,'','OBSERVAÇÕES');
+  doc.setFont('helvetica','normal');doc.setFontSize(9.4);cor(TX,'setTextColor');doc.text(ls,M+12,y+31);y+=h+8}
  if(D.notaFinal){y+=D.assinaturas.length&&!D.testemunhas&&!D.observacoes?26:6;paragrafo(D.notaFinal,{size:7.8,cz:true,lh:10})}
  /* rodapé em todas as páginas */
  try{const tot=doc.internal&&doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;
@@ -9844,18 +9842,19 @@ function wordDoc(D){
  const tb=b=>`<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:${b.fonte&&b.fonte<8.5?8.5:10}pt"><tr>${b.head.map((h,k)=>`<th style="background:#111114;color:#fff;border-bottom:2pt solid #D3121C;text-align:left;padding:4pt 6pt;${al(b,k)}">${t(h)}</th>`).join('')}</tr>
   ${b.body.map((r,i)=>`<tr>${r.map((x,k)=>`<td style="padding:4pt 6pt;border-bottom:1px solid #E3E3E8;${i%2?'background:#F5F5F7;':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
   ${(b.foots||(b.foot?[b.foot]:[])).map((f,j)=>`<tr>${f.map((x,k)=>`<td style="padding:4pt 6pt;background:#E3E3E8;color:#141416;font-weight:bold;${j?'':'border-top:1.5pt solid #111114;'}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`;
- const quadro=q=>`<table style="width:100%;border-collapse:collapse;background:#F5F5F7;border-left:4px solid #D3121C;margin:0 0 10pt"><tr><td colspan="2" style="padding:6pt 10pt 2pt;color:#D3121C;font-size:8pt;font-weight:bold;letter-spacing:1pt">${t(q.rot)}</td></tr>
+ const quadro=q=>`<p style="margin:8pt 0 4pt;color:#111114;font-size:10pt;font-weight:bold;letter-spacing:1pt"><span style="color:#D3121C">■</span> ${t(q.rot)}</p><table style="width:100%;border-collapse:collapse;border:1px solid #E3E3E8;margin:0 0 10pt"><tr><td colspan="2" style="height:4pt"></td></tr>
   ${q.campos.map(([l,x])=>`<tr><td style="padding:2pt 10pt;width:32%;color:#5B5B63;font-size:9pt">${t(l)}</td><td style="padding:2pt 10pt;font-weight:bold">${t(x)}</td></tr>`).join('')}<tr><td colspan="2" style="height:4pt"></td></tr></table>`;
  const corpo=D.blocos.map(b=>b.tipo==='p'||b.tipo==='aviso'?ps(b.texto):b.tipo==='tabela'?tb(b)
   :b.tipo==='imagem'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(String(b.titulo||'Gráfico').toUpperCase())}</p><p style="margin:0 0 8pt;font-size:9pt;color:#5B5B63">O gráfico sai no PDF e na impressão.</p>`
   :b.tipo==='clausula'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase())}</p>${ps(b.texto)}`
-  :b.tipo==='secao'?`<p style="margin:14pt 0 6pt;font-size:13pt;color:#D3121C;font-weight:bold;border-bottom:1px solid #E3E3E8"><span style="color:#5B5B63">${t(b.n)}</span> ${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:#5B5B63">${t(b.nota)}</p>`:''}`:'').join('');
+  :b.tipo==='secao'?`<p style="margin:14pt 0 6pt;font-size:11pt;color:#111114;font-weight:bold;letter-spacing:.5pt;text-transform:uppercase"><span style="color:#D3121C">■</span> <span style="color:#5B5B63">${t(b.n)}</span> ${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:#5B5B63">${t(b.nota)}</p>`:''}`:'').join('');
  const ass=l=>`<table style="width:100%;margin-top:30pt"><tr>${l.map(a=>`<td style="width:50%;text-align:center;padding:0 12pt"><div style="border-top:1px solid #141416;padding-top:3pt;font-weight:bold">${t(a.nome||' ')}</div><div style="font-size:8pt;color:#5B5B63">${t(a.sub||'')}</div></td>`).join('')}</tr></table>`;
  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${t(D.tipo)}</title>
  <style>@page{size:${D.paisagem?'29.7cm 21cm':'21cm 29.7cm'};margin:${D.paisagem?'1.5cm 1.5cm':'2cm 1.9cm'}}body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#141416}</style></head><body>
- <table style="width:100%;border-collapse:collapse;margin:0 0 14pt;border-bottom:3pt solid #D3121C"><tr>
- <td style="background:#111114;color:#fff;padding:10pt 14pt;width:55%"><p style="margin:0;font-weight:bold;font-size:13pt;letter-spacing:1.5pt;color:#fff">${t(D.marca)}</p>${linhaEmpDoc(D.marca,D.empresaLinha)?`<p style="margin:2pt 0 0;font-size:8pt;color:#C9C9D0">${t(linhaEmpDoc(D.marca,D.empresaLinha))}</p>`:''}</td>
- <td style="text-align:right;padding:10pt 0 10pt 14pt"><p style="margin:0;font-weight:bold;font-size:14pt;color:#111114">${t(D.tipo)}</p>${D.sub?`<p style="margin:2pt 0 0;font-size:8pt;color:#D3121C;font-weight:bold;letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}</td></tr></table>
+ <table style="width:100%;border-collapse:collapse;margin:0 0 10pt;border-bottom:3pt solid #D3121C"><tr>
+ <td style="background:#111114;color:#fff;padding:12pt 14pt"><p style="margin:0;font-weight:bold;font-size:15pt;letter-spacing:1pt;color:#fff">${t(D.marca)}</p>${linhaEmpDoc(D.marca,D.empresaLinha)?`<p style="margin:2pt 0 0;font-size:8pt;color:#CFCFD6">${t(linhaEmpDoc(D.marca,D.empresaLinha))}</p>`:''}</td>
+ <td style="background:#D3121C;color:#fff;text-align:right;padding:12pt 14pt;width:28%"><p style="margin:0;font-size:8pt;font-weight:bold;letter-spacing:1pt;color:#fff">${t(identDoc(D)[0])}</p><p style="margin:2pt 0 0;font-size:${String(identDoc(D)[1]).length>9?13:22}pt;font-weight:bold;color:#fff">${t(identDoc(D)[1])}</p></td></tr></table>
+ <p style="margin:0;font-weight:bold;font-size:20pt;color:#111114;text-transform:uppercase">${t(D.tipo)}</p>${D.sub?`<p style="margin:2pt 0 0;font-size:8.5pt;color:#D3121C;font-weight:bold;letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}
  <p style="text-align:center;margin:6pt 0 14pt;font-size:9pt;color:#5B5B63">${D.meta.map(([l,x])=>t(l)+' '+t(x)).join(' &nbsp;·&nbsp; ')}</p>
  ${D.quadros.map(quadro).join('')}${corpo}${D.fecho?ps(D.fecho):''}
  ${D.local?`<p style="text-align:center;margin-top:18pt">${t(D.local)}</p>`:''}
@@ -27295,25 +27294,30 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:44px;margin-right:44px}
 .fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:30px;margin-right:30px}
 .fvd.fvd>.fvd-ass,.fvd.fvd>.fvd-local{margin-top:28px}
-.fvd .fvd-band{display:flex;align-items:stretch;justify-content:space-between;gap:16px;text-align:left;padding:0;margin:0 0 22px;border-bottom:3px solid var(--t);background:#fff}
-.fvd .fvd-band-marca{position:relative;display:flex;align-items:center;gap:14px;background:var(--pt);color:#fff;padding:18px 66px 18px 28px;
- clip-path:polygon(0 0,100% 0,calc(100% - 44px) 100%,0 100%);flex:0 1 54%;min-width:0}
-.fvd .fvd-band-marca:after{content:"";position:absolute;right:22px;top:0;bottom:0;width:13px;background:var(--t);transform:skewX(-26deg)}
-.fvd .fvd-band .fvd-logo{height:54px;width:54px;max-width:none;object-fit:contain;border-radius:50%;background:#000;border:2px solid var(--t);flex:none;margin:0}
-.fvd .fvd-band .fvd-emp{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:700;font-size:20px;letter-spacing:.06em;line-height:1.08;color:#fff;text-transform:uppercase}
-.fvd .fvd-band .fvd-id{font-size:10.8px;color:#C9C9D0;letter-spacing:.03em;margin-top:4px}
-.fvd .fvd-band-tit{flex:1 1 46%;min-width:0;text-align:right;padding:16px 28px 14px 0;display:flex;flex-direction:column;justify-content:center}
-.fvd .fvd-band .fvd-tit{margin:0;text-align:right;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:700;font-size:21px;letter-spacing:.03em;line-height:1.12;color:var(--pt)}
-.fvd .fvd-band .fvd-sub{margin:4px 0 0;text-align:right;color:var(--t);font-weight:600;letter-spacing:.11em;font-size:10.8px}
+.fvd .fvd-band{display:flex;align-items:stretch;justify-content:space-between;gap:0;text-align:left;padding:0;margin:0 0 22px;border-bottom:4px solid var(--t);background:var(--pt)}
+.fvd .fvd-band-marca{display:flex;align-items:center;gap:14px;color:#fff;padding:16px 18px 16px 44px;flex:1 1 auto;min-width:0}
+.fvd .fvd-band .fvd-logo{height:72px;width:72px;max-width:none;object-fit:contain;border-radius:50%;flex:none;margin:0}
+.fvd .fvd-band .fvd-emp{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:700;font-size:25px;letter-spacing:.05em;line-height:1.05;color:#fff;text-transform:uppercase}
+.fvd .fvd-band .fvd-id{font-size:11.5px;color:#CFCFD6;letter-spacing:.02em;margin-top:4px}
+.fvd .fvd-band-num{flex:0 0 31%;min-width:0;box-sizing:border-box;background:var(--t);color:#fff;clip-path:polygon(52px 0,100% 0,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;align-items:flex-end;text-align:right;padding:12px 44px 12px 62px}
+.fvd .fvd-band-num span{font-size:11px;font-weight:600;letter-spacing:.1em}
+.fvd .fvd-band-num b{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:800;font-size:38px;line-height:1.02;overflow-wrap:anywhere}
+.fvd .fvd-band-num b.lg{font-size:23px;line-height:1.1}
+.fvd.paisagem .fvd-band-marca{padding-left:30px}.fvd.paisagem .fvd-band-num{padding-right:30px;flex-basis:26%}
+.fvd .fvd-band-tit{margin-top:0;margin-bottom:14px}
+.fvd .fvd-band-tit .fvd-tit{margin:0;text-align:left;font-family:inherit;font-weight:800;font-size:31px;letter-spacing:-.01em;line-height:1.1;color:var(--pt);text-transform:uppercase}
+.fvd .fvd-band-tit .fvd-sub{margin:4px 0 0;text-align:left;color:var(--t);font-weight:700;letter-spacing:.1em;font-size:11.5px}
 .fvd .fvd-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 18px;font-size:11.5px;color:var(--cz);border:1px solid var(--fi);border-radius:6px;padding:8px 12px;background:var(--bg2);margin-bottom:16px}
 .fvd .fvd-meta i{font-style:normal;font-weight:600;color:var(--pt)}
-.fvd .fvd-quadro{background:#fff;border:1px solid var(--fi);border-left:4px solid var(--t);border-radius:6px;padding:12px 16px 14px}
-.fvd .fvd-rot{color:var(--pt);letter-spacing:.12em}
-.fvd .fvd-rot:before{content:"";display:inline-block;width:8px;height:8px;background:var(--t);margin-right:7px;vertical-align:1px}
+.fvd .fvd-quadro{background:none;border:0;border-radius:0;padding:0;margin-bottom:18px}
+.fvd .fvd-quadro .fvd-grade{border:1px solid var(--fi);border-radius:6px;padding:15px 18px}
+.fvd .fvd-rot{color:var(--pt);font-size:14px;font-weight:800;letter-spacing:.09em;margin-bottom:9px}
+.fvd .fvd-rot:before{content:"";display:inline-block;width:11px;height:11px;background:var(--t);margin-right:9px;vertical-align:0}
 .fvd .fvd-grade{gap:7px 22px}
-.fvd .fvd-grade>div{border-bottom:1px dashed var(--fi);padding-bottom:4px}
-.fvd .fvd-h{color:var(--pt);font-family:'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.03em;border-bottom:2px solid var(--pt)}
-.fvd .fvd-h span{color:var(--t)}
+.fvd .fvd-grade>div{border-bottom:1px dashed #D4D4DA;padding-bottom:6px}
+.fvd .fvd-h{align-items:center;color:var(--pt);font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;border-bottom:0;padding-bottom:0;margin:22px 0 9px}
+.fvd .fvd-h:before{content:"";flex:none;width:11px;height:11px;background:var(--t)}
+.fvd .fvd-h span{color:var(--cz)}
 .fvd .fvd-tb{font-family:inherit;border:1px solid var(--fi)}
 .fvd .fvd-tb th{background:var(--pt);color:#fff;border-bottom:3px solid var(--t);text-transform:uppercase;letter-spacing:.04em;font-size:10.8px}
 .fvd .fvd-tb td{border-bottom:1px solid var(--fi)}
@@ -27324,27 +27328,29 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .fvd .fvd-fig{margin:16px 0 8px;text-align:center;break-inside:avoid;page-break-inside:avoid}
 .fvd .fvd-fig img{max-width:100%;height:auto;display:inline-block}
 .fvd .fvd-fig-t{margin:0 0 8px;text-align:left;color:var(--pt);font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:14px;letter-spacing:.03em;text-transform:uppercase;border-bottom:1px solid var(--fi);padding-bottom:4px}
-.fvd .fvd-aviso,.fvd .fvd-obsbox{background:var(--bg);border:1px solid var(--fi);border-left:4px solid var(--pt);border-radius:6px}
+.fvd .fvd-aviso,.fvd .fvd-obsbox{background:#fff;border:1px solid var(--fi);border-radius:6px}
 .fvd .fvd-sit{border-radius:6px}
 .fvd .fvd-tot b{color:var(--t)}
 .fvd .fvd-ass i{border-top:1.5px solid var(--pt)}
 .fvd .fvd-cl h4{color:var(--pt)}
-.fvd .fvd-rod{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--pt);color:#D9D9DE;font-size:10.5px;padding:10px 28px;margin:26px 0 0;border-top:3px solid var(--t)}
-.fvd .fvd-rod b{color:#fff;letter-spacing:.08em;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:12.5px;font-weight:700}
+.fvd .fvd-rod{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:none;color:var(--cz);font-size:11.5px;padding:10px 44px 14px;margin:26px 0 0}
+.fvd .fvd-rod:before{content:"";flex:0 0 100%;height:1px;background:var(--fi);margin-bottom:-2px}
+.fvd.paisagem .fvd-rod{padding-left:30px;padding-right:30px}
+.fvd .fvd-rod b{color:var(--cz);font-weight:500}
 .dc-prev .fvd.fvd{padding:0}
 #printDoc .fvd.fvd{padding:0;border-radius:0}
-@media print{#printDoc .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:6mm;margin-right:6mm}}
+@media print{#printDoc .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:6mm;margin-right:6mm}#printDoc .fvd .fvd-band-marca{padding-left:6mm}#printDoc .fvd .fvd-band-num{padding-right:6mm}#printDoc .fvd .fvd-rod{padding-left:6mm;padding-right:6mm}}
 @media (max-width:720px){
  .fvd.fvd{padding:0}
  .fvd.fvd>*:not(.fvd-band):not(.fvd-rod),.fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:14px;margin-right:14px}
  .fvd .fvd-band{flex-direction:column;gap:0}
- .fvd .fvd-band-marca{clip-path:none;padding:14px 16px;flex:none}
- .fvd .fvd-band-marca:after{display:none}
- .fvd .fvd-band .fvd-logo{height:44px;width:44px}
+ .fvd .fvd-band-num,.fvd.paisagem .fvd-band-num{flex:none;clip-path:none;flex-direction:row;justify-content:space-between;align-items:center;padding:8px 14px}
+ .fvd .fvd-band-num b{font-size:26px}.fvd .fvd-band-num b.lg{font-size:18px}
+ .fvd .fvd-band-marca,.fvd.paisagem .fvd-band-marca{padding:12px 14px;flex:none}
+ .fvd .fvd-band .fvd-logo{height:54px;width:54px}
  .fvd .fvd-band .fvd-emp{font-size:17px}
- .fvd .fvd-band-tit{text-align:left;padding:12px 16px}
- .fvd .fvd-band .fvd-tit,.fvd .fvd-band .fvd-sub{text-align:left}
- .fvd .fvd-rod{padding:10px 14px}}
+ .fvd .fvd-band-tit .fvd-tit{font-size:24px}
+ .fvd .fvd-rod,.fvd.paisagem .fvd-rod{padding:10px 14px}}
 </style>
 <script>
 /* ===== Documentos · visual Concretiza (V40) =====
@@ -27353,41 +27359,55 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 function logoDocSrc(){const l=imgMarca('doc')||imgMarca('menu');return l&&l.src?l.src:(window.LOGO_CC||'')}
 /* a linha da empresa sem repetir a razão social, que já está em destaque na faixa */
 function linhaEmpDoc(marca,linha){const m=semAcento(marca||'');return String(linha||'').split(' · ').filter(p=>p&&semAcento(p)!==m).join(' · ')}
-function cabDocHtml(marca,linha,tituloHtml){const lg=logoDocSrc();
- return `<header class="fvd-cab fvd-band"><div class="fvd-band-marca">${lg?`<img class="fvd-logo" src="${esc(lg)}" alt="">`:''}<div><div class="fvd-emp">${esc(marca)}</div>${linha?`<div class="fvd-id">${esc(linha)}</div>`:''}</div></div><div class="fvd-band-tit">${tituloHtml}</div></header>`}
+/* o que vai no painel vermelho da faixa: número do documento, matrícula ou, na falta, a data de emissão */
+function identDoc(D){const limpo=v=>{const t=String(v==null?'':v).trim();return t&&t!=='—'&&!/\u0001/.test(t)?t:''};
+ if(limpo(D.numero))return ['DOCUMENTO Nº',limpo(D.numero)];
+ const c=(D.quadros||[]).flatMap(q=>q.campos||[]).find(x=>/^matr[íi]cula$/i.test(String(x[0]||'')));if(c&&limpo(c[1]))return ['MATRÍCULA',limpo(c[1])];
+ const e=(D.meta||[]).find(x=>/^emitido/i.test(String(x[0]||'')));return ['EMITIDO EM',e&&limpo(e[1])||fData(hoje())]}
+function cabDocHtml(marca,linha,tituloHtml,ident){const lg=logoDocSrc();const id=ident||['EMITIDO EM',fData(hoje())];
+ return `<header class="fvd-cab fvd-band"><div class="fvd-band-marca">${lg?`<img class="fvd-logo" src="${esc(lg)}" alt="">`:''}<div><div class="fvd-emp">${esc(marca)}</div>${linha?`<div class="fvd-id">${esc(linha)}</div>`:''}</div></div><div class="fvd-band-num"><span>${esc(id[0])}</span><b class="${String(id[1]).length>9?'lg':''}">${esc(id[1])}</b></div></header><div class="fvd-band-tit">${tituloHtml}</div>`}
 function rodDocHtml(marca,linha,dir){return `<footer class="fvd-rod"><b>${esc(marca)}</b><span>${esc([linha,dir].filter(Boolean).join(' · '))}</span></footer>`}
 const PDF_CC={TC:[211,18,28],TX:[20,20,22],CZ:[91,91,99],FI:[227,227,232],BG:[245,245,247],BG2:[250,250,251],PT:[17,17,20]};
 /* faixa do topo do PDF; devolve a linha onde o conteúdo começa */
 function cabPdfCC(doc,W,o){
  const P=PDF_CC,c=(k,fn)=>doc[fn](P[k][0],P[k][1],P[k][2]);const M=o.M||52;
- const wB=Math.round(W*(o.paisagem?.5:.56)),incl=34,src=logoDocSrc(),tLogo=46;
- const x=26+(src&&doc.addImage?tLogo+12:0),larg=wB-incl-x-14,xr=W-(M>40?M-22:20),lT=W-wB-(M>40?M-22:20)-14;
+ const src=logoDocSrc(),tLogo=o.paisagem?54:58,wP=Math.round(W*(o.paisagem?.26:.31)),incl=36,xP=W-wP;
+ const x=M+(src&&doc.addImage?tLogo+12:0),larg=xP-x-12,id=o.ident||['EMITIDO EM',fData(hoje())];
  /* nada é cortado: a faixa cresce para caber todas as linhas */
- doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?13:13.5);const ms=doc.splitTextToSize(String(o.marca||''),larg);
- doc.setFont('helvetica','normal');doc.setFontSize(7.6);const lsE=o.linha?doc.splitTextToSize(String(o.linha),larg):[];
- doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?14:14.5);const ts=doc.splitTextToSize(String(o.titulo||''),lT);
- doc.setFontSize(7.6);const ss=o.sub?doc.splitTextToSize(String(o.sub),lT):[];
- const altE=ms.length*15+(lsE.length?4+lsE.length*10:0),altD=ts.length*17+(ss.length?3+ss.length*10:0);
- const h=Math.max(o.paisagem?74:84,altE+28,altD+28);
+ doc.setFont('helvetica','bold');doc.setFontSize(15);const ms=doc.splitTextToSize(String(o.marca||''),larg);
+ doc.setFont('helvetica','normal');doc.setFontSize(8);const lsE=o.linha?doc.splitTextToSize(String(o.linha),larg):[];
+ const altE=ms.length*17+(lsE.length?4+lsE.length*10.5:0),h=Math.max(o.paisagem?78:86,altE+24);
  if(doc.setFillColor&&doc.rect){
-  c('PT','setFillColor');doc.rect(0,0,wB-incl,h,'F');if(doc.triangle)doc.triangle(wB-incl,0,wB,0,wB-incl,h,'F');
-  c('TC','setFillColor');if(doc.triangle){doc.triangle(wB+8,0,wB+20,0,wB+8-incl,h,'F');doc.triangle(wB+20,0,wB+20-incl,h,wB+8-incl,h,'F')}
+  c('PT','setFillColor');doc.rect(0,0,W,h,'F');
+  c('TC','setFillColor');doc.rect(xP+incl-1,0,wP-incl+1,h,'F');if(doc.triangle)doc.triangle(xP+incl,0,xP+incl,h,xP,h,'F');
   doc.rect(0,h,W,3,'F')}
- if(src&&doc.addImage){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',26,(h-tLogo)/2,tLogo,tLogo)}catch(e){console.warn('logo no PDF',e)}}
- let yy=(h-altE)/2+11;doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?13:13.5);doc.setTextColor(255,255,255);
- ms.forEach(l=>{doc.text(l,x,yy,{charSpace:.6});yy+=15});
- if(lsE.length){doc.setFont('helvetica','normal');doc.setFontSize(7.6);doc.setTextColor(201,201,208);yy+=2;lsE.forEach(l=>{doc.text(l,x,yy);yy+=10})}
- let yt=(h-altD)/2+13;doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?14:14.5);c('PT','setTextColor');
- ts.forEach(l=>{doc.text(l,xr,yt,{align:'right'});yt+=17});
- if(ss.length){doc.setFont('helvetica','bold');doc.setFontSize(7.6);c('TC','setTextColor');yt+=1;ss.forEach(l=>{doc.text(l,xr,yt,{align:'right'});yt+=10})}
- return h+26;
+ if(src&&doc.addImage){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',M,(h-tLogo)/2,tLogo,tLogo)}catch(e){console.warn('logo no PDF',e)}}
+ let yy=(h-altE)/2+13;doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);
+ ms.forEach(l=>{doc.text(l,x,yy,{charSpace:.5});yy+=17});
+ if(lsE.length){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(207,207,214);yy+=1;lsE.forEach(l=>{doc.text(l,x,yy);yy+=10.5})}
+ /* painel vermelho: número do documento, matrícula ou data */
+ const xr=W-M,val=String(id[1]||''),fv=val.length>16?11:val.length>9?15:27,lV=wP-incl-(W-xr)-6;
+ doc.setFont('helvetica','bold');doc.setFontSize(fv);const vs=doc.splitTextToSize(val,lV);const aV=vs.length*(fv+2),yR=(h-(aV+13))/2+8;
+ doc.setFontSize(8);doc.setTextColor(255,255,255);doc.text(String(id[0]||''),xr,yR,{align:'right',charSpace:.6});
+ doc.setFontSize(fv);vs.forEach((l,i)=>doc.text(l,xr,yR+10+(fv*.8)+i*(fv+2),{align:'right'}));
+ /* título embaixo da faixa, grande e à esquerda */
+ doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?20:22);const ts=doc.splitTextToSize(String(o.titulo||'').toUpperCase(),W-2*M);
+ c('PT','setTextColor');let yt=h+3+30;ts.forEach((l,i)=>{doc.text(l,M,yt);if(i<ts.length-1)yt+=24});
+ if(o.sub){doc.setFontSize(8.2);const ss=doc.splitTextToSize(String(o.sub),W-2*M);c('TC','setTextColor');yt+=14;ss.forEach((l,i)=>{doc.text(l,M,yt,{charSpace:.6});if(i<ss.length-1)yt+=10.5})}
+ return yt+16;
 }
+/* título de seção com o quadrado vermelho */
+function tituloPdfCC(doc,M,y,n,t){const P=PDF_CC;if(doc.setFillColor&&doc.rect){doc.setFillColor(...P.TC);doc.rect(M,y-7.8,8.4,8.4,'F')}
+ doc.setFont('helvetica','bold');doc.setFontSize(10.6);let x=M+14;
+ if(n!==''&&n!=null){doc.setTextColor(...P.CZ);doc.text(String(n),x,y);x+=(doc.getTextWidth?doc.getTextWidth(String(n)):7)+6}
+ doc.setTextColor(...P.PT);doc.text(String(t).toUpperCase(),x,y,{charSpace:.7})}
+/* filete tracejado embaixo de cada campo */
+function tracoPdfCC(doc,x1,x2,y){if(!doc.line||!doc.setDrawColor)return;doc.setDrawColor(212,212,218);doc.setLineWidth(.6);if(doc.setLineDashPattern)doc.setLineDashPattern([2,2],0);doc.line(x1,y,x2,y);if(doc.setLineDashPattern)doc.setLineDashPattern([],0)}
 /* faixa do rodapé, em todas as páginas */
 function rodPdfCC(doc,W,H,M,esq,dir,k,tot){
- const P=PDF_CC;if(doc.setFillColor&&doc.rect){doc.setFillColor(...P.TC);doc.rect(0,H-29,W,2,'F');doc.setFillColor(...P.PT);doc.rect(0,H-27,W,27,'F')}
- doc.setFont('helvetica','bold');doc.setFontSize(7.6);doc.setTextColor(255,255,255);doc.text(String(esq||'').toUpperCase(),M,H-10.5,{charSpace:.5});
- doc.setFont('helvetica','normal');doc.setFontSize(7.2);doc.setTextColor(217,217,222);
- doc.text(String(dir||'')+'   ·   Página '+k+' de '+tot,W-M,H-10.5,{align:'right'});
+ const P=PDF_CC;if(doc.setDrawColor&&doc.line){doc.setDrawColor(...P.FI);doc.setLineWidth(.7);doc.line(M,H-32,W-M,H-32)}
+ doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...P.CZ);doc.text(String(esq||''),M,H-20);
+ doc.text(String(dir||'')+'   ·   Página '+k+' de '+tot,W-M,H-20,{align:'right'});
 }
 /* filete vermelho embaixo do cabeçalho preto das tabelas */
 function filetePdfCC(doc){return c=>{if(c.section==='head'&&doc.setFillColor&&doc.rect){doc.setFillColor(...PDF_CC.TC);doc.rect(c.cell.x,c.cell.y+c.cell.height-2,c.cell.width,2,'F')}}}
