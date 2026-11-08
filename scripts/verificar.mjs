@@ -504,6 +504,24 @@ if (temFiscal) {
 } else console.log('  – [fiscal] pulado: este pacote não tem supabase/functions/jb-fiscal');
 
 /* ---------- execução ---------- */
+/* ---------- Centro de Inventário ---------- */
+teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['inv-estilos', 'inv-qr-gerador', 'inv-qr-leitor', 'inv-centro']) assert.ok(app.includes(`id="${id}"`), id);
+  assert.ok(app.includes("inv.api_ponte("), 'a ponte chama inv.api_ponte');
+  assert.ok(app.includes("JB_NUVEM_API.rpc('jb_inv'"), 'a nuvem chama jb_inv');
+  assert.ok(!/localStorage\.setItem\([^)]*inv_(bens|dados)/.test(app), 'dados do inventário não ficam no navegador');
+});
+teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
+  const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
+  assert.ok(/revoke all on function public\.jb_inv\(text,jsonb\) from public,anon/.test(m));
+  assert.ok(/grant execute on function public\.jb_inv\(text,jsonb\) to authenticated/.test(m));
+  assert.ok(!/grant[^;]+schema inv/i.test(m), 'esquema inv não pode ser liberado');
+  for (const t of ['auditoria', 'movimentacoes', 'leituras']) assert.ok(m.includes(`create trigger imutavel before update or delete on inv.${t}`), t);
+  assert.ok(m.includes('unique (empresa_id,codigo_patrimonial)'), 'código único por empresa');
+  assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.down.sql')), 'reversão descrita');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

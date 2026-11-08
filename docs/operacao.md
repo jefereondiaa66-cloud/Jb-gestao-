@@ -124,3 +124,22 @@ Dois ícones no alto de todos os setores (Ctrl+Z e Ctrl+Y). Código: bloco `<scr
 - Pedem confirmação: folha, funcionários, contratos, vendas, compras, financeiro, configurações e ações com 4 ou mais registros.
 - `log`, uso e registros do sistema ficam de fora. Nota fiscal e acessos ficam na lista como "não pode ser desfeita".
 - Teste: `node scripts/construir.mjs && node scripts/testar-desfazer.mjs`.
+
+## 8. Centro de Inventário
+
+Setor independente, de acesso exclusivo do dono: inventário patrimonial de várias empresas.
+
+| Peça | Onde |
+|---|---|
+| Telas | blocos `inv-estilos` e `inv-centro` no fim de `app/jb-gestao.html`; rota `#/inventario/...` |
+| QR Code | `inv-qr-gerador` (qrcode-generator, MIT) e `inv-qr-leitor` (jsQR, Apache-2.0), embutidos |
+| Banco | esquema `inv` (migração `20261108233000_inv_01_centro_inventario`), relacional e fora de `public.docs` |
+| Entrada no banco | nuvem: `public.jb_inv` (sessão conferida) · Claude: `inv.api_ponte` (conector do dono) · as duas caem em `inv.executar` |
+| Quem acessa | tabela `inv.acessos`. Ser administrador do JB não dá acesso. Para os outros o setor nem aparece. |
+
+Regras garantidas no banco: cada registro preso à empresa (chaves compostas), código patrimonial único por empresa,
+inventário concluído congelado, movimentações, leituras e auditoria sem alteração nem exclusão, empresas e bens sem exclusão.
+Anexos ficam em `inv.arquivos`/`inv.arquivo_partes`, com limite de 250 MB e pausa automática se o banco chegar perto do limite do plano.
+Cópias: `inv.fazer_copia()` diária às 3h20 (30 dias), separada da cópia geral; os arquivos anexos não entram nela.
+Para abrir o inventário a outra pessoa é preciso uma linha nova em `inv.acessos`, só com pedido do dono.
+Estoque/materiais: `inv.naturezas` já separa as naturezas; só `patrimonial` está ativa.
