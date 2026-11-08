@@ -512,7 +512,8 @@ teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela
   assert.ok(app.includes("JB_NUVEM_API.rpc('jb_inv'"), 'a nuvem chama jb_inv');
   assert.ok(!/localStorage\.setItem\([^)]*inv_(bens|dados)/.test(app), 'dados do inventário não ficam no navegador');
 });
-teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
+/* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
+if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
   const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
   assert.ok(/revoke all on function public\.jb_inv\(text,jsonb\) from public,anon/.test(m));
   assert.ok(/grant execute on function public\.jb_inv\(text,jsonb\) to authenticated/.test(m));
