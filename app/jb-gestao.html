@@ -30410,6 +30410,12 @@ html.casca2 #nl-badge-frame{left:calc(var(--c2-rail) + 6px)!important;bottom:8px
 @media (max-width:860px){html.casca2 #nl-badge-frame{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}}
 /* com o trilho na tela, a logo fica só no trilho */
 @media (min-width:861px){html.casca2 body:not(.c2-semtrilho) .c2-logo{display:none}}
+/* convivência com a V66 (trilho de setores) e a V83 (saudação): um trilho só e uma saudação só */
+html.casca2 .trilho-set{display:none!important}
+html.casca2 body.com-trilho{padding-left:0!important}
+/* V81: com os avisos das telas desligados (ficam no botão Pendências), o bloco de alertas também some */
+html.jb-sem-avisos .c2-alblk{display:none!important}
+#svCorpo:has(>.c2-home)>.v83-saud,#conteudo:has(.c2-home) .v83-saud{display:none!important}
 /* ---------- painéis no padrão novo: compactos, claros e arredondados, em todas as telas ---------- */
 /* números dos setores */
 html.casca2 .sv-corpo .hero{grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:10px}
@@ -30695,7 +30701,7 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
   ${comp?w('comp',`<button type="button" class="c2-tb comp" data-tip2="Competência" aria-label="Competência">${ic('calendario')}<span>${esc(fMes(COMP.mes)).replace(/^./,c=>c.toUpperCase())}</span></button>`,'<div class="c2-pt">Competência (mês de trabalho)</div>','c2-pop-comp'):''}
   <span class="c2 c2-sep"></span>
   ${w('ia',`<button type="button" class="c2-tb" data-tip2="JB Inteligência e Editar com IA" aria-label="Inteligência">${ic('faisca')}</button>`,`<div class="c2-pt">Inteligência</div>${pode('ia')?`<a class="c2-op" href="#/ia">${ic('faisca')}<span>JB Inteligência<small>Pergunte sobre os dados do sistema</small></span></a>`:''}<div id="c2eia"></div>`,'c2-pop-ia')}
-  ${w('alertas',`<button type="button" class="c2-tb" data-tip2="Alertas e pendências" aria-label="Alertas">${ic('sino')}<i class="c2-bdg" id="c2qt" hidden></i></button>`,'<div id="c2alertas"></div>')}
+  ${w('alertas',`<button type="button" class="c2-tb" data-tip2="Pendências" aria-label="Pendências">${ic('sino')}<i class="c2-bdg" id="c2qt" hidden></i></button>`,'<div id="c2alertas"></div>')}
   ${w('sinc',`<button type="button" class="c2-tb" data-tip2="Sincronização" aria-label="Sincronização">${ic('c2nuvem')}<i class="c2-dot"></i></button>`,'<div class="c2-pt">Sincronização</div><div id="c2sinc"></div><p>Os dados ficam no banco central e aparecem na nuvem e no Claude. Clique no aviso para sincronizar agora.</p>','c2-pop-sinc')}
   ${w('eu',`<button type="button" class="c2-eu" aria-label="Usuário">${avatar()}${ic('c2baixo')}</button>`,menuEu(dp),'c2-pop-eu')}`;
   top.insertAdjacentHTML('beforeend',h);
@@ -30729,7 +30735,10 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
  /* abrir e fechar as janelinhas */
  function fecharTudo(exceto){$$('.c2-w.ab').forEach(x=>{if(x!==exceto)x.classList.remove('ab')});if(exceto!=='fly')fecharFly()}
  function ligarJanelas(top){
-  top.querySelectorAll('.c2-w>button').forEach(b=>b.onclick=e=>{e.stopPropagation();const wr=b.parentNode;const ab=!wr.classList.contains('ab');fecharTudo(wr);wr.classList.toggle('ab',ab);
+  top.querySelectorAll('.c2-w>button').forEach(b=>b.onclick=e=>{e.stopPropagation();
+   /* V81: os avisos ficam no painel PENDÊNCIAS; o sino abre o mesmo painel */
+   if(b.parentNode.dataset.c2==='alertas'){const pb=document.querySelector('#top .pd-bt');if(pb){fecharTudo();setTimeout(()=>pb.click(),0);return}}
+   const wr=b.parentNode;const ab=!wr.classList.contains('ab');fecharTudo(wr);wr.classList.toggle('ab',ab);
    if(ab&&wr.dataset.c2==='eu')extrasEu();
    if(ab&&wr.dataset.c2==='busca'){const i=document.getElementById('buscaG');if(i)setTimeout(()=>{i.focus();i.select()},30)}
    if(ab&&wr.dataset.c2==='funcoes'){const f=document.getElementById('c2filtro');if(f&&matchMedia('(min-width:861px)').matches)setTimeout(()=>f.focus(),30)}});
@@ -30873,6 +30882,8 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
  function hojeTxt(){const d=new Date();const t=DIAS[d.getDay()]+', '+d.getDate()+' de '+MESES[d.getMonth()];return t.charAt(0).toUpperCase()+t.slice(1)}
  function saudacao(){const h=new Date().getHours();return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite'}
  const primeiro=n=>String(n||'').trim().split(/\s+/)[0]||'';
+ /* V83: quem desligou a saudação em Configurações vê o nome do setor no lugar */
+ const comSaud=()=>!(typeof CFG!=='undefined'&&CFG&&CFG.inicioDP&&CFG.inicioDP.saudacao===false);
  /* favoritos: preferência só deste navegador (não grava nada no banco) */
  const chaveFav=sid=>'jb_fav_'+(APP.uid||'')+'_'+sid;
  function lerFav(sid){try{const v=JSON.parse(localStorage.getItem(chaveFav(sid))||'null');return Array.isArray(v)?v:null}catch(e){return null}}
@@ -30886,7 +30897,7 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
   const icp={alta:'aviso',media:'aviso',baixa:'sino'};
   const corpo=a.length?a.slice(0,3).map(x=>`<a class="c2-al ${esc(x.prio||'baixa')}" href="${esc(x.rota||'#/alertas')}"><span class="c2-ai">${ic(icp[x.prio]||'sino')}</span><span><b>${esc(x.titulo)}</b><small>${esc(x.det||'')}</small></span></a>`).join('')
    :`<div class="c2-al vazio"><span class="c2-ai">${ic('sino')}</span><span><b>Nenhum alerta novo</b><small>Tudo em dia por aqui.</small></span></div>`;
-  return `<section class="c2-blk" aria-label="Alertas inteligentes"><div class="c2-st"><h2>Alertas inteligentes</h2><a class="c2-lk" href="#/alertas">Ver todos${a.length>3?' ('+a.length+')':''}</a></div><div class="c2-alertas">${corpo}</div></section>`;
+  return `<section class="c2-blk c2-alblk" aria-label="Alertas inteligentes"><div class="c2-st"><h2>Alertas inteligentes</h2><a class="c2-lk" href="#/alertas">Ver todos${a.length>3?' ('+a.length+')':''}</a></div><div class="c2-alertas">${corpo}</div></section>`;
  }
  function injetarAcesso(dp,itens,grupos){
   const c=document.getElementById('conteudo');if(!c||c.querySelector('.c2-acesso'))return;
@@ -30897,7 +30908,7 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
    ATALHOS_DP.forEach(([l,ico])=>{const it=MITENS.find(x=>x.l===l&&miAtivo(x));if(!it||usados.has(l))return;usados.add(l);const cor=CORES_DP[it.g]||'tea';
     ts.push({k:l,l:ROTULO_CURTO[l]||l,titulo:l,ico,mi:miIndex(it),cor:it.m==='lancar'?'red':cor,cat:cor,cls:it.m==='lancar'?'pri':''})});
    if(!ts.length)return;
-   hero=`<section class="c2-home"><div class="c2-ola"><div><h1>${modelo()==='m3'?'Olá':esc(saudacao())}, ${esc(primeiro(APP.nome)||'bem-vindo')}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p></div></div>
+   hero=`<section class="c2-home"><div class="c2-ola"><div><h1>${comSaud()?(modelo()==='m3'?'Olá':esc(saudacao()))+', '+esc(primeiro(APP.nome)||'bem-vindo'):esc(st.nome)}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p></div></div>
     <button type="button" class="c2-bbusca" data-c2busca>${ic('lupa')}Buscar funcionário, tela, holerite…<kbd>Ctrl K</kbd></button></section>`;
   }else{
    const sv=c.querySelector('#svCorpo');if(!sv||!itens.length||!itens[0].on)return;
@@ -30907,7 +30918,7 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
    ts.sort((a,b)=>(b.cls==='pri')-(a.cls==='pri'));
    const cab=sv.querySelector(':scope>.sec-cab');
    const desc=cab?cab.querySelector('.sec-id p'):null;
-   hero=`<section class="c2-home"><div class="c2-ola"><div><h1>${esc(saudacao())}, ${esc(primeiro(APP.nome)||'bem-vindo')}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p>${desc?`<p class="c2-desc">${esc(desc.textContent)}</p>`:''}</div><div class="c2-acoes-dest"></div></div>
+   hero=`<section class="c2-home"><div class="c2-ola"><div><h1>${comSaud()?esc(saudacao())+', '+esc(primeiro(APP.nome)||'bem-vindo'):esc(st.nome)}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p>${desc?`<p class="c2-desc">${esc(desc.textContent)}</p>`:''}</div><div class="c2-acoes-dest"></div></div>
     <button type="button" class="c2-bbusca" data-c2busca>${ic('lupa')}Buscar telas, lançamentos, cadastros…<kbd>Ctrl K</kbd></button></section>`;
    depois=cab;
   }
@@ -30965,7 +30976,7 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
  /* ---------- alertas: a mesma contagem do sino de sempre ---------- */
  function atualizarAlertas(){
   const box=document.getElementById('c2alertas');if(!box)return;
-  const q=document.getElementById('qtSino');const n=q&&!q.hidden?q.textContent:'';
+  const q=document.getElementById('qtSino');const pdb=document.querySelector('#top .pd-bt b');const n=pdb?pdb.textContent.trim():(q&&!q.hidden?q.textContent:'');
   let pend=0;try{if(APP.carregado&&pode('meusPend')&&typeof pendentes==='function')pend=pendentes(false).length}catch(e){}
   const b=document.getElementById('c2qt');if(b){b.hidden=!n;b.textContent=n}
   $$('.c2-rqt,.c2-qtal').forEach(x=>{x.hidden=!n;x.textContent=n});
@@ -30990,6 +31001,8 @@ html:not(.casca2) .c2-volta svg{width:15px;height:15px;color:#D3121C}
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',vigiar);else vigiar();
  window.addEventListener('hashchange',()=>fecharTudo());
+ /* o número de Pendências (V81) muda sozinho: o sino acompanha */
+ setInterval(()=>{try{if(ligada()&&acessoOk())atualizarAlertas()}catch(e){}},10000);
  window.JB_CASCA={ligada,alternar,atualizar:()=>atualizarContexto(true)};
 })();
 </script>
