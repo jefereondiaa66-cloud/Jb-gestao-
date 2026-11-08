@@ -15791,9 +15791,15 @@ function barraRefeicao(c){
  const b=$('[data-pref]',div);if(b)b.onclick=()=>{PREFILL={mod:'pparadas',dados:{data:hoje(),inicio:C.refeicaoIni,fim:C.refeicaoFim,motivo:(C.motivosParada.find(ehRefeicao)||'Intervalo de refeição')}};location.hash='#/pparadas/novo'};
 }
 
-/* ---------- início do setor: só números, sem gráficos ---------- */
+/* ---------- início do setor: painel em três níveis (novembro/2026) ----------
+   1) o que fazer agora: o botão Lançar, os avisos com prioridade (ou o resumo do botão Pendências);
+   2) indicadores principais: maromba de hoje em destaque, metas do mês e o mês;
+   3) acompanhamento industrial (o fluxo de hoje, a fábrica, os fornos) e análises.
+   Os números são os mesmos de antes (numerosProd, metaProd, metaMar, relProd): só lançamentos
+   confirmados; estimativa, parcial e pendente vêm marcados; nada é inventado. Cada número que
+   abria o relatório ao clicar continua abrindo (data-rel). Gráficos em barras simples, sem biblioteca. */
 function inicioProd(c){
- const N=numerosProd();const C=pc();const s=N.s;const ed=pode('pmaromba','e');const M=metaProd(N);
+ const N=numerosProd();const C=pc();const s=N.s;const M=metaProd(N);const MM=metaMar(N);const est=N.est;
  const falta=[];
  if(vazio(C.tijolosPorGrade))falta.push('o número padrão de tijolos por grade');
  if(vazio(C.metaDesenfMes)||vazio(C.metaMarombaMes))falta.push('as metas do mês (maromba e desenforna)');
@@ -15802,68 +15808,155 @@ function inicioProd(c){
  if(!FORNOS().length)falta.push('os fornos, no Setor da Lenha › Fornos e locais (tipo Forno)');
  if(!s.temIni)falta.push('a contagem física inicial da secagem');
  if(!N.pr.temIni)falta.push('a contagem física inicial do tijolo pronto');
- const k=(cls,ico,rot,val,sub,href,tg,rel)=>`<a class="kpi ${cls}" href="${esc(href)}"${rel?` data-rel="${rel}" title="Clique para ver a lista"`:''}><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div><div class="delta neutro">${tg||''}<b>${sub}</b></div></a>`;
- const MM=metaMar(N);
  const pct=(p,base)=>base>0?fNum(p/base*100,1)+'%':'—';
+ const pw=(v,t)=>t>0?Math.max(0,Math.min(100,Math.round(v/t*100))):0;
  const gr=q=>N.tpg>0?' · '+fNum(q/N.tpg,1)+' grade(s)':'';
- const est=N.est;
- const fornosLst=FORNOS().map(l=>{if(ehContinuo(l.id)){const eM=soma(N.fM.filter(f=>f.fornoId===l.id),f=>f.quantidade),dMc=soma(N.dM.filter(d=>d.fornoId===l.id),desenfQtd);
-   return{href:'#/pdesenf',ic:'chama',cls:eM||dMc?'a-ok':'',t:nomeLocal(l),s:'No mês: enfornado '+fT(eM)+' · desenfornado '+fT(dMc),v:''}}
-  const fs=DATA.pfornadas.filter(f=>f.fornoId===l.id).sort((a,b)=>(+b.numero||0)-(+a.numero||0));const u=fs[0];
-  const su=u?sitF(u):'';const lf=u&&abertaF(u)?lenhaFornada(u):null;
-  const tl=lf&&lf.ref2?' · lenha '+(lf.n?lf.real:'sem lançamento')+' (ref. '+fNum(lf.ref2.min)+(lf.ref2.max!==lf.ref2.min?'–'+fNum(lf.ref2.max):'')+' m³)':'';
-  return{href:u?'#/pfornadas/'+u.id:'#/pfornadas',ic:'chama',cls:!u?'':su==='Aguardando desenforna'?'a-at':abertaF(u)?'a-ok':'',t:nomeLocal(l),s:u?'Fornada nº '+u.numero+' · '+su.toLowerCase()+(fConf(u)?'':' · enforna pendente')+tl:'Nenhuma fornada lançada',v:u&&abertaF(u)?fMil(u.quantidade):''}});
+ const rel=r=>r?` data-rel="${r}" title="Clique para ver a lista"`:'';
+ const tp=N.pr.saldo1+N.pr.saldo2;
+
+ /* ---------- nível 1: avisos e pendências ---------- */
+ const PR={cri:['Crítico','pe'],ate:['Atenção','at'],inf:['Informação','in']};
+ const av=[];
+ if(s.saldo<0)av.push({p:'cri',ic:'aviso',t:'Saldo da secagem negativo',d:'Saiu mais do que entrou: falta lançar produção, confirmar pendentes ou fazer um ajuste com contagem física.',href:'#/psecagem',a:'Abrir a secagem'});
+ if(N.pendH.length)av.push({p:'ate',ic:'relogio',t:N.pendH.length+' lançamento(s) da maromba de hoje pendente(s) de confirmação',d:'Lançamento pendente não entra nos números do painel até ser confirmado.',href:'#/pmaromba',a:'Abrir a maromba'});
+ if(N.pendF)av.push({p:'ate',ic:'chama',t:N.pendF+' enforna(s) pendente(s) de confirmação',d:'A quantidade só sai da secagem depois que a enforna é confirmada.',href:'#/pfornadas',a:'Abrir as fornadas'});
+ DATA.pfornadas.filter(f=>fConf(f)&&!ehContinuo(f.fornoId)&&sitF(f)==='Aguardando desenforna').sort((a,b)=>String(a.data).localeCompare(String(b.data)))
+  .forEach(f=>av.push({p:'ate',ic:'saida',t:nomeFornada(f)+' aguardando desenforna',d:fT(f.quantidade)+' tijolos enfornados em '+fData(f.data)+'.',href:'#/pfornadas/'+f.id,a:'Abrir a fornada'}));
+ if(falta.length)av.push({p:'inf',ic:'engrenagem',t:'Para os números ficarem completos, falta cadastrar '+falta.length+(falta.length===1?' item':' itens'),d:'Enquanto isso, o que depende desses dados aparece como indisponível — nenhum número é inventado.',lista:falta,href:pode('pcfg','e')?'#/pcfg':'',a:'Configurações do setor'});
+ const avItem=x=>`<div class="pp-av ${x.p}"><span class="pp-avi">${ic(x.ic)}</span><div class="pp-avt"><div class="pp-avh">${pTxt(PR[x.p][0],PR[x.p][1])}<b>${esc(x.t)}</b></div><small>${esc(x.d)}</small>${x.lista?`<details class="pp-det"><summary>Ver o que falta cadastrar</summary><ul>${x.lista.map(l=>`<li>${esc(l)}</li>`).join('')}</ul></details>`:''}</div>${x.href?`<a class="btn min" href="${esc(x.href)}">${esc(x.a)}</a>`:''}</div>`;
+ /* V81: com os avisos das telas desligados (padrão), esta área não aparece: os avisos ficam no botão Pendências */
+ const semAvisos=document.documentElement.classList.contains('jb-sem-avisos');
+
+ /* ---------- nível 2: indicadores ---------- */
+ const S14=serieDiasV(DATA.pmaromba.filter(conf),14,r=>calcMar(r).liquida);const max14=Math.max(1,...S14.val);
+ const falhaH=N.parH.filter(p=>!ehRefeicao(p.motivo));const minFalha=soma(falhaH,p=>dur(p.inicio,p.fim));
+ const pEst=est.ok?(est.valor>0?pw(N.hoje,est.valor):0):null;
+ const kc=(ico,l,tg)=>`<div class="pp-kc"><span class="pp-ki">${ic(ico)}</span><span class="pp-kl">${esc(l)}</span>${tg||''}</div>`;
+ const hero=`<a class="pp-k pp-hero" href="#/pmaromba"${rel('marH')}>${kc('caixa','Maromba hoje',N.pendH.length?pTxt(N.pendH.length+' pendente(s)','at'):'')}
+   <div class="pp-kv">${fT(N.hoje)}<small>tijolos</small></div><div class="pp-ks">${esc(fT(N.gradesH)+' grade(s) · tijolos líquidos confirmados')}</div>
+   <div class="pp-prog">${pEst!=null?`<div class="pp-bar"><i style="width:${pEst}%"></i></div><div class="pp-progl"><span>${pEst}% da estimativa do dia</span><span>${fT(est.valor)} até o fim do dia ${pTxt('estimativa','at')}</span></div><div class="pp-progl"><span>${esc('ritmo de '+fT(est.ritmoH)+'/h · '+fHm(est.rest)+' restantes')}</span></div>`:`<div class="pp-progl"><span>${pTxt('estimativa','at')} ${esc('Estimativa indisponível: '+est.motivo)}</span></div>`}</div>
+   <div class="pp-spark" aria-hidden="true">${S14.val.map((v,i)=>`<i style="height:${Math.max(v>0?6:2,pw(v,max14))}%" title="${esc(S14.lab[i]+': '+fT(v))}"></i>`).join('')}</div><div class="pp-sparkl"><span>${esc(S14.lab[0])}</span><span>maromba · últimos 14 dias</span><span>hoje</span></div>
+   <div class="pp-mini"><div><b>${N.okH.length}</b><span>lançamento(s)</span></div><div><b>${fT(N.gradesH)}</b><span>grade(s)</span></div><div><b>${fT(soma(N.okH,r=>calcMar(r).perdas))}</b><span>perdas na maromba</span></div><div><b>${fHm(minFalha)}</b><span>parado por falha</span></div></div></a>`;
+ const metaCard=(rot,X,r)=>{if(!X)return '';const ok=X.real>=X.esperado;
+  return `<a class="pp-k pp-meta" href="#"${rel(r)}>${kc('grafico',rot,`<span class="pp-pct ${ok?'ok':'at'}">${fNum(Math.min(999,X.pct),1)}%</span>`)}
+   <div class="pp-kv">${fMilh(X.real)}<small>de ${fMilh(X.meta)} milheiros</small></div>
+   <div class="pp-bar pp-mb"><i style="width:${Math.min(100,X.pct).toFixed(1)}%"></i>${X.decorr?`<u style="left:${Math.min(100,X.esperado/X.meta*100).toFixed(1)}%" title="Onde deveria estar hoje"></u>`:''}</div>
+   <div class="pp-mn"><div><b>${fMilh(X.falta)}</b><span>faltam</span></div><div><b>${X.proj==null?'—':fMilh(X.proj)}</b><span>projeção ${pTxt('estimativa','at')}</span></div><div><b>${X.porDia==null?'—':fMilh(X.porDia)}</b><span>por dia útil (${X.rest})</span></div><div><b>${fMilh(X.esperado)}</b><span>esperado até hoje (${X.decorr}/${X.uteis})</span></div></div>
+   <p class="pp-st ${ok?'ok':'at'}">${!X.decorr?'Ainda sem lançamento neste mês: a projeção aparece a partir do primeiro.':ok?'No ritmo: '+fMilh(X.real-X.esperado)+' milheiros à frente do esperado.':'Abaixo do ritmo: faltam '+fMilh(X.esperado-X.real)+' milheiros para o esperado até hoje.'}</p></a>`};
+ const metas=(MM||M)?metaCard('Meta da maromba · '+fMes(N.m),MM,'metaMar')+metaCard('Meta de desenforna · '+fMes(N.m),M,'metaDes')
+  :`<div class="pp-k pp-semmeta">${kc('grafico','Metas do mês')}<p>As metas de maromba e de desenforna ainda não foram cadastradas. Com elas, o painel mostra o andamento, a projeção e quanto falta por dia útil.</p>${pode('pcfg','e')?`<a class="btn min" href="#/pcfg">Cadastrar as metas</a>`:''}</div>`;
+ const kp=(ico,l,v,u,sub,href,r,tg)=>`<a class="pp-k pp-sm" href="${href}"${rel(r)}>${kc(ico,l,tg)}<div class="pp-kv">${v}${u?`<small>${esc(u)}</small>`:''}</div><div class="pp-ks">${sub}</div></a>`;
+ const mes=[
+  kp('calendario','Maromba no mês',fT(N.mes),'tijolos',esc(fT(N.gradesM)+' grade(s) · '+N.okM.length+' lançamento(s)'),'#/pmaromba','marM'),
+  kp('chama','Enfornado no mês',fT(N.enfM),'tijolos',esc(N.fM.length+' fornada(s)'),'#/pfornadas','enfM'),
+  kp('saida','Desenfornado no mês',fT(N.desMes.total),'tijolos',esc('bons '+fT(N.desMes.aprov)+' · '+N.desMes.n+' desenforna(s)'),'#/pdesenf','desM')].join('');
+ const perdaLin=(r,href,cor,l,v,sub)=>`<a class="pp-pl" href="${href}"${rel(r)}><i class="${cor}"></i><span>${esc(l)}<small>${sub}</small></span><b>${fT(v)}</b></a>`;
+ const perdas=`<div class="pp-k pp-perdas">${kc('aviso','Perdas no mês')}
+   ${perdaLin('perdDes','#/pdesenf','e1','Perda no forno (entrou − saiu)',N.perdQueima,esc(N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que entrou no forno':'sem fornada desenfornada no mês'))}
+   ${perdaLin('perdEnf','#/psecmov','e2','Diferença secador → forno',N.perdEnf,esc(N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia'))}
+   ${perdaLin('perdMS','#/prel','e3','Perdas na maromba e secagem',N.perdMar+N.perdSec,esc('maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec)))}</div>`;
+
+ /* ---------- nível 3: acompanhamento industrial ---------- */
+ const et=(n,ico,t,v,u,sub,href,r,on,tg)=>`<a class="pp-et${on?' on':''}" href="${href}"${rel(r)}><span class="pp-etn">${n}</span><span class="pp-eti">${ic(ico)}</span><span class="pp-ett">${esc(t)}</span><b class="pp-etv">${v}</b><span class="pp-etu">${esc(u)}</span><small>${sub}</small>${tg||''}</a>`;
+ const fluxo=[
+  et(1,'caixa','Maromba',fT(N.hoje),'tijolos líquidos',esc(fT(N.gradesH)+' grade(s)'),'#/pmaromba','marH',N.hoje>0),
+  et(2,'calendario','Entrada no secador',N.entSecH?fT(N.entSecH):'—',N.entSecH?'tijolos':'',N.entSecH?esc(fT(N.gradesEntH)+' grade(s)'):'ainda não lançada','#/psecmov','secH',N.entSecH>0),
+  et(3,'calendario','Saída do secador',N.saiuSecH?fT(N.saiuSecH):'—',N.saiuSecH?'tijolos':'',N.saiuSecH?esc(fT(N.gradesSecH)+' grade(s)'):'ainda não lançada','#/psecmov','secH',N.saiuSecH>0),
+  et(4,'chama','Enfornado',fT(N.enfH),'tijolos',N.fH.length?esc(N.fH.map(f=>nomeForno(f.fornoId)).join(', ')):'nenhuma enforna hoje','#/pfornadas','enfH',N.enfH>0),
+  et(5,'saida','Desenfornado',fT(N.desHoje.total),'tijolos',N.desHoje.n?esc('bons '+fT(N.desHoje.aprov)+' · perdas '+fT(N.desHoje.perdas)):'nenhuma desenforna hoje','#/pdesenf','desH',N.desHoje.total>0)].join('');
+ const fab=C.mostrarFabrica?`<div class="pp-fab">
+   ${kp('calendario','Em secagem',fT(s.saldo),'tijolos',esc((s.temIni?s.lotes.length+' lote(s)':'sem contagem inicial')+gr(s.saldo)),'#/psecagem','sec',s.temIni?'':pTxt('parcial','at'))}
+   ${kp('direita','Disponível para enforna',s.disp==null?'—':fT(s.disp),s.disp==null?'':'tijolos',s.disp==null?'informe o tempo mínimo de secagem':esc('secos há '+s.diasMin+' dia(s) ou mais'),'#/psecagem','',s.disp!=null&&!s.temIni?pTxt('parcial','at'):'')}
+   ${kp('chama','Nos fornos',fT(N.noForno),'tijolos','em enforna ou em queima','#/pfornadas','fornos')}
+   ${kp('relogio','Aguardando desenforna',fT(N.aguard),'tijolos','enfornas confirmadas','#/pfornadas','fornos')}
+   ${kp('caixa','Tijolos prontos',fT(tp),'tijolos',esc('1ª '+fT(N.pr.saldo1)+' · 2ª '+fT(N.pr.saldo2)),'#/ppronto','',N.pr.temIni?'':pTxt('parcial','at'))}
+   ${kp('chama','Fornadas abertas',String(N.abertas),N.abertas===1?'fornada':'fornadas',N.pendF?esc(N.pendF+' enforna(s) pendente(s) de confirmação'):'todas confirmadas','#/pfornadas','fornos')}</div>`
+  :`<p class="pp-nota pp-fabnota">${ic('engrenagem')}Os saldos da fábrica (secagem, fornos, tijolo pronto) estão ocultos neste painel.${pode('pcfg','e')?' <a href="#/pcfg">Mostrar nas Configurações do setor</a>.':''}</p>`;
+ const SITC={'Em enforna':'ok','Em queima':'ok','Aguardando desenforna':'at','Desenfornada':'x'};
+ const fornos=FORNOS().map(l=>{
+  if(ehContinuo(l.id)){const eM=soma(N.fM.filter(f=>f.fornoId===l.id),f=>f.quantidade),dMc=soma(N.dM.filter(d=>d.fornoId===l.id),desenfQtd);
+   return `<a class="pp-fo s-${eM||dMc?'ok':'x'}" href="#/pdesenf"><div class="pp-foc"><span class="pp-foi">${ic('chama')}</span><b>${esc(nomeLocal(l))}</b></div><div class="pp-fos"><span class="tag in">contínuo</span></div><div class="pp-fov">${esc(fMil(dMc))}</div><small>${esc('No mês: enfornado '+fT(eM)+' · desenfornado '+fT(dMc))}</small></a>`}
+  const fs=DATA.pfornadas.filter(f=>f.fornoId===l.id).sort((a,b)=>(+b.numero||0)-(+a.numero||0));const u=fs[0];const su=u?sitF(u):'';const lf=u&&abertaF(u)?lenhaFornada(u):null;
+  const tl=lf&&lf.ref2?'lenha '+(lf.n?lf.real:'sem lançamento')+' (ref. '+fNum(lf.ref2.min)+(lf.ref2.max!==lf.ref2.min?'–'+fNum(lf.ref2.max):'')+' m³)':'';
+  return `<a class="pp-fo s-${u?(SITC[su]||'x'):'x'}" href="${u?'#/pfornadas/'+u.id:'#/pfornadas'}"><div class="pp-foc"><span class="pp-foi">${ic('chama')}</span><b>${esc(nomeLocal(l))}</b>${l.situacao==='Inativo'?pTxt('inativo',''):''}</div>
+   ${u?`<div class="pp-fos">${tagP(su)}${fConf(u)?'':pTxt('enforna pendente','at')}</div><div class="pp-fov">${abertaF(u)?esc(fMil(u.quantidade)):'—'}</div><small>${esc('Fornada nº '+u.numero+' · '+fData(u.data))}</small>${tl?`<small class="pp-fol">${esc(tl)}</small>`:''}`
+     :`<div class="pp-fos"><span class="tag">sem fornada</span></div><div class="pp-fov">—</div><small>Nenhuma fornada lançada</small>`}</a>`}).join('');
  const movHoje=[...N.fH.map(f=>({href:'#/pfornadas/'+f.id,ic:'chama',cls:'a-ok',t:'Enfornado · '+nomeForno(f.fornoId),s:'Fornada nº '+f.numero+(f.hora?' · '+f.hora:''),v:fT(f.quantidade)})),
   ...N.desH.map(d=>({href:'#/pdesenf/'+d.id,ic:'saida',cls:'a-at',t:'Desenfornado · '+nomeFornadaD(d),s:'1ª '+fT(d.primeira)+' · 2ª '+fT(d.segunda)+' · perdas '+fT(perdasD(d)),v:fT(desenfQtd(d))}))];
+
+ /* ---------- nível 3: análises ---------- */
+ const lanc=[...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||'')));
+ const parH=N.parH.slice().sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
+ const tempos=[...lanc.flatMap(r=>[minDe(r.horaInicio),minDe(r.horaFim)]),...parH.flatMap(p=>[minDe(p.inicio),minDe(p.fim)]),minDe(C.inicioExpediente),minDe(C.fimExpediente)].filter(x=>x!=null);
+ let t0=tempos.length?Math.floor(Math.min(...tempos)/60)*60:0,t1=tempos.length?Math.ceil(Math.max(...tempos)/60)*60:0;if(t1-t0<240)t1=t0+240;
+ const pos=(a,b)=>{const x=minDe(a),y=minDe(b);if(x==null||y==null)return null;const yy=y>=x?y:t1;return{l:Math.max(0,(x-t0)/(t1-t0)*100),w:Math.max(.8,Math.min(100,(yy-x)/(t1-t0)*100))}};
+ const temLinha=lanc.some(r=>r.horaInicio&&r.horaFim)||parH.length;
+ const linha=temLinha?`<div class="pp-tl"><div class="pp-tlr"><span>Maromba</span><div class="pp-tlt">${lanc.map(r=>{const q=pos(r.horaInicio,r.horaFim);return q?`<i class="${conf(r)?'ok':'pend'}" style="left:${q.l}%;width:${q.w}%" title="${esc(r.turno+' · '+r.horaInicio+'–'+r.horaFim+' · '+fT(calcMar(r).liquida)+' tijolos'+(conf(r)?'':' · pendente'))}"></i>`:''}).join('')}</div></div>
+   <div class="pp-tlr"><span>Paradas</span><div class="pp-tlt">${parH.map(p=>{const q=pos(p.inicio,p.fim);return q?`<i class="${ehRefeicao(p.motivo)?'ref':'fal'}" style="left:${q.l}%;width:${q.w}%" title="${esc(p.motivo+' · '+p.inicio+'–'+p.fim)}"></i>`:''}).join('')}</div></div>
+   <div class="pp-tlx">${Array.from({length:Math.floor((t1-t0)/120)+1},(_,i)=>{const m=t0+i*120;return `<span style="left:${(m-t0)/(t1-t0)*100}%">${pad(Math.floor(m/60)%24)}h</span>`}).join('')}</div>
+   <div class="pp-tll"><span><i class="ok"></i>confirmado</span><span><i class="pend"></i>pendente</span><span><i class="fal"></i>parada por falha</span><span><i class="ref"></i>refeição</span></div></div>`:'';
+ const lstHoje=lstV(lanc.map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(txtParadas(r.data,r.turno)?' · parado '+txtParadas(r.data,r.turno):'')+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.');
+ const minRef=soma(parH.filter(p=>ehRefeicao(p.motivo)),p=>dur(p.inicio,p.fim));
+ const lstPar=lstV(parH.map(p=>({href:'#/pparadas/'+p.id,ic:'relogio',cls:ehRefeicao(p.motivo)?'':'a-pe',t:p.motivo,s:p.turno+' · '+p.inicio+'–'+p.fim,v:fHm(dur(p.inicio,p.fim))})),'Nenhuma parada registrada hoje.');
+ const parMes={};DATA.pparadas.filter(p=>String(p.data).startsWith(N.m)&&!ehRefeicao(p.motivo)).forEach(p=>{const k=p.motivo||'Outro';parMes[k]=(parMes[k]||0)+dur(p.inicio,p.fim)});
+ const pmL=Object.entries(parMes).sort((a,b)=>b[1]-a[1]);const pmMax=Math.max(1,...pmL.map(x=>x[1]));
  const pEnfLst=N.pEnf.slice().reverse().map(x=>({href:'#/psecmov',ic:'aviso',cls:x.semEnforna?'a-at':x.perda>0?'a-pe':'a-ok',t:fData(x.data),
   s:'saiu do secador '+fT(x.saiu)+(x.semEnforna?' · enforna do dia ainda não lançada':' · enfornado '+fT(x.enf)),v:x.semEnforna?'—':fT(x.perda)+' ('+pct(x.perda,x.saiu)+')'}));
  const queimaLst=N.queima.slice().sort((a,b)=>String(b.d.data).localeCompare(String(a.d.data))).map(x=>({href:'#/pdesenf/'+x.d.id,ic:'saida',cls:x.perda>0?'a-pe':'a-ok',t:nomeFornada(x.f),
   s:fData(x.d.data)+' · entrou '+fT(x.enf)+' · saiu bom '+fT(x.bons),v:fT(x.perda)+' ('+pct(x.perda,x.enf)+')'}));
- const metaHtml=(MM||M)?`<div class="pm-metas">${MM?metaBox('Meta da maromba · '+fMes(N.m),MM,'metaMar'):''}${M?metaBox('Meta de desenforna · '+fMes(N.m),M,'metaDes',`<div><b>${fMilh(N.desMes.aprov)}</b><span>Tijolos bons (1ª + 2ª), milheiros</span></div>`):''}</div>`:'';
+ const S30=serieDiasV(DATA.pmaromba.filter(conf),30,r=>calcMar(r).liquida);const m30=Math.max(1,...S30.val);const d30=S30.val.filter(v=>v>0);const tot30=soma(S30.val,v=>v);
+ const g30=`<div class="pp-g30">${S30.val.map((v,i)=>`<div class="pp-gc" title="${esc(S30.lab[i]+': '+fT(v)+' tijolos')}"><i style="height:${v>0?Math.max(3,pw(v,m30)):0}%"></i>${i%5===4||i===S30.val.length-1?`<span>${esc(S30.lab[i])}</span>`:''}</div>`).join('')}</div>`;
+ const H6=Array.from({length:6},(_,i)=>{const mm=mesMenos(N.m,5-i);const X=indicMes(mm);return{mm,liq:X.liq,des:X.des}});const h6m=Math.max(1,...H6.flatMap(x=>[x.liq,x.des]));
+ const rels=(typeof RELS_P!=='undefined'?RELS_P:[]).filter(r=>!r.m||pode(r.m));
+ const blo=(t,link,corpo,cls,extra)=>`<div class="bloco pp-bl ${cls||''}"><h3>${t}${extra||''}${link||''}</h3>${corpo}</div>`;
+
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('caixa')}</span><div><h1>Setor de Produção</h1><p>Da maromba ao tijolo pronto: produção do dia, secagem, fornos, desenforna e estoque. Números só de lançamentos confirmados.</p></div></div>
   <div class="acoes">${lancaveisP().length?`<a class="btn pri" href="#/plancar">${ic('mais')}Lançar</a>`:''}</div></div>
-  ${falta.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Para os números ficarem completos, falta cadastrar:</b> ${esc(falta.join('; '))}. Enquanto isso, o que depende desses dados aparece como indisponível — nenhum número é inventado.</span></div>`:''}
-  ${metaHtml}
-  <h3 class="grupo-t">Hoje · ${esc(fData(N.h))}</h3>
-  <div class="hero">
-   ${k('c1','caixa','Maromba hoje',fT(N.hoje),fT(N.gradesH)+' grade(s) · tijolos líquidos','#/pmaromba',N.pendH.length?pTxt(N.pendH.length+' pendente(s)','at')+' ':'','marH')}
-   ${k('c4','calendario','Entrada no secador hoje',N.entSecH?fT(N.entSecH):'—',N.entSecH?fT(N.gradesEntH)+' grade(s)':'ainda não lançada','#/psecmov','','secH')}
-   ${k('c3','calendario','Saída do secador hoje',N.saiuSecH?fT(N.saiuSecH):'—',N.saiuSecH?fT(N.gradesSecH)+' grade(s)':'ainda não lançada','#/psecmov','','secH')}
-   ${k('c5','chama','Enfornado hoje',fT(N.enfH),N.fH.length?N.fH.map(f=>nomeForno(f.fornoId)).join(', '):'nenhuma enforna hoje','#/pfornadas','','enfH')}
-   ${k('c4','saida','Desenfornado hoje',fT(N.desHoje.total),N.desHoje.n?'bons '+fT(N.desHoje.aprov)+' · perdas '+fT(N.desHoje.perdas):'nenhuma desenforna hoje','#/pdesenf','','desH')}
-   ${k('c2','grafico','Estimativa da maromba até o fim do dia',est.ok?fT(est.valor):'—',est.ok?esc('ritmo de '+fT(est.ritmoH)+'/h · '+fHm(est.rest)+' restantes'):esc('estimativa indisponível: '+est.motivo),'#/pmaromba',pTxt('estimativa','at')+' ')}
-  </div>
-  <h3 class="grupo-t">No mês · ${esc(fMes(N.m))}</h3>
-  <div class="hero">
-   ${k('c1','calendario','Maromba no mês',fT(N.mes),fT(N.gradesM)+' grade(s) · '+N.okM.length+' lançamento(s)','#/pmaromba','','marM')}
-   ${k('c5','chama','Enfornado no mês',fT(N.enfM),N.fM.length+' fornada(s)','#/pfornadas','','enfM')}
-   ${k('c4','saida','Desenfornado no mês',fT(N.desMes.total),'bons '+fT(N.desMes.aprov)+' · '+N.desMes.n+' desenforna(s)','#/pdesenf','','desM')}
-   ${k('c6','aviso','Perda no forno (entrou − saiu)',fT(N.perdQueima),N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que entrou no forno':'sem fornada desenfornada no mês','#/pdesenf','','perdDes')}
-   ${k('c3','aviso','Diferença secador → forno',fT(N.perdEnf),N.baseEnf?pct(N.perdEnf,N.baseEnf)+' do que saiu do secador':'lance a saída do secador do dia','#/psecmov','','perdEnf')}
-   ${k('c3','aviso','Perdas na maromba e secagem',fT(N.perdMar+N.perdSec),'maromba '+fT(N.perdMar)+' · secagem '+fT(N.perdSec),'#/prel','','perdMS')}
-  </div>
-  ${C.mostrarFabrica?`<h3 class="grupo-t">Agora na fábrica</h3>
-  <div class="hero">
-   ${k('c3','calendario','Em secagem',fT(s.saldo),(s.temIni?s.lotes.length+' lote(s)':'sem contagem inicial')+gr(s.saldo),'#/psecagem',s.temIni?'':pTxt('parcial','at')+' ','sec')}
-   ${k('c5','direita','Disponível para enforna',s.disp==null?'—':fT(s.disp),s.disp==null?'informe o tempo mínimo de secagem':'secos há '+s.diasMin+' dia(s) ou mais','#/psecagem',s.disp!=null&&!s.temIni?pTxt('parcial','at')+' ':'')}
-   ${k('c1','chama','Nos fornos',fT(N.noForno),'em enforna ou em queima','#/pfornadas','','fornos')}
-   ${k('c4','relogio','Aguardando desenforna',fT(N.aguard),'enfornas confirmadas','#/pfornadas','','fornos')}
-   ${k('c3','caixa','Tijolos prontos',fT(N.pr.saldo1+N.pr.saldo2),'1ª '+fT(N.pr.saldo1)+' · 2ª '+fT(N.pr.saldo2),'#/ppronto',N.pr.temIni?'':pTxt('parcial','at')+' ')}
-   ${k('c5','chama','Fornadas abertas',String(N.abertas),N.pendF?N.pendF+' enforna(s) pendente(s) de confirmação':'todas confirmadas','#/pfornadas','','fornos')}
-  </div>`:''}
-  <div class="ex2">
-   <div class="bloco"><h3>Produção de hoje<a href="#/pmaromba">Maromba</a></h3>${lstV([...N.okH,...N.pendH].sort((a,b)=>String(a.horaInicio||'').localeCompare(String(b.horaInicio||''))).map(r=>{const x=calcMar(r);return{href:'#/pmaromba/'+r.id,ic:'caixa',cls:conf(r)?'a-ok':'a-at',t:r.turno+(r.horaInicio?' · '+r.horaInicio+'–'+(r.horaFim||''):''),s:fT(r.grades)+' grade(s) · perdas '+fT(x.perdas)+(txtParadas(r.data,r.turno)?' · parado '+txtParadas(r.data,r.turno):'')+(conf(r)?'':' · pendente'),v:fT(x.liquida)}}),'Nenhum lançamento da maromba hoje.')}</div>
-   <div class="bloco"><h3>Enforna e desenforna de hoje<a href="#/pfornadas">Fornadas</a></h3>${lstV(movHoje,'Nenhuma enforna ou desenforna lançada hoje.')}</div>
-   <div class="bloco"><h3>Paradas de hoje${N.parH.length?`<span class="n">${N.parH.length}</span>`:''}<a href="#/pparadas">Paradas</a></h3>${lstV(N.parH.sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map(p=>({href:'#/pparadas/'+p.id,ic:'relogio',cls:ehRefeicao(p.motivo)?'':'a-pe',t:p.motivo,s:p.turno+' · '+p.inicio+'–'+p.fim,v:fHm(dur(p.inicio,p.fim))})),'Nenhuma parada registrada hoje.')}</div>
-  </div>
-  <div class="ex2">
-   <div class="bloco"><h3>Situação dos fornos<a href="#/pfornadas">Fornadas</a></h3>${lstV(fornosLst,'Nenhum forno cadastrado no Setor da Lenha.')}</div>
-   <div class="bloco"><h3>Diferença secador → forno<a href="#/psecmov">Secador</a></h3>${lstV(pEnfLst,'Lance a saída do secador (grades) para comparar com o que entrou nos fornos.')}</div>
-   <div class="bloco"><h3>Perda no forno por fornada<a href="#/pdesenf">Desenforna</a></h3>${lstV(queimaLst,'Nenhuma fornada desenfornada neste mês.')}</div>
+  <div class="pp">
+  ${semAvisos?'':`<section class="pp-niv pp-n1" aria-label="Avisos e pendências"><div class="pp-st"><h2>${ic('sino')}Avisos e pendências<span class="pp-cnt" id="ppCnt"></span></h2><button type="button" class="pp-lk" id="ppMais" hidden>Ver todos</button></div><div class="pp-avl" id="ppAvl">${av.map(avItem).join('')}</div></section>`}
+  <section class="pp-niv pp-n2" aria-label="Indicadores principais"><div class="pp-st"><h2>${ic('grafico')}Indicadores principais</h2><span class="pp-std">Só lançamentos confirmados · estimativa e parcial vêm marcados · clique num número para ver a lista</span></div>
+   <div class="pp-ind">${hero}<div class="pp-metas">${metas}</div></div>
+   <div class="pp-ind2"><h3 class="pp-sub">No mês · ${esc(fMes(N.m))}</h3>${mes}${perdas}</div></section>
+  <section class="pp-niv pp-n3" aria-label="Acompanhamento industrial"><div class="pp-st"><h2>${ic('chama')}Acompanhamento industrial</h2><span class="pp-std">Hoje · ${esc(fData(N.h))}</span></div>
+   <div class="pp-fluxo">${fluxo}</div>
+   <h3 class="pp-sub">Agora na fábrica</h3>${fab}
+   <div class="pp-g2">
+    ${blo('Situação dos fornos','<a href="#/pfornadas">Fornadas</a>',FORNOS().length?`<div class="pp-fornos">${fornos}</div>`:'<div class="ex-vazio">Nenhum forno cadastrado no Setor da Lenha.</div>')}
+    ${blo('Enforna e desenforna de hoje','<a href="#/pfornadas">Fornadas</a>',lstV(movHoje,'Nenhuma enforna ou desenforna lançada hoje.'))}
+   </div></section>
+  <section class="pp-niv pp-n4" aria-label="Análises detalhadas"><div class="pp-st"><h2>${ic('livro')}Análises detalhadas</h2><span class="pp-std">${esc(fMes(N.m))} e hoje</span></div>
+   <div class="pp-g2">
+    ${blo('Produção de hoje','<a href="#/pmaromba">Maromba</a>',linha+lstHoje)}
+    ${blo('Paradas de hoje','<a href="#/pparadas">Paradas</a>',`<div class="pp-pres"><div><b>${fHm(minFalha)}</b><span>parado por falha</span></div><div><b>${fHm(minRef)}</b><span>refeição</span></div><div><b>${falhaH.length}</b><span>ocorrência(s) de falha</span></div></div>${lstPar}
+     ${pmL.length?`<details class="pp-det pp-detb"><summary>Paradas por falha no mês, por motivo</summary><ul class="pp-hb">${pmL.map(([k,v])=>`<li><span>${esc(k)}</span><i><em style="width:${pw(v,pmMax)}%"></em></i><b>${fHm(v)}</b></li>`).join('')}</ul></details>`:''}`,'',parH.length?`<span class="n">${parH.length}</span>`:'')}
+   </div>
+   <div class="pp-g3">
+    ${blo('Maromba · últimos 30 dias','<a href="#/prel" data-pprel="rp_dia">Por dia</a>',`<div class="pp-gres"><div><b>${fT(tot30)}</b><span>tijolos líquidos em 30 dias</span></div><div><b>${d30.length}</b><span>dia(s) com produção</span></div><div><b>${d30.length?fT(tot30/d30.length):'—'}</b><span>média nos dias com produção</span></div></div>${g30}`,'pp-w2')}
+    ${blo('Diferença secador → forno','<a href="#/psecmov">Secador</a>',lstV(pEnfLst,'Lance a saída do secador (grades) para comparar com o que entrou nos fornos.'))}
+   </div>
+   <div class="pp-g2">
+    ${blo('Perda no forno por fornada','<a href="#/pdesenf">Desenforna</a>',lstV(queimaLst,'Nenhuma fornada desenfornada neste mês.'))}
+    ${blo('Histórico · últimos 6 meses','<a href="#/pmes">Produção por mês</a>',`<div class="pp-h6">${H6.map(x=>`<div class="pp-h6c"><div class="pp-h6b"><i class="liq" style="height:${pw(x.liq,h6m)}%" title="${esc('Maromba (líquida): '+fT(x.liq))}"></i><i class="des" style="height:${pw(x.des,h6m)}%" title="${esc('Desenforna: '+fT(x.des))}"></i></div><span>${esc(fMes(x.mm))}</span></div>`).join('')}</div><div class="pp-tll"><span><i class="liq"></i>maromba (líquida)</span><span><i class="des"></i>desenforna</span></div>`)}
+   </div>
+   <details class="pp-mais"><summary>${ic('grafico')}<span><b>Relatórios da produção</b><small>${esc(rels.length+' relatório(s) prontos para ver, imprimir ou exportar')}</small></span>${ic('direita')}</summary>
+    <ul class="pp-rels">${rels.map(r=>`<li><a href="#/prel" data-pprel="${esc(r.id)}">${ic('grafico')}<span>${esc(r.n)}</span>${ic('direita')}</a></li>`).join('')}
+     ${pode('plenha')?`<li><a href="#/plenha">${ic('chama')}<span>Lenha por fornada</span>${ic('direita')}</a></li>`:''}${pode('pmes')?`<li><a href="#/pmes">${ic('calendario')}<span>Produção por mês</span>${ic('direita')}</a></li>`:''}</ul></details>
+  </section>
   </div>`;
+ /* números que abrem a lista (mesmo relatório de antes) */
  $$('[data-rel]',c).forEach(a=>a.addEventListener('click',e=>{const R=relProd(a.dataset.rel,N);if(!R)return;e.preventDefault();
   const v=modalV(R.t,R.h,'Abrir a tela completa',()=>{location.hash=R.href});const m=v.querySelector('.modal');if(m)m.classList.add('v56-modal-larga','pm-rel')}));
+ /* relatório certo já escolhido ao abrir */
+ $$('[data-pprel]',c).forEach(a=>a.addEventListener('click',()=>{if(typeof UIRP!=='undefined')UIRP.id=a.dataset.pprel}));
  try{if(typeof window.posTelaProdV56==='function')window.posTelaProdV56(c,'setor-producao')}catch(e){console.warn(e)}
+ /* o aviso "ontem não teve lançamento" (Lançar agora / Não houve atividade) entra no topo da lista de avisos */
+ const avl=$('#ppAvl',c);const sem=c.querySelector('.v56-semlanc');
+ if(avl&&sem){sem.classList.remove('aviso','at');sem.classList.add('pp-av','cri');sem.style.marginBottom='';const t=sem.querySelector('span');if(t)t.outerHTML=`<span class="pp-avi">${ic('aviso')}</span><div class="pp-avt"><div class="pp-avh">${pTxt('Crítico','pe')}${t.innerHTML}</div><small>Lance o dia ou marque que não houve atividade.</small></div>`;avl.prepend(sem)}
+ if(avl){const n=avl.children.length;const cnt=$('#ppCnt',c);if(cnt)cnt.textContent=n?n:'';
+  if(!n)avl.innerHTML=`<div class="pp-av ok"><span class="pp-avi">${ic('direita')}</span><div class="pp-avt"><div class="pp-avh">${pTxt('Em dia','ok')}<b>Nenhuma pendência na produção</b></div><small>Os avisos aparecem aqui quando algo precisar de atenção.</small></div></div>`;
+  if(n>3){[...avl.children].slice(3).forEach(x=>x.classList.add('pp-ext'));const b=$('#ppMais',c);b.hidden=false;b.textContent='Ver todos ('+n+')';b.onclick=()=>{const ab=avl.classList.toggle('aberto');b.textContent=ab?'Mostrar menos':'Ver todos ('+n+')'}}
+  /* um aviso que some sozinho (ex.: "Não houve atividade") atualiza a contagem */
+  new MutationObserver(()=>{const k=avl.querySelectorAll(':scope>.pp-av:not(.ok)').length;const cnt=$('#ppCnt',c);if(cnt)cnt.textContent=k||'';const b=$('#ppMais',c);if(b&&k<=3)b.hidden=true;[...avl.children].slice(0,3).forEach(x=>x.classList.remove('pp-ext'))}).observe(avl,{childList:true})}
 }
 
 /* ---------- secagem ---------- */
@@ -30202,6 +30295,223 @@ window.JB_TEMA=Object.freeze({versao:VERSAO_TEMA,paletas:PALETAS.map(p=>({id:p.i
 try{aplicarTema(lerSalvo(),{redesenhar:false})}catch(e){console.warn('tema',e)}
 })();
 </script>
+<style id="producao-painel-v2">
+/* ================= Setor de Produção: painel em três níveis (novembro/2026) =================
+   Só apresentação. Avisos com prioridade; indicadores com tamanho conforme a importância;
+   acompanhamento industrial e análises. Cores: preto e vermelho da Concretiza, cinza para o
+   que é secundário e poucos tons de apoio. */
+.pp{--pp-t:var(--tinta,#16152B);--pp-s:var(--suave,#5E5D74);--pp-f:var(--fraco,#8E8DA2);--pp-l:var(--linha,#E9E8F0);--pp-b:var(--branco,#fff);--pp-c:var(--papel,#F7F7FA);--pp-v:#D3121C;--pp-vl:#FDECEC;--pp-p:#0B0B0D;--pp-ok:#16A34A;--pp-at:#D97706;--pp-in:#4F5FCF}
+.pp-niv{margin:0 0 26px}
+.pp-st{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.pp-st h2{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;letter-spacing:-.015em;margin:0;color:var(--pp-t)}
+.pp-st h2>svg{width:18px;height:18px;color:var(--pp-v)}
+.pp-std{font-size:12.5px;color:var(--pp-f)}
+.pp-cnt:not(:empty){margin-left:2px;background:var(--pp-v);color:#fff;font-size:11.5px;font-weight:700;border-radius:10px;padding:1px 8px}
+.pp-lk{background:none;border:0;color:var(--pp-v);font:inherit;font-weight:600;font-size:13px;cursor:pointer;padding:0}
+/* avisos */
+.pp-avl{display:grid;gap:8px}
+.pp-avl:not(.aberto)>.pp-ext{display:none}
+.pp-av{display:flex;align-items:center;gap:12px;background:var(--pp-b);border:1px solid var(--pp-l);border-left:4px solid var(--pp-in);border-radius:14px;padding:10px 12px;box-shadow:0 6px 16px rgba(80,70,140,.05);margin:0!important;font-size:13px;line-height:1.35;flex-wrap:wrap}
+.pp-av.cri{border-left-color:var(--pp-v)}.pp-av.ate{border-left-color:var(--pp-at)}.pp-av.inf{border-left-color:#8E8DA2}.pp-av.ok{border-left-color:var(--pp-ok)}
+.pp-avi{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;background:#EEF0F5;color:#3F3F46}
+.pp-avi svg{width:18px;height:18px}
+.pp-av.cri .pp-avi{background:var(--pp-vl);color:var(--pp-v)}.pp-av.ate .pp-avi{background:#FEF3E2;color:#B45309}.pp-av.ok .pp-avi{background:#E3F5E8;color:#15803D}
+.pp-avt{flex:1;min-width:220px}
+.pp-avh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pp-avh b{font-weight:650;color:var(--pp-t)}
+.pp-avt small{display:block;color:var(--pp-s);font-size:12.3px;margin-top:2px}
+.pp-av .btn{flex:none}
+.pp-det{margin-top:6px}
+.pp-det summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--pp-v);list-style:none}
+.pp-det summary::-webkit-details-marker{display:none}
+.pp-det summary:before{content:"▸ ";color:var(--pp-f)}.pp-det[open] summary:before{content:"▾ "}
+.pp-det ul{margin:6px 0 0;padding-left:18px;color:var(--pp-s);font-size:12.5px}
+/* indicadores */
+.pp-ind{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-bottom:14px;align-items:stretch}
+.pp-metas{display:grid;gap:12px;align-content:start}
+.pp-ind2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 1.45fr;gap:12px;align-items:stretch}
+.pp-sub{grid-column:1/-1;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-f);margin:4px 0 0;display:flex;align-items:center;gap:8px}
+.pp-sub:after{content:"";flex:1;height:1px;background:var(--pp-l)}
+.pp-n3>.pp-sub{margin:4px 0 10px}
+.pp-meta .pp-kv{font-size:24px;margin-top:8px}
+.pp-pct{font-size:12px;font-weight:750;border-radius:9px;padding:2px 8px}
+.pp-pct.ok{background:#E3F5E8;color:#15803D}.pp-pct.at{background:#FEF3E2;color:#B45309}
+.pp-mb{position:relative;height:10px;margin-top:10px;overflow:visible}
+.pp-mb i{background:linear-gradient(90deg,#F2414A,var(--pp-v))!important}
+.pp-mb u{position:absolute;top:-4px;bottom:-4px;width:2px;background:#16152B;border-radius:2px}
+.pp-mn{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.pp-mn div{background:var(--pp-c);border-radius:10px;padding:6px 8px;min-width:0}
+.pp-mn b{display:block;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.pp-mn span{display:block;font-size:10.5px;color:var(--pp-f);line-height:1.25}
+.pp-mn .tag{transform:scale(.85);transform-origin:left center}
+.pp-st{font-size:12px;margin:8px 0 0}.pp-st.ok{color:#15803D}.pp-st.at{color:#B45309}
+.pp-semmeta p{font-size:13px;color:var(--pp-s);margin:10px 0}
+.pp-semmeta .btn{align-self:flex-start}
+.pp-perdas{gap:2px}
+.pp-pl{display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--pp-l);text-decoration:none;color:var(--pp-t);border-radius:8px}
+.pp-pl:first-of-type{border-top:0;margin-top:6px}
+.pp-pl:hover{background:#F7F7FA}
+.pp-pl>i{width:8px;height:28px;border-radius:4px;flex:none}
+.pp-pl>i.e1{background:var(--pp-v)}.pp-pl>i.e2{background:#F59E0B}.pp-pl>i.e3{background:#6B6B75}
+.pp-pl>span{flex:1;font-size:12.6px;font-weight:600;min-width:0}
+.pp-pl>span small{display:block;font-size:11.3px;font-weight:500;color:var(--pp-f)}
+.pp-pl>b{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums}
+.pp-fab{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.pp-fabnota{display:flex;align-items:center;gap:8px;background:var(--pp-b);border:1px dashed #D9D7E6;border-radius:12px;padding:9px 12px;margin:0 0 12px!important}
+.pp-fabnota svg{width:16px;height:16px;color:var(--pp-f);flex:none}
+.pp-fabnota a{color:var(--pp-v);font-weight:600}
+.pp-fol{color:#7A5B0E!important}
+.pp-avlin{display:flex;align-items:center;gap:12px;background:var(--pp-b);border:1px solid var(--pp-l);border-radius:14px;padding:10px 12px;box-shadow:0 6px 16px rgba(80,70,140,.05)}
+.pp-avlin>span:nth-child(2){flex:1;min-width:0}
+.pp-avq{display:flex;gap:5px;flex-wrap:wrap}
+.pp-avlin b{display:block;font-size:13.5px}.pp-avlin small{display:block;font-size:12.3px;color:var(--pp-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-rels{list-style:none;margin:0 0 12px;padding:6px 8px;background:var(--pp-b);border:1px solid var(--pp-l);border-radius:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:2px 10px}
+.pp-k{position:relative;display:flex;flex-direction:column;background:var(--pp-b);border:1px solid var(--pp-l);border-radius:18px;padding:14px 16px;text-decoration:none;color:var(--pp-t);box-shadow:0 8px 22px rgba(80,70,140,.06);transition:transform .18s,box-shadow .18s;min-width:0}
+.pp-k:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(80,70,140,.12)}
+.pp-kc{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
+.pp-ki{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#EEF0F5;color:#3F3F46;flex:none}
+.pp-ki svg{width:16px;height:16px}
+.pp-kl{font-size:12.6px;font-weight:600;color:var(--pp-s);flex:1;min-width:0}
+.pp-kv{font-size:26px;font-weight:750;letter-spacing:-.03em;line-height:1.1;margin-top:10px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.pp-kv small{font-size:12.5px;font-weight:600;color:var(--pp-f);letter-spacing:0}
+.pp-ks{font-size:12px;color:var(--pp-f);margin-top:3px;line-height:1.35}
+.pp-sm .pp-kv{font-size:21px;margin-top:8px}
+.pp-hero{background:var(--pp-p);border-color:var(--pp-p);color:#fff;padding:18px 20px;box-shadow:0 14px 30px rgba(0,0,0,.16)}
+.pp-hero .pp-ki{background:var(--pp-v);color:#fff;width:36px;height:36px}
+.pp-hero .pp-kl{color:#C9C8D6;font-size:13.5px}
+.pp-hero .pp-kv{font-size:44px;margin-top:14px}
+.pp-hero .pp-spark i{background:#3A3A44}.pp-hero .pp-spark i:last-child{background:var(--pp-v)}
+.pp-hero .pp-sparkl{color:#8E8E98}
+.pp-hero .pp-kv small{color:#A9A9B3;font-size:15px}
+.pp-hero .pp-ks{color:#A9A9B3;font-size:13px}
+.pp-prog{margin-top:16px}
+.pp-bar{height:8px;border-radius:99px;background:var(--pp-l);overflow:hidden}
+.pp-bar i{display:block;height:100%;border-radius:inherit;background:var(--pp-in)}
+.pp-bar.ok i{background:var(--pp-ok)}
+.pp-hero .pp-bar{background:#2A2A31}.pp-hero .pp-bar i{background:linear-gradient(90deg,#F2414A,var(--pp-v))}
+.pp-progl{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:7px;font-size:12.3px;color:#C9C8D6}
+.pp-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:auto;padding-top:14px}
+.pp-mini div{background:#16161A;border:1px solid #26262C;border-radius:12px;padding:9px 10px;min-width:0}
+.pp-mini b{display:block;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.pp-mini span{display:block;font-size:11px;color:#A9A9B3;margin-top:1px}
+.pp-spark{display:flex;align-items:flex-end;gap:2px;height:42px;margin-top:auto;padding-top:10px}
+.pp-spark i{flex:1;background:#D9DCF2;border-radius:3px 3px 1px 1px;min-height:2px}
+.pp-spark i:last-child{background:var(--pp-v)}
+.pp-sparkl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--pp-f);margin-top:4px}
+.pp-split{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--pp-l);margin-top:12px;gap:2px}
+.pp-split i{display:block;height:100%}
+.pp-split .q1{background:#16152B}.pp-split .q2{background:#A9A9B3}
+.pp-split .e1,.pp-lg.e1{background:var(--pp-v)}.pp-split .e2,.pp-lg.e2{background:#F59E0B}.pp-split .e3,.pp-lg.e3{background:#6B6B75}
+.pp-lg{display:inline-block;width:8px;height:8px;border-radius:3px;margin:0 3px 0 0;vertical-align:baseline}
+.pp-lg.q1{background:#16152B}.pp-lg.q2{background:#A9A9B3}
+/* fluxo */
+.pp-fluxo{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px;position:relative}
+.pp-et{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:var(--pp-b);border:1px solid var(--pp-l);border-radius:16px;padding:12px 13px 12px;text-decoration:none;color:var(--pp-t);box-shadow:0 6px 16px rgba(80,70,140,.05);transition:transform .18s,box-shadow .18s;min-width:0}
+.pp-et:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(80,70,140,.11)}
+.pp-et:not(:last-child):after{content:"";position:absolute;right:-9px;top:50%;width:8px;height:8px;border-top:2px solid #C9C8D6;border-right:2px solid #C9C8D6;transform:translateY(-50%) rotate(45deg);z-index:1}
+.pp-etn{position:absolute;top:10px;right:12px;font-size:11px;font-weight:700;color:#C9C8D6}
+.pp-eti{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#EEF0F5;color:#6B6B75;margin-bottom:6px}
+.pp-eti svg{width:17px;height:17px}
+.pp-et.on .pp-eti{background:var(--pp-p);color:#fff}
+.pp-et.on{border-color:#D6D5E2}
+.pp-ett{font-size:12px;font-weight:650;color:var(--pp-s)}
+.pp-etv{font-size:21px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pp-etu{font-size:11.5px;color:var(--pp-f);margin-top:-2px}
+.pp-et small{font-size:11.5px;color:var(--pp-f);margin-top:4px;line-height:1.3}
+.pp-et .tag{margin-top:4px}
+.pp-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:start}
+.pp-g3{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-bottom:12px;align-items:start}
+.pp-bl>h3{display:flex;align-items:center;gap:8px}
+.pp-bl>h3 a{margin-left:auto}
+.pp-h3d{font-size:11.5px;font-weight:500;color:var(--pp-f)}
+.pp-nota{font-size:12px;color:var(--pp-f);margin:6px 15px 12px}
+/* fornos */
+.pp-fornos{display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:10px;padding:2px 14px 14px}
+.pp-fo{display:flex;flex-direction:column;gap:5px;border:1px solid var(--pp-l);border-top:4px solid #C9C8D6;border-radius:14px;padding:10px 12px;text-decoration:none;color:var(--pp-t);background:var(--pp-c);transition:transform .15s}
+.pp-fo:hover{transform:translateY(-2px)}
+.pp-fo.s-in{border-top-color:var(--pp-in)}.pp-fo.s-br{border-top-color:var(--pp-v)}.pp-fo.s-at{border-top-color:var(--pp-at)}.pp-fo.s-ok{border-top-color:var(--pp-ok)}
+.pp-foc{display:flex;align-items:center;gap:8px}
+.pp-foc b{font-size:13.5px;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-foi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#EEF0F5;color:#6B6B75;flex:none}
+.pp-foi svg{width:14px;height:14px}
+.pp-fo.s-br .pp-foi{background:var(--pp-vl);color:var(--pp-v)}.pp-fo.s-at .pp-foi{background:#FEF3E2;color:#B45309}.pp-fo.s-in .pp-foi{background:#E9EDFB;color:var(--pp-in)}.pp-fo.s-ok .pp-foi{background:#E3F5E8;color:#15803D}
+.pp-fos{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
+.pp-fo .tag{max-width:100%;white-space:normal;line-height:1.25;height:auto;padding-top:3px;padding-bottom:3px}
+.pp-fov{font-size:19px;font-weight:750;letter-spacing:-.02em}
+.pp-fo small{font-size:11.5px;color:var(--pp-f)}
+/* secagem */
+.pp-lotes{list-style:none;margin:0;padding:0 15px 8px}
+.pp-lotes li{padding:9px 0;border-top:1px solid var(--pp-l)}
+.pp-lotes li:first-child{border-top:0}
+.pp-lt{display:flex;gap:10px;align-items:baseline;font-size:13px}
+.pp-lt span{color:var(--pp-f);font-size:12px;flex:1}
+.pp-lt em{font-style:normal;font-weight:650;font-variant-numeric:tabular-nums}
+.pp-lotes .pp-bar{height:6px;margin-top:6px}
+.pp-ld{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--pp-f);margin-top:4px}
+/* linha do tempo */
+.pp-tl{padding:2px 15px 10px}
+.pp-tlr{display:flex;align-items:center;gap:10px;margin-top:6px}
+.pp-tlr>span{width:62px;font-size:11.5px;color:var(--pp-f);flex:none}
+.pp-tlt{position:relative;flex:1;height:16px;border-radius:6px;background:var(--pp-c)}
+.pp-tlt i{position:absolute;top:2px;bottom:2px;border-radius:4px}
+.pp-tlt i.ok,.pp-tll i.ok{background:var(--pp-ok)}.pp-tlt i.pend,.pp-tll i.pend{background:#F59E0B}
+.pp-tlt i.fal,.pp-tll i.fal{background:var(--pp-v)}.pp-tlt i.ref,.pp-tll i.ref{background:#C9C8D6}
+.pp-tlx{position:relative;height:16px;margin:4px 0 0 72px}
+.pp-tlx span{position:absolute;transform:translateX(-50%);font-size:10.5px;color:var(--pp-f)}
+.pp-tll{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--pp-f);margin-top:6px;padding:0 15px 4px}
+.pp-tl .pp-tll{padding:0}
+.pp-tll span{display:flex;align-items:center;gap:5px}
+.pp-tll i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.pp-tll i.liq{background:#16152B}.pp-tll i.des{background:var(--pp-v)}
+/* paradas e resumos */
+.pp-pres,.pp-gres{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 15px 8px}
+.pp-pres div,.pp-gres div{background:var(--pp-c);border-radius:12px;padding:8px 10px}
+.pp-pres b,.pp-gres b{display:block;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.pp-pres span,.pp-gres span{font-size:11px;color:var(--pp-f)}
+.pp-detb{padding:0 15px 12px}
+.pp-hb{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:7px}
+.pp-hb li{display:grid;grid-template-columns:minmax(0,9em) minmax(30px,1fr) auto;align-items:center;gap:8px;font-size:12.5px}
+.pp-hb li>span{color:var(--pp-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.pp-hb li>i{height:8px;border-radius:99px;background:var(--pp-l);overflow:hidden;display:block}
+.pp-hb li>i em{display:block;height:100%;border-radius:inherit;background:var(--pp-v)}
+.pp-hb li>i em.e2{background:#F59E0B}.pp-hb li>i em.e3{background:#6B6B75}
+.pp-hb li>b{font-variant-numeric:tabular-nums;font-weight:650}
+.pp-hbp{padding:0 15px 4px}
+/* gráfico de 30 dias */
+.pp-g30{display:flex;align-items:flex-end;gap:3px;height:150px;padding:8px 15px 26px;position:relative}
+.pp-gc{flex:1;height:100%;display:flex;align-items:flex-end;position:relative}
+.pp-gc i{display:block;width:100%;background:#16152B;border-radius:4px 4px 1px 1px;transition:background .15s}
+.pp-gc:hover i{background:var(--pp-v)}
+.pp-gc:last-child i{background:var(--pp-v)}
+.pp-gc span{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--pp-f);white-space:nowrap}
+/* histórico */
+.pp-h6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;height:170px;padding:8px 15px 4px}
+.pp-h6c{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.pp-h6b{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px}
+.pp-h6b i{display:block;width:34%;border-radius:4px 4px 1px 1px;min-height:2px}
+.pp-h6b i.liq{background:#16152B}.pp-h6b i.des{background:var(--pp-v)}
+.pp-h6c span{font-size:11px;color:var(--pp-f)}
+/* relatórios */
+
+.pp-rels a{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:10px;text-decoration:none;color:var(--pp-t);font-size:13px}
+.pp-rels a:hover{background:var(--pp-c)}
+.pp-rels a svg{width:16px;height:16px;color:var(--pp-f);flex:none}
+.pp-rels a span{flex:1}
+.pp-rels a:hover svg:last-child{color:var(--pp-v)}
+/* painel recolhível */
+.pp-mais{margin-top:4px}
+.pp-mais>summary{display:flex;align-items:center;gap:12px;cursor:pointer;list-style:none;background:var(--pp-b);border:1px solid var(--pp-l);border-radius:16px;padding:12px 16px;margin-bottom:12px;box-shadow:0 6px 16px rgba(80,70,140,.05)}
+.pp-mais>summary::-webkit-details-marker{display:none}
+.pp-mais>summary>svg:first-child{width:20px;height:20px;color:var(--pp-v)}
+.pp-mais>summary span{flex:1}.pp-mais>summary b{display:block;font-size:14px}.pp-mais>summary small{font-size:12px;color:var(--pp-f)}
+.pp-mais>summary>svg:last-child{width:16px;height:16px;color:var(--pp-f);transition:transform .2s}
+.pp-mais[open]>summary>svg:last-child{transform:rotate(90deg)}
+@media (max-width:1280px){.pp-fab{grid-template-columns:repeat(3,minmax(0,1fr))}.pp-ind2{grid-template-columns:repeat(3,minmax(0,1fr))}.pp-perdas{grid-column:1/-1}}
+@media (max-width:980px){.pp-ind{grid-template-columns:1fr}.pp-g2,.pp-g3{grid-template-columns:1fr}.pp-fluxo{grid-template-columns:repeat(3,minmax(0,1fr))}.pp-et:nth-child(3):after{display:none}}
+@media (max-width:640px){.pp-ind2,.pp-fab{grid-template-columns:1fr 1fr}.pp-fluxo{grid-template-columns:1fr 1fr}.pp-et:after{display:none}.pp-mn{grid-template-columns:1fr 1fr}.pp-avlin{flex-wrap:wrap}
+ .pp-hero .pp-kv{font-size:36px}.pp-mini{grid-template-columns:1fr 1fr}.pp-k{padding:12px 13px}.pp-kv{font-size:21px}.pp-st h2{font-size:16px}
+ .pp-g30{gap:2px;height:120px}.pp-gc:nth-child(odd) span{display:none}.pp-h6{height:140px;gap:6px}}
+</style>
 <style id="casca-nova">
 /* ================= Casca nova (redesign 08/11/2026) =================
    Só aparência e navegação: barra preta com ícones, trilho lateral de ícones
