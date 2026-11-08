@@ -1690,8 +1690,17 @@ a.btn{text-decoration:none}
 .fvd-tb td.d,.fvd-tb th.d{text-align:right}
 #printDoc{display:none}
 @media print{
- body>*:not(#printDoc){display:none!important}
+ /* imprimirDoc: só a folha (a cópia em #printDoc); a classe fica no body só enquanto a impressão dele está aberta */
+ body.imprime-doc>*:not(#printDoc){display:none!important}
  #printDoc{display:block!important}
+ /* Ctrl+P (imprimir pelo navegador) em qualquer tela: sai a tela atual, sem menu lateral, topo, barra de baixo e botões flutuantes */
+ body:not(.imprime-doc){background:#fff!important}
+ body:not(.imprime-doc)>*:not(#app){display:none!important}
+ body:not(.imprime-doc) #side,body:not(.imprime-doc) #top,body:not(.imprime-doc) .mob-nav-veu,body:not(.imprime-doc) .fab,body:not(.imprime-doc) .barra-mob,body:not(.imprime-doc) .trilho-set{display:none!important}
+ body:not(.imprime-doc) .app{display:block!important;min-height:0!important}
+ body:not(.imprime-doc) .main{padding:0!important;margin:0!important}
+ body:not(.imprime-doc) .conteudo{padding:0!important;max-width:none!important}
+ body:not(.imprime-doc) .tabwrap{overflow:visible!important}
  #printDoc .fvd{box-shadow:none;border:none;max-width:none;padding:0;margin:0}
  #printDoc .fvd-vz{background:none;border:none;color:inherit}
  @page{size:A4;margin:16mm 15mm}
@@ -4099,18 +4108,36 @@ async function salvarArquivo(nome,dados){
  if(APP.downloads){try{await APP.downloads.save({filename:nome,data:dados});return true}catch(e){if(e&&e.code==='declined')return false;if(e&&e.code==='rate_limited'){toast('Já existe um download aguardando confirmação.');return false}}}
  try{const b=dados instanceof Blob?dados:new Blob([dados]);const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return true}catch(e){toast('Download indisponível neste ambiente.','erro');return false}
 }
-function exportar(formato,nome,cols,rows,titulo){
- const cab=cols.map(c=>c.l);const doc_=formato==='pdf'||formato==='ver';const val=(c,r)=>{const v=r[c.k];if(c.t==='moeda')return doc_?(v===''||v==null?'':fMoeda(v)):round2(v);if(c.t==='data')return fData(v);if(c.t==='hm')return fHm(v);if(c.t==='num')return doc_?(v===''||v==null?'':fNum(v,Number.isInteger(+v)?0:2)):(+v||0);return v==null?'':String(v)};
+/* opc (opcional): {filtros:'Período: … · Setor: …'}: os filtros da tela saem no topo do PDF e da planilha */
+function exportar(formato,nome,cols,rows,titulo,opc){
+ opc=opc||{};const filtros=String(opc.filtros||'').trim();
+ const cab=cols.map(c=>c.l);const doc_=formato==='pdf'||formato==='ver';const vazio=v=>v===''||v==null;
+ /* só formata como data o que é data (aaaa-mm-dd ou aaaa-mm); o resto (ex.: "Total") sai como está */
+ const ehData=v=>/^\d{4}-\d{2}(-\d{2})?/.test(String(v==null?'':v));
+ const val=(c,r)=>{const v=r[c.k];if(c.t==='moeda')return doc_?(vazio(v)?'':fMoeda(v)):(vazio(v)?'':round2(v));if(c.t==='data')return ehData(v)?fData(v):(v==null?'':String(v));if(c.t==='hm')return fHm(v);if(c.t==='num')return doc_?(vazio(v)?'':fNum(v,Number.isInteger(+v)?0:2)):(vazio(v)?'':(+v||0));return v==null?'':String(v)};
  const corpo=rows.map(r=>cols.map(c=>val(c,r)));
  const base=nome.replace(/[^\w\-]+/g,'_');
- if(formato==='xlsx'){if(!window.XLSX){toast('Biblioteca do Excel não carregou; exportando em CSV.');return exportar('csv',nome,cols,rows,titulo)}
-  const ws=XLSX.utils.aoa_to_sheet([cab,...corpo]);ws['!cols']=cab.map(()=>({wch:18}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Relatório');const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});return salvarArquivo(base+'.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))}
+ if(formato==='xlsx'){if(!window.XLSX){toast('Biblioteca do Excel não carregou; exportando em CSV.');return exportar('csv',nome,cols,rows,titulo,opc)}
+  /* células com tipo: data de verdade (dd/mm/aaaa), horas como tempo, reais com formato de moeda; texto continua texto */
+  const serial=s=>{const m=/^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(String(s));return m?(Date.UTC(+m[1],+m[2]-1,+(m[3]||1))-Date.UTC(1899,11,30))/864e5:null};
+  const cel=(c,v,x)=>{if(c.t==='moeda')return x===''?null:{t:'n',v:x,z:'"R$" #,##0.00;-"R$" #,##0.00'};
+   if(c.t==='num')return x===''?null:{t:'n',v:x};
+   if(c.t==='data'){const n=ehData(v)?serial(v):null;return n==null?x:{t:'n',v:n,z:String(v).length===7?'mm/yyyy':'dd/mm/yyyy'}}
+   if(c.t==='hm'){const m=Math.round(+v||0);return m<0?x:{t:'n',v:m/1440,z:'[h]:mm'}}
+   return x};
+  /* topo da planilha: empresa, CNPJ, título, filtros e emissão; a tabela começa logo abaixo */
+  const emp=typeof razaoMostra==='function'?razaoMostra():String(((CFG&&CFG.empresa)||{}).razao||'');
+  const cnpj=typeof cnpjMostra==='function'?cnpjMostra():String(((CFG&&CFG.empresa)||{}).cnpj||'');
+  const topo=[[emp],...(cnpj?[['CNPJ '+cnpj]]:[]),[String(titulo||nome)],...(filtros?[['Filtros: '+filtros]]:[]),['Emitido em '+fDataHora(new Date().toISOString())+(APP.nome?' por '+APP.nome:'')],[]];
+  const ws=XLSX.utils.aoa_to_sheet([...topo,cab,...rows.map((r,i)=>cols.map((c,j)=>cel(c,r[c.k],corpo[i][j])))]);ws['!cols']=cab.map(()=>({wch:18}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Relatório');const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});return salvarArquivo(base+'.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))}
  if(formato==='pdf'||formato==='ver'){
   /* mesma lista, no modelo dos documentos (o da ficha de férias) */
-  const D=docLista(titulo||nome,cols,cab,corpo,base);
+  const D=docLista(titulo||nome,cols,cab,corpo,base,{filtros});
   if(formato==='ver'){verDoc(D);return true}
   return emitirPdfDoc(D,'PDF gerado.')}
- const csv=[cab,...corpo].map(l=>l.map(x=>{const s=String(x??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
+ /* CSV para o Excel em português: separador ";" e número com vírgula decimal, sem separador de milhar */
+ const num=x=>typeof x==='number'?(x||0).toLocaleString('pt-BR',{useGrouping:false,maximumFractionDigits:10}):x;
+ const csv=[cab,...corpo].map(l=>l.map(x=>{const s=String(num(x)??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
  return salvarArquivo(base+'.csv',new Blob(['\ufeff'+csv],{type:'text/csv'}));
 }
 
@@ -9633,6 +9660,7 @@ function htmlDoc(D,opc){
  const bloco=b=>{
   if(b.tipo==='p')return `<div class="fvd-intro">${htmlTxtDoc(b.texto,ed)}</div>`;
   if(b.tipo==='tabela')return htmlTabelaDoc(b,ed);
+  if(b.tipo==='imagem')return /^data:image\/(png|jpe?g);base64,/i.test(String(b.src||''))?`<figure class="fvd-fig">${b.titulo?`<h4 class="fvd-fig-t">${esc(b.titulo)}</h4>`:''}<img src="${esc(b.src)}" alt="${esc(b.alt||b.titulo||'Gráfico')}">${b.nota?`<p class="fvd-nota">${esc(b.nota)}</p>`:''}</figure>`:'';
   if(b.tipo==='aviso')return `<div class="fvd-aviso">${htmlTxtDoc(b.texto,ed)}</div>`;
   if(b.tipo==='clausula')return `<section class="fvd-cl"><h4>Cláusula ${ordinalFem(b.n)} — ${htmlVal(b.titulo,ed)}</h4>${htmlTxtDoc(b.texto,ed)}</section>`;
   if(b.tipo==='secao')return `<h3 class="fvd-h"><span>${esc(b.n)}</span>${esc(b.titulo)}</h3>
@@ -9674,9 +9702,20 @@ function pdfDoc(D){
    y+=3})};
  const tabela=b=>{cabe(40);const fs=b.fonte||9;const ft=b.foots||(b.foot?[b.foot]:null);doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:62,bottom:70},head:[b.head.map(tx)],body:b.body.map(r=>r.map(tx)),foot:ft?ft.map(r=>r.map(tx)):undefined,showFoot:'lastPage',
   styles:{font:'helvetica',fontSize:fs,cellPadding:fs<8.5?3.4:4.4,textColor:TX,lineColor:FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold',fontSize:fs-.2},
-  footStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold'},alternateRowStyles:{fillColor:BG2},didDrawCell:filetePdfCC(doc),
+  /* linhas zebradas leves; total em negrito, fundo cinza claro e um fio escuro em cima */
+  footStyles:{fillColor:FI,textColor:TX,fontStyle:'bold'},alternateRowStyles:{fillColor:BG},
+  didParseCell:c=>{if(c.section!=='body'&&(b.dir||[]).includes(c.column.index))c.cell.styles.halign='right'},
+  didDrawCell:(fil=>c=>{fil(c);if(c.section==='foot'&&c.row.index===0&&doc.setFillColor&&doc.rect){cor(PT,'setFillColor');doc.rect(c.cell.x,c.cell.y,c.cell.width,1,'F')}})(filetePdfCC(doc)),
   columnStyles:Object.fromEntries([...(b.dir||[]).map(i=>[i,{halign:'right'}]),...(b.larg||[]).map((w,i)=>[i,{cellWidth:w,halign:'center'}])]),
   didDrawPage:()=>{}});y=(doc.lastAutoTable&&doc.lastAutoTable.finalY||y)+12};
+ /* imagem (ex.: gráfico da tela em dataURL): ocupa a largura útil, sem passar da página */
+ const imagem=b=>{if(!doc.addImage||!/^data:image\/(png|jpe?g);base64,/i.test(String(b.src||'')))return;
+  const pr=b.w&&b.h?b.h/b.w:(()=>{try{const p=doc.getImageProperties(b.src);return p.height/p.width}catch(e){return .5}})();
+  let w=Math.min(L,b.larg||L),h=w*pr;const hMax=BOT-62-(b.titulo?22:0)-10;if(h>hMax){h=hMax;w=h/pr}
+  cabe(h+(b.titulo?22:0)+8);y+=4;
+  if(b.titulo){doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(TC,'setTextColor');doc.text(tx(String(b.titulo).toUpperCase()),M,y,{charSpace:.4});cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=16}
+  try{doc.addImage(b.src,/^data:image\/png/i.test(b.src)?'PNG':'JPEG',M+(L-w)/2,y,w,h)}catch(e){console.warn('imagem no PDF',e)}
+  y+=h+10;if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})};
  /* cabeçalho: faixa preta com a logo e a empresa; título e subtítulo à direita */
  y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,D.empresaLinha)),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M});
  if(D.meta&&D.meta.length){doc.setFont('helvetica','normal');doc.setFontSize(8.4);const mt=doc.splitTextToSize(tx(D.meta.map(([l,x])=>l+' '+x).join('   ·   ')),L-24);const hm=12+mt.length*10.5;
@@ -9695,6 +9734,7 @@ function pdfDoc(D){
  D.blocos.forEach(b=>{
   if(b.tipo==='p')paragrafo(b.texto);
   else if(b.tipo==='tabela')tabela(b);
+  else if(b.tipo==='imagem')imagem(b);
   else if(b.tipo==='aviso'){paragrafo(b.texto,{size:9,cz:true})}
   else if(b.tipo==='clausula'){cabe(40);y+=4;doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(TC,'setTextColor');
    doc.splitTextToSize(tx(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase()),L).forEach(l=>{doc.text(l,M,y,{charSpace:.4});y+=12.5});y+=2;paragrafo(b.texto)}
@@ -9736,11 +9776,12 @@ function wordDoc(D){
  const ps=s=>String(s||'').split('\n').filter(l=>l.trim()).map(l=>`<p style="margin:0 0 6pt;text-align:justify;${/^[a-z]\) /.test(l)?'margin-left:14pt;':''}">${t(l)}</p>`).join('');
  const al=(b,k)=>(b.dir||[]).includes(k)?'text-align:right;':'';
  const tb=b=>`<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:${b.fonte&&b.fonte<8.5?8.5:10}pt"><tr>${b.head.map((h,k)=>`<th style="background:#111114;color:#fff;border-bottom:2pt solid #D3121C;text-align:left;padding:4pt 6pt;${al(b,k)}">${t(h)}</th>`).join('')}</tr>
-  ${b.body.map((r,i)=>`<tr>${r.map((x,k)=>`<td style="padding:4pt 6pt;border-bottom:1px solid #E3E3E8;${i%2?'background:#FAFAFB;':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
-  ${(b.foots||(b.foot?[b.foot]:[])).map(f=>`<tr>${f.map((x,k)=>`<td style="padding:4pt 6pt;background:#111114;color:#fff;font-weight:bold;${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`;
+  ${b.body.map((r,i)=>`<tr>${r.map((x,k)=>`<td style="padding:4pt 6pt;border-bottom:1px solid #E3E3E8;${i%2?'background:#F5F5F7;':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
+  ${(b.foots||(b.foot?[b.foot]:[])).map((f,j)=>`<tr>${f.map((x,k)=>`<td style="padding:4pt 6pt;background:#E3E3E8;color:#141416;font-weight:bold;${j?'':'border-top:1.5pt solid #111114;'}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`;
  const quadro=q=>`<table style="width:100%;border-collapse:collapse;background:#F5F5F7;border-left:4px solid #D3121C;margin:0 0 10pt"><tr><td colspan="2" style="padding:6pt 10pt 2pt;color:#D3121C;font-size:8pt;font-weight:bold;letter-spacing:1pt">${t(q.rot)}</td></tr>
   ${q.campos.map(([l,x])=>`<tr><td style="padding:2pt 10pt;width:32%;color:#5B5B63;font-size:9pt">${t(l)}</td><td style="padding:2pt 10pt;font-weight:bold">${t(x)}</td></tr>`).join('')}<tr><td colspan="2" style="height:4pt"></td></tr></table>`;
  const corpo=D.blocos.map(b=>b.tipo==='p'||b.tipo==='aviso'?ps(b.texto):b.tipo==='tabela'?tb(b)
+  :b.tipo==='imagem'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(String(b.titulo||'Gráfico').toUpperCase())}</p><p style="margin:0 0 8pt;font-size:9pt;color:#5B5B63">O gráfico sai no PDF e na impressão.</p>`
   :b.tipo==='clausula'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase())}</p>${ps(b.texto)}`
   :b.tipo==='secao'?`<p style="margin:14pt 0 6pt;font-size:13pt;color:#D3121C;font-weight:bold;border-bottom:1px solid #E3E3E8"><span style="color:#5B5B63">${t(b.n)}</span> ${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:#5B5B63">${t(b.nota)}</p>`:''}`:'').join('');
  const ass=l=>`<table style="width:100%;margin-top:30pt"><tr>${l.map(a=>`<td style="width:50%;text-align:center;padding:0 12pt"><div style="border-top:1px solid #141416;padding-top:3pt;font-weight:bold">${t(a.nome||' ')}</div><div style="font-size:8pt;color:#5B5B63">${t(a.sub||'')}</div></td>`).join('')}</tr></table>`;
@@ -9766,9 +9807,10 @@ function imprimirDoc(){
  const src=document.getElementById('fvdDoc');if(!src){toast('Abra o documento para imprimir.');return}
  let box=document.getElementById('printDoc');if(box)box.remove();
  box=document.createElement('div');box.id='printDoc';if(src.classList.contains('paisagem'))box.classList.add('paisagem');const cp=src.cloneNode(true);cp.removeAttribute('id');box.appendChild(cp);document.body.appendChild(box);
+ document.body.classList.add('imprime-doc');
  let abriu=false;const f=()=>{abriu=true};window.addEventListener('beforeprint',f);
  try{window.print()}catch(e){}
- setTimeout(()=>{window.removeEventListener('beforeprint',f);box.remove();
+ setTimeout(()=>{window.removeEventListener('beforeprint',f);box.remove();document.body.classList.remove('imprime-doc');
   if(!abriu)toast('A impressão direta não abriu neste ambiente. Baixe o PDF e imprima por ele.')},900);
 }
 async function compartilharDoc(D){
@@ -10736,11 +10778,13 @@ function telaDocumento(el){
 }
 
 /* ---------- lista exportada (cadastros, relatórios, espelho, conferência) ---------- */
-function docLista(titulo,cols,cab,corpo,base){
+function docLista(titulo,cols,cab,corpo,base,opc){
  const dir=cols.map((c,i)=>['moeda','num','hm'].includes(c.t)?i:-1).filter(i=>i>=0);
  let body=corpo.map(r=>r.map(x=>x==null?'':String(x)));let foot=null;
  if(body.length>1&&/^total/i.test(body[body.length-1][0]||'')){foot=body.pop()}
  const D=baseRel(String(titulo||'Relatório').toUpperCase(),'',[['Registros',String(body.length)],['Emitido em',fDataHora(new Date().toISOString())]]);
+ /* filtros usados na tela (opcional): saem nos parâmetros, no topo do documento */
+ const fl=String((opc&&opc.filtros)||'').trim();if(fl)D.quadros[0].campos.push(['Filtros',fl,1]);
  D.arquivo=base;D.paisagem=cols.length>6;D.rodape=String(titulo||'Relatório');
  D.blocos.push({tipo:'tabela',head:cab,body:body.length?body:[[ 'Nenhum registro.',...cab.slice(1).map(()=>'')]],foot,dir,fonte:fonteTab(cols.length)});
  D.notaFinal='Emitido por '+(APP.nome||'usuário do sistema')+' em '+fDataHora(new Date().toISOString())+', com os filtros que estavam na tela.';
@@ -21861,7 +21905,14 @@ function telaRestrito(el){
 const ABA_NOME=Object.fromEntries(ABAS_C.map(a=>[a.m,a.l]));
 const ORDEM_REL=['setor-control','ctlLanc','ctlCustos','ctlPerdas','ctlPreco','ctlPE','ctlDRE','ctlInd','ctlGiro','ctlImob'];
 const NOTA_REL='Relatório gerencial elaborado com base em informações fornecidas pela administração da Cerâmica Concretiza LTDA, não auditadas. Não substitui as demonstrações contábeis oficiais. Valores indicados como estimados devem ser confirmados.';
-function menuPdf(btn,ativa){abrirMenuMais(btn,[{l:'Esta aba',sub:ABA_NOME[ativa]||'',fn:()=>relatorio([ativa])},{l:'Relatório completo',sub:'todas as abas do mês',fn:()=>relatorio(ORDEM_REL)}])}
+function menuPdf(btn,ativa){abrirMenuMais(btn,[{l:'Esta aba',sub:ABA_NOME[ativa]||'',fn:()=>relatorio([ativa],ativa)},{l:'Relatório completo',sub:'todas as abas do mês',fn:()=>relatorio(ORDEM_REL,ativa)}])}
+/* gráficos da aba que está na tela, como imagem (fundo branco), para o PDF: bloco "imagem" do motor de documentos */
+function graficosNaTela(){const out=[];if(!(window.Chart&&Chart.getChart))return out;
+ document.querySelectorAll('#svCorpo canvas').forEach(cv=>{const ch=Chart.getChart(cv);if(!ch||!cv.width||!cv.height)return;
+  try{const t=document.createElement('canvas');t.width=cv.width;t.height=cv.height;const x=t.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);x.drawImage(cv,0,0);
+   const h=cv.closest('.ctl-bl');const h3=h&&h.querySelector('h3');const tt=h3&&h3.firstChild&&h3.firstChild.nodeType===3?h3.firstChild.textContent.trim():'';
+   out.push({tipo:'imagem',src:t.toDataURL('image/png'),w:t.width,h:t.height,titulo:tt||cv.getAttribute('aria-label')||'Gráfico',alt:cv.getAttribute('aria-label')||''})}catch(e){console.warn('gráfico no PDF',e)}});
+ return out}
 const tR=(head,body,dir)=>({tipo:'tabela',head,body,dir:dir||[1]});
 const indRows=(R,ids)=>ids.map(id=>{const x=valInd(R,id);return[IND[id].n,x==null||!isFinite(x)?'— ('+(R.falta[id]||R.falta.bal||'faltam dados')+')':IND[id].fmt(x),IND[id].f]});
 function secoesRel(aba,m){
@@ -21892,12 +21943,14 @@ function secoesRel(aba,m){
  if(aba==='ctlPrem'){const C=cfgC();S('Premissas',tR(['Premissa','Valor'],[['Margem de lucro desejada',fNum(C.margem,1)+'%'],['Lucro mínimo desejado',fMoeda(C.lucroMin)],['% das vendas entregues',fNum(C.pctEntregues,1)+'%'],['Milheiros por carga',fNum(C.carga)],['Km por mês',fNum(C.km)],['% das vendas a prazo',fNum(C.pctPrazo,1)+'%'],['Prazo dos clientes',fDias(C.pzCli)],['Dias de lenha no estoque',fDias(C.diasLenha)],['Dias em produção',fDias(C.diasProd)],['Dias no pátio',fDias(C.diasPatio)],['Prazo dos fornecedores',fDias(C.pzForn)],['Salários a pagar',fMoeda(C.salPagar)],['Prazos confirmados',C.prazosConfirmados?'sim':'não']]))}
  return out;
 }
-function relatorio(abas){
+function relatorio(abas,naTela){
  const m=mesSel();const d=docMes(m);const emp=CFG.empresa||{};const um=abas.length===1;const nomeAba=um?ABA_NOME[abas[0]]||'':'Relatório completo';
  const D=baseRel('RELATÓRIO DE CONTROLADORIA',nomeAba+' · '+mesLongo(m),[]);
  D.meta=[['Empresa',emp.razao||emp.fantasia||'Cerâmica Concretiza LTDA'],['Aba',nomeAba],['Mês',mesLongo(m)],['Situação',d&&d.fech?'mês fechado em '+fData(d.fech):'PRÉVIA: mês em aberto']];
  D.quadros=[];
- let n=0;abas.forEach(a=>{secoesRel(a,m).forEach(b=>{if(b.tipo==='secao')b.n=String(++n);D.blocos.push(b)})});
+ let n=0;abas.forEach(a=>{secoesRel(a,m).forEach(b=>{if(b.tipo==='secao')b.n=String(++n);D.blocos.push(b)});
+  /* os gráficos que estão na tela entram logo depois das tabelas da aba deles */
+  if(a===naTela)graficosNaTela().forEach(b=>D.blocos.push(b))});
  D.assinaturas=[{nome:'JB Custos e Gestão – Controladoria e Gestão de Custos',sub:fData(hoje())}];
  D.notaFinal=NOTA_REL;D.rodape='Controladoria · '+fMes(m)+' · gerado em '+fDataHora(agoraIso());D.paisagem=true;
  D.arquivo=('Controladoria_'+(um?nomeAba:'completo')+'_'+m).replace(/[^\wÀ-ú-]+/g,'_');
@@ -26853,8 +26906,13 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .fvd .fvd-tb{font-family:inherit;border:1px solid var(--fi)}
 .fvd .fvd-tb th{background:var(--pt);color:#fff;border-bottom:3px solid var(--t);text-transform:uppercase;letter-spacing:.04em;font-size:10.8px}
 .fvd .fvd-tb td{border-bottom:1px solid var(--fi)}
-.fvd .fvd-tb tbody tr:nth-child(even) td{background:var(--bg2)}
-.fvd .fvd-tb tr.tot td,.fvd .fvd-tb tfoot td{background:var(--pt)!important;color:#fff;font-weight:700}
+.fvd .fvd-tb tbody tr:nth-child(even) td{background:var(--bg)}
+/* total: negrito, fundo cinza claro e um fio escuro em cima (o mesmo do PDF) */
+.fvd .fvd-tb tr.tot td,.fvd .fvd-tb tfoot td{background:var(--fi)!important;color:var(--tx);font-weight:700;border-top:1.5px solid var(--pt)}
+/* imagem no documento (gráfico da tela) */
+.fvd .fvd-fig{margin:16px 0 8px;text-align:center;break-inside:avoid;page-break-inside:avoid}
+.fvd .fvd-fig img{max-width:100%;height:auto;display:inline-block}
+.fvd .fvd-fig-t{margin:0 0 8px;text-align:left;color:var(--pt);font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:14px;letter-spacing:.03em;text-transform:uppercase;border-bottom:1px solid var(--fi);padding-bottom:4px}
 .fvd .fvd-aviso,.fvd .fvd-obsbox{background:var(--bg);border:1px solid var(--fi);border-left:4px solid var(--pt);border-radius:6px}
 .fvd .fvd-sit{border-radius:6px}
 .fvd .fvd-tot b{color:var(--t)}
@@ -30052,12 +30110,24 @@ const RELS=[
    rows:rows.sort((a,b)=>b.total-a.total)}}}
 
 ];
+/* texto dos filtros que estão na tela do relatório (sai no topo do PDF e do Excel) */
+function filtrosTxtRel(el,R,U){
+ const f=(R&&R.f)||[],p=[];
+ if(f.includes('periodo'))p.push('Período: '+(typeof periodoTxtV==='function'?periodoTxtV(U):(U.ini||U.fim?(U.ini?fData(U.ini):'início')+' a '+(U.fim?fData(U.fim):'hoje'):'todo o período')));
+ if(f.includes('mes')&&U.mes)p.push('Mês: '+mesLongo(U.mes));
+ $$('.filtros select[data-r]',el).forEach(s=>{if(s.dataset.r==='rapido'||!s.value)return;const o=s.options[s.selectedIndex];
+  const rot=String(s.getAttribute('aria-label')||'').trim(),tx=String(o?o.text:s.value).trim();if(tx)p.push(rot&&!tx.startsWith(rot)?rot+': '+tx:tx)});
+ if(f.includes('setor')&&APP.papel==='gestor'&&APP.setorGestor)p.push('Setor: '+APP.setorGestor);
+ return p.length?p.join(' · '):(f.length?'nenhum (todos os registros)':'');
+}
 function telaRelatorios(el,cfg){
  cfg=cfg||{};const L=cfg.rels||RELS,U=cfg.ui||UIR;
  const vis=L.filter(r=>pode(r.m)&&(!r.s||r.s(U)));if(!vis.find(r=>r.id===U.id))U.id=vis[0]&&vis[0].id;const R=vis.find(r=>r.id===U.id);
  let res={cols:[],rows:[]};try{res=R?R.b(U):res}catch(e){console.error(e)}
  const ext=R&&R.extra?(typeof R.extra.op==='function'?R.extra.op():R.extra.op):[];
- const totais=res.total?Object.fromEntries(res.cols.filter(c=>['moeda','num','hm'].includes(c.t)&&!c.semTotal).map(c=>[c.k,soma(res.rows,r=>r[c.k])])):null;
+ /* a linha de total só soma dinheiro, quantidades e horas: avos, dias, meses, percentuais, médias e valores unitários ficam em branco */
+ const naoSoma=c=>c.semTotal||/\bavos\b|\bdias\b|\bmeses\b|%|percent|\bm[ée]di[ao]s?\b|unit[áa]ri|valor (da |por )?di[áa]ria\b/i.test(String(c.l||''));
+ const totais=res.total?Object.fromEntries(res.cols.filter(c=>['moeda','num','hm'].includes(c.t)&&!naoSoma(c)).map(c=>[c.k,soma(res.rows,r=>r[c.k])])):null;
  el.innerHTML=`<div class="cab"><div><h1>${esc(cfg.h1||'Relatórios gerenciais')}</h1><p>${esc(cfg.p||'Escolha o relatório, ajuste os filtros e exporte em Excel, PDF ou CSV.')}</p></div></div>
  <div class="relgrid"><div class="painel rel-lista">${vis.map(r=>`<a href="javascript:void 0" data-rel="${r.id}" class="${r.id===U.id?'on':''}">${esc(r.n)}</a>`).join('')}</div>
  <div class="painel">${R?`<div class="filtros">
@@ -30075,7 +30145,7 @@ function telaRelatorios(el,cfg){
   <div class="pag"><span>${res.rows.length} linha(s)</span></div>`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
  $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';renderTela()});
  $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='mesrel'){const pr=typeof periodoDoMesV==='function'?periodoDoMesV(i.value):null;if(pr){U.mesrel=i.value;U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'&&i.value==='mesesc'&&typeof periodoDoMesV==='function'){U.rapido='mesesc';U.mesrel=U.mesrel||(U.ini?U.ini.slice(0,7):hoje().slice(0,7));const pr=periodoDoMesV(U.mesrel);if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
- $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;const perTit=R.f.includes('periodo')&&typeof periodoTxtV==='function'?periodoTxtV(U):'';const mesArq=perTit&&typeof mesInteiroV==='function'?mesInteiroV(U):'';try{exportar(b.dataset.x,R.n+'_'+(mesArq||hoje()),res.cols,rows,R.n+(perTit?' · '+perTit:''))}finally{REL_RESP=null}});
+ $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;const perTit=R.f.includes('periodo')&&typeof periodoTxtV==='function'?periodoTxtV(U):'';const mesArq=perTit&&typeof mesInteiroV==='function'?mesInteiroV(U):'';try{exportar(b.dataset.x,R.n+'_'+(mesArq||hoje()),res.cols,rows,R.n+(perTit?' · '+perTit:''),{filtros:filtrosTxtRel(el,R,U)})}finally{REL_RESP=null}});
  resolverNomes(DATA.diario.map(r=>r.lancadoPor));
 }
 
