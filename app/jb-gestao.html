@@ -22125,19 +22125,19 @@ function dre12(m){
   const acc=doAno.length&&doAno.every(i=>vs[i]!=null&&isFinite(vs[i]))?doAno.reduce((a,i)=>a+vs[i],0):null;return{l:b[0],vs,acc}});
  const sit=['Situação do mês',...R.map(Q=>Q?sitMes(Q):'sem dados'),doAno.length?doAno.length+' mês(es) com dados':'sem dados'];
  return{ms,R,ano,doAno,linhas,sit}}
-const notaDre12=X=>'Cada coluna é a DRE por absorção do mês, com as mesmas contas da tela DRE. Acumulado de '+X.ano+': soma de '+(X.doAno.length?fMes(X.ms[X.doAno[0]])+' a '+fMes(X.ms[X.ms.length-1]):'nenhum mês')+', só dos meses com dados; se uma linha não pôde ser calculada em algum desses meses, o acumulado dela fica “—”. “—” no mês: mês sem dados ou linha que não pôde ser calculada. Despesas fixas: administrativas, folha, comerciais e depreciação administrativa. Frota: depreciação, peças, motoristas, IPVA e seguro.';
+const notaDre12=X=>'Cada coluna é a DRE por absorção do mês, com as mesmas contas da tela DRE. Acumulado de '+X.ano+': soma de '+(X.doAno.length?fMes(X.ms[X.doAno[0]])+' a '+fMes(X.ms[X.ms.length-1])+', só dos meses com dados;':'nenhum mês do ano com dados;')+' se uma linha não pôde ser calculada em algum desses meses, o acumulado dela fica “—”. “—” no mês: mês sem dados ou linha que não pôde ser calculada. Despesas fixas: administrativas, folha, comerciais e depreciação administrativa. Frota: depreciação, peças, motoristas, IPVA e seguro. Despesas variáveis: comissões e fretes.';
 /* no PDF, 14 colunas: valores sem o "R$" (o título diz) e o nome da linha sem o detalhe entre parênteses (vai na nota) */
 const fN2=x=>x==null||!isFinite(x)?'—':fNum(x+0,2);
 function docDre12(m){
  const X=dre12(m);const ini=X.ms[0];const ab=X.R.filter(Q=>Q&&!Q.fechado).length;
- const D=moldeRel(baseRel('RELATÓRIO DE CONTROLADORIA','DRE de 12 meses · '+fMes(ini)+' a '+fMes(m),[]),[['Aba','DRE'],['Período',mesLongo(ini)+' a '+mesLongo(m)],['Situação',ab?'PRÉVIA: '+ab+' mês(es) em aberto':'meses fechados']]);
+ const D=moldeRel(baseRel('RELATÓRIO DE CONTROLADORIA','DRE de 12 meses · '+fMes(ini)+' a '+fMes(m),[]),[['Aba','DRE'],['Período',mesLongo(ini)+' a '+mesLongo(m)],['Situação',!X.R.filter(Boolean).length?'sem dados no período':ab?'PRÉVIA: '+ab+' mês(es) em aberto':'meses fechados']]);
  const head=['Linha',...X.ms.map(fMes),'Acumulado '+X.ano];
  D.blocos.push({tipo:'secao',n:'1',titulo:'DRE por absorção, mês a mês (R$)',tabela:{head,body:[...X.linhas.map(r=>[r.l.replace(/\s*\([^)]*\)$/,''),...r.vs.map(fN2),fN2(r.acc)]),X.sit],dir:head.map((h,i)=>i).filter(i=>i>0),fonte:fonteTab(head.length)},nota:notaDre12(X)});
  D.rodape='Controladoria · DRE de 12 meses · '+fMes(ini)+' a '+fMes(m)+' · gerado em '+fDataHora(agoraIso());
  D.arquivo='Controladoria_DRE_12_meses_'+m;if(ab)D.estimativa='Prévia: há mês em aberto';
  return D}
 function excelDre12(m){const X=dre12(m);
- return planilhaC('Controladoria_DRE_12_meses_'+m,'DRE 12 meses',['Linha',...X.ms.map(fMes),'Acumulado '+X.ano],[...X.linhas.map(r=>[r.l,...r.vs.map(r2n),r2n(r.acc)]),X.sit],[null,ZR])}
+ return planilhaC('Controladoria_DRE_12_meses_'+m,'DRE 12 meses',['Linha',...X.ms.map(fMes),'Acumulado '+X.ano],[...X.linhas.map(r=>[r.l,...r.vs.map(x=>r2n(x)??'—'),r2n(r.acc)??'—']),X.sit],[null,ZR])}
 function menuDre12(btn,m){const X=mesesAte(m,12);abrirMenuMais(btn,[{l:'Visualizar',sub:fMes(X[0])+' a '+fMes(m)+' e o acumulado de '+m.slice(0,4),fn:()=>verDoc(docDre12(m),{voltar:location.hash||'#/ctlDRE'})},
  {l:'Exportar PDF',sub:'uma coluna por mês, no modelo dos relatórios',fn:()=>emitirPdfDoc(docDre12(m),'PDF gerado.')},{l:'Exportar Excel',sub:'uma coluna por mês e o acumulado',fn:()=>excelDre12(m)}])}
 
