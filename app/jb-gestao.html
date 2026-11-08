@@ -32299,13 +32299,6 @@ html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
 @media (max-width:720px){.v83-saud b{font-size:24px}}
 .spot-boas b{color:var(--tinta)}
 
-/* início dos setores no modelo do DP (V84): mês, números e Acesso rápido no alto */
-.v84-topo{display:block;margin:0 0 6px}
-.v84-topo>.jbmes{margin-bottom:12px}
-.v84-ar{margin-top:4px}
-@media (max-width:720px){.v84-topo .hero .kpi .ic{display:none}.v84-topo .hero .kpi{padding:12px 13px}.v84-topo .hero .kpi .v{font-size:21px}}
-@media print{.v84-ar{display:none!important}}
-
 /* ---------- 7. impressão: nada disso vai para o papel ---------- */
 @media print{.v82-rola-dir,.v82-rola-esq{-webkit-mask-image:none!important;mask-image:none!important}.v82-secoes{display:none}}
 </style>
@@ -32373,47 +32366,7 @@ function saudacaoNome(){
   const b=document.createElement('b');b.textContent=saudacaoNome();const sp=document.createElement('span');sp.textContent=data;
   p.append(b,sp);alvo.prepend(p);
  }catch(e){console.warn('v83 saudação',e)}}
- /* ================= V84: início de cada setor no modelo do Departamento Pessoal =================
-    Pedido do dono: no alto, a saudação, o mês, o Acesso rápido e os números do setor; o Acesso rápido com TODAS as funções
-    do setor (as mesmas abas e botões de lançar que o setor já tem), com busca. O resto do início continua
-    logo abaixo, na mesma ordem. Nada é apagado; só os números e o mês sobem para o alto. */
- const NFE_SETORES=['setor-vendas','setor-fiscal'];
- const norm=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
- function porInicio(){try{
-  const r=lerRota();if(!INICIOS.includes(r.mod)||r.id)return;
-  const corpo=document.getElementById('svCorpo');if(!corpo||corpo.querySelector(':scope>.v84-topo'))return;
-  const topo=document.createElement('div');topo.className='v84-topo';
-  const mes=corpo.querySelector('.jbmes');if(mes)topo.appendChild(mes);
-  const nums=[...corpo.querySelectorAll('.hero,.kpis')].find(x=>!x.closest('.ar-dp,.gaveta,.modal'));
-  /* funções do setor: as abas (menos o Início) e os botões do cabeçalho do início */
-  const abas=[...document.querySelectorAll('.sv-topo nav.dir-abas a.dir-aba')].filter(a=>{const h=a.getAttribute('href')||'';return h&&h!=='#/'+r.mod&&h!=='#/setores'});
-  const lancar=[],telas=[];
-  const ehLanc=t=>/^(lan[cç]ar|nova|novo|registrar|repetir|abastecer|venda r[aá]pida|importar)/i.test(t.trim());
-  abas.forEach(a=>{const t=(a.textContent||'').trim();if(!t)return;(ehLanc(t)?lancar:telas).push({t,href:a.getAttribute('href')})});
-  const cab=corpo.querySelector('.sec-cab .acoes,.cab .acoes');
-  if(cab)[...cab.querySelectorAll('a.btn,button.btn')].forEach(b=>{const t=(b.textContent||'').replace('▾','').trim();if(!t||lancar.some(x=>norm(x.t)===norm(t))||telas.some(x=>norm(x.t)===norm(t)))return;
-   const h=b.tagName==='A'?b.getAttribute('href'):null;const x=h?{t,href:h}:{t,el:b};(ehLanc(t)||b.classList.contains('pri')?lancar:telas).push(x)});
-  if(NFE_SETORES.includes(r.mod)&&!lancar.some(x=>/nf-?e|nota fiscal/i.test(x.t))){let ok=true;try{ok=typeof pode!=='function'||pode('setor-fiscal')}catch(e){}if(ok)lancar.push({t:'Emitir nota fiscal (NF-e)',href:'#/setor-fiscal/nova'})}
-  if(!lancar.length&&!telas.length){if(nums)topo.appendChild(nums);if(topo.children.length)insere(corpo,topo);return}
-  const sec=document.createElement('section');sec.className='ar-dp v84-ar';sec.setAttribute('aria-label','Acesso rápido');
-  const nomeSetor=((document.querySelector('.sv-topo .spot-id b')||{}).textContent||'do setor').trim();
-  sec.innerHTML=`<div class="ar-dp-cab"><div><h2>Acesso rápido</h2><p></p></div><input type="search" placeholder="Procurar função" aria-label="Procurar função"></div><div class="ar-dp-grade"></div><div class="ar-vazio">Nenhuma função com esse nome. Tente outra palavra ou use a pesquisa no alto da tela.</div>`;
-  sec.querySelector('.ar-dp-cab p').textContent='Todas as funções do '+nomeSetor+'. Um toque abre a tela.';
-  const grade=sec.querySelector('.ar-dp-grade');
-  [['Lançar','mais',lancar,true],['Telas do setor','painel',telas,false]].forEach(([g,i,L,ac])=>{if(!L.length)return;
-   const d=document.createElement('div');d.className='ar-g';d.innerHTML=`<h3><span class="ic">${ic(i)}</span></h3><div class="ar-l"></div>`;d.querySelector('h3').append(g);
-   const l=d.querySelector('.ar-l');L.forEach(x=>{const b=document.createElement('button');b.type='button';if(ac)b.className='ac';b.textContent=(ac?'+ ':'')+x.t;
-    b.onclick=()=>{if(x.el)x.el.click();else if(x.href)location.hash=x.href};l.appendChild(b)});grade.appendChild(d)});
-  const bus=sec.querySelector('input[type=search]');
-  bus.oninput=()=>{const q=norm(bus.value.trim());let tem=0;
-   sec.querySelectorAll('.ar-g').forEach(g=>{const tg=norm(g.querySelector('h3').textContent);let n=0;
-    g.querySelectorAll('.ar-l button').forEach(b=>{const v=!q||norm(b.textContent).includes(q)||tg.includes(q);b.hidden=!v;if(v)n++});g.hidden=!n;tem+=n});
-   sec.querySelector('.ar-vazio').style.display=tem?'none':'block'};
-  topo.appendChild(sec);if(nums)topo.appendChild(nums);insere(corpo,topo);
- }catch(e){console.warn('v84 início do setor',e)}}
- function insere(corpo,topo){const sd=corpo.querySelector(':scope>.v83-saud');if(sd)sd.after(topo);else corpo.prepend(topo)}
- const tudo=()=>{porSaudacao();porInicio()};
- try{const _rt=renderTela;renderTela=function(){const r=_rt.apply(this,arguments);tudo();requestAnimationFrame(tudo);return r}}catch(e){console.warn('v83',e)}
+ try{const _rt=renderTela;renderTela=function(){const r=_rt.apply(this,arguments);porSaudacao();requestAnimationFrame(porSaudacao);return r}}catch(e){console.warn('v83',e)}
 })();
 </script>
 
