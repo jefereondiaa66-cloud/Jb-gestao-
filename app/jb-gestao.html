@@ -7542,9 +7542,9 @@ function renderCasca(){
  let bm=document.getElementById('barraMob');if(!bm){bm=document.createElement('nav');bm.id='barraMob';bm.className='barra-mob';bm.setAttribute('aria-label','Navegação principal');document.body.appendChild(bm)}
  const itensMob=[['painel','Painel','painel'],['ponto','Ponto','relogio'],['funcionarios','Pessoas','pessoas'],['folha','Folha','folha'],['ia','Claude','faisca'],['alertas','Alertas','sino']].filter(([m])=>pode(m));
  bm.innerHTML=itensMob.map(([m,l,i])=>`<a href="#/${m}" class="${r.mod===m?'on':''}">${ic(i)}<span>${l}</span>${m==='alertas'?'<span class="qt" id="qtMob" hidden></span>':''}</a>`).join('')+`<button type="button" id="bMenuMob" class="${itensMob.some(([m])=>m===r.mod)?'':'on'}">${ic('menu')}<span>Menu</span></button>`;
- $('#bMenuMob').onclick=()=>{$('#side').classList.add('aberto');$('#veuNav').classList.add('aberto')};
+ $('#bMenuMob').onclick=e=>{if(window.JB_CASCA&&JB_CASCA.funcoes&&JB_CASCA.funcoes()){e.stopPropagation();return}$('#side').classList.add('aberto');$('#veuNav').classList.add('aberto')};
  atualizarSinc();
- $('#bMenu').onclick=()=>{$('#side').classList.add('aberto');$('#veuNav').classList.add('aberto')};
+ $('#bMenu').onclick=e=>{if(window.JB_CASCA&&JB_CASCA.funcoes&&JB_CASCA.funcoes()){e.stopPropagation();return}$('#side').classList.add('aberto');$('#veuNav').classList.add('aberto')};
  if($('#bColapsa'))$('#bColapsa').onclick=()=>{salvarPrefs({menuRecolhido:!PREFS.menuRecolhido});aplicarColapso()};
  aplicarColapso();
  $$('[data-ng]').forEach(b=>b.onclick=()=>{const g=b.dataset.ng;
@@ -31191,7 +31191,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  function menuEu(dp){
   return `<div class="c2-quem">${avatar()}<span><b>${esc(APP.nome||'Você')}</b><small>${esc(PAPEIS[APP.papel]||'')}</small></span></div><div class="c2-linha"></div>
   <a class="c2-op" href="#/setores">${ic('c2grade')}Trocar de setor</a>
-  ${dp?`<button type="button" class="c2-op" data-c2menu>${ic('c2listas')}<span>Menu completo<small>Todos os grupos, inclusive o que está previsto</small></span></button>`:''}
+
   <button type="button" class="c2-op" data-visual-troca>${ic('paleta')||ic('engrenagem')}Trocar o visual das cores</button>
   ${pode('config')?`<a class="c2-op" href="#/config">${ic('engrenagem')}Configurações</a>`:''}
   <div class="c2-linha"></div><div class="c2-pt">Modelo de tela</div>
@@ -31234,7 +31234,15 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const adm=document.getElementById('jbadm');const sai=document.getElementById('jbsair');
   x.innerHTML=(adm?`<a class="c2-op" href="${esc(adm.getAttribute('href')||'admin.html')}">${ic('chave')}<span>${esc(adm.textContent.trim()||'Usuários e segurança')}<small>Usuários, senhas, permissões e histórico</small></span></a>`:'')
    +(sai||typeof window.JB_SAIR==='function'?`<div class="c2-linha"></div><button type="button" class="c2-op" data-c2sair>${ic('c2sair')}<span>Sair${sai?'<small>'+esc(sai.textContent.replace(/·\s*Sair\s*$/,'').trim())+'</small>':''}</span></button>`:'')}
- function abrirMenuCompleto(){const s=$('#side'),v=$('#veuNav');if(s)s.classList.add('aberto');if(v)v.classList.add('aberto')}
+ /* 08/11/2026 · pedido do dono: o menu antigo do lado sai do Setor Pessoal. No layout novo, todo pedido de
+    "menu" abre as Funções do setor (as mesmas telas, no padrão novo); o que está em preparação fica em
+    Configurações › Início do Departamento Pessoal. O menu antigo só volta com "Usar o layout anterior". */
+ function abrirFuncoes(){
+  if(!ligada()||!acessoOk())return false;
+  const wf=$('[data-c2=funcoes]');if(!wf||wf.classList.contains('c2-oculto'))return false;
+  fecharTudo(wf);wf.classList.add('ab');scrollTo({top:0});const f=document.getElementById('c2filtro');if(f&&innerWidth>860)setTimeout(()=>f.focus(),40);return true;
+ }
+ function abrirMenuCompleto(){if(abrirFuncoes())return;const s=$('#side'),v=$('#veuNav');if(s)s.classList.add('aberto');if(v)v.classList.add('aberto')}
  function irSetor(id){const s=SETORES.find(x=>x.id===id);if(!s)return;try{marcarSetor(s.id)}catch(e){}location.hash=s.rota}
  function alternar(on){try{localStorage.setItem(LS,on?'nova':'antiga')}catch(e){}aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}if(!on)toast('Layout anterior em uso. Para voltar ao novo, use o botão "Novo layout" no alto.','ok')}
  function aplicarClasse(){const on=ligada()&&acessoOk();const h=document.documentElement;h.classList.toggle('casca2',on);const m=modelo();Object.keys(MODELOS).forEach(k=>h.classList.toggle('c2-'+k,on&&k===m));if(!on){document.body.classList.remove('c2-tem-mob','c2-semtrilho')}}
@@ -31263,7 +31271,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    mega.innerHTML=`<div class="c2-mega-cab"><div><h4>Funções do ${esc(st.nome)}</h4><p>Todas as telas do setor num lugar só. Aparece só o que o seu perfil pode usar.</p></div>
     <label class="c2-filtro">${ic('lupa')}<input id="c2filtro" type="search" placeholder="Filtrar funções…" autocomplete="off" aria-label="Filtrar funções"></label></div>
     <div class="c2-mega-corpo ${dp?'':'plano'}">${corpo}</div>
-    <div class="c2-mega-rod">${dp?`<button type="button" class="c2-op" data-c2menu>${ic('c2listas')}Menu completo (com o que está previsto)</button>`:''}<a class="c2-op" href="#/setores">${ic('c2grade')}Trocar de setor</a><span class="d">Clique fora para fechar · Esc</span></div>`;
+    <div class="c2-mega-rod"><a class="c2-op" href="#/setores">${ic('c2grade')}Trocar de setor</a><span class="d">Clique fora para fechar · Esc</span></div>`;
    const f=$('#c2filtro');f.oninput=()=>{const q=f.value.trim().toLowerCase();mega.querySelectorAll('[data-f]').forEach(a=>a.classList.toggle('c2-oculto',!!q&&!a.dataset.f.includes(q)));mega.querySelectorAll('.c2-mg').forEach(g=>g.classList.toggle('c2-oculto',!g.querySelector('[data-f]:not(.c2-oculto)')))};
    f.onclick=e=>e.stopPropagation();
   }
@@ -31486,7 +31494,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  window.addEventListener('hashchange',()=>fecharTudo());
  /* o número de Pendências (V81) muda sozinho: o sino acompanha */
  setInterval(()=>{try{if(ligada()&&acessoOk())atualizarAlertas()}catch(e){}},10000);
- window.JB_CASCA={ligada,alternar,atualizar:()=>atualizarContexto(true)};
+ window.JB_CASCA={ligada,alternar,atualizar:()=>atualizarContexto(true),funcoes:abrirFuncoes};
 })();
 </script>
 <script>
@@ -32023,6 +32031,7 @@ iniciar().catch(e=>{console.error(e);$('#conteudo').innerHTML='<div class="vazio
 #conteudo.ini-dp.ini-sem-pendencias>.ex3,#conteudo.ini-dp.ini-sem-rotina>.ex4,#conteudo.ini-dp.ini-sem-movimento>.mv,
 #conteudo.ini-dp.ini-sem-indicadores>#detMais{display:none!important}
 #ndpCfg{display:none!important}
+html.casca2 #side,html.casca2 #veuNav{display:none!important}
 html.sem-menu-antigo .ms-modo,html.sem-menu-antigo #msCfg{display:none!important}
 .ar-dp{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:16px 18px 18px;margin:0 0 18px}
 .ar-dp-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
@@ -32042,6 +32051,12 @@ html.sem-menu-antigo .ms-modo,html.sem-menu-antigo #msCfg{display:none!important
 .ar-vazio{display:none;color:var(--suave);font-size:13px;padding:8px 2px}
 .ini-cfg label.ck{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:13.5px;cursor:pointer}
 .ini-cfg label.ck input{margin-top:3px}
+.ini-prev{margin-top:14px;border-top:1px solid var(--linha);padding-top:10px}
+.ini-prev summary{cursor:pointer;font-weight:600;font-size:13.5px}
+.ini-prev-g{margin:10px 0 4px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--suave)}
+.ini-prev-l{display:flex;flex-wrap:wrap;gap:6px}
+.ini-prev-l a{font-size:12.5px;padding:5px 10px;border:1px solid var(--linha);border-radius:999px;color:var(--suave);text-decoration:none}
+.ini-prev-l a:hover{border-color:var(--brasa);color:var(--tinta)}
 @media (max-width:720px){.ar-dp{padding:14px 12px}.ar-dp-cab input{min-width:0;width:100%}.ar-dp-grade{grid-template-columns:1fr}}
 @media print{.ar-dp{display:none!important}}
 </style>
@@ -32162,6 +32177,14 @@ ligarAparencia=function(el){
  _ligarAparenciaINI.apply(this,arguments);
  try{iniSecaoConfig(el)}catch(e){console.warn('início do DP · configurações',e)}
 };
+/* 08/11/2026 · o que ainda está em preparação saiu do menu (o menu antigo do lado não aparece mais no
+   layout novo) e fica aqui, fechado: a lista é a mesma do grupo "Em preparação" de antes */
+function iniPrevHtml(){
+ const prev=[];MITENS.forEach((it,i)=>{if(!it.m)prev.push([it,i])});if(!prev.length)return '';
+ const porG=[];prev.forEach(([it,i])=>{let g=porG.find(x=>x[0]===it.g);if(!g){g=[it.g,[]];porG.push(g)}g[1].push([it,i])});
+ return `<details class="ini-prev"><summary>Funções em preparação (${prev.length})</summary><p class="ajuda" style="margin:6px 0 8px">Ainda não funcionam: ficam aqui para consulta e não aparecem no menu.</p>
+  ${porG.map(([g,l])=>`<p class="ini-prev-g">${esc(g)}</p><div class="ini-prev-l">${l.map(([it,i])=>`<a href="javascript:void 0" data-ini-prev="${i}">${esc(it.l)}</a>`).join('')}</div>`).join('')}</details>`;
+}
 function iniSecaoConfig(el){
  if(!el||el.querySelector('#iniCfg'))return;
  const ed=pode('config','e');
@@ -32171,8 +32194,9 @@ function iniSecaoConfig(el){
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
   <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
   <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
-  <span class="ajuda">${ed?'Entra na hora, sem precisar salvar. Vale para todos os usuários.':'Só quem pode alterar as Configurações muda estas opções.'}</span>`;
+  <span class="ajuda">${ed?'Entra na hora, sem precisar salvar. Vale para todos os usuários.':'Só quem pode alterar as Configurações muda estas opções.'}</span>${iniPrevHtml()}`;
  if(ref)ref.after(n);else{const p=el.querySelector('fieldset.sec');if(p)p.after(n);else el.appendChild(n)}
+ n.querySelectorAll('[data-ini-prev]').forEach(x=>x.onclick=e=>{e.preventDefault();abrirItem(+x.dataset.iniPrev)});
  const ma=n.querySelector('#iniMenuAntigo');
  if(ma)ma.onchange=async e=>{e.stopPropagation();const v=ma.checked;
   try{await salvarCfg({...clone(CFG),menuAntigoDP:v});CFG.menuAntigoDP=v;menuAntigoMarcar();msRedesenhar();
