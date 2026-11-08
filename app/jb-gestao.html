@@ -6685,11 +6685,14 @@ const MENU=[
  {m:'relatorios',l:'Funcionários por setor',r:'r2'},
  {m:'relatorios',l:'Por modalidade contratual',r:'r3'},
  {m:'relatorios',l:'Admissões e desligamentos',r:'r4'},
+ {m:'relatorios',l:'Rotatividade (turnover)',r:'r29'},
  {m:'relatorios',l:'Contratos a vencer',r:'r5'},
  {m:'relatorios',l:'Diário de ocorrências',r:'r6'},
  {m:'relatorios',l:'Ponto e horas extras',r:'r7'},
  {m:'relatorios',l:'Controle de férias',r:'r10'},
  {m:'relatorios',l:'Afastamentos',r:'r11'},
+ {m:'relatorios',l:'Absenteísmo (faltas e atestados)',r:'r28'},
+ {m:'relatorios',l:'ASO vencidos e a vencer',r:'r27'},
  {m:'relatorios',l:'Despesas mensais com pessoal',r:'r12'},
  {m:'relatorios',l:'Custo por funcionário',r:'r13'},
  {m:'relatorios',l:'Custo por setor',r:'r14'},
@@ -30183,6 +30186,17 @@ const RELS=[
  {id:'r2',n:'Funcionários por setor',m:'funcionarios',f:[],b(){const fs=funcsR();const ss=[...new Set(fs.map(f=>f.setor||'Sem setor'))].sort();const c=s=>fs.filter(f=>(f.setor||'Sem setor')===s);return{cols:[{k:'s',l:'Setor'},{k:'a',l:'Ativos',t:'num'},{k:'fe',l:'Em férias',t:'num'},{k:'af',l:'Afastados',t:'num'},{k:'d',l:'Desligados',t:'num'},{k:'t',l:'Total',t:'num'}],total:1,rows:ss.map(s=>({s,a:c(s).filter(f=>f.situacao==='Ativo').length,fe:c(s).filter(f=>f.situacao==='Em férias').length,af:c(s).filter(f=>f.situacao==='Afastado').length,d:c(s).filter(f=>f.situacao==='Desligado').length,t:c(s).length}))}}},
  {id:'r3',n:'Funcionários por modalidade contratual',m:'funcionarios',f:['setor'],b(){const fs=funcsR();const ts=[...new Set(fs.map(f=>f.tipoContratacao||'Não informado'))].sort();return{cols:[{k:'t',l:'Modalidade'},{k:'g',l:'Regime'},{k:'a',l:'Em atividade',t:'num'},{k:'d',l:'Desligados',t:'num'},{k:'n',l:'Total',t:'num'}],total:1,rows:ts.map(t=>{const x=fs.filter(f=>(f.tipoContratacao||'Não informado')===t);return{t,g:ehCLT(t)?'CLT':ehPrestador(t)?'Prestação de serviços':'Outro',a:x.filter(f=>f.situacao!=='Desligado').length,d:x.filter(f=>f.situacao==='Desligado').length,n:x.length}})}}},
  {id:'r4',n:'Admissões e desligamentos',m:'funcionarios',f:['periodo','setor'],b(){const r=[];funcsR().forEach(f=>{if(dentroR(f.admissao))r.push({data:f.admissao,nome:f.nome,mov:'Admissão',tipo:f.tipoContratacao,setor:f.setor,det:''});if(dentroR(f.dataDesligamento)){const d=DATA.desligamentos.find(x=>x.funcionarioId===f.id);r.push({data:f.dataDesligamento,nome:f.nome,mov:'Desligamento',tipo:f.tipoContratacao,setor:f.setor,det:d?d.tipo:''})}});return{cols:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Funcionário'},{k:'mov',l:'Movimento'},{k:'tipo',l:'Contratação'},{k:'setor',l:'Setor'},{k:'det',l:'Tipo de desligamento'}],rows:r.sort((a,b)=>a.data.localeCompare(b.data))}}},
+ /* rotatividade: ((admissões + desligamentos) ÷ 2) ÷ média de ativos, com a mesma regra de "em atividade" do resumo mensal (r16) */
+ {id:'r29',n:'Rotatividade (turnover)',m:'funcionarios',f:['periodo','setor'],b(){
+  const ini=UIR.ini,fim=UIR.fim;const fs=funcsR().filter(f=>f.admissao);
+  const noIni=f=>f.admissao<ini&&(!f.dataDesligamento||f.dataDesligamento>=ini),noFim=f=>f.admissao<=fim&&(!f.dataDesligamento||f.dataDesligamento>fim);
+  const linha=(s,x)=>{const a=x.filter(noIni).length,b=x.filter(noFim).length,ad=x.filter(f=>dentroR(f.admissao)).length,de=x.filter(f=>dentroR(f.dataDesligamento)).length,med=(a+b)/2;
+   return{s,ini:a,adm:ad,desl:de,fim:b,med,taxa:med?fNum((ad+de)/2/med*100,1)+'%':'—'}};
+  const ss=[...new Set(fs.map(f=>f.setor||'Sem setor'))].sort();
+  const rows=ss.map(s=>linha(s,fs.filter(f=>(f.setor||'Sem setor')===s))).filter(r=>r.ini||r.adm||r.desl||r.fim);
+  const tot=linha('',fs);delete tot.s;
+  return{cols:[{k:'s',l:'Setor'},{k:'ini',l:'Ativos no início',t:'num'},{k:'adm',l:'Admissões',t:'num'},{k:'desl',l:'Desligamentos',t:'num'},{k:'fim',l:'Ativos no fim',t:'num'},{k:'med',l:'Média de ativos',t:'num'},{k:'taxa',l:'Rotatividade no período'}],rows,total:tot,
+   nota:'Rotatividade = ((admissões + desligamentos) ÷ 2) ÷ média de ativos × 100. Média de ativos = (ativos no início + ativos no fim do período) ÷ 2. Ativos no início: admitidos antes de '+fData(ini)+' e ainda não desligados nesse dia. Ativos no fim: em atividade em '+fData(fim)+'. Só entra quem tem data de admissão na ficha.'}}},
  {id:'r5',n:'Contratos ativos e próximos do vencimento',m:'contratos',f:['setor','extra'],extra:{l:'Mostrar',op:['Somente próximos do vencimento','Somente vencidos']},b(){let cs=filtroSetor(DATA.contratos,c=>setorF(c.funcionarioId)).filter(c=>c.situacao==='Ativo'&&okS(setorF(c.funcionarioId)));const H=hoje();const dd=c=>c.termino?diasEntre(H,c.termino):null;
   if(UIR.extra==='Somente vencidos')cs=cs.filter(c=>dd(c)!=null&&dd(c)<0);else if(UIR.extra)cs=cs.filter(c=>dd(c)!=null&&dd(c)>=0&&dd(c)<=(+c.diasAlerta||+CFG.alertas.diasContrato));
   return{cols:[{k:'numero',l:'Nº'},{k:'nome',l:'Contratado'},{k:'tipo',l:'Tipo'},{k:'inicio',l:'Início',t:'data'},{k:'termino',l:'Término',t:'data'},{k:'dias',l:'Dias para vencer'},{k:'valor',l:'Valor',t:'moeda'}],rows:cs.sort((a,b)=>String(a.termino||'9').localeCompare(String(b.termino||'9'))).map(c=>({...c,nome:nomeF(c.funcionarioId),dias:dd(c)==null?'Sem término':dd(c)<0?'Vencido há '+(-dd(c)):String(dd(c))}))}}},
@@ -30197,6 +30211,22 @@ const RELS=[
  {id:'r10',n:'Controle de férias',m:'ferias',f:['setor','func'],b(){const fs=funcsR().filter(f=>f.situacao!=='Desligado'&&ehCLT(f.tipoContratacao));return{cols:[{k:'nome',l:'Funcionário'},{k:'admissao',l:'Admissão',t:'data'},{k:'pend',l:'Períodos pendentes',t:'num'},{k:'limite',l:'Conceder até',t:'data'},{k:'prox',l:'Próximas férias',t:'data'},{k:'dias',l:'Dias programados',t:'num'},{k:'alerta',l:'Situação'}],
   rows:fs.map(f=>{const p=periodosPendentes(f);const pr=DATA.ferias.filter(x=>x.funcionarioId===f.id&&x.situacao==='Programada'&&x.inicio>=hoje()).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];const d=p.length?diasEntre(hoje(),p[0].concessivo):null;return{nome:f.nome,admissao:f.admissao,pend:p.length,limite:p.length?p[0].concessivo:'',prox:pr?pr.inicio:'',dias:pr?pr.dias:'',alerta:d==null?'Em dia':d<0?'Vencidas (dobra)':d<=+CFG.alertas.diasFerias?'Conceder em '+d+' dia(s)':'Pendente'}}).sort((a,b)=>String(a.limite||'9').localeCompare(String(b.limite||'9')))}}},
  {id:'r11',n:'Controle de afastamentos',m:'afastamentos',f:['periodo','extra'],extra:{l:'Situação',op:['Em andamento','Encerrado']},b(){const rs=filtroSetor(DATA.afastamentos,r=>setorF(r.funcionarioId)).filter(r=>(r.inicio<=UIR.fim)&&(!r.retornoEfetivo||r.retornoEfetivo>=UIR.ini)&&(!UIR.extra||r.situacao===UIR.extra));return{cols:[{k:'nome',l:'Funcionário'},{k:'tipo',l:'Tipo'},{k:'inicio',l:'Início',t:'data'},{k:'retornoPrevisto',l:'Retorno previsto',t:'data'},{k:'retornoEfetivo',l:'Retorno efetivo',t:'data'},{k:'dias',l:'Dias',t:'num'},{k:'situacao',l:'Situação'}],rows:rs.map(r=>({...r,nome:nomeF(r.funcionarioId),dias:diasEntre(r.inicio,r.retornoEfetivo||hoje())+1}))}}},
+ /* absenteísmo: faltas do diário e dias de afastamento (doença e acidente) por funcionário no período */
+ {id:'r28',n:'Absenteísmo (faltas e atestados)',m:'diario',f:['periodo','setor','func'],b(){
+  const comAf=pode('afastamentos');const ate=UIR.fim<hoje()?UIR.fim:hoje();const DOENCA=['Doença (atestado ou INSS)','Acidente de trabalho'];
+  /* dias corridos do afastamento dentro do período: do início até a véspera do retorno (em andamento: até hoje) */
+  const diasAf=a=>{const out=[];if(!a.inicio)return out;let e=a.retornoEfetivo?addDias(a.retornoEfetivo,-1):ate;if(e<a.inicio)e=a.inicio;if(e>ate)e=ate;
+   for(let d=a.inicio<UIR.ini?UIR.ini:a.inicio;d<=e;d=addDias(d,1))out.push(d);return out};
+  const rows=funcsR().map(f=>{const di=DATA.diario.filter(r=>r.funcionarioId===f.id&&dentroR(r.data));const porTipo=t=>new Set(di.filter(r=>r.tipo===t).map(r=>r.data));
+   const sNJ=porTipo('Falta não justificada'),sJ=porTipo('Falta justificada'),sD=new Set(),sL=new Set();
+   if(comAf)(DATA.afastamentos||[]).filter(a=>a.funcionarioId===f.id).forEach(a=>diasAf(a).forEach(d=>(DOENCA.includes(a.tipo)?sD:sL).add(d)));
+   porTipo('Afastamento').forEach(d=>{if(!sL.has(d))sD.add(d)});
+   const tot=new Set([...sNJ,...sJ,...sD]).size;
+   return{nome:f.nome,setor:f.setor,fnj:sNJ.size,fj:sJ.size,doe:sD.size,tot,at:soma(di.map(calcDia),c=>c.atraso+c.antecipada),lic:sL.size}})
+   .filter(r=>r.tot||r.at||r.lic).sort((a,b)=>b.tot-a.tot||b.at-a.at||a.nome.localeCompare(b.nome));
+  return{cols:[{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'fnj',l:'Faltas não justificadas (dias)',t:'num'},{k:'fj',l:'Faltas justificadas (dias)',t:'num'},{k:'doe',l:'Atestados e afastamentos (dias)',t:'num'},{k:'tot',l:'Total de dias de ausência',t:'num'},{k:'at',l:'Atrasos e saídas antecipadas',t:'hm'},...(comAf?[{k:'lic',l:'Licenças e outros afastamentos (dias)',t:'num'}]:[])],total:1,rows,
+   nota:(comAf?'Atestados e afastamentos: dias corridos de afastamento por doença (atestado ou INSS) e por acidente de trabalho, do início até a véspera do retorno e só dentro do período, mais os dias lançados no diário como “Afastamento”. Licença-maternidade, paternidade, serviço militar e outros afastamentos aparecem à parte e não entram no total.'
+    :'Seu perfil não acessa a tela de afastamentos: em “Atestados e afastamentos” só entram os dias lançados no diário como “Afastamento”.')+' O total conta cada dia uma vez só, mesmo que tenha mais de um lançamento. Faltas e atrasos vêm do diário de ocorrências.'}}},
  {id:'r12',n:'Despesas mensais com pessoal',m:'despesas',f:['periodo','setor','extra'],extra:{l:'Categoria',op:()=>categorias().map(c=>c.n)},b(){const ds=despR();return{cols:[{k:'mes',l:'Competência'},{k:'prev',l:'Previsto (custo)',t:'moeda'},{k:'real',l:'Realizado (custo)',t:'moeda'},{k:'ret',l:'Retenções (informativo)',t:'moeda'},{k:'aberto',l:'Em aberto',t:'moeda'}],total:1,
   rows:mesesR().map(m=>{const x=ds.filter(r=>r.competencia===m);const c=x.filter(r=>natCat(r.categoria)==='custo');return{mes:fMes(m),prev:soma(c,r=>r.valorPrevisto),real:soma(c,r=>r.valorRealizado),ret:soma(x.filter(r=>natCat(r.categoria)!=='custo'),r=>r.valorRealizado),aberto:soma(c.filter(r=>r.situacao!=='Pago'),r=>Math.max(0,(+r.valorPrevisto||0)-(+r.valorRealizado||0)))}})}}},
  {id:'r13',n:'Despesas por funcionário',m:'despesas',f:['periodo','setor','func','extra'],extra:{l:'Categoria',op:()=>categorias().map(c=>c.n)},b(){const ds=despR().filter(r=>r.funcionarioId&&natCat(r.categoria)==='custo');const ids=[...new Set(ds.map(r=>r.funcionarioId))];return{cols:[{k:'nome',l:'Funcionário ou prestador'},{k:'setor',l:'Setor'},{k:'prev',l:'Previsto',t:'moeda'},{k:'real',l:'Realizado',t:'moeda'}],total:1,
@@ -30247,6 +30277,14 @@ const RELS=[
   return{cols:[{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'tipo',l:'Tipo'},{k:'data',l:'Feito em',t:'data'},{k:'venc',l:'Vence em',t:'data'},{k:'sit',l:'Situação'},{k:'clinica',l:'Clínica'},{k:'aso',l:'ASO anexado'}],
    rows:rs.map(r=>({...r,nome:nomeF(r.funcionarioId),setor:r.setor||setorF(r.funcionarioId),venc:validadeExame(r),sit:sitExame(r).s,aso:r.arquivo?'sim':'não'})),
    nota:'Relatório de controle de prazo. Resultado do exame, restrição e nome do médico não entram em relatório.'}}},
+ /* ASO vencidos e a vencer: o mesmo critério do aviso de pendências (pendenciasExame), um exame por pessoa */
+ {id:'r27',n:'ASO vencidos e a vencer',m:'exames',f:['setor','func','extra'],extra:{l:'Situação',op:['Vencido','A vencer']},b(){
+  const lim=+(CFG.alertas&&CFG.alertas.exames)||30;const H=hoje();
+  const rs=pendenciasExame().filter(p=>p.id&&okS(p.f.setor)&&okF(p.f.id)).map(p=>{const x=(DATA.exames||[]).find(e=>e.id===p.id)||{};const v=validadeExame(x);const d=diasEntre(H,v);
+   return{nome:p.f.nome,setor:p.f.setor||'',tipo:x.tipo,data:x.data,venc:v,sit:d<0?'Vencido':'A vencer',dias:d<0?'Vencido há '+(-d)+' dia(s)':d===0?'Vence hoje':'Vence em '+d+' dia(s)',clinica:x.clinica,aso:x.arquivo?'sim':'não'}})
+   .filter(r=>!UIR.extra||r.sit===UIR.extra).sort((a,b)=>String(a.venc).localeCompare(String(b.venc))||a.nome.localeCompare(b.nome));
+  return{cols:[{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'tipo',l:'Último exame'},{k:'data',l:'Feito em',t:'data'},{k:'venc',l:'Vence em',t:'data'},{k:'dias',l:'Situação'},{k:'clinica',l:'Clínica'},{k:'aso',l:'ASO anexado'}],rows:rs,
+   nota:'Um exame por funcionário em atividade com carteira: o de vencimento mais recente. Entram os vencidos e os que vencem em até '+lim+' dias. Para ver todos os exames, use “Exames ocupacionais e vencimentos (ASO)”. Resultado, restrição e nome do médico não entram em relatório.'}}},
 
  {id:'r24',n:'Custo da folha e rescisões (fator 1,29)',m:'folha',f:['mes'],b(){
   const m=UIR.mes;const cf=custoFolhaMes(m,{previa:1});const P=cf.prod,A=cf.adm;
@@ -30293,8 +30331,8 @@ const RELS=[
  {id:'r21',n:'Provisão de férias e 13º salário',m:'folha',f:['setor'],b(){
   const rs=provisoes().filter(x=>!UIR.setor||x.setor===UIR.setor);
   return{cols:[{k:'nome',l:'Funcionário'},{k:'matricula',l:'Matrícula'},{k:'setor',l:'Setor'},
-   {k:'salario',l:'Salário',t:'moeda'},{k:'dias',l:'Dias de férias a conceder',t:'num'},{k:'ferias',l:'Provisão de férias + 1/3',t:'moeda'},
-   {k:'avos',l:'Avos de 13º',t:'num'},{k:'decimo',l:'Provisão de 13º',t:'moeda'},
+   {k:'salario',l:'Salário',t:'moeda'},{k:'dias',l:'Dias de férias a conceder',t:'num',semTotal:1},{k:'ferias',l:'Provisão de férias + 1/3',t:'moeda'},
+   {k:'avos',l:'Avos de 13º',t:'num',semTotal:1},{k:'decimo',l:'Provisão de 13º',t:'moeda'},
    {k:'fgts',l:'FGTS sobre as provisões',t:'moeda'},{k:'total',l:'Total provisionado',t:'moeda'}],total:1,rows:rs}}},
  {id:'r20',n:'Folha estimada do mês (controle)',m:'extrato',f:['mes','setor','extra'],extra:{l:'Remuneração',op:FORMAS_REM},b(){
   const m=UIR.mes;const fs=funcsR().filter(f=>(f.situacao!=='Desligado'||String(f.dataDesligamento||'').startsWith(m))&&(!UIR.extra||formaRem(f)===UIR.extra));
@@ -30320,9 +30358,10 @@ function telaRelatorios(el,cfg){
  const vis=L.filter(r=>pode(r.m)&&(!r.s||r.s(U)));if(!vis.find(r=>r.id===U.id))U.id=vis[0]&&vis[0].id;const R=vis.find(r=>r.id===U.id);
  let res={cols:[],rows:[]};try{res=R?R.b(U):res}catch(e){console.error(e)}
  const ext=R&&R.extra?(typeof R.extra.op==='function'?R.extra.op():R.extra.op):[];
- /* a linha de total só soma dinheiro, quantidades e horas: avos, dias, meses, percentuais, médias e valores unitários ficam em branco */
+ /* a linha de total só soma dinheiro, quantidades e horas: avos, dias, meses, percentuais, médias e valores unitários ficam em branco.
+    total:{...} é a linha de total já pronta (ex.: taxa que não se soma) */
  const naoSoma=c=>c.semTotal||/\bavos\b|\bdias\b|\bmeses\b|%|percent|\bm[ée]di[ao]s?\b|unit[áa]ri|valor (da |por )?di[áa]ria\b/i.test(String(c.l||''));
- const totais=res.total?Object.fromEntries(res.cols.filter(c=>['moeda','num','hm'].includes(c.t)&&!naoSoma(c)).map(c=>[c.k,soma(res.rows,r=>r[c.k])])):null;
+ const totais=res.total&&typeof res.total==='object'?res.total:res.total?Object.fromEntries(res.cols.filter(c=>['moeda','num','hm'].includes(c.t)&&!naoSoma(c)).map(c=>[c.k,soma(res.rows,r=>r[c.k])])):null;
  el.innerHTML=`<div class="cab"><div><h1>${esc(cfg.h1||'Relatórios gerenciais')}</h1><p>${esc(cfg.p||'Escolha o relatório, ajuste os filtros e exporte em Excel, PDF ou CSV.')}</p></div></div>
  <div class="relgrid"><div class="painel rel-lista">${vis.map(r=>`<a href="javascript:void 0" data-rel="${r.id}" class="${r.id===U.id?'on':''}">${esc(r.n)}</a>`).join('')}</div>
  <div class="painel">${R?`<div class="filtros">
