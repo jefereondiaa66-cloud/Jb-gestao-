@@ -34117,5 +34117,191 @@ window.PENDENCIAS_V81={coletar,abrir,fechar,ligados};
 })();
 </script>
 
+<style id="lista-cartoes">
+/* ================= Listas em cartões (08/11/2026) =================
+   Pedido do dono: toda lista do programa vira um cartão abaixo do outro (modelo "Pedidos em cartões").
+   Só aparência: a tabela continua a mesma por baixo (cliques, ordenação, paginação, totais, exportação
+   e permissões não mudam). Com o layout anterior e na impressão, nada muda. */
+@media screen{
+html.casca2 .lc-wrap{overflow:visible!important;border:0!important;background:none!important;box-shadow:none!important;padding:0!important;max-height:none!important}
+html.casca2 .lc-painel{background:none!important;border:0!important;box-shadow:none!important}
+html.casca2 table.lc{display:block!important;width:100%;min-width:0!important;border:0!important;background:none!important;border-spacing:0;font-variant-numeric:tabular-nums}
+html.casca2 table.lc>tbody{display:block;border:0!important;background:none}
+html.casca2 table.lc>tbody>tr{display:grid!important;grid-template-columns:var(--lc-cols);column-gap:18px;row-gap:8px;align-items:center;background:var(--pn-b,#fff)!important;border:1px solid var(--pn-l,#DDE0E3)!important;border-radius:6px;padding:12px 16px!important;margin:0 0 8px;box-shadow:none}
+html.casca2 table.lc>tbody>tr:is(.clic,[data-href]){cursor:pointer}
+html.casca2 table.lc>tbody>tr:is(.clic,[data-href]):hover{border-color:var(--c2-preto,#0B0B0D)!important}
+html.casca2 table.lc>tbody>tr.clic:focus-visible{outline:2px solid #D3121C;outline-offset:1px}
+html.casca2 table.lc>tbody>tr>td{display:block!important;border:0!important;padding:0!important;background:none!important;background-color:transparent!important;min-width:0;text-align:left;font-size:13.5px;line-height:1.35;color:var(--pn-t,#17181B);height:auto;white-space:normal;overflow-wrap:anywhere}
+html.casca2 table.lc>tbody>tr>td::before{content:none!important}
+html.casca2 table.lc>tbody>tr>td:hover{background:none!important}
+html.casca2 table.lc td.lc-t{font-size:15px;font-weight:700}
+html.casca2 table.lc td.lc-t::after{content:attr(data-lc-sub);display:block;font-size:13px;font-weight:400;color:var(--pn-s,#565A63);margin-top:2px}
+html.casca2 table.lc td.lc-t[data-lc-sub=""]::after{content:none}
+html.casca2 table.lc>tbody>tr>td.lc-d::before{content:attr(data-l)!important;display:block!important;font-size:12px;font-weight:400;color:var(--pn-f,#858992);margin:0 0 1px;text-align:left}
+html.casca2 table.lc td.lc-d::after{content:none}
+html.casca2 table.lc td.lc-v{text-align:right;font-size:16px;font-weight:700;white-space:nowrap;overflow-wrap:normal}
+html.casca2 table.lc td.lc-v b{font-weight:700}
+html.casca2 table.lc td.lc-m{display:none!important}
+html.casca2 table.lc td.lc-s,html.casca2 table.lc td.lc-g{justify-self:end}
+html.casca2 table.lc td.lc-a{justify-self:end;white-space:nowrap}
+html.casca2 table.lc>tbody>tr.lc-msg{display:block!important;text-align:center}
+html.casca2 table.lc>thead{display:block!important;border:0;background:none}
+html.casca2 table.lc>thead>tr{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 0 9px;background:none;border:0}
+html.casca2 table.lc>thead>tr::before{content:"Ordenar por";white-space:nowrap;flex:none;font-size:12.5px;color:var(--pn-f,#858992);margin-right:2px}
+html.casca2 table.lc>thead>tr>th{display:none!important}
+html.casca2 table.lc>thead>tr>th:is(.ord,.ord-auto,[data-o]){display:inline-flex!important;align-items:center;height:26px;padding:0 9px!important;border:1px solid var(--pn-l,#DDE0E3)!important;border-radius:4px;background:var(--pn-b,#fff)!important;color:var(--pn-s,#565A63)!important;font-size:12px!important;font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap;cursor:pointer;text-align:left}
+html.casca2 table.lc.lc-sem-ord>thead{display:none!important}
+html.casca2 table.lc>tfoot{display:block;border:0;background:none}
+html.casca2 table.lc>tfoot>tr{display:flex;flex-wrap:wrap;gap:6px 26px;align-items:center;justify-content:flex-end;background:var(--pn-l2,#ECEEF0);border-radius:6px;padding:11px 16px}
+html.casca2 table.lc>tfoot>tr>td{display:block;border:0;padding:0;background:none;font-size:14px}
+html.casca2 table.lc>tfoot>tr>td:empty{display:none}
+html.casca2 table.lc>tfoot>tr>td:first-child{margin-right:auto;text-align:left}
+html.casca2 table.lc>tfoot>tr>td[data-lc-l]::before{content:attr(data-lc-l) ": ";font-weight:400;color:var(--pn-s,#565A63);font-size:12.5px}
+}
+@media screen and (min-width:901px){html.casca2 .lc-fbt{display:none!important}}
+@media screen and (max-width:900px){
+html.casca2 table.lc>tbody>tr{display:flex!important;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:6px;padding:11px 13px!important}
+html.casca2 table.lc>tbody>tr::before{content:"";order:3;flex:0 0 100%;height:0;margin-top:-6px}
+html.casca2 table.lc>tbody>tr>td{flex:0 0 100%;order:7}
+html.casca2 table.lc td.lc-t{order:1;flex:1 1 0;min-width:45%;font-size:14.5px}
+html.casca2 table.lc tr.lc-sem-s td.lc-t{flex:1 1 100%}
+html.casca2 table.lc td.lc-s{order:2;flex:0 0 auto;align-self:flex-start;margin-left:auto}
+html.casca2 table.lc>tbody>tr>td.lc-d{display:none!important;order:4;color:var(--pn-s,#565A63);font-size:13px}
+html.casca2 table.lc>tbody>tr>td.lc-d1{display:block!important;flex:0 0 100%;text-align:left!important}
+html.casca2 table.lc>tbody>tr>td.lc-d::before{content:none!important}
+html.casca2 table.lc>tbody>tr>td.lc-d1::after{content:attr(data-lc-mais);display:inline}
+html.casca2 table.lc>tbody>tr>td.lc-d1n::before{content:attr(data-l) " "!important;display:inline!important;font-size:13px;color:inherit;margin:0}
+html.casca2 table.lc td.lc-v{order:5;flex:1 1 auto;width:auto;text-align:left}
+html.casca2 table.lc>tbody>tr>td.lc-vz{display:none!important}
+html.casca2 table.lc td.lc-g{order:6;flex:0 0 auto;text-align:right}
+html.casca2 table.lc td.lc-g1{margin-left:auto}
+html.casca2 table.lc td.lc-a{order:8;flex:0 0 100%;text-align:right}
+html.casca2 table.lc>thead>tr{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+html.casca2 table.lc>tfoot>tr{justify-content:flex-start}
+html.casca2 table.lc>tfoot>tr>td:first-child{flex-basis:100%;margin:0;text-align:left}
+html.casca2 #conteudo.lc-pg .sec-ic,html.casca2 #conteudo.lc-pg .sec-id p{display:none}
+html.casca2 #conteudo.lc-pg .sec-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+html.casca2 #conteudo.lc-pg .sec-cab .sec-id{flex:1 1 auto;min-width:0}
+html.casca2 #conteudo.lc-pg .sec-cab h1{font-size:22px;margin:0}
+html.casca2 #conteudo.lc-pg .sec-cab .acoes{display:flex;flex-wrap:wrap;gap:6px;width:auto;margin:0}
+html.casca2 #conteudo.lc-pg .sec-cab .acoes .btn{width:auto;height:36px;padding:0 11px;font-size:13px;flex:0 0 auto}
+html.casca2 #conteudo.lc-pg .sec-cab .so-desk{display:inline-flex!important}
+html.casca2 #conteudo.lc-temnovo .fab{display:none!important}
+html.casca2 #conteudo.lc-pg:not(.lc-fab) .resumo{display:none}
+html.casca2 .filtros.lc-f{display:flex!important;flex-wrap:wrap;gap:8px;align-items:center;background:none;border:0;box-shadow:none;padding:0 0 8px}
+html.casca2 .filtros.lc-f>*{order:4}
+html.casca2 .filtros.lc-f>.lc-b{order:1;flex:1 1 120px;min-width:0;width:auto}
+html.casca2 .filtros.lc-f>.lc-fbt{order:2;display:inline-grid;place-items:center;width:40px;height:40px;padding:0;border-radius:5px;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-b,#fff);color:var(--pn-t,#17181B);flex:none}
+html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-fbt{background:var(--c2-preto,#0B0B0D);border-color:var(--c2-preto,#0B0B0D);color:#fff}
+html.casca2 .filtros.lc-f>.lc-fbt svg{width:18px;height:18px}
+html.casca2 .filtros.lc-f>#bCsv{order:3;width:40px;height:40px;padding:0;font-size:0;gap:0;justify-content:center;background:var(--pn-b,#fff)!important;color:var(--pn-t,#17181B)!important;border:1px solid var(--pn-l,#DDE0E3)!important;flex:none}
+html.casca2 .filtros.lc-f>#bCsv svg{width:17px;height:17px}
+html.casca2 #conteudo:not(.lc-fab) .filtros.lc-f>.lc-x{display:none!important}
+html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-width:0}
+}
+</style>
+<script id="lista-cartoes-js">
+/* Listas em cartões: marca o papel de cada coluna (título, situação, valor, etiquetas, detalhes).
+   Não cria, não apaga e não move nada: só põe classes na tabela que o programa já desenhou. */
+(function(){
+ const so=s=>String(s||'').replace(/[↑↓▲▼⇅]/g,'').replace(/\s+/g,' ').trim();
+ const NUNCA=/\b(tbl-folha|vd-itens|v56-lote|fis-itens|fis-imp-ed|espelho|jorn|vr-tab|dir-tab|ctl-tb)\b/;
+ const TIT=[/^cliente$/i,/^fornecedor/i,/^funcion[aá]rio$/i,/^nome$/i,/^para$/i,/^item$/i,/^produto$/i,/^descri[cç][aã]o$/i,/^documento$/i,/^tabela$/i,/^conta$/i,/^forma$/i,/^forno$/i,/^fornada$/i,/^jazida$/i,/^motorista$/i,/^placa$/i,/^ferramenta$/i,/^epi$/i,/^o que foi$/i,/^movimento$/i,/^turno$/i,/^tipo$/i,/^setor$/i,/^categoria$/i];
+ const SIT=/^(situa[cç][aã]o|status|compra)$/i;
+ const VAL=[/^total$/i,/^valor( \(custo\))?$/i,/^l[ií]quida$/i,/^custo estimado$/i,/^custo$/i,/^realizado$/i,/^estimado$/i,/^valor /i,/^quantidade$/i,/^qtd\.?$/i,/^toneladas$/i,/^horas$/i,/^saldo$/i,/^em aberto$/i,/^pre[cç]o$/i,/^meta$/i];
+ const MET=/^(n[º°o]\.?|req\.?|c[oó]digo|matr\.?|data|emiss[aã]o|hora|comp\.?|sa[ií]da|vencimento|admiss[aã]o|in[ií]cio|vale desde|m[eê]s)$/i;
+ const ACO=/^a[cç][oõ]es$/i;
+ function alvo(t){
+  if(t.closest('.doc-pag,.doc-folha,.dv-pag,.gaveta,.modal'))return false;
+  if(NUNCA.test(t.className))return false;
+  const b=t.tBodies[0];if(!b||!b.rows.length||!t.tHead||!t.tHead.rows.length)return false;
+  if(b.querySelector('input:not([type=checkbox]),select,textarea'))return false;
+  const h=t.tHead.rows[t.tHead.rows.length-1].cells;if(t.tHead.rows.length>1||h.length<3)return false;
+  const li=[...b.rows].filter(r=>r.cells.length===h.length);if(!li.length)return false;
+  if([...h].some(x=>x.colSpan>1))return false;
+  if(/^indicador$/i.test(so(h[0].textContent))||[...h].some(x=>/^proventos$/i.test(so(x.textContent))))return false;
+  const reg=li.some(r=>r.matches('.clic,[data-id],[data-go],[data-href]'))||!!b.querySelector('.tag');
+  if(t.classList.contains('cartao'))return reg||[...h].filter(x=>!x.classList.contains('num')).length>=h.length/2;
+  return reg;
+ }
+ function mapa(t){
+  const h=[...t.tHead.rows[0].cells].map(x=>so(x.textContent));const rows=[...t.tBodies[0].rows].filter(r=>r.cells.length===h.length);
+  const usados=new Set();const n=h.length;
+  const temTag=i=>rows.filter(r=>r.cells[i].querySelector('.tag')).length>=rows.length/2;
+  const aco=[];for(let i=0;i<n;i++)if(ACO.test(h[i])||rows.some(r=>r.cells[i].querySelector('button,.acoes-li,input[type=checkbox]')&&!r.cells[i].querySelector('.tag'))){aco.push(i);usados.add(i)}
+  let s=h.findIndex((x,i)=>SIT.test(x)&&!usados.has(i));
+  if(s<0)for(let i=0;i<n;i++)if(!usados.has(i)&&temTag(i)&&!/financeiro|fiscal|nota|carteira/i.test(h[i])){s=i;break}
+  if(s>=0)usados.add(s);
+  let tit=-1;for(const re of TIT){tit=h.findIndex((x,i)=>re.test(x)&&!usados.has(i));if(tit>=0)break}
+  if(tit<0)tit=h.findIndex((x,i)=>!usados.has(i)&&!MET.test(x)&&!t.tHead.rows[0].cells[i].classList.contains('num'));
+  if(tit<0)tit=h.findIndex((x,i)=>!usados.has(i));
+  usados.add(tit);
+  let val=-1;for(const re of VAL){val=h.findIndex((x,i)=>re.test(x)&&!usados.has(i));if(val>=0)break}
+  if(val<0)for(let i=n-1;i>=0;i--)if(!usados.has(i)&&!MET.test(h[i])&&t.tHead.rows[0].cells[i].classList.contains('num')){val=i;break}
+  if(val>=0)usados.add(val);
+  const met=[];for(let i=0;i<n&&met.length<3;i++)if(!usados.has(i)&&MET.test(h[i])){met.push(i);usados.add(i)}
+  const tag=[];for(let i=0;i<n&&tag.length<3;i++)if(!usados.has(i)&&temTag(i)){tag.push(i);usados.add(i)}
+  const det=[];for(let i=0;i<n;i++)if(!usados.has(i))det.push(i);
+  return{h,tit,s,val,met,tag,det,aco};
+ }
+ const txt=c=>so(c.innerText||c.textContent);
+ const vazio=v=>!v||v==='—'||v==='-';
+ function subTxt(l,v){if(/^n[º°o]\.?$/i.test(l))return 'Nº '+v;if(/^(matr\.?|c[oó]digo|req\.?)$/i.test(l))return l+' '+v;if(/^(data|hora|emiss[aã]o|m[eê]s|comp\.?)$/i.test(l))return v;return l.toLowerCase()+' '+v}
+ function aplicar(t){
+  const M=mapa(t);const cols=Math.min(M.det.length,5);const R=cols?Math.ceil(M.det.length/cols):1;
+  const rows=[...t.tBodies[0].rows];const lin=rows.filter(r=>r.cells.length===M.h.length);
+  const larg=i=>{let w=0;lin.forEach(r=>{const e=r.cells[i].firstElementChild||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width)});return Math.ceil(w)||110};
+  const tagc=[];if(M.s>=0)tagc.push(M.s);tagc.push(...M.tag);
+  const lg=tagc.map(larg),la=M.aco.map(larg);
+  t.classList.add('lc');t.classList.toggle('lc-sem-ord',!t.tHead.querySelector('.ord,.ord-auto,[data-o]'));
+  const w=t.closest('.tabwrap');if(w)w.classList.add('lc-wrap');const p=t.closest('.painel');if(p)p.classList.add('lc-painel');
+  let c='minmax(170px,1.5fr) ';if(cols)c+=`repeat(${cols},minmax(0,1fr)) `;if(M.val>=0)c+='max-content ';c+=lg.concat(la).map(x=>x+'px').join(' ');
+  t.style.setProperty('--lc-cols',c);
+  let col=2+cols;const cv=M.val>=0?col++:0;const cg={};tagc.forEach(i=>cg[i]=col++);const ca={};M.aco.forEach(i=>ca[i]=col++);
+  const sp=`1/span ${R}`;const pos=(td,x)=>{td.style.gridColumn=x;td.style.gridRow=sp};
+  rows.forEach(r=>{
+   r.dataset.lc='1';
+   if(r.cells.length!==M.h.length){r.classList.add('lc-msg');return}
+   const clic=r.matches('.clic,[data-id],[data-go],[data-href]');r.classList.toggle('lc-sem-s',M.s<0);
+   [...r.cells].forEach((td,i)=>{if(!td.dataset.l&&M.h[i])td.dataset.l=M.h[i]});
+   const tt=r.cells[M.tit];tt.classList.add('lc-t');pos(tt,'1');
+   tt.dataset.lcSub=M.met.map(i=>{const v=txt(r.cells[i]);return vazio(v)?'':subTxt(M.h[i],v)}).filter(Boolean).join(', ');
+   M.met.forEach(i=>r.cells[i].classList.add('lc-m'));
+   if(M.s>=0){r.cells[M.s].classList.add('lc-s');pos(r.cells[M.s],String(cg[M.s]))}
+   if(M.val>=0){const tv=r.cells[M.val];tv.classList.add('lc-v');tv.classList.toggle('lc-vz',vazio(txt(tv)));pos(tv,String(cv))}
+   M.tag.forEach((i,k)=>{const td=r.cells[i];td.classList.add('lc-g');if(!k)td.classList.add('lc-g1');pos(td,String(cg[i]))});
+   M.aco.forEach(i=>{r.cells[i].classList.add('lc-a');pos(r.cells[i],String(ca[i]))});
+   let prim=null;const mais=[];
+   M.det.forEach(i=>{const td=r.cells[i];td.classList.add('lc-d');const v=txt(td);if(vazio(v))return;if(!prim){prim=td;return}mais.push(/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(v)?M.h[i]+' '+v:v)});
+   if(prim){prim.classList.add('lc-d1');const pv=txt(prim);prim.classList.toggle('lc-d1n',/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(pv));const m=clic?(pv.length>24?[]:mais.slice(0,2)):mais;prim.dataset.lcMais=m.length?', '+m.join(', '):''}
+  });
+  if(t.tFoot&&t.tFoot.rows[0]&&t.tFoot.rows[0].cells.length===M.h.length)[...t.tFoot.rows[0].cells].forEach((td,i)=>{if(i&&td.textContent.trim())td.dataset.lcL=M.h[i]});
+ }
+
+ const CEL=matchMedia('(max-width:900px)');let ultF=null;
+ const SLD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg>';
+ function barra(c){
+  const t=c.querySelector('table.lc');c.classList.toggle('lc-pg',!!t);c.classList.toggle('lc-temnovo',!!c.querySelector('#bNovo'));
+  if(!t){c.classList.remove('lc-fab');ultF=null;return}
+  const raiz=t.closest('#svCorpo')||c;const f=raiz.querySelector('.filtros');
+  if(f!==ultF){c.classList.remove('lc-fab');ultF=f}
+  if(!f||f.classList.contains('lc-f')||!CEL.matches)return;
+  f.classList.add('lc-f');const fs=[...f.children];const b=fs.find(x=>x.matches('input[type=search]'));if(b)b.classList.add('lc-b');
+  fs.forEach(x=>{if(x!==b)x.classList.add('lc-x')});
+  const bt=document.createElement('button');bt.type='button';bt.className='lc-fbt';bt.setAttribute('aria-label','Filtros e resumo');bt.innerHTML=SLD;bt.onclick=()=>c.classList.toggle('lc-fab');f.appendChild(bt);
+  const ex=raiz.querySelector('#bCsv');if(ex)f.appendChild(ex);
+ }
+ function varrer(){
+  if(!document.documentElement.classList.contains('casca2'))return;
+  const c=document.getElementById('conteudo');if(!c)return;
+  c.querySelectorAll('table.tbl').forEach(t=>{try{const b=t.tBodies[0];if(!b||!b.querySelector('tr:not([data-lc])'))return;if(t.classList.contains('lc')||alvo(t))aplicar(t)}catch(e){console.warn('listas em cartões',e)}});
+  try{barra(c)}catch(e){console.warn('listas em cartões',e)}
+ }
+ let tm=null;const agendar=()=>{clearTimeout(tm);tm=setTimeout(varrer,20)};
+ function ligar(){const c=document.getElementById('conteudo');if(!c)return setTimeout(ligar,200);new MutationObserver(agendar).observe(c,{childList:true,subtree:true});agendar()}
+ ligar();
+})();
+</script>
+
 </body>
 </html>
