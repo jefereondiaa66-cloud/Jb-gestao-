@@ -100,7 +100,7 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     assert.ok(claude.startsWith(ENVELOPE_CLAUDE) && claude.endsWith(FIM_CLAUDE));
     assert.equal(extrairDoClaude(claude), app, 'ida e volta Claude ⇄ repositório perde algo');
     assert.equal(montarClaude(extrairDoClaude(claude)), claude);
-    for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', '_headers', 'versao.json'])
+    for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', '_headers', 'versao.json'])
       readFileSync(join(tmp, 'dist', f));
     const vj = JSON.parse(readFileSync(join(tmp, 'dist/versao.json'), 'utf8'));
     assert.equal(vj.versao, v.versao); assert.equal(vj.site, v.site); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
