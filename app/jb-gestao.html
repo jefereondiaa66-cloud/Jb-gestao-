@@ -31290,7 +31290,9 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     if(t.closest('#c2rail')){tp.style.left=(r.right+10)+'px';tp.style.top=(r.top+r.height/2-14)+'px'}else{tp.style.left=Math.min(innerWidth-tp.offsetWidth-8,Math.max(8,r.left+r.width/2-tp.offsetWidth/2))+'px';tp.style.top=(r.bottom+8)+'px'}});
    rail.addEventListener('scroll',()=>{const tp=document.getElementById('c2tip');if(tp)tp.style.display='none'});
   }
-  const semTrilho=modelo()==='m1'||!(dp?grupos.length:itens.length);
+  /* 08/11/2026 · pedido do dono: no Setor Pessoal o trilho lateral sai; os módulos do Início,
+     o botão de funções do alto e o menu já levam a cada tela */
+  const semTrilho=dp||modelo()==='m1'||!(dp?grupos.length:itens.length);
   document.body.classList.toggle('c2-semtrilho',semTrilho);
   if(semTrilho){rail.innerHTML='';return}
   const r=lerRota();
@@ -32097,6 +32099,7 @@ function iniAcessoHtml(){
   <div class="ar-dp-grade">${grupos.map(G=>`<div class="ar-g"><h3><span class="ic">${ic(G.ic)}</span>${esc(G.g)}</h3><div class="ar-l">${G.b.map(b=>`<button type="button" class="${b.ac?'ac':''}" ${b.d}>${b.ac?'+ ':''}${esc(b.t)}</button>`).join('')}</div></div>`).join('')}</div>
   <div class="ar-vazio" id="arVazio">Nenhuma função com esse nome. Tente outra palavra ou use a pesquisa no alto da tela.</div></section>`;
 }
+const INI_ACESSO_GRANDE=false;
 function iniAplicar(){
  const c=document.getElementById('conteudo');if(!c)return;
  /* os três visuais: Concretiza tem a faixa preta (.cc-faixa); Branco e laranja e JB têm o
@@ -32104,8 +32107,11 @@ function iniAplicar(){
  const r=lerRota();const eh=r.mod==='painel'&&!!c.querySelector(':scope>.cc-faixa,:scope>.hero,:scope>.ex-cab');
  c.classList.toggle('ini-dp',eh);
  INI_PARTES.forEach(([k])=>c.classList.toggle('ini-sem-'+k,eh&&!iniMostra(k)));
- if(!eh)return;
  const velho=c.querySelector(':scope>#arDP');if(velho)velho.remove();
+ /* 08/11/2026 · pedido do dono: o quadro grande "Acesso rápido" saiu do Início do DP, porque os
+    módulos do alto (quadradinhos, Atalhos favoritos e "Todas as funções") já abrem cada tela.
+    O código fica aqui, desligado: para voltar, troque INI_ACESSO_GRANDE para true. */
+ if(!eh||!INI_ACESSO_GRANDE)return;
  const d=document.createElement('div');d.innerHTML=iniAcessoHtml();const s=d.firstElementChild;
  const ref=c.querySelector(':scope>.ex2')||c.querySelector(':scope>.ex3')||c.querySelector(':scope>.ex4')||c.querySelector(':scope>.mv')||c.querySelector(':scope>.rodape');
  const topo=c.querySelector(':scope>.hero')||c.querySelector(':scope>.cc-faixa')||c.querySelector(':scope>.ex-cab');
@@ -32161,7 +32167,7 @@ function iniSecaoConfig(el){
  const ed=pode('config','e');
  const ref=el.querySelector('#msCfg')||el.querySelector('#ndpCfg')||[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
  const n=document.createElement('fieldset');n.className='sec ini-cfg';n.id='iniCfg';
- n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra o painel de cima (funcionários ativos, carteira, custo, admissões e pendências) e o Acesso rápido com todas as funções, nos três visuais. As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
+ n.innerHTML=`<legend>Início do Departamento Pessoal</legend><p style="margin:0 0 8px;color:var(--suave);font-size:13px">O Início mostra os módulos (atalhos para cada função) e o painel de cima (funcionários ativos, carteira, custo, admissões e pendências). As partes abaixo estão ocultas: marque para mostrar de novo. <b>Vale para todos os usuários.</b></p>
   ${INI_PARTES.map(([k,l])=>`<label class="ck"><input type="checkbox" data-ini="${k}" ${iniMostra(k)?'checked':''} ${ed?'':'disabled'}><span>${esc(l)}</span></label>`).join('')}
   <p style="margin:14px 0 4px;font-weight:600;font-size:13.5px">Menu antigo</p>
   <label class="ck"><input type="checkbox" id="iniMenuAntigo" ${menuAntigoLiberado()?'checked':''} ${ed?'':'disabled'}><span>Ativar o menu antigo (menu de antes, com todos os grupos). Desligado, todos usam só o menu simplificado. Ligado, a chave "Menu atual / Simplificado" volta ao alto do menu e cada pessoa escolhe.</span></label>
