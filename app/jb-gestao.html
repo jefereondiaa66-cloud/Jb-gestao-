@@ -14176,18 +14176,22 @@ function relReceber(U){const xs=titulosRelV(U).sort((a,b)=>String(a.venc).locale
   rows:xs.map(x=>({numero:x.numero,cli:x.cli,rot:x.rot,emissao:x.emissao,venc:x.venc,atraso:x.atraso,valor:x.valor,pago:x.pago,saldo:x.saldo,status:x.status})),total:true,
   nota:'Período pela data de vencimento ('+periodoTxtV(U)+'). Em atraso por faixa — '+fx+'. Previsão de recebimento dos títulos a vencer (estimativa: supõe pagamento no vencimento) — '+prev+'.'}}
 function relExpedicao(U){const out=[];pedidosV().forEach(v=>{if(U.cliente&&v.clienteId!==U.cliente)return;(v.cargas||[]).forEach(cg=>{if(!noPeriodoV(cg.data,U))return;const e=(v.entregas||[]).find(x=>x.cargaId===cg.id&&x.status!=='Cancelada');
-  cg.itens.forEach(i=>{if(U.produto&&i.produtoId!==U.produto)return;out.push({n:fNumV(cg.numero),data:cg.data,ped:fNumV(v.numero),cli:(v.cliente||{}).nome||'',prod:i.nome,un:i.unidade,sol:i.solicitada,carr:cg.status==='Carregada'?i.carregada:0,pend:pendenteCargaP(v,i.produtoId),st:cg.status,ent:e?e.status:'—',oc:e?(e.ocorrencias||[]).length:0,frete:e?+e.freteCobrado||0:0,custo:e?+e.custoTransporte||0:0})})})});
+  /* frete, custo do transporte e ocorrências são da entrega: entram uma vez por carregamento (na 1ª linha dele), para o total não somar em dobro */
+  let prim=true;cg.itens.forEach(i=>{if(U.produto&&i.produtoId!==U.produto)return;const um=prim;prim=false;out.push({n:fNumV(cg.numero),data:cg.data,ped:fNumV(v.numero),cli:(v.cliente||{}).nome||'',prod:i.nome,un:i.unidade,sol:i.solicitada,carr:cg.status==='Carregada'?i.carregada:0,pend:pendenteCargaP(v,i.produtoId),st:cg.status,ent:e?e.status:'—',oc:um?(e?(e.ocorrencias||[]).length:0):'',frete:um?(e?+e.freteCobrado||0:0):'',custo:um?(e?+e.custoTransporte||0:0):''})})})});
  const pend=pedidosV().filter(v=>PED_RESERVA.includes(v.status)&&prodsPedido(v).some(pid=>pendenteCargaP(v,pid)>0)).length;
- return{cols:[{k:'n',l:'Carregamento'},{k:'data',l:'Data',t:'data'},{k:'ped',l:'Pedido'},{k:'cli',l:'Cliente'},{k:'prod',l:'Produto'},{k:'un',l:'Un.'},{k:'sol',l:'Solicitado',t:'num',semTotal:1},{k:'carr',l:'Carregado',t:'num',semTotal:1},{k:'pend',l:'Pendente no pedido',t:'num',semTotal:1},{k:'st',l:'Carregamento'},{k:'ent',l:'Entrega'},{k:'oc',l:'Ocorrências',t:'num'},{k:'frete',l:'Frete cobrado',t:'moeda'},{k:'custo',l:'Custo do transporte',t:'moeda'}],
-  rows:out,total:true,nota:'Pedidos com saldo a carregar agora: '+pend+'. Frete cobrado e custo do transporte por entrega (repetidos por produto quando a carga tem mais de um: some pela entrega). '+periodoTxtV(U)+'.'}}
+ const mBr=k=>r=>r[k]===''||r[k]==null?'':esc(fMoeda(r[k]));
+ return{cols:[{k:'n',l:'Carregamento'},{k:'data',l:'Data',t:'data'},{k:'ped',l:'Pedido'},{k:'cli',l:'Cliente'},{k:'prod',l:'Produto'},{k:'un',l:'Un.'},{k:'sol',l:'Solicitado',t:'num',semTotal:1},{k:'carr',l:'Carregado',t:'num',semTotal:1},{k:'pend',l:'Pendente no pedido',t:'num',semTotal:1},{k:'st',l:'Carregamento'},{k:'ent',l:'Entrega'},{k:'oc',l:'Ocorrências',t:'num'},{k:'frete',l:'Frete cobrado',t:'moeda',v:mBr('frete')},{k:'custo',l:'Custo do transporte',t:'moeda',v:mBr('custo')}],
+  rows:out,total:true,nota:'Pedidos com saldo a carregar agora: '+pend+'. Frete cobrado, custo do transporte e ocorrências são da entrega: aparecem uma vez por carregamento, na primeira linha dele (as outras linhas do mesmo carregamento ficam em branco), e o total soma cada carregamento uma vez só. '+periodoTxtV(U)+'.'}}
 function relDescontos(U){const xs=vendasFatV(U,{naoFaturados:true}).filter(x=>!x.ped||(x.v.aprovacao&&x.v.aprovacao.aprovadaEm));const out=[];
  xs.forEach(x=>x.itens.forEach(i=>{const tb=+i.precoTabela||0;const d=tb&&i.preco<tb?round2((tb-i.preco)*i.qtd):0;const ap=x.v.aprovacao||{};
   out.push({data:x.data,doc:(x.ped?'Pedido ':'Venda ')+fNumV(x.numero),cli:x.cli,vend:x.vendNome,prod:i.nome,tab:tb,neg:i.preco,pct:tb?fNum((1-i.preco/tb)*100,2)+'%':'—',desc:d,min:i.precoMinimo!=null&&i.preco<i.precoMinimo-0.004?'Sim':'',apr:ap.aprovadaEm&&!ap.auto?(ap.aprovadaNome||'')+' · '+(ap.justificativaAprovacao||''):ap.auto?'automática':'',sol:ap.solicitadaNome?ap.solicitadaNome+' · '+(ap.justificativa||''):''})}));
  return{cols:[{k:'data',l:'Data',t:'data'},{k:'doc',l:'Documento'},{k:'cli',l:'Cliente'},{k:'vend',l:'Vendedor'},{k:'prod',l:'Produto'},{k:'tab',l:'Preço de referência',t:'moeda',semTotal:1},{k:'neg',l:'Preço negociado',t:'moeda',semTotal:1},{k:'pct',l:'% de desconto'},{k:'desc',l:'Valor do desconto',t:'moeda'},{k:'min',l:'Abaixo do mínimo'},{k:'sol',l:'Solicitado por · justificativa'},{k:'apr',l:'Aprovado por · justificativa'}],
   rows:out.sort((a,b)=>b.desc-a.desc),total:true,nota:'Itens de pedidos aprovados e vendas rápidas do período. O desconto geral do pedido aparece em “Vendas por período”. '+periodoTxtV(U)+'.'}}
 function relCancelamentos(U){const out=[];DATA.vendas.filter(v=>v.setor==='vendas').forEach(v=>{const ped=ehPedido(v);const doc=(ped?'Pedido ':'Venda ')+fNumV(v.numero);const cli=(ped?(v.cliente||{}).nome:parteSnap(v).nome)||'';
-  if(cancV(v)&&v.cancelamento&&noPeriodoV(String(v.cancelamento.em).slice(0,10),U))(v.itens||[]).forEach(i=>{if(!U.produto||i.produtoId===U.produto)out.push({tipo:'Cancelamento',doc,cli,prod:i.nome,qtd:i.qtd,un:i.unidade,valor:i.total,motivo:v.cancelamento.motivo,data:String(v.cancelamento.em).slice(0,10),resp:v.cancelamento.nome||nomeUsuario(v.cancelamento.por)})});
-  (v.devolucoes||[]).forEach(d=>{if(!noPeriodoV(d.data,U))return;d.itens.forEach(i=>{if(!U.produto||i.produtoId===U.produto)out.push({tipo:'Devolução · '+d.destinacao,doc,cli,prod:i.nome,qtd:i.qtd,un:i.unidade,valor:i.valor,motivo:d.motivo+' · '+d.financeiro,data:d.data,resp:d.nome||nomeUsuario(d.por)})})})});
+  /* mesmos filtros de cliente e vendedor das vendas faturadas; vid = o pedido ou venda (para contar documentos, não linhas) */
+  if(U.cliente&&(U.cliente===SEM_CLIENTE?!!v.clienteId:v.clienteId!==U.cliente))return;if(U.vendedor&&(v.vendedor||v.criadoPor)!==U.vendedor)return;const vid=v.id;
+  if(cancV(v)&&v.cancelamento&&noPeriodoV(String(v.cancelamento.em).slice(0,10),U))(v.itens||[]).forEach(i=>{if(!U.produto||i.produtoId===U.produto)out.push({vid,tipo:'Cancelamento',doc,cli,prod:i.nome,qtd:i.qtd,un:i.unidade,valor:i.total,motivo:v.cancelamento.motivo,data:String(v.cancelamento.em).slice(0,10),resp:v.cancelamento.nome||nomeUsuario(v.cancelamento.por)})});
+  (v.devolucoes||[]).forEach(d=>{if(!noPeriodoV(d.data,U))return;d.itens.forEach(i=>{if(!U.produto||i.produtoId===U.produto)out.push({vid,tipo:'Devolução · '+d.destinacao,doc,cli,prod:i.nome,qtd:i.qtd,un:i.unidade,valor:i.valor,motivo:d.motivo+' · '+d.financeiro,data:d.data,resp:d.nome||nomeUsuario(d.por)})})})});
  return{cols:[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo'},{k:'doc',l:'Venda original'},{k:'cli',l:'Cliente'},{k:'prod',l:'Produto'},{k:'qtd',l:'Quantidade',t:'num',semTotal:1},{k:'un',l:'Un.'},{k:'valor',l:'Valor envolvido',t:'moeda'},{k:'motivo',l:'Motivo'},{k:'resp',l:'Responsável'}],
   rows:out.sort((a,b)=>String(a.data).localeCompare(String(b.data))),total:true,nota:'Cancelamentos e devoluções do período. Nada foi apagado: cada um está ligado ao pedido ou venda original. '+periodoTxtV(U)+'.'}}
 function relMensal(U){const U2={...U};if(!U2.ini){const d=vendasFatV({}).map(x=>x.data).sort();U2.ini=d[0]||hoje()}
@@ -14232,6 +14236,23 @@ function relMetas(U){const ms=DATA.metas.filter(m=>(!U.ini||m.mes>=String(U.ini)
  return{cols:[{k:'mes',l:'Mês'},{k:'tipo',l:'Tipo'},{k:'quem',l:'Vendedor / produto'},{k:'meta',l:'Meta'},{k:'real',l:'Realizado'},{k:'pct',l:'% atingido'},{k:'falta',l:'Falta'},{k:'proj',l:'Projeção (estimativa)'}],
   rows:ms.map(m=>{const r=realizadoMetaV(m),pj=projecaoMetaV(m);return{mes:mesLongo(m.mes),tipo:m.tipo,quem:[m.vendedorId?nomeUsuario(m.vendedorId):'Equipe',m.produtoId?nomeProduto(PROD(m.produtoId)):'todos os produtos'].join(' · '),meta:fMeta(m,+m.valor),real:fMeta(m,r),pct:fNum(r/m.valor*100,1)+'%',falta:fMeta(m,Math.max(0,m.valor-r)),proj:pj?fMeta(m,pj.valor):'—'}}),total:false,
   nota:'Projeção é estimativa: média diária do mês corrente até hoje × dias do mês. Resultado realizado vem das vendas faturadas.'}}
+/* ---------- curva ABC de clientes e de produtos (mesma base: vendas faturadas do período) ----------
+   Ordena pelo valor faturado; classe pelo % acumulado: A até 80%, B até 95%, C o resto.
+   O primeiro da lista fica sempre na A (mesmo quando sozinho passa de 80%). */
+function curvaABCV(rows){const tot=round2(soma(rows,r=>r.val));let ac=0;
+ return rows.sort((a,b)=>b.val-a.val||String(a.nome).localeCompare(String(b.nome),'pt-BR')).map((r,i)=>{ac+=+r.val||0;const pa=tot>0?ac/tot*100:0;
+  return{...r,pos:String(i+1),pct:tot>0?fNum(r.val/tot*100,1)+'%':'—',acum:tot>0?fNum(pa,1)+'%':'—',classe:tot>0?(i===0||pa<=80+1e-9?'A':pa<=95+1e-9?'B':'C'):'—'}})}
+const regraABCV='Classe pelo % acumulado: A até 80%, B até 95%, C o resto (o primeiro da lista fica sempre na A).';
+const resumoABCV=(rows,un)=>{const tot=soma(rows,r=>r.val);return rows.length?['A','B','C'].map(c=>{const a=rows.filter(r=>r.classe===c);const v=soma(a,r=>r.val);return 'Classe '+c+': '+a.length+' '+un+', '+fMoeda(v)+(tot>0?' ('+fNum(v/tot*100,1)+'%)':'')}).join(' · ')+'.':''};
+function relABCClientesV(U){const xs=vendasFatV(U);const g=somaPorV(xs,x=>x.clienteId||SEM_CLIENTE,x=>({_:[],id:x.clienteId,nome:x.cli}));
+ const rows=curvaABCV(g.map(x=>{const c=CLI(x.id);return{cod:c?c.codigo||'':'',nome:c?nomeCliente(c):x.id?x.nome:'Consumidor final (sem cadastro)',cid:c?[c.cidade,c.uf].filter(Boolean).join(' – '):'',n:x._.length,val:round2(soma(x._,y=>y.total))}}));
+ return{cols:[{k:'pos',l:'Posição'},{k:'cod',l:'Código'},{k:'nome',l:'Cliente'},{k:'cid',l:'Cidade'},{k:'n',l:'Compras',t:'num'},{k:'val',l:'Valor faturado',t:'moeda'},{k:'pct',l:'% do total'},{k:'acum',l:'% acumulado'},{k:'classe',l:'Classe'}],
+  rows,total:true,nota:'Clientes em ordem de valor faturado, com a mesma base de “Vendas por cliente” (vendas faturadas no período: '+periodoTxtV(U)+'). '+regraABCV+' '+resumoABCV(rows,'cliente(s)')}}
+function relABCProdutosV(U){const xs=vendasFatV(U);const its=[];xs.forEach(x=>x.itens.forEach(i=>its.push({x,i})));
+ const g=somaPorV(its,y=>y.i.produtoId||'?'+y.i.nome,y=>({_:[],nome:y.i.nome}));
+ const rows=curvaABCV(g.map(x=>({nome:x.nome,qtd:txtUnid(porUnidade(x._,y=>y.i.qtd,y=>y.i.unidade)),n:new Set(x._.map(y=>y.x.id)).size,val:round2(soma(x._,y=>y.i.total))})));
+ return{cols:[{k:'pos',l:'Posição'},{k:'nome',l:'Produto'},{k:'qtd',l:'Quantidade vendida'},{k:'n',l:'Vendas',t:'num',semTotal:1},{k:'val',l:'Valor faturado',t:'moeda'},{k:'pct',l:'% do total'},{k:'acum',l:'% acumulado'},{k:'classe',l:'Classe'}],
+  rows,total:true,nota:'Produtos em ordem de valor faturado (quantidade × preço negociado, antes do desconto geral do pedido e sem frete), com a mesma base de “Vendas por produto” (vendas faturadas no período: '+periodoTxtV(U)+'). '+regraABCV+' '+resumoABCV(rows,'produto(s)')}}
 
 (()=>{const ficam=new Set(['rv_vendas','rv_recebidas','rv_fiscal']);
  for(let i=RELS_V.length-1;i>=0;i--){const r=RELS_V[i];if(r.modo==='venda'&&!ficam.has(r.id))RELS_V.splice(i,1)}
@@ -14244,9 +14265,11 @@ function relMetas(U){const ms=DATA.metas.filter(m=>(!U.ini||m.mes>=String(U.ini)
   {id:'rv_receber',n:'5. Contas a receber (títulos e faixas de atraso)',f:[...FVR,'cliente','stfin'],b:relReceber},
   {id:'rv_expedicao',n:'6. Carregamentos e entregas',f:[...FVR,'cliente','produto'],b:relExpedicao},
   {id:'rv_descontos',n:'7. Descontos e preços',f:[...FVR,'cliente','produto','vendedor'],b:relDescontos},
-  {id:'rv_cancelamentos',n:'8. Cancelamentos e devoluções',f:[...FVR,'produto'],b:relCancelamentos},
+  {id:'rv_cancelamentos',n:'8. Cancelamentos e devoluções',f:[...FVR,'cliente','produto','vendedor'],b:relCancelamentos},
   {id:'rv_mensal',n:'9. Desempenho comercial mensal',f:[...FVR,'cliente','produto','vendedor','regiao'],b:relMensal},
   {id:'rv_gerencial',n:'10. Resumo gerencial de vendas',f:[...FVR],b:relGerencial},
+  {id:'rv_abc_clientes',n:'11. Curva ABC de clientes',f:[...FVR,'produto','vendedor','regiao','forma'],b:relABCClientesV},
+  {id:'rv_abc_produtos',n:'12. Curva ABC de produtos',f:[...FVR,'cliente','vendedor','regiao','forma'],b:relABCProdutosV},
   {id:'rv_margem',n:'Resultado e margem por produto (estimativa)',f:[...FVR,'cliente','produto','vendedor'],b:U=>relMargem(U,'produto')},
   {id:'rv_margem_cli',n:'Resultado e margem por cliente (estimativa)',f:[...FVR,'produto','vendedor'],b:U=>relMargem(U,'cliente')},
   {id:'rv_margem_mes',n:'Resultado e margem por mês (estimativa)',f:[...FVR,'cliente','produto','vendedor'],b:U=>relMargem(U,'mes')},
@@ -14319,7 +14342,7 @@ inicioVendasV=function(c,s){
    <div class="pv-grupo">Dinheiro</div>${K('c2','entrada','Recebido',fMoeda(rec),'dinheiro que entrou no período','recebido')}${K('c5','carteira','A receber',fMoeda(soma(ab,x=>x.saldo)),ab.length+' título(s) em aberto','receber')}
    ${K('c5','calendario','Vendas a prazo',fMoeda(tot(aPrazo)),aPrazo.length+' venda(s) no período','prazo')}${K('c6','aviso','Clientes inadimplentes',String(inad.size),fMoeda(soma(ven,x=>x.saldo))+' vencido','vencido')}
    <div class="pv-grupo">Pedidos em andamento</div>${K('c1','editar','Aguardando aprovação',String(aAprov.length),fMoeda(soma(aAprov,v=>v.total)),'aprov')}${K('c3','caixa','Aguardando carregamento',String(aCarr.length),fMoeda(soma(aCarr,v=>v.total)),'carr')}
-   ${K('c2','enviar','Aguardando entrega',String(aEnt.length),'carregados ou em trânsito','ent')}${K('c6','fechar','Canceladas e devolvidas',String(cancD.length),fMoeda(soma(cancD,x=>x.valor))+' no período','canc')}
+   ${K('c2','enviar','Aguardando entrega',String(aEnt.length),'carregados ou em trânsito','ent')}${K('c6','fechar','Canceladas e devolvidas',String(new Set(cancD.map(x=>x.vid)).size),fMoeda(soma(cancD,x=>x.valor))+' no período','canc')}
    <div class="pv-grupo">Médias e meta</div>${K('c4','recibo','Ticket médio',fMoeda(xs.length?tot(xs)/xs.length:0),'por venda faturada','clientes')}${K('c4','moeda','Preço médio por milheiro',mil?fMoeda(recM/mil):'—','realizado no período','produtos')}
    ${K('c1','grafico','Meta do mês',metaM?fNum(realizadoMetaV(metaM)/metaM.valor*100,1)+'%':'sem meta',metaM?'de '+fMoeda(metaM.valor)+(pj?' · projeção '+fMoeda(pj.valor)+' (estimativa)':''):'cadastre em Metas','metas')}
   </div>
