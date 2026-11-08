@@ -34338,5 +34338,364 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
 })();
 </script>
 
+<style id="jb-desfazer-css">
+/* ================= Desfazer e Refazer (08/11/2026): dois ícones no alto de todos os setores ================= */
+.jbh{display:inline-flex;align-items:center;gap:2px;flex:none}
+.jbh button{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;color:inherit;cursor:pointer;font:inherit}
+.jbh button svg{width:17px;height:17px}
+.jbh button:disabled{opacity:.32;cursor:default;pointer-events:none}
+.jbh button:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.jbh-spot{margin-left:6px}
+.jbh-spot button,.jbh-antigo button,.jbh-gav button{width:32px;height:32px;border-radius:8px}
+.jbh-spot button:hover,.jbh-antigo button:hover,.jbh-gav button:hover{background:rgba(127,127,127,.18)}
+.jbh-antigo{margin:0 6px 0 0}
+.jbh-lista .pd-it{cursor:default}
+.jbh-lista .pd-it:hover{background:none}
+.jbh-lista .pt.feita{background:var(--ok,#2E7D32)}
+.jbh-lista .pt.desfeita{background:var(--suave,#999)}
+.jbh-lista .pt.presa{background:var(--pe,#C62828)}
+@media (max-width:700px){#top .jbh .c2-tb{min-width:30px;height:36px}#top .jbh svg{width:16px;height:16px}}
+@media (max-width:480px){html.casca2 #top{gap:2px}#top .jbh{gap:0}#top .jbh .c2-tb{min-width:27px}#top .c2-tb{min-width:31px}#top>[data-c2=setor]{flex:0 1 auto;min-width:40px}#top .c2-setor{max-width:100%;min-width:0;width:100%}#top .c2-stx{min-width:0;overflow:hidden}#top .c2-stx b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media print{.jbh,#jbhPainel{display:none!important}}
+</style>
+<script id="jb-desfazer">
+/* ================= Desfazer e Refazer (08/11/2026) =================
+   Pedido do dono: dois botões globais, em todos os setores, com Ctrl+Z e Ctrl+Y.
+   Nenhum módulo foi alterado: toda gravação do programa já passa por APP.db, e é ali que este bloco
+   anota o estado anterior de cada registro. Como funciona:
+   · Cada ação do usuário vira UMA entrada, mesmo gravando vários registros (ex.: salvar + estoque).
+   · Registros agrupados (mês, parte do mês) são tratados item a item: desfazer um lançamento nunca
+     mexe nos lançamentos de outras pessoas que moram no mesmo documento.
+   · O histórico é por setor: em cada setor, os botões só alcançam o que foi feito naquele setor.
+     Na tela de seleção de setores alcançam tudo.
+   · Com um formulário aberto, voltam primeiro o que foi digitado (sem gravar nada).
+   · Antes de desfazer, confere se o registro continua como a ação deixou. Se outra pessoa mexeu
+     depois, não desfaz: a gravação dela não é perdida.
+   · Respeita lançamento travado, folha fechada e cadastro já usado em outros lançamentos.
+   · O histórico oficial (log e auditoria do banco) nunca é desfeito; desfazer e refazer entram nele.
+   · Nota fiscal, acessos e permissões não voltam por aqui (valem fora do programa). */
+(function(){
+'use strict';
+const SILENCIO_MS=700,GESTO_MS=20000,MAX_ENTRADAS=100,MAX_BYTES=4000000;
+/* não entram no histórico: registros do próprio sistema */
+const IGNORAR=new Set(['log','uso','diagnostico','ws','data','iaPedidos','iaVersoes','iaPermissoes','ccAuditoria']);
+/* valem fora do programa ou mexem em acesso: a ação fica no histórico, mas não volta */
+const IRREVERSIVEIS={nfe:'nota fiscal',nfeXml:'nota fiscal',nfeTrava:'nota fiscal',nfePayload:'nota fiscal',nfeImport:'nota fiscal',fiscalCfg:'configuração fiscal',acesso:'acesso de usuário',ccPolitica:'política do Controle Central',ccAgentes:'agente do Controle Central'};
+/* pedem confirmação antes de desfazer ou refazer */
+const IMPORTANTES=new Set(['folhas','quinzenas','funcionarios','sensivel','desligamentos','admissoes','contratos','docsEmitidos','comprovantes','dependentes','config','vendas','compras','estoqueMov','fin']);
+const COLS_DA_FOLHA=new Set(['diario','horasExtras','producao','alimentacao','diarias','vales','despesas']);
+const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas'};
+IC.desfazer='<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>';
+IC.refazer='<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>';
+
+/* ---------- utilidades ---------- */
+const obj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const cl=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+const colDe=c=>String(c).split('/')[0];
+const idDe=c=>String(c).split('/').pop();
+/* compara ignorando a ordem dos campos e tratando vazio e ausente como iguais */
+function canon(v){if(v===null||v===undefined)return undefined;if(Array.isArray(v))return v.map(x=>{const c=canon(x);return c===undefined?null:c});if(typeof v==='object'){const o={};Object.keys(v).sort().forEach(k=>{const c=canon(v[k]);if(c!==undefined)o[k]=c});return Object.keys(o).length?o:undefined}return v}
+const igual=(a,b)=>JSON.stringify(canon(a))===JSON.stringify(canon(b));
+/* o que devolve os campos tocados por uma atualização ao valor de antes (mesma mescla do banco) */
+function inverso(base,patch,prof){prof=prof||0;const o={};for(const k in patch){const v=patch[k],b=base?base[k]:undefined;
+ if(obj(v)&&obj(b))o[k]=inverso(b,v,prof+1);
+ else if(prof===0&&obj(v)&&b==null&&(k==='items'||k==='itens'))o[k]=inverso({},v,1);
+ else o[k]=b===undefined?null:cl(b)}return o}
+function mescla(a,b){const o={...a};for(const k in b){if(obj(o[k])&&obj(b[k]))o[k]=mescla(o[k],b[k]);else o[k]=b[k]}return o}
+/* os campos tocados continuam com o valor esperado? (os outros não importam) */
+function confere(atual,patch){for(const k in patch){const v=patch[k],c=atual?atual[k]:undefined;if(obj(v)&&obj(c)){if(!confere(c,v))return false}else if(!igual(c,v))return false}return true}
+const ehBalde=d=>obj(d)&&d.chave!==undefined&&(obj(d.items)||obj(d.itens));
+
+/* ---------- pilhas ---------- */
+let UNDO=[],REDO=[],G=null,OCUPADO=false,DIALOGOS=0,ultGesto=0,CTX_ULT='',CARREGADO_DE='';
+const CU=[],CR=[];   /* preenchimento de campos ainda não salvos */
+
+function ctxAtual(){try{
+ const m=lerRota().mod;if(m==='setores')return '';
+ if(!document.body.classList.contains('modo-setor'))return 'dp';
+ const b=document.querySelector('#conteudo .spot-cab .spot-id b')||document.getElementById('c2snome');const n=b?b.textContent.trim():'';
+ if(n&&n!=='Setores')CTX_ULT=n;return CTX_ULT||m}catch(e){return ''}}
+const nomeCtx=c=>c==='dp'?'Setor Pessoal':(c||'Tela de setores');
+function ultima(lista){const c=ctxAtual();for(let i=lista.length-1;i>=0;i--){const e=lista[i];if(c===''||e.ctx===c||e.ctx==='')return e}return null}
+const tirar=(lista,e)=>{const i=lista.indexOf(e);if(i>=0)lista.splice(i,1)};
+const chaveSessao=()=>'jbh_v1:'+(APP.uid||'x');
+function guardar(){try{sessionStorage.setItem(chaveSessao(),JSON.stringify({u:UNDO,r:REDO}))}catch(e){try{sessionStorage.removeItem(chaveSessao())}catch(x){}}}
+function recuperar(){if(!APP.uid||CARREGADO_DE===APP.uid)return;CARREGADO_DE=APP.uid;try{const s=JSON.parse(sessionStorage.getItem(chaveSessao())||'null');if(s&&Array.isArray(s.u)&&Array.isArray(s.r)){UNDO=s.u;REDO=s.r}}catch(e){}}
+function apagarSessao(){UNDO=[];REDO=[];CU.length=0;CR.length=0;try{sessionStorage.removeItem(chaveSessao())}catch(e){}}
+
+/* ---------- captura das gravações ---------- */
+let BRUTO=null,ENVOLTO=null;
+const repassa=(t,k)=>{const v=t[k];return typeof v==='function'?v.bind(t):v};
+function envolverDoc(r,caminho){return new Proxy({},{get(_,k){
+ if(k==='set'||k==='update')return d=>capturar(r,caminho,k,d);
+ if(k==='delete')return ()=>capturar(r,caminho,'delete');
+ return repassa(r,k)}})}
+function envolverCol(q,col){return new Proxy({},{get(_,k){
+ if(k==='doc')return id=>{const r=q.doc(id);return envolverDoc(r,col+'/'+(id||r.id))};
+ if(k==='where')return (...a)=>envolverCol(q.where(...a),col);
+ return repassa(q,k)}})}
+function envolverDb(db){return new Proxy({},{get(_,k){
+ if(k==='doc')return p=>envolverDoc(db.doc(p),String(p));
+ if(k==='collection')return c=>envolverCol(db.collection(c),String(c));
+ return repassa(db,k)}})}
+function instalar(){const a=APP.db;Object.defineProperty(APP,'db',{configurable:true,enumerable:true,get(){return ENVOLTO},set(v){BRUTO=v;ENVOLTO=v?envolverDb(v):v}});if(a)APP.db=a}
+
+const doUsuario=()=>!!G||DIALOGOS>0||Date.now()-ultGesto<GESTO_MS;
+function grupo(){if(!G)G={id:novoId(),ts:new Date().toISOString(),ctx:ctxAtual(),rota:location.hash,pend:0,ops:[],logs:[]};clearTimeout(G.t);return G}
+function programar(g){if(g!==G)return;clearTimeout(g.t);if(g.pend>0||DIALOGOS>0)return;g.t=setTimeout(()=>fechar(g),SILENCIO_MS)}
+function motivoIrreversivel(caminho){if(caminho==='config/usuarios')return 'acesso de usuário';return IRREVERSIVEIS[colDe(caminho)]||''}
+async function capturar(r,caminho,tipo,dados){
+ const exec=()=>tipo==='delete'?r.delete():r[tipo](dados);
+ const col=colDe(caminho);
+ if(col==='log'){if(G&&obj(dados))try{Object.values(dados.items||{}).forEach(x=>{if(x&&x.acao)G.logs.push(x)})}catch(e){}return exec()}
+ if(IGNORAR.has(col)||!doUsuario())return exec();
+ const g=grupo();g.pend++;
+ const irr=motivoIrreversivel(caminho);if(irr&&!g.bloq)g.bloq=irr;
+ let antes=null;
+ try{const s=await r.get();antes={e:!!s.exists,d:s.exists?cl(s.data()):undefined}}catch(e){g.incompleto=true}
+ try{const res=await exec();if(antes)registrar(g,caminho,tipo,dados,antes);return res}
+ finally{g.pend--;programar(g)}
+}
+function registrar(g,c,tipo,dados,antes){try{
+ const d=cl(dados);
+ if(tipo==='update'){const i=inverso(antes.d||{},d);if(igual(i,d))return;const op={k:'p',c,p:d,i};if(antes.d&&antes.d.chave!==undefined)op.b={chave:antes.d.chave};g.ops.push(op);return}
+ if(tipo==='set'&&ehBalde(d)){const nome=obj(d.items)?'items':'itens';const base=(antes.d&&antes.d[nome])||{};const dif={};new Set([...Object.keys(base),...Object.keys(d[nome])]).forEach(k=>{if(!igual(base[k],d[nome][k]))dif[k]=d[nome][k]===undefined?null:d[nome][k]});if(!Object.keys(dif).length)return;
+  const p={[nome]:dif};g.ops.push({k:'p',c,p,i:inverso({[nome]:base},p),b:{chave:d.chave}});return}
+ const depois={e:tipo!=='delete',d:tipo==='delete'?undefined:d};
+ if(antes.e===depois.e&&igual(antes.d,depois.d))return;
+ g.ops.push({k:'s',c,a:antes,d:depois});
+}catch(e){console.warn('desfazer',e);g.incompleto=true}}
+
+/* ---------- descrição da ação ---------- */
+const nomeCol=c=>{try{return (MODS[c]&&MODS[c].titulo)||NOMES[c]||(typeof nomeMod==='function'?nomeMod(c):c)}catch(e){return NOMES[c]||c}};
+const maiuscula=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
+function nomeRec(r){if(!obj(r))return '';let n=r.nome||r.razaoSocial||r.razao||r.descricao||r.titulo||r.cliente||r.fornecedor||r.produto||r.placa||'';if(!n&&r.funcionarioId)try{n=nomeF(r.funcionarioId)}catch(e){}return String(n).slice(0,48)}
+function alvos(op){ /* cada registro tocado: {id,rec,criou,excluiu} */
+ if(op.k==='s')return [{id:idDe(op.c),rec:op.d.e?op.d.d:op.a.d,criou:!op.a.e&&op.d.e,excluiu:op.a.e&&!op.d.e}];
+ const n=obj(op.p.items)?'items':obj(op.p.itens)?'itens':'';
+ if(!n)return [{id:idDe(op.c),rec:null,criou:false,excluiu:false}];
+ return Object.keys(op.p[n]).map(id=>{const de=(op.i[n]||{})[id],para=op.p[n][id];return {id,rec:obj(para)?para:de,criou:de==null&&para!=null,excluiu:para==null&&de!=null}});
+}
+function descrever(g){
+ const pr=g.ops.find(o=>colDe(o.c)!=='sensivel')||g.ops[0];
+ if(!pr)return g.bloq?maiuscula(g.bloq):'Ação';
+ const col=colDe(pr.c),a=alvos(pr)[0]||{},qt=g.ops.reduce((s,o)=>s+(colDe(o.c)==='sensivel'?0:alvos(o).length),0);
+ const l=g.logs[0];
+ const verbo=l?maiuscula(String(l.acao)):a.criou?'Incluiu':a.excluiu?'Excluiu':'Alterou';
+ const nm=nomeCol(l&&l.modulo?l.modulo:col),rec=nomeRec(a.rec);
+ return verbo+' em '+nm+(rec?': '+rec:'')+(qt>1?' ('+qt+' registros)':'');
+}
+function fechar(g){
+ if(g!==G)return;if(g.pend>0||DIALOGOS>0){programar(g);return}
+ G=null;
+ const tipos=new Map();let misto=false;g.ops.forEach(o=>{if(tipos.has(o.c)&&tipos.get(o.c)!==o.k)misto=true;tipos.set(o.c,o.k)});
+ if(!g.ops.length&&!g.bloq&&!g.incompleto)return;
+ const e={id:g.id,ts:g.ts,ctx:g.ctx,rota:g.rota,ops:g.ops,desc:descrever(g),qt:g.ops.reduce((s,o)=>s+alvos(o).length,0)};
+ if(g.bloq)e.bloq='A ação envolve '+g.bloq+', que vale fora desta tela e não volta automaticamente.';
+ else if(g.incompleto||misto)e.bloq='Não foi possível guardar o estado anterior de todos os registros desta ação.';
+ else{try{if(JSON.stringify(g.ops).length>MAX_BYTES)e.bloq='Esta ação alterou dados demais para ser desfeita por aqui. Use a cópia de segurança.'}catch(x){}}
+ if(e.bloq)e.ops=[];
+ UNDO.push(e);while(UNDO.length>MAX_ENTRADAS)UNDO.shift();
+ REDO=REDO.filter(x=>x.ctx!==e.ctx);
+ CU.length=0;CR.length=0; /* o que estava digitado já foi salvo */
+ guardar();atualizar();
+}
+async function assentar(){const t=Date.now();while(G&&Date.now()-t<15000){if(G.pend===0&&DIALOGOS===0){fechar(G);break}await new Promise(r=>setTimeout(r,80))}}
+
+/* ---------- conferências antes de desfazer ou refazer ---------- */
+async function estadoIntacto(e,dir){
+ const porDoc=new Map();e.ops.forEach(o=>{if(!porDoc.has(o.c))porDoc.set(o.c,[]);porDoc.get(o.c).push(o)});
+ for(const [c,L] of porDoc){
+  const s=await BRUTO.doc(c).get();const atual={e:!!s.exists,d:s.exists?s.data():undefined};
+  if(L[0].k==='s'){const alvo=dir==='u'?L[L.length-1].d:L[0].a;if(atual.e!==alvo.e||(alvo.e&&!igual(atual.d,alvo.d)))return false}
+  else{const seq=dir==='u'?L:L.slice().reverse();const esp=seq.reduce((a,o)=>mescla(a,dir==='u'?o.p:o.i),{});if(!confere(atual.d||{},esp))return false}
+ }
+ return true;
+}
+function regras(e,dir){
+ const mexeFolha=e.ops.some(o=>colDe(o.c)==='folhas');
+ const someIds=new Set();
+ for(const op of e.ops){const col=colDe(op.c);
+  for(const a of alvos(op)){
+   const rs=[a.rec];if(op.k==='s')rs.push(op.a.d,op.d.d);else{const n=obj(op.i.items)?'items':obj(op.i.itens)?'itens':'';if(n)rs.push(op.i[n][a.id])}
+   if(rs.some(r=>obj(r)&&r.travado===true)&&!podeDestravar())return 'Este lançamento está travado. Só Jeferson e Bayron podem alterar.';
+   if(!mexeFolha&&COLS_DA_FOLHA.has(col)&&obj(a.rec)&&typeof CAMPO_DATA!=='undefined'){const d=a.rec[CAMPO_DATA[col]];const m=d?String(d).slice(0,7):'';if(m&&folhaFechada(m))return 'A folha de '+fMes(m)+' já foi fechada. Reabra a folha antes de mexer neste lançamento.'}
+   if(dir==='u'?a.criou:a.excluiu)someIds.add(a.id);
+  }
+ }
+ if(someIds.size){const proprios=new Set(e.ops.flatMap(o=>alvos(o).map(a=>a.id)));const ids=[...someIds];
+  for(const col of Object.keys(DATA)){if(col==='log'||col==='uso'||col==='sensivel'||col==='diagnostico')continue;
+   for(const r of DATA[col]){if(proprios.has(r.id))continue;const t=JSON.stringify(r);const usado=ids.find(i=>t.includes('"'+i+'"'));if(usado)return 'Este registro já é usado em '+nomeCol(col)+'. Desfaça ou ajuste esse lançamento antes.'}}}
+ return '';
+}
+const importante=e=>e.qt>=4||e.ops.some(o=>IMPORTANTES.has(colDe(o.c)));
+
+/* ---------- aplicar ---------- */
+async function aplicar(op,dir){
+ const r=BRUTO.doc(op.c);
+ await contarEscrita(()=>tentar(async()=>{
+  if(op.k==='s'){const a=dir==='u'?op.a:op.d;if(a.e)await r.set(cl(a.d));else await r.delete();return}
+  const p=cl(dir==='u'?op.i:op.p);
+  try{await r.update(p)}catch(err){const g=await r.get();if(g.exists)throw err;if(dir==='r')await r.set({...(op.b||{}),...p})}
+ }));
+}
+async function anotar(e,dir){try{const o=e.ops.find(x=>colDe(x.c)!=='sensivel')||e.ops[0];const a=alvos(o)[0]||{};
+ const r={id:novoId(),ts:new Date().toISOString(),uid:APP.uid||'local',modulo:colDe(o.c),recId:a.id||idDe(o.c),acao:dir==='u'?'desfez':'refez',campos:[{c:'Ação',de:'',para:e.desc.slice(0,120)}]};
+ await bucketPut('log',chaveBucket('log',r),r.id,r)}catch(x){console.warn('desfazer log',x)}}
+
+async function travada(e,dir,motivo){
+ const nome=dir==='u'?'desfazer':'refazer';
+ if(await confirmar('Não dá para '+nome+' esta ação',e.desc+'\n\n'+motivo+'\n\nNada foi alterado. Se quiser seguir para a ação anterior, tire esta do histórico.',{ok:'Tirar do histórico'})){tirar(dir==='u'?UNDO:REDO,e);guardar()}
+}
+async function executar(e,dir){
+ const nome=dir==='u'?'Desfazer':'Refazer',origem=dir==='u'?UNDO:REDO,destino=dir==='u'?REDO:UNDO;
+ if(e.bloq){await travada(e,dir,e.bloq);return}
+ if(!navigator.onLine){toast('Sem internet: '+nome.toLowerCase()+' só com a conexão de volta.','erro');return}
+ if(APP.central&&APP.central.estado().modo!=='central'){toast('O sistema está somente para consulta agora.','erro');return}
+ const motivo=regras(e,dir);if(motivo){await travada(e,dir,motivo);return}
+ let intacto=false;try{intacto=await estadoIntacto(e,dir)}catch(x){toast('Não foi possível conferir o registro. Tente de novo.','erro');return}
+ if(!intacto){await travada(e,dir,'O registro foi alterado depois desta ação, por outra pessoa ou em outra tela. Para não perder essa alteração, ele fica como está.');return}
+ if(importante(e)&&!await confirmar(nome+' esta ação?',e.desc+'\n\n'+(e.qt>1?e.qt+' registros voltam':'O registro volta')+(dir==='u'?' ao estado anterior. Dá para refazer depois.':' ao estado depois da ação.'),{ok:nome}))return;
+ const seq=dir==='u'?e.ops.slice().reverse():e.ops,feitos=[];
+ try{for(const op of seq){await aplicar(op,dir);feitos.push(op)}}
+ catch(err){
+  for(const op of feitos.reverse()){try{await aplicar(op,dir==='u'?'r':'u')}catch(x){console.warn('desfazer: compensação',x)}}
+  toast(typeof msgFalhaSalvar==='function'?msgFalhaSalvar(err):'Não foi possível '+nome.toLowerCase()+'. Nada foi alterado.','erro');return}
+ tirar(origem,e);destino.push(e);guardar();anotar(e,dir);
+ toast((dir==='u'?'Desfeito: ':'Refeito: ')+e.desc,'ok');
+}
+async function acionar(dir){
+ if(OCUPADO||DIALOGOS>0)return;
+ OCUPADO=true;atualizar();
+ try{
+  const c=topoCampo(dir);
+  if(c){aplicarCampo(c,dir);return}
+  await assentar();
+  if(modalAberto())return;
+  const e=ultima(dir==='u'?UNDO:REDO);if(e)await executar(e,dir);
+ }catch(err){console.warn('desfazer',err);toast('Não foi possível concluir. Nada foi perdido.','erro')}
+ finally{OCUPADO=false;atualizar()}
+}
+
+/* ---------- preenchimento de campos (antes de salvar) ---------- */
+const ULT=new WeakMap();
+let APLICANDO=false;
+const modalAberto=()=>!!document.querySelector('#camada .veu');
+const val=el=>el.type==='checkbox'?el.checked:el.value;
+const textual=el=>el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&!/^(checkbox|date|month|time|datetime-local)$/i.test(el.type));
+function rastreavel(el){
+ if(!el||!el.tagName||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))return false;
+ if(el.tagName==='INPUT'&&/^(search|file|password|hidden|button|submit|reset|image|color|radio|range)$/i.test(el.type))return false;
+ if(el.disabled||el.readOnly)return false;
+ if(!el.closest('#conteudo,#camada')||el.closest('.filtros,.busca,.modal,[data-sem-desfazer]'))return false;
+ return !!el.closest('.cmp,.campos,.gaveta,form,td');
+}
+function seletor(el){if(el.id)return '#'+CSS.escape(el.id);const p=[];let n=el;while(n&&n.parentElement&&n.id!=='conteudo'&&n.id!=='camada'){p.unshift(n.tagName.toLowerCase()+':nth-child('+([...n.parentElement.children].indexOf(n)+1)+')');n=n.parentElement}return n&&n.id?'#'+n.id+' > '+p.join(' > '):''}
+function achar(c){if(c.el&&c.el.isConnected)return c.el;try{const n=c.sel?document.querySelector(c.sel):null;if(n&&n.tagName===c.tag)return n}catch(e){}return null}
+function topoCampo(dir){const L=dir==='u'?CU:CR,k=dir==='u'?'depois':'antes';while(L.length){const c=L[L.length-1];const el=achar(c);if(el&&val(el)===c[k])return c;L.pop()}return null}
+function aplicarCampo(c,dir){
+ const el=achar(c);const v=dir==='u'?c.antes:c.depois;
+ (dir==='u'?CU:CR).pop();(dir==='u'?CR:CU).push(c);
+ APLICANDO=true;
+ try{if(el.type==='checkbox')el.checked=v;else el.value=v;ULT.set(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));try{el.focus({preventScroll:true})}catch(e){}}
+ finally{APLICANDO=false}
+ const k=dir==='u'?'antes':'depois';setTimeout(()=>{if(el.isConnected){const f=val(el);c[k]=f;ULT.set(el,f)}agendar()},0);
+}
+function aoMudar(e){
+ if(APLICANDO)return;const el=e.target;if(!rastreavel(el))return;
+ const novo=val(el);const antes=ULT.has(el)?ULT.get(el):(el.type==='checkbox'?!novo:(el.tagName==='SELECT'?'':el.defaultValue));
+ if(novo===antes)return;ULT.set(el,novo);
+ const agora=Date.now(),t=CU[CU.length-1];
+ if(t&&t.el===el&&textual(el)&&agora-t.t<1200){t.depois=novo;t.t=agora;if(t.antes===t.depois)CU.pop()}
+ else CU.push({el,sel:seletor(el),tag:el.tagName,antes,depois:novo,t:agora});
+ CR.length=0;agendar();setTimeout(()=>sincronizar(el),0);
+}
+/* campos com máscara (moeda, data) reescrevem o valor depois do evento: vale o que ficou na tela */
+function sincronizar(el){const t=CU[CU.length-1];if(!t||t.el!==el||!el.isConnected)return;const v=val(el);if(v!==t.depois){t.depois=v;ULT.set(el,v);if(t.antes===v)CU.pop();agendar()}}
+document.addEventListener('focusout',e=>{const el=e.target;if(rastreavel(el))setTimeout(()=>sincronizar(el),0)},true);
+document.addEventListener('focusin',e=>{if(rastreavel(e.target)&&!ULT.has(e.target))ULT.set(e.target,val(e.target))},true);
+document.addEventListener('input',aoMudar,true);
+document.addEventListener('change',aoMudar,true);
+
+/* ---------- botões ---------- */
+function disponivel(dir){
+ if(!acessoOk()||OCUPADO||DIALOGOS>0)return null;
+ if(topoCampo(dir))return {campo:true};
+ if(modalAberto())return null;
+ const e=ultima(dir==='u'?UNDO:REDO);return e?{e}:null;
+}
+function grupoHtml(cls,bt){return `<span class="jbh ${cls}" role="group" aria-label="Desfazer e refazer">${['u','r'].map(d=>`<button type="button" class="${bt}" data-jbh="${d}" disabled aria-label="${d==='u'?'Desfazer':'Refazer'}">${ic(d==='u'?'desfazer':'refazer')}</button>`).join('')}</span>`}
+function noTopo(){
+ const top=document.getElementById('top');if(!top||!acessoOk()||top.querySelector('.jbh'))return;
+ const novo=document.documentElement.classList.contains('casca2');
+ const w=document.createElement('span');w.innerHTML=novo?grupoHtml('c2','c2-tb'):grupoHtml('jbh-antigo','');const g=w.firstElementChild;
+ if(novo){const f=top.querySelector(':scope>[data-c2=funcoes]');if(f)f.after(g);else top.appendChild(g);
+  const x=document.getElementById('c2euextra');if(x&&!x.parentNode.querySelector('[data-jbh-hist]')){const b=document.createElement('button');b.type='button';b.className='c2-op';b.setAttribute('data-jbh-hist','');b.innerHTML=ic('relogio')+'<span>Histórico de ações<small>O que dá para desfazer e refazer</small></span>';x.before(b)}}
+ else{const r=top.querySelector(':scope>.pd-bt')||top.querySelector(':scope>#bSino');if(r)top.insertBefore(g,r);else top.appendChild(g)}
+}
+/* formulário em gaveta cobre o topo: os dois botões aparecem também no cabeçalho dele */
+function naGaveta(){const c=document.querySelector('#camada .gaveta>.gav-cab');if(!c||c.querySelector('.jbh'))return;const g=c.parentNode;if(!g.querySelector('.gav-corpo input,.gav-corpo select,.gav-corpo textarea'))return;
+ const w=document.createElement('span');w.innerHTML=grupoHtml('jbh-gav','');const f=c.querySelector('[data-fechar]');if(f)c.insertBefore(w.firstElementChild,f);else c.appendChild(w.firstElementChild)}
+function atualizar(){
+ try{recuperar();noTopo();naGaveta();
+  document.querySelectorAll('.jbh button[data-jbh]').forEach(b=>{const d=b.dataset.jbh,x=disponivel(d),nome=d==='u'?'Desfazer':'Refazer',at=d==='u'?'Ctrl+Z':'Ctrl+Y';
+   const tip=x?nome+': '+(x.campo?'o que foi digitado':x.e.desc)+' ('+at+')':nome+' ('+at+')';
+   if(b.disabled!==!x)b.disabled=!x;
+   if(b.getAttribute('aria-label')!==tip){b.setAttribute('aria-label',tip);if(b.classList.contains('c2-tb'))b.setAttribute('data-tip2',tip);else b.title=tip}});
+ }catch(e){console.warn('desfazer',e)}
+}
+let tA=null;function agendar(){clearTimeout(tA);tA=setTimeout(atualizar,120)}
+
+/* ---------- lista do histórico ---------- */
+const hora=iso=>{try{return fDataHora(iso)}catch(e){return ''}};
+function painel(){let p=document.getElementById('jbhPainel');if(!p){p=document.createElement('div');p.id='jbhPainel';p.className='pd-painel';p.setAttribute('role','dialog');p.setAttribute('aria-label','Histórico de ações');p.hidden=true;document.body.appendChild(p)}return p}
+function abrirHistorico(){
+ const p=painel();
+ const L=[...UNDO.map(e=>({e,st:e.bloq?'presa':'feita'})),...REDO.map(e=>({e,st:'desfeita'}))].sort((a,b)=>a.e.ts<b.e.ts?1:-1);
+ const atual=ctxAtual();const ctxs=[...new Set(L.map(x=>x.e.ctx))].sort((a,b)=>(a===atual?-1:0)-(b===atual?-1:0));
+ const rot={feita:'Feita',desfeita:'Desfeita',presa:'Não pode ser desfeita'};
+ p.innerHTML=`<div class="pd-cab"><h2>Histórico de ações<small>${L.length?L.length+' nesta sessão':'nenhuma'}</small></h2><button type="button" data-jbhf aria-label="Fechar">${ic('fechar')}</button></div>
+ <div class="pd-lst jbh-lista">${L.length?ctxs.map(c=>`<div class="pd-g">${esc(nomeCtx(c))}</div>`+L.filter(x=>x.e.ctx===c).map(x=>`<div class="pd-it"><span class="pt ${x.st}"></span><span class="tx"><b>${esc(x.e.desc)}</b><span>${esc(hora(x.e.ts))} · ${rot[x.st]}</span></span></div>`).join('')).join(''):'<div class="pd-vazio"><b>Nada por aqui ainda</b>As ações que você fizer aparecem nesta lista.</div>'}</div>
+ <div class="pd-rod">Ctrl+Z desfaz e Ctrl+Y refaz, começando pela ação mais recente do setor em que você está. Esta lista vale enquanto a aba estiver aberta. O histórico oficial de alterações continua guardado.</div>`;
+ p.hidden=false;p.querySelector('[data-jbhf]').onclick=fecharHistorico;p.querySelector('[data-jbhf]').focus();
+}
+function fecharHistorico(){const p=document.getElementById('jbhPainel');if(p)p.hidden=true}
+
+/* ---------- ligações ---------- */
+const eGesto=()=>{ultGesto=Date.now()};
+['pointerdown','keydown','change'].forEach(t=>document.addEventListener(t,eGesto,{capture:true,passive:true}));
+window.addEventListener('hashchange',()=>{if(!G)ultGesto=0;CU.length=0;CR.length=0;fecharHistorico();agendar()});
+document.addEventListener('click',e=>{
+ const t=e.target.closest?e.target:null;if(!t)return;
+ if(t.closest('[data-c2sair],#jbsair'))apagarSessao();
+ const b=t.closest('[data-jbh]');if(b){e.preventDefault();acionar(b.dataset.jbh);return}
+ if(t.closest('[data-jbh-hist]')){e.preventDefault();setTimeout(abrirHistorico,0);return}
+ const p=document.getElementById('jbhPainel');if(p&&!p.hidden&&!t.closest('#jbhPainel')&&document.contains(t))fecharHistorico();
+ agendar();
+});
+document.addEventListener('contextmenu',e=>{const b=e.target.closest&&e.target.closest('.jbh');if(b){e.preventDefault();setTimeout(abrirHistorico,0)}});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'){const p=document.getElementById('jbhPainel');if(p&&!p.hidden)fecharHistorico();return}
+ if(!(e.ctrlKey||e.metaKey)||e.altKey||typeof e.key!=='string')return;
+ const k=e.key.toLowerCase();const dir=(k==='z'&&!e.shiftKey)?'u':((k==='y'&&!e.shiftKey)||(k==='z'&&e.shiftKey))?'r':'';if(!dir)return;
+ if(!APP.pronto||!acessoOk())return;
+ const a=e.target;const editando=a&&a.tagName&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);
+ /* com o cursor num campo sem nada a voltar, fica o desfazer normal do texto: nunca apaga um registro salvo por engano */
+ if(editando&&(!rastreavel(a)||!topoCampo(dir)))return;
+ e.preventDefault();e.stopPropagation();if(!e.repeat)acionar(dir);
+},true);
+
+const confirmar0=confirmar;
+confirmar=function(){DIALOGOS++;atualizar();const p=confirmar0.apply(this,arguments);const fim=()=>{DIALOGOS--;if(G)programar(G);atualizar()};p.then(fim,fim);return p};
+const renderCasca0=renderCasca;
+renderCasca=function(){const r=renderCasca0.apply(this,arguments);try{atualizar()}catch(e){}return r};
+const cabSpot0=cabSpot;
+cabSpot=function(){const h=cabSpot0.apply(this,arguments);try{const i=h.indexOf('class="spot-id"');const j=i<0?-1:h.indexOf('</a>',i);return j<0||h.includes('data-jbh')?h:h.slice(0,j+4)+grupoHtml('jbh-spot','')+h.slice(j+4)}catch(e){return h}};
+function vigiarCamada(){const c=document.getElementById('camada');if(c)new MutationObserver(agendar).observe(c,{childList:true})}
+instalar();vigiarCamada();
+window.JB_DESFAZER={desfazer:()=>acionar('u'),refazer:()=>acionar('r'),abrirHistorico,pilhas:()=>({undo:UNDO.slice(),redo:REDO.slice(),campos:CU.length,contexto:ctxAtual()}),assentar};
+})();
+</script>
+
 </body>
 </html>

@@ -111,3 +111,16 @@ Ativar na nuvem (uma vez): Supabase → projeto "JB Gestão" → Edge Functions 
 "A leitura por IA ainda não foi ativada no servidor" e nada é lançado.
 Ativar no Claude: o artifact precisa declarar `sample: {images: true}`; sem isso, só PDFs digitais (com texto) são lidos lá.
 Teste: `node scripts/construir.mjs && PDFJS_DIR=<pasta do pdfjs-dist/build> node scripts/testar-lancamento-foto.mjs`.
+
+## 7. Desfazer e Refazer
+
+Dois ícones no alto de todos os setores (Ctrl+Z e Ctrl+Y). Código: bloco `<script id="jb-desfazer">`, no fim de
+`app/jb-gestao.html`. Ele envolve `APP.db`, por onde passam todas as gravações; nenhum módulo precisou mudar e o banco não mudou.
+
+- Uma ação do usuário é uma entrada, mesmo com várias gravações. Documentos agrupados são desfeitos item a item.
+- Histórico separado por setor; vale enquanto a aba estiver aberta (`sessionStorage`) e é limpo ao sair.
+- Com formulário aberto, volta primeiro o que foi digitado. Com o cursor em pesquisa, Ctrl+Z é o do próprio campo.
+- Não desfaz se o registro mudou depois, se está travado (só os autorizados), se a folha do mês está fechada ou se o cadastro já é usado.
+- Pedem confirmação: folha, funcionários, contratos, vendas, compras, financeiro, configurações e ações com 4 ou mais registros.
+- `log`, uso e registros do sistema ficam de fora. Nota fiscal e acessos ficam na lista como "não pode ser desfeita".
+- Teste: `node scripts/construir.mjs && node scripts/testar-desfazer.mjs`.
