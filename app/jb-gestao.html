@@ -9832,6 +9832,14 @@ function abrirMenuMais(btn,itens){
  setTimeout(()=>document.addEventListener('click',fecha,true),0);
  p.addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b)return;const it=itens.filter(Boolean)[+b.dataset.i];p.remove();document.removeEventListener('click',fecha,true);if(it&&it.fn)it.fn()});
 }
+/* menu "Exportar" de uma tela: Visualizar, PDF e Excel (o mesmo das outras telas). Com mais de uma tabela na
+   tela, primeiro a pessoa escolhe qual tabela; cada tabela: {l, sub, nome, titulo (com o período), cols, dados} */
+function menuExportarTabelas(btn,tabs){tabs=(tabs||[]).filter(Boolean);if(!tabs.length)return;
+ const formatos=t=>{const fx=f=>exportar(f,t.nome+'_'+hoje(),t.cols,t.dados,t.titulo);
+  abrirMenuMais(btn,[{l:'Visualizar',sub:t.dados.length+' linha(s), com os filtros da tela',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'no modelo dos documentos',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha',fn:()=>fx('xlsx')}])};
+ if(tabs.length===1){formatos(tabs[0]);return}
+ abrirMenuMais(btn,tabs.map(t=>({l:t.l,sub:t.sub,fn:()=>formatos(t)})));
+}
 /* a trilha de etapas: Abrir → Preencher → Visualizar → Salvar → Imprimir → PDF → Baixar → Mais */
 function fluxoDoc(etapas,feitas,atual){
  return `<div class="fluxo dc-fluxo" role="list">${etapas.map(([k,l],i)=>`<button type="button" role="listitem" class="et ${feitas.includes(k)?'feita':''} ${atual===k?'atual':''}" data-passo="${k}"><span class="bo">${feitas.includes(k)?'✓':i+1}</span><span>${esc(l)}</span></button>`).join('')}</div>`;
@@ -12639,42 +12647,51 @@ function telaEstoqueV(el){
 }
 
 /* ================= contas a receber (Vendas) e contas a pagar (Lenha, Combustível): cada setor com as suas ================= */
-const UIRECV={setor:'',status:'abertas',q:'',de:'',ate:''};
+const UIRECV={setor:'',status:'abertas',q:'',de:'',ate:'',por:'data',faixa:''};
+/* faixas de atraso: o mesmo modelo do Contas a receber de Vendas, mais "a vencer" */
+const FAIXAS_FIN_V=[['avencer','A vencer'],['1-30','1 a 30 dias',1,30],['31-60','31 a 60 dias',31,60],['61-90','61 a 90 dias',61,90],['91+','Mais de 90 dias',91,1e9]];
+const atrasoFinV=(v,f)=>f.status!=='Vencido'?0:Array.isArray(f.titulos)&&f.titulos.length?Math.max(0,...f.titulos.map(t=>+t.atraso||0)):Math.max(0,diasEntre(v.vencimento||v.data,hoje()));
 function telaFinV(el,O){
  shellV(el,O.modFin,(c,s)=>{
   if(!APP.carregado){carregandoV(c);return}
-  if(UIRECV.setor!==s+O.K)Object.assign(UIRECV,{setor:s+O.K,status:'abertas',q:'',de:'',ate:''});
+  if(UIRECV.setor!==s+O.K)Object.assign(UIRECV,{setor:s+O.K,status:'abertas',q:'',de:'',ate:'',por:'data',faixa:''});
   const venda=O.K==='venda';const ed=pode(O.modFin,'e');
-  const base=listaOp(O).filter(v=>v.setor===s&&(!UIRECV.de||v.data>=UIRECV.de)&&(!UIRECV.ate||v.data<=UIRECV.ate));
-  const fin=base.map(v=>({v,f:finVenda(v)}));const ok=fin.filter(x=>!cancV(x.v));
+  /* o período vale pela data da compra (ou venda) ou pelo vencimento, à escolha */
+  const pv=UIRECV.por==='venc';const dRef=v=>String((pv?v.vencimento:v.data)||'');
+  const base=listaOp(O).filter(v=>v.setor===s&&(!UIRECV.de||dRef(v)>=UIRECV.de)&&(!UIRECV.ate||dRef(v)<=UIRECV.ate));
+  const fin=base.map(v=>{const f=finVenda(v);return{v,f,atraso:atrasoFinV(v,f)}});const ok=fin.filter(x=>!cancV(x.v));
   let rows=fin;
   if(UIRECV.status==='abertas')rows=rows.filter(x=>x.f.saldo>0);else if(UIRECV.status)rows=rows.filter(x=>x.f.status===UIRECV.status);
+  if(UIRECV.faixa==='avencer')rows=rows.filter(x=>!cancV(x.v)&&x.f.saldo>0&&x.f.status!=='Vencido');
+  else if(UIRECV.faixa){const fx=FAIXAS_FIN_V.find(f=>f[0]===UIRECV.faixa);if(fx)rows=rows.filter(x=>x.atraso>=fx[2]&&x.atraso<=fx[3])}
   if(UIRECV.q){const q=semAcento(UIRECV.q);rows=rows.filter(x=>semAcento(parteSnap(x.v).nome+' '+fNumV(x.v.numero)+' '+digitos(parteSnap(x.v).doc)).includes(q))}
   rows.sort((a,b)=>String(a.v.vencimento||'').localeCompare(String(b.v.vencimento||''))||(+a.v.numero-+b.v.numero));
   const tot=k=>round2(soma(ok,x=>x.f[k]));const venc=ok.filter(x=>x.f.status==='Vencido');const aVencer=ok.filter(x=>x.f.saldo>0&&x.f.status!=='Vencido');
-  const per=UIRECV.de||UIRECV.ate?(UIRECV.de?fData(UIRECV.de):'início')+' a '+(UIRECV.ate?fData(UIRECV.ate):'hoje'):'todo o período';
+  const per=UIRECV.de||UIRECV.ate?(UIRECV.de?fData(UIRECV.de):'início')+' a '+(UIRECV.ate?fData(UIRECV.ate):'hoje')+(pv?' (pelo vencimento)':''):'todo o período';
   c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('moeda')}</span><div><h1>${O.finTit}</h1><p>${venda?'Toda venda a prazo, ou não recebida no ato, gera a sua conta a receber.':'Toda compra a prazo, ou não paga no ato, gera a sua conta a pagar ao fornecedor.'} Pagamento parcial abate o saldo. Só as contas do ${esc(nomeSetorV(s))}.</p></div></div></div>
-   <div class="painel filtros" style="margin-bottom:14px"><label class="inline" style="font-size:12.5px;color:var(--suave)">${venda?'Vendas':'Compras'} de <input type="date" id="frDe" value="${esc(UIRECV.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="frAte" value="${esc(UIRECV.ate)}"></label></div>
+   <div class="painel filtros" style="margin-bottom:14px"><select id="frPor" aria-label="O período vale pela data ou pelo vencimento"><option value="data" ${pv?'':'selected'}>Período pela data da ${venda?'venda':'compra'}</option><option value="venc" ${pv?'selected':''}>Período pelo vencimento</option></select><label class="inline" style="font-size:12.5px;color:var(--suave)">de <input type="date" id="frDe" value="${esc(UIRECV.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="frAte" value="${esc(UIRECV.ate)}"></label></div>
    <div class="hero">${kpiV('c4','moeda',venda?'Total vendido':'Total comprado',fMoeda(tot('total')),ok.length+' '+(venda?'venda(s)':'compra(s)')+' · '+per)}${kpiV('c2','entrada',venda?'Total recebido':'Total pago',fMoeda(tot('pago')),'pagamentos registrados')}
     ${kpiV('c5','carteira',venda?'A receber (a vencer)':'A pagar (a vencer)',fMoeda(round2(soma(aVencer,x=>x.f.saldo))),aVencer.length+' conta(s)')}
     ${kpiV('c6','aviso','Vencido',fMoeda(round2(soma(venc,x=>x.f.saldo))),venc.length+' conta(s) vencida(s)')}</div>
    <div class="painel"><div class="filtros"><input type="search" id="frQ" placeholder="${O.Parte}, nº ou CPF/CNPJ" value="${esc(UIRECV.q)}" aria-label="Pesquisar">
     <select id="frSt" aria-label="Situação"><option value="abertas" ${UIRECV.status==='abertas'?'selected':''}>Em aberto (pendentes, parciais e vencidas)</option><option value="" ${UIRECV.status===''?'selected':''}>Todas</option>${ST_FIN.map(x=>`<option ${UIRECV.status===x?'selected':''}>${x}</option>`).join('')}</select>
+    <select id="frFx" aria-label="Faixa de atraso"><option value="">Atraso: todos</option>${FAIXAS_FIN_V.map(f=>`<option value="${f[0]}" ${UIRECV.faixa===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select>
     <span style="flex:1"></span><button type="button" class="btn min" id="frExp">${ic('baixar')}Exportar ▾</button></div>
     ${rows.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr><th>${O.Sing}</th><th>${O.Parte}</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th class="num">${venda?'Recebido':'Pago'}</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead>
-     <tbody>${rows.slice(0,300).map(({v,f})=>`<tr class="clic" data-go="${O.rota}${esc(v.id)}" tabindex="0"><td data-l="${O.Sing}"><b>${esc(fNumV(v.numero))}</b></td><td data-l="${O.Parte}">${esc(parteSnap(v).nome||'')}</td>
-      <td data-l="Emissão">${esc(fData(v.data))}</td><td data-l="Vencimento">${esc(fData(v.vencimento))}</td><td data-l="Valor" class="num">${esc(fMoeda(f.total))}</td><td data-l="${venda?'Recebido':'Pago'}" class="num">${esc(fMoeda(f.pago))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(f.saldo))}</b></td>
+     <tbody>${rows.slice(0,300).map(({v,f,atraso})=>`<tr class="clic" data-go="${O.rota}${esc(v.id)}" tabindex="0"><td data-l="${O.Sing}"><b>${esc(fNumV(v.numero))}</b></td><td data-l="${O.Parte}">${esc(parteSnap(v).nome||'')}</td>
+      <td data-l="Emissão">${esc(fData(v.data))}</td><td data-l="Vencimento">${esc(fData(v.vencimento))}${atraso?`<div class="ajuda" style="color:var(--pe)">${esc(atraso)} dia(s) de atraso</div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(f.total))}</td><td data-l="${venda?'Recebido':'Pago'}" class="num">${esc(fMoeda(f.pago))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(f.saldo))}</b></td>
       <td data-l="Situação">${tagV(f.status)}</td><td>${ed&&f.saldo>0&&!cancV(v)?`<button type="button" class="btn min" data-frec="${esc(v.id)}">${venda?'Receber':'Pagar'}</button>`:''}</td></tr>`).join('')}</tbody>
      <tfoot><tr><td colspan="4"><b>Total de ${rows.length} conta(s)</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.total)))}</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.pago)))}</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.saldo)))}</b></td><td colspan="2"></td></tr></tfoot></table></div>`
     :`<div class="vazio"><b>${UIRECV.status==='abertas'?'Nenhuma conta em aberto':'Nada encontrado'}</b>${listaOp(O).some(v=>v.setor===s)?'Ajuste os filtros para ver outras contas.':'As contas aparecem aqui quando houver '+(venda?'vendas':'compras')+'.'}</div>`}</div>
    <p class="ajuda" style="margin-top:8px">Período: ${esc(per)}. ${venda?'Vendas':'Compras'} canceladas não entram nos totais.</p>`;
   $('#frDe',c).onchange=e=>{UIRECV.de=e.target.value;renderTela()};$('#frAte',c).onchange=e=>{UIRECV.ate=e.target.value;renderTela()};
+  $('#frPor',c).onchange=e=>{UIRECV.por=e.target.value;renderTela()};$('#frFx',c).onchange=e=>{UIRECV.faixa=e.target.value;renderTela()};
   $('#frSt',c).onchange=e=>{UIRECV.status=e.target.value;renderTela()};
   let tq;$('#frQ',c).oninput=e=>{UIRECV.q=e.target.value;clearTimeout(tq);tq=setTimeout(()=>{renderTela();const i=$('#frQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},350)};
   $$('tr[data-go]',c).forEach(tr=>{tr.onclick=e=>{if(e.target.closest('button'))return;location.hash=tr.dataset.go};tr.onkeydown=e=>{if(e.key==='Enter')location.hash=tr.dataset.go}});
   $$('[data-frec]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const v=listaOp(O).find(x=>x.id===b.dataset.frec);if(v)modalPagamentoV(v)});
-  $('#frExp',c).onclick=()=>{const cols=[{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'data',l:'Emissão',t:'data'},{k:'vencimento',l:'Vencimento',t:'data'},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:venda?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'status',l:'Situação'}];
-   const linhas=rows.map(({v,f})=>({numero:fNumV(v.numero),parte:parteSnap(v).nome||'',data:v.data,vencimento:v.vencimento,total:f.total,pago:f.pago,saldo:f.saldo,status:f.status}));
+  $('#frExp',c).onclick=()=>{const cols=[{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'data',l:'Emissão',t:'data'},{k:'vencimento',l:'Vencimento',t:'data'},{k:'atraso',l:'Dias de atraso',t:'num',semTotal:1},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:venda?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'status',l:'Situação'}];
+   const linhas=rows.map(({v,f,atraso})=>({numero:fNumV(v.numero),parte:parteSnap(v).nome||'',data:v.data,vencimento:v.vencimento,atraso,total:f.total,pago:f.pago,saldo:f.saldo,status:f.status}));
    const fx=f=>exportar(f,O.finTit.replace(/\s/g,'_')+'_'+curtoSetorV(s)+'_'+hoje(),cols,linhas,O.finTit+' · '+nomeSetorV(s));
    abrirMenuMais($('#frExp',c),[{l:'Visualizar',sub:linhas.length+' conta(s), com os filtros da tela',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'no modelo dos documentos',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha para conferir',fn:()=>fx('xlsx')}])};
  });
@@ -17787,7 +17804,7 @@ function telaCaixa(c){
    ${cf?`<small>Conferência de ${esc(fData(cf.data))}: extrato ${esc(fMoeda(cf.saldoExtrato))} · sistema hoje para aquela data ${cfS==null?'—':esc(fMoeda(cfS))}${cfS!=null?(ig(cf.saldoExtrato,cfS)?' · '+tagF('confere','ok'):' · '+tagF('diferença '+fMoeda(r2(cf.saldoExtrato-cfS)),'pe')):''}</small>`:''}
    ${ed&&!temSaldoIni(i)?(i.id===CAIXA?`<button type="button" class="btn min" data-sc>Informar saldo inicial</button>`:`<a class="btn min" href="#/fContas/${esc(i.id)}">Informar saldo inicial</a>`):''}</div>`};
  c.innerHTML=cabF('carteira','Caixa e bancos','Saldo de cada conta pelo que foi lançado: saldo inicial + recebimentos − pagamentos ± transferências ± lançamentos avulsos. O saldo do banco pelo extrato importado continua na aba Extratos.',
-  ed?`<a class="btn" href="#/fTransf/novo">${ic('carteira')}Transferência</a><a class="btn" href="#/fAvulso/novo">${ic('mais')}Lançamento avulso</a><a class="btn pri" href="#/fConfSaldo/novo">${ic('escudo')}Conferência</a>`:'')+
+  `<button class="btn" id="fxExp">${ic('baixar')}Exportar ▾</button>`+(ed?`<a class="btn" href="#/fTransf/novo">${ic('carteira')}Transferência</a><a class="btn" href="#/fAvulso/novo">${ic('mais')}Lançamento avulso</a><a class="btn pri" href="#/fConfSaldo/novo">${ic('escudo')}Conferência</a>`:''))+
   `<div class="fi-conta-grade">${CS.map(card).join('')}</div>`+
   (semConta.length?`<div class="aviso at" style="margin-bottom:14px"><span><b>${semConta.length} pagamento(s) sem conta informada</b> (${esc(fMoeda(soma(semConta,m=>m.valor)))}). Eles saíram, mas não entram no saldo de nenhuma conta. <a href="javascript:void 0" id="fxSem">${UX.semConta?'Ver todos os movimentos':'Ver quais são'}</a></span></div>`:'')+
   `<h3 class="grupo-t">Movimento das contas</h3>
@@ -17811,13 +17828,50 @@ function telaCaixa(c){
  $$('[data-cf]',c).forEach(i=>i.onchange=async e=>{e.stopPropagation();i.disabled=true;try{await marcarConferido(i.dataset.cf,i.checked)}catch(err){i.checked=!i.checked;toast(msgFalhaSalvar(err),'erro')}finally{i.disabled=false}});
  $$('[data-nc]',c).forEach(l=>l.onclick=e=>e.stopPropagation());
  $$('tr[data-mk]',c).forEach(tr=>tr.onclick=()=>{const m=MV.find(x=>x.k===tr.dataset.mk);if(m&&m.abrir)m.abrir()});
+ /* exportar o movimento das contas como está na tela (com os filtros), com o período no título */
+ $('#fxExp',c).onclick=()=>{const cols=[{k:'data',l:'Data',t:'data'},{k:'conta',l:'Conta'},{k:'descricao',l:'Descrição'},{k:'origem',l:'Origem'},{k:'categoria',l:'Categoria'},
+   {k:'ent',l:'Entrada',t:'moeda'},{k:'sai',l:'Saída',t:'moeda'},{k:'saldo',l:'Saldo da conta'},{k:'conf',l:'Conferido'}];
+  const dados=L.map(m=>({data:m.data,conta:m.conta?nomeConta(m.conta):'sem conta',descricao:m.descricao,origem:m.origem+(m.forma?' · '+m.forma:''),categoria:m.categoria||'—',
+   ent:m.tipo==='Entrada'?m.valor:'',sai:m.tipo==='Saída'?m.valor:'',saldo:apos[m.k]!=null?fMoeda(apos[m.k]):'—',conf:conferido(m.k)?'Sim':'Não'}));
+  const per=(mes?mesLongo(mes):'todos os meses')+(UX.semConta?' · sem conta informada':UX.conta?' · '+nomeConta(UX.conta):' · todas as contas')+(UX.cat?' · '+UX.cat:'')+(UX.q?' · pesquisa: '+UX.q:'');
+  menuExportarTabelas($('#fxExp',c),[{nome:'Caixa_e_bancos'+(mes?'_'+mes:''),titulo:'Caixa e bancos · movimento das contas · '+per,cols,dados}])};
 }
 const miniConf=cs=>`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Conta</th><th class="num">Extrato</th><th class="num">Sistema na época</th><th class="num">Diferença</th><th>Por</th></tr></thead><tbody>
  ${cs.slice(0,30).map(x=>`<tr class="clic" data-go="#/fConfSaldo/${esc(x.id)}"><td data-l="Data">${esc(fData(x.data))}</td><td data-l="Conta">${esc(nomeConta(x.contaId))}</td><td data-l="Extrato" class="num">${esc(fMoeda(x.saldoExtrato))}</td>
   <td data-l="Sistema" class="num">${x.saldoSistema==null?'—':esc(fMoeda(x.saldoSistema))}</td><td data-l="Diferença" class="num">${x.diferenca==null?'—':ig(x.diferenca,0)?tagF('confere','ok'):'<b style="color:var(--pe)">'+esc(fMoeda(x.diferenca))+'</b>'}</td><td data-l="Por">${esc(nomeUsuario(x.criadoPor))}</td></tr>`).join('')}</tbody></table></div>`;
 
 /* ---------- Fluxo de caixa ---------- */
-const UFX={dias:30,mes:mesAtual()};
+const UFX={dias:30,mes:mesAtual(),est:true};
+/* ---------- estimativas do previsto: o que ainda não foi lançado (folha dos próximos meses e DAS dos MEIs) ----------
+   Ficam num grupo próprio, marcadas como estimadas, e nunca entram no saldo previsto dos lançamentos.
+   Sem dado confiável, nada é estimado: a tela diz o que falta. */
+const mesSeguinte=m=>addMeses(m+'-01',1).slice(0,7);
+/* 5º dia útil do mês (prazo do salário, art. 459 § 1º da CLT): para o salário o sábado conta como dia útil; domingo e feriado nacional não */
+function quintoDiaUtil(m){let d=m+'-01',n=0;for(let i=0;i<20;i++){if(dt(d).getDay()!==0&&!feriadoNac(d)&&++n===5)return d;d=addDias(d,1)}return d}
+function estimativasFluxo(h,fim){
+ const itens=[],falta=[],notas=[];
+ /* folha: o líquido a pagar da última folha fechada, para cada mês ainda sem folha fechada nem salários lançados */
+ if(!pode('folha'))falta.push('Seu perfil não vê a folha de pagamento: a folha dos próximos meses não foi estimada.');
+ else{const ref=(DATA.folhas||[]).filter(f=>f.situacao&&f.situacao!=='Aberta'&&/^\d{4}-\d{2}$/.test(String(f.id||''))).sort((a,b)=>String(b.id).localeCompare(String(a.id)))[0];
+  const tt=(ref&&ref.totais)||{};const liq=r2(tt.liquido);
+  if(!ref)falta.push('Nenhuma folha fechada: sem ela não dá para estimar a folha dos próximos meses. Feche a folha no Setor Pessoal (Fechamento da folha).');
+  else if(!(liq>0))falta.push('A última folha fechada ('+fMes(ref.id)+') não tem líquido a pagar: a folha dos próximos meses não foi estimada.');
+  else{const temSalarios=m=>(DATA.despesas||[]).some(d=>d.competencia===m&&d.categoria==='Salários'&&d.situacao!=='Cancelado');
+   for(let k=0,m=mesMenos(mesAtual(),1);k<6;k++,m=mesSeguinte(m)){const pg=mesSeguinte(m);const d=quintoDiaUtil(pg);
+    if(d<h||d>fim||folhaFechada(m)||temSalarios(m))continue;
+    itens.push({data:d,tipo:'Folha',desc:'Folha de '+fMes(m),base:'Líquido a pagar da folha de '+fMes(ref.id)+', pago até o 5º dia útil de '+fMes(pg),valor:liq})}
+   notas.push('Folha: líquido a pagar da última folha fechada ('+fMes(ref.id)+', '+fMoeda(liq)+'), no 5º dia útil do mês seguinte (prazo da lei). Não entram encargos (INSS e FGTS), 13º e férias'+(+tt.jaPago>0.004?', nem o que a folha já paga durante o mês (em '+fMes(ref.id)+': '+fMoeda(tt.jaPago)+' de quinzenas, produção e extras)':'')+'.')}}
+ /* DAS: competências que o sistema ainda não gerou (o DAS de cada mês nasce quando o mês começa) */
+ const meis=DATA.fMeis.filter(m=>m.situacao==='Ativo'&&/^\d{4}-\d{2}$/.test(m.geraDesde||'')&&r2(m.valorDas)>0);
+ meis.forEach(m=>{for(let k=0,comp=m.geraDesde>mesAtual()?m.geraDesde:mesAtual();k<6;k++,comp=mesSeguinte(comp)){const v=vencDas(comp);if(v>fim)break;
+  if(v<h||(m.dasExcluidos||[]).includes(comp)||DATA.fTitulos.some(t=>t.meiId===m.id&&t.competenciaDas===comp))continue;
+  itens.push({data:v,tipo:'DAS',desc:'DAS MEI · '+m.nome+' · competência '+fMesAno(comp),base:'Valor do DAS no cadastro do MEI, vencimento no dia 20 (ou no próximo dia útil)',valor:r2(m.valorDas)})}});
+ if(meis.length)notas.push('DAS: o valor cadastrado de cada MEI ativo, para as competências que ainda não foram geradas.');
+ /* despesas do Setor Pessoal sem vencimento: sem a data, não dá para pôr no previsto nem estimar */
+ const semData=obrigacoes().filter(o=>o.fonte==='despesa'&&abertaO(o)&&!o.dataCal);
+ if(semData.length)falta.push(semData.length+' despesa(s) do Setor Pessoal sem vencimento ('+fMoeda(soma(semData,o=>o.s.saldo))+') não entram no previsto nem nas estimativas porque falta a data. Programe a data em Contas a pagar.');
+ return{itens:itens.sort((a,b)=>a.data.localeCompare(b.data)||a.desc.localeCompare(b.desc,'pt-BR')),falta,notas};
+}
 function aReceber(){if(!pode('receber'))return[];const out=[];
  DATA.vendas.filter(v=>!cancV(v)).forEach(v=>{const f=finVenda(v);if(!(f.saldo>0.004))return;const nome=((v.cliente||{}).nome)||'Cliente';
   if(Array.isArray(f.titulos)&&f.titulos.length)f.titulos.filter(t=>t.saldo>0.004).forEach(t=>out.push({data:t.venc||v.vencimento||v.data,valor:r2(t.saldo),desc:nome+' · pedido nº '+fNumV(v.numero),origem:'Setor de Vendas'}));
@@ -17838,16 +17892,28 @@ function telaFluxo(c){
  const cats=Object.entries(porCat).sort((a,b)=>(b[1].sai+b[1].ent)-(a[1].sai+a[1].ent));
  const meses=Array.from({length:6},(_,i)=>mesMenos(m,5-i)).map(mm=>{const xs=MV.filter(x=>!x.transf&&String(x.data).startsWith(mm));const e=r2(soma(xs.filter(x=>x.tipo==='Entrada'),x=>x.valor)),s=r2(soma(xs.filter(x=>x.tipo==='Saída'),x=>x.valor));return{mm,e,s,l:r2(e-s)}});
  const totE=r2(soma(real.filter(x=>x.tipo==='Entrada'),x=>x.valor)),totS=r2(soma(real.filter(x=>x.tipo==='Saída'),x=>x.valor));
- c.innerHTML=cabF('grafico','Fluxo de caixa','Previsto: saldo de hoje + contas a receber − contas a pagar em aberto, nos próximos dias. Realizado: o que entrou e saiu de fato, por mês e por categoria.','')+
+ const saldoFim=linhas.length?linhas[linhas.length-1].saldo:base;
+ /* estimativas (folha e DAS ainda não lançados): grupo à parte, só quando a chave está ligada */
+ const E=UFX.est?estimativasFluxo(h,fim):null;const totEst=E?r2(soma(E.itens,x=>x.valor)):0;
+ c.innerHTML=cabF('grafico','Fluxo de caixa','Previsto: saldo de hoje + contas a receber − contas a pagar em aberto, nos próximos dias. Estimado: folha e DAS que ainda não foram lançados, à parte. Realizado: o que entrou e saiu de fato, por mês e por categoria.',
+  `<button class="btn" id="ffExp">${ic('baixar')}Exportar ▾</button>`)+
   `<h3 class="grupo-t">Previsto</h3>
-  <div class="fi-filtros"><label class="inline" style="font-size:13px">Próximos <select id="ffD">${optH([7,15,30,60,90].map(x=>[String(x),x+' dias']),String(N))}</select></label></div>`+
-  resumoF([[fMoeda(base),'Saldo de hoje ('+CS.length+' conta(s) com saldo inicial)'],[fMoeda(soma([...atras,...per].filter(x=>x.valor>0),x=>x.valor)),'A receber'],[fMoeda(-soma([...atras,...per].filter(x=>x.valor<0),x=>x.valor)),'A pagar'],[fMoeda(linhas.length?linhas[linhas.length-1].saldo:base),'Saldo previsto em '+fData(fim)]])+
+  <div class="fi-filtros"><label class="inline" style="font-size:13px">Próximos <select id="ffD">${optH([7,15,30,60,90].map(x=>[String(x),x+' dias']),String(N))}</select></label>
+   <label class="inline" style="font-size:13px"><input type="checkbox" id="ffE" ${UFX.est?'checked':''}> Mostrar estimativas (folha e DAS)</label></div>`+
+  resumoF([[fMoeda(base),'Saldo de hoje ('+CS.length+' conta(s) com saldo inicial)'],[fMoeda(soma([...atras,...per].filter(x=>x.valor>0),x=>x.valor)),'A receber'],[fMoeda(-soma([...atras,...per].filter(x=>x.valor<0),x=>x.valor)),'A pagar'],[fMoeda(saldoFim),'Saldo previsto em '+fData(fim)]])+
   (CS.length?'':'<div class="aviso at" style="margin-bottom:12px"><span>Nenhuma conta tem saldo inicial: o saldo de hoje entra como zero. Informe em Caixa e bancos ou em Cadastros.</span></div>')+
   (atras.length?`<p class="ajuda" style="margin:-6px 2px 10px">Contas vencidas e não pagas (${atras.length}) entram no dia de hoje.</p>`:'')+
   (linhas.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Dia</th><th class="num">Entradas previstas</th><th class="num">Saídas previstas</th><th class="num">Saldo previsto</th><th class="num">Lançamentos</th></tr></thead><tbody>
    ${linhas.map(l=>`<tr><td data-l="Dia">${esc(DIAS_SEM[dt(l.d).getDay()]+', '+fData(l.d))}</td><td data-l="Entradas" class="num">${l.ent?esc(fMoeda(l.ent)):''}</td><td data-l="Saídas" class="num">${l.sai?esc(fMoeda(l.sai)):''}</td><td data-l="Saldo previsto" class="num"><b style="${l.saldo<0?'color:var(--pe)':''}">${esc(fMoeda(l.saldo))}</b></td><td data-l="Lançamentos" class="num">${l.n}</td></tr>`).join('')}</tbody></table></div>`
    :'<div class="vazio">Nada previsto para o período.</div>')+
   (semData.length?`<p class="ajuda" style="margin-top:8px">${semData.length} compromisso(s) sem data (${esc(fMoeda(-soma(semData.filter(x=>x.valor<0),x=>x.valor)))}) não entram no previsto. Programe em Contas a pagar.</p>`:'')+
+  (E?`<h3 class="grupo-t">Estimado · ainda não lançado</h3>
+  <p class="ajuda" style="margin:-4px 2px 10px"><b>Estimativas para planejar.</b> Não são contas lançadas e não entram no saldo previsto acima.${E.notas.map(x=>' '+esc(x)).join('')}</p>`+
+  resumoF([[fMoeda(totEst),'Estimado a pagar até '+fData(fim)],[fMoeda(r2(saldoFim-totEst)),'Saldo previsto em '+fData(fim)+' com as estimativas']])+
+  (E.itens.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Dia</th><th>Estimativa</th><th>Base do cálculo</th><th class="num">Valor estimado</th></tr></thead><tbody>
+   ${E.itens.map(x=>`<tr><td data-l="Dia">${esc(DIAS_SEM[dt(x.data).getDay()]+', '+fData(x.data))}</td><td data-l="Estimativa">${tagF('estimado','at')} <b>${esc(x.desc)}</b></td><td data-l="Base do cálculo"><span class="ajuda">${esc(x.base)}</span></td><td data-l="Valor estimado" class="num">${esc(fMoeda(x.valor))}</td></tr>`).join('')}</tbody>
+   <tfoot><tr><td colspan="3">Total estimado</td><td class="num">${esc(fMoeda(totEst))}</td></tr></tfoot></table></div>`:'<div class="vazio">Nenhuma estimativa para o período.</div>')+
+  (E.falta.length?`<div class="ajuda" style="margin-top:8px"><b>O que falta para estimar:</b><ul style="margin:4px 0 0;padding-left:18px">${E.falta.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''):'')+
   `<h3 class="grupo-t">Realizado</h3>
   <div class="fi-filtros"><input type="month" id="ffM" value="${esc(m)}" aria-label="Mês"></div>`+
   resumoF([[fMoeda(totE),'Entrou em '+fMes(m)],[fMoeda(totS),'Saiu em '+fMes(m)],[fMoeda(r2(totE-totS)),'Resultado de caixa'],[fMoeda(soma(permutas,p=>p.valor)),'Pago em milheiros (permuta)']])+
@@ -17858,6 +17924,21 @@ function telaFluxo(c){
    ${meses.map(x=>`<tr><td data-l="Mês">${esc(fMes(x.mm))}</td><td data-l="Entradas" class="num">${esc(fMoeda(x.e))}</td><td data-l="Saídas" class="num">${esc(fMoeda(x.s))}</td><td data-l="Resultado" class="num"><b style="${x.l<0?'color:var(--pe)':''}">${esc(fMoeda(x.l))}</b></td></tr>`).join('')}</tbody></table></div>
   <p class="ajuda" style="margin-top:10px">Entram no realizado os pagamentos informados (com ou sem conta), os recebimentos de vendas, as despesas pagas do Setor Pessoal e os lançamentos avulsos. Transferências entre contas não contam.</p>`;
  $('#ffD',c).onchange=e=>{UFX.dias=+e.target.value;renderTela()};$('#ffM',c).onchange=e=>{if(e.target.value){UFX.mes=e.target.value;renderTela()}};
+ $('#ffE',c).onchange=e=>{UFX.est=e.target.checked;renderTela()};
+ /* exportar: a pessoa escolhe a tabela (previsto, estimativas, realizado ou 6 meses); o período vai no título */
+ $('#ffExp',c).onclick=()=>{const periodo=fData(h)+' a '+fData(fim);
+  menuExportarTabelas($('#ffExp',c),[
+   {l:'Previsto por dia',sub:linhas.length+' dia(s) · '+periodo,nome:'Fluxo_de_caixa_previsto',titulo:'Fluxo de caixa previsto · '+periodo,
+    cols:[{k:'d',l:'Dia',t:'data'},{k:'ent',l:'Entradas previstas',t:'moeda'},{k:'sai',l:'Saídas previstas',t:'moeda'},{k:'saldo',l:'Saldo previsto',t:'moeda'},{k:'n',l:'Lançamentos',t:'num'}],
+    dados:linhas.map(l=>({...l,ent:l.ent||'',sai:l.sai||''}))},
+   E?{l:'Estimativas (folha e DAS)',sub:E.itens.length+' estimativa(s) · '+periodo,nome:'Fluxo_de_caixa_estimativas',titulo:'Fluxo de caixa · estimativas ainda não lançadas · '+periodo,
+    cols:[{k:'data',l:'Dia',t:'data'},{k:'desc',l:'Estimativa'},{k:'base',l:'Base do cálculo'},{k:'valor',l:'Valor estimado',t:'moeda'}],
+    dados:E.itens}:null,
+   {l:'Realizado por categoria',sub:cats.length+' categoria(s) · '+fMes(m),nome:'Fluxo_de_caixa_realizado_'+m,titulo:'Fluxo de caixa realizado · '+mesLongo(m),
+    cols:[{k:'cat',l:'Categoria'},{k:'grupo',l:'Grupo'},{k:'ent',l:'Entradas',t:'moeda'},{k:'sai',l:'Saídas',t:'moeda'}],
+    dados:[...cats.map(([k,g])=>({cat:k,grupo:infoDe(k).grupo||'—',ent:g.ent||'',sai:g.sai||''})),...(cats.length?[{cat:'Total',grupo:'',ent:totE,sai:totS}]:[])]},
+   {l:'Últimos 6 meses',sub:fMes(meses[0].mm)+' a '+fMes(m),nome:'Fluxo_de_caixa_6_meses',titulo:'Fluxo de caixa realizado · '+fMes(meses[0].mm)+' a '+fMes(m),
+    cols:[{k:'mes',l:'Mês'},{k:'e',l:'Entradas',t:'moeda'},{k:'s',l:'Saídas',t:'moeda'},{k:'l',l:'Resultado',t:'moeda'}],dados:meses.map(x=>({...x,mes:fMes(x.mm)}))}])};
 }
 
 /* ---------- Cadastros financeiros ---------- */
@@ -23139,10 +23220,14 @@ function telaBombas(c){
  const ps=BB?DATA.produtos.filter(p=>p.situacao!=='Inativo'&&BB.temLeitura(p)).sort(porNome):[];
  const de=UB.de||'0000-01-01',ate=UB.ate||'9999-12-31';
  const nomeAlvo=x=>x.abastecidoEm==='Veículo de terceiro'?'Terceiro: '+window.TERCEIROS_V56.nome(x):nomeLocal(LOCAL(x.localId))||'—';
+ const RES=[],ABS=[]; /* o que a tela mostra, para exportar */
  const blocos=ps.map(p=>{const E=BB.eventos(p);const un=p.unidade||'L';
   const antesP=E.ev.filter(x=>String(x.c.data)<de);const noP=E.ev.filter(x=>String(x.c.data)>=de&&String(x.c.data)<=ate);
   const ini=noP.length?noP[0].antes:(antesP.length?antesP[antesP.length-1].depois:E.base);const fim=noP.length?noP[noP.length-1].depois:ini;
   const saiu=r3(fim-ini),lanc=r3(soma(noP,x=>x.litros)),dif=r3(saiu-lanc);
+  RES.push({bomba:BB.nomeBomba(p),prod:nomeProduto(p),un,ini,fim,saiu,lanc,dif});
+  noP.forEach(x=>ABS.push({bomba:BB.nomeBomba(p),data:x.c.data,hora:x.c.hora||'',alvo:nomeAlvo(x.c),op:x.c.operador||'',litros:x.litros,antes:x.antes,depois:x.depois,
+   calc:BB.totDig(x.c)==null?'Sim':'',sem:Math.abs(x.semLanc)>0.0005?x.semLanc:''}));
   const k=(v,l,cls)=>`<div><b class="${cls||''}">${v}</b><span>${esc(l)}</span></div>`;
   return `<section class="bloco"><h3>${esc(BB.nomeBomba(p))}<span class="n">${esc(nomeProduto(p))}</span></h3>
    <div class="resumo">${k(esc(fQtd(ini)+' '+un),'Totalizador inicial')}${k(esc(fQtd(fim)+' '+un),'Totalizador final')}${k(esc(fQtd(saiu)+' '+un),'Litros que saíram da bomba')}${k(esc(fQtd(lanc)+' '+un),'Litros lançados')}${k(esc(fQtd(dif)+' '+un),'Diferença sem lançamento',Math.abs(dif)>0.0005?'v56-dif':'')}</div>
@@ -23151,11 +23236,18 @@ function telaBombas(c){
     ${noP.map(x=>`<tr class="clic" data-go="#/consumos/${esc(x.c.id)}"><td data-l="Data">${esc(fData(x.c.data))}${x.c.hora?' '+esc(x.c.hora):''}</td><td data-l="Máquina ou terceiro">${esc(nomeAlvo(x.c))}</td><td data-l="Operador">${esc(x.c.operador||'—')}</td><td data-l="Litros lançados" class="num">${esc(fQtd(x.litros))}</td><td data-l="Totalizador antes" class="num">${esc(fQtd(x.antes))}</td><td data-l="Totalizador depois" class="num">${esc(fQtd(x.depois))}${BB.totDig(x.c)==null?' <span class="ajuda">(calculado)</span>':''}</td><td data-l="Sem lançamento" class="num">${Math.abs(x.semLanc)>0.0005?'<b style="color:var(--pe)">'+esc(fQtd(x.semLanc))+'</b>':'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="ex-vazio">Nenhum abastecimento desta bomba no período.</div>'}
    <p class="ajuda" style="margin:8px 0 0">A conta começa na leitura de partida (${esc(fQtd(E.base)+' '+un)} em ${esc(fDataHora(E.em))}). “Calculado”: o abastecimento foi lançado sem o totalizador, então o sistema somou os litros.</p></section>`});
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('bomba')}</span><div><h1>Conferência das bombas</h1><p>Quanto saiu de cada bomba pelo totalizador e quanto foi lançado. A diferença é combustível que saiu sem lançamento.</p></div></div>
-  <div class="acoes">${pode('consumos','e')?`<a class="btn" href="#/consLote">${ic('planilha')}Lançar vários</a><a class="btn pri" href="#/consumos/novo">${ic('mais')}Novo abastecimento</a>`:''}</div></div>
+  <div class="acoes">${ps.length?`<button type="button" class="btn" id="cbExp">${ic('baixar')}Exportar ▾</button>`:''}${pode('consumos','e')?`<a class="btn" href="#/consLote">${ic('planilha')}Lançar vários</a><a class="btn pri" href="#/consumos/novo">${ic('mais')}Novo abastecimento</a>`:''}</div></div>
   <div class="filtros v56-conf-f" style="margin-bottom:12px;border:0;padding:0"><label class="inline" style="font-size:12.5px;color:var(--suave)">De <input type="date" id="cbDe" value="${esc(UB.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="cbAte" value="${esc(UB.ate)}"></label></div>
   <div class="v56-conf">${blocos.length?blocos.join(''):`<div class="vazio"><b>Nenhuma bomba com totalizador</b>Informe a leitura do totalizador no cadastro do combustível (Produtos › seção Bomba).${pode('produtos','e')?`<div class="vazio-acoes"><a class="btn pri" href="#/produtos">Abrir os combustíveis</a></div>`:''}</div>`}</div>`;
  $('#cbDe',c).onchange=e=>{UB.de=e.target.value;renderTela()};$('#cbAte',c).onchange=e=>{UB.ate=e.target.value;renderTela()};
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>{location.hash=tr.dataset.go});
+ /* exportar: o resumo de cada bomba ou os abastecimentos do período, com o período no título */
+ if($('#cbExp',c))$('#cbExp',c).onclick=()=>{const per=(UB.de?fData(UB.de):'início')+' a '+(UB.ate?fData(UB.ate):'hoje');
+  menuExportarTabelas($('#cbExp',c),[
+   {l:'Resumo por bomba',sub:RES.length+' bomba(s) · '+per,nome:'Conferencia_das_bombas',titulo:'Conferência das bombas · '+per,
+    cols:[{k:'bomba',l:'Bomba'},{k:'prod',l:'Combustível'},{k:'un',l:'Unidade'},{k:'ini',l:'Totalizador inicial',t:'num'},{k:'fim',l:'Totalizador final',t:'num'},{k:'saiu',l:'Saiu da bomba',t:'num'},{k:'lanc',l:'Lançado',t:'num'},{k:'dif',l:'Diferença sem lançamento',t:'num'}],dados:RES},
+   {l:'Abastecimentos do período',sub:ABS.length+' abastecimento(s) · '+per,nome:'Conferencia_das_bombas_abastecimentos',titulo:'Conferência das bombas · abastecimentos · '+per,
+    cols:[{k:'bomba',l:'Bomba'},{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'alvo',l:'Máquina ou terceiro'},{k:'op',l:'Operador'},{k:'litros',l:'Litros lançados',t:'num'},{k:'antes',l:'Totalizador antes',t:'num'},{k:'depois',l:'Totalizador depois',t:'num'},{k:'calc',l:'Totalizador calculado'},{k:'sem',l:'Sem lançamento',t:'num'}],dados:ABS}])};
 }
 
 /* ================= 1.5 lançar vários abastecimentos ================= */
