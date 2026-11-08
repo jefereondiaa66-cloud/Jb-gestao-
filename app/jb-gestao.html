@@ -75,7 +75,7 @@
    ===================================================================== */
 (function () {
   'use strict';
-  var VERSAO = 'jbcore-ponte-2';
+  var VERSAO = 'jbcore-ponte-3';
   var CFG = {
     servidor: 'Supabase', ferramenta: 'execute_sql', projeto: 'kdsaslmlvjllgzbzsnxt', origem: 'claude',
     nuvem: 'https://jb-gestao-ceramica.netlify.app',
@@ -83,7 +83,9 @@
        ninguém mexendo há 5 min (volta na hora ao mexer); conferência completa a cada 30 min */
     prazoConexao: 25000, intervalo: 30000, intervaloOculto: 5 * 60 * 1000, ocioso: 5 * 60 * 1000, conferencia: 30 * 60 * 1000,
     esperaGravacao: 15000, esperaSemCache: 30000, maxLote: 40, maxBytes: 500000, pagina: 250000,
-    sinal: 60000, chaveFila: 'jbcore_fila_v1'
+    sinal: 60000, chaveFila: 'jbcore_fila_v1',
+    /* serviço fiscal: espera pela resposta da função jb-fiscal (o banco chama, a ponte pergunta) */
+    prazoFiscal: 60000, esperaFiscal: 700
   };
   var MOTIVOS = {
     server_not_connected: 'O conector Supabase não está ligado na sua conta do Claude (claude.ai › Configurações › Conectores).',
@@ -473,11 +475,48 @@
       function (e) { aviso('Não foi possível sincronizar agora: ' + (MOTIVOS[e.code] || e.message), 'erro'); });
   });
 
+  /* ---------------- serviço fiscal (Setor Fiscal · NF-e pela Focus NFe) ----------------
+     O banco (jbcore.fiscal, só administrador da ponte) chama a função jb-fiscal do Supabase com o
+     segredo do cofre e guarda a resposta; aqui só se pergunta por ela (jbcore.resposta) até chegar,
+     em até ~60 s. Devolve o mesmo formato da nuvem: os dados, ou {erro:{tipo, mensagem}}.
+     Recusa do banco antes de registrar o pedido = nada foi enviado ("recusado_banco"); qualquer
+     falha depois do pedido registrado = "sem_resposta"/"prazo_fiscal" (o pedido pode ter seguido). */
+  var NADA_ENVIADO_FISCAL = { not_granted: 1, capability_disabled: 1, capability_removed: 1, server_not_connected: 1, needs_reauth: 1, selection_required: 1,
+    not_in_manifest: 1, blocked_by_policy: 1, approval_required: 1, consent_required: 1, bad_request: 1, server_not_found: 1, rate_limited: 1 };
+  function dormir(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function fiscal(acao, args) {
+    if (estado.modo !== 'central') throw erro('desligado', 'O Claude chama o serviço fiscal pelo banco central, e ele não está ligado nesta página' + (estado.motivo ? ' (' + estado.motivo + ')' : '') + '. Use a versão da nuvem para emitir.');
+    var pedido;
+    try { pedido = +(await sqlJ('select jbcore.fiscal(' + txt64(acao) + ',' + json64(args || {}) + ',' + txt64(uid) + ') as j')); }
+    catch (e) {
+      if (/^sql_/.test(e.code || '')) throw erro('recusado_banco', (MOTIVOS[e.code] || 'O banco central recusou o pedido ao serviço fiscal: ' + String(e.message || '').slice(0, 300)) + ' Nada foi enviado.');
+      if (NADA_ENVIADO_FISCAL[e.code]) throw erro(e.code, MOTIVOS[e.code] || e.message || String(e.code));
+      throw erro('sem_resposta', 'O banco central não confirmou o pedido ao serviço fiscal (' + (MOTIVOS[e.code] || e.message || e.code) + '). Se estava emitindo, consulte a nota antes de enviar de novo.');
+    }
+    if (!(pedido > 0)) throw erro('sem_resposta', 'O banco central não devolveu o número do pedido ao serviço fiscal. Se estava emitindo, consulte a nota antes de enviar de novo.');
+    var limite = Date.now() + CFG.prazoFiscal, espera = CFG.esperaFiscal;
+    for (;;) {
+      await dormir(espera); espera = Math.min(Math.round(espera * 1.6), 4000);
+      var r = null;
+      try { r = await sqlJ('select jbcore.resposta(' + pedido + ') as j'); } catch (e) { r = null; /* tenta de novo até o prazo */ }
+      if (r && r.pronto) {
+        var c = r.corpo;
+        if (c && typeof c === 'object' && !Array.isArray(c)) {
+          if (+r.status >= 200 && +r.status < 300) return c;
+          if (c.erro && typeof c.erro === 'object' && c.erro.tipo) return c;   // recusa do próprio serviço fiscal
+        }
+        throw erro('sem_resposta', 'O serviço fiscal não respondeu' + (r.erro ? ' (' + String(r.erro).slice(0, 200) + ')' : r.status ? ' (código ' + r.status + ')' : '') + '. Se estava emitindo, consulte a nota antes de enviar de novo.');
+      }
+      if (Date.now() > limite) throw erro('prazo_fiscal', 'O serviço fiscal ainda não respondeu (mais de ' + Math.round(CFG.prazoFiscal / 1000) + ' s). Se estava emitindo, consulte a nota antes de enviar de novo.');
+    }
+  }
+
   var api = Object.freeze({
     versao: VERSAO,
     estado: function () { return { modo: estado.modo, motivo: estado.motivo, erro: estado.erro, motivoErro: estado.motivoErro, ultimaSinc: estado.ultimaSinc,
       pendentes: fila.length, conflitos: estado.conflitos, falhas: estado.falhas.slice(), registros: cache.size, cursor: cursor }; },
-    sincronizar: sincronizar
+    sincronizar: sincronizar,
+    fiscal: fiscal
   });
   window.JB_CORE_PONTE = Object.freeze({ conectar: conectar, api: api, CFG: CFG });
 })();
@@ -24869,9 +24908,11 @@ window.BARRO_V57={parB,precoEm,precosB,linhasCons,totCons,consPer,consMes,inicio
    Pedido do Jeferson (29/10/2026): emissor fiscal real dentro do JB Gestão, na venda e num setor próprio.
    Como funciona, sem segredo nenhum nesta página:
    · O JB prepara, calcula e confere a nota (este bloco). Nada de senha, token ou certificado fica aqui.
-   · A emissão passa pelo conector "JB Fiscal" (serviço próprio na Cloudflare), chamado com a conta do
-     Claude de quem clica. O serviço guarda as credenciais do provedor (Nuvem Fiscal ou ACBr API); o
-     provedor guarda o certificado A1, assina e transmite à SEFAZ do Maranhão.
+   · A emissão passa pela função jb-fiscal do Supabase (supabase/functions/jb-fiscal), que fala com a
+     Focus NFe: na nuvem, chamada com a sessão de quem clica (JB_NUVEM_API.fiscal); no Claude, pelo
+     banco central (JB_CORE_PONTE.api.fiscal → jbcore.fiscal, só administradores). Os tokens da Focus
+     NFe ficam nos segredos do Supabase; a Focus guarda o certificado A1, assina e transmite à SEFAZ
+     do Maranhão. Fica em homologação até o servidor liberar a produção (PRODUCAO_LIBERADA = sim).
    · Só conta como autorizada a nota que volta da SEFAZ com protocolo. Pedido enviado ≠ nota autorizada.
    · Cada envio leva uma referência única gravada ANTES de enviar; sem resposta, o JB consulta pela
      referência antes de qualquer reenvio (o serviço também confere e nunca envia duas vezes).
@@ -25365,8 +25406,18 @@ async function sha256Txt(t) {
   try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; }
 }
 
-/* ================= ligação com o conector "JB Fiscal" (capacidade mcp do Claude) ================= */
+/* ================= ligação com o serviço fiscal (Focus NFe pela função jb-fiscal do Supabase) =================
+   Um ponto só: chamarF. Na nuvem, JB_NUVEM_API.fiscal (sessão de quem clica); no Claude, com o banco central
+   ligado, JB_CORE_PONTE.api.fiscal (só administradores). Sem nenhum dos dois, fica o caminho antigo do
+   conector MCP "JB Fiscal" (compatibilidade), que não existe mais na prática. */
 const FISC = { mcp: undefined, status: {}, carregandoStatus: false, rasc: null, imp: null, lote: null, ultimoErro: null };
+function transporteF() {
+  const nv = window.JB_NUVEM_API;
+  if (nv && typeof nv.fiscal === 'function') return (t, a) => nv.fiscal(t, a);
+  const pt = window.JB_CORE_PONTE;
+  try { if (pt && pt.api && typeof pt.api.fiscal === 'function' && pt.api.estado().modo === 'central') return (t, a) => pt.api.fiscal(t, a); } catch (e) { /* ponte indisponível */ }
+  return null;
+}
 async function mcpF() {
   if (FISC.mcp !== undefined) return FISC.mcp;
   const w = window.claude;
@@ -25374,33 +25425,42 @@ async function mcpF() {
   FISC.semMcp = FISC.mcp ? '' : w && typeof w.use === 'function' ? 'nao_ativado' : 'fora';
   return FISC.mcp;
 }
-/** Explica, em português, cada falha do conector, com a ação que resolve. Nunca um aviso genérico. */
+const LIGACAO_FISCAL = 'O Setor Fiscal emite pela Focus NFe, por meio da função jb-fiscal do Supabase: na versão da nuvem, para quem tem perfil de emissão; no Claude, só com o banco central ligado (administradores).';
+/** Explica, em português, cada falha da ligação com o serviço fiscal, com a ação que resolve. Nunca um aviso genérico. */
 function msgConector(e) {
   const c = (e && e.code) || '';
-  if (c === 'sem_mcp' && FISC.semMcp === 'nao_ativado') return 'O emissor ainda não foi ativado nesta página: falta liberar o conector "JB Fiscal" para o JB Gestão (etapa de ativação do tutorial). A preparação, a conferência e a importação já funcionam; só a transmissão à SEFAZ espera essa ativação.';
+  if (c === 'sem_mcp' && FISC.semMcp === 'nao_ativado') return 'O emissor não está disponível nesta página. ' + LIGACAO_FISCAL + ' A preparação, a conferência e a importação já funcionam; para transmitir à SEFAZ, entre pela versão da nuvem ou abra pelo Claude como administrador.';
+  const antigo = 'O conector antigo "JB Fiscal" não é mais usado. ' + LIGACAO_FISCAL + ' Para emitir, entre pela versão da nuvem.';
   const M = {
-    sem_mcp: 'Esta tela não está ligada ao Claude. Abra o JB Gestão pelo aplicativo ou pelo site do Claude para emitir notas.',
-    not_granted: 'Esta sessão não liberou o uso de conectores para o JB Gestão. Abra o sistema pelo Claude e permita o uso do conector JB Fiscal.',
-    capability_disabled: 'Os conectores não estão disponíveis nesta visualização. Abra o JB Gestão pelo aplicativo ou site do Claude.',
-    capability_removed: 'Os conectores não estão disponíveis nesta visualização. Abra o JB Gestão pelo aplicativo ou site do Claude.',
-    server_not_connected: 'O conector JB Fiscal não está ligado na sua conta do Claude. No site claude.ai, vá em Configurações › Conectores › Adicionar conector personalizado, dê o nome "JB Fiscal" e cole o endereço do serviço (veja Setor Fiscal › Serviço).',
-    needs_reauth: 'A autorização do conector JB Fiscal venceu. Reconecte em claude.ai › Configurações › Conectores › JB Fiscal.',
-    selection_required: 'Há mais de um conector chamado "JB Fiscal" na sua conta. Escolha qual usar quando o Claude perguntar.',
-    not_in_manifest: 'Esta página ainda não tem permissão para usar o conector JB Fiscal (ativação do emissor pendente) ou a permissão foi recusada. Veja Setor Fiscal › Serviço.',
-    blocked_by_policy: 'A política da sua organização no Claude bloqueia este conector.',
+    sem_mcp: 'Esta página não está ligada ao serviço fiscal. ' + LIGACAO_FISCAL + ' Para emitir, entre pela versão da nuvem (jb-gestao-ceramica.netlify.app).',
+    not_granted: 'Esta visualização do Claude não permite conectores. ' + LIGACAO_FISCAL,
+    capability_disabled: 'Esta visualização do Claude não permite conectores. ' + LIGACAO_FISCAL,
+    capability_removed: 'Esta visualização do Claude não permite conectores. ' + LIGACAO_FISCAL,
+    server_not_connected: antigo, needs_reauth: antigo, selection_required: antigo, not_in_manifest: antigo, server_not_found: antigo,
+    blocked_by_policy: 'A política da sua organização no Claude bloqueia o conector. Para emitir, entre pela versão da nuvem.',
     approval_required: 'O uso do conector precisa da sua permissão. Clique de novo e aceite quando o Claude perguntar.',
     server_unavailable: 'O serviço fiscal não respondeu agora.',
     upstream_error: 'O serviço fiscal respondeu com erro.',
     cancelled: 'A operação foi interrompida.',
     rate_limited: 'Muitas chamadas seguidas. Aguarde alguns segundos.',
-    bad_request: 'Pedido inválido ao conector (erro do sistema).',
-    server_not_found: 'O conector JB Fiscal não foi encontrado. Confira o endereço em claude.ai › Configurações › Conectores.',
+    bad_request: 'Pedido inválido ao serviço fiscal (erro do sistema).',
   };
   return M[c] || (e && e.message) || 'Falha ao falar com o serviço fiscal.';
 }
-/** Erros do conector que garantem que NADA chegou ao serviço (seguro tentar de novo). */
-const NADA_ENVIADO = new Set(['sem_mcp', 'not_granted', 'capability_disabled', 'capability_removed', 'server_not_connected', 'needs_reauth', 'selection_required', 'not_in_manifest', 'blocked_by_policy', 'approval_required', 'bad_request', 'server_not_found', 'rate_limited', 'transform_error']);
+/** Erros da ligação que garantem que NADA chegou ao serviço fiscal (seguro tentar de novo). */
+const NADA_ENVIADO = new Set(['sem_mcp', 'not_granted', 'capability_disabled', 'capability_removed', 'server_not_connected', 'needs_reauth', 'selection_required', 'not_in_manifest', 'blocked_by_policy', 'approval_required', 'consent_required', 'bad_request', 'server_not_found', 'rate_limited', 'transform_error', 'desligado', 'recusado_banco']);
 async function chamarF(tool, args) {
+  const via = transporteF();
+  if (via) {
+    let p;
+    try { p = await via(tool, args || {}); }
+    catch (e) { const z = new Error((e && e.message) || msgConector(e)); z.code = (e && e.code) || 'sem_resposta'; z.retryable = !!(e && e.retryable); throw z; }
+    if (p && p.erro) {
+      const er = typeof p.erro === 'object' ? p.erro : { tipo: 'interno', mensagem: String(p.mensagem || p.erro) };
+      const z = new Error(er.mensagem || 'O serviço fiscal recusou o pedido.'); z.code = 'tool_error'; z.erro = er; z.retryable = !!(p.retryable ?? er.retryable); throw z;
+    }
+    return p || {};
+  }
   const m = await mcpF();
   if (!m) { const e = new Error(msgConector({ code: 'sem_mcp' })); e.code = 'sem_mcp'; throw e; }
   try {
@@ -25581,7 +25641,7 @@ async function emitirTravadaF(n, c) {
   /* relê depois da trava: se outra aba mudou a situação nesse meio-tempo, não envia */
   const atual = NFE(n.id);
   if (!atual || atual.status !== 'pronta') return { ok: false, msg: 'A nota mudou de situação (' + (ST_NFE[(atual || {}).status] || '—') + '). Atualize a tela.' };
-  try { await mcpF(); if (!FISC.mcp) throw Object.assign(new Error(msgConector({ code: 'sem_mcp' })), { code: 'sem_mcp' }); } catch (e) { return { ok: false, parar: true, msg: e.message }; }
+  try { if (!transporteF()) { await mcpF(); if (!FISC.mcp) throw Object.assign(new Error(msgConector({ code: 'sem_mcp' })), { code: 'sem_mcp' }); } } catch (e) { return { ok: false, parar: true, msg: e.message }; }
   /* 1) número (reservado uma vez; a nota rejeitada reaproveita o próprio número) */
   if (!n.numero) {
     try { const r = await reservarNumeroF(n); n.serie = r.serie; n.numero = r.numero; } catch (e) { return { ok: false, parar: true, msg: 'Não foi possível reservar o número agora. Nada foi enviado. Tente de novo.' }; }
@@ -25618,8 +25678,8 @@ async function emitirTravadaF(n, c) {
       await mudarStatusF(n, 'aguardando', 'Sem confirmação do envio', (er.mensagem || 'Resposta incerta') + ' · Consulte antes de reenviar.');
       return { ok: false, parar: true, msg: 'O serviço não confirmou o envio. A nota fica "Aguardando consulta": use Consultar antes de qualquer reenvio.' };
     }
-    if (NADA_ENVIADO.has(e.code)) { await mudarStatusF(n, 'pronta', 'Conector indisponível (nada foi enviado)', e.message); return { ok: false, parar: true, msg: e.message }; }
-    await mudarStatusF(n, 'aguardando', 'Sem resposta do conector', e.message + ' · Consulte antes de reenviar.');
+    if (NADA_ENVIADO.has(e.code)) { await mudarStatusF(n, 'pronta', 'Serviço fiscal indisponível (nada foi enviado)', e.message); return { ok: false, parar: true, msg: e.message }; }
+    await mudarStatusF(n, 'aguardando', 'Sem resposta do serviço fiscal', e.message + ' · Consulte antes de reenviar.');
     return { ok: false, parar: true, msg: 'Sem resposta do serviço. A nota fica "Aguardando consulta": consulte antes de reenviar.' };
   }
   await aplicarDocumentoF(n, r.documento || {}, r.ja_existia ? 'Referência já existia no provedor: situação recuperada' : '');
@@ -25817,8 +25877,8 @@ function checklistConfig() {
     { ok: !!cfg.natOp && !!cfg.modFreteRetirada && !!cfg.modFreteEntrega, t: 'Padrões da operação', d: cfg.natOp ? 'Natureza: ' + cfg.natOp : 'Natureza da operação e modalidade do frete', h: '#/setor-fiscal/config' },
     { ok: perfis.length > 0 && conf.length === perfis.length, t: 'Perfis tributários conferidos pelo contador', d: perfis.length ? conf.length + ' de ' + perfis.length + ' conferido(s)' : 'Nenhum perfil cadastrado', h: '#/setor-fiscal/config' },
     { ok: prods.length > 0 && prodOk.length === prods.length, t: 'Produtos com NCM, unidade e perfil', d: prods.length ? prodOk.length + ' de ' + prods.length + ' produto(s) de venda completos' : 'Nenhum produto de venda', h: '#/produtos' },
-    { ok: servOk, t: 'Conector JB Fiscal ligado', d: st ? (servOk ? 'Serviço respondeu · ' + (st.dados.voce ? 'você: ' + st.dados.voce.papel : '') : st.msg) : 'Ainda não verificado nesta sessão', h: '#/setor-fiscal/servico' },
-    { ok: !!cert && venc >= hoje(), t: 'Certificado digital A1 no provedor', d: cert ? 'Válido até ' + fData(venc) + (cert.subject_name ? ' · ' + cert.subject_name : '') : 'Aparece aqui depois que o conector responder', h: '#/setor-fiscal/servico' },
+    { ok: servOk, t: 'Serviço fiscal (Focus NFe) respondendo', d: st ? (servOk ? 'Serviço respondeu · ' + (st.dados.voce ? 'você: ' + st.dados.voce.papel : '') : st.msg) : 'Ainda não verificado nesta sessão', h: '#/setor-fiscal/servico' },
+    { ok: !!cert && venc >= hoje(), t: 'Certificado digital A1 na Focus NFe', d: cert ? 'Válido até ' + fData(venc) + (cert.subject_name ? ' · ' + cert.subject_name : '') : 'Aparece aqui depois que o serviço fiscal responder', h: '#/setor-fiscal/servico' },
     { ok: cfg.ibscbs.ativo === 'Sim' || String(em.crt) !== '3', t: 'IBS e CBS (reforma tributária)', d: cfg.ibscbs.ativo === 'Sim' ? 'Ligado' : String(em.crt) === '3' ? 'Obrigatório no regime normal desde 03/08/2026' : 'Simples Nacional: obrigatório a partir de 01/01/2027', h: '#/setor-fiscal/config' },
   ];
 }
@@ -25831,7 +25891,7 @@ function painelFis(c, r, ctx) {
   const cont = (s) => ns.filter((n) => n.status === s && n.ambiente === amb).length;
   const ck = checklistConfig();
   const vendasSem = DATA.vendas.filter((v) => v.setor === 'vendas' && !cancV(v) && !['Em elaboração', 'Aguardando aprovação'].includes(v.status) && !(v.fiscal && v.fiscal.numero) && !nfeDaVenda(v.id).some((n) => n.ambiente === amb && n.status !== 'descartada')).sort((a, b) => (+b.numero || 0) - (+a.numero || 0)).slice(0, 8);
-  c.innerHTML = `${secCab('recibo', 'Setor Fiscal', 'Notas fiscais eletrônicas (NF-e modelo 55) da ' + esc(razaoMostra()) + ', emitidas pela SEFAZ do Maranhão através do serviço fiscal JB Fiscal.', `${podeF('preparar') ? `<a class="btn" href="#/setor-fiscal/importar">${ic('planilha')}Importar planilha</a><a class="btn pri" href="#/setor-fiscal/nova">${ic('mais')}Nova NF-e</a>` : ''}`)}
+  c.innerHTML = `${secCab('recibo', 'Setor Fiscal', 'Notas fiscais eletrônicas (NF-e modelo 55) da ' + esc(razaoMostra()) + ', autorizadas pela SEFAZ do Maranhão através da Focus NFe (função jb-fiscal do Supabase).', `${podeF('preparar') ? `<a class="btn" href="#/setor-fiscal/importar">${ic('planilha')}Importar planilha</a><a class="btn pri" href="#/setor-fiscal/nova">${ic('mais')}Nova NF-e</a>` : ''}`)}
    <div class="aviso ${amb === 'producao' ? 'ok' : 'at'}" style="margin-bottom:14px"><span><b>Ambiente atual: ${esc(AMB_TXT[amb])}.</b> ${amb === 'producao' ? 'As notas emitidas agora têm valor fiscal.' : 'As notas emitidas agora são de teste e não têm valor fiscal. A produção só é ligada depois dos testes e da conferência do contador (Configurações).'}</span></div>
    <div class="hero">
     ${kpiV('c4', 'recibo', 'Autorizadas no mês (produção)', String(doMes.length), fMoeda(soma(doMes, (n) => totalNota(n)) / 100), ctx.base + '/notas')}
@@ -25969,7 +26029,7 @@ async function exportarXmlsF(ns, btn) {
     const q = (x) => '"' + String(x ?? '').replace(/"/g, '""') + '"';
     const linhas = [['ambiente', 'numero', 'serie', 'emissao', 'chave', 'protocolo', 'situacao', 'destinatario', 'cpf_cnpj', 'valor_total'], ...ns.map((n) => [n.ambiente, n.numero, n.serie, String(n.dhEmi || n.data || '').slice(0, 10), (n.sefaz || {}).chave || '', (n.sefaz || {}).protocolo || '', ST_NFE[n.status], (n.dest || {}).nome || '', (n.dest || {}).cnpj || (n.dest || {}).cpf || '', fNum(totalNota(n) / 100, 2)])];
     arq.push({ nome: 'resumo.csv', dados: enc.encode('﻿' + linhas.map((l) => l.map(q).join(';')).join('\r\n')) });
-    if (falhas.length) arq.push({ nome: 'FALTANDO.txt', dados: enc.encode('XMLs que não puderam ser obtidos agora (tente de novo com o conector ligado):\r\n' + falhas.join('\r\n')) });
+    if (falhas.length) arq.push({ nome: 'FALTANDO.txt', dados: enc.encode('XMLs que não puderam ser obtidos agora (tente de novo com o serviço fiscal respondendo):\r\n' + falhas.join('\r\n')) });
     const datas = ns.map((n) => String(n.data || '')).filter(Boolean).sort();
     await salvarArquivo('XML_NFe_' + (datas[0] || hoje()) + '_a_' + (datas[datas.length - 1] || hoje()) + '.zip', zipF(arq));
     toast(falhas.length ? falhas.length + ' XML(s) não vieram agora; veja FALTANDO.txt no ZIP.' : 'ZIP com ' + (arq.length - 1) + ' XML(s) pronto.', falhas.length ? 'erro' : 'ok', true);
@@ -26302,7 +26362,7 @@ const CONF_PRODUCAO = [
   ['perfis', 'Todos os perfis tributários em uso foram conferidos e assinados pelo contador.'],
   ['testes', 'Os testes de homologação foram feitos: emissão autorizada, rejeição corrigida, consulta, DANFE, XML e cancelamento.'],
   ['numeracao', 'A série e o último número usado em produção foram conferidos (não pode repetir número de outro sistema).'],
-  ['servico', 'O serviço JB Fiscal foi liberado para produção (PRODUCAO_LIBERADA = sim) com as credenciais de produção.'],
+  ['servico', 'A função jb-fiscal do Supabase foi liberada para produção (PRODUCAO_LIBERADA = sim) com o token de produção da Focus NFe (FOCUSNFE_TOKEN_PRODUCAO).'],
 ];
 function configFis(c) {
   const cfg = CFGF();
@@ -26366,7 +26426,7 @@ function configFis(c) {
    </fieldset>
    <fieldset class="sec"><legend>Responsável técnico pelo sistema (opcional)</legend><p class="ajuda" style="margin:0 0 8px">Grupo infRespTec. Alguns estados exigem; preencha se o contador ou a SEFAZ pedir.</p><div class="campos">
     ${inp('respTec.cnpj', 'CNPJ', g.respTec.cnpj, { num: 1 })}${inp('respTec.contato', 'Nome do contato', g.respTec.contato)}${inp('respTec.email', 'E-mail', g.respTec.email)}${inp('respTec.fone', 'Telefone', g.respTec.fone, { num: 1 })}</div></fieldset>
-   <fieldset class="sec"><legend>Quem pode emitir e cancelar</legend><p class="ajuda" style="margin:0 0 8px">Sem ninguém marcado, vale o perfil: emitem Administrador, Gerente e Financeiro; cancelam Administrador e Gerente. Marcando pessoas, só elas (e o dono) emitem e cancelam. A trava do servidor é o papel do código de acesso de cada pessoa no conector.</p>
+   <fieldset class="sec"><legend>Quem pode emitir e cancelar</legend><p class="ajuda" style="margin:0 0 8px">Sem ninguém marcado, vale o perfil: emitem Administrador, Gerente e Financeiro; cancelam Administrador e Gerente. Marcando pessoas, só elas (e o dono) emitem e cancelam. O servidor (função jb-fiscal) confere a mesma regra a cada pedido.</p>
     <div class="chk">${usuarios.map((u) => `<label><input type="checkbox" data-autor="${esc(u.id)}" ${(g.autorizados || []).includes(u.id) ? 'checked' : ''} ${dis}> ${esc(u.nome || u.id)} <small>(${esc(PAPEIS[u.papel] || u.estado)})</small></label>`).join('') || '<span class="ajuda">Nenhum usuário liberado ainda.</span>'}</div></fieldset>
    </form>
    <section class="bloco"><h3>Histórico das configurações fiscais</h3><div class="vv-hist">${historicoHtml('fiscalCfg', 'geral')}</div></section>`;
@@ -26489,36 +26549,36 @@ function liberarProducaoF() {
   });
 }
 
-/* ================= Serviço fiscal: situação do conector, como ligar e auditoria ================= */
+/* ================= Serviço fiscal: situação da ligação com a Focus NFe, como está ligada e auditoria ================= */
 function servicoFis(c) {
   const amb = ambienteAtual();
   const blocoStatus = (a) => {
     const st = FISC.status[a];
     if (!st) return `<div class="ex-vazio">Ainda não verificado. Clique em "Verificar agora".</div>`;
-    if (!st.ok) return `<div class="aviso pe" style="margin:0 17px 14px"><span><b>${esc(st.code === 'tool_error' ? 'O serviço respondeu com erro' : 'O conector não respondeu')}</b><br>${esc(st.msg)}</span></div>`;
+    if (!st.ok) return `<div class="aviso pe" style="margin:0 17px 14px"><span><b>${esc(st.code === 'tool_error' ? 'O serviço fiscal respondeu com erro' : 'O serviço fiscal não respondeu')}</b><br>${esc(st.msg)}</span></div>`;
     const d = st.dados;
-    const p = (o) => (o && o.ok ? '✓' : '✗');
+    const p = (o) => (o && o.ok ? '✓' : o && o.ok === null ? '–' : '✗');
     const cert = d.certificado && d.certificado.ok ? d.certificado.dados : null;
-    return kvV([['Serviço', esc(d.servico + ' ' + d.versao + ' · ' + d.provedor + ' · API ' + d.api)], ['Você', esc((d.voce || {}).nome + ' · papel ' + (d.voce || {}).papel)], ['CNPJ no serviço', esc(fmtCNPJ(d.cnpj_emitente || '') || '— não configurado'), 0], ['Confere com o JB?', d.cnpj_emitente && d.cnpj_emitente === digitos(CFGF().emitente.cnpj) ? '<span class="tag ok">Sim</span>' : '<span class="tag pe">Não</span>'], ['Credenciais do provedor', d.credenciais_configuradas ? '<span class="tag ok">Configuradas</span>' : '<span class="tag pe">Faltam</span>'], ['Produção no serviço', d.producao_liberada ? '<span class="tag ok">Liberada</span>' : '<span class="tag at">Bloqueada</span>'],
-      ['Empresa no provedor', p(d.empresa) + ' ' + esc(d.empresa ? (d.empresa.ok ? (d.empresa.dados.nome_razao_social || '') + ' · IE ' + (d.empresa.dados.inscricao_estadual || '—') : d.empresa.erro.mensagem) : '—'), 1],
+    return kvV([['Serviço', esc(d.servico + ' ' + d.versao + ' · ' + d.provedor + ' · API ' + d.api)], ['Você', esc((d.voce || {}).nome + ' · papel ' + (d.voce || {}).papel)], ['CNPJ no servidor (CNPJ_EMITENTE)', esc(fmtCNPJ(d.cnpj_emitente || '') || '— não configurado'), 0], ['Confere com o JB?', d.cnpj_emitente && d.cnpj_emitente === digitos(CFGF().emitente.cnpj) ? '<span class="tag ok">Sim</span>' : '<span class="tag pe">Não</span>'], ['Token da Focus NFe neste ambiente', d.credenciais_configuradas ? '<span class="tag ok">Guardado no Supabase</span>' : '<span class="tag pe">Falta</span>'], ['Produção no servidor (PRODUCAO_LIBERADA)', d.producao_liberada ? '<span class="tag ok">Liberada</span>' : '<span class="tag at">Bloqueada</span>'],
+      ['Empresa na Focus NFe', p(d.empresa) + ' ' + esc(d.empresa ? (d.empresa.ok ? (d.empresa.dados.nome_razao_social || '') + ' · IE ' + (d.empresa.dados.inscricao_estadual || '—') : d.empresa.erro.mensagem) : '—'), 1],
       ['Certificado A1', p(d.certificado) + ' ' + esc(cert ? 'válido até ' + fData(String(cert.not_valid_after).slice(0, 10)) + ' · ' + (cert.subject_name || '') : d.certificado ? d.certificado.erro.mensagem : '—'), 1],
-      ['Configuração NF-e no provedor', p(d.config_nfe) + ' ' + esc(d.config_nfe ? (d.config_nfe.ok ? 'CRT ' + (d.config_nfe.dados.CRT ?? '—') + ' · ambiente ' + (d.config_nfe.dados.ambiente || '—') : d.config_nfe.erro.mensagem) : '—'), 1],
+      ['Ligação com a Focus NFe (token aceito)', p(d.config_nfe) + ' ' + esc(d.config_nfe ? (d.config_nfe.ok ? 'CRT ' + (d.config_nfe.dados.CRT ?? '—') + ' · ambiente ' + (d.config_nfe.dados.ambiente || '—') : d.config_nfe.erro.mensagem) : '—'), 1],
       ['SEFAZ', p(d.sefaz) + ' ' + esc(d.sefaz ? (d.sefaz.ok ? (d.sefaz.dados.autorizador || '') + ' · ' + (d.sefaz.dados.codigo_status || '') + ' ' + (d.sefaz.dados.motivo_status || '') : d.sefaz.erro.mensagem) : '—'), 1],
       ['Verificado em', esc(fDataHora(new Date(st.em).toISOString()))]]);
   };
-  c.innerHTML = `${secCab('escudo', 'Serviço fiscal e auditoria', 'O JB não guarda senha, token nem certificado. Quem emite é o serviço JB Fiscal, ligado à sua conta do Claude como conector.', `<button type="button" class="btn pri" id="svVer">${ic('lupa')}Verificar agora</button>`)}
+  c.innerHTML = `${secCab('escudo', 'Serviço fiscal e auditoria', 'O JB não guarda senha, token nem certificado nesta página. Quem emite é a Focus NFe, chamada pela função jb-fiscal do Supabase (os tokens ficam nos segredos do Supabase). Em homologação até o servidor liberar a produção.', `<button type="button" class="btn pri" id="svVer">${ic('lupa')}Verificar agora</button>`)}
    <div class="ex2">
     <section class="bloco"><h3>Homologação</h3>${blocoStatus('homologacao')}</section>
     <section class="bloco"><h3>Produção</h3>${CFGF().producaoLiberada === 'Sim' ? blocoStatus('producao') : '<div class="ex-vazio">Produção ainda não liberada no JB.</div>'}</section>
    </div>
-   <section class="bloco"><h3>Como ligar o conector JB Fiscal (uma vez por pessoa)</h3><ol class="fis-passos">
-    <li>O administrador implanta o serviço JB Fiscal na Cloudflare e gera um <b>código de acesso</b> para cada pessoa (tutorial do emissor).</li>
-    <li>No computador, abra <b>claude.ai › Configurações › Conectores</b> e clique em <b>Adicionar conector personalizado</b>.</li>
-    <li>Nome: <b>JB Fiscal</b> (exatamente assim). Endereço: o do serviço, terminado em <b>/mcp</b>.</li>
-    <li>Clique em <b>Conectar</b>. Na página do JB Fiscal, digite o seu código de acesso e clique em <b>Permitir</b>.</li>
-    <li>Volte ao JB Gestão e clique em <b>Verificar agora</b>. Na primeira emissão o Claude pergunta se o JB pode usar o conector: permita.</li></ol>
-    <p class="ajuda" style="margin:0 17px 14px">Pelo celular dá para usar o conector depois de ligado, mas a ligação é feita no site claude.ai. Cada pessoa usa o próprio código; para tirar o acesso de alguém, o administrador remove o código no serviço.</p></section>
-   <section class="bloco"><h3>Auditoria do serviço (emissões, cancelamentos, recusas)</h3><div id="svAud" style="padding:0 17px 14px"><button type="button" class="btn" id="svAudB">Carregar a auditoria</button><span class="ajuda"> Só para quem tem papel "gestor" no serviço.</span></div></section>
+   <section class="bloco"><h3>Como o emissor está ligado (Focus NFe pelo Supabase)</h3><ol class="fis-passos">
+    <li>Na <b>Focus NFe</b>, a empresa está cadastrada, com o <b>certificado digital A1</b> enviado no painel deles. A Focus guarda o certificado, assina e transmite à SEFAZ.</li>
+    <li>No <b>Supabase</b> (Edge Functions › Secrets), o administrador guarda os tokens da Focus NFe: <b>FOCUSNFE_TOKEN_HOMOLOGACAO</b> e <b>FOCUSNFE_TOKEN_PRODUCAO</b>, e o CNPJ da cerâmica em <b>CNPJ_EMITENTE</b>.</li>
+    <li>A produção só funciona com <b>PRODUCAO_LIBERADA = sim</b> no Supabase e depois da conferência em Configurações fiscais. Até lá, tudo é homologação (teste, sem valor fiscal).</li>
+    <li>Quem emite: na <b>versão da nuvem</b>, cada pessoa entra com o próprio usuário e senha e o servidor confere o perfil; no <b>Claude</b>, só administradores, pelo banco central.</li>
+    <li>Clique em <b>Verificar agora</b> para conferir a ligação. Só conta como autorizada a nota que volta da SEFAZ com protocolo.</li></ol>
+    <p class="ajuda" style="margin:0 17px 14px">Ninguém precisa ligar conector no Claude. Para tirar o acesso de alguém, mude o perfil da pessoa em "Usuários e segurança" ou desmarque o nome em Configurações fiscais › Quem pode emitir e cancelar. Passo a passo completo: docs/fiscal.md no repositório.</p></section>
+   <section class="bloco"><h3>Auditoria do serviço (emissões, cancelamentos, recusas)</h3><div id="svAud" style="padding:0 17px 14px"><button type="button" class="btn" id="svAudB">Carregar a auditoria</button><span class="ajuda"> Só para administrador e gerente.</span></div></section>
    <section class="bloco"><h3>Registro no JB (todas as notas)</h3><div class="vv-hist">${(() => { const it = DATA.log.filter((l) => l.modulo === 'nfe' || l.modulo === 'fiscalCfg').sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 80); resolverNomes(it.map((l) => l.uid)); return it.length ? `<div class="hist">${it.map((l) => `<div class="it"><b>${esc(nomeUsuario(l.uid))}</b> ${esc(l.acao)}${l.modulo === 'nfe' && NFE(l.recId) ? ` · <a href="#/setor-fiscal/nota/${esc(l.recId)}">${esc(nomeNota(NFE(l.recId)))}</a>` : ''}<br><small>${fDataHora(l.ts)}</small>${l.campos && l.campos.length ? `<ul>${l.campos.map((x) => `<li>${esc(x.c)}: ${esc(x.de)} → ${esc(x.para)}</li>`).join('')}</ul>` : ''}</div>`).join('')}</div>` : '<div class="ex-vazio">Nada registrado ainda.</div>'; })()}</div></section>`;
   $('#svVer', c).onclick = async (e) => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Verificando…'; await statusServicoF('homologacao', true); if (CFGF().producaoLiberada === 'Sim') await statusServicoF('producao', true); renderTela(); };
   $('#svAudB', c).onclick = async (e) => {

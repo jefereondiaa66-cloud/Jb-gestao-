@@ -15,6 +15,7 @@ import { join, relative, sep } from 'node:path';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { RAIZ } from './construir.mjs';
+import { traduzirInfNFe } from '../supabase/functions/jb-fiscal/nucleo.js';
 
 // require: acha o Playwright instalado no projeto ou globalmente
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -63,7 +64,13 @@ try {
   await page.addInitScript(({ codigo, docs }) => {
     // eslint-disable-next-line no-eval
     const criar = (0, eval)('(' + codigo.replace(/^function criarServidorFalso/m, 'function') + ')');
-    const srv = criar({ admins: ['u_DONO'] });
+    // serviço fiscal simulado (o que a função jb-fiscal devolve para "status_servico")
+    const fiscal = (acao) => acao === 'status_servico'
+      ? { status: 200, corpo: { servico: 'JB Fiscal', versao: '1.0', provedor: 'Focus NFe', api: 'v2', ambiente: 'homologacao', voce: { nome: 'Dono', papel: 'administrador' },
+        cnpj_emitente: null, credenciais_configuradas: true, producao_liberada: false, empresa: { ok: false, erro: { mensagem: 'sem CNPJ_EMITENTE (simulado)' } },
+        certificado: { ok: false, erro: { mensagem: 'simulado' } }, config_nfe: { ok: true, dados: { CRT: '1', ambiente: 'homologação' } }, sefaz: { ok: null, erro: { mensagem: 'não consultada' } } } }
+      : { status: 503, corpo: { erro: { tipo: 'configuracao', mensagem: 'simulado' } } };
+    const srv = criar({ admins: ['u_DONO'], fiscal });
     docs.forEach(([c, i, d]) => srv.estado.gravarDireto(c, i, d));
     window.__srv = srv;
     const vazio = { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }), onSnapshot: () => () => {} }), collection: () => { const q = { where: () => q, get: async () => ({ docs: [] }), onSnapshot: () => () => {} }; return q; } };
@@ -92,6 +99,35 @@ try {
   // a ponte busca mudanças a cada 30 s com alguém usando a página
   await page.waitForFunction(() => DATA.funcionarios.some((f) => f.id === 'teste-nav-2'), null, { timeout: 40000 }).catch(() => {});
   ok(await page.evaluate(() => DATA.funcionarios.some((f) => f.id === 'teste-nav-2')), 'cadastro feito na nuvem apareceu no sistema aberto');
+  /* ---------- Setor Fiscal ---------- */
+  // a nota montada pelo próprio programa (montarInfNFe) passa pela tradução para a Focus NFe sem pendência
+  const notaF = await page.evaluate(() => {
+    const F = window.JB_FISCAL;
+    DATA.fiscalCfg.push({ id: 'geral', emitente: { cnpj: '11222333000181', crt: '1', uf: 'MA', cMun: '2107902', xMun: 'Passagem Franca', razao: 'Exemplo' }, natOp: 'VENDA DE PRODUCAO DO ESTABELECIMENTO',
+      perfis: [{ id: 'pfTeste', nome: 'Tijolo (teste)', cfopInterno: '5101', cfopInterestadual: '6101', origem: '0', icms: { csosn: '102' }, pis: { cst: '49' }, cofins: { cst: '49' }, ipi: { modo: 'nao' }, baseIncluiFrete: 'Sim', ibscbs: { calcular: 'Sim' }, conferidoEm: '2026-11-08' }],
+      ibscbs: { ativo: 'Não' }, serie: { homologacao: '1', producao: '1' } });
+    DATA.produtos.push({ id: 'prodTeste', nome: 'Tijolo 8 furos (teste)', codigo: 'TIJ8', ncm: '69041000', unNF: 'MIL', perfilFiscal: 'pfTeste' });
+    const n = { id: 'nTeste', ambiente: 'homologacao', natOp: 'VENDA DE PRODUCAO DO ESTABELECIMENTO', consumidorFinal: '1', indPres: '1', modFrete: '0', frete: '100', desconto: '', seguro: '', outras: '',
+      dest: { tipoPessoa: 'Jurídica', nome: 'Construtora Exemplo', cnpj: '11444777000161', indIEDest: '9', email: '', fone: '', end: { CEP: '65680000', xLgr: 'Rua A', nro: '1', xCpl: '', xBairro: 'Centro', cMun: '2107902', xMun: 'Passagem Franca', UF: 'MA' } },
+      itens: [{ produtoId: 'prodTeste', qtd: '2', vUn: '650', desc: '' }], pag: { tPag: '17', condicao: 'À vista', parcelas: [] }, infCpl: 'Pedido de teste.' };
+    const c = F.calcularNota(n);
+    const pend = F.validarNota(n, c).filter((p) => p.nivel === 'erro').map((p) => p.msg);
+    const inf = F.montarInfNFe(n, c, 12, '1', '2026-11-08T10:00:00-03:00');
+    DATA.fiscalCfg.splice(DATA.fiscalCfg.findIndex((x) => x.id === 'geral'), 1);
+    DATA.produtos.splice(DATA.produtos.findIndex((x) => x.id === 'prodTeste'), 1);
+    return { inf, pend };
+  });
+  const tr = traduzirInfNFe(notaF.inf);
+  ok(notaF.pend.length === 0 && tr.problemas.length === 0 && tr.focus.items.length === 1 && tr.focus.valor_total === 1400,
+    `nota do programa (montarInfNFe) traduzida para a Focus NFe sem pendência${notaF.pend.length || tr.problemas.length ? ': ' + JSON.stringify([notaF.pend, tr.problemas]).slice(0, 300) : ''}`);
+  // a tela "Serviço" do Setor Fiscal chama o serviço pela ponte (jbcore.fiscal) e mostra a resposta
+  await page.evaluate(() => { location.hash = '#/setor-fiscal/servico'; });
+  await page.waitForSelector('#svVer', { timeout: 15000 }).catch(() => {});
+  await page.click('#svVer').catch(() => {});
+  await page.waitForFunction(() => /Focus NFe · API v2/.test((document.getElementById('svCorpo') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const sv = await page.evaluate(() => ({ texto: /Focus NFe · API v2/.test((document.getElementById('svCorpo') || {}).textContent || ''), pedidos: window.__srv.estado.fiscal.pedidos.map((p) => [p.acao, p.uid]) }));
+  ok(sv.texto && sv.pedidos.some((p) => p[0] === 'status_servico' && p[1] === 'u_DONO'), `Setor Fiscal › Serviço verificou a Focus NFe pela ponte (pedidos: ${JSON.stringify(sv.pedidos)})`);
+
   const relevantes = erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
   ok(relevantes.length === 0, `sem erros de JavaScript${relevantes.length ? ': ' + relevantes.slice(0, 3).join(' | ') : ''}`);
   await page.screenshot({ path: join(RAIZ, 'saida/tela-claude.png') });
@@ -106,6 +142,7 @@ try {
   await p2.waitForSelector('#jbl', { timeout: 15000 }).catch(() => {});
   ok(await p2.$('#jbl') !== null, 'versão da nuvem abre na tela de login');
   ok(await p2.evaluate(() => !(window.JB_CORE_PONTE && window.JB_CORE_PONTE.api.estado().modo === 'central')), 'na nuvem a ponte do Claude fica desligada');
+  ok(await p2.evaluate(() => !!window.JB_NUVEM_API && typeof window.JB_NUVEM_API.fiscal === 'function'), 'na nuvem o Setor Fiscal tem a ligação com a função jb-fiscal');
   await ctx2.close();
 } finally {
   await browser.close(); http.close();

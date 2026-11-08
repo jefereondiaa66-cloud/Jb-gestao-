@@ -215,13 +215,36 @@
     }
   });
 
+  /* serviço fiscal (Setor Fiscal · NF-e pela Focus NFe): a função jb-fiscal do servidor confere a sessão e o
+     perfil e fala com a Focus NFe com os tokens guardados no Supabase; o navegador nunca vê os tokens.
+     Devolve a resposta do serviço (dados, ou {erro:{tipo, mensagem}}). Sem resposta reconhecível, o erro é
+     "sem_resposta"/"rede": o pedido pode ter chegado, por isso o programa consulta antes de reenviar. */
+  var FISCAL = SB_URL + '/functions/v1/jb-fiscal';
+  async function fiscal(acao, args) {
+    await pronto; atividade();
+    var r;
+    try {
+      r = await fetch(FISCAL, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
+        body: JSON.stringify({ acao: String(acao || ''), args: args || {} }) });
+    } catch (e) {
+      throw erro('rede', 'Sem conexão com o servidor fiscal. Verifique a internet; se estava emitindo, consulte a nota antes de enviar de novo.');
+    }
+    var j = null; try { j = await r.json(); } catch (e) {}
+    if (j && typeof j === 'object' && !Array.isArray(j)) {
+      if (r.ok) return j;
+      if (j.erro && typeof j.erro === 'object' && j.erro.tipo) return j;   // recusa do próprio serviço fiscal
+    }
+    throw erro('sem_resposta', 'O servidor fiscal não respondeu direito (código ' + r.status + '). Se estava emitindo, consulte a nota antes de enviar de novo.');
+  }
+
   window.claude = Object.freeze({
     use: async function (nome) {
       if (nome === 'db') { await pronto; return db; }
       if (nome === 'user') { await pronto; return user; }
       if (nome === 'assets') { await pronto; return assets; }
       if (nome === 'leitor') { await pronto; return leitor; }
-      return null; // assistente, editor por IA, conector fiscal e versões do Claude não existem fora dele
+      return null; // assistente, editor por IA e versões do Claude não existem fora dele (o serviço fiscal vem por JB_NUVEM_API.fiscal)
     }
   });
 
@@ -264,6 +287,7 @@
     eu: function () { return eu ? clone(eu) : null; },
     rpc: async function (fn, args) { await pronto; atividade(); var r = await sb.rpc(fn, args || {}); if (r.error) throw traduzErro(r.error); return r.data; },
     auth: async function (acao, corpo) { await pronto; atividade(); return post(acao, corpo, sessao.access_token); },
+    fiscal: fiscal,
     db: db
   });
 

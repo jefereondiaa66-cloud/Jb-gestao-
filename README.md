@@ -24,12 +24,14 @@ Um programa, dois endereços, um banco só.
 
 | Comando | Para quê |
 |---|---|
-| `node scripts/verificar.mjs` | 20 verificações: programa, construção, ponte (testes B–F) |
+| `node scripts/verificar.mjs` | verificações do programa, da construção, da ponte (testes B–F) e do JB Fiscal |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
+| `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
 | `node scripts/do-claude.mjs <pagina>` | traz para cá uma versão alterada dentro do Claude |
 
 Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como operar) ·
+[`docs/fiscal.md`](docs/fiscal.md) (nota fiscal pela Focus NFe: tokens, instalação, produção) ·
 [`docs/auditoria-2026-10-30.md`](docs/auditoria-2026-10-30.md) (estado encontrado e decisões) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

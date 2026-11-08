@@ -106,16 +106,38 @@ export function criarServidorFalso(opcoes) {
     var payload = { result: texto };
     return { content: [{ type: 'text', text: JSON.stringify(payload) }], payload: payload };
   }
+  /* serviço fiscal: jbcore.fiscal registra o pedido (só administrador) e jbcore.resposta entrega a
+     resposta da função jb-fiscal depois de "esperas" consultas (como o pg_net, que responde depois).
+     opcoes.fiscal(acao, args, uid) → {status, corpo} | {erro: 'texto do pg_net'} imita a função. */
+  var fiscalSeq = 0;
+  var fiscal = { pedidos: [], respostas: new Map(), esperas: opcoes.esperasFiscal == null ? 1 : opcoes.esperasFiscal };
+  function fiscalPedir(acao, argsF, uid) {
+    if (admins.indexOf(uid) < 0) throw erroSql('42501', 'serviço fiscal recusado: ' + uid + ' não é administrador ativo');
+    var id = ++fiscalSeq;
+    fiscal.pedidos.push({ id: id, acao: acao, args: clone(argsF), uid: uid });
+    var r = opcoes.fiscal ? opcoes.fiscal(acao, clone(argsF), uid) : { status: 503, corpo: { erro: { tipo: 'configuracao', mensagem: 'Serviço fiscal simulado sem resposta configurada.' } } };
+    fiscal.respostas.set(id, { falta: fiscal.esperas, r: r });
+    return id;
+  }
+  function fiscalResposta(id) {
+    var x = fiscal.respostas.get(id);
+    if (!x) return { pronto: false };
+    if (x.falta > 0) { x.falta--; return { pronto: false }; }
+    if (x.r && x.r.erro) return { pronto: true, status: null, erro: x.r.erro, corpo: null };
+    return { pronto: true, status: x.r.status, erro: null, corpo: clone(x.r.corpo) };
+  }
   function executar(q) {
     var a = args(q);
     if (/jbcore\.instantaneo_pagina\(/.test(q)) return pagina(a[0], a[1], a[2], a[3]);
     if (/jbcore\.mudancas_desde\(/.test(q)) return desde(a[0], a[1]);
     if (/jbcore\.aplicar\(/.test(q)) return aplicar(a[0]);
+    if (/jbcore\.fiscal\(/.test(q)) return fiscalPedir(a[0], a[1], a[2]);
+    if (/jbcore\.resposta\(/.test(q)) return fiscalResposta(a[0]);
     if (/from public\.docs d where d\.colecao = /.test(q)) { var d = docs.get(k(a[0], a[1])); return d ? [clone(d.dados), d.versao] : null; }
     throw erroSql('42883', 'consulta não prevista no servidor falso: ' + q.slice(0, 80));
   }
   var estado = {
-    docs: docs, operacoes: operacoes, chamadas: chamadas, falhas: falhas, sinais: [],
+    docs: docs, operacoes: operacoes, chamadas: chamadas, falhas: falhas, sinais: [], fiscal: fiscal,
     gravarDireto: gravarDireto, apagarDireto: apagarDireto,
     contarAplicadas: function () { var n = 0; operacoes.forEach(function (o) { if (o.resultado === 'aplicada') n++; }); return n; }
   };

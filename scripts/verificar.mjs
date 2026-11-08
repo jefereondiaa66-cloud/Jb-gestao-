@@ -5,7 +5,7 @@
 //
 //   node scripts/verificar.mjs            tudo
 //   node scripts/verificar.mjs ponte      só os testes da ponte do Claude
-import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
@@ -106,6 +106,21 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     assert.equal(vj.versao, v.versao); assert.equal(vj.site, v.site); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
     assert.ok(nuvem.indexOf('jb-nuvem.js') < nuvem.indexOf('<script id="spot-guarda">'), 'o adaptador da nuvem precisa carregar antes do programa');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+teste('programa', 'Setor Fiscal: chamarF usa a função jb-fiscal (nuvem e ponte) e erro incerto nunca vira "nada enviado"', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('async function chamarF('), f = app.indexOf('async function statusServicoF(');
+  assert.ok(i > 0 && f > i, 'chamarF não encontrado');
+  assert.match(app.slice(i, f), /const via = transporteF\(\);/, 'chamarF precisa usar a ligação nova primeiro');
+  assert.ok(app.includes("if (nv && typeof nv.fiscal === 'function') return (t, a) => nv.fiscal(t, a);"), 'nuvem: JB_NUVEM_API.fiscal');
+  assert.ok(app.includes("pt.api.estado().modo === 'central') return (t, a) => pt.api.fiscal(t, a);"), 'Claude: só com a ponte no modo central');
+  const nada = /const NADA_ENVIADO = new Set\(\[([^\]]*)\]\)/.exec(app);
+  assert.ok(nada, 'lista NADA_ENVIADO não encontrada');
+  for (const c of ['sem_resposta', 'prazo_fiscal', 'rede', 'upstream_error', 'server_unavailable']) assert.ok(!nada[1].includes("'" + c + "'"), c + ' é incerto: não pode estar em NADA_ENVIADO');
+  for (const c of ['desligado', 'recusado_banco']) assert.ok(nada[1].includes("'" + c + "'"), c + ' garante que nada foi enviado');
+  assert.ok(!/Cloudflare|Nuvem Fiscal ou ACBr/.test(app), 'texto antigo do conector "JB Fiscal" da Cloudflare');
+  const nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /functions\/v1\/jb-fiscal/); assert.match(nv, /fiscal: fiscal,/);
 });
 teste('programa', 'ponto com foto: câmera liberada só para o próprio site e perfil "Celular do ponto" no painel', () => {
   const h = ler('nuvem/_headers');
@@ -352,6 +367,58 @@ teste('ponte', 'envia sinal de vida ao banco para o painel', () => cenario(async
   await ate(() => srv.estado.sinais.length > 0);
   assert.equal(srv.estado.sinais[0].origem, 'claude');
 }));
+
+/* ---------- serviço fiscal pela ponte (jbcore.fiscal + jbcore.resposta) ---------- */
+const CFG_FISCAL = { cfg: { prazoFiscal: 1500, esperaFiscal: 10 } };
+const SRV_FISCAL = () => criarServidorFalso({ admins: ['u_ADMIN'], fiscal: (acao, args) => acao === 'consultar_nfe'
+  ? { status: 200, corpo: { encontrado: true, documento: { id: args.id, status: 'autorizado' } } }
+  : { status: 503, corpo: { erro: { tipo: 'configuracao', mensagem: 'Produção bloqueada (simulado).' } } } });
+teste('ponte', 'serviço fiscal: pede pelo banco, espera a resposta e devolve o mesmo formato da nuvem', () => cenario(async ({ amb, srv }) => {
+  const { api } = await ligar(amb, srv, CFG_FISCAL);
+  const r = await api.fiscal('consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' });
+  const simples = (v) => JSON.parse(JSON.stringify(v));   // objetos criados dentro do vm têm outro protótipo
+  assert.deepEqual(simples(r), { encontrado: true, documento: { id: 'jb-n1-t1', status: 'autorizado' } });
+  const p = srv.estado.fiscal.pedidos[0];
+  assert.deepEqual([p.acao, p.args, p.uid], ['consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' }, 'u_ADMIN']);
+  assert.ok(srv.estado.chamadas.filter((c) => /jbcore\.resposta\(/.test(c.query)).length >= 2, 'pergunta pela resposta até ela chegar');
+  const recusa = await api.fiscal('emitir_nfe', { ambiente: 'producao' });
+  assert.deepEqual(simples(recusa), { erro: { tipo: 'configuracao', mensagem: 'Produção bloqueada (simulado).' } }, 'recusa do serviço volta como {erro}');
+  assert.equal(api.estado().modo, 'central');
+}, { srv: SRV_FISCAL() }));
+teste('ponte', 'serviço fiscal: recusa do banco = nada enviado; sem resposta = incerto (nunca "nada enviado")', async () => {
+  const admins = ['u_ADMIN'];
+  await cenario(async ({ amb, srv }) => {
+    const { api } = await ligar(amb, srv, CFG_FISCAL);
+    admins.length = 0;                                                     // deixou de ser administrador
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'recusado_banco' && /administradores/.test(e.message));
+    assert.equal(srv.estado.fiscal.pedidos.length, 0);
+    admins.push('u_ADMIN');
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'sem_resposta');        // pg_net: tempo esgotado
+    srv.estado.fiscal.esperas = 1e9;                                       // a resposta nunca chega
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'prazo_fiscal');
+    srv.estado.fiscal.esperas = 1;
+    const p = api.fiscal('emitir_nfe', {});
+    await ate(() => srv.estado.fiscal.pedidos.length === 3);
+    srv.estado.falhas.permanente = 'server_not_connected';                 // o conector cai depois do pedido feito
+    await assert.rejects(p, (e) => e.code === 'prazo_fiscal', 'depois do pedido registrado, nenhuma falha pode dizer que nada foi enviado');
+  }, { srv: criarServidorFalso({ admins, fiscal: () => ({ erro: 'Timeout of 90000 ms reached' }) }) });
+});
+teste('ponte', 'serviço fiscal fora do modo central: recusa sem pedir nada ao banco', () => cenario(async ({ amb, srv }) => {
+  const { api } = await ligar(amb, srv, { uid: 'u_OUTRO' });
+  await assert.rejects(api.fiscal('status_servico', { ambiente: 'homologacao' }), (e) => e.code === 'desligado');
+  assert.equal(srv.estado.fiscal.pedidos.length, 0);
+}));
+
+/* =====================================================================
+   4. JB Fiscal (Focus NFe): tradução e idempotência, sem rede (scripts/testar-fiscal.mjs)
+   O pacote que o publicador (jb-publicar) manda ao Netlify não leva supabase/: aí o grupo é pulado
+   (o GitHub e o Netlify ligado ao repositório rodam tudo).
+   ===================================================================== */
+const temFiscal = existsSync(join(RAIZ, 'supabase/functions/jb-fiscal/nucleo.js'));
+if (temFiscal) {
+  const { TESTES } = await import('./testar-fiscal.mjs');
+  TESTES.forEach((x) => teste('fiscal', x.nome, x.fn));
+} else console.log('  – [fiscal] pulado: este pacote não tem supabase/functions/jb-fiscal');
 
 /* ---------- execução ---------- */
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
