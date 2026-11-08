@@ -21512,7 +21512,7 @@ async function excluirMes(m){
 
 /* ================= Custos ================= */
 function telaCustosC(c){
- const m=mesSel();const R=calcMes(m);const v=R.v;const cp=R.custoProd;
+ const m=mesSel();const R=calcMes(m);const v=R.v;const cp=R.custoProd;const cpmMeses=mesesCpm(m);
  const lin=(k,l)=>{const x=+v[k]||0;return `<tr>${tdC('Item',esc(l||ROT[k])+(R.orig[k]&&R.orig[k]!=='manual'?` <span class="ctl-or ${R.orig[k]} pq">${esc(ORIGENS_TXT[R.orig[k]])}</span>`:''))}${tdC('Valor',esc(fMoeda(x)),1)}${tdC('% do custo',esc(cp?fPct(x/cp):'—'),1)}${tdC('Por milheiro bom',esc(fR(dv(x,R.bons))),1)}</tr>`};
  const sub=(l,x)=>`<tr class="ctl-sub">${tdC('Item','<b>'+esc(l)+'</b>')}${tdC('Valor','<b>'+esc(fMoeda(x))+'</b>',1)}${tdC('% do custo','<b>'+esc(cp?fPct(x/cp):'—')+'</b>',1)}${tdC('Por milheiro bom','<b>'+esc(fR(dv(x,R.bons)))+'</b>',1)}</tr>`;
  const CV=['lenha','barro','energia','combustivel','insumos'],CF=['arrend','mod','manut','deprec','cifOutros'];
@@ -21526,7 +21526,12 @@ function telaCustosC(c){
   <h3 class="grupo-t">Indicadores de custo e da operação</h3>
   ${tabC(['Indicador',[mesLongo(m),1],'Fórmula'],['custoTransf','custoPrim','estFim','estFimValor','CPV','lenhaMil','modMil','arrendMil','milQueima','prodFunc','idxPerdas'].map(id=>linhaInd(R,id)))}
   <h3 class="grupo-t">Despesas do mês (vão direto ao resultado)</h3>
-  ${tabC(['Item',['Valor',1],['% da receita',1]],[['comissoes'],['fretes'],['adm'],['folhaAdm'],['comerciais'],['deprecAdm'],['frotaDeprec'],['frotaPecas'],['frotaOutros'],['financeiras']].map(([k])=>{const x=+v[k]||0;return `<tr>${tdC('Item',esc(ROT[k]))}${tdC('Valor',esc(fMoeda(x)),1)}${tdC('% da receita',esc(fPct(dv(x,v.receita))),1)}</tr>`}))}`;
+  ${tabC(['Item',['Valor',1],['% da receita',1]],[['comissoes'],['fretes'],['adm'],['folhaAdm'],['comerciais'],['deprecAdm'],['frotaDeprec'],['frotaPecas'],['frotaOutros'],['financeiras']].map(([k])=>{const x=+v[k]||0;return `<tr>${tdC('Item',esc(ROT[k]))}${tdC('Valor',esc(fMoeda(x)),1)}${tdC('% da receita',esc(fPct(dv(x,v.receita))),1)}</tr>`}))}
+  <h3 class="grupo-t">Custo por milheiro mês a mês</h3>
+  ${cpmMeses.length?`<div class="acoes" style="justify-content:flex-end;margin:-2px 0 8px"><button type="button" class="btn min" id="ccMesExp">${ic('baixar')}Exportar ▾</button></div>
+  ${tabC(['Mês',['Milheiros bons',1],['Custo de produção',1],['Custo por milheiro bom',1]],cpmMeses.map(Q=>`<tr>${tdC('Mês',esc(fMes(Q.m)))}${tdC('Milheiros bons',esc(fMil(Q.bons)),1)}${tdC('Custo de produção',esc(fR(Q.custoProd)),1)}${tdC('Custo por milheiro bom',Q.cpm==null?`<span class="ctl-tr" title="${esc(Q.falta.cpm||'faltam dados')}">—</span>`:'<b>'+esc(fR(Q.cpm))+'</b>',1)}</tr>`))}
+  <p class="ajuda" style="margin:6px 2px">Custo de produção ÷ milheiros bons de cada mês, a mesma conta do indicador acima e da planilha da Controladoria. Só entram os meses com dados até ${esc(fMes(m))}.</p>`:vazioC('Nenhum mês com dados até '+fMes(m),'')}`;
+ const bx=$('#ccMesExp',c);if(bx)bx.onclick=()=>menuCpm(bx,m);
  const its=[...CV,...CF].map(k=>[ROT[k],+v[k]||0]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
  if(its.length)grafC('cgComp',{type:'bar',data:{labels:its.map(x=>x[0]),datasets:[{label:'Valor',data:its.map(x=>r2(x[1])),backgroundColor:its.map((x,i)=>i===0?corC[1]:corC[0])}]},
   options:{indexAxis:'y',plugins:{tooltip:{callbacks:{label:x=>fMoeda(x.raw)+' · '+fPct(cp?x.raw/cp:null)}}},scales:{x:{ticks:{callback:v=>fMoedaCurta(v)}},y:{grid:{display:false}}}}});
@@ -21634,7 +21639,7 @@ function telaDREC(c){
   return `<tr class="${cls}">${tdC('Linha',x[2]?'<b>'+esc(x[0])+'</b>':esc(x[0]))}${tdC(fMes(m),esc(fR(x[1])),1)}${tdC('% receita líq.',esc(x[1]==null||!R.RL?'—':fPct(x[1]/R.RL)),1)}${Q?tdC(fMes(cmp),esc(fR(y)),1)+tdC('Variação',esc(x[1]==null||y==null?'—':fMoeda(x[1]-y)+(y?' ('+fPct((x[1]-y)/Math.abs(y))+')':'')),1):''}</tr>`}),tit)};
  const obs=(R.doc&&R.doc.obs)||'';
  c.innerHTML=cabC('doc','DRE','Demonstração do resultado por absorção (societária e gerencial) e a visão do custeio variável. Regime de competência: receitas e custos entram no mês em que ocorrem.',
-  `<label class="ctl-cmp-sel">Comparar com <select id="cdCmp">${['',...L.filter(x=>x!==m)].reverse().map(x=>`<option value="${x}" ${x===cmp?'selected':''}>${x?esc(mesLongo(x)):'nenhum mês'}</option>`).join('')}</select></label>`)+avisoEsq(m)+
+  `<label class="ctl-cmp-sel">Comparar com <select id="cdCmp">${['',...L.filter(x=>x!==m)].reverse().map(x=>`<option value="${x}" ${x===cmp?'selected':''}>${x?esc(mesLongo(x)):'nenhum mês'}</option>`).join('')}</select></label><button type="button" class="btn" id="cdDre12" data-tip="DRE mês a mês dos últimos 12 meses e o acumulado do ano, em PDF ou Excel">${ic('baixar')}DRE de 12 meses ▾</button>`)+avisoEsq(m)+
   (R.LL==null?`<div class="aviso at"><span>O resultado de ${esc(fMes(m))} não pôde ser calculado: ${esc(R.falta.LL||'faltam dados')}.</span></div>`:'')+
   `<h3 class="grupo-t">DRE por absorção ${btnQ('LL')}</h3>${tab(linhasDRE)}
   <div class="ctl-g2b">
@@ -21648,6 +21653,7 @@ function telaDREC(c){
   </div>
   <h3 class="grupo-t">Margens</h3>${tabC(['Indicador',[mesLongo(m),1],'Fórmula'],['mb','mo','ml','me','lucroMil'].map(id=>linhaInd(R,id)))}`;
  const s=$('#cdCmp',c);if(s)s.onchange=e=>{UC.cmp=e.target.value||'-';renderTela()};
+ const b12=$('#cdDre12',c);if(b12)b12.onclick=()=>menuDre12(b12,m);
 }
 
 /* ================= Índices financeiros ================= */
@@ -21842,8 +21848,8 @@ function telaPremC(c){
   <fieldset class="sec"><legend>Semáforos (verde a partir do 1º limite, amarelo a partir do 2º, vermelho abaixo)</legend><div class="campos">${[['imc','IMC (%)'],['ml','Margem líquida (%)'],['lc','Liquidez corrente'],['ms','Margem de segurança (%)']].map(([k,l])=>cmpN('pmS1_'+k,l+' · verde',C.sem[k][0])+cmpN('pmS2_'+k,l+' · amarelo',C.sem[k][1])).join('')}</div></fieldset>
   ${ed?`<div class="acoes" style="justify-content:flex-end;margin:0 0 18px"><button type="button" class="btn pri" id="pmSalvar">Salvar premissas</button></div>`:''}
   <fieldset class="sec"><legend>Senha para reabrir meses fechados</legend><p class="ajuda" style="margin:0 0 8px">${CD&&CD.senhaHash?'Senha definida em '+esc(fDataHora(CD.senhaEm))+'. O sistema guarda só o código (hash SHA-256).':'Nenhuma senha definida: ela será pedida no primeiro fechamento.'}</p>${ed&&souDono()?`<button type="button" class="btn" id="pmSenha">${ic('ctlCadeado')}${CD&&CD.senhaHash?'Trocar a senha':'Definir a senha'}</button>`:''}</fieldset>
-  <fieldset class="sec"><legend>Cópia dos dados da Controladoria</legend><p class="ajuda" style="margin:0 0 8px">Exporta todos os meses (com observações e fechamentos), as premissas e o imobilizado em JSON; ou uma planilha CSV com os números de cada mês. A importação aceita o backup desta tela e o do sistema “Índices Cerâmica Concretiza”.</p>
-   <div class="acoes" style="justify-content:flex-start"><button type="button" class="btn" id="pmJson">${ic('baixar')}Exportar JSON</button><button type="button" class="btn" id="pmCsv">${ic('baixar')}Exportar CSV</button>${ed?`<label class="btn" for="pmImp">${ic('entrada')}Importar JSON</label><input type="file" id="pmImp" accept=".json,application/json" hidden>`:''}</div></fieldset>
+  <fieldset class="sec"><legend>Cópia dos dados da Controladoria</legend><p class="ajuda" style="margin:0 0 8px">Exporta todos os meses (com observações e fechamentos), as premissas e o imobilizado em JSON; ou uma planilha CSV ou Excel com os números de cada mês (percentuais em %, como 12,34). A importação aceita o backup desta tela e o do sistema “Índices Cerâmica Concretiza”.</p>
+   <div class="acoes" style="justify-content:flex-start"><button type="button" class="btn" id="pmJson">${ic('baixar')}Exportar JSON</button><button type="button" class="btn" id="pmCsv">${ic('baixar')}Exportar CSV</button><button type="button" class="btn" id="pmXls">${ic('baixar')}Exportar Excel</button>${ed?`<label class="btn" for="pmImp">${ic('entrada')}Importar JSON</label><input type="file" id="pmImp" accept=".json,application/json" hidden>`:''}</div></fieldset>
   <fieldset class="sec"><legend>De onde vêm os números dos setores</legend>${tabC(['Setor','O que entra'],MAPA.map(([a,b])=>`<tr>${tdC('Setor','<b>'+esc(a)+'</b>')}${tdC('O que entra',esc(b))}</tr>`))}<p class="ajuda" style="margin:8px 2px 0">Ordem: o lançado à mão vence; depois os setores; depois os automáticos. Em cada mês dá para desligar os setores (Lançamentos › Mês).</p></fieldset>
   </div>`;
  const b=$('#pmSalvar',c);if(b)b.onclick=async()=>{const g=id=>{const x=$('#'+id,c).value.trim();return x===''?'':lerMoeda(x)};const bad=x=>x===''||isNaN(x)||x<0;
@@ -21854,7 +21860,7 @@ function telaPremC(c){
   n.sem={};for(const k of ['imc','ml','lc','ms']){const a=g('pmS1_'+k),z=g('pmS2_'+k);if(a===''||z===''||isNaN(a)||isNaN(z)){toast('Preencha os dois limites de cada semáforo.','erro');return}if(z>a){toast('No semáforo, o limite do amarelo não pode passar o do verde.','erro');return}n.sem[k]=[a,z]}
   try{await salvarPrem(n);toast('Premissas salvas. Todos os meses foram recalculados.','ok')}catch(err){toast(msgErro(err),'erro')}};
  const s=$('#pmSenha',c);if(s)s.onclick=()=>definirSenha();
- $('#pmJson',c).onclick=exportarJSON;$('#pmCsv',c).onclick=exportarCSV;
+ $('#pmJson',c).onclick=exportarJSON;$('#pmCsv',c).onclick=exportarCSV;$('#pmXls',c).onclick=exportarXLSX;
  const imp=$('#pmImp',c);if(imp)imp.onchange=()=>{const f=imp.files&&imp.files[0];imp.value='';if(f)importarArquivo(f)};
 }
 
@@ -21904,7 +21910,12 @@ function telaRestrito(el){
 /* ================= relatório em PDF (aba atual ou completo) ================= */
 const ABA_NOME=Object.fromEntries(ABAS_C.map(a=>[a.m,a.l]));
 const ORDEM_REL=['setor-control','ctlLanc','ctlCustos','ctlPerdas','ctlPreco','ctlPE','ctlDRE','ctlInd','ctlGiro','ctlImob'];
-const NOTA_REL='Relatório gerencial elaborado com base em informações fornecidas pela administração da Cerâmica Concretiza LTDA, não auditadas. Não substitui as demonstrações contábeis oficiais. Valores indicados como estimados devem ser confirmados.';
+/* nome e CNPJ do cadastro da empresa; "Emitido por <usuário> em <data>" como nos outros relatórios do sistema */
+const notaRel=()=>'Relatório gerencial elaborado com base em informações fornecidas pela administração da '+razaoMostra()+', não auditadas. Não substitui as demonstrações contábeis oficiais. Valores indicados como estimados devem ser confirmados. Emitido por '+(APP.nome||'usuário do sistema')+' em '+fDataHora(agoraIso())+'.';
+function moldeRel(D,meta){
+ D.meta=[['Empresa',razaoMostra()+' · CNPJ '+cnpjMostra()],...meta];D.quadros=[];
+ D.assinaturas=[{nome:razaoMostra(),sub:'CNPJ '+cnpjMostra()+' · Controladoria e Análise'}];
+ D.notaFinal=notaRel();D.paisagem=true;return D}
 function menuPdf(btn,ativa){abrirMenuMais(btn,[{l:'Esta aba',sub:ABA_NOME[ativa]||'',fn:()=>relatorio([ativa],ativa)},{l:'Relatório completo',sub:'todas as abas do mês',fn:()=>relatorio(ORDEM_REL,ativa)}])}
 /* gráficos da aba que está na tela, como imagem (fundo branco), para o PDF: bloco "imagem" do motor de documentos */
 function graficosNaTela(){const out=[];if(!(window.Chart&&Chart.getChart))return out;
@@ -21923,7 +21934,8 @@ function secoesRel(aba,m){
   if(R.doc&&R.doc.obs)out.push({tipo:'p',texto:'Observação do controller: '+R.doc.obs})}
  if(aba==='ctlCustos'){const ks=['lenha','barro','energia','combustivel','insumos','arrend','mod','manut','deprec','cifOutros'];
   S('Composição do custo de produção',{...tR(['Item','Valor','% do custo','Por milheiro bom'],ks.map(k=>[ROT[k],fMoeda(+v[k]||0),R.custoProd?fPct((+v[k]||0)/R.custoProd):'—',fR(dv(+v[k]||0,R.bons))]),[1,2,3]),foot:['Custo de produção',fMoeda(R.custoProd),'100%',fR(R.cpm)]});
-  S('Indicadores de custo e da operação',tR(['Indicador','Valor','Fórmula'],indRows(R,['CVprod','CFprod','cvpm','cfpm','custoTransf','custoPrim','CPV','lenhaMil','modMil','arrendMil','milQueima','prodFunc','idxPerdas'])))}
+  S('Indicadores de custo e da operação',tR(['Indicador','Valor','Fórmula'],indRows(R,['CVprod','CFprod','cvpm','cfpm','custoTransf','custoPrim','CPV','lenhaMil','modMil','arrendMil','milQueima','prodFunc','idxPerdas'])));
+  const cm=mesesCpm(m);S('Custo por milheiro bom, mês a mês',cm.length?tabCpm(cm):null,cm.length?{nota:NOTA_CPM}:{vazio:'Nenhum mês com dados até '+fMes(m)+'.'})}
  if(aba==='ctlPerdas')S('Perdas por etapa',tR(['Indicador','Valor','Fórmula'],indRows(R,['pLenha','pSec','pEnf','pForno','pDes','pTotal','idxPerdas'])),{nota:'Custo estimado das perdas: '+fR(R.custoPerdas)+' (estimativa por cima: o tijolo perdido na secagem ainda não recebeu lenha nem queima).'});
  if(aba==='ctlPreco'){S('Margem e preço do mês',tR(['Indicador','Valor','Fórmula'],indRows(R,['MC','mcMil','IMC','pm','cpm','precoSug','precoRet','freteMil','freteCobrar','precoEnt','custoKm'])));
   S('Preço alvo (média de 3 meses)',tR(['Preço','Valor'],A.n?[['Meses usados',A.meses.map(fMes).join(', ')],['Preço sugerido geral',fR(A.sug)],['Preço de retirada',fR(A.ret)],['Frete a cobrar por milheiro',fR(A.frete)],['Preço de entrega',fR(A.ent2)],['Preço piso',fR(A.piso)],['Preço de equilíbrio',fR(A.eq)],['Preço praticado no período',fR(A.prat)]]:[['Sem base',A.falta]]));
@@ -21944,19 +21956,83 @@ function secoesRel(aba,m){
  return out;
 }
 function relatorio(abas,naTela){
- const m=mesSel();const d=docMes(m);const emp=CFG.empresa||{};const um=abas.length===1;const nomeAba=um?ABA_NOME[abas[0]]||'':'Relatório completo';
+ const m=mesSel();const d=docMes(m);const um=abas.length===1;const nomeAba=um?ABA_NOME[abas[0]]||'':'Relatório completo';
  const D=baseRel('RELATÓRIO DE CONTROLADORIA',nomeAba+' · '+mesLongo(m),[]);
- D.meta=[['Empresa',emp.razao||emp.fantasia||'Cerâmica Concretiza LTDA'],['Aba',nomeAba],['Mês',mesLongo(m)],['Situação',d&&d.fech?'mês fechado em '+fData(d.fech):'PRÉVIA: mês em aberto']];
- D.quadros=[];
+ moldeRel(D,[['Aba',nomeAba],['Mês',mesLongo(m)],['Situação',d&&d.fech?'mês fechado em '+fData(d.fech):'PRÉVIA: mês em aberto']]);
  let n=0;abas.forEach(a=>{secoesRel(a,m).forEach(b=>{if(b.tipo==='secao')b.n=String(++n);D.blocos.push(b)});
   /* os gráficos que estão na tela entram logo depois das tabelas da aba deles */
   if(a===naTela)graficosNaTela().forEach(b=>D.blocos.push(b))});
- D.assinaturas=[{nome:'JB Custos e Gestão – Controladoria e Gestão de Custos',sub:fData(hoje())}];
- D.notaFinal=NOTA_REL;D.rodape='Controladoria · '+fMes(m)+' · gerado em '+fDataHora(agoraIso());D.paisagem=true;
+ D.rodape='Controladoria · '+fMes(m)+' · gerado em '+fDataHora(agoraIso());
  D.arquivo=('Controladoria_'+(um?nomeAba:'completo')+'_'+m).replace(/[^\wÀ-ú-]+/g,'_');
  if(!(d&&d.fech))D.estimativa='Prévia: mês em aberto';
  verDoc(D,{voltar:location.hash||'#/setor-control'});
 }
+
+/* ================= mês a mês: DRE de 12 meses e custo por milheiro (relatórios, 08/11/2026) =================
+   Os números de cada mês são os mesmos da tela (calcMes). Mês sem dados (nada lançado e nada dos
+   setores) e linha que não pôde ser calculada saem como "—": nada é inventado. */
+const mesesAte=(m,n)=>{const [y,mo]=m.split('-').map(Number);const out=[];for(let k=n-1;k>=0;k--){const d=new Date(y,mo-1-k,1);out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'))}return out};
+const temDado=x=>!!docMes(x)||Object.values(calcMes(x).orig).some(o=>o==='setores');
+const fR0=x=>fR(x==null?null:x+0);
+const sitMes=Q=>Q.fechado?'fechado':'em aberto';
+/* planilha Excel com a biblioteca do sistema; sem ela, sai em CSV com aviso (como as outras telas) */
+const csvC=L=>'\ufeff'+L.map(l=>l.map(x=>{const s=typeof x==='number'?String(x).replace('.',','):String(x??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
+async function salvarCsvC(nome,L){const ok=await salvarArquivo(nome+'.csv',new Blob([csvC(L)],{type:'text/csv;charset=utf-8'}));if(ok!==false)toast('CSV gerado.','ok');return ok}
+async function planilhaC(nome,aba,cab,linhas,fmts){
+ const L=[cab,...linhas.map(l=>l.map(x=>x==null||(typeof x==='number'&&!isFinite(x))?'':typeof x==='number'?x+0:x))];
+ if(!window.XLSX&&typeof garantirBibliotecas==='function'){try{await garantirBibliotecas()}catch(e){}}
+ if(!window.XLSX){toast('Biblioteca do Excel não carregou; exportando em CSV.');return salvarCsvC(nome,L)}
+ const ws=XLSX.utils.aoa_to_sheet(L);
+ if(fmts)for(let r=1;r<L.length;r++)L[r].forEach((x,i)=>{const z=fmts[Math.min(i,fmts.length-1)];const cel=ws[XLSX.utils.encode_cell({r,c:i})];if(z&&cel&&cel.t==='n')cel.z=z});
+ ws['!cols']=cab.map((h,i)=>({wch:Math.max(12,Math.min(i?24:46,Math.max(String(h).length,...L.slice(1).map(l=>String(l[i]??'').length))+2))}));
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,aba.slice(0,31));const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});
+ const ok=await salvarArquivo(nome+'.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));if(ok!==false)toast('Planilha Excel gerada.','ok');return ok}
+const ZR='#,##0.00',ZQ='#,##0.0##';
+const r2n=x=>x==null||!isFinite(x)?null:r2(x);
+
+/* ---------- custo por milheiro bom, mês a mês (aba Custos) ---------- */
+const NOTA_CPM='Custo por milheiro bom = custo de produção ÷ milheiros bons do mês (a mesma conta do indicador e da planilha da Controladoria). Só entram os meses com dados. “—”: o custo por milheiro não pôde ser calculado no mês.';
+function mesesCpm(m){return listaMeses().filter(x=>x<=m&&temDado(x)).reverse().map(calcMes)}
+const tabCpm=cm=>tR(['Mês','Situação','Milheiros bons','Custo de produção','Custo por milheiro bom'],cm.map(Q=>[fMes(Q.m),sitMes(Q),fMil(Q.bons),fR0(Q.custoProd),Q.cpm==null?'— ('+(Q.falta.cpm||'faltam dados')+')':fR0(Q.cpm)]),[2,3,4]);
+function docCpm(m){
+ const cm=mesesCpm(m);const ab=cm.filter(Q=>!Q.fechado).length;
+ const D=moldeRel(baseRel('RELATÓRIO DE CONTROLADORIA','Custo por milheiro mês a mês · até '+fMes(m),[]),[['Aba','Custos'],['Período',cm.length?mesLongo(cm[cm.length-1].m)+' a '+mesLongo(cm[0].m):'até '+mesLongo(m)],['Situação',ab?'PRÉVIA: '+ab+' mês(es) em aberto':'meses fechados']]);
+ D.blocos.push({tipo:'secao',n:'1',titulo:'Custo por milheiro bom, mês a mês',...(cm.length?{tabela:tabCpm(cm),nota:NOTA_CPM}:{vazio:'Nenhum mês com dados até '+fMes(m)+'.'})});
+ D.rodape='Controladoria · custo por milheiro · até '+fMes(m)+' · gerado em '+fDataHora(agoraIso());
+ D.arquivo='Controladoria_custo_por_milheiro_'+m;if(ab)D.estimativa='Prévia: há mês em aberto';
+ return D}
+function excelCpm(m){const cm=mesesCpm(m);
+ return planilhaC('Controladoria_custo_por_milheiro_'+m,'Custo por milheiro',['Mês','Situação','Milheiros bons','Custo de produção (R$)','Custo por milheiro bom (R$)','Observação'],
+  cm.map(Q=>[fMes(Q.m),sitMes(Q),Q.bons==null?null:Math.round(Q.bons*1000)/1000,r2n(Q.custoProd),r2n(Q.cpm),Q.cpm==null?Q.falta.cpm||'faltam dados':'']),[null,null,ZQ,ZR,ZR,null])}
+function menuCpm(btn,m){abrirMenuMais(btn,[{l:'Visualizar',sub:'custo por milheiro de cada mês até '+fMes(m),fn:()=>verDoc(docCpm(m),{voltar:location.hash||'#/ctlCustos'})},
+ {l:'Exportar PDF',sub:'no modelo dos relatórios',fn:()=>emitirPdfDoc(docCpm(m),'PDF gerado.')},{l:'Exportar Excel',sub:'planilha para conferir',fn:()=>excelCpm(m)}])}
+
+/* ---------- DRE mês a mês: os 12 meses até o escolhido e o acumulado do ano ----------
+   Acumulado = soma dos meses do ano (janeiro até o mês escolhido) que têm dados. Se a linha não pôde
+   ser calculada em algum desses meses, o acumulado da linha fica "—" (soma pela metade engana). */
+function dre12(m){
+ const L=listaMeses();const ms=mesesAte(m,12);const ano=m.slice(0,4);
+ const R=ms.map(x=>L.includes(x)&&temDado(x)?calcMes(x):null);
+ const doAno=ms.map((x,i)=>x.slice(0,4)===ano&&R[i]?i:-1).filter(i=>i>=0);
+ const linhas=linhasDRE(calcMes(m)).map((b,j)=>{const vs=R.map(Q=>Q?linhasDRE(Q)[j][1]:null);
+  const acc=doAno.length&&doAno.every(i=>vs[i]!=null&&isFinite(vs[i]))?doAno.reduce((a,i)=>a+vs[i],0):null;return{l:b[0],vs,acc}});
+ const sit=['Situação do mês',...R.map(Q=>Q?sitMes(Q):'sem dados'),doAno.length?doAno.length+' mês(es) com dados':'sem dados'];
+ return{ms,R,ano,doAno,linhas,sit}}
+const notaDre12=X=>'Cada coluna é a DRE por absorção do mês, com as mesmas contas da tela DRE. Acumulado de '+X.ano+': soma de '+(X.doAno.length?fMes(X.ms[X.doAno[0]])+' a '+fMes(X.ms[X.ms.length-1]):'nenhum mês')+', só dos meses com dados; se uma linha não pôde ser calculada em algum desses meses, o acumulado dela fica “—”. “—” no mês: mês sem dados ou linha que não pôde ser calculada. Despesas fixas: administrativas, folha, comerciais e depreciação administrativa. Frota: depreciação, peças, motoristas, IPVA e seguro.';
+/* no PDF, 14 colunas: valores sem o "R$" (o título diz) e o nome da linha sem o detalhe entre parênteses (vai na nota) */
+const fN2=x=>x==null||!isFinite(x)?'—':fNum(x+0,2);
+function docDre12(m){
+ const X=dre12(m);const ini=X.ms[0];const ab=X.R.filter(Q=>Q&&!Q.fechado).length;
+ const D=moldeRel(baseRel('RELATÓRIO DE CONTROLADORIA','DRE de 12 meses · '+fMes(ini)+' a '+fMes(m),[]),[['Aba','DRE'],['Período',mesLongo(ini)+' a '+mesLongo(m)],['Situação',ab?'PRÉVIA: '+ab+' mês(es) em aberto':'meses fechados']]);
+ const head=['Linha',...X.ms.map(fMes),'Acumulado '+X.ano];
+ D.blocos.push({tipo:'secao',n:'1',titulo:'DRE por absorção, mês a mês (R$)',tabela:{head,body:[...X.linhas.map(r=>[r.l.replace(/\s*\([^)]*\)$/,''),...r.vs.map(fN2),fN2(r.acc)]),X.sit],dir:head.map((h,i)=>i).filter(i=>i>0),fonte:fonteTab(head.length)},nota:notaDre12(X)});
+ D.rodape='Controladoria · DRE de 12 meses · '+fMes(ini)+' a '+fMes(m)+' · gerado em '+fDataHora(agoraIso());
+ D.arquivo='Controladoria_DRE_12_meses_'+m;if(ab)D.estimativa='Prévia: há mês em aberto';
+ return D}
+function excelDre12(m){const X=dre12(m);
+ return planilhaC('Controladoria_DRE_12_meses_'+m,'DRE 12 meses',['Linha',...X.ms.map(fMes),'Acumulado '+X.ano],[...X.linhas.map(r=>[r.l,...r.vs.map(r2n),r2n(r.acc)]),X.sit],[null,ZR])}
+function menuDre12(btn,m){const X=mesesAte(m,12);abrirMenuMais(btn,[{l:'Visualizar',sub:fMes(X[0])+' a '+fMes(m)+' e o acumulado de '+m.slice(0,4),fn:()=>verDoc(docDre12(m),{voltar:location.hash||'#/ctlDRE'})},
+ {l:'Exportar PDF',sub:'uma coluna por mês, no modelo dos relatórios',fn:()=>emitirPdfDoc(docDre12(m),'PDF gerado.')},{l:'Exportar Excel',sub:'uma coluna por mês e o acumulado',fn:()=>excelDre12(m)}])}
 
 /* ================= backup: JSON e CSV ================= */
 function montarBackup(){
@@ -21965,13 +22041,17 @@ function montarBackup(){
  return{sistema:'JB Gestão · Setor de Controladoria e Análise',versao:1,exportadoEm:agoraIso(),empresa:(CFG.empresa||{}).razao||'',meses,config:{...((cd&&cd.p)||{})},bens:BENS().map(b=>({id:b.id,nome:b.nome,grupo:b.grupo,valor:b.valor,vida:b.vida,data:b.data,arrendado:!!b.arrendado,obs:b.obs||''}))};
 }
 async function exportarJSON(){const ok=await salvarArquivo('Controladoria_backup_'+hoje()+'.json',new Blob([JSON.stringify(montarBackup(),null,1)],{type:'application/json'}));if(ok!==false)toast('Cópia em JSON gerada.','ok')}
-async function exportarCSV(){
- const L=listaMeses();const ids=['bons','custoProd','cpm','CPV','RL','LB','RO','LL','EBITDA','ml','MC','IMC','PEc','MS','pm','precoSug','precoRet','precoEnt','NCG','CF'];
- const f=x=>x==null||!isFinite(x)?'':String(Math.round(x*10000)/10000).replace('.',',');
- const linhas=[['Mês','Situação',...CAMPOS.map(c=>c.l),...ids.map(id=>IND[id].n)].join(';')];
- L.forEach(m=>{const R=calcMes(m);linhas.push([m,fechado(m)?'fechado':'aberto',...CAMPOS.map(c=>f(R.v[c.k])),...ids.map(id=>f(valInd(R,id)))].map(x=>/[;"\n]/.test(String(x))?'"'+String(x).replace(/"/g,'""')+'"':x).join(';'))});
- const ok=await salvarArquivo('Controladoria_meses_'+hoje()+'.csv',new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8'}));if(ok!==false)toast('CSV gerado.','ok');
-}
+/* números de cada mês (CSV e Excel): percentuais em valor percentual (12,34), com "(%)" no cabeçalho */
+const IDS_PLAN=['bons','custoProd','cpm','CPV','RL','LB','RO','LL','EBITDA','ml','MC','IMC','PEc','MS','pm','precoSug','precoRet','precoEnt','NCG','CF'];
+const ehPctInd=id=>IND[id].fmt===fPct;
+const cabPct=l=>/\(%\)/.test(l)?l:l.replace(/^%\s+(d[aeo]s?\s+)?/i,'').replace(/^./,x=>x.toUpperCase())+' (%)';
+function planMeses(){
+ const nr=(x,d)=>x==null||!isFinite(x)?null:Math.round(x*10**d)/10**d;
+ const cab=['Mês','Situação',...CAMPOS.map(c=>c.t==='pct'?cabPct(c.l):c.l),...IDS_PLAN.map(id=>ehPctInd(id)?cabPct(IND[id].n):IND[id].n)];
+ const linhas=listaMeses().map(m=>{const R=calcMes(m);return[m,fechado(m)?'fechado':'aberto',...CAMPOS.map(c=>nr(R.v[c.k],4)),...IDS_PLAN.map(id=>{const x=valInd(R,id);return ehPctInd(id)?nr(x==null?null:x*100,2):nr(x,4)})]});
+ return{cab,linhas}}
+async function exportarCSV(){const P=planMeses();return salvarCsvC('Controladoria_meses_'+hoje(),[P.cab,...P.linhas])}
+async function exportarXLSX(){const P=planMeses();return planilhaC('Controladoria_meses_'+hoje(),'Meses',P.cab,P.linhas)}
 /* ---------- importação: backup desta tela ou do sistema “Índices” ---------- */
 const ALIAS={estoqueInicial:'estIni',estoqueInicialValor:'estIniValor',maoDeObra:'mod',manutencao:'manut',depreciacao:'deprec',arrendamento:'arrend',comissao:'comissoes',frete:'fretes'};
 function lerNum(x){if(x===''||x==null)return null;if(typeof x==='number')return isFinite(x)?x:null;const n=lerMoeda(String(x));return n===''||isNaN(n)?null:n}
