@@ -31254,6 +31254,25 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  }
  const ROTULO_CURTO={'Lançamentos do funcionário':'Lançamentos','Cadastro de funcionários':'Funcionários','Todos os afastamentos':'Afastamentos','Advertências e medidas disciplinares':'Advertências','Relação de funcionários':'Relatórios','Programação de férias':'Férias'};
 
+ /* ---------- botão Voltar do cabeçalho: tela anterior; sem anterior, início do setor; no início, lista de setores ---------- */
+ const PILHA_V=[];let rotaV=location.hash,voltandoV=false;
+ function destinoVoltar(){
+  if(PILHA_V.length)return PILHA_V[PILHA_V.length-1];
+  if(lerRota().mod==='setores')return '';
+  const h=location.hash;let ini='';try{ini=emDP()?'#/painel':((abasSetor()[0]||{}).href||'')}catch(e){}
+  return ini&&h!==ini?ini:'#/setores';
+ }
+ function marcarVoltar(){const b=document.querySelector('[data-c3voltar]');if(b)b.hidden=!destinoVoltar()}
+ window.addEventListener('hashchange',()=>{const h=location.hash;
+  if(voltandoV)voltandoV=false;
+  else if(PILHA_V[PILHA_V.length-1]===h)PILHA_V.pop();
+  else if(rotaV&&rotaV!==h){PILHA_V.push(rotaV);if(PILHA_V.length>80)PILHA_V.shift()}
+  rotaV=h;marcarVoltar()});
+ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-c3voltar]');if(!b)return;e.preventDefault();
+  const d=destinoVoltar();if(!d||d===location.hash)return;
+  if(PILHA_V[PILHA_V.length-1]===d){PILHA_V.pop();voltandoV=true}
+  location.hash=d});
+
  /* ---------- barra superior ---------- */
  function w(k,botao,pop,cls=''){return `<div class="c2 c2-w" data-c2="${k}">${botao}<div class="c2-pop ${cls}">${pop}</div></div>`}
  function montarTopo(){
@@ -31265,6 +31284,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const r=lerRota();const dp=emDP();
   const comp=dp?top.querySelector(':scope>.comp'):null;
   const h=`<a class="c2 c2-logo" href="#/setores" aria-label="Seleção de setores">${logoHtml()}</a>
+  <button type="button" class="c2 c2-tb c3-voltar" data-c3voltar data-tip2="Voltar para a tela anterior" aria-label="Voltar para a tela anterior">${ic('esquerda')}<span>Voltar</span></button>
   ${w('setor',`<button type="button" class="c2-setor" aria-haspopup="true"><span class="c2-sic" id="c2sic"></span><span class="c2-stx"><b id="c2snome"></b><small>${esc(nomeEmpresa())}</small></span>${ic('c2baixo')}</button>`,'<div id="c2setores"></div>','esq c2-pop-setor')}
   <span class="c2 c2-sep"></span>
   ${w('funcoes',`<button type="button" class="c2-tb c3-rot" data-tip2="Todas as telas do setor" aria-label="Módulos do setor">${ic('c2grade')}<span>Módulos</span></button>`,'<div id="c2mega"></div>','esq c2-mega')}
@@ -31373,7 +31393,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const chave=[dp,st.nome,lerRota().mod,location.hash,itens.map(x=>x.href+(x.on?'*':'')+x.qt).join('|'),grupos.length].join('§');
   injetarAcesso(dp,itens,grupos);
   if(!forcar&&chave===C2.chave)return;C2.chave=chave;
-  Object.assign(C2,{dp,itens,grupos,nome:st.nome,ic:st.ic});
+  Object.assign(C2,{dp,itens,grupos,nome:st.nome,ic:st.ic});marcarVoltar();
   $('#c2snome').textContent=st.nome;$('#c2sic').innerHTML=ic(st.ic);
   /* trocar de setor */
   const vis=(typeof SETORES!=='undefined'?SETORES:[]).filter(s=>{try{return !s.v||s.v()}catch(e){return false}});
@@ -35728,6 +35748,12 @@ html[data-jbtema-modo="escuro"].casca2 .c2-tile.pri .c2-ti{color:#fff}
 @media (min-width:1441px){html.casca2 .c2-pop-busca .busca input{padding-right:68px}}
 @media (max-width:640px){html.c2-m1.casca2 .c2-favs{flex:1 1 100%}}
 @media print{#c3abas{display:none!important}}
+html.casca2 .c2-tb.c3-voltar{padding:0 11px 0 7px;font-size:13px;font-weight:600;flex:none;gap:4px}
+html.casca2 .c2-tb.c3-voltar svg{width:18px;height:18px}
+html.casca2 .c2-tb.c3-voltar[hidden]{display:none}
+@media (max-width:640px){html.casca2 .c2-tb.c3-voltar{padding:0;width:34px}html.casca2 .c2-tb.c3-voltar span{display:none}}
+@media (max-width:480px){html.casca2 .c2-tb.c3-voltar{width:30px;min-width:30px}html.casca2 body.c2-tem-mob #top>[data-c2=funcoes]>.c2-tb{display:none}html.casca2 body.c2-tem-mob #top>[data-c2=funcoes]+.c2-trilha{display:none}}
+@media print{.c3-voltar{display:none!important}}
 </style>
 </body>
 </html>
