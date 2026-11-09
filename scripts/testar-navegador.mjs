@@ -94,6 +94,19 @@ try {
   const noBanco = await page.evaluate(() => { const d = window.__srv.estado.docs.get('funcionarios/teste-nav-1'); return d && d.dados.nome; });
   ok(noBanco === 'Cadastro pelo Navegador', 'cadastro feito no sistema chegou ao banco central');
 
+  // compra lançada depois da chegada: vencimento antes da data avisa, mas não trava
+  const venc = await page.evaluate(() => {
+    const MSG = 'O vencimento não pode ser antes da data.';
+    const conferir = (O, extra) => conferirOpV(O, { ...novoRascunhoV(O, 'lenha'), condicao: 'A prazo', data: '2026-01-09', vencimento: '2026-01-07', ...extra });
+    const compra = conferir(OP.compra);
+    const venda = conferir(OP.venda);
+    const correta = conferir(OP.compra, { vencimento: '2026-02-09' });
+    return { travaCompra: compra.erros.includes(MSG), avisoCompra: compra.avisos.some((x) => /está antes da data da compra/.test(x)), travaVenda: venda.erros.includes(MSG), avisoCorreta: correta.avisos.some((x) => /está antes da data da compra/.test(x)) };
+  });
+  ok(!venc.travaCompra && venc.avisoCompra, 'compra com vencimento antes da data é aceita, com aviso');
+  ok(venc.travaVenda, 'venda com vencimento antes da data continua travada');
+  ok(!venc.avisoCorreta, 'compra com vencimento depois da data não mostra aviso');
+
   // alteração feita "na nuvem"
   await page.evaluate(() => window.__srv.estado.gravarDireto('funcionarios', 'teste-nav-2', { id: 'teste-nav-2', nome: 'Cadastrado na Nuvem', situacao: 'Ativo', departamento: 'Produção' }));
   // a ponte busca mudanças a cada 30 s com alguém usando a página
