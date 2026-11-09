@@ -12258,12 +12258,14 @@ function inicioConsumoV(c,s){
  const blocoEnt=cb?`<div class="bloco"><h3>Combustível para entrega / Despesas<a href="#/combEntrega">Ver todos</a>${podeEnt?'<a href="javascript:void 0" class="jb-ent-novo">Lançar</a>':''}</h3>
   <p class="ajuda" style="margin:0 0 8px;padding:0 18px">Abastecimento fora, no posto da cidade. Despesa de entrega, não entra no custo da produção.<br>Hoje <b>${fMoeda(soma(entDia,t=>t.valor))}</b> · em ${esc(fMes(m))} <b>${fMoeda(soma(entMes,t=>t.valor))}</b> (${entMes.length} lançamento(s))</p>
   ${lstV(ent.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||(+b.numero||0)-(+a.numero||0)).slice(0,6).map(t=>({href:'#/fTitulos/'+t.id,ic:'bomba',t:t.motorista||t.beneficiarioNome||'—',s:fData(t.data)+(t.descricao?' · '+t.descricao:''),v:fMoeda(+t.valor||0)})),'Nenhum abastecimento de entrega lançado.')}</div>`:'';
+ /* Pedido do Jeferson (08/11/2026): o estoque real de cada bomba (S10, S500), um por linha, e não a soma dos dois */
+ const estBomba=cb?N.prods.filter(p=>!p.tipoItem||p.tipoItem==='Combustível').map(p=>`<span style="display:block">${esc(String(p.nome||'').replace(/^Diesel\s+/i,''))} ${esc(fQtd(saldoP(p.id)))} ${esc(p.unidade||'L')}</span>`).join(''):'';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
   <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${cb&&pode('fTitulos','e')?`<a class="btn jb-ent-novo" href="javascript:void 0">${ic('mais')}Combustível para entrega</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
   ${semProd||semLocal?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?`Cadastre ${cb?'os combustíveis (diesel, gasolina…)':'os tipos de lenha'}, ${cb?'os veículos e máquinas':'os fornos e locais de consumo'} e os fornecedores; depois registre a primeira compra e os ${cb?'abastecimentos':'consumos'}. `:'Peça ao gerente ou ao estoquista para fazer os cadastros. '}Nenhum número abaixo é inventado.</span></div>`:''}
   ${JB_MES.barra(s)}
   <div class="hero">
-   ${kpiV('c3','caixa','Estoque atual',txtUnid(porUnidade(N.prods,p=>saldoP(p.id),p=>p.unidade),1),N.alerta.length?N.alerta.length+' item(ns) abaixo do mínimo ou zerado(s)':'valor '+fMoeda(N.valorEst),'#/estoque')}
+   ${kpiV('c3','caixa','Estoque atual',estBomba||txtUnid(porUnidade(N.prods,p=>saldoP(p.id),p=>p.unidade),1),N.alerta.length?N.alerta.length+' item(ns) abaixo do mínimo ou zerado(s)':'valor '+fMoeda(N.valorEst),'#/estoque')}
    ${kpiV('c1','chama',cb?'Abastecido hoje':'Consumo hoje',txtUnid(porUnidade(csDia,x=>x.quantidade,x=>x.unidade),1),csDia.length+' lançamento(s)','#/consumos')}
    ${kpiV('c4','moeda',(cb?'Abastecido em ':'Consumo em ')+fMes(m),txtUnid(porUnidade(csMes,x=>x.quantidade,x=>x.unidade),1),'custo estimado '+fMoeda(soma(csMes,x=>x.custoTotal)),'#/consumos')}
    ${kpiV('c2','carrinho','Compras em '+fMes(m),fMoeda(soma(N.mes,v=>v.total)),N.mes.length+' compra(s)','#/compras')}
@@ -35717,9 +35719,9 @@ html.casca2 .cc-faixa .cc-kpi.fin small,html.casca2 .cc-faixa .cc-kpi em.cai{col
 html.casca2 .cc-faixa-comp small{color:var(--brasa,#D3121C)}
 html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest,html.c2-m2.casca2 .sv-corpo .hero .kpi{background:var(--branco)!important;color:var(--tinta);box-shadow:var(--pn-sh)!important;border:1px solid var(--linha)!important}
 html.c2-m2.casca2 .sv-corpo .hero .kpi:hover{background:var(--linha2)!important}
-html.casca2 .sv-corpo .hero>.kpi.c2-kdest .ic{background:var(--brasa,#D3121C)!important}
-html.casca2 .sv-corpo .hero>.kpi.c2-kdest .l,html.casca2 .sv-corpo .hero>.kpi.c2-kdest .delta,html.casca2 .sv-corpo .hero>.kpi.c2-kdest .delta b,html.c2-m2.casca2 .sv-corpo .hero .kpi .l,html.c2-m2.casca2 .sv-corpo .hero .kpi .delta{color:var(--suave)!important}
-html.casca2 .sv-corpo .hero>.kpi.c2-kdest .v,html.c2-m2.casca2 .sv-corpo .hero .kpi .v{color:var(--tinta)!important}
+html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest .ic{background:var(--brasa,#D3121C)!important}
+html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest .l,html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest .delta,html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest .delta b,html.c2-m2.casca2 .sv-corpo .hero .kpi .l,html.c2-m2.casca2 .sv-corpo .hero .kpi .delta{color:var(--suave)!important}
+html.casca2:not(.c2-m2) .sv-corpo .hero>.kpi.c2-kdest .v,html.c2-m2.casca2 .sv-corpo .hero .kpi .v{color:var(--tinta)!important}
 html.casca2 .pp-hero{background:var(--branco);border-color:var(--linha);color:var(--tinta);box-shadow:var(--pn-sh)}
 html.casca2 .pp-hero .pp-ki{background:var(--brasa,#D3121C)}
 html.casca2 .pp-hero .pp-kl,html.casca2 .pp-hero .pp-kv small,html.casca2 .pp-hero .pp-ks,html.casca2 .pp-hero .pp-sparkl,html.casca2 .pp-hero .pp-progl,html.casca2 .pp-hero .pp-mini span{color:var(--suave)}
