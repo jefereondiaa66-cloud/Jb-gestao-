@@ -31356,9 +31356,12 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  function secaoModeloConfig(el){if(!el||el.querySelector('#c2ModCfg')||!podeTemaPadrao())return;
   const ref=[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
   const n=document.createElement('fieldset');n.className='sec';n.id='c2ModCfg';const at=modelo();
-  n.innerHTML=`<legend>Modelo de tela</legend><details ${modCfgAberto?'open':''}><summary style="cursor:pointer;font-size:13.5px">Em uso: <b>${esc(MODELOS[at].n)}</b>. Só você vê esta opção.</summary><p style="margin:8px 0;color:var(--suave);font-size:13px">O modelo escolhido vale para todos os usuários e fica fixo até você trocar aqui.</p><div class="inline" style="flex-wrap:wrap;gap:8px">${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="btn ${k===at?'pri':''}" data-c2mcfg="${k}" title="${esc(o.d)}">${esc(o.n)}</button>`).join('')}</div></details>`;
+  n.innerHTML=`<legend>Modelo de tela</legend><details ${modCfgAberto?'open':''}><summary style="cursor:pointer;font-size:13.5px">Em uso: <b>${esc(MODELOS[at].n)}</b>. Só você vê esta opção.</summary><p style="margin:8px 0;color:var(--suave);font-size:13px">O modelo escolhido vale para todos os usuários e fica fixo até você trocar aqui.</p><div class="inline" style="flex-wrap:wrap;gap:8px">${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="btn ${k===at?'pri':''}" data-c2mcfg="${k}" title="${esc(o.d)}">${esc(o.n)}</button>`).join('')}</div></details><label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:13.5px;cursor:pointer"><input type="checkbox" id="c3AbasCfg" style="margin-top:3px" ${CFG&&CFG.abasTopo===true?'checked':''}><span>Mostrar a barra de telas abaixo do cabeçalho nos setores (Início, Novo, listas…). O Setor Pessoal não muda. Desligada, as telas ficam em Módulos e nos atalhos. Vale para todos os usuários.</span></label>`;
   if(ref)ref.after(n);else el.appendChild(n);
   n.querySelector('details').ontoggle=e=>{modCfgAberto=e.target.open};
+  const ab=n.querySelector('#c3AbasCfg');ab.onchange=async e=>{e.stopPropagation();const v=ab.checked;
+   try{await salvarCfg({...clone(CFG),abasTopo:v});CFG.abasTopo=v;try{if(RASC)RASC.abasTopo=v}catch(x){}C2.chave='';renderCasca();toast(v?'Barra de telas ligada.':'Barra de telas oculta.','ok')}
+   catch(err){ab.checked=!v;toast('Não foi possível salvar: '+(typeof motivoErro==='function'?motivoErro(err):'erro')+'.','erro')}};
   n.querySelectorAll('[data-c2mcfg]').forEach(b=>b.onclick=()=>{if(b.dataset.c2mcfg!==modelo())definirModelo(b.dataset.c2mcfg)})}
  const ligarApMod0=ligarAparencia;ligarAparencia=function(el){ligarApMod0.apply(this,arguments);try{secaoModeloConfig(el)}catch(e){console.warn('modelo de tela · configurações',e)}};
 
@@ -31423,7 +31426,8 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const top=document.getElementById('top');if(!top||!top.parentNode)return;
   let n=document.getElementById('c3abas');
   if(!n){n=document.createElement('nav');n.id='c3abas';n.setAttribute('aria-label','Telas do setor');top.insertAdjacentElement('afterend',n)}
-  const tem=!dp&&itens.length>1;document.body.classList.toggle('c3-tem-abas',tem);
+  /* oculta por padrão em todos os setores, menos o Pessoal, que tem barra própria (o Módulos e os atalhos já levam às mesmas telas); o dono religa em Configurações */
+  const tem=!dp&&itens.length>1&&!!(CFG&&CFG.abasTopo===true);document.body.classList.toggle('c3-tem-abas',tem);
   n.innerHTML=tem?itens.map(x=>`<a href="${esc(x.href)}" class="${x.on?'on':''}"${x.on?' aria-current="page"':''}>${x.svg}<span>${esc(x.l)}</span>${x.qt?`<em>${esc(x.qt)}</em>`:''}</a>`).join(''):'';
   const at=n.querySelector('a.on');if(at&&n.scrollWidth>n.clientWidth)n.scrollLeft=Math.max(0,at.offsetLeft-n.clientWidth/2+at.offsetWidth/2);
  }
