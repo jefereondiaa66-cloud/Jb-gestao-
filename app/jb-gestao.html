@@ -18963,11 +18963,11 @@ H.TIPO.almResp='responsavel';H.TIPO.palResp='responsavel';
 const AV=['admin','gerente','estoquista','financeiro'],AE=['admin','gerente','estoquista'];
 const PV=['admin','gerente','vendedor','estoquista','financeiro'],PE=['admin','gerente','vendedor','estoquista'],PC=['admin','gerente','estoquista'];
 Object.assign(PERM,{'setor-almox':{v:AV,e:[]},almItens:{v:AV,e:AE},almFornecedores:{v:AV,e:AE},almEntradas:{v:AV,e:AE},almEntrada:{v:AV,e:AE},almPagamentos:{v:AV,e:[]},
- almSaidas:{v:AV,e:AE},almSaida:{v:AV,e:AE},almDevolucoes:{v:AV,e:AE},almAjustes:{v:AV,e:AE},almEpis:{v:AV,e:AE},almEmprestimos:{v:AV,e:AE},almInventarios:{v:AV,e:AE},almInv:{v:AV,e:AE},
+ almSaidas:{v:AV,e:AE},almSaida:{v:AV,e:AE},almLancSaida:{v:AV,e:AE},almDevolucoes:{v:AV,e:AE},almAjustes:{v:AV,e:AE},almEpis:{v:AV,e:AE},almEmprestimos:{v:AV,e:AE},almInventarios:{v:AV,e:AE},almInv:{v:AV,e:AE},
  almEstoque:{v:AV,e:[]},almMov:{v:AV,e:[]},almPagar:{v:AV,e:[]},almRel:{v:AV,e:[]},almResp:{v:AV,e:AE},
  'setor-paletes':{v:PV,e:[]},paleteMov:{v:PV,e:PE},paleteTipos:{v:PV,e:['admin','gerente']},paleteConfig:{v:PV,e:['admin','gerente']},paleteCompras:{v:PV,e:PC},
  pagamentosPaletes:{v:PV,e:[]},palClientes:{v:PV,e:[]},palEstoque:{v:PV,e:PC},palRel:{v:PV,e:[]},palResp:{v:PV,e:PC}});
-const ROTAS_A=['setor-almox','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp'];
+const ROTAS_A=['setor-almox','almLancSaida','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp'];
 const ROTAS_P=['setor-paletes','paleteConfig','pagamentosPaletes','paleteMov','paleteTipos','paleteCompras','palClientes','palEstoque','palRel','palResp'];
 [...ROTAS_A,...ROTAS_P].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
 window.ROTAS_SETOR_V52={almox:ROTAS_A.slice(),paletes:ROTAS_P.slice()};
@@ -19290,7 +19290,7 @@ const SETS={
  almox:{nome:'Setor do Almoxarifado / Cozinha',rota:'#/setor-almox',abas:()=>[
   {r:'#/setor-almox',m:'setor-almox',ic:'painel',l:'Início',at:['setor-almox']},
   {r:'#/almEntrada/nova',m:'almEntrada',e:1,ic:'mais',l:'Nova entrada',at:['ent-nova']},
-  {r:'#/almSaida/nova',m:'almSaida',e:1,ic:'saida',l:'Nova requisição',at:['sai-nova']},
+  {r:'#/almLancSaida',m:'almSaida',e:1,ic:'saida',l:'Lançar saída',at:['almLancSaida','sai-nova']},
   {r:'#/almEntradas',m:'almEntradas',ic:'entrada',l:'Entradas',at:['almEntradas','almEntrada']},
   {r:'#/almSaidas',m:'almSaidas',ic:'recibo',l:'Requisições',at:['almSaidas','almSaida']},
   {r:'#/almEstoque',m:'almEstoque',ic:'caixa',l:'Estoque',at:['almEstoque']},
@@ -19333,11 +19333,59 @@ const td=(l,v,num)=>`<td data-l="${esc(l)}"${num?' class="num"':''}>${v}</td>`;
 function exportarMenu(btn,nome,titulo,cols,dados){const fx=f=>exportar(f,nome+'_'+hoje(),cols,dados,titulo);
  abrirMenuMais(btn,[{l:'Visualizar',sub:dados.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}
 
+/* ================= V84 · saídas (requisições para os setores e EPIs entregues) e o dia de hoje (09/11/2026) =================
+   Pedido do Jeferson: lançar as saídas (para os setores e de EPI) num botão só e ver no painel as compras e as
+   saídas de hoje, com a lista ao tocar. Saída = requisição (custo médio da requisição) + EPI entregue
+   (quantidade × custo médio atual do item). Nada muda nos dados: só junta o que já existe. */
+const valorEpi=x=>r2((+x.qtd||0)*estI(x.itemId).cm);
+const quandoR=r=>String(r.criadoEm||r.lancadoEm||r.createdAt||'');
+function saidasDe(pred){
+ const rq=DATA.almSaidas.filter(s=>!s.cancelado&&pred(String(s.data||''))).map(s=>({k:'req',r:s,v:valorSaida(s),href:'#/almSaida/'+s.id,ic:'saida',cls:'a-at',
+  t:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||'Setor'),s:[fData(s.data),(s.itens||[]).length+' item(ns)',s.solicitante?'pediu: '+s.solicitante:'',s.finalidade||''].filter(Boolean).join(' · ')}));
+ const ep=DATA.almEpis.filter(x=>!x.cancelado&&pred(String(x.data||''))).map(x=>{const i=ITEM(x.itemId);return{k:'epi',r:x,v:valorEpi(x),href:'#/almEpis/'+x.id,ic:'escudo',cls:'a-ok',
+  t:'EPI · '+(nomeF(x.funcId)||'—'),s:[fData(x.data),fQtd(x.qtd)+' '+un((i||{}).unidade)+' de '+nomeItem(i),x.motivo||''].filter(Boolean).join(' · ')}});
+ return [...rq,...ep].sort((a,b)=>String(b.r.data||'').localeCompare(String(a.r.data||''))||quandoR(b.r).localeCompare(quandoR(a.r)))}
+const comprasDia=d=>DATA.almEntradas.filter(e=>e.data===d&&!e.cancelado).sort((a,b)=>quandoR(b).localeCompare(quandoR(a)));
+function contaSaidas(L){const nr=L.filter(x=>x.k==='req').length,ne=L.length-nr;
+ return [nr?nr+(nr===1?' requisição':' requisições'):'',ne?ne+(ne===1?' EPI':' EPIs'):''].filter(Boolean).join(' · ')}
+/* lista do dia por cima da tela (toque no número) */
+function abrirHojeAlm(tipo){
+ const h=hoje();const comp=tipo==='compras';
+ const L=comp?comprasDia(h).map(e=>{const f=finDe(e);return{href:'#/almEntrada/'+e.id,ic:'entrada',cls:f.st==='Pago'?'a-ok':f.st==='Vencido'?'a-pe':'a-at',t:nomeFornA(e.fornecedorId),
+   s:[e.nota?'nota '+e.nota:'',(e.itens||[]).length+' item(ns)',formaTxt(e)].filter(Boolean).join(' · '),v:fMoeda(e.total)}}):saidasDe(d=>d===h).map(x=>({...x,v:fMoeda(x.v)}));
+ const tot=comp?soma(comprasDia(h),e=>e.total):soma(saidasDe(d=>d===h),x=>x.v);
+ const sub=comp?(L.length?L.length+(L.length===1?' compra':' compras'):'nenhuma compra'):(L.length?contaSaidas(saidasDe(d=>d===h)):'nenhuma saída');
+ const acao=comp?(pode('almEntrada','e')?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''):(pode('almSaida','e')?`<a class="btn pri" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:'');
+ const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ v.innerHTML=`<div class="modal alh-modal" role="dialog" aria-modal="true" aria-labelledby="alhT">
+  <div class="alh-cab"><div><h3 id="alhT">${comp?'Compras de hoje':'Saídas de hoje'}</h3><span>${esc(fData(h))}${comp?'':' · valor pelo custo médio'}</span></div><button type="button" class="alh-x" data-x aria-label="Fechar">${ic('fechar')}</button></div>
+  <div class="alh-tot"><b>${esc(fMoeda(tot))}</b><span>${esc(sub)}</span></div>
+  <div class="alh-lst">${lstV(L,comp?'Nenhuma compra lançada hoje.':'Nenhuma saída lançada hoje.')}</div>
+  <div class="acoes"><a class="btn" href="${comp?'#/almEntradas':'#/almSaidas'}">${comp?'Todas as entradas':'Todas as requisições'}</a>${acao}</div></div>`;
+ const fechar=()=>{document.removeEventListener('keydown',esc_);if(typeof animarSaida==='function')animarSaida(v);else v.remove()};
+ const esc_=e=>{if(e.key==='Escape')fechar()};
+ v.addEventListener('click',e=>{if(e.target===v||e.target.closest('[data-x]')||e.target.closest('a[href]'))fechar()});
+ document.addEventListener('keydown',esc_);document.body.appendChild(v);
+ const x=v.querySelector('[data-x]');if(x)x.focus();
+}
+/* tela "Lançar saída": escolher entre saída para um setor (requisição) e saída de EPI (entrega a funcionário) */
+function telaLancSaida(c){
+ const h=hoje();const L=saidasDe(d=>d===h);const ePI=DATA.almItens.filter(i=>ativo(i)&&i.categoria==='EPI'&&estI(i.id).disp>0).length;
+ const opc=(href,ico,t,d,sub,cls)=>`<a class="als-op ${cls||''}" href="${href}"><span class="als-ic">${ic(ico)}</span><span class="als-tx"><b>${esc(t)}</b><span>${esc(d)}</span>${sub?`<small>${esc(sub)}</small>`:''}</span><span class="als-ir">${ic('direita')}</span></a>`;
+ c.innerHTML=cab('saida','Lançar saída','O que saiu do almoxarifado. Escolha o tipo: o estoque baixa na hora, pelo custo médio.',`<a class="btn" href="#/setor-almox">${ic('esquerda')}Voltar</a>`)+
+  `<div class="als-ops">
+   ${opc('#/almSaida/nova','saida','Saída para um setor','Peças, material, limpeza, cozinha e escritório para Produção, Manutenção, Fornos, Cozinha e os demais setores, ou para uma máquina.','Gera a requisição numerada para assinar.','')}
+   ${opc('#/almEpis/novo','escudo','Saída de EPI','Luva, bota, óculos, protetor e os demais EPIs entregues a um funcionário, com o número do CA.',ePI?ePI+(ePI===1?' EPI com saldo':' EPIs com saldo'):'Nenhum EPI com saldo: lance a entrada antes.','als-epi')}
+  </div>
+  <div class="bloco als-hoje"><h3>Saídas de hoje · ${esc(fMoeda(soma(L,x=>x.v)))}<a href="#/almSaidas">Ver requisições</a></h3>${lstV(L.map(x=>({...x,v:fMoeda(x.v)})),'Nenhuma saída lançada hoje.')}</div>`;
+}
+
 /* ================= almoxarifado: início ================= */
 function inicioAlm(c){
  const h=hoje(),m=JB_MES.de('almox');const its=DATA.almItens;const at=its.filter(ativo);
  const comSaldo=at.filter(i=>estI(i.id).saldo>0);const valor=r2(soma(at,i=>estI(i.id).valor));const ab=abaixoMin();
- const entM=DATA.almEntradas.filter(e=>String(e.data||'').startsWith(m));const saiM=DATA.almSaidas.filter(s=>String(s.data||'').startsWith(m));
+ const entM=DATA.almEntradas.filter(e=>String(e.data||'').startsWith(m));const saiM=saidasDe(d=>d.startsWith(m));
+ const entH=comprasDia(h),saiH=saidasDe(d=>d===h);
  const fs=DATA.almEntradas.map(e=>({e,f:finDe(e)}));const aberto=fs.filter(x=>x.f.saldo>0.004);const venc=aberto.filter(x=>x.f.st==='Vencido');
  const emp=DATA.almEmprestimos.filter(x=>!x.devData);const atr=emp.filter(x=>x.previsao&&x.previsao<h);
  const coz=r2(soma(entM,e=>soma(fretesDe(e).filter(x=>(ITEM(x.l.itemId)||{}).categoria==='Cozinha'),x=>x.v+x.fr)));
@@ -19345,7 +19393,7 @@ function inicioAlm(c){
  const k=(cls,ico,rot,val,sub,href)=>kpiV(cls,ico,rot,val,sub,href);
  const ed=pode('almEntrada','e');
  c.innerHTML=cab('cozinha','Setor do Almoxarifado / Cozinha','Peças, EPIs, ferramentas, material de produção, cozinha, limpeza e escritório: o que entrou, o que saiu, para onde foi e quanto vale o estoque.',
-  `${pode('almSaida','e')?`<a class="btn" href="#/almSaida/nova">${ic('saida')}Nova requisição</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
+  `${pode('almSaida','e')?`<a class="btn" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
   `${!its.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os itens e os fornecedores e lance a primeira entrada. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   ${ab.length?`<div class="jb-aviso-auto aviso pe" style="margin-bottom:10px"><span><b>${ab.length} item(ns) abaixo do estoque mínimo:</b> ${esc(ab.slice(0,6).map(i=>i.nome+' ('+fQtd(estI(i.id).saldo)+' de '+fQtd(i.minimo)+' '+un(i.unidade)+')').join('; '))}${ab.length>6?'…':''}. <a href="#/almEstoque" data-fab>Ver no estoque</a></span></div>`:''}
   ${atr.length?`<div class="jb-aviso-auto aviso at" style="margin-bottom:10px"><span><b>${atr.length} ferramenta(s) com devolução atrasada:</b> ${esc(atr.slice(0,5).map(x=>nomeItem(ITEM(x.itemId))+' com '+(nomeF(x.funcId)||'—')+' desde '+fData(x.data)).join('; '))}. <a href="#/almEmprestimos">Ver empréstimos</a></span></div>`:''}
@@ -19353,9 +19401,11 @@ function inicioAlm(c){
   ${invAb.length?`<div class="aviso in" style="margin-bottom:10px"><span>Há ${invAb.length} inventário(s) em aberto. <a href="#/almInv/${esc(invAb[0].id)}">Continuar a contagem</a></span></div>`:''}
   ${JB_MES.barra('almox')}
   <div class="hero almp-hero">
+   ${k('c1','carrinho','Compras de hoje',fMoeda(soma(entH,e=>e.total)),entH.length?entH.length+(entH.length===1?' compra · toque para ver':' compras · toque para ver'):'nenhuma compra hoje','javascript:void 0').replace('<a class="kpi','<a data-almhoje="compras" class="kpi')}
+   ${k('c4','saida','Saídas de hoje',fMoeda(soma(saiH,x=>x.v)),saiH.length?contaSaidas(saiH)+' · toque para ver':'nenhuma saída hoje','javascript:void 0').replace('<a class="kpi','<a data-almhoje="saidas" class="kpi')}
    ${k('c3','caixa','Valor em estoque',fMoeda(valor),comSaldo.length+' de '+at.length+' item(ns) com saldo','#/almEstoque')}
    ${k('c1','entrada','Entradas em '+fMes(m),fMoeda(soma(entM,e=>e.total)),entM.length+' entrada(s)','#/almEntradas')}
-   ${k('c4','saida','Saídas em '+fMes(m)+' (custo)',fMoeda(soma(saiM,valorSaida)),saiM.length+' requisição(ões)','#/almSaidas')}
+   ${k('c4','saida','Saídas em '+fMes(m)+' (custo)',fMoeda(soma(saiM,x=>x.v)),saiM.length?contaSaidas(saiM):'nenhuma saída','#/almSaidas')}
    ${k('c5','moeda','Contas a pagar',fMoeda(soma(aberto,x=>x.f.saldo)),venc.length?venc.length+' vencida(s)':aberto.length+' em aberto','#/almPagar')}
    ${k(ab.length?'c6':'c2','aviso','Abaixo do mínimo',String(ab.length),ab.length?'repor':'nenhum item','#/almEstoque')}
    ${k('c2','cozinha','Cozinha em '+fMes(m),fMoeda(coz),'compras de alimentos e gás','#/almRel')}
@@ -19371,6 +19421,7 @@ function inicioAlm(c){
    <div class="bloco"><h3>Por categoria</h3>${lstV(CAT_NOMES.map(cn=>{const xs=at.filter(i=>i.categoria===cn);return{href:'#/almEstoque',ic:'livro',t:cn,s:xs.length+' item(ns) · '+xs.filter(i=>estI(i.id).saldo>0).length+' com saldo',v:fMoeda(soma(xs,i=>estI(i.id).valor)),n:xs.length}}).filter(x=>x.n),'Nenhum item cadastrado.')}</div>
   </div>`;
  JB_MES.ligar(c,'almox');
+ $$('[data-almhoje]',c).forEach(b=>b.onclick=e=>{e.preventDefault();abrirHojeAlm(b.dataset.almhoje)});
  const a=$('[data-fab]',c);if(a)a.onclick=e=>{e.preventDefault();UE.sit='Abaixo do mínimo';location.hash='#/almEstoque'};
 }
 
@@ -19403,7 +19454,7 @@ function modalNovoItem(nomeIni,depois){
   const rec=await gravarRegistro('almItens',st,null,true);toast('Item '+rec.codigo+' cadastrado.','ok');if(depois)depois(rec)},
   {depois:v=>{const c=$('#niC',v),o=$('#niCod',v);const at=()=>{o.textContent=c.value?'Código: '+proxCodigo(c.value):''};c.onchange=at;at()}});
 }
-window.ALM_V56={ITEM,estI,un,rotItem,ativo,ehDiversos,itemDiversos,modalNovoItem,nomeFornA,
+window.ALM_V56={ITEM,estI,un,rotItem,valorEpi,saidasDe,ativo,ehDiversos,itemDiversos,modalNovoItem,nomeFornA,
  itensSel:()=>DATA.almItens.filter(i=>ativo(i)).map(i=>({id:i.id,cod:i.codigo||'',nome:String(i.nome||''),un:un(i.unidade),saldo:estI(i.id).saldo}))};
 const numE=x=>x===''||x==null||isNaN(+x)?0:+x;
 function calcE(d){const ls=d.itens.filter(l=>l.itemId&&numE(l.qtd)>0);const sub=r2(soma(ls,l=>numE(l.qtd)*numE(l.preco)));const fr=r2(numE(d.frete));const total=r2(sub+fr);
@@ -20259,7 +20310,7 @@ const naP=(ativa,corpo)=>el=>shellS(el,'paletes',ativa,corpo);
 /* entradas, requisições e inventários têm tela própria: o endereço da lista com número leva para ela */
 const paraTela=(mod,alvo,lista)=>el=>{const r=lerRota();if(r.id){location.replace('#/'+alvo+'/'+(r.id==='novo'?'nova':r.id));return}lista(el)};
 Object.assign(TELAS_V,{
- 'setor-almox':naA('setor-almox',inicioAlm),almEntrada:telaEntrada,almSaida:telaSaida,
+ 'setor-almox':naA('setor-almox',inicioAlm),almEntrada:telaEntrada,almSaida:telaSaida,almLancSaida:naA('almLancSaida',telaLancSaida),
  almEntradas:paraTela('almEntradas','almEntrada',naA('almEntradas',c=>telaLista(c,'almEntradas'))),almSaidas:paraTela('almSaidas','almSaida',naA('almSaidas',c=>telaLista(c,'almSaidas'))),
  almItens:naA('almItens',c=>telaLista(c,'almItens')),almFornecedores:naA('almFornecedores',c=>telaLista(c,'almFornecedores')),
  almAjustes:naA('almAjustes',c=>telaLista(c,'almAjustes')),almEpis:naA('almEpis',c=>telaLista(c,'almEpis')),almEmprestimos:naA('almEmprestimos',c=>telaLista(c,'almEmprestimos')),
@@ -32830,10 +32881,14 @@ parte('almox',d=>{
  const enL=en.map(e=>it(colO('almEntradas','_f',e)||'Fornecedor',juntar(e.nota?'nota '+e.nota:'',(e.itens||[]).length+' item(ns)',e.forma==='prazo'?'a prazo':e.forma==='vista'?'à vista':''),fM(e.total),'#/almEntradas/'+e.id,'entrada'));
  const vS=s=>n(colO('almSaidas','_v',s));
  const saL=sa.map(s=>it(juntar(s.setor,colO('almSaidas','_m',s))||'Requisição',juntar(s.solicitante?'pediu: '+s.solicitante:'',s.finalidade,(s.itens||[]).length+' item(ns)'),fM(vS(s)),'#/almSaida/'+s.id,'saida'));
+ /* V84: EPI entregue também é saída do almoxarifado */
+ const ep=L('almEpis').filter(x=>x.data===d&&!x.cancelado);const vE=x=>{try{return n(window.ALM_V56.valorEpi(x))}catch(e){return 0}};
+ saL.push(...ep.map(x=>it('EPI · '+(colO('almEpis','_f',x)||'funcionário'),juntar(colO('almEpis','_i',x),colO('almEpis','_q',x),x.motivo),fM(vE(x)),'#/almEpis/'+x.id,'escudo')));
+ const totS=sm(sa,vS)+sm(ep,vE);
  return{id:'almox',nome:'Almoxarifado / Cozinha',ic:'cozinha',href:'#/setor-almox',
-  res:[[fM(sm(en,e=>e.total)),'compras recebidas'],[String(en.length),'entrada(s)'],[fM(sm(sa,vS)),'saiu do estoque'],[String(sa.length),'requisição(ões)']],
-  grupos:[{t:'Entradas (compras)',itens:enL,vazio:'Nenhuma entrada neste dia.'},{t:'Requisições (saídas)',itens:saL,vazio:'Nenhuma requisição neste dia.'}],
-  txt:['📦 *Almoxarifado / Cozinha*',...(en.length||sa.length?['Compras recebidas: '+fM(sm(en,e=>e.total))+' ('+en.length+')','Requisições: '+sa.length]:['Nada lançado.'])]};
+  res:[[fM(sm(en,e=>e.total)),'compras recebidas'],[String(en.length),'entrada(s)'],[fM(totS),'saiu do estoque'],[String(sa.length),'requisição(ões)'],...(ep.length?[[String(ep.length),'EPI(s) entregue(s)']]:[])],
+  grupos:[{t:'Entradas (compras)',itens:enL,vazio:'Nenhuma entrada neste dia.'},{t:'Saídas (requisições e EPIs)',itens:saL,vazio:'Nenhuma saída neste dia.'}],
+  txt:['📦 *Almoxarifado / Cozinha*',...(en.length||sa.length||ep.length?['Compras recebidas: '+fM(sm(en,e=>e.total))+' ('+en.length+')','Saídas: '+fM(totS)+' ('+sa.length+' requisição(ões)'+(ep.length?', '+ep.length+' EPI(s)':'')+')']:['Nada lançado.'])]};
 });
 
 parte('paletes',d=>{
@@ -34154,6 +34209,38 @@ window.RESP_REL_V80={ehRelatorio,doDP,opcoes,aplicar,precisa};
 })();
 </script>
 
+<style id="alm-saida-v84-css">
+/* ================= V84 · Almoxarifado: lançar saída e listas do dia ================= */
+.alh-modal{width:min(520px,calc(100vw - 24px));max-height:min(84vh,760px);display:flex;flex-direction:column;padding:0!important;overflow:hidden}
+.alh-cab{display:flex;align-items:flex-start;gap:10px;padding:16px 18px 4px}
+.alh-cab>div{flex:1;min-width:0}
+.alh-cab h3{margin:0;font-size:17px}
+.alh-cab span{display:block;font-size:12.5px;color:var(--suave);margin-top:2px}
+.alh-x{border:0;background:transparent;color:var(--suave);cursor:pointer;padding:6px;border-radius:8px;display:grid;place-items:center}
+.alh-x:hover,.alh-x:focus-visible{background:var(--brasa-bg);color:var(--tinta);outline:none}
+.alh-x svg{width:18px;height:18px}
+.alh-tot{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 18px 12px;border-bottom:1px solid var(--linha2)}
+.alh-tot b{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--tinta)}
+.alh-tot span{font-size:13px;color:var(--suave)}
+.alh-lst{overflow:auto;flex:1;min-height:60px}
+.alh-lst .ex-vazio{padding:28px 18px;text-align:center;color:var(--suave);font-size:13px}
+.alh-modal .acoes{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:12px 18px 16px;border-top:1px solid var(--linha2);margin:0}
+.als-ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:4px 0 18px}
+.als-op{display:flex;align-items:center;gap:14px;padding:20px 18px;border:1px solid var(--linha);border-radius:14px;background:var(--branco);color:var(--tinta);text-decoration:none;transition:border-color .15s,box-shadow .15s,transform .15s}
+.als-op:hover,.als-op:focus-visible{border-color:var(--brasa);box-shadow:0 6px 20px rgba(0,0,0,.08);outline:none;transform:translateY(-1px)}
+.als-ic{flex:none;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--brasa-bg);color:var(--brasa)}
+.als-epi .als-ic{background:rgba(22,128,77,.1);color:#16804D}
+.als-ic svg{width:26px;height:26px}
+.als-tx{flex:1;min-width:0}
+.als-tx b{display:block;font-size:17px;font-weight:700;margin-bottom:3px}
+.als-tx>span{display:block;font-size:13px;line-height:1.4;color:var(--suave)}
+.als-tx small{display:block;font-size:12px;font-weight:600;color:var(--fraco);margin-top:6px}
+.als-ir{flex:none;color:var(--fraco);display:grid;place-items:center}
+.als-ir svg{width:18px;height:18px}
+.als-op:hover .als-ir{color:var(--brasa)}
+.als-hoje h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
+@media (max-width:720px){.als-ops{grid-template-columns:1fr;gap:10px}.als-op{padding:16px 14px}.als-ic{width:46px;height:46px}.als-tx b{font-size:16px}}
+</style>
 <style id="pendencias-v81-css">
 /* ================= V81 · avisos centralizados no botão PENDÊNCIAS ================= */
 .pd-bt{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;margin:0 8px 0 auto;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;opacity:.82;font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1;cursor:pointer;white-space:nowrap;flex:none}
