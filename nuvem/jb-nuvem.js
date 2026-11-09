@@ -301,8 +301,7 @@
       'font:15px Barlow,Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#121318}' +
     '#jbl .c{background:#fff;border:1px solid #E6E8ED;border-radius:22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.55);width:100%;max-width:400px;padding:32px 28px 24px;margin:auto}' +
     '#jbl .m{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin-bottom:22px}' +
-    '#jbl .lg{width:84px;height:84px;border-radius:50%;background:linear-gradient(150deg,#E3232D,#8F0B12) center/cover no-repeat;color:#fff;display:grid;place-items:center;font-weight:700;font-size:22px;box-shadow:0 0 0 3px #D3121C,0 10px 24px -8px rgba(211,18,28,.55)}' +
-    '#jbl .lg.img{background-color:#000;font-size:0}' +
+    '#jbl .lg{width:84px;height:84px;display:block;flex:none}' +
     '#jbl h1{font-family:"Barlow Condensed",Barlow,Inter,sans-serif;font-size:28px;margin:0;font-weight:700;letter-spacing:.02em}#jbl small{color:#4E5260;font-size:14px}' +
     '#jbl label{display:block;font-size:13px;font-weight:600;color:#4E5260;margin:14px 0 6px;letter-spacing:.02em}' +
     '#jbl input{width:100%;box-sizing:border-box;height:50px;padding:0 14px 0 44px;border:1px solid #D7DAE1;border-radius:14px;font:inherit;font-size:16px;color:#121318;background:#F5F6F8 no-repeat 14px 50%/20px}' +
@@ -341,11 +340,9 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function caixa(titulo, sub, campos, botao, rodape) {
     var v = document.getElementById('jbl'); if (v) v.remove();
-    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><span class="lg" aria-hidden="true">JB</span><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
-      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'Cerâmica Concretiza · JB Gestão') + '</div></form></div>');
+    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><img class="lg" src="icone.svg" alt="" width="84" height="84"><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
+      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'Cerâmica Concretiza · JB ERP') + '</div></form></div>');
     (document.body || document.documentElement).appendChild(v);
-    /* logotipo da Concretiza (o mesmo do topo do sistema), quando o programa já o carregou */
-    try { var lgGuardada = ''; try { lgGuardada = (JSON.parse(localStorage.getItem('jb_carrega') || '{}') || {}).img || ''; } catch (e2) {} var lgSrc = /^data:image\//.test(lgGuardada) ? lgGuardada : window.LOGO_CC; if (typeof lgSrc === 'string' && /^data:image\//.test(lgSrc)) { var lg = v.querySelector('.lg'); lg.style.backgroundImage = 'url("' + lgSrc + '")'; lg.classList.add('img'); } } catch (e) {}
     /* olho: mostra e esconde a senha digitada */
     v.addEventListener('click', function (e) {
       var o = e.target.closest && e.target.closest('.olho'); if (!o) return;
@@ -385,7 +382,7 @@
   }
   function tela(aviso, encerrada) {
     if (encerrada) { var s = document.getElementById('jbsair'); if (s) s.remove(); }
-    var v = caixa('JB Gestão', 'Entre com seu usuário e senha', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
+    var v = caixa('JB ERP', 'Entre com seu usuário e senha', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
     var msg = v.querySelector('.msg'); if (aviso) msg.textContent = aviso;
     acordarLogin();
     ['focusin', 'input'].forEach(function (ev) { v.addEventListener(ev, acordarLogin); });
@@ -421,7 +418,7 @@
     });
   }
   function instalar() {
-    var v = caixa('Instalação do JB Gestão', 'Criar o primeiro administrador',
+    var v = caixa('Instalação do JB ERP', 'Criar o primeiro administrador',
       campo('jbic', 'Código de instalação', 'text', 'one-time-code') + campo('jbiu', 'Usuário (ex.: jeferson)', 'text', 'username') +
       campo('jbin', 'Nome completo', 'text', 'name') + campo('jbis', 'Senha (mínimo 8 caracteres)', 'password', 'new-password') + campo('jbir', 'Repita a senha', 'password', 'new-password'), 'Criar administrador');
     var msg = v.querySelector('.msg');

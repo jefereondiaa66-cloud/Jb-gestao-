@@ -528,7 +528,7 @@
   window.JB_CORE_PONTE = Object.freeze({ conectar: conectar, api: api, CFG: CFG });
 })();
 </script>
-<title>JB Gestão</title>
+<title>JB ERP</title>
 <script>/* visual escolhido (Concretiza, Branco e laranja ou JB): aplicado antes de desenhar a tela, para não piscar */try{var vj=localStorage.getItem('jb_visual3');if(vj==='nv')document.documentElement.classList.add('vis-nv');else if(vj!=='jb')document.documentElement.classList.add('vis-cc')}catch(e){document.documentElement.classList.add('vis-cc')}</script>
 <script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.cores)document.documentElement.setAttribute('data-jbcores','');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -5436,7 +5436,7 @@ function ferramentasIA(){
 
 function regrasIA(){
  const emp=(CFG.empresa||{}).fantasia||(CFG.empresa||{}).razao||'a empresa';
- return `Você é a JB Inteligência, assistente de gestão do Setor Pessoal (Departamento Pessoal) do JB Gestão, o sistema da ${emp}. Responda em português do Brasil, direto, sem rodeio e sem saudação.
+ return `Você é a JB Inteligência, assistente de gestão do Setor Pessoal (Departamento Pessoal) do JB ERP, o sistema da ${emp}. Responda em português do Brasil, direto, sem rodeio e sem saudação.
 
 Hoje é ${fData(hoje())}. A competência atual é ${fMes(mesAtual())}.
 Quem está perguntando: ${APP.nome||'usuário'}, perfil ${PAPEIS[APP.papel]||'consulta'}${APP.setorGestor?', restrito ao setor '+APP.setorGestor:''}. Acesso a salários: ${veSensivel()?'sim':'não'}.
@@ -7541,7 +7541,7 @@ const VERSAO='Versão 74 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
- const nome=(CFG.empresa&&(CFG.empresa.fantasia||CFG.empresa.razao))||'JB Gestão';
+ const nome=(CFG.empresa&&(CFG.empresa.fantasia||CFG.empresa.razao))||'JB ERP';
  const ps=nome.replace(/[^A-Za-zÀ-ÿ ]/g,'').split(/\s+/).filter(Boolean);
  /* "JB Gestão de Cerâmica" vira JB; "Cerâmica Concretiza" vira CC */
  const ini=(ps[0]&&ps[0].length<=3?ps[0]:ps.slice(0,2).map(p=>p[0]).join('')).toUpperCase()||'JB';
@@ -8587,7 +8587,7 @@ function execHtml(D,funcs,custo,periodoTxt){
  const semCart=ativos.filter(f=>!temCarteira(f.tipoContratacao)).length;
  const pend=alertasVisiveis();
  const k=(cls,ico,rot,val,delta)=>`<div class="kpi ${cls}"><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div>${delta||''}</div>`;
- const emp=(CFG.empresa&&(CFG.empresa.fantasia||CFG.empresa.razao))||'JB Gestão';
+ const emp=(CFG.empresa&&(CFG.empresa.fantasia||CFG.empresa.razao))||'JB ERP';
 
  /* blocos de lista */
  const ag=agendaPainel();
@@ -11479,7 +11479,7 @@ function acabamento(c){
    Porta de entrada do programa. Cada setor é um cartão gerado desta lista: para
    acrescentar um setor (Financeiro, por exemplo) basta incluir um item aqui e a tela dele.
    O Setor Pessoal é o Departamento Pessoal que já existe, sem nenhuma mudança por dentro. */
-const SPOT_NOME='JB Gestão';
+const SPOT_NOME='JB ERP';
 const SETORES=[
  {id:'dp',nome:'Setor Pessoal',sigla:'DP',ic:'pessoas',rota:'#/painel',v:()=>pode('painel'),
   desc:'Funcionários, ponto, folha de pagamento, férias, contratos e documentos do Departamento Pessoal.'},
@@ -12507,7 +12507,7 @@ function detalheOpV(c,O,v){
     ${venda?'<p class="ajuda" style="margin:8px 17px 14px">WhatsApp e e-mail levam o resumo da venda. Para mandar o PDF, use “Compartilhar” na tela do comprovante.</p>':''}</section>
    <section class="bloco"><h3>${venda?'Documento fiscal':'Nota do fornecedor'}</h3>${kvV([['Situação',`<span class="tag ${COR_V[fs.status]||''}">${esc(fs.status||'Pendente')}</span>`],['Modelo',esc(fs.modelo||'—')],['Número',esc(fs.numero||'—')],['Série',esc(fs.serie||'—')],['Data de emissão',esc(fData(fs.data)||'—')],['Chave de acesso',fs.chave?`<span class="vv-chave">${esc(fs.chave)}</span>`:'—',1],
      ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['PDF / DANFE',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—']])}
-    <p class="ajuda" style="margin:0 17px 10px">${venda?'A NF-e pode ser emitida pelo Setor Fiscal do JB (quando o serviço fiscal está ligado). Se a nota saiu em outro emissor, vincule aqui o número, a chave e os arquivos.':'Guarde aqui os dados e os arquivos da nota que o fornecedor emitiu. O JB Gestão não consulta a SEFAZ.'}</p>
+    <p class="ajuda" style="margin:0 17px 10px">${venda?'A NF-e pode ser emitida pelo Setor Fiscal do JB (quando o serviço fiscal está ligado). Se a nota saiu em outro emissor, vincule aqui o número, a chave e os arquivos.':'Guarde aqui os dados e os arquivos da nota que o fornecedor emitiu. O JB ERP não consulta a SEFAZ.'}</p>
     ${podeFis?`<div class="inline vv-bt"><button type="button" class="btn" id="vvFis">${ic('editar')}${fs.numero||fs.status!=='Pendente'?'Atualizar':'Vincular'} ${venda?'documento fiscal':'nota'}</button></div>`:''}</section>
    <section class="bloco"><h3>Relatórios</h3><p class="vv-tx">Esta ${O.sing} aparece nos relatórios do ${esc(S.nome||'setor')}: ${venda?'vendas, faturamento, produtos vendidos, clientes e contas a receber':'compras, compras por fornecedor, contas a pagar e estoque'}.</p>
     ${pode('relvendas')&&par?`<div class="inline vv-bt"><button type="button" class="btn" id="vvRel">${ic('grafico')}Ver tudo deste ${O.parte}</button></div>`:''}</section>
@@ -12825,7 +12825,7 @@ function movRel(U){const mv=movimentosV(U.setor).filter(x=>noPeriodoV(x.data,U)&
   rows:mv.map(x=>{const p=PROD(x.produtoId)||{};return{data:x.data,hora:x.hora,tipo:x.tipo,produto:p.nome||'',qtd:x.qtd,un:p.unidade||'',antes:x.anterior==null?'':x.anterior,depois:x.atual==null?'':x.atual,motivo:x.motivo,por:nomeUsuario(x.por)}}),total:false,nota:'Período: '+periodoTxtV(U)+'.'}}
 function notasRel(O,U){const vs=opsRelV(O,U,{comCanceladas:true}).sort((a,b)=>(+a.numero||0)-(+b.numero||0));
  return{cols:[{k:'numero',l:O.Sing},{k:'data',l:'Data',t:'data'},{k:'parte',l:O.Parte},{k:'total',l:'Total',t:'moeda'},{k:'status',l:'Situação da nota'},{k:'modelo',l:'Modelo'},{k:'nf',l:'Número / série'},{k:'chave',l:'Chave de acesso'}],
-  rows:vs.map(v=>{const f=v.fiscal||{};return{numero:fNumV(v.numero),data:v.data,parte:parteSnap(v).nome||'',total:v.total,status:(f.status||'Pendente')+(cancV(v)?' · '+O.sing+' cancelada':''),modelo:f.modelo||'',nf:[f.numero,f.serie].filter(Boolean).join(' / '),chave:f.chave||''}}),total:true,nota:'Situação registrada no JB Gestão. O sistema não consulta a SEFAZ.'}}
+  rows:vs.map(v=>{const f=v.fiscal||{};return{numero:fNumV(v.numero),data:v.data,parte:parteSnap(v).nome||'',total:v.total,status:(f.status||'Pendente')+(cancV(v)?' · '+O.sing+' cancelada':''),modelo:f.modelo||'',nf:[f.numero,f.serie].filter(Boolean).join(' / '),chave:f.chave||''}}),total:true,nota:'Situação registrada no JB ERP. O sistema não consulta a SEFAZ.'}}
 const FV=['rapido','periodo'];
 const RELS_V=[
  /* Setor de Vendas */
@@ -14330,7 +14330,7 @@ function relMargem(U,por){por=por||'produto';const xs=vendasFatV(U);const g={};l
  const completo=rows.every(r=>r.st==='Estimado');const margem=completo&&rows.length?round2(soma(rows,r=>r.mc)):null;
  const resumo=completo?'Estimativa sem tributos (dados fiscais de tributo não cadastrados).':'Resultado incompleto: falta o custo de referência de '+[...semCusto].join(', ')+'. Cadastre o custo no produto.';
  return{cols:[{k:'nome',l:por==='cliente'?'Cliente':por==='mes'?'Mês':'Produto'},{k:'rec',l:'Receita de produtos',t:'moeda'},{k:'desc',l:'Descontos e devoluções',t:'moeda'},{k:'frete',l:'Fretes cobrados',t:'moeda'},{k:'trans',l:'Custo de transporte',t:'moeda'},{k:'custo',l:'Custo dos produtos',t:'moeda'},{k:'trib',l:'Tributos'},{k:'mc',l:'Margem de contribuição estimada',t:'moeda'},{k:'st',l:'Situação do cálculo'}],
-  rows,total:true,margem,resumo,nota:'Margem de contribuição ESTIMADA: receita − descontos e devoluções + fretes cobrados − custo de transporte conhecido − custo dos produtos ('+(Object.keys(refCtl).length?'milheiro pelo custo de produção da Controladoria: '+refCtl2(refCtl)+'; o resto pelo custo de referência do cadastro':'custo de referência do cadastro de cada produto')+'). Tributos não entram: o JB Gestão não tem os dados tributários e não inventa percentual. Não é lucro. '+resumo+' '+periodoTxtV(U)+'.'}}
+  rows,total:true,margem,resumo,nota:'Margem de contribuição ESTIMADA: receita − descontos e devoluções + fretes cobrados − custo de transporte conhecido − custo dos produtos ('+(Object.keys(refCtl).length?'milheiro pelo custo de produção da Controladoria: '+refCtl2(refCtl)+'; o resto pelo custo de referência do cadastro':'custo de referência do cadastro de cada produto')+'). Tributos não entram: o JB ERP não tem os dados tributários e não inventa percentual. Não é lucro. '+resumo+' '+periodoTxtV(U)+'.'}}
 function relMetas(U){const ms=DATA.metas.filter(m=>(!U.ini||m.mes>=String(U.ini).slice(0,7))&&(!U.fim||m.mes<=String(U.fim).slice(0,7))).sort((a,b)=>String(b.mes).localeCompare(a.mes));
  return{cols:[{k:'mes',l:'Mês'},{k:'tipo',l:'Tipo'},{k:'quem',l:'Vendedor / produto'},{k:'meta',l:'Meta'},{k:'real',l:'Realizado'},{k:'pct',l:'% atingido'},{k:'falta',l:'Falta'},{k:'proj',l:'Projeção (estimativa)'}],
   rows:ms.map(m=>{const r=realizadoMetaV(m),pj=projecaoMetaV(m);return{mes:mesLongo(m.mes),tipo:m.tipo,quem:[m.vendedorId?nomeUsuario(m.vendedorId):'Equipe',m.produtoId?nomeProduto(PROD(m.produtoId)):'todos os produtos'].join(' · '),meta:fMeta(m,+m.valor),real:fMeta(m,r),pct:fNum(r/m.valor*100,1)+'%',falta:fMeta(m,Math.max(0,m.valor-r)),proj:pj?fMeta(m,pj.valor):'—'}}),total:false,
@@ -14479,13 +14479,13 @@ function pendenciasFiscaisV(v){const e=CFG.empresa||{};const c=CLI(v.clienteId)|
  if(!(c.logradouro||c.endereco)||!c.cidade||!c.uf)out.push('Endereço completo do cliente (rua, número, cidade, UF, CEP)');
  if(!c.cep)out.push('CEP do cliente');
  (v.itens||[]).forEach(i=>{const p=PROD(i.produtoId)||{};if(!p.ncm)out.push('NCM do produto '+i.nome);if(!p.cfop)out.push('CFOP da operação para '+i.nome)});
- out.push('Emissor fiscal autorizado, certificado digital e credenciais da SEFAZ (não integrados ao JB Gestão)');return out}
+ out.push('Emissor fiscal autorizado, certificado digital e credenciais da SEFAZ (não integrados ao JB ERP)');return out}
 function textoEmissorV(v){const e=CFG.empresa||{};const c=CLI(v.clienteId)||{};
  return ['DADOS PARA O EMISSOR FISCAL · pedido nº '+fNumV(v.numero),'Emitente: '+razaoMostra()+' · CNPJ '+cnpjMostra(),'Destinatário: '+nomeCliente(c)+' · '+(docCliente(c)||'sem CPF/CNPJ')+(c.ie?' · IE '+c.ie:''),
   'Endereço: '+[enderecoCli(c),c.cidade,c.uf,c.cep].filter(Boolean).join(' · '),
   ...(v.itens||[]).map(i=>{const p=PROD(i.produtoId)||{};return '• '+i.nome+' · NCM '+(p.ncm||'(falta)')+' · CFOP '+(p.cfop||'(falta)')+' · '+fQtd(i.qtd)+' '+i.unidade+' × '+fMoeda(i.preco)+' = '+fMoeda(i.total)}),
   'Desconto: '+fMoeda(v.desconto||0)+' · Frete: '+fMoeda(v.frete||0)+' · Total: '+fMoeda(v.total),'Pagamento: '+v.forma+' · '+txtPlanoV(v.parcelasPlano||[]),
-  'Tributação: definida pela contabilidade no emissor. O JB Gestão não calcula tributos.'].join('\n')}
+  'Tributação: definida pela contabilidade no emissor. O JB ERP não calcula tributos.'].join('\n')}
 function blocoFiscalPedV(v){const fs=v.fiscal||{status:'Pendente'};const pend=pendenciasFiscaisV(v);
  return `<section class="bloco w2"><h3>Documento fiscal</h3>${kvV([['Situação',`<span class="tag ${COR_V[fs.status]||''}">${esc(fs.status||'Pendente')}</span>`],['Modelo',esc(fs.modelo||'—')],['Número / série',esc([fs.numero,fs.serie].filter(Boolean).join(' / ')||'—')],['Emissão',esc(fData(fs.data)||'—')],['Chave de acesso',fs.chave?`<span class="vv-chave">${esc(fs.chave)}</span>`:'—',1],
    ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['DANFE / PDF',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—']])}
@@ -17584,7 +17584,7 @@ const BREVE={
   objetivo:'Controlar a matéria-prima utilizada pela cerâmica, desde a extração ou aquisição até o transporte, a preparação e o consumo na produção.',
   grupos:[['Possíveis áreas',['Controle de jazidas e origens do barro','Fornecedores e aquisição de matéria-prima','Extração e movimentação','Transporte por caminhões e caçambas','Recebimento e armazenamento','Controle de quantidade, tonelagem e umidade','Perdas e aproveitamento da matéria-prima','Custos de extração, transporte e preparação','Consumo de barro por período e atividade produtiva','Custo por tonelada e por milheiro, quando houver dados suficientes']]],
   integ:[['Produção',1],['Frota',0],['Combustíveis',1],['Compras',1],['Estoque, quando aplicável',1],['Financeiro',1],['Controladoria e Análise',0]],
-  nota:'Combustível e compras já existem no JB Gestão e serão reaproveitados, sem lançar de novo.'},
+  nota:'Combustível e compras já existem no JB ERP e serão reaproveitados, sem lançar de novo.'},
  almox:{id:'almox',nome:'Setor do Almoxarifado / Cozinha',ic:'cozinha',rota:'#/setor-almox',
   desc:'Materiais, suprimentos, entradas e saídas de estoque e, conforme definição futura, as compras e despesas da cozinha.',
   objetivo:'Controlar materiais, suprimentos, entradas e saídas de estoque e, conforme a definição futura, as compras e despesas da cozinha.',
@@ -17610,8 +17610,8 @@ function telaBreve(el,B){
    <p class="spot-boas">${esc(B.objetivo)}</p>
    <div class="aviso in"><span><b>Setor em breve.</b> As funções deste setor serão desenvolvidas depois, quando as regras forem definidas. Por enquanto não há formulário, cadastro, lançamento, cálculo nem relatório aqui, e nada é registrado.</span></div>
    <div class="fi-esc">${B.grupos.map(([t,xs])=>`<section><h3>${esc(t)} (previsto)</h3><ul>${xs.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`).join('')}
-    <section><h3>Integrações previstas</h3><div class="fi-chips">${B.integ.map(([x,ja])=>`<span class="${ja?'tem':''}" title="${ja?'Já existe no JB Gestão':'Ainda não existe no JB Gestão'}">${esc(x)}${ja?' ✓':''}</span>`).join('')}</div>
-     <p class="ajuda" style="margin:10px 0 0">✓ já existe no JB Gestão hoje. ${esc(B.nota)}</p></section></div>
+    <section><h3>Integrações previstas</h3><div class="fi-chips">${B.integ.map(([x,ja])=>`<span class="${ja?'tem':''}" title="${ja?'Já existe no JB ERP':'Ainda não existe no JB ERP'}">${esc(x)}${ja?' ✓':''}</span>`).join('')}</div>
+     <p class="ajuda" style="margin:10px 0 0">✓ já existe no JB ERP hoje. ${esc(B.nota)}</p></section></div>
    <div class="vazio-acoes"><a class="btn pri" href="#/setores">${ic('esquerda')}Voltar aos setores</a></div>
   </div></main></div>`;
 }
@@ -20402,7 +20402,7 @@ function msgSample(e){return({not_granted:'Você precisa permitir que esta pági
 function semMotorTxt(){
  if(window.JB_NUVEM)return 'A leitura por IA não respondeu neste acesso. Recarregue a página e tente de novo.';
  if(APP.modo==='local')return 'A leitura por IA funciona na versão publicada (nuvem ou Claude). Nesta cópia local use a tela "Nova entrada".';
- return 'A conexão com o Claude não está disponível nesta sessão. Abra o JB Gestão pelo aplicativo ou site do Claude, ou pela versão da nuvem.'}
+ return 'A conexão com o Claude não está disponível nesta sessão. Abra o JB ERP pelo aplicativo ou site do Claude, ou pela versão da nuvem.'}
 
 /* ================= o pedido de leitura (o mesmo nos dois caminhos) ================= */
 function promptLeitura(parte,total,texto){
@@ -22515,7 +22515,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
   producao:{ver:'consulta',lancar:'gerente'},financeiro:{ver:'gerente',lancar:'financeiro'},control:{ver:'admin',lancar:'admin'}};
  function jbcSetores(){const L=[{id:'dp',nome:'Setor Pessoal (Departamento Pessoal)',rota:'#/painel',ic:'pessoas'}];
   (typeof SETORES!=='undefined'?SETORES:[]).forEach(s=>{if(s.id!=='dp'&&s.id!=='controle')L.push({id:s.id,nome:s.nome,rota:s.rota,ic:s.ic,breve:!!s.breve})});return L}
- const nomeSetor=id=>id==='geral'?'Código comum do JB Gestão':id==='comercial'?'Vendas, Lenha e Combustível':(jbcSetores().find(s=>s.id===id)||{}).nome||id;
+ const nomeSetor=id=>id==='geral'?'Código comum do JB ERP':id==='comercial'?'Vendas, Lenha e Combustível':(jbcSetores().find(s=>s.id===id)||{}).nome||id;
  let PERM0=null;
  const PB=()=>PERM0||PERM;
  function rotasDe(id){const P=PB();const ks=Object.keys(P);
@@ -22675,7 +22675,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
   const us=listaUsuarios();const at=us.filter(u=>u.estado==='ativo'||u.estado==='dono');const pend=us.filter(u=>u.estado==='pendente');
   const ags=listaAgentes();const set=jbcSetores();const P=pol();const susp=set.filter(s=>P.setoresSuspensos.includes(s.id));const breve=set.filter(s=>s.breve);
   const al=jbcAlertas();const opsH=operacoes(hoje());const b=ultimoBackup();
-  c.innerHTML=cabC('escudo','Controle Central — JB','Administração dos setores, usuários, permissões, agentes de IA e operações do JB Gestão. Os setores continuam como estão; aqui fica o controle.')+caixaComando()+
+  c.innerHTML=cabC('escudo','Controle Central — JB','Administração dos setores, usuários, permissões, agentes de IA e operações do JB ERP. Os setores continuam como estão; aqui fica o controle.')+caixaComando()+
    `<div class="hero">
     ${kpiV('c1','pessoas','Usuários com acesso',String(at.length),pend.length?pend.length+' aguardando liberação':'nenhum pedido pendente','#/jbcusu')}
     ${kpiV('c4','faisca','Agentes de IA ativos',String(ags.filter(a=>a.ativo!==false).length)+' de '+ags.length,ags.some(a=>a.ativo===false)?ags.filter(a=>a.ativo===false).length+' desativado(s)':'todos ativos','#/jbcag')}
@@ -22705,7 +22705,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
     <td class="acs" style="white-space:nowrap">${u.estado==='dono'?'':`${u.estado==='pendente'?`<button class="btn min pri" data-lib="${esc(u.id)}">Liberar</button>`:`<button class="btn min" data-lib="${esc(u.id)}">Perfil</button><button class="btn min" data-con="${esc(u.id)}">Permissões</button>`}
      ${u.estado==='ativo'?`<button class="btn min" data-des="${esc(u.id)}">Desativar</button>`:''}${u.estado==='desativado'||u.estado==='revogado'?`<button class="btn min" data-rea="${esc(u.id)}">Reativar</button>`:''}`}<button class="btn min" data-hist="${esc(u.id)}">Histórico</button></td></tr>`};
   c.innerHTML=cabC('pessoas','Administração de usuários','Os mesmos cadastros do Controle de usuários: nada é duplicado. Perfil, liberação e desativação usam as telas que já existem; aqui você também vê o acesso de cada pessoa por setor e concede ou revoga permissões específicas.',`<a class="btn" href="#/usuarios">${ic('pessoas')}Controle de usuários</a>`)+
-   `<p class="jbc-nota"><b>Consulta</b> = vê; <b>Lança</b> = vê e grava; contorno laranja = concessão do Controle Central. Para criar um usuário: compartilhe o JB Gestão com a pessoa no menu Compartilhar; ela abre o link e aparece aqui para liberar. Dados sensíveis (CPF, salários, advertências, documentos) dependem do compartilhamento: só “Pode editar” lê — essa trava é do servidor.</p>`+
+   `<p class="jbc-nota"><b>Consulta</b> = vê; <b>Lança</b> = vê e grava; contorno laranja = concessão do Controle Central. Para criar um usuário: compartilhe o JB ERP com a pessoa no menu Compartilhar; ela abre o link e aparece aqui para liberar. Dados sensíveis (CPF, salários, advertências, documentos) dependem do compartilhamento: só “Pode editar” lê — essa trava é do servidor.</p>`+
    `<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Pessoa</th><th>Situação</th><th>Perfil</th>${set.map(s=>`<th style="text-align:center">${esc(nomeCurto(s))}</th>`).join('')}<th>Último acesso</th><th></th></tr></thead><tbody>${us.map(linha).join('')}</tbody></table></div>`;
   $$('[data-lib]',c).forEach(b=>b.onclick=()=>modalLiberar(b.dataset.lib));
   $$('[data-des]',c).forEach(b=>b.onclick=async()=>{const nome=nomeAcesso(b.dataset.des);await mudarAcesso(b.dataset.des,'desativar');if((listaUsuarios().find(x=>x.id===b.dataset.des)||{}).estado==='desativado')jbcAud({tipo:'usuario',acao:'desativou o acesso de '+nome,resultado:'feito pela tela de usuários'})});
@@ -22759,7 +22759,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const TXT_SET=ids=>Array.isArray(ids)&&ids.length?ids.map(nomeSetor).join(', '):'nenhum';
  function telaAg(c){
   const ags=listaAgentes();
-  c.innerHTML=cabC('escudo','Agentes de inteligência artificial','Todos os agentes que agem no JB Gestão, com o que cada um pode consultar, elaborar e executar. Nenhum tem acesso total por padrão, e nenhum altera as próprias permissões: só o dono grava aqui (regra do servidor).')+
+  c.innerHTML=cabC('escudo','Agentes de inteligência artificial','Todos os agentes que agem no JB ERP, com o que cada um pode consultar, elaborar e executar. Nenhum tem acesso total por padrão, e nenhum altera as próprias permissões: só o dono grava aqui (regra do servidor).')+
    `<div class="jbc-grade">${ags.map(a=>`<article class="jbc-card${a.ativo===false?' off':''}"><h3>${esc(a.nome)} ${a.ativo===false?tag('Desativado','pe'):tag('Ativo','ok')} ${a.externo?tag('externo',''):''} ${a.salvo?'':tag('padrão','')}</h3>
     <p style="margin:0;font-size:13px;color:var(--suave)">${esc(a.finalidade||'')}</p>
     <dl><dt>Provedor</dt><dd>${esc(a.provedor||'—')}</dd><dt>Integração</dt><dd>${esc(a.integracao||'—')}</dd>
@@ -22775,7 +22775,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
   $$('[data-agh]',c).forEach(b=>b.onclick=()=>{UAUD.agente=b.dataset.agh;UAUD.fonte='';location.hash='#/jbcaud'});
  }
  function modalAgente(id){
-  const a=agente(id);const set=[...jbcSetores().map(s=>[s.id,s.nome]),...(['editor-interno','claude-code'].includes(id)?[['geral','Código comum do JB Gestão']]:[])];
+  const a=agente(id);const set=[...jbcSetores().map(s=>[s.id,s.nome]),...(['editor-interno','claude-code'].includes(id)?[['geral','Código comum do JB ERP']]:[])];
   const edita=['editor-interno','claude-code'].includes(id);const consulta=['jb-inteligencia','central-comandos'].includes(id);
   const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
   v.innerHTML=`<div class="modal jbc-form" role="dialog" aria-modal="true" style="max-width:600px"><h3>${esc(a.nome)}</h3>
@@ -22796,7 +22796,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  function jbcFerramentas(){
   const ag=agente('central-comandos');const pode_=s=>(ag.setoresConsulta||[]).includes(s);
   const T=[];
-  T.push({name:'situacao_setores',description:'Lista os setores do JB Gestão com situação (em funcionamento, suspenso, em breve), quantidade de registros, última operação e usuários com acesso. Use para saber quais setores estão funcionando.',inputSchema:{type:'object',properties:{}},
+  T.push({name:'situacao_setores',description:'Lista os setores do JB ERP com situação (em funcionamento, suspenso, em breve), quantidade de registros, última operação e usuários com acesso. Use para saber quais setores estão funcionando.',inputSchema:{type:'object',properties:{}},
    execute:()=>jbcSetores().filter(s=>pode_(s.id)).map(s=>{const m=monSetor(s.id);return{id:s.id,nome:s.nome,situacao:situacaoSetor(s),registros:m.registros,ultimaOperacao:m.ultima||'nenhuma',operacoes7dias:m.ops7,usuariosComAcesso:usuariosDoSetor(s.id).map(x=>x.nome+' ('+N_TXT[x.n][0]+')')}})});
   T.push({name:'usuarios',description:'Lista os usuários do sistema com situação, perfil, compartilhamento e o acesso efetivo (consulta, lança ou bloqueado) em cada setor. Informe setor para filtrar quem tem acesso a ele (ids: '+TODOS_SET().join(', ')+').',
    inputSchema:{type:'object',properties:{setor:{type:'string'}}},
@@ -22862,7 +22862,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
    await salvarPolitica({concessoes:conc},p.txt+' ('+p.motivo+')',det)}
  }
  function regrasCmd(){
-  return `Você é a Central de comandos do CONTROLE CENTRAL — JB, o painel de administração do JB Gestão (sistema da Cerâmica Concretiza). Quem fala com você é o dono do sistema. Responda em português do Brasil, com palavras simples e direto ao ponto.
+  return `Você é a Central de comandos do CONTROLE CENTRAL — JB, o painel de administração do JB ERP (sistema da Cerâmica Concretiza). Quem fala com você é o dono do sistema. Responda em português do Brasil, com palavras simples e direto ao ponto.
 
 COMO TRABALHAR
 1. Entenda o comando. Use as ferramentas para consultar antes de responder; não invente números, nomes, setores, agentes nem permissões.
@@ -22900,7 +22900,7 @@ FORMATO: comece pela resposta. Use tabela quando listar várias pessoas, setores
    b.disabled=true;try{await executar(p);CMD.pendentes=CMD.pendentes.filter(x=>x.id!==p.id);toast('Feito: '+p.txt+'.','ok');CMD.msgs.push({quem:'ia',txt:'**Executado com a sua confirmação:** '+p.txt+'. Registrado na trilha de auditoria.'});renderTela()}
    catch(e){b.disabled=false;toast(msgErro(e),'erro')}})}
  function telaCmd(c){
-  c.innerHTML=cabC('faisca','Central de comandos','Comandos em linguagem natural para administrar o JB Gestão. Consultas respondem na hora; alterações viram ações pendentes que só você confirma. Tudo fica na trilha de auditoria.',
+  c.innerHTML=cabC('faisca','Central de comandos','Comandos em linguagem natural para administrar o JB ERP. Consultas respondem na hora; alterações viram ações pendentes que só você confirma. Tudo fica na trilha de auditoria.',
    CMD.msgs.length?'<button class="btn" id="jbcLimpa">Limpar conversa</button>':'')+
    (agenteAtivo('central-comandos')?'':'<div class="aviso pe" style="margin-bottom:12px"><span>A Central de comandos está desativada. Reative na aba Agentes.</span></div>')+
    (CMD.erro?`<div class="aviso pe" style="margin-bottom:12px"><span>${esc(CMD.erro)}</span></div>`:'')+
@@ -22920,7 +22920,7 @@ FORMATO: comece pela resposta. Use tabela quando listar várias pessoas, setores
   combustivel:'Financeiro (contas a pagar das compras).',producao:'Setor da Lenha (fornos e lenha lançada).',financeiro:'Setor Pessoal (despesas), Lenha e Combustível (compras).',barro:'Produção (consumo pela maromba), Combustível, Financeiro.',almox:'Planejado: Compras, Estoque, Financeiro.',control:'Planejado: todos os setores.'};
  function telaSet(c){
   const P=pol();const set=jbcSetores();
-  c.innerHTML=cabC('caixa','Cadastro e gestão de setores','Os setores que já existem no JB Gestão, reconhecidos sem duplicar módulo. Suspender tira o acesso das pessoas (o dono continua entrando); nenhum dado é apagado e nenhuma função é desinstalada.')+
+  c.innerHTML=cabC('caixa','Cadastro e gestão de setores','Os setores que já existem no JB ERP, reconhecidos sem duplicar módulo. Suspender tira o acesso das pessoas (o dono continua entrando); nenhum dado é apagado e nenhuma função é desinstalada.')+
    `<div class="jbc-grade">${set.map(s=>{const m=monSetor(s.id);const us=usuariosDoSetor(s.id);const ags=listaAgentes().filter(a=>(a.setoresConsulta||[]).includes(s.id)||(a.setoresEdicao||[]).includes(s.id));const sit=situacaoSetor(s);
     const hist=(AUD.lista||[]).filter(a=>a.tipo==='politica'&&String(a.acao).includes(s.nome)).slice(0,3);
     return `<article class="jbc-card${sit==='suspenso'?' off':''}"><h3>${esc(s.nome)} ${tag(sit,sit==='em funcionamento'?'ok':sit==='suspenso'?'pe':'')}</h3>
@@ -23047,7 +23047,7 @@ FORMATO: comece pela resposta. Use tabela quando listar várias pessoas, setores
  /* entrada no menu do Setor Pessoal (só aparece para o dono, porque só o perfil dele tem a rota) */
  try{const gI=MENU.find(g=>g[0]==='Início');if(gI){const it={m:'jbc',l:'Controle Central — JB'};gI[2].splice(1,0,it);MI_IX.set(it,MITENS.length);MITENS.push({...it,g:gI[0],notaG:gI[3]});GRUPO_DE.jbc=gI[0];ROTULO_DE.jbc=it.l}}catch(e){console.warn('controle central: menu',e)}
  const di0=descItem;
- descItem=function(it){if(it&&it.m==='jbc')return 'Administração dos setores, usuários, permissões, agentes de IA, comandos, auditoria e backup do JB Gestão.';return di0.apply(this,arguments)};
+ descItem=function(it){if(it&&it.m==='jbc')return 'Administração dos setores, usuários, permissões, agentes de IA, comandos, auditoria e backup do JB ERP.';return di0.apply(this,arguments)};
 
  /* ---------- ligação com o banco ---------- */
  const asJ=assinar;
@@ -27175,7 +27175,7 @@ function blocoNfeVendaF(v, opc = {}) {
   const btManual = opc.manualBtn || '';
   if (manual && !ns.length) {
     return `<section class="${cls} fis-ped"><h3>Documento fiscal</h3>${kvV([['Situação', `<span class="tag ${COR_V[fs.status] || ''}">${esc(fs.status || 'Pendente')}</span>`], ['Modelo', esc(fs.modelo || '—')], ['Número / série', esc([fs.numero, fs.serie].filter(Boolean).join(' / ') || '—')], ['Emissão', esc(fData(fs.data) || '—')], ['Chave de acesso', fs.chave ? `<span class="vv-chave">${esc(fs.chave)}</span>` : '—', 1]])}
-      <p class="ajuda" style="margin:0 17px 8px">Nota registrada à mão: foi emitida fora do JB Gestão. Para não duplicar, o JB não prepara outra NF-e para esta venda enquanto este registro existir.</p>${btManual ? `<div class="inline vv-bt">${btManual}</div>` : ''}</section>`;
+      <p class="ajuda" style="margin:0 17px 8px">Nota registrada à mão: foi emitida fora do JB ERP. Para não duplicar, o JB não prepara outra NF-e para esta venda enquanto este registro existir.</p>${btManual ? `<div class="inline vv-bt">${btManual}</div>` : ''}</section>`;
   }
   const atual = ns.filter((n) => n.ambiente === amb && !['cancelada', 'denegada'].includes(n.status));
   const prep = podeF('preparar') && !atual.length && !cancV(v) ? `<a class="btn pri" href="#/vfiscalnf/nova/${esc(v.id)}">${ic('notaFiscal')}Preparar NF-e</a>` : '';
@@ -32049,7 +32049,7 @@ function telaInstalar(el){
  ${APP.modo==='local'?'<div class="aviso at"><b>Você está usando a cópia local.</b> Ela guarda os dados só neste navegador e não sincroniza com outros aparelhos. Para ter os mesmos dados no computador e no celular, use o endereço publicado abaixo.</div>':''}
  <div class="inst-link"><span style="flex:1;min-width:200px"><b>Endereço do sistema:</b><br><span id="instUrl">${esc(URL_SIS)}</span></span><button class="btn min" id="bCopiar">Copiar link</button></div>
  ${ordem.map((k,i)=>{const [t,sub,corpo]=cartoes[k];return i===0&&p!=='outro'?`<div class="inst-cartao rec"><h3>${t} <span class="tag br">este aparelho</span></h3><p class="sub">${sub}</p>${corpo}</div>`:`<details class="inst-cartao"><summary>${t}</summary><p class="sub">${sub}</p>${corpo}</details>`}).join('')}
- <div class="inst-cartao"><h3>Como os aparelhos compartilham os dados</h3><p class="sub" style="margin:0">Os dados não ficam no computador nem no celular: ficam no banco central do JB Gestão, o mesmo para a versão da nuvem e para a do Claude. Cada aparelho só mostra e grava nesse mesmo banco. Por isso um funcionário cadastrado no computador aparece no celular em poucos segundos. A barra superior mostra <b>Sincronizado</b>, <b>Salvando…</b> ou <b>Sem conexão</b>. Sem internet, espere a conexão voltar antes de lançar.</p></div>
+ <div class="inst-cartao"><h3>Como os aparelhos compartilham os dados</h3><p class="sub" style="margin:0">Os dados não ficam no computador nem no celular: ficam no banco central do JB ERP, o mesmo para a versão da nuvem e para a do Claude. Cada aparelho só mostra e grava nesse mesmo banco. Por isso um funcionário cadastrado no computador aparece no celular em poucos segundos. A barra superior mostra <b>Sincronizado</b>, <b>Salvando…</b> ou <b>Sem conexão</b>. Sem internet, espere a conexão voltar antes de lançar.</p></div>
  <div class="inst-cartao"><h3>Trabalhar junto com outra pessoa</h3>${nuvem?`<ol><li>Peça ao administrador para criar o usuário da pessoa em <b>Usuários e segurança</b>, com o perfil certo (RH, DP, Financeiro, Gestor de setor ou Consulta).</li><li>Mande para ela o endereço acima.</li><li>Ela entra com o usuário e a senha dela e lança no aparelho dela. Tudo aparece para todos em poucos segundos.</li></ol>`:typeof VERSAO_IND!=='undefined'?`<ol><li>Mande o endereço acima para a pessoa (WhatsApp, e-mail).</li><li>Ela abre, instala o ícone e faz os lançamentos no aparelho dela.</li><li>Quando quiser passar para você: <b>Configurações › Baixar backup</b> e te envia o arquivo.</li><li>Você abre <b>Configurações › Receber dados de outra pessoa</b>, escolhe o arquivo e pronto: os lançamentos dela aparecem aqui e você pode ver, editar e apagar.</li><li>Para devolver correções, faça o mesmo caminho ao contrário.</li></ol><p class="sub" style="margin:8px 0 0">Nesta versão a troca é por arquivo, não é ao vivo. Para todos mexerem no mesmo banco ao mesmo tempo, com login e permissões, é preciso o plano Team ou Enterprise do Claude, usando a versão sincronizada do sistema.</p>`:`<ol><li>Abra o sistema, toque no menu do topo da página do Claude e use <b>Compartilhar</b>.</li><li>Dê à pessoa o nível <b>Pode interagir</b> (lança e edita) ou <b>Pode editar</b> (também vê CPF, salários, afastamentos e documentos).</li><li>Em <b>Configurações › Usuários e permissões</b>, escolha o perfil dela (RH, DP, Financeiro, Gestor de setor ou Consulta).</li><li>Tudo que ela lançar aparece para você em segundos, e você pode editar.</li></ol><p class="sub" style="margin:8px 0 0">Isso exige que a pessoa esteja na mesma organização do Claude que você (planos Team e Enterprise). Se o compartilhamento não oferecer essa opção, use a versão independente e a troca por arquivo em <b>Receber dados de outra pessoa</b>.</p>`}</div>
  <div class="inst-cartao"><h3>Atualizações</h3><p class="sub" style="margin:0">Não é preciso reinstalar. Quando o sistema é atualizado, todos os ícones abrem a versão nova na próxima vez, com os dados preservados. A versão atual aparece no rodapé do menu: <b>${VERSAO}</b>.</p></div>
  <div class="inst-cartao"><h3>Teste rápido de sincronização (1 minuto)</h3><ol><li>No computador, abra <b>Diário do DP</b> e crie um registro de teste para você mesmo.</li><li>No celular, abra o sistema e confira se o registro aparece.</li><li>Exclua o registro de teste pelo celular e veja que ele some do computador.</li></ol></div>`;
@@ -35442,7 +35442,7 @@ const COR=()=>PDF_CC;
 const arqNome=t=>String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w-]+/g,'_').replace(/_+/g,'_').slice(0,90);
 function novoPdf(pais){const J=window.jspdf&&window.jspdf.jsPDF;if(!J||!J.API.autoTable){toast('A biblioteca de PDF não carregou. Tente de novo em alguns segundos.','erro');return null}const doc=new J({unit:'pt',format:'a4',orientation:pais?'landscape':'portrait'});return {doc,W:pais?842:595,H:pais?595:842,M:pais?34:48}}
 function faixaPdf(p,e,tit,sub){const {doc,W,M}=p,c=COR(),h=56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,3,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text(String(nomeEmp(e)).toUpperCase().slice(0,70),M,25);doc.setFont('helvetica','normal');doc.setFontSize(7.6);doc.setTextColor(189,189,198);doc.text([e.razao_social,e.cnpj?'CNPJ '+fCnpj(e.cnpj):'',[e.cidade,e.uf].filter(Boolean).join('/')].filter(Boolean).join(' · ').slice(0,110),M,39);doc.setFont('helvetica','bold');doc.setFontSize(13.5);doc.setTextColor(...c.PT);const ts=doc.splitTextToSize(tit.toUpperCase(),W-2*M);doc.text(ts,M,h+26);let y=h+26+(ts.length-1)*16;if(sub){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...c.CZ);doc.text(doc.splitTextToSize(sub,W-2*M),M,y+13);y+=13}return y+16}
-function rodapes(p,tit,capa){const {doc,W,H,M}=p;const tot=doc.internal.getNumberOfPages(),ini=capa?2:1;for(let k=ini;k<=tot;k++){doc.setPage(k);rodPdfCC(doc,W,H,M,'Centro de Inventário · JB Gestão',tit,k-ini+1,tot-ini+1)}}
+function rodapes(p,tit,capa){const {doc,W,H,M}=p;const tot=doc.internal.getNumberOfPages(),ini=capa?2:1;for(let k=ini;k<=tot;k++){doc.setPage(k);rodPdfCC(doc,W,H,M,'Centro de Inventário · JB ERP',tit,k-ini+1,tot-ini+1)}}
 function capaPdf(p,e,r){const {doc,W,H,M}=p,c=COR(),h=H*.56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,6,'F');doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(189,189,198);doc.text('CENTRO DE INVENTÁRIO',M,M+22,{charSpace:1.6});doc.setFont('helvetica','bold');doc.setFontSize(p.W>700?32:28);doc.setTextColor(255,255,255);const ts=doc.splitTextToSize(r.titulo,W-2*M);doc.text(ts,M,h-46-(ts.length-1)*32);doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(220,220,226);doc.text(String(r.todas?'Todas as empresas':nomeEmp(e)).slice(0,80),M,h-20);
  const L=[['Empresa',r.todas?'Todas as empresas':e.razao_social],['CNPJ',r.todas?'—':(e.cnpj?fCnpj(e.cnpj):'—')],['Período de referência',r.periodo||'Posição atual'],['Filtros',r.filtros||'Nenhum'],['Data de emissão',fDataHora(new Date().toISOString())],['Responsável pela emissão',INV.nome||'—']];let y=h+44;L.forEach(([a,b])=>{doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...c.CZ);doc.text(a,M,y);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...c.TX);const v=doc.splitTextToSize(String(b),W-2*M-160);doc.text(v,M+160,y);y+=Math.max(26,v.length*14+10)})}
 function tabelaPdf(p,y,cols,linhas,o){const {doc,M,H}=p,c=COR();o=o||{};doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:40,bottom:48},head:[cols.map(x=>x.l)],body:linhas,foot:o.foot?[o.foot]:undefined,showFoot:'lastPage',styles:{font:'helvetica',fontSize:o.fs||7.8,cellPadding:3.4,textColor:c.TX,lineColor:c.FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:c.PT,textColor:[255,255,255],fontStyle:'bold'},footStyles:{fillColor:c.FI,textColor:c.TX,fontStyle:'bold'},alternateRowStyles:{fillColor:c.BG},columnStyles:Object.fromEntries(cols.map((x,i)=>[i,{halign:x.t==='moeda'||x.t==='num'?'right':'left'}])),didDrawCell:filetePdfCC(doc)});return doc.lastAutoTable.finalY+14}
@@ -35544,7 +35544,7 @@ TELA.config=async function(c){
  const aba=INV.abaCfg||'acesso';const ab=[['acesso','Acesso'],['auditoria','Auditoria'],['copias','Cópias e dados'],['codigos','Códigos']];
  c.innerHTML=cab('Configurações','Acesso, auditoria, cópias de segurança e regras do módulo.')+`<div class="inv-abas">${ab.map(([k,l])=>`<button type="button" data-a="${k}" class="${k===aba?'on':''}">${l}</button>`).join('')}</div><div id="cp"></div>`;
  c.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{INV.abaCfg=b.dataset.a;redesenha()});const cp=c.querySelector('#cp');
- if(aba==='acesso'){cp.innerHTML=`<div class="inv-bloco"><h3>Acesso exclusivo</h3><p class="ajuda" style="margin:0 0 10px">Só ${esc(INV.nome||'você')} entra no Centro de Inventário. A regra fica no servidor: nem administradores do JB Gestão enxergam estes dados.</p><div class="inv-l">${Object.entries(NOME_PERM).map(([k,l])=>`<div class="inv-c" style="padding:9px 12px"><div class="tx"><b style="font-size:13.5px">${esc(l)}</b></div>${INV.perms[k]?tag('Permitido','ok'):tag('Não permitido')}</div>`).join('')}</div></div><div class="inv-bloco"><h3>Isolamento entre empresas</h3><p class="ajuda" style="margin:0">Cada registro é preso à sua empresa no próprio banco. Um bem não consegue apontar para departamento, grupo ou responsável de outra empresa.</p></div><div class="inv-bloco"><h3>Estoques e materiais</h3><p class="ajuda" style="margin:0">O banco já separa a natureza de cada inventário. Mercadorias, matérias-primas, consumo, insumos, acabados e auxiliares terão estruturas e relatórios próprios, sem misturar com o patrimônio.</p></div>`}
+ if(aba==='acesso'){cp.innerHTML=`<div class="inv-bloco"><h3>Acesso exclusivo</h3><p class="ajuda" style="margin:0 0 10px">Só ${esc(INV.nome||'você')} entra no Centro de Inventário. A regra fica no servidor: nem administradores do JB ERP enxergam estes dados.</p><div class="inv-l">${Object.entries(NOME_PERM).map(([k,l])=>`<div class="inv-c" style="padding:9px 12px"><div class="tx"><b style="font-size:13.5px">${esc(l)}</b></div>${INV.perms[k]?tag('Permitido','ok'):tag('Não permitido')}</div>`).join('')}</div></div><div class="inv-bloco"><h3>Isolamento entre empresas</h3><p class="ajuda" style="margin:0">Cada registro é preso à sua empresa no próprio banco. Um bem não consegue apontar para departamento, grupo ou responsável de outra empresa.</p></div><div class="inv-bloco"><h3>Estoques e materiais</h3><p class="ajuda" style="margin:0">O banco já separa a natureza de cada inventário. Mercadorias, matérias-primas, consumo, insumos, acabados e auxiliares terão estruturas e relatórios próprios, sem misturar com o patrimônio.</p></div>`}
  if(aba==='auditoria'){let l=await chamar('auditoria',{empresa_id:INV.audTodas?null:eid(),limite:60});const NT={empresas:'Empresa',bens:'Bem',inventarios:'Inventário',inventario_itens:'Item de inventário',departamentos:'Departamento',localizacoes:'Localização',grupos:'Grupo',unidades:'Unidade',responsaveis:'Responsável',movimentacoes:'Movimentação',leituras:'Leitura de conferência',conferencias:'Conferência',manutencoes:'Manutenção',termos:'Termo',etiquetas:'Etiqueta',arquivos:'Anexo'};const NO_K=['id','empresa_id','criado_em','qr_token'];
   const lin=a=>{const k=Object.keys(a.alteracao||{}).filter(x=>!NO_K.includes(x));const det=a.operacao==='Alteração'?k.map(x=>x+': '+txtV(a.alteracao[x].de)+' → '+txtV(a.alteracao[x].para)).join('; '):k.slice(0,6).map(x=>x+': '+txtV(a.alteracao[x])).join('; ');return `<div class="inv-c"><div class="tx"><b>${esc(a.operacao)} · ${esc(NT[a.tabela]||a.tabela)}</b><small>${esc(fDataHora(a.quando))} · ${esc(a.usuario||'')}</small><small>${esc(det.slice(0,500))}</small></div></div>`};const txtV=v=>v==null?'—':typeof v==='object'?'(dados)':String(v);
   cp.innerHTML=`<div class="inv-ctx"><label class="inv-ck"><input type="checkbox" id="td" ${INV.audTodas?'checked':''}> Ver todas as empresas</label></div><div class="inv-l" id="lst">${l.length?l.map(lin).join(''):vazio('Sem registros')}</div><button class="btn inv-mais" id="mm" ${l.length<60?'hidden':''}>Mostrar mais</button>`;
