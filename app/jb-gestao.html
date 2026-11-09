@@ -14355,14 +14355,17 @@ const liquidoV=x=>round2(x.bruto-x.descGeral-x.devolvido+(CFGV().liquidoFrete===
    {desde:'AAAA-MM-DD', mes:'2026-10'}: as vendas a partir dessa data usam outubro e as anteriores
    continuam com setembro. Vale para os itens vendidos em milheiro; só quem vê a Controladoria vê o custo. */
 CFGV_PADRAO.custoMilRefs=[{desde:'',mes:'2026-09'}];
-function custoMilRefV(data){const d=String(data||hoje());
- const L=(CFGV().custoMilRefs||[]).filter(r=>r&&r.mes&&(!r.desde||r.desde<=d)).sort((a,b)=>String(a.desde||'').localeCompare(String(b.desde||'')));
- const r=L[L.length-1];if(!r)return null;const C=window.CONTROLADORIA;let R=null;try{R=C&&C.calcMes?C.calcMes(r.mes):null}catch(e){R=null}
- return{mes:r.mes,valor:R&&R.cpm!=null&&isFinite(R.cpm)?R.cpm:null,fechado:!!(R&&R.fechado)}}
-function custoVendasV(xs){let custo=0,mil=0,semBase=0;const ref={};
+/* Regra nova (pedido do Jeferson, 09/11/2026): a venda usa o custo do PRÓPRIO mês da venda, e só depois que
+   a Controladoria fechar (apurar) esse mês. Mês ainda não fechado: "Aguardando apuração do setor de Controladoria",
+   sem valor de outro mês no lugar. A tabela custoMilRefs acima deixa de ser usada. */
+const AGUARD_CTL_V='Aguardando apuração do setor de Controladoria';
+function custoMilRefV(data){const m=String(data||hoje()).slice(0,7);const C=window.CONTROLADORIA;let R=null;try{R=C&&C.calcMes?C.calcMes(m):null}catch(e){R=null}
+ const fechado=!!(R&&R.fechado);const ok=fechado&&R.cpm!=null&&isFinite(R.cpm);
+ return{mes:m,valor:ok?R.cpm:null,fechado,aguardando:!ok}}
+function custoVendasV(xs){let custo=0,mil=0,semBase=0;const ref={},mesesAg={};
  xs.forEach(x=>{const r=custoMilRefV(x.data);x.itens.forEach(i=>{if(!UN_MILHEIRO(i.unidade))return;const q=+i.qtd||0;
-  if(!r||r.valor==null){semBase+=q;return}custo+=q*r.valor;mil+=q;ref[r.mes]=r.valor})});
- return{custo:round2(custo),mil:round3(mil),semBase:round3(semBase),ref}}
+  if(!r||r.valor==null){semBase+=q;if(r)mesesAg[r.mes]=1;return}custo+=q*r.valor;mil+=q;ref[r.mes]=r.valor})});
+ return{custo:round2(custo),mil:round3(mil),semBase:round3(semBase),ref,mesesAg:Object.keys(mesesAg).sort()}}
 const refCtl2=ref=>refCustoTxtV(ref);
 const refCustoTxtV=ref=>Object.keys(ref).sort().map(m=>fMoeda(ref[m])+'/milheiro ('+mesLongo(m)+')').join(' e ');
 const podeCustoV=()=>typeof pode==='function'&&pode('setor-control');
@@ -14474,15 +14477,16 @@ function relGerencial(U){const xs=vendasFatV(U);const h=hoje();const tit=titulos
   L('Riscos','',[ven30.length?ven30.length+' título(s) vencido(s) há mais de 30 dias':'',atrC?atrC+' pedido(s) com carregamento atrasado':'',baixos?baixos+' produto(s) abaixo do mínimo ou sem estoque':'',abaixoMin?abaixoMin+' venda(s) abaixo do preço mínimo':''].filter(Boolean).join(' · ')||'nenhum risco identificado nos dados')],
   total:false,nota:'Resumo para a administração. '+periodoTxtV(U)+'. Faturamento não é lucro; a margem só é calculada com custos cadastrados.'}}
 /* margem: receita − desconto − custo dos produtos (custo de referência do cadastro) − custo de transporte conhecido. Sem custo, não calcula. */
-function relMargem(U,por){por=por||'produto';const xs=vendasFatV(U);const g={};let semCusto=new Set();const refCtl={};
+function relMargem(U,por){por=por||'produto';const xs=vendasFatV(U);const g={};let semCusto=new Set();const refCtl={};const mesesAg=new Set();
  xs.forEach(x=>{const tr=ehPedido(x.v)?round2(soma(x.v.entregas||[],e=>+e.custoTransporte||0)):0;const bt=x.bruto||1;
   x.itens.forEach(i=>{const p=PROD(i.produtoId);const k=por==='cliente'?(x.clienteId||x.cli):por==='mes'?String(x.data).slice(0,7):i.produtoId;const nome=por==='cliente'?x.cli:por==='mes'?mesLongo(String(x.data).slice(0,7)):i.nome;
-   const t=g[k]||(g[k]={nome,rec:0,desc:0,frete:0,custo:0,trans:0,falta:false});const share=(+i.total||0)/bt;
+   const t=g[k]||(g[k]={nome,rec:0,desc:0,frete:0,custo:0,trans:0,falta:false,ag:false});const share=(+i.total||0)/bt;
    t.rec=round2(t.rec+(+i.total||0));t.desc=round2(t.desc+x.descGeral*share+(+x.devolvido||0)*share);t.frete=round2(t.frete+(x.frete+x.outros)*share);t.trans=round2(t.trans+tr*share);
-   const rc=UN_MILHEIRO(i.unidade)?custoMilRefV(x.data):null;if(rc&&rc.valor!=null)refCtl[rc.mes]=rc.valor;const cu=rc&&rc.valor!=null?rc.valor:p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:null;if(cu==null){t.falta=true;semCusto.add(i.nome)}else t.custo=round2(t.custo+cu*(+i.qtd||0))})});
- const rows=Object.values(g).map(t=>({nome:t.nome,rec:t.rec,desc:-t.desc,frete:t.frete,trans:-t.trans,custo:t.falta?'':-t.custo,trib:'não informado',mc:t.falta?'':round2(t.rec-t.desc+t.frete-t.trans-t.custo),st:t.falta?'Incompleto: falta custo':'Estimado'})).sort((a,b)=>b.rec-a.rec);
+   const rc=UN_MILHEIRO(i.unidade)?custoMilRefV(x.data):null;if(rc&&rc.valor!=null)refCtl[rc.mes]=rc.valor;if(rc&&rc.aguardando){t.ag=true;mesesAg.add(rc.mes);return}const cu=rc&&rc.valor!=null?rc.valor:p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:null;if(cu==null){t.falta=true;semCusto.add(i.nome)}else t.custo=round2(t.custo+cu*(+i.qtd||0))})});
+ const rows=Object.values(g).map(t=>{const sem=t.falta||t.ag;return{nome:t.nome,rec:t.rec,desc:-t.desc,frete:t.frete,trans:-t.trans,custo:sem?'':-t.custo,trib:'não informado',mc:sem?'':round2(t.rec-t.desc+t.frete-t.trans-t.custo),st:t.ag?AGUARD_CTL_V:t.falta?'Incompleto: falta custo':'Estimado'}}).sort((a,b)=>b.rec-a.rec);
  const completo=rows.every(r=>r.st==='Estimado');const margem=completo&&rows.length?round2(soma(rows,r=>r.mc)):null;
- const resumo=completo?'Estimativa sem tributos (dados fiscais de tributo não cadastrados).':'Resultado incompleto: falta o custo de referência de '+[...semCusto].join(', ')+'. Cadastre o custo no produto.';
+ const agTxt=mesesAg.size?'Custo do milheiro de '+[...mesesAg].sort().map(mesLongo).join(' e ')+': '+AGUARD_CTL_V.toLowerCase()+'.':'';
+ const resumo=completo?'Estimativa sem tributos (dados fiscais de tributo não cadastrados).':[agTxt,semCusto.size?'Resultado incompleto: falta o custo de referência de '+[...semCusto].join(', ')+'. Cadastre o custo no produto.':''].filter(Boolean).join(' ');
  return{cols:[{k:'nome',l:por==='cliente'?'Cliente':por==='mes'?'Mês':'Produto'},{k:'rec',l:'Receita de produtos',t:'moeda'},{k:'desc',l:'Descontos e devoluções',t:'moeda'},{k:'frete',l:'Fretes cobrados',t:'moeda'},{k:'trans',l:'Custo de transporte',t:'moeda'},{k:'custo',l:'Custo dos produtos',t:'moeda'},{k:'trib',l:'Tributos'},{k:'mc',l:'Margem de contribuição estimada',t:'moeda'},{k:'st',l:'Situação do cálculo'}],
   rows,total:true,margem,resumo,nota:'Margem de contribuição ESTIMADA: receita − descontos e devoluções + fretes cobrados − custo de transporte conhecido − custo dos produtos ('+(Object.keys(refCtl).length?'milheiro pelo custo de produção da Controladoria: '+refCtl2(refCtl)+'; o resto pelo custo de referência do cadastro':'custo de referência do cadastro de cada produto')+'). Tributos não entram: o JB ERP não tem os dados tributários e não inventa percentual. Não é lucro. '+resumo+' '+periodoTxtV(U)+'.'}}
 function relMetas(U){const ms=DATA.metas.filter(m=>(!U.ini||m.mes>=String(U.ini).slice(0,7))&&(!U.fim||m.mes<=String(U.fim).slice(0,7))).sort((a,b)=>String(b.mes).localeCompare(a.mes));
@@ -14589,8 +14593,13 @@ inicioVendasV=function(c,s){
    ${K('c3','caixa','Milheiros vendidos',fQtd(mil),pc.ok?fNum(pc.t)+' tijolos (peças)':'peças: cadastre “peças por milheiro”','prod')}${K('c4','moeda','Faturamento bruto',fMoeda(soma(xs,x=>x.bruto)),'produtos a preço negociado','periodo')}
    ${K('c6','aviso','Descontos concedidos',fMoeda(soma(xs,x=>x.desc)),'sobre a tabela + desconto geral','desc')}${K('c2','enviar','Fretes cobrados',fMoeda(soma(xs,x=>x.frete)),'receita de frete (não é custo)','exp')}
    ${K('c2','moeda','Receita líquida comercial',fMoeda(soma(xs,liquidoV)),CFGV().liquidoFrete==='Com frete'?'com frete':'sem frete, menos descontos e devoluções','periodo')}
-   ${podeCustoV()?(()=>{const cv=custoVendasV(xs);const rl=round2(soma(xs,liquidoV));const liq=round2(rl-cv.custo);const ref=refCustoTxtV(cv.ref)||'sem custo na Controladoria';
-    return K('c6','caixa','Custo dos milheiros vendidos',fMoeda(cv.custo),fQtd(cv.mil)+' milheiro(s) × '+ref+(cv.semBase?' · '+fQtd(cv.semBase)+' sem custo':''),'custo')+
+   ${podeCustoV()?(()=>{const cv=custoVendasV(xs);const rl=round2(soma(xs,liquidoV));const liq=round2(rl-cv.custo);const ref=refCustoTxtV(cv.ref);
+    const ag=`<span class="pv-aguard">${esc(AGUARD_CTL_V)}</span>`;const agMes=cv.mesesAg.map(mesLongo).join(' e ');
+    if(cv.semBase&&!cv.mil)return K('c6','caixa','Custo dos milheiros vendidos',ag,fQtd(cv.semBase)+' milheiro(s) · custo de '+agMes+' ainda não apurado','custo')+
+     K('c2','moeda','Receita líquida (após o custo)',ag,'sai quando a Controladoria fechar '+agMes,'custo');
+    if(cv.semBase)return K('c6','caixa','Custo dos milheiros vendidos',fMoeda(cv.custo),fQtd(cv.mil)+' milheiro(s) × '+ref+' · '+fQtd(cv.semBase)+' milheiro(s) de '+agMes+' aguardando apuração','custo')+
+     K('c2','moeda','Receita líquida (após o custo)',ag,'parte das vendas é de '+agMes+', ainda sem custo apurado','custo');
+    return K('c6','caixa','Custo dos milheiros vendidos',fMoeda(cv.custo),cv.mil?fQtd(cv.mil)+' milheiro(s) × '+ref:'nenhum milheiro vendido no período','custo')+
      K('c2','moeda','Receita líquida (após o custo)',fMoeda(liq),(rl?'margem '+fNum(liq/rl*100,1)+'% · ':'')+'receita líquida comercial − custo do milheiro','custo')})():''}
    <div class="pv-grupo">Dinheiro</div>${K('c2','entrada','Recebido',fMoeda(rec),'dinheiro que entrou no período','recebido')}${K('c5','carteira','A receber',fMoeda(soma(ab,x=>x.saldo)),ab.length+' título(s) em aberto','receber')}
    ${K('c5','calendario','Vendas a prazo',fMoeda(tot(aPrazo)),aPrazo.length+' venda(s) no período','prazo')}${K('c6','aviso','Clientes inadimplentes',String(inad.size),fMoeda(soma(ven,x=>x.saldo))+' vencido','vencido')}
@@ -34001,6 +34010,7 @@ html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
 .gaveta #frm>fieldset.sec{scroll-margin-top:64px}
 /* painel de Vendas: os mesmos quadros, na mesma ordem, com um título pequeno a cada grupo */
 .pv-hero>.pv-grupo{grid-column:1/-1;font:700 12px/1.2 var(--f-tit,var(--fonte));letter-spacing:.09em;text-transform:uppercase;color:var(--suave);margin:8px 2px -2px}
+.kpi .v .pv-aguard{display:block;font-size:15px!important;line-height:1.25;font-weight:600;letter-spacing:0;color:var(--at,#b26a00);white-space:normal}
 .pv-hero>.pv-grupo:first-child{margin-top:0}
 
 /* saudação com o nome no início de cada setor (V83), no mesmo desenho da saudação do Setor Pessoal */
