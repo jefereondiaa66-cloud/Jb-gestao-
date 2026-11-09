@@ -3259,13 +3259,18 @@ function ouvir(nome,criar,aoDados){
   console.warn(nome,e)})}catch(e){console.warn(nome,e)}};
  ligar();
 }
+/* impressão digital de cada coleção: a conferência periódica e os avisos repetidos entregam os mesmos dados de novo, e isso não pode redesenhar a tela */
+const IMPR_COL={};
+function colecaoMudou(col){let s;try{s=JSON.stringify(DATA[col])}catch(e){return true}
+ let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);
+ const d=s.length+':'+(h>>>0);if(IMPR_COL[col]===d)return false;IMPR_COL[col]=d;return true}
 function assinar(){
  const cutMes=mesMenos(mesAtual(),(+CFG.janelaMeses||24)-1);
  Object.keys(DATA).forEach(col=>{
   ouvir(col,()=>{let q=APP.db.collection(col);if(BUCKET[col]&&!(typeof SEM_JANELA!=='undefined'&&SEM_JANELA.has(col)))q=q.where('chave','>=',BUCKET[col]==='dia'?cutMes+'-01':cutMes);return q},s=>{
    if(BUCKET[col]){const arr=[];CHAVES_BK[col]=s.docs.map(d=>d.id);s.docs.forEach(d=>{const it=(d.data()||{}).items||{};for(const id in it){if(it[id])arr.push({...clone(it[id]),id})}});DATA[col]=arr}
    else DATA[col]=s.docs.map(d=>({...clone(d.data()),id:d.id}));
-   marcarCarregado(col);agendarRender()});
+   marcarCarregado(col);if(colecaoMudou(col))agendarRender(col)});
  });
  ouvir('_cfg',()=>APP.db.doc('config/empresa'),s=>{CFG=cfgMesclada(s.exists?clone(s.data()):null);APP.cfgExiste=s.exists;try{const mk=document.querySelector('#side .marca');if(mk&&acessoOk())mk.outerHTML=marcaHtml()}catch(e){}try{guardarCarrega()}catch(e){}agendarRender()});
  ouvir('_usu',()=>APP.db.doc('config/usuarios'),s=>{USUARIOS=s.exists?clone(s.data()):{papeis:{}};if(!USUARIOS.papeis)USUARIOS.papeis={};definirPapel();agendarRender()});
@@ -3428,7 +3433,7 @@ function estimarRescisao(r){
  if(!f.admissao)return{erro:'Sem data de admissão na ficha: não dá para calcular 13º proporcional, férias proporcionais nem aviso prévio. Preencha a admissão do funcionário.'};
  if(!sal)return{erro:veSensivel()?'Cadastre o salário na ficha do funcionário para estimar.':'Seu acesso não mostra salários; peça a um administrador.'};
  const itens=[];const d=dt(r.data);const t=r.tipo||'';
- itens.push(['Saldo de salário ('+d.getDate()+' dias)',sal/30*d.getDate()]);
+ const diasSaldo=Math.min(30,d.getDate());itens.push(['Saldo de salário ('+diasSaldo+' dias)',sal/30*diasSaldo]);
  const jc=t==='Dispensa por justa causa';
  const ini13=f.admissao.slice(0,4)===r.data.slice(0,4)?f.admissao:r.data.slice(0,4)+'-01-01';
  const m13=Math.min(12,mesesProp(ini13,r.data));
@@ -7432,7 +7437,7 @@ async function carregarAcesso(){
  });
  if(souDono()&&APP.modo==='nuvem'){
   ouvir('_acessos',()=>db.collection('acesso'),s=>{ACESSOS=s.docs.map(d=>({...clone(d.data()),id:d.id}));agendarRender()});
-  ouvir('_fichas',()=>db.collection('ws'),s=>{FICHAS=s.docs.map(d=>({...clone(d.data()),id:d.id}));agendarRender()});
+  ouvir('_fichas',()=>db.collection('ws'),s=>{FICHAS=s.docs.map(d=>({...clone(d.data()),id:d.id}));agendarRender('_fichas')});
  }
 }
 function telaEspera(el){
@@ -7606,8 +7611,35 @@ function atualizarSino(){const n=alertasVisiveis().filter(a=>!PREFS.lidas[a.key]
 /* ================= roteamento ================= */
 const lerRota=()=>{const h=location.hash.replace(/^#\/?/,'').split('/');return{mod:h[0]||'painel',id:h[1]||null,x:h[2]||null}};
 let GAV=null,renderPend=false,tRender=null;
-function agendarRender(){if(!APP.pronto)return;clearTimeout(tRender);tRender=setTimeout(()=>{const a=document.activeElement;if(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)){renderPend=true;return}renderTela();atualizarSino()},80)}
-document.addEventListener('focusout',()=>{if(renderPend){renderPend=false;setTimeout(()=>{const a=document.activeElement;if(!(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))){renderTela();atualizarSino()}else renderPend=true},150)}});
+/* tela fixa: os dados de fundo (contador de uso, histórico, autodiagnóstico, fichas de acesso) mudam o tempo todo e
+   não aparecem nas telas de trabalho; só as telas que mostram esses dados acompanham em tempo real */
+const COL_FUNDO=new Set(['uso','log','diagnostico','_fichas']);
+const telaMostraFundo=m=>m==='diagnostico'||m==='usuarios'||String(m).startsWith('jbc');
+let ULT_ROLAGEM=0,DEDO_NA_TELA=false;
+['scroll','wheel','touchmove'].forEach(ev=>addEventListener(ev,()=>{ULT_ROLAGEM=Date.now()},{passive:true,capture:true}));
+addEventListener('touchstart',()=>{DEDO_NA_TELA=true},{passive:true,capture:true});
+['touchend','touchcancel'].forEach(ev=>addEventListener(ev,()=>{DEDO_NA_TELA=false;ULT_ROLAGEM=Date.now()},{passive:true,capture:true}));
+/* a pessoa está rolando, com o dedo na tela, com uma janela aberta ou selecionando texto: o redesenho espera */
+function telaOcupada(){if(DEDO_NA_TELA||Date.now()-ULT_ROLAGEM<450)return true;
+ if(document.querySelector('.veu,.ms-veu'))return true;
+ try{const sel=getSelection();if(sel&&!sel.isCollapsed&&$('#conteudo').contains(sel.anchorNode))return true}catch(e){}
+ return false}
+/* redesenha sem a tela pular: mantém a altura, a posição da página e a rolagem das tabelas e listas */
+function renderSemPular(){const c=$('#conteudo');if(!c)return renderTela();
+ const y=window.scrollY,chave=el=>el.tagName+'.'+(el.getAttribute('class')||'');
+ const conta={},rolados=[];
+ c.querySelectorAll('*').forEach(el=>{const k=chave(el);const i=conta[k]=(conta[k]||0)+1;if(el.scrollLeft||el.scrollTop)rolados.push({k,i,l:el.scrollLeft,t:el.scrollTop})});
+ const alt=c.offsetHeight;c.style.minHeight=alt+'px';
+ const volta=()=>{if(Math.abs(window.scrollY-y)>1)window.scrollTo(0,y);
+  if(rolados.length){const n={};c.querySelectorAll('*').forEach(el=>{const k=chave(el);if(!rolados.some(r=>r.k===k))return;const i=n[k]=(n[k]||0)+1;const r=rolados.find(x=>x.k===k&&x.i===i);if(r){el.scrollLeft=r.l;el.scrollTop=r.t}})}};
+ try{renderTela()}finally{volta();requestAnimationFrame(()=>{volta();setTimeout(()=>{c.style.minHeight='';},400)})}
+}
+function redesenharDados(){const a=document.activeElement;
+ if(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)){renderPend=true;return}
+ if(telaOcupada()){clearTimeout(tRender);tRender=setTimeout(redesenharDados,700);return}
+ renderSemPular();atualizarSino()}
+function agendarRender(col){if(!APP.pronto)return;if(col&&COL_FUNDO.has(col)&&!telaMostraFundo(lerRota().mod))return;clearTimeout(tRender);tRender=setTimeout(redesenharDados,80)}
+document.addEventListener('focusout',()=>{if(renderPend){renderPend=false;setTimeout(()=>{const a=document.activeElement;if(!(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))){redesenharDados()}else renderPend=true},150)}});
 let ROTA_ANT=null;
 function navegar(){
  const r=lerRota();
@@ -7626,14 +7658,15 @@ function navegar(){
 }
 window.addEventListener('hashchange',navegar);
 window.addEventListener('beforeunload',e=>{if(RASC_SUJO){e.preventDefault();e.returnValue=''}});
-const CHARTS=[];
+const CHARTS=[];let ULT_TELA_CONTADA=null;
 function renderTela(){
  CHARTS.splice(0).forEach(c=>{try{c.destroy()}catch(e){}});
  const r=lerRota();const c=$('#conteudo');
  if(!acessoOk()){telaEspera(c);return}
  if(!pode(r.mod))return;
  const telas={...(typeof TELAS_V!=='undefined'?TELAS_V:{}),painel:telaPainel,alertas:telaAlertas,ponto:telaPonto,extrato:telaExtrato,direitos:telaDireitos,diagnostico:telaDiagnostico,ficha:telaFicha,holerite:telaHolerite,breve:telaBreve,grupo:telaGrupo,conferencia:telaConferencia,relatorios:telaRelatorios,ia:telaIA,folha:telaFolha,quinzena:telaQuinzena,lancar:telaLancar,feriasctrl:telaFeriasCtrl,feriasvenc:telaFeriasVenc,central:telaCentral,termos:telaTermos,doc:telaDocRota,disciplinar:telaDisciplinar,relatdocs:telaRelDocs,setores:telaSetores,'setor-producao':telaSetorProducao,documento:telaDocumento,importar:telaImportar,usuarios:telaUsuarios,config:telaConfig,instalar:telaInstalar};
- if(typeof contarUso==='function'){try{contarUso('telas',r.mod)}catch(e){}}
+ if(typeof contarUso==='function'&&r.mod!==ULT_TELA_CONTADA){ULT_TELA_CONTADA=r.mod;try{contarUso('telas',r.mod)}catch(e){}}
+ if(window.Chart&&Chart.defaults.animation!==false)Chart.defaults.animation=false;
  if(!APP.carregado&&!MODS[r.mod]&&!(['config','instalar','usuarios','ia','documento','importar','grupo','breve','setores','setor-producao'].includes(r.mod)||(typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(r.mod)))&&typeof esqueletoTela==='function'){c.innerHTML=esqueletoTela();return}
  (telas[r.mod]||(MODS[r.mod]?telaLista:telaPainel))(c,r.mod);
 }
@@ -8101,7 +8134,7 @@ function abrirRegistro(mod,id){
   if(t.dataset.ladd!==undefined){const k=t.closest('[data-linhas]').dataset.linhas;st[k]=[...(st[k]||[]),{data:hoje(),descricao:'',valor:''}];t.closest('.cmp').outerHTML=htmlCampo(M.fields.find(x=>x.k===k),st,false);return}
   if(t.dataset.lrm){const k=t.closest('[data-linhas]').dataset.linhas;st[k].splice(+t.dataset.lrm,1);t.closest('.cmp').outerHTML=htmlCampo(M.fields.find(x=>x.k===k),st,false);return}
   const a=t.dataset.acao;
-  if(a==='estimar'){const r=estimarRescisao(st);if(r.erro){toast(r.erro,'erro');return}st.valorEstimado=round2(r.total);st.memoria=r.memoria;$('[data-k="valorEstimado"]',v).value=st.valorEstimado;$('#c_memoria',v).value=r.memoria;toast('Estimativa calculada. Revise e salve.');return}
+  if(a==='estimar'){const r=estimarRescisao(st);if(r.erro){toast(r.erro,'erro');return}st.valorEstimado=round2(r.total);st.memoria=r.memoria;$('[data-k="valorEstimado"]',v).value=fMoedaCampo(st.valorEstimado);$('#c_memoria',v).value=r.memoria;if(GAV)GAV.sujo=true;toast('Estimativa calculada. Revise e salve.');return}
   if(a==='trctEstimar'){const r=verbasTRCT(st);if(r.erro){toast(r.erro,'erro');return}
    if(temTRCT(st)&&!await confirmar('Substituir as verbas já preenchidas?','Os valores do TRCT que estão nos campos serão trocados pela estimativa.',{ok:'Substituir'}))return;
    Object.assign(st,r.v);refrescar();if(GAV)GAV.sujo=true;toast('Verbas estimadas: '+r.memo.join(' · ')+'. Confira com o TRCT e salve.');return}
@@ -8129,8 +8162,11 @@ function atalhosFunc(f){const b=[];if(f.situacao!=='Desligado'&&pode('lancar'))b
 const rotulosDe=M=>Object.fromEntries(M.fields.map(f=>[f.k,typeof f.l==='function'?f.l({}):f.l]));
 /* conferência de um registro sem tela: obrigatórios (os que aparecem para quem
    lança) e as regras do módulo. A gaveta e a tela de lançamentos usam a mesma. */
+/* ano fora do razoável quase sempre é erro de digitação (0202 no lugar de 2026): grava data errada e some dos relatórios */
+const dataAbsurda=v=>{const m=/^(\d{4,6})-\d{2}(-\d{2})?$/.exec(String(v||''));if(!m)return false;const a=+m[1];return a<1900||a>2100};
+function errosDeData(M,st){const e={};M.fields.forEach(f=>{if((f.t==='data'||f.t==='mes')&&!(f.sh&&!f.sh(st))&&dataAbsurda(st[f.k]))e[f.k]='Confira o ano desta data.'});return e}
 function conferirRegistro(mod,st){
- const M=MODS[mod];const erros={};
+ const M=MODS[mod];const erros={...errosDeData(M,st)};
  M.fields.filter(f=>!(f.sens&&!veSensivel())).forEach(f=>{if(!f.req||(f.sh&&!f.sh(st)))return;const x=st[f.k];
   if(x==null||x===''||(typeof x==='number'&&isNaN(x)))erros[f.k]='Campo obrigatório.'});
  M.fields.forEach(f=>{const x=st[f.k];if((f.t==='moeda'||f.t==='num')&&typeof x==='number'&&isNaN(x)&&!erros[f.k])erros[f.k]='Valor inválido.'});
@@ -8168,6 +8204,7 @@ async function salvarRegistro(mod,st,ant,novo,v,campos,botao){
  campos.forEach(f=>{if(f.sh&&!f.sh(st))return;const x=st[f.k];
   if((f.t==='moeda'||f.t==='num')&&typeof x==='number'&&isNaN(x)&&x!==''){marca(f.k,'Valor inválido. Use só números, por exemplo 1.250,00.');return}
   if(f.req&&(x==null||x===''||(typeof x==='number'&&isNaN(x))))marca(f.k,'Campo obrigatório.')});
+ Object.entries(errosDeData(M,st)).forEach(([k,m])=>marca(k,m));
  const ev=M.validar?M.validar(st):{};const aviso=ev._aviso;delete ev._aviso;
  Object.entries(ev).forEach(([k,m])=>marca(k,m));
  if(typeof contarUso==='function'){try{Object.keys(ev).forEach(k=>contarUso('validacao',mod+'.'+k));
@@ -8177,7 +8214,7 @@ async function salvarRegistro(mod,st,ant,novo,v,campos,botao){
  botao.disabled=true;botao.textContent='Salvando…';
  try{
   const rec=await gravarRegistro(mod,st,ant,novo);
-  toast(novo?M.sing.charAt(0).toUpperCase()+M.sing.slice(1)+' cadastrad'+(feminino(M.sing)?'a':'o')+'.':'Alterações salvas.','ok');
+  toast(novo?(mod==='ferias'?'Férias cadastradas.':M.sing.charAt(0).toUpperCase()+M.sing.slice(1)+' cadastrad'+(feminino(M.sing)?'a':'o')+'.'):'Alterações salvas.','ok');
   if(GAV)GAV.sujo=false;fecharRota(true);
   await posSalvar(mod,rec,ant);
  }catch(err){console.error(err);toast(msgFalhaSalvar(err),'erro');botao.disabled=false;botao.textContent='Salvar'}
@@ -8761,7 +8798,7 @@ function lancamentosDoMes(fid,mes){
  de('horasExtras').forEach(r=>L.push({mod:'horasExtras',id:r.id,data:r.data,tipo:'Hora extra',
   det:fNum(+r.horas||0,2)+' h · '+(r.percentual||0)+'%'+(r.motivo?' · '+r.motivo:''),valor:estimadoHE(r),sit:r.situacao}));
  de('vales').forEach(r=>L.push({mod:'vales',id:r.id,data:r.data,tipo:r.tipo||'Vale',
-  det:r.natureza+(r.origem==='quinzena'?' · gerado pela quinzena':''),valor:-(+r.valor||0),sit:r.situacao}));
+  det:[r.natureza,r.origem==='quinzena'?'gerado pela quinzena':''].filter(Boolean).join(' · ')||'—',valor:-(+r.valor||0),sit:r.situacao}));
  return L.sort((a,b)=>String(b.data).localeCompare(String(a.data)));
 }
 
@@ -35835,6 +35872,13 @@ html.casca2 #c2mob .on{color:var(--brasa2,var(--c2-verm))}
 .acm-folha button.acm-it:active{background:var(--linha2)}
 .acm-folha button.acm-it svg{width:20px;height:20px;flex:none;color:var(--suave)}
 .acm-fecha{margin-top:6px;width:100%;justify-content:center;min-height:46px}
+
+/* tela fixa em todo o sistema: a página não anda para os lados em nenhum aparelho, a barra de rolagem não empurra o conteúdo
+   e os cartões não sobem ao passar o mouse (subindo, saíam de baixo do ponteiro e ficavam tremendo) */
+html{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
+body{overflow-x:clip;max-width:100%;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
+@media (min-width:961px){html{overflow-y:scroll}}
+button.kpi:hover,.card-sg:hover,.rap a:hover,.rt-it:hover,.dc-mod:hover,.fv-card:hover,.spot-card:hover,.ndp-rap a:hover,.ndp-c:hover,.ndp-c:hover .seta,.jc-tira-c:hover,.pp-k:hover,.pp-et:hover,.pp-fo:hover,.c2-al:hover,.c2-pill:hover,.c2-tile:hover,html.casca2 .sv-corpo .hero .kpi:hover,html.casca2 .spot-card:hover,html.vis-nv .spot-card:hover{transform:none!important}
 </style>
 
 <script id="jb-ajustes-telas">
