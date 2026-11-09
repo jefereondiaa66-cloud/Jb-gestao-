@@ -533,7 +533,7 @@
 <script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.cores)document.documentElement.setAttribute('data-jbcores','');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onload="try{if(window.APP&&APP.pronto&&document.querySelector('#conteudo canvas')&&typeof renderTela==='function')renderTela()}catch(e){}"></script>
 <!-- Excel e PDF (cerca de 1,3 MB) carregam depois que a tela abre: ver garantirBibliotecas() -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <style>
@@ -7580,7 +7580,7 @@ function renderCasca(){
  <span class="eu so-desk"><span class="av2">${APP.avatar?`<img src="${esc(APP.avatar)}" alt="" onerror="this.remove()">`:esc(iniciais(APP.nome||'Você'))}</span>
   <span><b>${esc(APP.nome||'Você')}</b><small>${esc(PAPEIS[APP.papel]||'')}</small></span></span>`;
  let bm=document.getElementById('barraMob');if(!bm){bm=document.createElement('nav');bm.id='barraMob';bm.className='barra-mob';bm.setAttribute('aria-label','Navegação principal');document.body.appendChild(bm)}
- const itensMob=[['painel','Painel','painel'],['ponto','Ponto','relogio'],['funcionarios','Pessoas','pessoas'],['folha','Folha','folha'],['ia','Claude','faisca'],['alertas','Alertas','sino']].filter(([m])=>pode(m));
+ const itensMob=[['painel','Painel','painel'],['ponto','Ponto','relogio'],['funcionarios','Pessoas','pessoas'],['folha','Folha','folha'],['ia','Inteligência','faisca']].filter(([m])=>pode(m));
  bm.innerHTML=itensMob.map(([m,l,i])=>`<a href="#/${m}" class="${r.mod===m?'on':''}">${ic(i)}<span>${l}</span>${m==='alertas'?'<span class="qt" id="qtMob" hidden></span>':''}</a>`).join('')+`<button type="button" id="bMenuMob" class="${itensMob.some(([m])=>m===r.mod)?'':'on'}">${ic('menu')}<span>Menu</span></button>`;
  $('#bMenuMob').onclick=e=>{if(window.JB_CASCA&&JB_CASCA.funcoes&&JB_CASCA.funcoes()){e.stopPropagation();return}$('#side').classList.add('aberto');$('#veuNav').classList.add('aberto')};
  atualizarSinc();
@@ -7984,7 +7984,7 @@ function telaLista(el,mod){
    $('[data-flimpa2]',c).onclick=()=>{st.q='';st.f={};st.pag=0;renderTela()};return}
   c.innerHTML=`<div class="tabwrap"><table class="tbl cartao"><thead><tr>${M.cols.map(co=>`<th class="ord ${co.t==='num'||co.t==='moeda'?'num':''}" data-o="${co.k}">${esc(co.l)}${st.ord&&st.ord[0]===co.k?(st.ord[1]==='desc'?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
   <tbody>${vis.map(r=>`<tr class="clic" data-id="${esc(r.id)}" tabindex="0">${M.cols.map(co=>`<td data-l="${esc(co.l)}" class="${co.t==='num'||co.t==='moeda'?'num':''}">${celula(co,r)}</td>`).join('')}</tr>`).join('')}</tbody>${rodapeTotais(mod,rows)}</table></div>
-  <div class="pag"><span>${rows.length} registro(s)${rows.length!==baseMod(mod).length?' de '+baseMod(mod).length:''}</span><span class="acoes"><button class="btn min" data-p="-1" ${st.pag<=0?'disabled':''}>Anterior</button><span>Página ${st.pag+1} de ${pags}</span><button class="btn min" data-p="1" ${st.pag>=pags-1?'disabled':''}>Próxima</button></span></div>`;
+  <div class="pag" ${pags<=1&&rows.length===baseMod(mod).length&&rodapeTotais(mod,rows)?'hidden':''}><span>${rows.length} registro(s)${rows.length!==baseMod(mod).length?' de '+baseMod(mod).length:''}</span><span class="acoes" ${pags<=1?'hidden':''}><button class="btn min" data-p="-1" ${st.pag<=0?'disabled':''}>Anterior</button><span>Página ${st.pag+1} de ${pags}</span><button class="btn min" data-p="1" ${st.pag>=pags-1?'disabled':''}>Próxima</button></span></div>`;
   $$('th[data-o]',c).forEach(th=>th.onclick=()=>{const k=th.dataset.o;st.ord=st.ord&&st.ord[0]===k&&st.ord[1]==='asc'?[k,'desc']:[k,'asc'];corpo()});
   $$('tr[data-id]',c).forEach(tr=>{tr.onclick=()=>location.hash=(mod==='funcionarios'?'#/ficha/':M.rotaItem||'#/'+mod+'/')+tr.dataset.id;tr.onkeydown=e=>{if(e.key==='Enter')tr.onclick()}});
   $$('[data-p]',c).forEach(b=>b.onclick=()=>{st.pag+=+b.dataset.p;corpo()});
@@ -12102,7 +12102,7 @@ function modOp(O){return{titulo:O.K==='venda'?'Vendas':'Compras',sing:O.sing,ic:
   {k:'forma',l:'Pagamento',v:r=>esc(r.forma+' · '+r.condicao),o:r=>r.forma+' '+r.condicao},
   {k:'status',l:O.Sing,v:r=>tagV(r.status)},
   {k:'_fin',l:'Financeiro',v:r=>{const f=finVenda(r);return tagV(f.status)+(f.saldo>0?`<div style="font-size:11.5px;color:var(--suave);margin-top:2px">${O.aberto} ${esc(fMoeda(f.saldo))}</div>`:'')},o:r=>finVenda(r).status},
-  {k:'_fis',l:O.K==='venda'?'Fiscal':'Nota',v:r=>{const f=r.fiscal||{};return O.K==='venda'?tagV(f.status||'Pendente'):(f.numero?esc('nº '+f.numero):'—')},o:r=>(r.fiscal||{}).status||''},
+  {k:'_fis',l:O.K==='venda'?'Fiscal':'Nota',v:r=>{const f=r.fiscal||{};return O.K==='venda'?(!f.status||f.status==='Pendente'?tagV('Pendente').replace('>Pendente<','>NF pendente<'):tagV(f.status)):(f.numero?esc('nº '+f.numero):'—')},o:r=>(r.fiscal||{}).status||''},
   {k:'_resp',l:'Responsável',v:r=>esc(r.responsavelNome||r.vendedorNome||nomeUsuario(r.criadoPor)),o:r=>r.responsavelNome||r.vendedorNome||''}],
  filtros:[{k:'status',l:O.Sing,op:['Concluída','Cancelada']},{k:'_fin',l:'Financeiro',op:ST_FIN,fn:(r,v)=>finVenda(r).status===v},
   {k:'forma',l:'Forma',op:FORMAS_V},{k:'condicao',l:'Condição',op:['À vista','A prazo']},
@@ -12120,9 +12120,10 @@ MODS.vendas=modOp(OP.venda);MODS.compras=modOp(OP.compra);
 function ABAS_V(s){const S=SETORES_V[s];
  const a=S.modo==='venda'?[
   {r:S.rota,m:'setor-'+s,ic:'painel',l:'Início',at:['setor-'+s]},
+  {r:'#/venda/nova',m:'venda',e:1,ic:'recibo',l:'Venda rápida',at:['venda-nova']},
   {r:'#/pedido/novo',m:'pedido',e:1,ic:'mais',l:'Novo pedido',at:['ped-novo']},
   {r:'#/orcamentos',m:'orcamentos',ic:'doc',l:'Orçamentos',at:['orcamentos','orc-novo']},
-  {r:'#/vendas',m:'vendas',ic:'recibo',l:'Pedidos',at:['vendas','venda','venda-nova']},
+  {r:'#/vendas',m:'vendas',ic:'recibo',l:'Pedidos',at:['vendas','venda']},
   {r:'#/expedicao',m:'expedicao',ic:'caixa',l:'Expedição',at:['expedicao']},
   {r:'#/receber',m:'receber',ic:'moeda',l:'Contas a receber',at:['receber']},
   ...(vendasComEstoqueV()?[{r:'#/estoque',m:'estoque',ic:'caixa',l:'Estoque',at:['estoque','estoqueMov']}]:[]),
@@ -12215,7 +12216,7 @@ function inicioVendasV(c,s){
  const S=SETORES_V[s];const N=numerosOp(OP.venda,s);const ed=pode('venda','e');
  const semProd=!DATA.produtos.some(p=>p.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
-  <div class="acoes">${pode('estoqueMov','e')&&N.prods.length?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn" href="#/venda/nova" data-tip="Venda de balcão, à vista ou a prazo, que baixa o estoque na hora">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn pri" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
+  <div class="acoes">${pode('estoqueMov','e')&&N.prods.length?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn pri" href="#/venda/nova" data-tip="Venda direta, à vista ou a prazo, que já entra como concluída">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?'Cadastre os tipos de tijolo e os produtos (milheiro, com preço), registre a entrada no estoque e faça a primeira venda. ':'Peça ao gerente para cadastrar os produtos. '}Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   <div class="hero">
    ${kpiV('c1','recibo','Vendas hoje',fMoeda(soma(N.dia,v=>v.total)),N.dia.length+' venda(s)','#/vendas')}
@@ -14092,8 +14093,8 @@ function telaExpedicaoV(el){
   lst.sort((a,b)=>(+b.cg.numero||0)-(+a.cg.numero||0));
   const it=(v,txt,s,vl,cls)=>({href:'#/venda/'+v.id,ic:'caixa',cls,t:'Pedido nº '+fNumV(v.numero)+' · '+((v.cliente||{}).nome||''),s,v:vl});
   c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('caixa')}</span><div><h1>Expedição</h1><p>Carregamentos e entregas dos pedidos. A saída do estoque acontece ${esc(CFGV().eventoBaixa.toLowerCase())}.</p></div></div></div>
-   <div class="hero">${kpiV('c1','caixa','A carregar',String(aCarregar.length),aCarregar.length?'pedido(s) com saldo a carregar':'nada pendente')}${kpiV('c3','editar','Em carregamento',String(emCarga.length),'carregamento(s) aberto(s)')}
-    ${kpiV('c2','enviar','Em trânsito',String(transito.length),semSaida.length?semSaida.length+' carregado(s) sem saída registrada':'entrega(s) na estrada')}${kpiV('c6','aviso','Atrasados',String(atrasoC.length+atrasoE.length),atrasoC.length+' carregamento(s) · '+atrasoE.length+' entrega(s)')}</div>
+   <div class="hero">${kpiV('c1','caixa','A carregar',String(aCarregar.length),aCarregar.length?(aCarregar.length===1?'pedido com saldo a carregar':'pedidos com saldo a carregar'):'nada pendente')}${kpiV('c3','editar','Em carregamento',String(emCarga.length),emCarga.length===1?'carregamento aberto':'carregamentos abertos')}
+    ${kpiV('c2','enviar','Em trânsito',String(transito.length),semSaida.length?semSaida.length+' carregado(s) sem saída registrada':(transito.length===1?'entrega na estrada':'entregas na estrada'))}${kpiV('c6','aviso','Atrasados',String(atrasoC.length+atrasoE.length),atrasoC.length+' carregamento(s) · '+atrasoE.length+' entrega(s)')}</div>
    <div class="ex3">
     <div class="bloco"><h3>A carregar</h3>${lstV(aCarregar.slice(0,8).map(v=>it(v,'',(v.prevCarga?(v.prevCarga<h?'atrasado · previsto ':'previsto ')+fData(v.prevCarga):'sem data prevista')+' · '+v.status.toLowerCase(),prodsPedido(v).map(pid=>fQtd(pendenteCargaP(v,pid))+' '+((PROD(pid)||{}).unidade||'')).join(' + '),v.prevCarga&&v.prevCarga<h?'a-pe':v.status==='Aguardando disponibilidade'?'a-pe':'a-at')),'Nenhum pedido aguardando carregamento.')}</div>
     <div class="bloco"><h3>Em carregamento</h3>${lstV(emCarga.slice(0,8).map(x=>it(x.v,'','Carregamento nº '+fNumV(x.cg.numero)+' · '+[x.cg.placa,x.cg.motorista].filter(Boolean).join(' · '),fData(x.cg.data),'a-at')),'Nenhum carregamento aberto.')}</div>
@@ -14426,7 +14427,7 @@ inicioVendasV=function(c,s){
  const K=(cls,ico,rot,val,sub,fn)=>`<a class="kpi ${cls}" href="javascript:void 0" data-k="${fn}"><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div>${sub?`<div class="delta neutro"><b>${sub}</b></div>`:''}</a>`;
  const semProd=!DATA.produtos.some(p=>p.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>Situação comercial da cerâmica, com dados reais: clique em um indicador para ver os registros.</p></div></div>
-  <div class="acoes">${pode('venda','e')?`<a class="btn" href="#/venda/nova" data-tip="Venda de balcão que baixa o estoque na hora">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn pri" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
+  <div class="acoes">${pode('venda','e')?`<a class="btn pri" href="#/venda/nova" data-tip="Venda direta, que já entra como concluída">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os produtos (milheiro, preço de referência e mínimo), as tabelas de preço e os clientes; registre a entrada no estoque e faça o primeiro orçamento ou pedido. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   <div class="painel filtros pv-filtros"><select id="pvPer" aria-label="Período">${[['hoje','Hoje'],['mes','Este mês'],['mesant','Mês anterior'],['mesx','Escolher o mês'],['ano','Este ano'],['pers','Período personalizado']].map(([k,l])=>`<option value="${k}" ${UIPV.per===k?'selected':''}>${l}</option>`).join('')}</select>
    ${UIPV.per==='mesx'?JB_MES.controles('vendas'):''}
@@ -18170,7 +18171,7 @@ window.finTopo=(c,ativa)=>{
  if(!c||c.querySelector('.fi48-topo'))return;
  const lim=addDias(hoje(),5);const das=dasAbertos().filter(o=>o.venc&&o.venc<=lim).sort((a,b)=>String(a.venc).localeCompare(String(b.venc)));
  const avisoDas=das.length?`<div class="aviso ${das.some(o=>o.s.vencido)?'pe':'at'}" style="margin-bottom:10px"><span><b>${das.some(o=>o.s.vencido)?'DAS vencido':'DAS perto de vencer'}:</b> ${das.slice(0,4).map(o=>esc(o.benef.replace(/^DAS MEI · /,''))+' · '+esc(fMesAno(o.rec.competenciaDas))+' · '+(o.s.vencido?'venceu ':'vence ')+esc(fData(o.venc))+' · '+esc(fMoeda(o.s.saldo))).join('; ')}${das.length>4?' e mais '+(das.length-4):''}. <a href="#/fMeis">Ver DAS</a></span></div>`:'';
- c.insertAdjacentHTML('afterbegin',`<div class="fi48-topo">${avisoDas}<p class="fi48-nota">${esc(NOTA_NUMEROS)}</p></div>`);
+ c.insertAdjacentHTML('afterbegin',`<div class="fi48-topo">${avisoDas}</div>`);
  clearTimeout(tDas);tDas=setTimeout(()=>{gerarDas().catch(e=>console.warn('DAS',e))},400);
 };
 
@@ -18323,7 +18324,6 @@ TELAS_V.combEntrega=el=>{if(typeof marcarSetor==='function')marcarSetor('combust
  c.querySelectorAll('.jb-ent-novo').forEach(b=>b.onclick=novoCombEntrega);
  c.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{location.hash='#/fTitulos/'+tr.dataset.id})},{setor:'combustivel'})};
 const sv0=shellV;shellV=function(el,ativa,corpo,opc){const r=sv0.apply(this,arguments);
- try{const s=(opc&&opc.setor&&SETORES_V[opc.setor])?opc.setor:setorAtualV();if(s==='combustivel'){const c=$('#svCorpo',el);if(c&&!c.querySelector('.fi48-nota'))c.insertAdjacentHTML('afterbegin',`<p class="fi48-nota">${esc(NOTA_NUMEROS)}</p>`)}}catch(e){}
  return r};
 /* ---------- pagamento e recebimento de compra/venda: conta, permuta em milheiros e comprovante ---------- */
 window.extraPagV48=venda=>{
@@ -29714,7 +29714,7 @@ function tokensCores(c,escuro){
  const t=tokens(SEMENTE_PADRAO[v]||SEMENTE_PADRAO.cc,escuro);
  const priTx=jcTextoSobre(c.pri);
  Object.assign(t,{'--papel':c.fundo,'--papel2':c.fundo2,'--linha3':jcMix(c.fundo2,c.borda,.35),'--branco':c.painel,'--linha':c.borda,'--linha2':jcMix(c.borda,c.painel,.5),
-  '--tinta':c.tx,'--suave':c.tx2,'--fraco':c.icone,'--marinho':c.sec,'--sec':c.tx2,'--ardosia':c.tx2,'--ardosia-bg':c.fundo2,
+  '--tinta':c.tx,'--suave':c.tx2,'--fraco':comContraste(c.icone,c.fundo,4.6),'--marinho':c.sec,'--sec':c.tx2,'--ardosia':c.tx2,'--ardosia-bg':c.fundo2,
   '--carvao':c.menu,'--carvao2':jcMix(c.menu,B,.07),'--carvao3':jcMix(c.menu,B,.14),'--carvao-tx':jcMix(c.menu,B,.74),
   '--brasa':c.destaque,'--brasa2':c.inter,'--brasa3':jcMix(c.destaque,B,.2),'--brasa-bg':c.sel,'--brasa-bg2':jcMix(c.sel,c.destaque,.28),
   '--anel':'0 0 0 3px '+jcRgba(c.inter,escuro?.4:.3),
@@ -31256,6 +31256,8 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  }
  const ROTULO_CURTO={'Lançamentos do funcionário':'Lançamentos','Cadastro de funcionários':'Funcionários','Todos os afastamentos':'Afastamentos','Advertências e medidas disciplinares':'Advertências','Relação de funcionários':'Relatórios','Programação de férias':'Férias'};
 
+ /* nome do setor no celular: Pessoal, Vendas, Lenha… */
+ const nomeCurtoSetor=n=>{let t=String(n||'').replace(/^setor\s+(de|do|da)\s+/i,'').replace(/^setor\s+/i,'').split('/')[0].replace(/\s+(—|-|e)\s+.*$/,'').trim();if(t===t.toUpperCase())t=t.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());return t||n};
  /* ---------- botão Voltar do cabeçalho: tela anterior; sem anterior, início do setor; no início, lista de setores ---------- */
  const PILHA_V=[];let rotaV=location.hash,voltandoV=false;
  function destinoVoltar(){
@@ -31290,7 +31292,6 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   ${w('setor',`<button type="button" class="c2-setor" aria-haspopup="true"><span class="c2-sic" id="c2sic"></span><span class="c2-stx"><b id="c2snome"></b><small>${esc(nomeEmpresa())}</small></span>${ic('c2baixo')}</button>`,'<div id="c2setores"></div>','esq c2-pop-setor')}
   <span class="c2 c2-sep"></span>
   ${w('funcoes',`<button type="button" class="c2-tb c3-rot" data-tip2="Todas as telas do setor" aria-label="Módulos do setor">${ic('c2grade')}<span>Módulos</span></button>`,'<div id="c2mega"></div>','esq c2-mega')}
-  <span class="c2 c2-trilha">${dp&&modelo()!=='m2'&&typeof trilhaHtml==='function'?trilhaHtml(r):''}</span>
   <span class="c2 c2-esp"></span>
   ${top.querySelector(':scope>.busca')?(w('busca',`<button type="button" class="c2-tb" data-tip2="Pesquisar (Ctrl K)" aria-label="Pesquisar">${ic('lupa')}</button>`,'','c2-pop-busca')):''}
   ${w('novo',`<button type="button" class="c2-tb c3-rot c3-novo" data-tip2="Novo lançamento" aria-label="Novo lançamento">${ic('c2mais')}<span>Novo</span></button>`,'<div id="c2novo"></div>')}
@@ -31304,6 +31305,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   /* elementos originais (com tudo o que já faziam) vão para dentro das janelinhas */
   const bu=top.querySelector(':scope>.busca');if(bu){const dest=top.querySelector('[data-c2=busca] .c2-pop');if(dest)dest.appendChild(bu)}
   if(comp)top.querySelector('[data-c2=comp] .c2-pop').appendChild(comp);
+  document.body.classList.toggle('c3-tem-comp',!!comp);
   const si=top.querySelector(':scope>#sinc');if(si)$('#c2sinc').appendChild(si);
   moverEia();
   ligarJanelas(top);
@@ -31396,7 +31398,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   injetarAcesso(dp,itens,grupos);
   if(!forcar&&chave===C2.chave)return;C2.chave=chave;
   Object.assign(C2,{dp,itens,grupos,nome:st.nome,ic:st.ic});marcarVoltar();
-  $('#c2snome').textContent=st.nome;$('#c2sic').innerHTML=ic(st.ic);
+  $('#c2snome').innerHTML=`<span class="c3-nl">${esc(st.nome)}</span><span class="c3-nc">${esc(nomeCurtoSetor(st.nome))}</span>`;$('#c2sic').innerHTML=ic(st.ic);
   /* trocar de setor */
   const vis=(typeof SETORES!=='undefined'?SETORES:[]).filter(s=>{try{return !s.v||s.v()}catch(e){return false}});
   $('#c2setores').innerHTML=`<div class="c2-pt">Trocar de setor</div>${vis.map(s=>`<a class="c2-op ${s.nome===st.nome?'on':''}" href="${esc(s.rota)}" data-c2setor="${esc(s.id)}">${ic(s.ic)}<span>${esc(s.nome)}${s.breve?'<small>em preparação</small>':''}</span></a>`).join('')}<div class="c2-linha"></div><a class="c2-op" href="#/setores">${ic('c2grade')}Ver todos os setores</a>`;
@@ -31469,7 +31471,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    <a href="#/setores">${ic('c2listas')}<span>Setores</span></a>`;
   const b=m.querySelector('[data-c2mobf]');if(b)b.onclick=e=>{e.stopPropagation();const wf=$('[data-c2=funcoes]');if(wf){fecharTudo(wf);wf.classList.add('ab');scrollTo(0,0)}};
  }
- const curto=l=>{const s=String(l);return s.length>12?s.split(' ')[0]:s};
+ const curto=l=>{const s=String(l);if(s==='Orçamentos')return 'Orçam.';if(s==='Abastecimentos')return 'Abastec.';if(s==='Lançamentos')return 'Lançam.';return s.length>12?s.split(' ')[0]:s};
 
  /* ---------- tela inicial: Olá, busca, alertas inteligentes, favoritos e módulos ---------- */
  const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
@@ -31513,12 +31515,15 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    ts.sort((a,b)=>(b.cls==='pri')-(a.cls==='pri'));
    const cab=sv.querySelector(':scope>.sec-cab');
    const desc=cab?cab.querySelector('.sec-id p'):null;
-   hero=`<section class="c2-home"><div class="c2-ola"><div><h1>${comSaud()?esc(saudacao())+', '+esc(primeiro(APP.nome)||'bem-vindo'):esc(st.nome)}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p>${desc?`<p class="c2-desc">${esc(desc.textContent)}</p>`:''}</div><div class="c2-acoes-dest"></div></div>
+   hero=`<section class="c2-home c2-home-set"><div class="c2-ola"><div><h1>${comSaud()?esc(saudacao())+', '+esc(primeiro(APP.nome)||'bem-vindo'):esc(st.nome)}</h1><p>${esc(hojeTxt())} • ${esc(st.nome)} hoje</p>${desc?`<p class="c2-desc">${esc(desc.textContent)}</p>`:''}</div><div class="c2-acoes-dest"></div></div>
     <button type="button" class="c2-bbusca" data-c2busca>${ic('lupa')}Buscar telas, lançamentos, cadastros…<kbd>Ctrl K</kbd></button></section>`;
    depois=cab;
   }
+  /* cada módulo com ícone próprio dentro do setor */
+  const ICO_UNICO={'Venda rápida':'carrinho','Tabelas de preço':'planilha','Metas':'ctlAlvo','Combustível para entrega / Despesas':'cacamba','Terceiros':'iPessoa','Formas de pagamento':'carteira','Custo da lenha':'ctlCalc','Tijolo pronto':'palete','Pagamentos do dia':'relogio','Fluxo de caixa':'iSetas','Auditoria':'escudo','Com clientes':'predio','Espelho de ponto':'planilha','Férias vencidas':'jcAviso','Exames e ASO':'cruz'};
+  ts.forEach(t=>{const i=ICO_UNICO[t.titulo||t.l];if(i&&IC[i]){t.ico=i;if(t.svg)t.svg=ic(i)}});
   /* favoritos: os escolhidos pela pessoa, ou os quatro primeiros quadradinhos */
-  const salvo=lerFav(sid);const fk=(salvo||ts.slice(0,4).map(t=>t.k)).filter(k=>ts.some(t=>t.k===k));
+  const salvo=lerFav(sid);const novoLanc=t=>t.cls==='pri'||/^(nov[oa]|lançar|lançamentos?|venda rápida)\b/i.test(t.l||'');const fk=(salvo||ts.filter(t=>!novoLanc(t)).slice(0,4).map(t=>t.k)).filter(k=>ts.some(t=>t.k===k));
   ts.forEach(t=>t.fav=fk.includes(t.k));
   const favs=fk.map(k=>ts.find(t=>t.k===k));
   const M=modelo();
@@ -31556,6 +31561,13 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     if(!dp){const k1=R.querySelector('.hero .kpi');if(k1)k1.classList.add('c2-kdest')}
     const an=[...R.querySelectorAll(':scope>.ex2,:scope>.ex3,:scope>.ex4,:scope>.bloco,:scope>.graf')][0];
     if(an)an.insertAdjacentHTML('beforebegin',nv('Análises detalhadas','livro',''))}}catch(e){}
+  /* setores: os números vêm logo abaixo da saudação; depois busca, atalhos e módulos */
+  try{if(!dp&&M==='m3'){const tiles=raiz.querySelector(':scope>.c2-acesso');const raizK=raiz.querySelector(':scope>.hero');const ppN=raizK?null:raiz.querySelector(':scope>.pp>.pp-n2');
+   if(tiles&&(raizK||ppN)){let mover=[];
+    if(raizK){for(let n=tiles.nextElementSibling;n;n=n.nextElementSibling){if(!n.classList.contains('aviso'))mover.push(n);if(n===raizK)break}}
+    else{const w=document.createElement('div');w.className='pp';w.appendChild(ppN);mover=[w]}
+    let ref=heroEl;mover.forEach(n=>{ref.insertAdjacentElement('afterend',n);ref=n});
+    const bb=heroEl.querySelector('.c2-bbusca');if(bb)ref.insertAdjacentElement('afterend',bb)}}}catch(e){console.warn('início do setor',e)}
   ligarAcesso(raiz,sid,ts);
  }
  function ligarAcesso(raiz,sid,ts){
@@ -32129,7 +32141,7 @@ async function iniciar(){
  setTimeout(async()=>{
   if(!acessoOk()||!pode('diagnostico'))return;
   try{carregarUso();const r=rodarDiagnostico();await gravarRodada(r);
-   if(r.porSev.alta&&lerRota().mod!=='diagnostico')toast(r.porSev.alta+' achado(s) crítico(s) no autodiagnóstico.','erro',true);
+   if(r.porSev.alta&&lerRota().mod!=='diagnostico'&&!document.documentElement.classList.contains('jb-sem-avisos'))toast(r.porSev.alta+' achado(s) crítico(s) no autodiagnóstico.','erro',true);
    if(lerRota().mod==='diagnostico')renderTela()}catch(e){console.warn('ciclo',e)}
  },12000);
  setTimeout(()=>{if(!APP.carregado){APP.carregado=true;renderTela()}},8000);
@@ -34140,7 +34152,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&UI.aberto)fechar()}
 const _telaSetoresPD=telaSetores;
 telaSetores=function(el){const r=_telaSetoresPD.apply(this,arguments);
  try{if(!ligados())el.querySelectorAll('.spot-info').forEach(s=>{const t=s.textContent;
-  const n=t.replace(/\s*·\s*(\d+ pendências?|nenhuma pendência|\d+ pendente\(s\))/g,'').replace(/^(\d+ alerta\(s\)|nenhum alerta)\s*·\s*/,'');
+  const n=t.replace(/\s*·\s*(\d+ pendências?|nenhuma pendência|\d+ pendentes?(?:\(s\))?)/g,'').replace(/^(\d+ alertas?(?:\(s\))?|nenhum alerta)\s*·\s*/,'');
   if(n!==t)s.textContent=n})}catch(e){console.warn('pendências: cartões',e)}
  return r};
 
@@ -35754,8 +35766,106 @@ html.casca2 .c2-tb.c3-voltar{padding:0 11px 0 7px;font-size:13px;font-weight:600
 html.casca2 .c2-tb.c3-voltar svg{width:18px;height:18px}
 html.casca2 .c2-tb.c3-voltar[hidden]{display:none}
 @media (max-width:640px){html.casca2 .c2-tb.c3-voltar{padding:0;width:34px}html.casca2 .c2-tb.c3-voltar span{display:none}}
-@media (max-width:480px){html.casca2 .c2-tb.c3-voltar{width:30px;min-width:30px}html.casca2 body.c2-tem-mob #top>[data-c2=funcoes]>.c2-tb{display:none}html.casca2 body.c2-tem-mob #top>[data-c2=funcoes]+.c2-trilha{display:none}}
+@media (max-width:480px){html.casca2 .c2-tb.c3-voltar{width:30px;min-width:30px}html.casca2 #top>[data-c2=funcoes]>.c2-tb{display:none}html.casca2 body.c2-tem-mob #top>[data-c2=funcoes]+.c2-trilha{display:none}}
 @media print{.c3-voltar{display:none!important}}
+
+/* ---------- 08/11/2026 · diagnóstico de ajustes ---------- */
+/* A1 e A2: no celular a competência fica numa faixa própria e o setor usa o nome curto */
+.c3-nc{display:none}
+@media (max-width:640px){
+ .c3-nl{display:none}.c3-nc{display:inline}
+ html.casca2 body.c3-tem-comp #top{margin-bottom:40px}
+ html.casca2 #top>[data-c2=comp]{position:absolute;left:0;right:0;top:100%;height:40px;display:flex;align-items:center;padding:0 12px;background:var(--papel);border-bottom:1px solid var(--linha)}
+ html.casca2 #top>[data-c2=comp]::before{content:"Competência";font-size:12.5px;color:var(--suave);margin-right:6px}
+ html.casca2 #top>[data-c2=comp]>.c2-tb.comp{width:auto;padding:0 10px;height:32px;min-width:0;gap:6px;font-size:13px;font-weight:600;color:var(--tinta);border:1px solid var(--linha);background:var(--branco)}
+ html.casca2 #top>[data-c2=comp]>.c2-tb.comp span{display:inline!important}
+ html.casca2 #top>[data-c2=comp]>.c2-pop{left:8px;right:8px;top:100%;width:auto}
+}
+/* A5: ícones dos botões da foto */
+html.casca2 .lia-zona .btn svg{color:inherit!important;stroke:currentColor}
+/* A6 e M13: área de toque maior, sem mudar o desenho */
+@media (pointer:coarse){
+ .fchip button,.lista-ed button,.ctl-q,.c2-lk,.bloco>h3>a{position:relative}
+ .fchip button::after,.lista-ed button::after{content:"";position:absolute;inset:-15px -13px}
+ .ctl-q::after{content:"";position:absolute;inset:-13px}
+ .c2-lk::after,.bloco>h3>a::after{content:"";position:absolute;inset:-12px -6px}
+}
+/* M10: abas ativas e aviso de campos com contraste de leitura */
+html.casca2 .ms-area a.on,html.casca2 .abas button.on{color:var(--brasa2,var(--brasa))!important}
+html.casca2 .c2-bbusca{color:var(--suave)}
+.ctl-aberto{color:color-mix(in srgb,var(--at) 62%,#000)!important}
+.gav-pend{color:color-mix(in srgb,var(--at) 68%,#000)}
+/* M8: saudação curta no início dos setores */
+html.casca2 .c2-home-set .c2-ola>div:first-child{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px}
+html.casca2 .c2-home-set .c2-ola h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+html.casca2 .c2-home-set .c2-ola p{margin:0;font-size:13.5px}
+html.casca2 .c2-home-set .c2-ola .c2-desc{display:none}
+html.casca2 .c2-home-set{margin-bottom:6px}
+html.casca2 #svCorpo>.c2-bbusca{margin:14px 0 16px}
+@media (max-width:640px){html.casca2 .c2-home-set .c2-ola h1{font-size:22px}html.casca2 .c2-home-set .c2-ola p{display:none}}
+/* M15: Salvar em destaque, Cancelar discreto; os dois na mesma linha no celular */
+.gaveta .gav-pe .btn:not(.pri):not(.perigo){background:var(--branco)!important;color:var(--tinta)!important;border:1px solid var(--linha)!important;box-shadow:none!important}
+@media (max-width:640px){.gaveta .gav-pe{align-items:center}.gaveta .gav-pe .gav-pend{flex:1 0 100%;order:-1}.gaveta .gav-pe>.btn{flex:1 1 0;justify-content:center}}
+/* B5: título das janelas quebra em vez de cortar */
+@media (max-width:640px){.gav-cab h2{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.2}}
+/* B6: letra mínima */
+#c2qt.c2-bdg,.c2-bdg,.cc-faixa-tx span,.cc-faixa-comp small,.cc-kpi small,.dc-nv-n small,.pp-sparkl span,.pp-gc span,.fi-cal .dsem{font-size:11.5px!important}
+@media (max-width:400px){#c2mob a>span:not(:first-child),#c2mob button>span{font-size:11px;letter-spacing:-.01em}}
+html.vis-cc .cc-faixa-tx span,html.vis-cc .cc-faixa-comp small,html.vis-cc .cc-kpi small,html.vis-cc .cc-kpi.fin small,html.vis-cc .cc-kpi.neg small{font-size:11.5px!important}
+html.casca2 #c2mob .on{color:var(--brasa2,var(--c2-verm))}
+/* B8: celular deitado sem a barra de baixo */
+@media (orientation:landscape) and (max-height:480px){
+ html.casca2 #c2mob,html.casca2 .barra-mob{display:none!important}
+ html.casca2 .main{padding-bottom:0}html.casca2 .conteudo{padding-bottom:24px}
+}
+@media (max-width:640px){#svCorpo>.pv-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}#svCorpo>.pv-filtros>*{min-width:0}#svCorpo>.pv-filtros select{width:100%}}
+@media (max-width:640px){#svCorpo>.ex2{grid-template-columns:minmax(0,1fr)!important}}
+/* B9: blocos da Controladoria cabem na tela */
+.ctl-g2b>*,.ctl-g2>*,.ctl-g3>*{min-width:0}
+/* M14: menu Ações no toque */
+.acoes-li[data-acm]>.ib{display:none!important}
+.acm-bt{min-height:40px;white-space:nowrap}
+.acm-veu{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.acm-folha{background:var(--branco);color:var(--tinta);width:100%;max-width:440px;border-radius:18px 18px 0 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow:auto}
+.acm-folha h4{margin:6px 8px 8px;font-size:14px;font-weight:700}
+.acm-folha button.acm-it{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:0 10px;background:none;border:0;border-radius:10px;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}
+.acm-folha button.acm-it:active{background:var(--linha2)}
+.acm-folha button.acm-it svg{width:20px;height:20px;flex:none;color:var(--suave)}
+.acm-fecha{margin-top:6px;width:100%;justify-content:center;min-height:46px}
 </style>
+
+<script id="jb-ajustes-telas">
+/* 08/11/2026 · M14: no toque, ícones sem nome viram o menu Ações. M16: "registro(s)" vira singular ou plural certo. */
+(()=>{
+/* ---------- plural ---------- */
+const TEM=/\((?:s|es|ns|ões)\)/;
+const TOK=/(\d[\d.,]*)|([.;:!?]\s)|([A-Za-zÀ-ÿ]+)\((s|es|ns|ões)\)/g;
+const num=t=>{const v=t.replace(/\./g,'').replace(/,$/,'');return v==='1'?1:2};
+const flex=(w,sf,n)=>{if(n===1)return w;if(sf==='s')return w+'s';if(sf==='ns')return w.replace(/m$/,'')+'ns';if(sf==='es')return w.replace(/ês$/,'es')+'es';return w.replace(/ão$/,'')+'ões'};
+function corrige(t,ini){let n=ini;return t.replace(TOK,(m,d,f,w,sf)=>{if(d){n=num(d);return m}if(f){n=null;return m}return n==null?m:flex(w,sf,n)})}
+function anterior(no){const a=no.previousSibling||(no.parentNode&&no.parentNode.previousSibling);if(!a)return null;const m=String(a.textContent||'').match(/(\d[\d.,]*)\s*$/);return m?num(m[1]):null}
+const pula=e=>!e||e.closest('input,textarea,select,script,style,[contenteditable]');
+function texto(no){if(no.nodeType!==3||!TEM.test(no.nodeValue)||pula(no.parentElement))return;const v=corrige(no.nodeValue,anterior(no));if(v!==no.nodeValue)no.nodeValue=v}
+function varre(raiz){if(raiz.nodeType===3)return texto(raiz);if(raiz.nodeType!==1||!TEM.test(raiz.textContent||''))return;const w=document.createTreeWalker(raiz,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode()))texto(n)}
+/* ---------- menu Ações ---------- */
+const toque=window.matchMedia('(pointer:coarse)');
+const nomeDe=b=>b.getAttribute('data-tip')||b.getAttribute('aria-label')||b.getAttribute('title')||'Abrir';
+function marca(raiz){if(!toque.matches||raiz.nodeType!==1)return;const ls=raiz.matches&&raiz.matches('.acoes-li')?[raiz]:raiz.querySelectorAll?[...raiz.querySelectorAll('.acoes-li')]:[];
+ ls.forEach(s=>{if(s.dataset.acm)return;const its=[...s.children].filter(x=>x.matches('a.ib,button.ib'));if(its.length<2)return;s.dataset.acm='1';const b=document.createElement('button');b.type='button';b.className='btn min acm-bt';b.textContent='Ações';s.appendChild(b)})}
+let veu=null;
+function fecha(){if(veu){veu.remove();veu=null;document.removeEventListener('keydown',esc_)}}
+function esc_(e){if(e.key==='Escape')fecha()}
+function abre(s){fecha();const its=[...s.children].filter(x=>x.matches('a.ib,button.ib'));veu=document.createElement('div');veu.className='acm-veu';
+ const f=document.createElement('div');f.className='acm-folha';f.setAttribute('role','dialog');f.setAttribute('aria-modal','true');f.setAttribute('aria-label','Ações');const h=document.createElement('h4');h.textContent='Ações';f.appendChild(h);
+ its.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='acm-it';const sv=x.querySelector('svg');if(sv)b.appendChild(sv.cloneNode(true));const sp=document.createElement('span');sp.textContent=nomeDe(x);b.appendChild(sp);b.onclick=()=>{fecha();x.click()};f.appendChild(b)});
+ const c=document.createElement('button');c.type='button';c.className='btn acm-fecha';c.textContent='Fechar';c.onclick=fecha;f.appendChild(c);veu.appendChild(f);veu.addEventListener('click',e=>{if(e.target===veu)fecha()});document.body.appendChild(veu);document.addEventListener('keydown',esc_)}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.acm-bt');if(!b)return;e.preventDefault();e.stopPropagation();abre(b.closest('.acoes-li'))},true);
+window.addEventListener('hashchange',fecha);
+/* ---------- observa o que entra na tela ---------- */
+const obs=new MutationObserver(ls=>{for(const m of ls){if(m.type==='characterData'){texto(m.target);continue}m.addedNodes.forEach(n=>{varre(n);marca(n)})}});
+function liga(){obs.observe(document.body,{subtree:true,childList:true,characterData:true});varre(document.body);marca(document.body)}
+if(document.body)liga();else document.addEventListener('DOMContentLoaded',liga);
+})();
+</script>
 </body>
 </html>

@@ -76,7 +76,7 @@ async function escolher(f) {
 async function gravarTudo() {
   await page.click('#rpGravar');
   await page.click('.veu .modal button.pri');
-  await page.waitForFunction(() => /dia\(s\) gravados no ponto/.test((document.querySelector('.aviso.ok') || {}).textContent || ''), null, { timeout: 15000 });
+  await page.waitForFunction(() => /dias? gravados? no ponto/.test((document.querySelector('.aviso.ok') || {}).textContent || ''), null, { timeout: 15000 });
   await page.waitForTimeout(300);
 }
 const doDia = (fid, data) => page.evaluate(([fid, data]) => {
