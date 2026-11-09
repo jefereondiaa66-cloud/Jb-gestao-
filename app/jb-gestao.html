@@ -3264,6 +3264,18 @@ const IMPR_COL={};
 function colecaoMudou(col){let s;try{s=JSON.stringify(DATA[col])}catch(e){return true}
  let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);
  const d=s.length+':'+(h>>>0);if(IMPR_COL[col]===d)return false;IMPR_COL[col]=d;return true}
+/* recado na tela de uma pessoa: aparece uma vez, por alguns segundos, por cima da tela e sem empurrar nada */
+let RECADO_NA_TELA=null;
+function mostrarRecado(d){
+ if(!d||!d.id||!d.texto||d.para!==APP.uid||RECADO_NA_TELA===d.id)return;
+ if(d.expiraEm&&Date.now()>Date.parse(d.expiraEm))return;
+ const CH='jb-recado-visto';try{if(localStorage.getItem(CH)===d.id)return}catch(e){}
+ if(!APP.pronto||!APP.carregado||document.hidden){setTimeout(()=>mostrarRecado(d),1000);return}
+ RECADO_NA_TELA=d.id;try{localStorage.setItem(CH,d.id)}catch(e){}
+ const seg=Math.max(1,Math.min(60,+d.segundos||10));const v=document.createElement('div');v.className='jb-recado';v.setAttribute('role','alert');
+ v.innerHTML=`<b>${esc(d.titulo||'Recado')}</b><p>${esc(d.texto)}</p><i style="animation-duration:${seg}s"></i>`;
+ document.body.appendChild(v);setTimeout(()=>v.remove(),seg*1000);
+}
 function assinar(){
  const cutMes=mesMenos(mesAtual(),(+CFG.janelaMeses||24)-1);
  Object.keys(DATA).forEach(col=>{
@@ -3275,6 +3287,7 @@ function assinar(){
  ouvir('_cfg',()=>APP.db.doc('config/empresa'),s=>{CFG=cfgMesclada(s.exists?clone(s.data()):null);APP.cfgExiste=s.exists;try{const mk=document.querySelector('#side .marca');if(mk&&acessoOk())mk.outerHTML=marcaHtml()}catch(e){}try{guardarCarrega()}catch(e){}agendarRender()});
  ouvir('_usu',()=>APP.db.doc('config/usuarios'),s=>{USUARIOS=s.exists?clone(s.data()):{papeis:{}};if(!USUARIOS.papeis)USUARIOS.papeis={};definirPapel();agendarRender()});
  ouvir('_aparencia',()=>APP.db.doc('config/aparencia'),s=>receberAparencia(s.exists?clone(s.data()):null));
+ ouvir('_recado',()=>APP.db.doc('config/recado'),s=>{if(s.exists)mostrarRecado(clone(s.data()))});
  if(APP.uid)ouvir('_prefs',()=>APP.db.doc('data/users/'+APP.uid+'/prefs'),s=>{PREFS=s.exists?clone(s.data()):{lidas:{}};if(!PREFS.lidas)PREFS.lidas={};PREFS_OK=true;agendarVersao();atualizarSino()});
 }
 async function salvarPrefs(extra){PREFS={...PREFS,...extra};agendarVersao();if(APP.uid)await contarEscrita(()=>tentar(()=>APP.db.doc('data/users/'+APP.uid+'/prefs').set(clone(PREFS))))}
@@ -35950,6 +35963,12 @@ html{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
 body{overflow-x:clip;max-width:100%;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
 @media (min-width:961px){html{overflow-y:scroll}}
 button.kpi:hover,.card-sg:hover,.rap a:hover,.rt-it:hover,.dc-mod:hover,.fv-card:hover,.spot-card:hover,.ndp-rap a:hover,.ndp-c:hover,.ndp-c:hover .seta,.jc-tira-c:hover,.pp-k:hover,.pp-et:hover,.pp-fo:hover,.c2-al:hover,.c2-pill:hover,.c2-tile:hover,html.casca2 .sv-corpo .hero .kpi:hover,html.casca2 .spot-card:hover,html.vis-nv .spot-card:hover{transform:none!important}
+
+.jb-recado{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100000;width:min(520px,calc(100vw - 24px));background:#141416;color:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 18px 44px rgba(0,0,0,.34);overflow:hidden;font-size:15px;line-height:1.45}
+.jb-recado b{display:block;font-size:13px;color:#ff8a8a;margin-bottom:4px}
+.jb-recado p{margin:0}
+.jb-recado i{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#d7141a;transform-origin:left;animation:jbRecadoTempo linear forwards}
+@keyframes jbRecadoTempo{to{transform:scaleX(0)}}
 </style>
 
 <script id="jb-ajustes-telas">
