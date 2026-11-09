@@ -503,6 +503,12 @@ if (temFiscal) {
   TESTES.forEach((x) => teste('fiscal', x.nome, x.fn));
 } else console.log('  – [fiscal] pulado: este pacote não tem supabase/functions/jb-fiscal');
 
+/* Resumo diário no WhatsApp: contas, parâmetros do modelo e corpo do envio, sem rede (mesma regra do pacote sem supabase/) */
+if (existsSync(join(RAIZ, 'supabase/functions/jb-whatsapp/nucleo.js'))) {
+  const { TESTES: TW } = await import('./testar-whatsapp.mjs');
+  TW.forEach((x) => teste('whatsapp', x.nome, x.fn));
+} else console.log('  – [whatsapp] pulado: este pacote não tem supabase/functions/jb-whatsapp');
+
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
 teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {

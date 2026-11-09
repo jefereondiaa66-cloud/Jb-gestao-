@@ -143,3 +143,42 @@ Anexos ficam em `inv.arquivos`/`inv.arquivo_partes`, com limite de 250 MB e paus
 Cópias: `inv.fazer_copia()` diária às 3h20 (30 dias), separada da cópia geral; os arquivos anexos não entram nela.
 Para abrir o inventário a outra pessoa é preciso uma linha nova em `inv.acessos`, só com pedido do dono.
 Estoque/materiais: `inv.naturezas` já separa as naturezas; só `patrimonial` está ativa.
+
+## 9. Resumo diário no WhatsApp
+
+Todo dia às 19h de Fortaleza (22h UTC) o banco chama a função `jb-whatsapp`, que monta o mesmo "Resumo do dia" do programa,
+gera o PDF e manda para os donos pela API oficial da Meta. Só lê os dados: não grava nada em `public.docs`.
+
+| Peça | Onde |
+|---|---|
+| Função | `supabase/functions/jb-whatsapp` (contas em `nucleo.js`, PDF em `pdf.js`) |
+| Configuração | `jbcore.whatsapp_config` (`ativo`, `dias_semana`, 0 = domingo) |
+| Quem recebe | `jbcore.whatsapp_destinatarios` (55 + DDD + número) |
+| Histórico | `jbcore.whatsapp_envios`: um envio por dia e telefone; só repete quem falhou |
+| Agendamento | `jb-whatsapp-resumo` (`cron.job`); desligado (`ativo = false`) não faz nada |
+
+Modelo a cadastrar na Meta: nome `jb_resumo_diario`, categoria Utilidade, idioma Português (Brasil), cabeçalho Documento. Corpo:
+
+```
+Resumo do dia da Cerâmica Concretiza: {{1}}.
+
+Dinheiro: {{2}}.
+Vendas: {{3}}.
+Produção na maromba: {{4}}.
+Fornos: {{5}}.
+Combustível: {{6}}.
+Lenha: {{7}}.
+
+O relatório completo está no PDF em anexo.
+```
+
+Para ligar: gravar os segredos da função `WHATSAPP_TOKEN` e `WHATSAPP_PHONE_NUMBER_ID`, cadastrar os destinatários e testar antes:
+
+```sql
+select jbcore.whatsapp_previa('2026-11-05');                 -- monta e não envia; resultado em jbcore.resposta(<pedido>)
+insert into jbcore.whatsapp_destinatarios (nome, telefone) values ('Nome', '5586999999999');
+select jbcore.whatsapp_disparar(null, '5586999999999');      -- teste para um número
+update jbcore.whatsapp_config set ativo = true;
+```
+
+Se as regras da tela do Resumo do dia (bloco V77 de `app/jb-gestao.html`) mudarem, mude também `nucleo.js`.
