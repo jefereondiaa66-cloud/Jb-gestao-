@@ -3268,14 +3268,15 @@ function colecaoMudou(col){let s;try{s=JSON.stringify(DATA[col])}catch(e){return
    Com "ateClicar", fica até a pessoa clicar nele, e o clique vale em todos os aparelhos dela. */
 const RECADOS_NA_TELA=new Set();
 function mostrarRecado(d){
- if(!d||!d.id||!d.texto||d.para!==APP.uid||RECADOS_NA_TELA.has(d.id))return;
+ if(!d||!d.id||!d.texto||d.para!==APP.uid||d.resposta||RECADOS_NA_TELA.has(d.id))return;
  if(d.expiraEm&&Date.now()>Date.parse(d.expiraEm))return;
  const CH='jb-recado-visto',chP='recado:'+d.id;
  if(!d.ateClicar){try{if(localStorage.getItem(CH)===d.id)return}catch(e){}}
  if(!APP.pronto||!APP.carregado||document.hidden||(d.ateClicar&&!PREFS_OK)){setTimeout(()=>mostrarRecado(d),1000);return}
  if(d.ateClicar&&PREFS.lidas[chP])return;
  RECADOS_NA_TELA.add(d.id);
- const v=document.createElement('div');v.className='jb-recado'+(d.ateClicar?' clicar':'');v.setAttribute('role','alert');
+ const v=document.createElement('div');v.className='jb-recado'+(d.responder?' responder':d.ateClicar?' clicar':'');v.setAttribute('role','alert');
+ if(d.responder){recadoComResposta(v,d,chP);return}
  if(d.ateClicar){
   v.innerHTML=`<b>${esc(d.titulo||'Recado')}</b><p>${esc(d.texto)}</p><small>Clique aqui para fechar</small>`;
   v.tabIndex=0;v.onclick=()=>{v.remove();PREFS.lidas[chP]=new Date().toISOString();salvarPrefs({lidas:PREFS.lidas}).catch(e=>console.warn('recado',e))};
@@ -3284,6 +3285,20 @@ function mostrarRecado(d){
  const seg=Math.max(1,Math.min(60,+d.segundos||10));
  v.innerHTML=`<b>${esc(d.titulo||'Recado')}</b><p>${esc(d.texto)}</p><i style="animation-duration:${seg}s"></i>`;
  document.body.appendChild(v);setTimeout(()=>v.remove(),seg*1000);
+}
+/* recado com pergunta: a pessoa escreve a resposta ali mesmo ou fecha no X. A resposta fica guardada no recado dela e aparece na tela de quem perguntou. */
+function recadoComResposta(v,d,chP){
+ v.innerHTML=`<button type="button" class="jb-rec-x" aria-label="Fechar">×</button><b>${esc(d.titulo||'Recado')}</b><p>${esc(d.texto)}</p><textarea rows="3" placeholder="${esc(d.dica||'Escreva aqui')}"></textarea><small></small><div class="jb-rec-ac"><button type="button">Enviar</button></div>`;
+ const ta=v.querySelector('textarea'),env=v.querySelector('.jb-rec-ac button'),msg=v.querySelector('small');
+ const fechar=()=>{v.remove();PREFS.lidas[chP]=new Date().toISOString();salvarPrefs({lidas:PREFS.lidas}).catch(e=>console.warn('recado',e))};
+ v.querySelector('.jb-rec-x').onclick=fechar;
+ env.onclick=async()=>{const t=ta.value.trim();if(!t){msg.textContent='Escreva a resposta ou feche no X.';ta.focus();return}
+  env.disabled=true;msg.textContent='';const em=new Date().toISOString();
+  try{await APP.db.doc('config/pergunta-'+APP.uid).set({...d,resposta:t,respondidoEm:em});
+   if(d.de)await APP.db.doc('config/pergunta-'+d.de).set({id:'resp-'+d.id,para:d.de,titulo:'Resposta de '+(nomeUsuario(APP.uid)||'quem recebeu o recado'),texto:t,ateClicar:true,criadoEm:em});
+   fechar();if(typeof toast==='function')toast('Resposta enviada.','ok')}
+  catch(e){console.warn('recado',e);env.disabled=false;msg.textContent='Não foi possível enviar. Tente de novo.'}};
+ document.body.appendChild(v);
 }
 function assinar(){
  const cutMes=mesMenos(mesAtual(),(+CFG.janelaMeses||24)-1);
@@ -3298,6 +3313,7 @@ function assinar(){
  ouvir('_aparencia',()=>APP.db.doc('config/aparencia'),s=>receberAparencia(s.exists?clone(s.data()):null));
  ouvir('_recado',()=>APP.db.doc('config/recado'),s=>{if(s.exists)mostrarRecado(clone(s.data()))});
  if(APP.uid)ouvir('_recadoEu',()=>APP.db.doc('config/recado-'+APP.uid),s=>{if(s.exists)mostrarRecado(clone(s.data()))});
+ if(APP.uid)ouvir('_pergunta',()=>APP.db.doc('config/pergunta-'+APP.uid),s=>{if(s.exists)mostrarRecado(clone(s.data()))});
  if(APP.uid)ouvir('_prefs',()=>APP.db.doc('data/users/'+APP.uid+'/prefs'),s=>{PREFS=s.exists?clone(s.data()):{lidas:{}};if(!PREFS.lidas)PREFS.lidas={};PREFS_OK=true;agendarVersao();atualizarSino()});
 }
 async function salvarPrefs(extra){PREFS={...PREFS,...extra};agendarVersao();if(APP.uid)await contarEscrita(()=>tentar(()=>APP.db.doc('data/users/'+APP.uid+'/prefs').set(clone(PREFS))))}
@@ -35980,6 +35996,14 @@ button.kpi:hover,.card-sg:hover,.rap a:hover,.rt-it:hover,.dc-mod:hover,.fv-card
 .jb-recado p{margin:0}
 .jb-recado.clicar{cursor:pointer;padding-bottom:14px;outline:2px solid #d7141a}
 .jb-recado small{display:block;margin-top:8px;font-size:12px;color:#c9c9d1}
+.jb-recado.responder{outline:2px solid #d7141a}
+.jb-recado.responder b{padding-right:30px}
+.jb-recado small:empty{display:none}
+.jb-rec-x{position:absolute;top:8px;right:8px;width:36px;height:36px;border:0;background:none;color:#fff;font-size:24px;line-height:1;cursor:pointer}
+.jb-recado textarea{display:block;width:100%;margin-top:10px;padding:9px 10px;border:1px solid #55555e;border-radius:8px;background:#fff;color:#141416;font:inherit;resize:vertical}
+.jb-rec-ac{display:flex;justify-content:flex-end;margin-top:9px}
+.jb-rec-ac button{border:0;border-radius:8px;padding:9px 20px;background:#d7141a;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.jb-rec-ac button:disabled{opacity:.6;cursor:default}
 .jb-recado i{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#d7141a;transform-origin:left;animation:jbRecadoTempo linear forwards}
 @keyframes jbRecadoTempo{to{transform:scaleX(0)}}
 </style>

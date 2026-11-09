@@ -11,7 +11,8 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const servidorFalso = readFileSync(join(RAIZ, 'scripts/lib/servidor-falso.mjs'), 'utf8').replace(/^export /m, '');
 const docs = [['acesso', 'u_DONO', { id: 'u_DONO', nome: 'Dono', papel: 'admin', ativo: true }],
   ['config', 'recado', { id: 'r1', para: 'u_DONO', titulo: 'Recado', texto: 'Texto de exemplo', segundos: 2, expiraEm: '2099-01-01T00:00:00Z' }],
-  ['config', 'recado-u_DONO', { id: 'c1', para: 'u_DONO', titulo: 'Recado', texto: 'Fica até clicar', ateClicar: true }]];
+  ['config', 'recado-u_DONO', { id: 'c1', para: 'u_DONO', titulo: 'Recado', texto: 'Fica até clicar', ateClicar: true }],
+  ['config', 'pergunta-u_DONO', { id: 'p1', para: 'u_DONO', de: 'u_CHEFE', titulo: 'Recado', texto: 'Falta alguma coisa?', dica: 'Escreva aqui', ateClicar: true, responder: true }]];
 for (let i = 1; i <= 40; i++) {
   docs.push(['funcionarios', 'f' + i, { id: 'f' + i, nome: 'Funcionário Exemplo ' + i, situacao: 'Ativo', setor: 'Produção', departamento: 'Fábrica', admissao: '2024-02-01', tipoContratacao: 'Empregado CLT', formaRemuneracao: 'Mensal fixo' }]);
   docs.push(['sensivel', 'f' + i, { id: 'f' + i, salario: 2000 }]);
@@ -40,17 +41,37 @@ try {
   await page.goto(`http://127.0.0.1:${http.address().port}/saida/claude.html`);
   await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 45000 });
   await page.waitForFunction(() => DATA.funcionarios.length === 40, null, { timeout: 20000 });
-  await page.waitForSelector('.jb-recado:not(.clicar)', { timeout: 15000 });
+  await page.waitForSelector('.jb-recado:not(.clicar):not(.responder)', { timeout: 15000 });
   await page.waitForSelector('.jb-recado.clicar', { timeout: 15000 });
-  ok(await page.evaluate(() => document.querySelector('.jb-recado:not(.clicar) p').textContent === 'Texto de exemplo'), 'recado aparece na tela da pessoa');
-  await page.waitForSelector('.jb-recado:not(.clicar)', { state: 'detached', timeout: 4000 });
+  ok(await page.evaluate(() => document.querySelector('.jb-recado:not(.clicar):not(.responder) p').textContent === 'Texto de exemplo'), 'recado aparece na tela da pessoa');
+  await page.waitForSelector('.jb-recado:not(.clicar):not(.responder)', { state: 'detached', timeout: 4000 });
   await page.waitForTimeout(800);
   ok(await page.evaluate(() => !!document.querySelector('.jb-recado.clicar')), 'recado de clicar continua na tela depois do tempo');
   await page.evaluate(() => document.querySelector('.jb-recado.clicar').click());
   await page.waitForTimeout(300);
   ok(await page.evaluate(() => !document.querySelector('.jb-recado.clicar') && !!PREFS.lidas['recado:c1']), 'clicou, fechou e ficou anotado');
   ok(await page.evaluate(() => { RECADOS_NA_TELA.delete('c1'); mostrarRecado({ id: 'c1', para: 'u_DONO', texto: 'x', ateClicar: true }); return !document.querySelector('.jb-recado.clicar'); }), 'depois de clicar não aparece de novo');
-  ok(await page.evaluate(() => { mostrarRecado({ id: 'r1', para: 'u_DONO', texto: 'x' }); mostrarRecado({ id: 'r2', para: 'outra', texto: 'x' }); return !document.querySelector('.jb-recado'); }), 'recado some sozinho, não repete e não aparece para outra pessoa');
+  ok(await page.evaluate(() => { mostrarRecado({ id: 'r1', para: 'u_DONO', texto: 'x' }); mostrarRecado({ id: 'r2', para: 'outra', texto: 'x' }); return !document.querySelector('.jb-recado:not(.responder)'); }), 'recado some sozinho, não repete e não aparece para outra pessoa');
+  await page.waitForSelector('.jb-recado.responder', { timeout: 15000 });
+  const resp = await page.evaluate(async () => {
+    const v = document.querySelector('.jb-recado.responder'), env = v.querySelector('.jb-rec-ac button');
+    env.click(); await new Promise((r) => setTimeout(r, 100));
+    const travou = !!document.querySelector('.jb-recado.responder') && /Escreva/.test(v.querySelector('small').textContent);
+    v.querySelector('textarea').value = 'Falta a energia'; env.click(); await new Promise((r) => setTimeout(r, 900));
+    const eu = (await APP.db.doc('config/pergunta-u_DONO').get()).data(), chefe = (await APP.db.doc('config/pergunta-u_CHEFE').get()).data();
+    return { travou, fechou: !document.querySelector('.jb-recado.responder'), resposta: eu && eu.resposta, chefe: chefe && chefe.texto, para: chefe && chefe.para, lido: !!PREFS.lidas['recado:p1'] };
+  });
+  ok(resp.travou, 'recado com pergunta: não envia em branco');
+  ok(resp.fechou && resp.lido && resp.resposta === 'Falta a energia', 'recado com pergunta: a resposta fica guardada e o recado fecha');
+  ok(resp.chefe === 'Falta a energia' && resp.para === 'u_CHEFE', 'recado com pergunta: a resposta vai para quem perguntou');
+  const xFecha = await page.evaluate(async () => {
+    mostrarRecado({ id: 'p2', para: 'u_DONO', texto: 'Outra?', ateClicar: true, responder: true });
+    await new Promise((r) => setTimeout(r, 100)); const v = document.querySelector('.jb-recado.responder');
+    const antes = !!v; v.querySelector('.jb-rec-x').click(); await new Promise((r) => setTimeout(r, 100));
+    RECADOS_NA_TELA.delete('p2'); mostrarRecado({ id: 'p2', para: 'u_DONO', texto: 'Outra?', ateClicar: true, responder: true });
+    await new Promise((r) => setTimeout(r, 100)); return antes && !document.querySelector('.jb-recado.responder');
+  });
+  ok(xFecha, 'recado com pergunta: o X fecha e não volta');
   await page.evaluate(() => { window.__r = 0; const o = renderTela; renderTela = function () { __r++; return o.apply(this, arguments); }; location.hash = '#/funcionarios'; });
   await page.waitForTimeout(800);
   await page.evaluate(() => { scrollTo(0, 300); });
