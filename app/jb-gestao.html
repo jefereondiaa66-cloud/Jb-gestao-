@@ -3099,7 +3099,7 @@ const ic=(n,extra='')=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 
 /* ================= estado global ================= */
 const APP={modo:'carregando',db:null,user:null,assets:null,downloads:null,uid:null,nome:'',avatar:'',isOwner:false,canEdit:false,papel:'consulta',setorGestor:'',acessoEstado:'carregando',pronto:false};
-const DATA={funcionarios:[],alteracoes:[],exames:[],sensivel:[],contratos:[],ferias:[],afastamentos:[],admissoes:[],desligamentos:[],documentos:[],advertencias:[],diario:[],horasExtras:[],producao:[],alimentacao:[],diarias:[],vales:[],despesas:[],folhas:[],quinzenas:[],log:[],comprovantes:[],diagnostico:[],uso:[],dependentes:[],docsEmitidos:[]};
+const DATA={funcionarios:[],alteracoes:[],exames:[],sensivel:[],contratos:[],ferias:[],afastamentos:[],admissoes:[],desligamentos:[],documentos:[],advertencias:[],diario:[],horasExtras:[],producao:[],alimentacao:[],diarias:[],vales:[],adicionais:[],despesas:[],folhas:[],quinzenas:[],log:[],comprovantes:[],diagnostico:[],uso:[],dependentes:[],docsEmitidos:[]};
 let CFG=null, USUARIOS={papeis:{}}, PREFS={lidas:{}};
 /* padrão de cores de todos (config/aparencia): dono = quem pode trocar; tema = o padrão atual */
 let APARENCIA=null;
@@ -3126,7 +3126,7 @@ function receberAparencia(d){
 }
 /* lançamentos ficam agrupados em documentos por dia ou por mês; os mensais são divididos em partes
    (pelo identificador do registro) para nunca passar do limite de tamanho de cada documento */
-const BUCKET={diario:'dia',log:'mes',horasExtras:'mes',producao:'mes',alimentacao:'mes',diarias:'mes',vales:'mes',despesas:'mes'};
+const BUCKET={diario:'dia',log:'mes',horasExtras:'mes',producao:'mes',alimentacao:'mes',diarias:'mes',vales:'mes',adicionais:'mes',despesas:'mes'};
 const PARTES={horasExtras:4,producao:4,alimentacao:4,diarias:2,vales:2,despesas:4,log:16};
 const CAMPO_DATA={diario:'data',log:'ts',horasExtras:'data',producao:'data',alimentacao:'data',diarias:'dataSaida',vales:'data',despesas:'competencia'};
 const hashTxt=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))|0;return Math.abs(h)};
@@ -3313,6 +3313,7 @@ const PERM={
  extrato:{v:['admin','rh','dp','financeiro','gestor'],e:[]},
  producao:{v:TODOS,e:['admin','rh','dp','gestor']},
  vales:{v:['admin','rh','dp','financeiro'],e:['admin','rh','dp','financeiro']},
+ adicionais:{v:['admin','rh','dp','financeiro'],e:['admin','rh','dp','financeiro']},
  despesas:{v:['admin','rh','dp','financeiro'],e:['admin','dp','financeiro']},
  folha:{v:['admin','rh','dp','financeiro'],e:['admin','dp','financeiro']},
  feriasctrl:{v:['admin','rh','dp','gestor'],e:['admin','rh','dp']},
@@ -3462,7 +3463,7 @@ const FATOR_FOLHA=1.29,FATOR_INICIO='2026-01-01';
 const FATOR_PARTES=[['13º salário','1 salário por ano ÷ 12 meses',1/12],['Férias + 1/3','(1 + 1/3) salário ÷ 12 meses',4/36],['FGTS','8% × (salário + 13º + férias) = 8% × 119,44%',.08*(1+1/12+4/36)]];
 const setorAdm=s=>/administra|escrit[oó]rio|vendas|comercial|ger[eê]ncia geral/i.test(String(s||''));
 const destinoCusto=adm=>adm?'Despesa · Folha administrativa':'Custo · Mão de obra da produção';
-const baseFatorItem=i=>Math.max(0,(+i.fixo||0)+(+i.diarias||0)+(+i.producao||0)+(+i.extras||0)+(+i.noturno||0)-(+i.descFaltas||0)-(+i.descAtrasos||0));
+const baseFatorItem=i=>Math.max(0,(+i.fixo||0)+(+i.diarias||0)+(+i.producao||0)+(+i.extras||0)+(+i.noturno||0)+(+i.insalubridade||0)-(+i.descFaltas||0)-(+i.descAtrasos||0));
 /* folha do mês separada em produção (custo) e administrativo (despesa). A Controladoria usa só a folha fechada. */
 function custoFolhaMes(m,opc){
  const fc=folhaFechada(m);const itens=fc?(fc.itens||[]):(opc&&opc.previa?itensFolha(m,{}):[]);
@@ -3578,6 +3579,12 @@ const TIPOS_ADV=['Orientação registrada (verbal)','Advertência escrita','2ª 
 const MOTIVOS_ADV=['Atraso','Falta não justificada','Saída sem autorização','Trabalhar sem EPI','Descumprimento de ordem de serviço','Mau uso de equipamento','Conduta inadequada','Baixa produtividade','Outro'];
 const COR_ADV={'Orientação registrada (verbal)':'in','Advertência escrita':'at','2ª advertência escrita':'at','Suspensão':'pe','Última medida — avaliação de desligamento':'pe','Comunicado de justa causa':'pe'};
 const tagAdv=t=>t?'<span class="tag '+(COR_ADV[t]||'')+'">'+esc(t)+'</span>':'';
+/* insalubridade (art. 192 da CLT): percentual do grau sobre o salário mínimo. Adicional noturno: horas × valor-hora × percentual das Configurações */
+const GRAUS_INSAL={'Grau mínimo (10%)':10,'Grau médio (20%)':20,'Grau máximo (40%)':40};
+const OPS_INSAL=Object.keys(GRAUS_INSAL);
+const TIPOS_ADIC=['Adicional noturno','Insalubridade'];
+const valorInsal=g=>GRAUS_INSAL[g]?round2((+LG().salarioMinimo||0)*GRAUS_INSAL[g]/100):0;
+const valorNoturnoDe=(fid,h)=>veSensivel()?round2((+h||0)*valorHoraF(fid)*(+CFG.ponto.pctNoturno||0)/100):0;
 const ehInformal=n=>grupoTipo(n)==='informal';
 const temCarteira=n=>ehCLT(n);
 const carteiraTag=n=>temCarteira(n)?tag('Com carteira','ok'):tag('Sem carteira','at');
@@ -3620,6 +3627,13 @@ function extratoMes(fid,mes,opc){
  const adv=DATA.advertencias.filter(r=>r.funcionarioId===fid&&dd(r.data));
  const fer=DATA.ferias.filter(r=>r.funcionarioId===fid&&r.inicio&&r.inicio<=fim&&(!r.fim||r.fim>=ini)&&r.situacao!=='Cancelada');
  const sal=salarioF(fid),vh=valorHoraF(fid),vd=valorDiariaF(fid);
+ /* adicionais: o lançamento do mês vale no lugar do automático (ficha ou ponto); mês já fechado fica como foi fechado */
+ const adic=(DATA.adicionais||[]).filter(r=>r.funcionarioId===fid&&dd(r.data));
+ const lnN=adic.filter(r=>r.tipo==='Adicional noturno'),lnI=adic.filter(r=>r.tipo==='Insalubridade');
+ const fcMes=(DATA.folhas||[]).find(x=>x.id===mes&&x.situacao!=='Aberta');const itFc=fcMes?((fcMes.itens||[]).find(x=>x.funcionarioId===fid)||{}):null;
+ const adInsal=round2(lnI.length?soma(lnI,r=>+r.valor||0):itFc?(+itFc.insalubridade||0):valorInsal(f.insalubridade));
+ const adNot=round2(lnN.length?soma(lnN,r=>+r.valor||0):itFc?(+itFc.noturno||0):(f.adicionalNoturno==='Sim'&&noturnoMin>0&&vh)?noturnoMin/60*vh*(+CFG.ponto.pctNoturno||0)/100:0);
+ const adNotRef=lnN.length?fNum(soma(lnN,r=>+r.horas||0),2)+' h':fHm(noturnoMin);
  const linhas=[];const falta=[];
  if(temFixo(f)){if(sal)linhas.push(['Salário mensal fixo',sal]);else falta.push('salário mensal')}
  if(formaRem(f)==='Diária'){if(vd)linhas.push(['Diárias trabalhadas ('+diasTrab+' dia(s) × '+fMoeda(vd)+')',diasTrab*vd]);else falta.push('valor da diária')}
@@ -3627,6 +3641,8 @@ function extratoMes(fid,mes,opc){
   linhas.push(['Produção do mês ('+Object.entries(porU).map(([u,q])=>fNum(q,2)+' '+u.toLowerCase()).join(', ')+')',soma(prod,totalProducao)])}
  else if(temProducao(f)&&!prod.length)falta.push('lançamentos de produção do mês');
  if(heOk.length)linhas.push(['Horas extras aprovadas ('+fNum(soma(heOk,r=>r.horas),2)+' h)',soma(heOk,estimadoHE)]);
+ if(adInsal)linhas.push(['Adicional de insalubridade',adInsal]);
+ if(adNot)linhas.push(['Adicional noturno ('+adNotRef+')',adNot]);
  if(faltasNJ&&temFixo(f)&&sal&&opc.descontarFaltas!==false)linhas.push(['(–) Faltas não justificadas ('+faltasNJ+' dia(s))',-round2(faltasNJ*sal/30)]);
  if(opc.descontarAtrasos&&atrasoMin&&vh)linhas.push(['(–) Atrasos ('+fHm(atrasoMin)+')',-round2(atrasoMin/60*vh)]);
  if(vales.length)linhas.push(['(–) Vales e adiantamentos a descontar ('+vales.length+')',-soma(vales,r=>r.valor)]);
@@ -3635,10 +3651,10 @@ function extratoMes(fid,mes,opc){
  if(pgProd+pgHe>0)linhas.push(['(–) Já pago neste mês'+(pgProd&&pgHe?' (produção e horas extras)':pgProd?' (produção)':' (horas extras)'),-round2(pgProd+pgHe)]);
  const flp=(DATA.folhas||[]).find(x=>x.id===mes&&x.situacao==='Paga');
  if(flp){const iti=(flp.itens||[]).find(x=>x.funcionarioId===fid);
-  const pagoSal=iti?round2((+iti.fixo||0)+(+iti.diarias||0)-(+iti.descFaltas||0)-(+iti.descAtrasos||0)):0;
+  const pagoSal=iti?round2((+iti.fixo||0)+(+iti.diarias||0)+(adInsal?+iti.insalubridade||0:0)+(adNot?+iti.noturno||0:0)-(+iti.descFaltas||0)-(+iti.descAtrasos||0)):0;
   if(pagoSal>0)linhas.push(['(–) Salário e diárias pagos no fechamento da folha',-pagoSal])}
  const total=soma(linhas,l=>l[1]);
- return{f,mes,forma:formaRem(f),sal,vh,vd,linhas,total,di,cs,faltasNJ,faltasJ,atrasoMin,extraMin,noturnoMin,diasTrab,heOk,hePend,prod,vales,adv,fer,falta,
+ return{f,mes,forma:formaRem(f),sal,vh,vd,adInsal,adNot,adNotRef,linhas,total,di,cs,faltasNJ,faltasJ,atrasoMin,extraMin,noturnoMin,diasTrab,heOk,hePend,prod,vales,adv,fer,falta,
   prodPendente:soma(prod.filter(r=>r.situacao!=='Pago'),totalProducao),prodPago:pgProd,jaPago:round2(pgProd+pgHe)};
 }
 const UIE={func:'',mes:mesAtual(),atrasos:false};
@@ -3739,6 +3755,9 @@ funcionarios:{titulo:'Funcionários',sing:'funcionário',ic:'pessoas',
   {k:'valorDiaria',l:'Valor da diária',t:'moeda',sens:1,sh:r=>r.formaRemuneracao==='Diária',s:'Remuneração e pagamento'},
   {k:'unidadeProducao',l:'Unidade de produção',t:'sel',op:()=>CFG.unidadesProducao||[],aj:'Milheiro, forno, carrada… é a unidade que você conta para pagar.',sh:r=>/produção/i.test(r.formaRemuneracao||''),s:'Remuneração e pagamento'},
   {k:'valorUnidade',l:r=>'Valor por '+String(r.unidadeProducao||'unidade').toLowerCase(),t:'moeda',sens:1,sh:r=>/produção/i.test(r.formaRemuneracao||''),s:'Remuneração e pagamento'},
+  {k:'insalubridade',l:'Insalubridade',t:'sel',op:['Não tem',...OPS_INSAL],aj:'Para as funções com direito, conforme o laudo. Entra todo mês na folha e no holerite, sobre o salário mínimo.',sh:r=>!ehPrestador(r.tipoContratacao),s:'Remuneração e pagamento'},
+  {k:'_insalValor',l:'Valor mensal da insalubridade',t:'calc',calc:r=>GRAUS_INSAL[r.insalubridade]?fMoeda(valorInsal(r.insalubridade)):'—',sh:r=>!!GRAUS_INSAL[r.insalubridade],s:'Remuneração e pagamento'},
+  {k:'adicionalNoturno',l:'Recebe adicional noturno?',t:'sel',op:['Não','Sim'],aj:'Com Sim, as horas noturnas do ponto entram na folha. Em Lançamentos, a aba Adicional permite informar as horas do mês.',sh:r=>!ehPrestador(r.tipoContratacao),s:'Remuneração e pagamento'},
   {k:'periodicidade',l:'Periodicidade do pagamento',t:'sel',op:PERIODOS,s:'Remuneração e pagamento'},
   {k:'recebeQuinzena',l:'Recebe por quinzena?',t:'sel',op:['Sim','Não'],
    aj:'Marque Sim para a pessoa entrar automaticamente na Folha quinzenal. Em branco, o sistema decide como sempre fez: entra quem tem periodicidade quinzenal, quem é pago por produção e quem tiver produção lançada no período.',
@@ -4104,6 +4123,28 @@ producao:{titulo:'Produção e pagamento por produção',sing:'lançamento de pr
   return e},
  despesa:r=>({competencia:String(r.data).slice(0,7),categoria:'Pagamento por produção',funcionarioId:r.funcionarioId,setor:r.setor||setorF(r.funcionarioId),descricao:'Produção: '+fNum(r.quantidade,2)+' '+String(r.unidade||'').toLowerCase()+(r.referencia?' ('+r.referencia+')':'')+' em '+fData(r.data),valorPrevisto:round2(totalProducao(r)),valorRealizado:r.situacao==='Pago'?round2(+r.valorPago||totalProducao(r)):0,situacao:r.situacao==='Pago'?'Pago':r.situacao==='Aprovado'?'Aprovado':'Pendente',dataPagamento:r.situacao==='Pago'?(r.dataPagamento||r.data):''})},
 
+adicionais:{titulo:'Insalubridade e adicional noturno',sing:'adicional',ic:'moeda',desc:'Lançamentos do mês que entram na folha e no holerite. O lançamento substitui, naquele mês, o valor automático da ficha ou do ponto.',
+ fields:[
+  {k:'data',l:'Data',t:'data',req:1,s:'Lançamento'},
+  {k:'funcionarioId',l:'Funcionário',t:'sel',req:1,op:()=>optsFunc(),s:'Lançamento'},
+  {k:'setor',l:'Setor',t:'txt',ro:1,s:'Lançamento'},
+  {k:'tipo',l:'Adicional',t:'sel',req:1,op:TIPOS_ADIC,s:'Lançamento'},
+  {k:'horas',l:'Horas noturnas',t:'num',sh:r=>r.tipo==='Adicional noturno',s:'Lançamento'},
+  {k:'grau',l:'Grau',t:'sel',op:OPS_INSAL,sh:r=>r.tipo==='Insalubridade',s:'Lançamento'},
+  {k:'valor',l:'Valor',t:'moeda',req:1,aj:'Calculado pelas horas ou pelo grau. Altere se o valor for outro.',s:'Lançamento'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Lançamento'},
+  {k:'lancadoPor',l:'Lançado por',t:'usuario',ro:1,s:'Lançamento'}],
+ cols:[{k:'data',l:'Data',t:'data'},colFunc,colSetorF,{k:'tipo',l:'Adicional'},{k:'_ref',l:'Referência',v:r=>esc(r.tipo==='Insalubridade'?(r.grau||'—'):fNum(+r.horas||0,2)+' h')},{k:'valor',l:'Valor',t:'moeda'}],
+ filtros:[{k:'_periodo',l:'Período',t:'periodo',campo:'data'},{k:'funcionarioId',l:'Funcionário',op:()=>optsFunc()},{k:'tipo',l:'Adicional',op:TIPOS_ADIC}],
+ setorDe:fSetorFunc,ordem:['data','desc'],
+ padrao:()=>({data:hoje(),tipo:'Adicional noturno',grau:'Grau médio (20%)'}),
+ aoMudar(st,k){
+  if(k==='funcionarioId'){st.setor=setorF(st.funcionarioId);const f=F(st.funcionarioId);if(f&&GRAUS_INSAL[f.insalubridade])st.grau=f.insalubridade}
+  if(k==='valor'){st._valorManual=1;return}
+  if(['tipo','horas','grau','funcionarioId'].includes(k)&&!st._valorManual){const x=st.tipo==='Insalubridade'?valorInsal(st.grau):valorNoturnoDe(st.funcionarioId,st.horas);st.valor=x||''}
+ },
+ validar(st){const e={};if(st.tipo==='Adicional noturno'&&!(+st.horas>0))e.horas='Informe as horas noturnas.';if(st.tipo==='Insalubridade'&&!GRAUS_INSAL[st.grau])e.grau='Escolha o grau.';if(!(+st.valor>0))e.valor='Informe o valor.';return e}},
+
 vales:{titulo:'Vales e adiantamentos',sing:'vale',ic:'recibo',desc:'Vales, adiantamentos e compras a descontar do pagamento de cada funcionário.',
  fields:[
   {k:'data',l:'Data',t:'data',req:1,s:'Lançamento'},
@@ -4263,14 +4304,15 @@ function itemFolha(f,mes,opc){
  if(usaLegal&&temCarteira(f.tipoContratacao)){
   const H=holerite(f.id,mes,{descontarAtrasos:!!(opc&&opc.descontarAtrasos)});
   const pv=c=>round2(soma(H.proventos.filter(x=>x.cod===c),x=>x.v)),dv=c=>round2(soma(H.descontos.filter(x=>x.cod===c),x=>x.v));
-  lg={noturno:pv('102'),salFamilia:pv('050'),inss:dv('301'),irrf:dv('302'),
+  lg={noturno:pv('102'),insalubridade:pv('103'),salFamilia:pv('050'),inss:dv('301'),irrf:dv('302'),
    baseInss:H.baseInss,baseIrrf:H.baseIrrf,deps:H.deps,baseFgts:H.baseFgts,fgts:round2(typeof H.fgts==='object'?(+(H.fgts&&H.fgts.valor)||0):(+H.fgts||0)),
    cotasSF:(H.salarioFamilia||{}).cotas||0,vigenciaTabela:H.vigencia||''};
  }
- const bruto=round2(fixo+diarias+producao+extras+(lg?lg.noturno+lg.salFamilia:0));
+ const adN=lg?lg.noturno:round2(ex.adNot),adI=lg?lg.insalubridade:round2(ex.adInsal);
+ const bruto=round2(fixo+diarias+producao+extras+adN+adI+(lg?lg.salFamilia:0));
  const descontos=round2(dFaltas+dAtrasos+dVales+jaPago+(lg?lg.inss+lg.irrf:0));
  return{funcionarioId:f.id,nome:f.nome,matricula:f.matricula||'',setor:f.setor||'',cargo:f.cargo||'',
-  contratacao:f.tipoContratacao||'',forma:formaRem(f),fixo,diarias,producao,extras,
+  contratacao:f.tipoContratacao||'',forma:formaRem(f),fixo,diarias,producao,extras,noturno:adN,insalubridade:adI,
   descFaltas:dFaltas,descAtrasos:dAtrasos,descVales:dVales,jaPago,bruto,descontos,total:round2(bruto-descontos),
   faltas:ex.faltasNJ,diasTrab:ex.diasTrab,qtdProd:round2(soma(ex.prod,r=>r.quantidade)),falta:ex.falta,
   ...(lg?{legal:true,...lg}:{})};
@@ -4282,11 +4324,11 @@ const totaisFolha=it=>({pessoas:it.length,
  descFaltas:round2(soma(it,x=>x.descFaltas)),descAtrasos:round2(soma(it,x=>x.descAtrasos)),
  vales:round2(soma(it,x=>x.descVales)),jaPago:round2(soma(it,x=>x.jaPago)),
  bruto:round2(soma(it,x=>x.bruto)),descontos:round2(soma(it,x=>x.descontos)),liquido:round2(soma(it,x=>x.total)),
- noturno:round2(soma(it,x=>+x.noturno||0)),salFamilia:round2(soma(it,x=>+x.salFamilia||0)),
+ noturno:round2(soma(it,x=>+x.noturno||0)),insalubridade:round2(soma(it,x=>+x.insalubridade||0)),salFamilia:round2(soma(it,x=>+x.salFamilia||0)),
  inss:round2(soma(it,x=>+x.inss||0)),irrf:round2(soma(it,x=>+x.irrf||0)),fgts:round2(soma(it,x=>+x.fgts||0)),
  baseInss:round2(soma(it,x=>+x.baseInss||0)),legais:it.filter(x=>x.legal).length});
 /* parte que ainda não virou despesa em outro módulo (produção e horas extras já lançam a sua) */
-const parteSalarios=i=>round2(i.fixo+i.diarias+(+i.noturno||0)-i.descFaltas-i.descAtrasos);
+const parteSalarios=i=>round2(i.fixo+i.diarias+(+i.noturno||0)+(+i.insalubridade||0)-i.descFaltas-i.descAtrasos);
 
 function telaFolha(el){
  const mes=UIF.mes;const fc=folhaDo(mes);const fechada=!!folhaFechada(mes);
@@ -4319,7 +4361,7 @@ function telaFolha(el){
   if(usou)return `<div class="aviso in" style="margin-bottom:12px"><b>Cálculo legal no fechamento${fechada?'':' ligado'}.</b> Para quem tem carteira, a folha ${fechada?'descontou':'desconta'} INSS e IRRF e ${fechada?'pagou':'paga'} adicional noturno e salário-família pelo mesmo cálculo do holerite, com a tabela de ${esc(fMes((fechada&&fc.parametrosLegais&&fc.parametrosLegais.vigencia)||LG().vigencia||''))}.</div>`;
   if(fechada)return '';
   return legalLigado()?`<div class="aviso at" style="margin-bottom:12px">As tabelas legais estão ligadas só no holerite. O fechamento <b>não</b> desconta INSS nem IRRF. ${pode('config')?'Para descontar, confira as tabelas com o contador e ligue “Descontar INSS e IRRF no fechamento” em <a href="#/config">Configurações › Tabelas legais</a>.':''}</div>`:''})()}
- <div class="kpis">${kp(fMoeda(tt.fixo),'Salário fixo')}${kp(fMoeda(tt.diarias),'Diárias')}${kp(fMoeda(tt.producao),'Produção')}${kp(fMoeda(tt.extras),'Horas extras')}${tt.noturno?kp(fMoeda(tt.noturno),'Adicional noturno'):''}${tt.salFamilia?kp(fMoeda(tt.salFamilia),'Salário-família'):''}${tt.inss?kp(fMoeda(tt.inss),'INSS descontado','pe'):''}${tt.irrf?kp(fMoeda(tt.irrf),'IRRF descontado','pe'):''}${tt.fgts?kp(fMoeda(tt.fgts),'FGTS da empresa (8%)'):''}${kp(fMoeda(tt.descFaltas+tt.descAtrasos),'Faltas e atrasos',(tt.descFaltas+tt.descAtrasos)?'at':'')}${kp(fMoeda(tt.vales),'Vales a descontar',tt.vales?'at':'')}${kp(fMoeda(tt.jaPago),'Já pago no mês')}</div>
+ <div class="kpis">${kp(fMoeda(tt.fixo),'Salário fixo')}${kp(fMoeda(tt.diarias),'Diárias')}${kp(fMoeda(tt.producao),'Produção')}${kp(fMoeda(tt.extras),'Horas extras')}${tt.insalubridade?kp(fMoeda(tt.insalubridade),'Insalubridade'):''}${tt.noturno?kp(fMoeda(tt.noturno),'Adicional noturno'):''}${tt.salFamilia?kp(fMoeda(tt.salFamilia),'Salário-família'):''}${tt.inss?kp(fMoeda(tt.inss),'INSS descontado','pe'):''}${tt.irrf?kp(fMoeda(tt.irrf),'IRRF descontado','pe'):''}${tt.fgts?kp(fMoeda(tt.fgts),'FGTS da empresa (8%)'):''}${kp(fMoeda(tt.descFaltas+tt.descAtrasos),'Faltas e atrasos',(tt.descFaltas+tt.descAtrasos)?'at':'')}${kp(fMoeda(tt.vales),'Vales a descontar',tt.vales?'at':'')}${kp(fMoeda(tt.jaPago),'Já pago no mês')}</div>
  ${(()=>{try{const cf=custoFolhaItens(it);const P=cf.prod,A=cf.adm;if(!cf.pessoas)return '';
   const cu=round2(P.comFator+P.semCarteira),de=round2(A.comFator+A.semCarteira);
   const kp=(v,l)=>`<div class="kpi" style="cursor:default"><div class="v" style="font-size:18px">${v}</div><div class="l">${l}</div></div>`;
@@ -4327,19 +4369,19 @@ function telaFolha(el){
   <div class="kpis">${kp(fMoeda(round2(P.base+A.base)),'Base com carteira (salário devido)')}${kp(fMoeda(round2(P.comFator+A.comFator)),'Com carteira × 1,29','dest')}${kp(fMoeda(round2(P.semCarteira+A.semCarteira)),'Sem carteira (bruto, sem fator)')}${kp(fMoeda(cu),'Produção → custo (Mão de obra)')}${kp(fMoeda(de),'Administrativo → despesa')}</div>
   <div class="ajuda" style="margin:-6px 0 12px">Os 29% guardam 13º (8,33%), férias + 1/3 (11,11%) e FGTS (9,56%) que a cerâmica vai pagar no futuro. Rescisões, detalhe e o ano inteiro: <a href="javascript:void 0" data-relcf="r24">custo do mês</a> · <a href="javascript:void 0" data-relcf="r26">mês a mês</a>.</div>`}catch(e){console.warn('custo folha',e);return ''}})()}
  <div class="grupo-t">Pagamento por pessoa</div>
- <div class="painel tabwrap">${it.length?`<table class="tbl cartao tbl-folha"><thead><tr><th>Pessoa</th><th>Remuneração</th><th class="num">Fixo</th><th class="num">Diárias</th><th class="num">Produção</th><th class="num">Extras</th>${tt.legais?'<th class="num">Noturno e sal.-família</th>':''}<th class="num">Faltas</th><th class="num">Vales</th>${tt.legais?'<th class="num">INSS</th><th class="num">IRRF</th>':''}<th class="num">Já pago</th><th class="num">A pagar</th><th></th></tr></thead><tbody>
+ <div class="painel tabwrap">${it.length?`<table class="tbl cartao tbl-folha"><thead><tr><th>Pessoa</th><th>Remuneração</th><th class="num">Fixo</th><th class="num">Diárias</th><th class="num">Produção</th><th class="num">Extras</th>${(tt.legais||tt.noturno||tt.insalubridade)?'<th class="num">Adicionais e sal.-família</th>':''}<th class="num">Faltas</th><th class="num">Vales</th>${tt.legais?'<th class="num">INSS</th><th class="num">IRRF</th>':''}<th class="num">Já pago</th><th class="num">A pagar</th><th></th></tr></thead><tbody>
   ${it.map(i=>`<tr><td data-l="Pessoa"><b>${esc(i.nome)}</b>${i.matricula?'<div style="font-size:12px;color:var(--suave)">'+esc(i.matricula)+(i.setor?' · '+esc(i.setor):'')+'</div>':''}</td>
    <td data-l="Remuneração">${esc(i.forma)}${(i.falta||[]).length?'<div style="font-size:12px;color:var(--at,#9a6b00)">cadastro incompleto</div>':''}</td>
    <td data-l="Fixo" class="num">${col(i.fixo)}</td><td data-l="Diárias" class="num">${col(i.diarias)}</td>
    <td data-l="Produção" class="num">${col(i.producao)}</td><td data-l="Extras" class="num">${col(i.extras)}</td>
-   ${tt.legais?`<td data-l="Noturno e sal.-família" class="num">${col(round2((+i.noturno||0)+(+i.salFamilia||0)))}</td>`:''}
+   ${(tt.legais||tt.noturno||tt.insalubridade)?`<td data-l="Adicionais e sal.-família" class="num">${col(round2((+i.noturno||0)+(+i.insalubridade||0)+(+i.salFamilia||0)))}</td>`:''}
    <td data-l="Faltas" class="num">${col(round2(i.descFaltas+i.descAtrasos),1)}</td><td data-l="Vales" class="num">${col(i.descVales,1)}</td>
    ${tt.legais?`<td data-l="INSS" class="num">${i.legal?col(i.inss,1)+'<div style="font-size:11.5px;color:var(--suave)">base '+fMoeda(i.baseInss)+'</div>':'<span style="color:var(--fraco)">sem carteira</span>'}</td><td data-l="IRRF" class="num">${i.legal?col(i.irrf,1)+(i.deps?'<div style="font-size:11.5px;color:var(--suave)">'+i.deps+' dep.</div>':''):'—'}</td>`:''}
    <td data-l="Já pago" class="num">${col(i.jaPago,1)}</td><td data-l="A pagar" class="num"><b>${fMoeda(i.total)}</b></td>
    <td data-l="Ações"><span class="acoes-ln"><button class="btn min ico" data-rec="${esc(i.funcionarioId)}" title="Visualizar o recibo" aria-label="Visualizar o recibo de ${esc(i.nome)}">${ic('recibo')}</button><button class="btn min ico" data-ext="${esc(i.funcionarioId)}" title="Abrir o extrato" aria-label="Abrir o extrato de ${esc(i.nome)}">${ic('doc')}</button></span></td></tr>`).join('')}
   </tbody><tfoot><tr><td colspan="2"><b>Total de ${it.length} pessoa(s)</b></td><td class="num"><b>${fMoeda(tt.fixo)}</b></td><td class="num"><b>${fMoeda(tt.diarias)}</b></td>
    <td class="num"><b>${fMoeda(tt.producao)}</b></td><td class="num"><b>${fMoeda(tt.extras)}</b></td>
-   ${tt.legais?`<td class="num"><b>${fMoeda(round2((tt.noturno||0)+(tt.salFamilia||0)))}</b></td>`:''}
+   ${(tt.legais||tt.noturno||tt.insalubridade)?`<td class="num"><b>${fMoeda(round2((tt.noturno||0)+(tt.insalubridade||0)+(tt.salFamilia||0)))}</b></td>`:''}
    <td class="num"><b>${fMoeda(-(tt.descFaltas+tt.descAtrasos))}</b></td><td class="num"><b>${fMoeda(-tt.vales)}</b></td>
    ${tt.legais?`<td class="num"><b>${fMoeda(-tt.inss)}</b></td><td class="num"><b>${fMoeda(-tt.irrf)}</b></td>`:''}
    <td class="num"><b>${fMoeda(-tt.jaPago)}</b></td><td class="num"><b>${fMoeda(tt.liquido)}</b></td><td></td></tr></tfoot></table>`
@@ -5934,7 +5976,7 @@ function calcDireito(id,fid){
   base.valores=true;
   base.usadas=fichaBase.concat([['Período analisado',rotulo],
    ['Horas em período noturno',fHm(notMin)],['Horas trabalhadas em domingo',fHm(domMin)],['Horas trabalhadas em feriado',fHm(ferMin)],
-   ['Insalubridade cadastrada','não há cadastro de insalubridade neste sistema'],
+   ['Insalubridade cadastrada',GRAUS_INSAL[(F(fid)||{}).insalubridade]?(F(fid).insalubridade+' · '+fMoeda(valorInsal(F(fid).insalubridade))+' por mês'):'não informada na ficha'],
    ['Periculosidade cadastrada','não há cadastro de periculosidade neste sistema'],
    ['Valor da hora normal',vh?vMoeda(vh):'não dá para calcular']]);
   base.parametros=[['Horário noturno',(P.noturnoIni||'22:00')+' às '+(P.noturnoFim||'05:00')],
@@ -5946,11 +5988,11 @@ function calcDireito(id,fid){
   const linhas=[];
   di.forEach((r,i)=>{const c=cs[i];if(c.noturno>0||c.tipoDia!=='Normal')linhas.push([fData(r.data)+' · '+DIAS_SEM[dt(r.data).getDay()],c.tipoDia,fHm(c.trab),fHm(c.noturno)])});
   if(linhas.length)base.tabelas.push({t:'Dias com adicional',head:['Dia','Tipo de dia','Trabalhado','Horas noturnas'],body:linhas});
-  base.obs.push('Insalubridade e periculosidade dependem de laudo técnico (PPRA/LTCAT) e não estão cadastradas neste sistema. Se a atividade exigir, o adicional deve ser incluído na folha.');
+  base.obs.push('Insalubridade depende de laudo técnico e é informada na ficha. Periculosidade ainda não tem cadastro neste sistema: se a atividade exigir, o adicional deve ser incluído na folha.');
   if(!di.length){base.sinal='pd';base.situacao='Informação pendente';base.resumo='Sem ponto no período';base.falta=['registros de ponto'];
    base.resultado='Sem ponto registrado não é possível apurar adicional noturno nem trabalho em domingo e feriado.';return base}
   if(notMin+domMin+ferMin<=0){base.sinal='no';base.situacao='Não identificado';base.resumo='Nenhum adicional';
-   base.resultado='No período não houve trabalho em horário noturno, domingo ou feriado. Insalubridade e periculosidade não estão cadastradas.';return base}
+   base.resultado='No período não houve trabalho em horário noturno, domingo ou feriado.';return base}
   base.sinal='ok';base.situacao='Direito identificado';
   base.resumo=[notMin?fHm(notMin)+' noturnas':'',domMin?fHm(domMin)+' em domingo':'',ferMin?fHm(ferMin)+' em feriado':''].filter(Boolean).join(' · ');
   base.resultado='Foram identificados adicionais no período: '+base.resumo+(vh?', no valor estimado de '+vMoeda(vNot+vDom+vFer):'')+'.';
@@ -6231,7 +6273,7 @@ function htmlHist(f){
 const DIAG={res:null,rodando:false,aba:'achados',abertos:{}};
 const SEV={alta:['Crítico','pe'],media:['Importante','at'],baixa:['Melhoria','in']};
 const ORD_SEV={alta:0,media:1,baixa:2};
-const COLS_FUNC=['alteracoes','exames','contratos','ferias','afastamentos','admissoes','desligamentos','advertencias','diario','horasExtras','producao','vales','diarias','alimentacao','documentos','comprovantes'];
+const COLS_FUNC=['alteracoes','exames','contratos','ferias','afastamentos','admissoes','desligamentos','advertencias','diario','horasExtras','producao','vales','adicionais','diarias','alimentacao','documentos','comprovantes'];
 const feminino=s=>/(ção|são|dade|ncia|as|a)$/i.test(String(s||'').trim().split(/\s+/)[0]||'');
 const nomeMod=m=>(MODS[m]&&MODS[m].titulo)||({folha:'Fechamento da folha',quinzena:'Folha quinzenal',central:'Contratos',termos:'Comprovantes',doc:'Documento da central',disciplinar:'Advertências e medidas disciplinares',relatdocs:'Relatórios de contratos e documentos',docsEmitidos:'Documentos da central',documento:'Visualizar documento',feriasvenc:'Férias vencidas e a vencer',lancar:'Lançamentos do funcionário',config:'Configurações',usuarios:'Controle de usuários',comprovantes:'Comprovantes',diagnostico:'Autodiagnóstico'}[m])||m;
 const refMod=(m,id)=>MODS[m]?'#/'+m+'/'+id:'#/'+m;
@@ -6294,7 +6336,7 @@ const VERIF=[
 
 {id:'setorVazio',n:'Lançamento sem setor',area:'Integridade',sev:'baixa',
  oque:'Procura lançamentos com o campo setor em branco mesmo tendo funcionário com setor na ficha. Sem o setor, o registro não aparece para o gestor daquele setor nem nos relatórios por setor.',
- run(){const a=[];['diario','horasExtras','producao','vales','diarias','advertencias','alimentacao'].forEach(c=>{
+ run(){const a=[];['diario','horasExtras','producao','vales','adicionais','diarias','advertencias','alimentacao'].forEach(c=>{
   DATA[c].forEach(r=>{if(r.funcionarioId&&!r.setor){const s=setorF(r.funcionarioId);if(s)a.push({txt:nomeMod(c)+' de '+nomeF(r.funcionarioId)+' em '+fData(r.data||r.dataSaida)+' sem setor (ficha: '+s+')',mod:c,id:r.id,novo:{setor:s}})}})});
   return a},
  corrigir:'Preencher o setor pelo cadastro do funcionário'},
@@ -6658,6 +6700,7 @@ const MENU=[
  {m:'vales',l:'Adiantamentos e vales'},
  {m:'producao',l:'Pagamento por produção'},
  {m:'horasExtras',l:'Horas extras'},
+ {m:'adicionais',l:'Insalubridade e adicional noturno'},
  {m:'despesas',l:'Custo com pessoal'},
  {m:'relatorios',l:'Custo da folha (fator 1,29)',r:'r24'},
  {m:'relatorios',l:'Custo da folha mês a mês',r:'r26'},
@@ -7207,6 +7250,7 @@ const TOTAIS={
  producao:{quantidade:'num',_t:'moeda'},
  horasExtras:{horas:'num',_e:'moeda'},
  vales:{valor:'moeda'},
+ adicionais:{horas:'num',valor:'moeda'},
  diarias:{quantidade:'num',_t:'moeda'},
  alimentacao:{quantidade:'num',_t:'moeda'},
  despesas:{valorPrevisto:'moeda',valorRealizado:'moeda'},
@@ -7302,7 +7346,9 @@ function holerite(fid,mes,opc){
  if(ex.prod.length){const q=soma(ex.prod,r=>+r.quantidade||0);
   addP('003','Produção do mês',fNum(q,2)+' '+String((ex.prod[0]||{}).unidade||'un').toLowerCase(),soma(ex.prod,totalProducao))}
  if(ex.heOk.length)addP('101','Horas extras',fNum(soma(ex.heOk,r=>r.horas),2)+' h',soma(ex.heOk,estimadoHE));
- if(ex.noturnoMin>0&&ex.vh)addP('102','Adicional noturno',fHm(ex.noturnoMin),ex.noturnoMin/60*ex.vh*(+CFG.ponto.pctNoturno||0)/100);
+ if(ex.adInsal)addP('103','Adicional de insalubridade',GRAUS_INSAL[f.insalubridade]?GRAUS_INSAL[f.insalubridade]+'%':'',ex.adInsal);
+ if(ex.adNot)addP('102','Adicional noturno',ex.adNotRef,ex.adNot);
+ else if(ex.noturnoMin>0&&ex.vh)addP('102','Adicional noturno',fHm(ex.noturnoMin),ex.noturnoMin/60*ex.vh*(+CFG.ponto.pctNoturno||0)/100);
  /* o limite do salário-família olha a remuneração tributável, antes da própria cota */
  const brutoTrib=round2(soma(pro,x=>x.v));
  const sf=salarioFamiliaDe(fid,brutoTrib,mes+'-01');
@@ -8773,7 +8819,7 @@ function graficosPainel(D,funcs,custo){
    aparece na Produção, no Diário, nas Horas extras, nos Vales, na quinzena e na folha. */
 /* “aprovar já” é lembrado por aba e nunca vem marcado de fábrica */
 const UIL={fid:'',aba:'producao',mes:null,q:null,aprovar:{producao:false,horasExtras:false},deDias:'',ateDias:''};
-const ABAS_LANC=[['producao','Produção','caixa'],['diario','Dia ou falta','relogio'],['horasExtras','Hora extra','mais'],['vales','Vale','moeda']];
+const ABAS_LANC=[['producao','Produção','caixa'],['diario','Dia ou falta','relogio'],['horasExtras','Hora extra','mais'],['vales','Vale','moeda'],['adicionais','Adicional','moeda']];
 
 /* horários do dia pela jornada da pessoa; sem jornada, nada é inventado */
 function horariosJornada(f,iso){
@@ -8797,6 +8843,7 @@ function lancamentosDoMes(fid,mes){
   valor:null,sit:r.statusAjuste&&r.statusAjuste!=='Não se aplica'?r.statusAjuste:''})});
  de('horasExtras').forEach(r=>L.push({mod:'horasExtras',id:r.id,data:r.data,tipo:'Hora extra',
   det:fNum(+r.horas||0,2)+' h · '+(r.percentual||0)+'%'+(r.motivo?' · '+r.motivo:''),valor:estimadoHE(r),sit:r.situacao}));
+ de('adicionais').forEach(r=>L.push({mod:'adicionais',id:r.id,data:r.data,tipo:r.tipo,det:r.tipo==='Insalubridade'?(r.grau||'—'):fNum(+r.horas||0,2)+' h noturnas',valor:+r.valor||0,sit:''}));
  de('vales').forEach(r=>L.push({mod:'vales',id:r.id,data:r.data,tipo:r.tipo||'Vale',
   det:[r.natureza,r.origem==='quinzena'?'gerado pela quinzena':''].filter(Boolean).join(' · ')||'—',valor:-(+r.valor||0),sit:r.situacao}));
  return L.sort((a,b)=>String(b.data).localeCompare(String(a.data)));
@@ -8807,6 +8854,17 @@ function formLanc(aba,f){
  /* produção, ponto e hora extra são do que já aconteceu: a data não passa de hoje */
  const dia=(id,futuro)=>`<div class="cmp"><label for="${id}">Data</label><input type="date" id="${id}" value="${esc(H)}" ${futuro?'':'max="'+H+'"'}></div>`;
  const aprov=(id,lbl)=>`<label class="inline lc-aprov"><input type="checkbox" id="${id}" data-ap="${aba}" ${UIL.aprovar[aba]?'checked':''}> ${lbl}</label>`;
+ if(aba==='adicionais'){
+  const grau=GRAUS_INSAL[f.insalubridade]?f.insalubridade:'Grau médio (20%)';
+  return `<div class="campos lc-campos">${dia('laData')}
+   <div class="cmp"><label for="laTipo">Adicional</label><select id="laTipo">${TIPOS_ADIC.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
+   <div class="cmp" id="laHorasW"><label for="laH">Horas noturnas</label><input type="number" id="laH" step="0.25" min="0" inputmode="decimal" placeholder="Ex.: 8"></div>
+   <div class="cmp" id="laGrauW" hidden><label for="laG">Grau</label><select id="laG">${OPS_INSAL.map(g=>`<option ${g===grau?'selected':''}>${esc(g)}</option>`).join('')}</select></div>
+   <div class="cmp"><label for="laV">Valor</label><input type="number" id="laV" step="0.01" min="0" inputmode="decimal"></div>
+   <div class="cmp w2"><label for="laO">Observação (opcional)</label><input type="text" id="laO" maxlength="200"></div></div>
+   <p class="ajuda" id="laInfo"></p>
+   <div class="lc-pe"><button type="button" class="btn pri" id="laOk">${ic('mais')}Lançar adicional</button></div>`;
+ }
  if(aba==='producao'){
   const vu=veSensivel()?valorUnidadeF(f.id):0;
   return `<div class="campos lc-campos">${dia('lpData')}
@@ -8868,7 +8926,7 @@ function resumoLanc(f,mes,q){
   :`<div class="bloco"><h3>Quinzena</h3><p class="ex-vazio">Esta pessoa não recebe por quinzena. Para incluir, marque “Recebe por quinzena?” no cadastro.</p></div>`}
   <div class="bloco"><h3>Folha de ${esc(fMes(mes))}<a href="#/folha">Abrir</a></h3>
    <ul class="lc-ul">${lin('Salário fixo',im.fixo)}${lin('Diárias',im.diarias,false,im.diasTrab?im.diasTrab+' dia(s)':'')}${lin('Produção',im.producao)}${lin('Horas extras',im.extras)}
-    ${lin('Adicional noturno e salário-família',round2((+im.noturno||0)+(+im.salFamilia||0)))}${lin('Faltas e atrasos',round2(im.descFaltas+im.descAtrasos),true)}
+    ${lin('Insalubridade',+im.insalubridade||0)}${lin('Adicional noturno e salário-família',round2((+im.noturno||0)+(+im.salFamilia||0)))}${lin('Faltas e atrasos',round2(im.descFaltas+im.descAtrasos),true)}
     ${lin('INSS',+im.inss||0,true)}${lin('IRRF',+im.irrf||0,true)}${lin('Vales e adiantamentos',im.descVales,true)}${lin('Já pago no mês',im.jaPago,true)}
     <li class="tot"><span>A pagar no fechamento</span><b>${fMoeda(im.total)}</b></li></ul>
    ${pendMes&&im.producao?`<p class="aviso in" style="margin:0 14px 10px">A produção da folha inclui ${fMoeda(pendMes)} ainda pendente de aprovação.</p>`:''}
@@ -8903,7 +8961,7 @@ function telaLancar(el){
  </div>
  <div class="lc-pessoa"><span class="avatar lc-av">${esc(iniciais(f.nome))}</span>
   <div class="tx"><b>${esc(f.nome)}</b><span>${esc([f.cargo,f.setor,f.tipoContratacao].filter(Boolean).join(' · '))}</span></div>
-  <div class="lc-tags">${tag(formaRem(f),'in')}${ehQuinzenal(f)?tag('Recebe por quinzena','ok'):''}${vd?tag('Diária '+fMoeda(vd)):''}${vu?tag(fMoeda(vu)+' por '+String(f.unidadeProducao||'unidade').toLowerCase()):''}${jn?tag('Jornada: '+jn.nome):f.entrada&&f.saida?tag('Horário '+f.entrada+' às '+f.saida):tag('Sem jornada','at')}</div>
+  <div class="lc-tags">${tag(formaRem(f),'in')}${ehQuinzenal(f)?tag('Recebe por quinzena','ok'):''}${GRAUS_INSAL[f.insalubridade]?tag('Insalubridade '+GRAUS_INSAL[f.insalubridade]+'%'):''}${f.adicionalNoturno==='Sim'?tag('Adicional noturno'):''}${vd?tag('Diária '+fMoeda(vd)):''}${vu?tag(fMoeda(vu)+' por '+String(f.unidadeProducao||'unidade').toLowerCase()):''}${jn?tag('Jornada: '+jn.nome):f.entrada&&f.saida?tag('Horário '+f.entrada+' às '+f.saida):tag('Sem jornada','at')}</div>
   <a class="btn min" href="#/ficha/${esc(f.id)}">${ic('lupa')}Ficha</a></div></div>
 
  <div class="lc-grade">
@@ -9018,6 +9076,19 @@ function ligarFormLanc(f,el){
   if(ap('lhAprov')){d.situacao='Aprovado';if(APP.nome)d.autorizadoPor=APP.nome}
   if(await lancarRegistro('horasExtras',d,e.currentTarget))depois('Hora extra lançada para '+f.nome.split(' ')[0]+'.');
  };
+ /* adicionais */
+ if($('#laOk',el)){let manual=false;
+  const calc=()=>{const not=v('laTipo')==='Adicional noturno';$('#laHorasW',el).hidden=!not;$('#laGrauW',el).hidden=not;
+   if(!manual){const x=not?valorNoturnoDe(f.id,num('laH')||0):valorInsal(v('laG'));$('#laV',el).value=x||''}
+   $('#laInfo',el).textContent=not?(veSensivel()&&valorHoraF(f.id)?'Horas × valor-hora × '+(+CFG.ponto.pctNoturno||0)+'%. Este lançamento substitui as horas noturnas do ponto neste mês.':'Esta pessoa não tem valor-hora para o cálculo: informe o valor.'):'Salário mínimo × percentual do grau. Este lançamento substitui o valor automático da ficha neste mês.'};
+  ['laH','laG'].forEach(id=>$('#'+id,el).addEventListener('input',calc));
+  $('#laTipo',el).addEventListener('change',()=>{manual=false;calc()});
+  $('#laV',el).addEventListener('input',()=>{manual=true});calc();
+  $('#laOk',el).onclick=async e=>{const tipo=v('laTipo'),not=tipo==='Adicional noturno',val=num('laV'),h=num('laH');
+   if(not&&!(h>0))return toast('Informe as horas noturnas.','erro');if(!(val>0))return toast('Informe o valor do adicional.','erro');
+   const d={funcionarioId:f.id,data:v('laData'),tipo,valor:val,obs:v('laO').trim(),...(not?{horas:h}:{grau:v('laG')})};
+   if(await lancarRegistro('adicionais',d,e.currentTarget))depois(tipo+' lançado para '+f.nome.split(' ')[0]+'.')};
+ }
  /* vale */
  if($('#lvOk',el))$('#lvOk',el).onclick=async e=>{
   const val=num('lvV');if(!(val>0))return toast('Informe o valor do vale.','erro');
@@ -10961,18 +11032,18 @@ function docExtrato(ex){
 
 /* ---------- fechamento da folha ---------- */
 function docFolha(mes,it,tt,fc){
- const sit=fc?fc.situacao:'Aberta';const lgP=!!tt.legais;
+ const sit=fc?fc.situacao:'Aberta';const lgP=!!tt.legais;const adP=lgP||!!tt.noturno||!!tt.insalubridade;
  const sitTxt=sit+(fc&&fc.fechadoEm?' em '+fDataHora(fc.fechadoEm):'')+(fc&&fc.pagoEm?' · paga em '+fData(fc.pagoEm)+(fc.formaPagamento?' por '+fc.formaPagamento:''):'');
  const D=baseRel('FECHAMENTO DA FOLHA','Competência '+mesLongo(mes),[['Competência',mesLongo(mes)],['Situação',sitTxt],['Pessoas na folha',String(it.length)],['Total a pagar',fMoeda(tt.liquido)]]);
  D.meta=[['Competência',mesLongo(mes)],['Situação',sit],['Emitido em',fDataHora(new Date().toISOString())]];
  D.arquivo='Folha_'+mes;D.paisagem=true;D.rodape='Fechamento da folha · '+mesLongo(mes);
  if(sit==='Aberta')D.estimativa='Folha ainda aberta: valores sujeitos a mudança até o fechamento';
- const head=['Funcionário','Remuneração','Fixo','Diárias','Produção','Extras',...(lgP?['Not./S.-fam.']:[]),'(–) Faltas','(–) Vales',...(lgP?['(–) INSS','(–) IRRF']:[]),'(–) Já pago','A pagar'];
+ const head=['Funcionário','Remuneração','Fixo','Diárias','Produção','Extras',...(adP?['Adic./S.-fam.']:[]),'(–) Faltas','(–) Vales',...(lgP?['(–) INSS','(–) IRRF']:[]),'(–) Já pago','A pagar'];
  const body=it.map(i=>[i.nome+(i.matricula?' ('+i.matricula+')':''),i.forma||'',fMoeda(i.fixo),fMoeda(i.diarias),fMoeda(i.producao),fMoeda(i.extras),
-  ...(lgP?[fMoeda((+i.noturno||0)+(+i.salFamilia||0))]:[]),fMoeda(-(i.descFaltas+i.descAtrasos)),fMoeda(-i.descVales),
+  ...(adP?[fMoeda((+i.noturno||0)+(+i.insalubridade||0)+(+i.salFamilia||0))]:[]),fMoeda(-(i.descFaltas+i.descAtrasos)),fMoeda(-i.descVales),
   ...(lgP?[fMoeda(-(+i.inss||0)),fMoeda(-(+i.irrf||0))]:[]),fMoeda(-i.jaPago),fMoeda(i.total)]);
  const foot=['Total de '+it.length+' pessoa(s)','',fMoeda(tt.fixo),fMoeda(tt.diarias),fMoeda(tt.producao),fMoeda(tt.extras),
-  ...(lgP?[fMoeda((tt.noturno||0)+(tt.salFamilia||0))]:[]),fMoeda(-(tt.descFaltas+tt.descAtrasos)),fMoeda(-tt.vales),
+  ...(adP?[fMoeda((tt.noturno||0)+(tt.insalubridade||0)+(tt.salFamilia||0))]:[]),fMoeda(-(tt.descFaltas+tt.descAtrasos)),fMoeda(-tt.vales),
   ...(lgP?[fMoeda(-tt.inss),fMoeda(-tt.irrf)]:[]),fMoeda(-tt.jaPago),fMoeda(tt.liquido)];
  D.blocos.push({tipo:'tabela',head,body:body.length?body:[['Nenhuma pessoa na folha deste mês.',...head.slice(1).map(()=>'')]],foot,dir:head.map((_,k)=>k).filter(k=>k>=2),fonte:fonteTab(head.length)});
  D.blocos.push({tipo:'aviso',texto:lgP?'Com cálculo legal: INSS e IRRF de quem tem carteira pela tabela de '+mesLongo((fc&&fc.parametrosLegais&&fc.parametrosLegais.vigencia)||LG().vigencia||'')+'; FGTS de '+fMoeda(tt.fgts)+' a recolher pela empresa. Não inclui 13º nem férias.'
@@ -10985,7 +11056,7 @@ function docRecibo(i,mes,fc){
  if(!i)return null;const emp=CFG.empresa||{};const f=F(i.funcionarioId)||{nome:i.nome,matricula:i.matricula};
  const linhas=[['Salário mensal fixo',i.fixo],['Diárias trabalhadas ('+i.diasTrab+' dia(s))',i.diarias],
   ['Produção do mês'+(i.qtdProd?' ('+fNum(i.qtdProd,2)+' un)':''),i.producao],['Horas extras aprovadas',i.extras],
-  ['Adicional noturno',+i.noturno||0],['Salário-família'+(i.cotasSF?' ('+i.cotasSF+' cota(s))':''),+i.salFamilia||0],
+  ['Adicional de insalubridade',+i.insalubridade||0],['Adicional noturno',+i.noturno||0],['Salário-família'+(i.cotasSF?' ('+i.cotasSF+' cota(s))':''),+i.salFamilia||0],
   ['(–) Faltas não justificadas'+(i.faltas?' ('+i.faltas+' dia(s))':''),-i.descFaltas],['(–) Atrasos',-i.descAtrasos],
   ['(–) INSS (base '+fMoeda(i.baseInss||0)+')',-(+i.inss||0)],['(–) IRRF (base '+fMoeda(i.baseIrrf||0)+(i.deps?', '+i.deps+' dependente(s)':'')+')',-(+i.irrf||0)],
   ['(–) Vales e adiantamentos',-i.descVales],['(–) Já pago durante o mês',-i.jaPago]].filter(l=>l[1]);
@@ -22549,7 +22620,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
  const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta'];
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
- const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','despesas','documentos','contratos','producao','alimentacao','diarias',
+ const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
   'admissoes','desligamentos','afastamentos','alteracoes','exames','dependentes','importar','advertencias','disciplinar','central','termos','doc','feriasctrl','conferencia'];
  const COMERC=['vendas','lenha','combustivel'];
  /* perfil de referência de cada setor: “consulta” copia o que o perfil só-leitura vê; “lançar” copia o perfil que grava */
@@ -34461,7 +34532,7 @@ const IGNORAR=new Set(['log','uso','diagnostico','ws','data','iaPedidos','iaVers
 const IRREVERSIVEIS={nfe:'nota fiscal',nfeXml:'nota fiscal',nfeTrava:'nota fiscal',nfePayload:'nota fiscal',nfeImport:'nota fiscal',fiscalCfg:'configuração fiscal',acesso:'acesso de usuário',ccPolitica:'política do Controle Central',ccAgentes:'agente do Controle Central'};
 /* pedem confirmação antes de desfazer ou refazer */
 const IMPORTANTES=new Set(['folhas','quinzenas','funcionarios','sensivel','desligamentos','admissoes','contratos','docsEmitidos','comprovantes','dependentes','config','vendas','compras','estoqueMov','fin']);
-const COLS_DA_FOLHA=new Set(['diario','horasExtras','producao','alimentacao','diarias','vales','despesas']);
+const COLS_DA_FOLHA=new Set(['diario','horasExtras','producao','alimentacao','diarias','vales','adicionais','despesas']);
 const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas'};
 IC.desfazer='<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>';
 IC.refazer='<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>';
