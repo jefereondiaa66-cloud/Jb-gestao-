@@ -10,7 +10,8 @@ import { RAIZ } from './construir.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const servidorFalso = readFileSync(join(RAIZ, 'scripts/lib/servidor-falso.mjs'), 'utf8').replace(/^export /m, '');
 const docs = [['acesso', 'u_DONO', { id: 'u_DONO', nome: 'Dono', papel: 'admin', ativo: true }],
-  ['config', 'recado', { id: 'r1', para: 'u_DONO', titulo: 'Recado', texto: 'Texto de exemplo', segundos: 2, expiraEm: '2099-01-01T00:00:00Z' }]];
+  ['config', 'recado', { id: 'r1', para: 'u_DONO', titulo: 'Recado', texto: 'Texto de exemplo', segundos: 2, expiraEm: '2099-01-01T00:00:00Z' }],
+  ['config', 'recado-u_DONO', { id: 'c1', para: 'u_DONO', titulo: 'Recado', texto: 'Fica até clicar', ateClicar: true }]];
 for (let i = 1; i <= 40; i++) {
   docs.push(['funcionarios', 'f' + i, { id: 'f' + i, nome: 'Funcionário Exemplo ' + i, situacao: 'Ativo', setor: 'Produção', departamento: 'Fábrica', admissao: '2024-02-01', tipoContratacao: 'Empregado CLT', formaRemuneracao: 'Mensal fixo' }]);
   docs.push(['sensivel', 'f' + i, { id: 'f' + i, salario: 2000 }]);
@@ -39,9 +40,16 @@ try {
   await page.goto(`http://127.0.0.1:${http.address().port}/saida/claude.html`);
   await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 45000 });
   await page.waitForFunction(() => DATA.funcionarios.length === 40, null, { timeout: 20000 });
-  await page.waitForSelector('.jb-recado', { timeout: 15000 });
-  ok(await page.evaluate(() => document.querySelector('.jb-recado p').textContent === 'Texto de exemplo'), 'recado aparece na tela da pessoa');
-  await page.waitForSelector('.jb-recado', { state: 'detached', timeout: 4000 });
+  await page.waitForSelector('.jb-recado:not(.clicar)', { timeout: 15000 });
+  await page.waitForSelector('.jb-recado.clicar', { timeout: 15000 });
+  ok(await page.evaluate(() => document.querySelector('.jb-recado:not(.clicar) p').textContent === 'Texto de exemplo'), 'recado aparece na tela da pessoa');
+  await page.waitForSelector('.jb-recado:not(.clicar)', { state: 'detached', timeout: 4000 });
+  await page.waitForTimeout(800);
+  ok(await page.evaluate(() => !!document.querySelector('.jb-recado.clicar')), 'recado de clicar continua na tela depois do tempo');
+  await page.evaluate(() => document.querySelector('.jb-recado.clicar').click());
+  await page.waitForTimeout(300);
+  ok(await page.evaluate(() => !document.querySelector('.jb-recado.clicar') && !!PREFS.lidas['recado:c1']), 'clicou, fechou e ficou anotado');
+  ok(await page.evaluate(() => { RECADOS_NA_TELA.delete('c1'); mostrarRecado({ id: 'c1', para: 'u_DONO', texto: 'x', ateClicar: true }); return !document.querySelector('.jb-recado.clicar'); }), 'depois de clicar não aparece de novo');
   ok(await page.evaluate(() => { mostrarRecado({ id: 'r1', para: 'u_DONO', texto: 'x' }); mostrarRecado({ id: 'r2', para: 'outra', texto: 'x' }); return !document.querySelector('.jb-recado'); }), 'recado some sozinho, não repete e não aparece para outra pessoa');
   await page.evaluate(() => { window.__r = 0; const o = renderTela; renderTela = function () { __r++; return o.apply(this, arguments); }; location.hash = '#/funcionarios'; });
   await page.waitForTimeout(800);
