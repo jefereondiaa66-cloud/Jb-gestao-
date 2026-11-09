@@ -11728,6 +11728,9 @@ function saldos(){
 }
 const saldoP=id=>saldos()[id]||0;
 const controla=p=>!!p&&p.controlaEstoque!=='Não';
+/* Setor de Vendas: o tijolo sai da produção já vendido. Só existe estoque se o produto for marcado com "Controla estoque: Sim". */
+const temEstoqueV=itens=>(itens||[]).some(i=>i.produtoId&&controla(PROD(i.produtoId)));
+const vendasComEstoqueV=()=>DATA.produtos.some(p=>p.setor==='vendas'&&p.situacao!=='Inativo'&&controla(p));
 function situacaoEstoque(p){if(!controla(p))return 'Sem controle';const s=saldoP(p.id);if(s<=0)return 'Sem estoque';if(p.estoqueMinimo!==''&&p.estoqueMinimo!=null&&s<+p.estoqueMinimo)return 'Abaixo do mínimo';return 'Normal'}
 /* custo médio das compras (sem frete); sem compra registrada, vale o preço de referência do cadastro */
 function custoMedio(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))return;(v.itens||[]).forEach(i=>{if(i.produtoId===pid){q+=+i.qtd||0;t+=+i.total||0}})});
@@ -11941,7 +11944,7 @@ MODS.produtos={get titulo(){return (SETORES_V[setorAtualV()]||{}).prodTit||'Prod
   {k:'precoCompra',l:r=>modoV(r.setor)==='consumo'?'Preço de referência de compra (por unidade)':'Custo de referência (por unidade)',t:'moeda',aj:'Usado só enquanto não houver compra registrada. Depois, o custo é a média das compras.',s:'Preços'},
   {k:'precoVenda',l:'Preço de referência de venda (por unidade)',t:'moeda',sh:r=>modoV(r.setor)==='venda',aj:'Vale quando nenhuma tabela de preço se aplica ao cliente e à quantidade.',s:'Preços'},
   {k:'precoMinimo',l:'Preço mínimo autorizado (por unidade)',t:'moeda',sh:r=>modoV(r.setor)==='venda',aj:'Abaixo dele a venda só sai com aprovação do gerente. Em branco: sem mínimo.',s:'Preços'},
-  {k:'controlaEstoque',l:'Controla estoque?',t:'sel',req:1,op:['Sim','Não'],aj:'Não: o lançamento não mexe no estoque (por exemplo, frete avulso).',sh:r=>modoV(r.setor)==='venda',s:'Estoque'},
+  {k:'controlaEstoque',l:'Controla estoque?',t:'sel',req:1,op:['Sim','Não'],aj:'Não: vende direto, sem exigir nem baixar estoque (o que sai da produção já está vendido). Sim: só se a empresa passar a lançar estoque deste produto.',sh:r=>modoV(r.setor)==='venda',s:'Estoque'},
   {k:'estoqueMinimo',l:'Estoque mínimo',t:'num',aj:'Abaixo deste saldo o item aparece como “Abaixo do mínimo”.',sh:r=>r.controlaEstoque!=='Não',s:'Estoque'},
   {k:'_saldo',l:'Saldo atual',t:'html',calc:r=>r.id&&PROD(r.id)?'<b>'+esc(fQtd(saldoP(r.id)))+' '+esc(r.unidade||'')+'</b> <span class="ajuda">O saldo só muda por compra, consumo, venda, entrada, ajuste, perda ou transferência.</span>':'<span class="ajuda">Item novo começa com saldo zero. Depois de salvar, registre a compra ou a entrada.</span>',s:'Estoque'},
   {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativo','Inativo'],s:'Estoque'},
@@ -11956,7 +11959,7 @@ MODS.produtos={get titulo(){return (SETORES_V[setorAtualV()]||{}).prodTit||'Prod
   statusCol]},
  filtros:[{k:'_est',l:'Estoque',op:['Normal','Abaixo do mínimo','Sem estoque','Sem controle'],fn:(r,v)=>situacaoEstoque(r)===v},{k:'situacao',l:'Situação',op:['Ativo','Inativo']}],
  escopo:r=>r.setor===setorAtualV(),
- padrao:()=>{const s=setorAtualV();return{setor:s,situacao:'Ativo',controlaEstoque:'Sim',unidade:s==='combustivel'?'L':s==='lenha'?'st (estéreo)':'milheiro',tipoComb:s==='combustivel'?'Diesel':''}},
+ padrao:()=>{const s=setorAtualV();return{setor:s,situacao:'Ativo',controlaEstoque:modoV(s)==='venda'?'Não':'Sim',unidade:s==='combustivel'?'L':s==='lenha'?'st (estéreo)':'milheiro',tipoComb:s==='combustivel'?'Diesel':''}},
  validar(st){const e={};const venda=modoV(st.setor)==='venda';
   if(st.setor==='combustivel'&&!st.tipoComb)e.tipoComb='Escolha o tipo de combustível.';
   if(venda&&(st.precoVenda===''||st.precoVenda==null))e.precoVenda='Informe o preço de venda.';
@@ -12122,7 +12125,7 @@ function ABAS_V(s){const S=SETORES_V[s];
   {r:'#/vendas',m:'vendas',ic:'recibo',l:'Pedidos',at:['vendas','venda','venda-nova']},
   {r:'#/expedicao',m:'expedicao',ic:'caixa',l:'Expedição',at:['expedicao']},
   {r:'#/receber',m:'receber',ic:'moeda',l:'Contas a receber',at:['receber']},
-  {r:'#/estoque',m:'estoque',ic:'caixa',l:'Estoque',at:['estoque','estoqueMov']},
+  ...(vendasComEstoqueV()?[{r:'#/estoque',m:'estoque',ic:'caixa',l:'Estoque',at:['estoque','estoqueMov']}]:[]),
   {r:'#/produtos',m:'produtos',ic:'livro',l:'Produtos',at:['produtos']},
   {r:'#/precos',m:'precos',ic:'moeda',l:'Tabelas de preço',at:['precos']},
   {r:'#/tiposProduto',m:'tiposProduto',ic:'folha',l:S.tipos,at:['tiposProduto']},
@@ -12212,7 +12215,7 @@ function inicioVendasV(c,s){
  const S=SETORES_V[s];const N=numerosOp(OP.venda,s);const ed=pode('venda','e');
  const semProd=!DATA.produtos.some(p=>p.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
-  <div class="acoes">${pode('estoqueMov','e')?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn" href="#/venda/nova" data-tip="Venda de balcão, à vista ou a prazo, que baixa o estoque na hora">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn pri" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
+  <div class="acoes">${pode('estoqueMov','e')&&N.prods.length?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn" href="#/venda/nova" data-tip="Venda de balcão, à vista ou a prazo, que baixa o estoque na hora">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn pri" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?'Cadastre os tipos de tijolo e os produtos (milheiro, com preço), registre a entrada no estoque e faça a primeira venda. ':'Peça ao gerente para cadastrar os produtos. '}Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   <div class="hero">
    ${kpiV('c1','recibo','Vendas hoje',fMoeda(soma(N.dia,v=>v.total)),N.dia.length+' venda(s)','#/vendas')}
@@ -12220,12 +12223,12 @@ function inicioVendasV(c,s){
    ${kpiV('c2','entrada','Recebido no mês',fMoeda(N.pagMes),'pagamentos registrados','#/receber')}
    ${kpiV('c5','carteira','Contas a receber',fMoeda(soma(N.aberto,x=>x.f.saldo)),N.aberto.length+' conta(s) em aberto','#/receber')}
    ${kpiV('c6','aviso','Contas vencidas',fMoeda(soma(N.venc,x=>x.f.saldo)),N.venc.length?N.venc.length+' conta(s) vencida(s)':'nenhuma vencida','#/receber')}
-   ${kpiV('c3','caixa','Estoque de produtos',txtUnid(porUnidade(N.prods,p=>saldoP(p.id),p=>p.unidade),1),N.alerta.length?N.alerta.length+' abaixo do mínimo ou zerado(s)':N.prods.length+' produto(s)','#/estoque')}
+   ${N.prods.length?kpiV('c3','caixa','Estoque de produtos',txtUnid(porUnidade(N.prods,p=>saldoP(p.id),p=>p.unidade),1),N.alerta.length?N.alerta.length+' abaixo do mínimo ou zerado(s)':N.prods.length+' produto(s)','#/estoque'):''}
   </div>
   <div class="ex2">
    <div class="bloco"><h3>Vendas dos últimos 30 dias<a href="#/vendas">Ver vendas</a></h3><div class="cv"><canvas id="gSv1"></canvas></div></div>
    <div class="bloco"><h3>Produtos mais vendidos no mês${pode('relvendas')?'<a href="#/relvendas">Relatórios</a>':''}</h3>${lstV(N.top.slice(0,6).map(t=>({href:'#/produtos/'+t.id,ic:'livro',t:t.nome,s:fQtd(t.qtd)+' '+(t.un||''),v:fMoeda(t.total)})),'Nenhuma venda neste mês.')}</div>
-   <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.slice().sort((a,b)=>saldoP(a.id)-saldoP(b.id)).slice(0,6).map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st,v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum produto com controle de estoque.')}</div>
+   ${N.prods.length?`<div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.slice().sort((a,b)=>saldoP(a.id)-saldoP(b.id)).slice(0,6).map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st,v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum produto com controle de estoque.')}</div>`:''}
   </div>
   <div class="ex3">
    <div class="bloco"><h3>Últimas vendas<a href="#/vendas">Ver todas</a></h3>${lstV(N.vs.slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,6).map(itemOpLst),'Nenhuma venda registrada ainda.')}</div>
@@ -12377,7 +12380,7 @@ function resumoOpV(O,d){
   ${ln('Total',fMoeda(c.total),'vd-grande')}${ln(d.condicao==='À vista'?(venda?'Recebido no ato':'Pago no ato'):'Entrada',fMoeda(c.pagoAgora))}${ln(venda?'A receber':'A pagar',fMoeda(c.saldo)+(d.condicao==='A prazo'&&d.vencimento?' em '+fData(d.vencimento):''))}</div>
   ${er.length||r.avisos.length?`<ul class="vd-avisos">${er.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}</ul>`:''}
   <button type="button" class="btn pri vd-ok" id="vdOk" ${pode(O.mod,'e')?'':'disabled'}>${ic(O.ic)}Confirmar ${O.sing}</button>
-  <ol class="vd-passos">${venda?'<li>Registra a venda com número próprio</li><li>Baixa o estoque</li><li>Registra a conta a receber</li><li>Gera o comprovante</li><li>Entra nos relatórios</li><li>Fica pronta para vincular o documento fiscal</li>':'<li>Registra a compra com número próprio</li><li>Dá entrada no estoque</li><li>Registra a conta a pagar</li><li>Guarda a nota do fornecedor</li><li>Entra nos relatórios do setor</li>'}</ol>`;
+  <ol class="vd-passos">${venda?'<li>Registra a venda com número próprio</li>'+(temEstoqueV(c.itens)?'<li>Baixa o estoque</li>':'')+'<li>Registra a conta a receber</li><li>Gera o comprovante</li><li>Entra nos relatórios</li><li>Fica pronta para vincular o documento fiscal</li>':'<li>Registra a compra com número próprio</li><li>Dá entrada no estoque</li><li>Registra a conta a pagar</li><li>Guarda a nota do fornecedor</li><li>Entra nos relatórios do setor</li>'}</ol>`;
 }
 function formOpV(c,O,s){
  const S=SETORES_V[s];const d=RASC_V[O.K];const venda=O.K==='venda';
@@ -12440,7 +12443,7 @@ async function confirmarOpV(O,btn){
  if(r.erros.length){d.tentou=true;const rs=$('#vdResumo');if(rs)rs.innerHTML=resumoOpV(O,d);toast(r.erros[0],'erro');return}
  const c=r.c;const nomeP=r.par?O.nomeP(r.par):'Consumidor final';
  const txt=nomeP+' · '+c.itens.length+' item(ns) · total '+fMoeda(c.total)+' · '+d.forma+', '+d.condicao.toLowerCase()+(d.condicao==='A prazo'?' (vence em '+fData(d.vencimento)+')':'')+'.'+
-  (r.avisos.length?' Atenção: '+r.avisos.join(' '):'')+(venda?' Ao confirmar, o estoque é baixado, a conta a receber é registrada e o comprovante é gerado.':' Ao confirmar, os itens entram no estoque e a conta a pagar é registrada.')+' Depois de confirmada ela não se edita; para corrigir, cancela-se com motivo.';
+  (r.avisos.length?' Atenção: '+r.avisos.join(' '):'')+(venda?(temEstoqueV(d.itens)?' Ao confirmar, o estoque é baixado, a conta a receber é registrada e o comprovante é gerado.':' Ao confirmar, a venda é registrada, a conta a receber é lançada e o comprovante é gerado.'):' Ao confirmar, os itens entram no estoque e a conta a pagar é registrada.')+' Depois de confirmada ela não se edita; para corrigir, cancela-se com motivo.';
  if(!await confirmar('Confirmar a '+O.sing+'?',txt,{ok:'Confirmar '+O.sing}))return;
  btn.disabled=true;
  let numero;try{numero=await reservarNumeroV(O)}catch(e){btn.disabled=false;toast('Não deu para reservar o número agora. Tente de novo em alguns segundos. Nada foi gravado.','erro');return}
@@ -12465,7 +12468,7 @@ async function confirmarOpV(O,btn){
    ...itens.filter(i=>i.precoMinimo!=null&&i.preco<i.precoMinimo-0.004).map(i=>({c:'Preço abaixo do mínimo · '+i.nome,de:fMoeda(i.precoMinimo),para:fMoeda(i.preco)}))];
   if(exc.length)await logV(O.col,v.id,'autorizou exceção na venda',exc)}
  RASC_V[O.K]=null;
- if(venda){toast('Venda nº '+fNumV(numero)+' registrada. Estoque baixado e conta a receber lançada.','ok');verDoc(docOpV(v),{voltar:'#/venda/'+v.id})}
+ if(venda){toast('Venda nº '+fNumV(numero)+' registrada.'+(itens.some(i=>i.baixaEstoque)?' Estoque baixado e conta a receber lançada.':' Conta a receber lançada.'),'ok');verDoc(docOpV(v),{voltar:'#/venda/'+v.id})}
  else{toast('Compra nº '+fNumV(numero)+' registrada. Itens no estoque e conta a pagar lançada.','ok');location.hash='#/compra/'+v.id}
 }
 
@@ -13272,7 +13275,7 @@ function resumoComV(tipo,d,reg){
    :`<button type="button" class="btn pri vd-ok" id="cmEnviar" ${pode2?'':'disabled'}>${ic('recibo')}${exc.length&&!podeAprovarExcV(exc)?'Enviar para aprovação':exc.length?'Confirmar e aprovar pedido':'Confirmar pedido'}</button>
      <button type="button" class="btn vd-ok" id="cmRasc" style="margin-top:8px" ${pode2?'':'disabled'}>Salvar como rascunho</button>`}
   <ol class="vd-passos">${ehOrc?'<li>Não reserva nem baixa estoque</li><li>Não gera conta a receber</li><li>Gera o PDF para enviar ao cliente</li><li>Aprovado pelo cliente, vira pedido sem redigitar</li>'
-   :'<li>Confirmado, o pedido reserva o estoque (não baixa)</li><li>A saída física acontece '+esc(CFGV().eventoBaixa.toLowerCase())+'</li><li>As contas a receber nascem no faturamento, com as parcelas acima</li><li>Dinheiro só conta quando o recebimento é registrado</li>'}</ol>`;
+   :(temEstoqueV(d.itens)?'<li>Confirmado, o pedido reserva o estoque (não baixa)</li><li>A saída física acontece '+esc(CFGV().eventoBaixa.toLowerCase())+'</li>':'<li>Confirmado, o pedido segue direto para o carregamento, sem exigir estoque</li>')+'<li>As contas a receber nascem no faturamento, com as parcelas acima</li><li>Dinheiro só conta quando o recebimento é registrado</li>'}</ol>`;
 }
 function formComV(c,tipo,d,reg){
  const ehOrc=tipo==='orc';const g=CFGV();
@@ -13289,7 +13292,7 @@ function formComV(c,tipo,d,reg){
    <fieldset class="sec"><legend>Produtos</legend>
     <div class="tabwrap"><table class="tbl cartao vd-itens"><thead><tr><th>Produto</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Preço negociado</th><th class="num">Total</th><th></th></tr></thead><tbody id="cmItens">${itensComV(d)}</tbody></table></div>
     <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="cmAdd">${ic('mais')}Adicionar produto</button><span class="ajuda">O preço vem da tabela que vale para o cliente e a quantidade. Mudar o preço fica registrado.</span></div></fieldset>
-   ${ehOrc?'':`<fieldset class="sec"><legend>Disponibilidade no estoque</legend><div id="cmDisp">${htmlDisponibilidadeV(disponibilidadeV(d.itens,d.id))}</div></fieldset>`}
+   ${ehOrc||!vendasComEstoqueV()?'':`<fieldset class="sec"><legend>Disponibilidade no estoque</legend><div id="cmDisp">${htmlDisponibilidadeV(disponibilidadeV(d.itens,d.id))}</div></fieldset>`}
    <fieldset class="sec"><legend>Entrega</legend><div class="campos">
     <div class="cmp"><label for="cmTipo">Tipo de venda</label><select id="cmTipo" data-c="tipoVenda">${TIPOS_VENDA.map(x=>`<option ${d.tipoVenda===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
     ${ehOrc?`<div class="cmp"><label for="cmPrazoEnt">Prazo estimado de entrega</label><input id="cmPrazoEnt" data-c="prazoEntrega" placeholder="Ex.: 5 dias úteis após a confirmação" value="${esc(d.prazoEntrega)}"></div>`
@@ -13402,7 +13405,7 @@ async function salvarPedidoV(btn,acao){
  if(acao==='enviar'&&exc.length&&!String(d.justificativa||'').trim()){toast('Escreva a justificativa para a aprovação.','erro');const j=$('#cmJust');if(j)j.focus();return}
  if(acao==='enviar'){const disp=disponibilidadeV(c.itens,d.id).filter(x=>!x.ok);
   const txt=nomeCliente(c.cli)+' · '+c.itens.length+' produto(s) · total '+fMoeda(c.total)+' · '+txtPlanoV(c.parcelas)+'.'+(exc.length?(aprova?' Você está aprovando as exceções: '+exc.map(x=>x.texto).join(' '):' Vai para aprovação do '+(nivelExcV(exc)==='admin'?'administrador':'gerente')+'.'):'')+
-   (disp.length?' Estoque insuficiente agora: o pedido fica aguardando disponibilidade.':'')+' Confirmar o pedido reserva o estoque; não baixa nem gera conta a receber ainda.';
+   (disp.length?' Estoque insuficiente agora: o pedido fica aguardando disponibilidade.':'')+(temEstoqueV(c.itens)?' Confirmar o pedido reserva o estoque; não baixa nem gera conta a receber ainda.':' O pedido segue direto para o carregamento, sem exigir estoque; a conta a receber nasce no faturamento.');
   if(!await confirmar(exc.length&&!aprova?'Enviar para aprovação?':'Confirmar o pedido?',txt,{ok:exc.length&&!aprova?'Enviar':'Confirmar pedido'}))return}
  btn.disabled=true;const ant=d.id?VEN(d.id):null;
  if(ant&&!PED_EDITA.includes(ant.status)){btn.disabled=false;toast('Este pedido não pode mais ser editado ('+ant.status+').','erro');return}
@@ -13433,7 +13436,7 @@ function aplicarAprovacaoV(rec,exc,just,auto){
  rec.historico=[...(rec.historico||[]),histV(de,'Aprovado',auto?'Aprovado automaticamente: dentro das regras comerciais':(just||'Aprovado'))];
  const disp=disponibilidadeV(rec.itens,rec.id,rec).filter(x=>!x.ok);
  rec.status=disp.length?'Aguardando disponibilidade':'Aguardando carregamento';
- rec.historico.push(histV('Aprovado',rec.status,disp.length?'Falta estoque: '+disp.map(x=>x.p.nome+' (disponível '+fQtd(x.disp)+' de '+fQtd(x.falta)+')').join('; '):(reservaAtiva()?'Estoque reservado':'Estoque disponível')));
+ rec.historico.push(histV('Aprovado',rec.status,disp.length?'Falta estoque: '+disp.map(x=>x.p.nome+' (disponível '+fQtd(x.disp)+' de '+fQtd(x.falta)+')').join('; '):(!temEstoqueV(rec.itens)?'Venda sem controle de estoque':reservaAtiva()?'Estoque reservado':'Estoque disponível')));
  if(!disp.length&&CFGV().eventoBaixa==='Na aprovação do pedido')baixarPedidoV(rec,'aprovacao','Aprovação do pedido',rec.itens.map(i=>({produtoId:i.produtoId,qtd:i.qtd})));
 }
 async function logStatusV(rec,de){const hs=(rec.historico||[]).filter(h=>h.em>=(rec.alteradoEm||''));if(!hs.length&&de===rec.status)return;
@@ -13595,7 +13598,7 @@ function detalhePedidoV(c,v){
    <section class="bloco"><h3>Cliente e entrega${v.clienteId&&pode('clientes')?`<a href="#/clientes/${esc(v.clienteId)}">Abrir cadastro</a>`:''}</h3>${kvV([['Nome / razão social',esc(cx.nome||'—'),1],['Código',esc(cx.codigo||'—')],['CPF/CNPJ',esc(cx.doc||'—')],['Telefone',esc(cx.whatsapp||cx.telefone||'—')],
     v.entrega?['Endereço de entrega',esc([v.entrega.endereco,v.entrega.cidade,v.entrega.uf].filter(Boolean).join(' · ')),1]:['Entrega','Retirada na cerâmica',1],v.entrega&&v.entrega.referencia?['Referência',esc(v.entrega.referencia),1]:null])}</section>
    <section class="bloco w2"><h3>Produtos e valores</h3>${blocoItensComV(v)}</section>
-   ${disp.length?`<section class="bloco w2"><h3>Disponibilidade no estoque<a href="#/estoque">Ver estoque</a></h3>${htmlDisponibilidadeV(disp)}</section>`:''}
+   ${disp.some(x=>x.controla)?`<section class="bloco w2"><h3>Disponibilidade no estoque<a href="#/estoque">Ver estoque</a></h3>${htmlDisponibilidadeV(disp)}</section>`:''}
    ${typeof blocosPedidoExtraV==='function'?blocosPedidoExtraV(v):''}
    <section class="bloco"><h3>Situação ao longo do tempo</h3>${htmlHistStatusV(v.historico)}</section>
    <section class="bloco"><h3>Histórico de alterações</h3><div class="vv-hist">${historicoHtml('vendas',v.id)}</div></section>
@@ -14452,7 +14455,7 @@ inicioVendasV=function(c,s){
   <div class="ex2">
    <div class="bloco"><h3>Faturamento dos últimos 30 dias<a href="javascript:void 0" data-k="periodo">Relatório</a></h3><div class="cv"><canvas id="gSv1"></canvas></div></div>
    <div class="bloco"><h3>Produtos mais vendidos<a href="javascript:void 0" data-k="produtos">Relatório</a></h3>${lstV(relProdutos(U).rows.slice(0,6).map(t=>({href:'javascript:void 0',ic:'livro',t:t.nome,s:fQtd(t.qtd)+' '+(t.un||''),v:fMoeda(t.rec)})),'Nenhuma venda faturada no período.')}</div>
-   <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(DATA.produtos.filter(p=>p.setor===s&&controla(p)&&p.situacao!=='Inativo').slice(0,6).map(p=>{const st=situacaoEstoque(p);const r=reservadoP(p.id);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+(r?' · reservado '+fQtd(r):''),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum produto com controle de estoque.')}</div>
+   ${vendasComEstoqueV()?`<div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(DATA.produtos.filter(p=>p.setor===s&&controla(p)&&p.situacao!=='Inativo').slice(0,6).map(p=>{const st=situacaoEstoque(p);const r=reservadoP(p.id);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+(r?' · reservado '+fQtd(r):''),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum produto com controle de estoque.')}</div>`:''}
   </div>
   <div class="ex3">
    <div class="bloco"><h3>Últimos pedidos<a href="#/vendas">Ver todos</a></h3>${lstV(DATA.vendas.filter(v=>v.setor===s).sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,6).map(v=>({href:'#/venda/'+v.id,ic:ehPedido(v)?'recibo':'moeda',cls:cancV(v)?'a-pe':['Concluído','Concluída','Entregue'].includes(v.status)?'a-ok':'a-at',t:'Nº '+fNumV(v.numero)+' · '+((ehPedido(v)?(v.cliente||{}).nome:parteSnap(v).nome)||''),s:fData(v.data)+' · '+String(v.status).toLowerCase(),v:fMoeda(v.total)})),'Nenhum pedido ainda.')}</div>
@@ -31292,8 +31295,6 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
 
   <button type="button" class="c2-op" data-visual-troca>${ic('paleta')||ic('engrenagem')}Trocar o visual das cores</button>
   ${pode('config')?`<a class="c2-op" href="#/config">${ic('engrenagem')}Configurações</a>`:''}
-  <div class="c2-linha c2-so-dono"></div><div class="c2-pt c2-so-dono">Modelo de tela</div>
-  ${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="c2-op c2-opmod ${modelo()===k?'on':''}" data-c2modelo="${k}"><span class="c2-mnum">${k.slice(1)}</span><span>${esc(o.n)}<small>${esc(o.d)}</small></span></button>`).join('')}
   <div id="c2euextra"></div>`;
  }
  function moverEia(){
@@ -31312,7 +31313,6 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    if(ab&&wr.dataset.c2==='busca'){const i=document.getElementById('buscaG');if(i)setTimeout(()=>{i.focus();i.select()},30)}
    if(ab&&wr.dataset.c2==='funcoes'){const f=document.getElementById('c2filtro');if(f&&matchMedia('(min-width:861px)').matches)setTimeout(()=>f.focus(),30)}});
   top.querySelectorAll('.c2-pop').forEach(p=>p.onclick=e=>{
-   const md=e.target.closest('[data-c2modelo]');if(md){fecharTudo();definirModelo(md.dataset.c2modelo);return}
    if(e.target.closest('[data-c2sair]')){fecharTudo();const b=document.getElementById('jbsair');if(b)b.click();else if(typeof window.JB_SAIR==='function')window.JB_SAIR();return}
    if(e.target.closest('[data-c2menu]')){fecharTudo();abrirMenuCompleto();return}
    const mi=e.target.closest('[data-c2mi]');if(mi){e.preventDefault();fecharTudo();abrirItem(+mi.dataset.c2mi);return}
@@ -31350,7 +31350,17 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  function alternar(on){try{localStorage.setItem(LS,on?'nova':'antiga')}catch(e){}aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}if(!on)toast('Layout anterior em uso. Para voltar ao novo, use o botão "Novo layout" no alto.','ok')}
  function aplicarClasse(){const on=ligada()&&acessoOk();const h=document.documentElement;h.classList.toggle('casca2',on);h.classList.toggle('c3-cab-preto',on&&cabPreto());const m=modelo();Object.keys(MODELOS).forEach(k=>h.classList.toggle('c2-'+k,on&&k===m));if(!on){document.body.classList.remove('c2-tem-mob','c2-semtrilho')}}
  VERSAO_LER.modelo=()=>modelo();VERSAO_APOS.push(()=>{aplicarClasse();C2.chave='';renderCasca();renderTela()});
- function definirModelo(v){if(!MODELOS[v])return;if(versaoTravada())return avisoVersao();try{localStorage.setItem(MOD_LS,v)}catch(e){}if(APP.modo!=='local'&&APARENCIA&&APARENCIA.dono===APP.uid)gravarVersao({modelo:v});aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}toast(MODELOS[v].n+' em uso neste navegador. Para trocar, use “Modelo de tela” no menu do usuário.','ok')}
+ function definirModelo(v){if(!MODELOS[v])return;if(versaoTravada())return avisoVersao();try{localStorage.setItem(MOD_LS,v)}catch(e){}if(APP.modo!=='local'&&APARENCIA&&APARENCIA.dono===APP.uid)gravarVersao({modelo:v});aplicarClasse();C2.chave='';renderCasca();try{renderTela()}catch(e){}toast(MODELOS[v].n+' em uso.','ok')}
+ /* Modelo de tela: fixo para todos. Só o dono troca, nesta seção recolhida das Configurações. */
+ let modCfgAberto=false;
+ function secaoModeloConfig(el){if(!el||el.querySelector('#c2ModCfg')||!podeTemaPadrao())return;
+  const ref=[...el.querySelectorAll('fieldset.sec')].find(f=>{const l=f.querySelector('legend');return l&&l.textContent.trim()==='Aparência'});
+  const n=document.createElement('fieldset');n.className='sec';n.id='c2ModCfg';const at=modelo();
+  n.innerHTML=`<legend>Modelo de tela</legend><details ${modCfgAberto?'open':''}><summary style="cursor:pointer;font-size:13.5px">Em uso: <b>${esc(MODELOS[at].n)}</b>. Só você vê esta opção.</summary><p style="margin:8px 0;color:var(--suave);font-size:13px">O modelo escolhido vale para todos os usuários e fica fixo até você trocar aqui.</p><div class="inline" style="flex-wrap:wrap;gap:8px">${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="btn ${k===at?'pri':''}" data-c2mcfg="${k}" title="${esc(o.d)}">${esc(o.n)}</button>`).join('')}</div></details>`;
+  if(ref)ref.after(n);else el.appendChild(n);
+  n.querySelector('details').ontoggle=e=>{modCfgAberto=e.target.open};
+  n.querySelectorAll('[data-c2mcfg]').forEach(b=>b.onclick=()=>{if(b.dataset.c2mcfg!==modelo())definirModelo(b.dataset.c2mcfg)})}
+ const ligarApMod0=ligarAparencia;ligarAparencia=function(el){ligarApMod0.apply(this,arguments);try{secaoModeloConfig(el)}catch(e){console.warn('modelo de tela · configurações',e)}};
 
  /* ---------- o que muda conforme a tela: nome do setor, funções, trilho, atalhos ---------- */
  function atualizarContexto(forcar){
@@ -31501,13 +31511,8 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
     <div class="c2-grupos">${gs.map(g=>`<div class="c2-gc c2-c-${g.k}"><h3><span class="c2-gi">${(g.its[0].svg||ic(g.its[0].ico||'painel'))}</span>${esc(g.n)}<em>${g.its.length} ${g.its.length===1?'função':'funções'}</em></h3>
      ${g.its.map(t=>`<a class="c2-gl ${t.cls==='pri'?'pri':''}" href="${esc(t.href||'javascript:void 0')}" ${t.mi!=null?`data-c2mi="${t.mi}"`:''}><span class="c2-gli">${t.svg||ic(t.ico||'painel')}</span><span class="c2-glt">${esc(t.titulo||t.l)}</span>${t.qt?`<em>${esc(t.qt)}</em>`:''}${ic('direita')}</a>`).join('')}</div>`).join('')}</div></section>`};
   const corpo=(dp?alertasHtml():'')+(M==='m2'?gruposHtml():favHtml+tilesHtml);
-  /* barra para o dono comparar os modelos (some depois que ele escolher) */
-  const podeComparar=podeTemaPadrao();
-  let escolheu=false;try{escolheu=localStorage.getItem('jb_modelo_ok')==='1'}catch(e){}
-  const comparar=podeComparar&&!escolheu?`<div class="c2-comparar"><span>${ic('faisca')}<b>Compare os modelos de tela:</b></span>${Object.entries(MODELOS).map(([k,o])=>`<button type="button" class="${k===M?'on':''}" data-c2modelo="${k}" title="${esc(o.d)}">${esc(o.n)}</button>`).join('')}<button type="button" class="c2-cmp-ok" data-c2modok>Ficar com o ${esc(MODELOS[M].n)}</button></div>`:'';
   /* monta: cabeçalho; nos modelos 1 e 2 os números vêm logo abaixo; depois alertas e funções */
   const tmp=document.createElement('div');tmp.innerHTML=hero;const heroEl=tmp.firstElementChild;
-  if(comparar)heroEl.insertAdjacentHTML('afterbegin',comparar);
   let ancora=heroEl;
   if(dp){c.insertBefore(heroEl,c.firstChild)}
   else{
@@ -31529,8 +31534,6 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  }
  function ligarAcesso(raiz,sid,ts){
   raiz.querySelectorAll('.c2-home,.c2-blk').forEach(s=>s.onclick=e=>{
-   const md=e.target.closest('[data-c2modelo]');if(md){definirModelo(md.dataset.c2modelo);return}
-   if(e.target.closest('[data-c2modok]')){try{localStorage.setItem('jb_modelo_ok','1')}catch(x){}const cp=e.target.closest('.c2-comparar');if(cp)cp.remove();toast('Anotado: '+MODELOS[modelo()].n+'. Me diga no chat qual modelo ficou como principal.','ok');return}
    if(e.target.closest('[data-c2busca]')){e.stopPropagation();const wb=$('[data-c2=busca]');if(wb){fecharTudo(wb);wb.classList.add('ab');scrollTo({top:0});const i=document.getElementById('buscaG');if(i)setTimeout(()=>{i.focus();i.select()},40)}return}
    const ch=e.target.closest('[data-c2cat]');if(ch){const sec=ch.closest('.c2-acesso');sec.querySelectorAll('.c2-chip').forEach(x=>x.classList.toggle('on',x===ch));const k=ch.dataset.c2cat;const grp=(CAT_DP.find(x=>x[0]===k)||[,,[]])[2];sec.querySelectorAll('.c2-tile[data-cat]').forEach(t=>t.classList.toggle('c2-oculto',!!k&&!grp.includes(t.dataset.cat)));return}
    if(e.target.closest('[data-c2todas]')){e.preventDefault();e.stopPropagation();const wf=$('[data-c2=funcoes]');if(wf){fecharTudo(wf);wf.classList.add('ab');scrollTo({top:0,behavior:'smooth'})}return}
@@ -33787,7 +33790,16 @@ html.vis-cc .spot-cab .v56-pend-lk{color:#fff;border-color:rgba(255,255,255,.3)}
 /* dicas de "passar o mouse": no toque elas não abrem e, escondidas fora da tela, alargavam a página para o lado */
 @media (hover:none){[data-tip]:not(:focus-visible):after{display:none}}
 /* nada passa da largura da tela no celular (as tabelas continuam rolando dentro da própria caixa) */
-@media (max-width:720px){body{overflow-x:clip}}
+/* celular: a página nunca anda para os lados; só as listas e abas largas rolam por dentro */
+@media (max-width:960px){
+ html{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
+ body{overflow-x:clip;max-width:100%;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
+ fieldset{min-width:0}
+ .nome-av{white-space:normal;min-width:0}
+ .barra-mob a,.barra-mob button{min-width:0}
+ #c2mob a,#c2mob button{width:auto;flex:1 1 0;min-width:0}
+ #c2mob a>span:not(:first-child),#c2mob button>span{max-width:100%}
+}
 /* tabelas e faixas de abas que continuam para o lado: a borda some aos poucos, mostrando que dá para arrastar */
 .v82-rola-dir{-webkit-mask-image:linear-gradient(to left,transparent 0,#000 44px);mask-image:linear-gradient(to left,transparent 0,#000 44px)}
 .v82-rola-esq{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 44px);mask-image:linear-gradient(to right,transparent 0,#000 44px)}
