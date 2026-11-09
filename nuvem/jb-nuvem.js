@@ -292,31 +292,45 @@
   });
 
   /* ---------------- tela de entrada ---------------- */
-  /* visual V57: fundo grafite com brilho vermelho, logotipo da Concretiza, campos com ícone e olho da senha.
-     Os mesmos elementos de antes, na mesma ordem: logo e nome, usuário, senha, botão Entrar, aviso e rodapé. */
-  var IC_U = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8F9A' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6'/%3E%3C/svg%3E\")";
-  var IC_L = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8F9A' stroke-width='2' stroke-linecap='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E\")";
-  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;' +
-      'background:radial-gradient(900px 520px at 85% -10%,rgba(211,18,28,.35),transparent 60%),linear-gradient(160deg,#16171C,#0B0C0F);' +
+  /* visual "céu aberto" (09/11/2026): a foto real da cerâmica. Celular e tablet: formulário em cima e a foto embaixo,
+     com o céu sumindo no branco. Computador e tablet deitado: fundo creme, formulário à esquerda e a foto em tom de fim de tarde à direita.
+     Os mesmos elementos de antes: logo e nome, usuário, senha, botão Entrar, aviso e rodapé. */
+  var JBL_LARGA = '(min-width:1040px),(min-width:900px) and (orientation:landscape)';
+  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;' +
       'font:15px Barlow,Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#121318}' +
-    '#jbl .c{background:#fff;border:1px solid #E6E8ED;border-radius:22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.55);width:100%;max-width:400px;padding:32px 28px 24px;margin:auto}' +
-    '#jbl .m{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin-bottom:22px}' +
-    '#jbl .lg{width:84px;height:84px;display:block;flex:none}' +
-    '#jbl h1{font-family:"Barlow Condensed",Barlow,Inter,sans-serif;font-size:28px;margin:0;font-weight:700;letter-spacing:.02em}#jbl small{color:#4E5260;font-size:14px}' +
-    '#jbl label{display:block;font-size:13px;font-weight:600;color:#4E5260;margin:14px 0 6px;letter-spacing:.02em}' +
-    '#jbl input{width:100%;box-sizing:border-box;height:50px;padding:0 14px 0 44px;border:1px solid #D7DAE1;border-radius:14px;font:inherit;font-size:16px;color:#121318;background:#F5F6F8 no-repeat 14px 50%/20px}' +
-    '#jbl input[type=text],#jbl input[type=email]{background-image:' + IC_U + '}' +
-    '#jbl input[type=password],#jbl .cs input{background-image:' + IC_L + ';padding-right:52px}' +
-    '#jbl input:focus{outline:none;border-color:#D3121C;box-shadow:0 0 0 4px rgba(211,18,28,.16);background-color:#fff}' +
+    '#jbl .f{flex:0 0 auto;display:flex;justify-content:center;align-items:center;box-sizing:border-box;padding:calc(28px + env(safe-area-inset-top,0px)) 28px 8px}' +
+    '#jbl .c{width:100%;max-width:400px}' +
+    '#jbl .m{display:flex;align-items:center;gap:12px;margin-bottom:36px}' +
+    '#jbl .lg{width:48px;height:48px;display:block;flex:none}' +
+    '#jbl .mt b{display:block;font-family:"Barlow Condensed","Arial Narrow",Barlow,sans-serif;font-size:26px;font-weight:700;line-height:1}#jbl .mt span{display:block;font-size:13px;line-height:1.3;color:#5B606B;margin-top:2px}' +
+    '#jbl h1{font-size:36px;line-height:1.08;font-weight:600;letter-spacing:-.01em;margin:0}#jbl h1 span{color:#D3121C}' +
+    '#jbl small{display:block;color:#4E5260;font-size:16px;line-height:1.35;margin:8px 0 10px}' +
+    '#jbl label{display:block;font-size:13px;font-weight:600;color:#3A3E48;margin:14px 0 6px}' +
+    '#jbl input{width:100%;box-sizing:border-box;height:54px;padding:0 14px;border:1px solid #CFD3DA;border-radius:10px;font:inherit;font-size:16px;color:#121318;background:#fff}' +
+    '#jbl input[type=password],#jbl .cs input{padding-right:54px}' +
+    '#jbl input:focus{outline:none;border-color:#D3121C;box-shadow:0 0 0 3px rgba(211,18,28,.16)}' +
     '#jbl .cs{position:relative}' +
-    '#jbl .olho{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#4E5260;display:grid;place-items:center;cursor:pointer;padding:0;margin:0}' +
+    '#jbl .olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:#4E5260;display:grid;place-items:center;cursor:pointer;padding:0;margin:0}' +
     '#jbl .olho:hover,#jbl .olho[aria-pressed=true]{color:#D3121C}#jbl .olho:focus-visible{outline:3px solid #D3121C;outline-offset:1px}' +
-    '#jbl button[type=submit]{width:100%;height:52px;margin-top:20px;border:0;border-radius:14px;background:linear-gradient(180deg,#E3232D,#B90F18);color:#fff;font:inherit;font-size:17px;font-weight:700;letter-spacing:.02em;cursor:pointer;box-shadow:0 10px 22px -10px rgba(211,18,28,.8)}' +
-    '#jbl button[type=submit]:hover{background:linear-gradient(180deg,#EA2E38,#A80D15)}#jbl button[type=submit]:focus-visible{outline:3px solid #121318;outline-offset:2px}' +
+    '#jbl button[type=submit]{width:100%;height:54px;margin-top:20px;border:0;border-radius:10px;background:#D3121C;color:#fff;font:inherit;font-size:17px;font-weight:700;cursor:pointer}' +
+    '#jbl button[type=submit]:hover{background:#B90F18}#jbl button[type=submit]:focus-visible{outline:3px solid #121318;outline-offset:2px}' +
     '#jbl button[type=submit]:disabled{opacity:.75;cursor:wait}' +
-    '#jbl .msg{min-height:18px;margin-top:12px;font-size:14px;color:#B3302A}#jbl .msg:not(:empty){background:#FDECEE;border:1px solid #F6C7CB;border-radius:12px;padding:10px 12px}' +
+    '#jbl .msg{font-size:14px;line-height:1.35;color:#8E1016}#jbl .msg:not(:empty){margin-top:12px;background:#FDECEE;border:1px solid #F6C7CB;border-radius:10px;padding:10px 12px}' +
     '#jbl .ok{color:#16784A}#jbl .msg.ok:not(:empty){background:#E6F4EC;border-color:#BFE3CD}' +
-    '#jbl .rod{margin-top:16px;font-size:12px;color:#868A97;text-align:center}' +
+    '#jbl .rod{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:13px;color:#5B606B;text-align:center}' +
+    '#jbl .ft{position:relative;flex:1 0 292px;min-height:292px;overflow:hidden}' +
+    '#jbl .ft img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:60% 100%;-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0%,#000 30%);mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0%,#000 30%)}' +
+    '#jbl .vu{display:none}' +
+    '#jbl .sb{position:absolute;left:0;right:0;bottom:0;height:72px;background:linear-gradient(to bottom,rgba(18,12,8,0),rgba(18,12,8,.66))}' +
+    '#jbl .cr{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;font-size:13px;font-weight:500;color:#fff}' +
+    '@media ' + JBL_LARGA + '{#jbl{background:#FBF5EC;flex-direction:row}' +
+      '#jbl .f{position:relative;z-index:1;flex:0 0 560px;padding:48px 80px}' +
+      '#jbl h1{font-size:52px;line-height:1.04}' +
+      '#jbl .ft{position:fixed;top:0;left:380px;right:0;bottom:0;min-height:0}' +
+      '#jbl .ft img{object-position:100% 100%;-webkit-mask-image:none;mask-image:none}' +
+      '#jbl .vu{display:block;position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,#FBF5EC 0,#FBF5EC 130px,rgba(251,245,236,0) 340px)}' +
+      '#jbl .sb{display:none}' +
+      '#jbl .cr{position:fixed;left:80px;right:auto;bottom:12px;color:#5B606B}}' +
     '@media (prefers-reduced-motion:no-preference){#jbl .c{animation:jblEntra .25s ease-out}@keyframes jblEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}' +
     '#jbsair{position:fixed;left:12px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
@@ -340,8 +354,11 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function caixa(titulo, sub, campos, botao, rodape) {
     var v = document.getElementById('jbl'); if (v) v.remove();
-    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><img class="lg" src="icone.svg" alt="" width="84" height="84"><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
-      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'Cerâmica Concretiza · JB ERP') + '</div></form></div>');
+    var cadeado = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+    var manchete = titulo === 'JB ERP' ? 'A gente cuida da gestão da sua <span>cerâmica.</span>' : esc(titulo);   // nas outras caixas fica o título delas
+    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><div class="f"><form class="c" novalidate><div class="m"><img class="lg" src="icone.svg" alt="" width="48" height="48"><div class="mt"><b>JB ERP</b><span>Cerâmica Concretiza</span></div></div><h1 id="jblt">' + manchete + '</h1><small>' + esc(sub) + '</small>' +
+      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || cadeado + '<span>Acesso restrito a usuários autorizados</span>') + '</div></form></div>' +
+      '<div class="ft" aria-hidden="true"><picture><source media="' + JBL_LARGA + '" srcset="entrada-computador.jpg"><img src="entrada-celular.jpg" alt=""></picture><div class="vu"></div><div class="sb"></div><div class="cr">Cerâmica Concretiza · JB ERP</div></div></div>');
     (document.body || document.documentElement).appendChild(v);
     /* olho: mostra e esconde a senha digitada */
     v.addEventListener('click', function (e) {
@@ -382,7 +399,7 @@
   }
   function tela(aviso, encerrada) {
     if (encerrada) { var s = document.getElementById('jbsair'); if (s) s.remove(); }
-    var v = caixa('JB ERP', 'Entre com seu usuário e senha', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
+    var v = caixa('JB ERP', 'Entre com seu usuário e senha.', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
     var msg = v.querySelector('.msg'); if (aviso) msg.textContent = aviso;
     acordarLogin();
     ['focusin', 'input'].forEach(function (ev) { v.addEventListener(ev, acordarLogin); });
