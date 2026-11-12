@@ -132,6 +132,7 @@ try {
   const t0 = Date.now();
   await page.click('#fcLista [data-fc-cad="f1"] .fc-txt b');   // tocar no nome abre o cadastro
   await page.waitForSelector('.fc-cad video', { timeout: 5000 });
+  ok(/Usar a câmera traseira/.test(await page.textContent('#fcCadCam')), 'o cadastro tem o botão "Usar a câmera traseira"');
   await page.waitForSelector('.fc-cad.pf-res-ok', { timeout: 180000 });
   const r2 = await page.evaluate(() => { const d = window.__srv.estado.docs.get('rostos/f1'); return { d: d && d.dados, arq: window.__arquivos.length, tela: document.querySelector('.fc-cad').textContent }; });
   ok(!!(r2.d && r2.d.cods && r2.d.cods.length === 5 && r2.d.cods.every((c) => typeof c === 'string' && c.length === 344)), `5 fotos tiradas sozinhas e 5 códigos no banco (${Math.round((Date.now() - t0) / 1000)} s)`);
@@ -170,7 +171,14 @@ try {
   await page.waitForSelector('.fc-tela', { timeout: 8000 });
   const r3 = await page.evaluate(() => { const s = window.__srv.estado.docs.get('rostos/_senha'); return { s: s && s.dados, trava: localStorage.getItem('jb-ponto-facial-travada'), botoes: [...document.querySelectorAll('.fc-tela button')].filter((b) => !b.hidden).map((b) => b.textContent.trim()), hora: document.getElementById('fcHora').textContent }; });
   ok(!!(r3.s && r3.s.hash && r3.s.hash.length === 64 && !JSON.stringify(r3.s).includes('1234')), 'a senha vai para o banco embaralhada (nunca a senha em si)');
-  ok(!!r3.trava && r3.botoes.join() === 'Destravar' && /\d{2}:\d{2}/.test(r3.hora), `tela travada: só a hora, a câmera e "Destravar" (${r3.botoes.join(', ')})`);
+  ok(!!r3.trava && r3.botoes.join() === 'Usar a câmera traseira,Destravar' && /\d{2}:\d{2}/.test(r3.hora), `tela travada: só a hora, a câmera, "Usar a câmera traseira" e "Destravar" (${r3.botoes.join(', ')})`);
+  // trocar de câmera: pede a traseira ao aparelho, tira o espelho e o aparelho lembra
+  await page.evaluate(() => { window.__pedidos = []; const g = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getUserMedia = (c) => { window.__pedidos.push(JSON.stringify(c.video.facingMode)); return g(c); }; });
+  await page.click('#fcCam');
+  await page.waitForFunction(() => /câmera da frente/.test(document.getElementById('fcCam').textContent) && PONTO_FOTO_V78.camera().ligada, null, { timeout: 8000 });
+  const rc = await page.evaluate(() => ({ pedidos: window.__pedidos, lado: PONTO_FOTO_V78.ladoCam(), guardado: localStorage.getItem('jb-ponto-camera'), classe: document.body.classList.contains('pf-traseira'), espelho: getComputedStyle(document.querySelector('.fc-video video')).transform }));
+  ok(rc.lado === 'environment' && rc.guardado === 'environment' && /environment/.test(rc.pedidos.join()), `"Usar a câmera traseira": pede a traseira ao aparelho e lembra a escolha (${rc.pedidos.join()})`);
+  ok(rc.classe && rc.espelho === 'none', 'na traseira a imagem não fica espelhada');
 
   /* ---------- 4 e 5. reconhece e registra sozinho ---------- */
   await page.waitForFunction((H) => DATA.diario.some((x) => x.funcionarioId === 'f1' && x.data === H && x.entrada), H, { timeout: 120000 });
@@ -219,6 +227,8 @@ try {
   await page.waitForSelector('.fc-nomes [data-fc-f="f3"]');
   ok((await page.$$eval('.fc-nomes [data-fc-f]', (b) => b.map((x) => x.dataset.fcF))).join() === 'f1,f2,f3', 'a lista de nomes aparece por cima, ainda travada');
   await page.click('.fc-nomes [data-fc-f="f3"]');
+  await page.waitForSelector('.pf-cam [data-pf="trocar"]', { timeout: 8000 });
+  ok(/câmera da frente/.test(await page.textContent('.pf-cam [data-pf="trocar"]')), 'a batida com foto também tem o botão de trocar a câmera (e lembra que está na traseira)');
   await page.waitForSelector('.pf-cam.pf-res-ok', { timeout: 20000 });
   const r7 = await page.evaluate((H) => { const r = DATA.diario.find((x) => x.funcionarioId === 'f3' && x.data === H); return { r, travada: !!document.querySelector('.fc-tela') }; }, H);
   const m7 = r7.r && r7.r.fotosPonto && r7.r.fotosPonto.entrada;

@@ -33096,6 +33096,7 @@ body.pf-celular #jbsair,body.pf-celular #jbversao{display:none!important}   /* n
 .pf-video{position:relative;flex:none;width:min(78vw,50vh,420px);aspect-ratio:1/1;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 4px rgba(255,255,255,.2)}
 .pf-video video,.pf-video img{display:block;width:100%;height:100%;object-fit:cover}
 .pf-video video{transform:scaleX(-1)}
+body.pf-traseira .pf-video video,body.pf-traseira .fc-video video{transform:none}
 .pf-conta{position:absolute;inset:0;display:grid;place-items:center;font:700 110px/1 Inter,system-ui,sans-serif;color:#fff;text-shadow:0 4px 22px rgba(0,0,0,.7);pointer-events:none}
 .pf-conta.pf-conta-txt{padding:24px;font-size:16px;font-weight:500;text-shadow:none;color:rgba(255,255,255,.75)}
 .pf-msg{max-width:520px;min-height:1.4em;font-size:15px;color:rgba(255,255,255,.85)}
@@ -33275,15 +33276,29 @@ function motivoBatida(e){const c=e&&e.code;
  return 'A batida NÃO foi registrada ('+motivoErro(e)+'). Tente de novo ou avise o DP.';
 }
 
-/* ---------- câmera da frente ---------- */
-const CAM={st:null,tm:null,p:null};
+/* ---------- câmera: da frente (padrão) ou traseira ----------
+   V102: o aparelho lembra a escolha. A traseira serve para quando outra pessoa (o supervisor) segura o
+   celular e aponta para o funcionário. A imagem só fica espelhada na câmera da frente. */
+const CH_CAM='jb-ponto-camera';
+const CAM={st:null,tm:null,p:null,lado:(()=>{try{return localStorage.getItem(CH_CAM)==='environment'?'environment':'user'}catch(e){return 'user'}})()};
+const ladoCam=()=>CAM.lado;
+const marcarLado=()=>{try{document.body.classList.toggle('pf-traseira',CAM.lado==='environment')}catch(e){}};
+const ROT_TROCA=()=>CAM.lado==='environment'?'Usar a câmera da frente':'Usar a câmera traseira';
+const SETAS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;flex:none"><path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/></svg>';
+async function trocarCamera(){
+ if(CAM.p){try{await CAM.p}catch(e){}}
+ CAM.lado=CAM.lado==='user'?'environment':'user';try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}
+ clearTimeout(CAM.tm);pararStream(CAM.st);CAM.st=null;marcarLado();
+ return ligarCamera();
+}
 const camViva=()=>!!(CAM.st&&CAM.st.getVideoTracks().some(t=>t.readyState==='live'));
 const pararStream=st=>{if(st)st.getTracks().forEach(t=>{try{t.stop()}catch(e){}})};
 async function ligarCamera(){
  clearTimeout(CAM.tm);if(camViva())return CAM.st;
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){const e=new Error('sem câmera');e.name='NotSupportedError';throw e}
  /* duas aberturas ao mesmo tempo (cancelar e tocar em outro nome) usam o mesmo pedido: nunca sobra câmera ligada sem dono */
- if(!CAM.p)CAM.p=navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false})
+ marcarLado();
+ if(!CAM.p)CAM.p=navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:CAM.lado},width:{ideal:640},height:{ideal:480}},audio:false})
   .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
  return CAM.p;
 }
@@ -33325,7 +33340,7 @@ function altBts(c){return c.op.filter(k=>k!==c.k).map(k=>`<button type="button" 
 function desenharBotoes(c){
  const b=c.v.querySelector('#pfBts');if(!b)return;const arq=c.modo==='arquivo';
  b.innerHTML=(arq?`<label class="btn pf-grande" style="cursor:pointer">${ic('camera')} Tirar foto<input type="file" accept="image/*" capture="user" hidden data-pf-arq></label>`:'')
-  +altBts(c)+(arq?'<button type="button" class="btn pf-alt" data-pf="semfoto">Registrar sem foto</button>':'')
+  +altBts(c)+(arq?'<button type="button" class="btn pf-alt" data-pf="semfoto">Registrar sem foto</button>':`<button type="button" class="btn pf-alt" data-pf="trocar">${SETAS}${ROT_TROCA()}</button>`)
   +'<button type="button" class="btn" data-pf="sair">Cancelar</button>';
 }
 async function abrirBatida(fid,extra){
@@ -33432,6 +33447,14 @@ function clicarCapa(c,e){
  if(a==='soltar'){fecharCapa();return}
  if(a==='denovo'){const fid=c.fid,ex=c.extra;fecharCapa();abrirBatida(fid,ex);return}
  if(a==='semfoto'){registrar(c,null,'');return}
+ if(a==='trocar'){   // troca a câmera e recomeça a contagem
+  if(c.ocupado||c.trocando||c.modo!=='camera')return;c.trocando=true;clearInterval(c.cont);
+  const el=c.v.querySelector('#pfConta'),m=c.v.querySelector('#pfMsg');if(el)el.textContent='';if(m)m.textContent='Trocando a câmera…';
+  trocarCamera().then(async st=>{if(!c.vivo||CAPA!==c)return;const vid=c.v.querySelector('video');if(vid){vid.srcObject=st;await esperarVideo(vid)}
+    desenharBotoes(c);if(c.vivo&&CAPA===c)contar(c)})
+   .catch(e=>{if(m)m.textContent='Não consegui trocar a câmera ('+motivoCamera(e)+').';desenharBotoes(c)})
+   .finally(()=>{c.trocando=false});
+  return}
 }
 
 /* ---------- a tela: hora grande, busca e os nomes ---------- */
@@ -33595,7 +33618,7 @@ function decorarEspelho(el){
 /* ---------- fim ---------- */
 window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,liberado,camera:()=>({ligada:camViva(),abrindo:!!CAM.p}),
  /* V100 · usados pelo ponto facial */
- abrirBatida,capa:()=>CAPA,ligarCamera,desligarCamera,camViva,esperarVideo,recorte,jpeg,enviarFoto,agora:agoraPF,motivoCamera,motivoBatida,motivoBloqueio,ehCelular,manterAcesa,soltarTela,medirRelogio,modalFotos,resumoHoje,presencas,NOME_K,ROTA,PAPEL};
+ abrirBatida,capa:()=>CAPA,ligarCamera,desligarCamera,camViva,trocarCamera,ladoCam,rotuloTroca:ROT_TROCA,SETAS,esperarVideo,recorte,jpeg,enviarFoto,agora:agoraPF,motivoCamera,motivoBatida,motivoBloqueio,ehCelular,manterAcesa,soltarTela,medirRelogio,modalFotos,resumoHoje,presencas,NOME_K,ROTA,PAPEL};
 })();
 </script>
 
@@ -33642,7 +33665,8 @@ html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho
 .fc-pe{flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
 .fc-nomebt{padding:14px 20px;border:0;border-radius:14px;background:#fff;color:#2A211C;font:700 17px/1.2 Inter,system-ui,sans-serif;cursor:pointer}
 .fc-destravar{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:rgba(255,255,255,.65);font:500 13px/1 Inter,system-ui,sans-serif;cursor:pointer}
-.fc-destravar svg{width:15px;height:15px}
+.fc-destravar svg{width:15px!important;height:15px!important}
+.fc-pe2{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .fc-res{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px 16px;background:#163d28}
 .fc-res[hidden]{display:none}
 .fc-res.fc-aviso{background:#4a3410}
@@ -33848,11 +33872,12 @@ function travar(deNovo){
   <div class="fc-meio"><div class="fc-video" id="fcAro"><video autoplay playsinline muted></video></div>
    <div class="fc-status" id="fcStatus" aria-live="polite">Preparando a câmera…</div><div class="fc-sub" id="fcSub"></div></div>
   <div class="fc-pe"><button type="button" class="fc-nomebt" id="fcNome" hidden>Não reconheceu? Toque aqui e escolha seu nome</button>
-   <button type="button" class="fc-destravar" id="fcSair">${CADEADO}Destravar</button></div>
+   <div class="fc-pe2"><button type="button" class="fc-destravar" id="fcCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="fc-destravar" id="fcSair">${CADEADO}Destravar</button></div></div>
   <div class="fc-res" id="fcRes" hidden></div>`;
  K.v=v;K.vivo=true;K.cand=null;K.n=0;K.sem=0;K.falhas=0;K.ate=0;K.nomeAte=0;K.erroCam=0;K.erroIA=0;
  document.body.appendChild(v);document.body.classList.add('fc-travada');
  v.querySelector('#fcSair').onclick=()=>pedirDestravar();
+ v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;if(K.vivo)status('Trocando a câmera…','')});
  v.querySelector('#fcNome').onclick=()=>abrirNomes();
  v.querySelector('#fcRes').onclick=()=>{if(Date.now()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
  v.addEventListener('pointerdown',telaCheia);
@@ -33861,6 +33886,13 @@ function travar(deNovo){
  relogio();clearInterval(K.rel);K.rel=setInterval(relogio,1000);
  PF.manterAcesa();PF.medirRelogio();carregarIA().catch(()=>{});
  clearTimeout(K.tm);K.tm=setTimeout(passo,50);
+}
+/* frente ou traseira: vale para o cadastro, a tela travada e a batida com foto, e o aparelho lembra */
+let TROCANDO=false;
+async function trocarCam(rotulo,antes){
+ if(TROCANDO)return;TROCANDO=true;
+ try{if(antes)antes();await PF.trocarCamera()}catch(e){console.warn('ponto facial: trocar câmera',e);if(typeof toast==='function')toast('Não consegui trocar a câmera ('+PF.motivoCamera(e)+').','erro')}
+ finally{TROCANDO=false;if(rotulo)rotulo.textContent=PF.rotuloTroca()}
 }
 function telaCheia(){try{const d=document.documentElement;if(!document.fullscreenElement&&d.requestFullscreen){const p=d.requestFullscreen({navigationUI:'hide'});if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
 function soltar(){   // tira a camada sem apagar a trava (sessão caiu: a tela de entrada precisa aparecer)
@@ -33923,7 +33955,7 @@ async function passo(){
  try{
   if(!acessoOk()||!pode(ROTA)){soltar();return}                    // a sessão caiu: deixa a tela de entrada aparecer; ao entrar, trava de novo
   if(Date.now()-K.acesa>20000){K.acesa=Date.now();PF.manterAcesa()}
-  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||Date.now()<K.ate){prox=400;return}
+  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||TROCANDO||Date.now()<K.ate){prox=400;return}
   if(!PF.liberado()){status('Ponto parado',PF.motivoBloqueio());prox=5000;return}
   if(!APP.carregado||!R.pronto){status('Carregando…','');prox=600;return}
   const vid=el('video');let st;
@@ -33986,18 +34018,20 @@ function abrirCadastro(fid){
   <div class="pf-video" id="fcCadAro"><video autoplay playsinline muted></video></div>
   <div class="fc-pontos" id="fcPontos">${PASSOS.map(()=>'<i></i>').join('')}</div>
   <div class="pf-msg fc-instr" id="fcInstr" aria-live="assertive">Preparando a câmera…</div><div class="pf-msg" id="fcAjuda"></div>
-  <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcSalvar" hidden></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
+  <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcSalvar" hidden></button><button type="button" class="btn pf-alt" id="fcCadCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
  const c={v,fid,f,cods:[],bons:0,desde:Date.now(),vivo:true,tm:null,salvando:false};
  c.tecla=e=>{if(e.key==='Escape'&&!c.salvando&&!document.querySelector('.fc-dlg')){e.preventDefault();fecharCad()}};
  CAD=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
  v.querySelector('#fcCancelar').onclick=()=>{if(!c.salvando)fecharCad()};
  v.querySelector('#fcSalvar').onclick=()=>salvarCad(c);
+ v.querySelector('#fcCadCam').onclick=()=>{if(!c.salvando)trocarCam(v.querySelector('#fcCadCam span'),()=>{c.bons=0;c.desde=Date.now();instr(c,'Trocando a câmera…','')})};
  som(true);c.tm=setTimeout(()=>passoCad(c),50);
 }
 function instr(c,t,ajuda){const a=c.v.querySelector('#fcInstr'),b=c.v.querySelector('#fcAjuda');if(a&&a.textContent!==t)a.textContent=t;if(b&&b.textContent!==(ajuda||''))b.textContent=ajuda||''}
 async function passoCad(c){
  if(!c.vivo||c.salvando)return;let prox=150;
  try{
+  if(TROCANDO){prox=300;return}
   const vid=c.v.querySelector('video');let st;
   try{st=await PF.ligarCamera();if(!c.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}}
   catch(e){instr(c,'A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Libere a câmera para este site e tente de novo.');prox=3000;return}
@@ -34104,7 +34138,7 @@ function telaFacial(el){
     <div class="fc-resumo" id="fcResumo"></div>
     <button type="button" class="btn pri fc-travar" id="fcTravar">${CADEADO}Travar a tela e começar</button>
     <div class="fc-acoes">${podeCadastrar()?`<a class="btn" href="#/${ROTA_CAD}">${ic('camera')}Cadastrar rosto</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater tocando no nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div>
-    <ol class="fc-passos"><li>Todo dia, abra esta tela no celular do ponto e toque em <b>Travar a tela e começar</b>.</li><li>Digite a senha. A tela fica só com a hora e a câmera.</li><li>Cada pessoa para na frente do celular e olha para a câmera. A batida é registrada sozinha, com a foto.</li><li>Para sair, toque em <b>Destravar</b> e digite a senha.</li></ol>
+    <ol class="fc-passos"><li>Todo dia, abra esta tela no celular do ponto e toque em <b>Travar a tela e começar</b>.</li><li>Digite a senha. A tela fica só com a hora e a câmera.</li><li>Cada pessoa para na frente do celular e olha para a câmera. A batida é registrada sozinha, com a foto.</li><li>Para sair, toque em <b>Destravar</b> e digite a senha.</li><li>Se o supervisor for segurar o celular e apontar para cada pessoa, toque em <b>Usar a câmera traseira</b> (embaixo da tela travada). O aparelho lembra a escolha.</li></ol>
     <p class="pf-rod">Para ninguém sair do programa pelos botões do aparelho, use também a função "Fixar tela" (ou "Fixar app") do Android. Quem o sistema não reconhecer em duas tentativas pode tocar no nome; essa batida fica marcada em "Fotos do dia" para o DP conferir. Registro gerencial: não substitui o ponto eletrônico oficial (Portaria MTE 671/2021).</p>
    </div></main></div>`;
    $('#fcTravar',el).onclick=()=>iniciarTrava();
