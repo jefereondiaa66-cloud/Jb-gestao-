@@ -136,6 +136,15 @@ teste('programa', 'ponto com foto: câmera liberada só para o próprio site e p
   assert.match(ler('nuvem/admin.html'), /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
   assert.match(ler('nuvem/jb-nuvem.js'), /createSignedUrls\(/, 'a nuvem precisa trocar as imagens "/_blob/" por endereço temporário');
 });
+teste('programa', 'ponto facial: bloco presente, depois do ponto com foto, com a coleção "rostos" registrada no banco', () => {
+  const app = ler('app/jb-gestao.html');
+  assert.equal(app.split('<script id="ponto-facial-v100">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
+  assert.ok(app.indexOf('<script id="ponto-foto-v78">') < app.indexOf('<script id="ponto-facial-v100">'), 'o ponto facial usa o ponto com foto: precisa vir depois dele');
+  assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
+  const fc = /<script id="ponto-facial-v100">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(!/toDataURL|assets\.upload/.test(fc.slice(fc.indexOf('cadastro do rosto ='), fc.indexOf('as telas: início'))), 'o cadastro do rosto não pode guardar foto, só os códigos');
+  assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
+});
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));
   try {

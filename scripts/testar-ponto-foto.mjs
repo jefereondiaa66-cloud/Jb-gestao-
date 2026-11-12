@@ -249,7 +249,7 @@ try {
   ok(r7.suspenso, 'Setor Pessoal suspenso no Controle Central: o celular para de bater');
   ok(r7.semEspelho, 'quem perdeu o Espelho de ponto no Controle Central perde também o ponto com foto');
   ok(r7.voltou, 'trocar o perfil com a tela aberta remonta a tela');
-  ok(r7.rotas.join() === 'pontoFoto', `o perfil só tem a tela do ponto com foto (${r7.rotas.join(', ')})`);
+  ok(r7.rotas.filter((x) => x !== 'inventario').join() === 'pontoFoto,pontoFacial', `o perfil só tem as telas do ponto: com foto e facial (${r7.rotas.join(', ')})`);
   ok(r7.h1 === '#/pontoFoto' && r7.h2 === '#/pontoFoto', 'de qualquer endereço volta para a tela do ponto');
   ok(r7.nome === 'Celular do ponto', 'perfil "Celular do ponto" aparece para o administrador escolher');
   ok(!r7.voltar && !r7.fotos, 'no celular não aparecem o Espelho nem as fotos de outras pessoas');

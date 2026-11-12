@@ -33177,12 +33177,14 @@ async function enviarFoto(blob,data,k){
   return{id:r.id,tam:r.sizeBytes||blob.size}}
  finally{clearTimeout(tm)}
 }
-async function gravarBatida(fid,k,c,agora,foto){
+async function gravarBatida(fid,k,c,agora,foto,extra){
  const uid=APP.uid||'local',em=agora.toISOString(),hora=pad(agora.getHours())+':'+pad(agora.getMinutes());
  const ant=c.ant?clone(c.ant):null;
  /* a marca vai sempre com todas as chaves (null no que não houver): o banco junta campo a campo
     e uma foto antiga não pode ficar presa numa batida nova sem foto */
- const marca={em,por:uid,origem:'Celular do ponto',onde:ONDE(),id:foto?foto.id:null,tam:foto?foto.tam:null,semFoto:!foto,relogioCorrigidoSeg:REL.dif?Math.round(REL.dif/1000):null};
+ /* V100 · ponto facial: "rosto" (reconhecida sozinha, com a distância) e "conferir" (não reconheceu e tocou no nome) */
+ const ex=extra||{};
+ const marca={em,por:uid,origem:ex.origem||'Celular do ponto',onde:ONDE(),id:foto?foto.id:null,tam:foto?foto.tam:null,semFoto:!foto,relogioCorrigidoSeg:REL.dif?Math.round(REL.dif/1000):null,rosto:ex.rosto||null,conferir:ex.conferir||null};
  const id=ant?ant.id:(DATA.diario.some(x=>x.id===idDoDia(fid,c.data))?novoId():idDoDia(fid,c.data));
  /* registro que já existe: vão junto só os campos que identificam o registro (se o DP o apagou no
     mesmo instante, ele volta inteiro em vez de virar um item sem tipo); o resto o banco mantém */
@@ -33256,11 +33258,11 @@ function desenharBotoes(c){
   +altBts(c)+(arq?'<button type="button" class="btn pf-alt" data-pf="semfoto">Registrar sem foto</button>':'')
   +'<button type="button" class="btn" data-pf="sair">Cancelar</button>';
 }
-async function abrirBatida(fid){
+async function abrirBatida(fid,extra){
  if(CAPA)return;
  const f=F(fid);if(!f)return;
  const v=document.createElement('div');v.className='pf-cam';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Bater o ponto');
- const c={v,fid,f,k:null,op:[],modo:'camera',vivo:true,cont:null,tm:null,vigia:null,ocupado:false,toque:Date.now()};
+ const c={v,fid,f,k:null,op:[],modo:'camera',vivo:true,cont:null,tm:null,vigia:null,ocupado:false,toque:Date.now(),extra:extra||null};
  c.tecla=e=>{if(e.key==='Escape'&&(!c.ocupado||c.solto)){e.preventDefault();fecharCapa()}};
  CAPA=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
  v.addEventListener('pointerdown',()=>{c.toque=Date.now()});
@@ -33332,7 +33334,7 @@ async function registrar(c,blob,previa){
  const k1=conferir(c.fid,agora);   // a lista pode ter mudado enquanto a foto subia
  if(!k1.ok){c.ocupado=false;resultado(c,false,k1.msg);return}
  const k=k1.op.includes(c.k)?c.k:k1.op[0];
- try{const r=await gravarBatida(c.fid,k,k1,agora,foto);c.ocupado=false;resultado(c,true,r,false,aviso)}
+ try{const r=await gravarBatida(c.fid,k,k1,agora,foto,c.extra);c.ocupado=false;resultado(c,true,r,false,aviso)}
  catch(e){c.ocupado=false;resultado(c,false,motivoBatida(e),true)}
 }
 function resultado(c,ok,r,repetir,aviso){
@@ -33358,7 +33360,7 @@ function clicarCapa(c,e){
  const a=b.dataset.pf;
  if(a==='sair'){if(!c.ocupado)fecharCapa();return}
  if(a==='soltar'){fecharCapa();return}
- if(a==='denovo'){const fid=c.fid;fecharCapa();abrirBatida(fid);return}
+ if(a==='denovo'){const fid=c.fid,ex=c.extra;fecharCapa();abrirBatida(fid,ex);return}
  if(a==='semfoto'){registrar(c,null,'');return}
 }
 
@@ -33408,8 +33410,9 @@ async function manterAcesa(){
   TRAVA=await navigator.wakeLock.request('screen');TRAVA.addEventListener('release',()=>{TRAVA=null})}catch(e){TRAVA=null}
 }
 function soltarTela(){try{if(TRAVA)TRAVA.release()}catch(e){}TRAVA=null}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&lerRota().mod===ROTA)manterAcesa()});
-window.addEventListener('hashchange',()=>{if(lerRota().mod!==ROTA){if(CAPA)fecharCapa();desligarCamera(0);soltarTela()}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&[ROTA,'pontoFacial'].includes(lerRota().mod))manterAcesa()});
+const TELAS_PONTO=[ROTA,'pontoFacial'];   // V100: o ponto facial usa a mesma câmera e a mesma tela acesa
+window.addEventListener('hashchange',()=>{const m=lerRota().mod;if(m!==ROTA&&CAPA&&!(window.PONTO_FACIAL_V100&&PONTO_FACIAL_V100.travada()))fecharCapa();if(!TELAS_PONTO.includes(m)){desligarCamera(0);soltarTela()}});
 
 function telaPontoFoto(el){
  const voltar=ehCelular()?'':`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`;
@@ -33421,7 +33424,7 @@ function telaPontoFoto(el){
  if(!rz||rz.dataset.papel!==String(APP.papel)){
   const cheia=!!document.documentElement.requestFullscreen;
   el.innerHTML=`<div class="spot" id="pfRaiz" data-papel="${esc(APP.papel)}">${cabSpot('Ponto com foto','Toque no seu nome para bater o ponto',voltar)}<main class="spot-corpo pf-corpo">
-   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes">${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
+   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes"><a class="btn pri" id="pfFacial" href="#/pontoFacial">${ic('camera')}Ponto facial</a>${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
    <div id="pfAvisos"></div>
    <input type="search" id="pfBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" enterkeyhint="search" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
    <div class="pf-grade" id="pfLista"></div>
@@ -33444,7 +33447,7 @@ TELAS_V[ROTA]=telaPontoFoto;
 const _renderCascaPF=renderCasca;
 renderCasca=function(){const r=_renderCascaPF.apply(this,arguments);
  try{document.body.classList.toggle('pf-celular',acessoOk()&&ehCelular());
-  if(acessoOk()&&ehCelular()&&lerRota().mod!==ROTA)setTimeout(()=>{if(ehCelular()&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)},0)}catch(e){}
+  if(acessoOk()&&ehCelular()&&!TELAS_PONTO.includes(lerRota().mod))setTimeout(()=>{if(ehCelular()&&!TELAS_PONTO.includes(lerRota().mod))location.replace('#/'+ROTA)},0)}catch(e){}
  return r};
 
 /* ---------- menu do Setor Pessoal (Ponto e jornada), acesso rápido e pesquisa ---------- */
@@ -33489,7 +33492,7 @@ function modalFotos(dia){
     const img=fotoAqui(fp)?`<a href="/_blob/${esc(fp.id)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(srcFoto(fp.id))}" alt="Foto da ${esc(NOME_K(k).toLowerCase())} de ${esc(nomeF(r.funcionarioId))}" loading="lazy" data-pf-img></a>`
      :`<span class="pf-falta">${fp&&fp.id?ondeFoto(fp):fp?'Sem foto':'Lançada pelo DP'}</span>`;
     const hf=horaDaFoto(r,k,fp);
-    const obs=(hf?`<br><small>foto às ${esc(hf)}; horário alterado depois</small>`:'')+(fp&&fp.relogioCorrigidoSeg?`<br><small>relógio do celular corrigido em ${Math.max(1,Math.round(Math.abs(fp.relogioCorrigidoSeg)/60))} min</small>`:'');
+    const obs=(fp&&fp.conferir?'<br><small>não foi reconhecido: tocou no nome (conferir a foto)</small>':fp&&fp.rosto?'<br><small>reconhecido pelo rosto</small>':'')+(hf?`<br><small>foto às ${esc(hf)}; horário alterado depois</small>`:'')+(fp&&fp.relogioCorrigidoSeg?`<br><small>relógio do celular corrigido em ${Math.max(1,Math.round(Math.abs(fp.relogioCorrigidoSeg)/60))} min</small>`:'');
     return `<figure>${img}<figcaption>${esc(NOME_K(k))} <b>${esc(r[k]||'—')}</b>${obs}</figcaption></figure>`}).join('')}</div></div>`).join('')}</div>`
    :'<div class="vazio"><b>Nenhuma batida com foto neste dia</b>As batidas feitas no celular do ponto aparecem aqui.</div>';
   falhaImagem(box);
@@ -33520,7 +33523,545 @@ function decorarEspelho(el){
 }
 
 /* ---------- fim ---------- */
-window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,liberado,camera:()=>({ligada:camViva(),abrindo:!!CAM.p})};
+window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,liberado,camera:()=>({ligada:camViva(),abrindo:!!CAM.p}),
+ /* V100 · usados pelo ponto facial */
+ abrirBatida,capa:()=>CAPA,ligarCamera,desligarCamera,camViva,esperarVideo,recorte,jpeg,enviarFoto,agora:agoraPF,motivoCamera,motivoBatida,motivoBloqueio,ehCelular,manterAcesa,soltarTela,medirRelogio,modalFotos,resumoHoje,presencas,NOME_K,ROTA,PAPEL};
+})();
+</script>
+
+<style id="ponto-facial-v100-css">
+/* ================= V100 · Ponto facial (tela fixa, travada com senha) ================= */
+body[data-rota="pontoFacial"] .trilho-set{display:none!important}
+html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho[data-rota="pontoFacial"]{padding-left:0!important}
+.fc-ini{display:grid;gap:14px;max-width:720px}
+.fc-resumo{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);box-shadow:var(--s1)}
+.fc-resumo b{font:700 30px/1 Inter,system-ui,sans-serif;color:var(--tinta);font-variant-numeric:tabular-nums}
+.fc-resumo span{font-size:14px;color:var(--suave)}
+.btn.fc-travar{justify-content:center;min-height:64px;padding:16px 22px;font-size:19px;font-weight:700}
+.btn.fc-travar svg{width:22px;height:22px}
+.fc-acoes{display:flex;gap:8px;flex-wrap:wrap}
+.fc-passos{margin:0;padding:12px 14px 12px 34px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--papel);font-size:14px;line-height:1.6;color:var(--tinta)}
+.fc-passos li{margin:0 0 2px}
+.fc-lista{display:grid;gap:10px}
+.fc-pessoa{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);box-shadow:var(--s1)}
+.fc-pessoa .avatar{width:46px;height:46px;font-size:16px;border-radius:50%;overflow:hidden;flex:none}
+.fc-pessoa .avatar img{width:100%;height:100%;object-fit:cover}
+.fc-pessoa .fc-txt{flex:1;min-width:150px}
+.fc-pessoa .fc-txt b{display:block;font-size:15.5px;line-height:1.25;overflow-wrap:anywhere}
+.fc-pessoa .fc-txt small{display:block;margin-top:2px;font-size:12.6px;color:var(--suave)}
+.fc-pessoa.fc-tem .fc-txt small{color:var(--ok)}
+.fc-pessoa .fc-pa{display:flex;gap:8px;flex-wrap:wrap}
+/* a tela travada: escura, tela inteira, só a hora e a câmera */
+.fc-tela{position:fixed;inset:0;z-index:2147482000;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:10px;padding:max(18px,env(safe-area-inset-top,0px)) 16px max(14px,env(safe-area-inset-bottom,0px));overflow:hidden;background:#1d1714;color:#fff;text-align:center;font-family:Inter,system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.fc-topo{flex:none}
+.fc-hora{font:700 64px/1 Inter,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.fc-hora span{font-size:30px;color:rgba(255,255,255,.6)}
+.fc-data{margin-top:6px;font-size:15px;color:rgba(255,255,255,.75)}
+.fc-meio{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;width:100%}
+.fc-video{position:relative;flex:none;width:min(80vw,46vh,440px);aspect-ratio:1/1;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 5px rgba(255,255,255,.22);transition:box-shadow .2s}
+.fc-video video{display:block;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.fc-video.fc-vendo{box-shadow:0 0 0 6px #E9A23B}
+.fc-video.fc-achou{box-shadow:0 0 0 7px #3FB56F}
+.fc-status{max-width:92vw;font:700 28px/1.2 Inter,system-ui,sans-serif}
+.fc-sub{max-width:560px;min-height:1.4em;font-size:15.5px;line-height:1.4;color:rgba(255,255,255,.8)}
+.fc-pe{flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.fc-nomebt{padding:14px 20px;border:0;border-radius:14px;background:#fff;color:#2A211C;font:700 17px/1.2 Inter,system-ui,sans-serif;cursor:pointer}
+.fc-destravar{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:rgba(255,255,255,.65);font:500 13px/1 Inter,system-ui,sans-serif;cursor:pointer}
+.fc-destravar svg{width:15px;height:15px}
+.fc-res{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px 16px;background:#163d28}
+.fc-res[hidden]{display:none}
+.fc-res.fc-aviso{background:#4a3410}
+.fc-res.fc-erro{background:#3d1714}
+.fc-res .pf-sinal{flex:none}
+.fc-res.fc-aviso .pf-sinal{background:#C98A1B}
+.fc-res.fc-erro .pf-sinal{background:#B3261E}
+.fc-res .fc-rn{max-width:92vw;font:700 34px/1.15 Inter,system-ui,sans-serif;overflow-wrap:anywhere}
+.fc-res .fc-rt{font:600 24px/1.2 Inter,system-ui,sans-serif}
+.fc-res .fc-rh{font:700 76px/1 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.fc-res .fc-rm{max-width:600px;font-size:19px;line-height:1.4}
+/* escolher o nome (só depois de não reconhecer duas vezes) */
+.fc-nomes{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--papel,#f6f1ec);color:var(--tinta,#2A211C);text-align:left}
+.fc-nomes h3{margin:0;font:700 22px/1.2 Inter,system-ui,sans-serif}
+.fc-nomes .fc-ng{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;align-content:start}
+.fc-nomes .pf-busca{margin:0}
+/* senha: por cima da tela travada, por baixo da câmera da batida */
+.fc-dlg{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.6)}
+.fc-dlg>div{width:min(420px,100%);padding:18px;border-radius:16px;background:#fff;color:#2A211C;font-family:Inter,system-ui,sans-serif;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.fc-dlg h3{margin:0 0 6px;font:700 19px/1.25 Inter,system-ui,sans-serif}
+.fc-dlg p{margin:0 0 12px;font-size:14px;line-height:1.45;color:#5d5048}
+.fc-dlg label{display:block;margin:0 0 10px;font-size:13px;font-weight:600}
+.fc-dlg input{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:13px 12px;border:1px solid #cfc4bb;border-radius:10px;font-size:20px;letter-spacing:.08em}
+.fc-dlg .fc-er{min-height:1.3em;margin:0 0 10px;font-size:13.5px;font-weight:600;color:#B3261E}
+.fc-dlg .fc-db{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.fc-dlg .fc-db button{padding:12px 18px;border:1px solid #cfc4bb;border-radius:10px;background:#fff;color:#2A211C;font:600 15px/1 Inter,system-ui,sans-serif;cursor:pointer}
+.fc-dlg .fc-db button.fc-ok{border-color:#2A211C;background:#2A211C;color:#fff}
+/* cadastro do rosto (usa a camada escura do ponto com foto) */
+.fc-cad [hidden],.fc-tela [hidden]{display:none!important}
+.fc-cad .fc-pontos{display:flex;gap:10px;justify-content:center}
+.fc-cad .fc-pontos i{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.6)}
+.fc-cad .fc-pontos i.fc-feito{border-color:#3FB56F;background:#3FB56F}
+.fc-cad .pf-video.fc-achou{box-shadow:0 0 0 7px #3FB56F}
+.fc-cad .fc-instr{font-size:20px;font-weight:600;color:#fff;min-height:2.6em}
+@media (max-width:720px){.fc-hora{font-size:52px}.fc-status{font-size:23px}.fc-res .fc-rn{font-size:27px}.fc-res .fc-rh{font-size:60px}.fc-nomes .fc-ng{grid-template-columns:1fr}}
+@media (orientation:landscape) and (max-height:520px){.fc-tela{flex-direction:row;flex-wrap:wrap;justify-content:center}.fc-topo{width:100%}.fc-hora{font-size:36px}.fc-hora span{font-size:20px}.fc-data{display:none}.fc-meio{flex-direction:row;gap:20px}.fc-video{width:min(52vh,300px)}.fc-pe{width:auto}}
+</style>
+<script id="ponto-facial-v100">
+"use strict";
+/* ================= V100 · Ponto facial (12/11/2026) =================
+   A pessoa não toca em nada: para na frente do celular da parede, o sistema reconhece o rosto e
+   registra a batida sozinho, com a foto, pelo mesmo caminho do Ponto com foto (V78).
+   · Cadastro (uma vez por pessoa, pelo DP): 3 a 5 fotos do rosto. O sistema NÃO guarda essas fotos:
+     guarda um código numérico de cada uma (coleção "rostos", um documento por funcionário).
+   · Tela fixa: quem abre a tela toca em "Travar a tela e começar" e digita a senha. A tela fica só com
+     a hora e a câmera, e só sai com a senha. Recarregar a página não destrava.
+   · Não reconheceu duas vezes: aparece o botão para tocar no nome. Essa batida fica marcada para o DP
+     conferir pela foto.
+   · O reconhecimento roda no próprio aparelho (face-api, modelos abertos); nenhuma imagem sai dele
+     além da foto da batida, que já era guardada.
+   · Registro gerencial, como o resto do ponto: não é o REP da Portaria MTE 671/2021. */
+(()=>{
+const PF=window.PONTO_FOTO_V78;
+if(!PF||!PF.abrirBatida){console.warn('ponto facial: o ponto com foto não carregou');return}
+const ROTA='pontoFacial',COL='rostos',DOC_SENHA='_senha',CH_TRAVA='jb-ponto-facial-travada';
+const FONTE={lib:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js',modelos:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/',versao:'face-api 1.7.15'};
+/* distância entre dois códigos de rosto: a mesma pessoa costuma ficar abaixo de 0,45; pessoas diferentes, acima de 0,6 */
+const LIMITE=.48,FIRME=.42,MARGEM=.07,PARECIDO=.42,MESMA=.6;
+const TAM_MIN=.24,MIN_FOTOS=3;
+const PASSOS=['Olhe de frente para a câmera','Vire o rosto um pouco para um lado','Agora um pouco para o outro lado','Levante um pouco o queixo','Se usa boné, capacete ou óculos no trabalho, coloque agora. Se não usa, olhe de frente de novo'];
+const CADEADO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const EXCL='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v8"/><path d="M12 18.2v.1"/></svg>';
+const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+const normal=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+
+/* ---------- permissão: quem usa o ponto com foto usa o ponto facial ---------- */
+const USAM=((PERM[PF.ROTA]&&PERM[PF.ROTA].e)||['admin','rh','dp','gestor',PF.PAPEL]).slice();
+PERM[ROTA]={v:USAM.slice(),e:USAM.slice()};
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+const podeUsar=()=>pode(ROTA,'e')&&PF.liberado();
+const podeCadastrar=()=>podeUsar()&&!PF.ehCelular();     // o celular da parede não cadastra nem apaga rosto
+
+/* ---------- os códigos dos rostos ---------- */
+const R={docs:[],senha:null,pronto:false,ouvindo:false,idx:null,celularFoi:false};
+const codificar=d=>{const a=new Int16Array(128);for(let i=0;i<128;i++)a[i]=Math.max(-32767,Math.min(32767,Math.round(d[i]*20000)));
+ const u=new Uint8Array(a.buffer);let s='';for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s)};
+const decodificar=t=>{try{const s=atob(String(t||''));if(s.length!==256)return null;const u=new Uint8Array(256);for(let i=0;i<256;i++)u[i]=s.charCodeAt(i);
+ const a=new Int16Array(u.buffer),f=new Float32Array(128);for(let i=0;i<128;i++)f[i]=a[i]/20000;return f}catch(e){return null}};
+const dist=(a,b)=>{let s=0;for(let i=0;i<128;i++){const x=a[i]-b[i];s+=x*x}return Math.sqrt(s)};
+const ativos=()=>DATA.funcionarios.filter(f=>f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao));
+const rostoDe=fid=>R.docs.find(d=>d.id===fid)||null;
+/* só entra na comparação quem está ativo: desligado não bate ponto pelo rosto */
+function indice(){
+ if(R.idx&&R.idx.base===DATA.funcionarios)return R.idx.itens;
+ const ok=new Set(ativos().map(f=>f.id)),itens=[];
+ for(const d of R.docs){if(!ok.has(d.id))continue;const vs=(d.cods||[]).map(decodificar).filter(Boolean);if(vs.length)itens.push({fid:d.id,vs})}
+ R.idx={base:DATA.funcionarios,itens};return itens;
+}
+function comparar(desc,menos){
+ const m=[];for(const p of indice()){if(p.fid===menos)continue;let d=9;for(const v of p.vs){const x=dist(desc,v);if(x<d)d=x}m.push({fid:p.fid,d})}
+ m.sort((a,b)=>a.d-b.d);const a=m[0],b=m[1];
+ if(!a)return{fid:null,perto:null,d:9,segundo:null};
+ return{fid:a.d<=LIMITE&&(!b||b.d-a.d>=MARGEM)?a.fid:null,perto:a.fid,d:a.d,segundo:b?b.d:null};
+}
+function ouvirRostos(){
+ if(R.ouvindo||!APP.db||!acessoOk()||!pode(ROTA))return;R.ouvindo=true;
+ ouvir('_rostos',()=>APP.db.collection(COL),s=>{
+  const ds=s.docs.map(d=>({...clone(d.data()),id:d.id}));
+  R.senha=ds.find(d=>d.id===DOC_SENHA&&d.hash&&d.sal)||null;
+  R.docs=ds.filter(d=>d.id!==DOC_SENHA&&Array.isArray(d.cods)&&d.cods.length);R.idx=null;R.pronto=true;aoMudar()});
+}
+function aoMudar(){
+ try{if(lerRota().mod===ROTA&&APP.pronto)renderTela()}catch(e){}
+ /* celular da parede: com rosto cadastrado, a tela dele passa a ser a do ponto facial (uma vez por sessão) */
+ try{if(!R.celularFoi&&PF.ehCelular()&&R.docs.length){R.celularFoi=true;if(lerRota().mod===PF.ROTA&&!PF.capa())location.replace('#/'+ROTA)}}catch(e){}
+}
+
+/* ---------- o reconhecimento (carrega só quando a tela é usada) ---------- */
+let CARGA=null;
+function carregarIA(){
+ if(CARGA)return CARGA;
+ CARGA=(async()=>{
+  if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=FONTE.lib;s.async=true;s.onload=ok;s.onerror=()=>no(new Error('biblioteca'));document.head.appendChild(s)});
+  const fa=window.faceapi;if(!fa||!fa.nets)throw new Error('biblioteca');
+  await Promise.all([fa.nets.tinyFaceDetector.loadFromUri(FONTE.modelos),fa.nets.faceLandmark68Net.loadFromUri(FONTE.modelos),fa.nets.faceRecognitionNet.loadFromUri(FONTE.modelos)]);
+  return fa})();
+ CARGA.catch(()=>{CARGA=null});
+ return CARGA;
+}
+const motivoIA=()=>'Não consegui carregar o reconhecimento facial. Confira a internet e tente de novo.'+(window.JB_NUVEM?'':' Se continuar, use a versão da nuvem (jb-gestao-ceramica.netlify.app).');
+/* o maior rosto da imagem: código, nota da detecção, tamanho (parte do lado menor) e se está no meio */
+async function ver(fonte,grande){
+ const fa=await carregarIA();
+ const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:grande?416:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors();
+ if(!ds||!ds.length)return null;
+ const w=fonte.videoWidth||fonte.naturalWidth||fonte.width,h=fonte.videoHeight||fonte.naturalHeight||fonte.height,lado=Math.min(w,h)||1;
+ const o=ds.map(d=>({d,b:d.detection.box})).sort((a,b)=>b.b.width*b.b.height-a.b.width*a.b.height);
+ const m=o[0],cx=m.b.x+m.b.width/2,cy=m.b.y+m.b.height/2;
+ return{desc:m.d.descriptor,nota:m.d.detection.score,tam:Math.max(m.b.width,m.b.height)/lado,
+  meio:Math.abs(cx-w/2)<=lado*.42&&Math.abs(cy-h/2)<=lado*.42,
+  outro:o[1]?Math.max(o[1].b.width,o[1].b.height)/lado:0};
+}
+let AC=null;
+function som(ok){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+ const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime,d=ok?.3:.55;o.connect(g);g.connect(AC.destination);o.frequency.value=ok?880:300;
+ g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.start(t);o.stop(t+d)}catch(e){}}
+
+/* ---------- senha da tela ---------- */
+async function resumo(sal,senha){const t=sal+':'+senha;
+ try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
+ catch(e){let h=2166136261;for(let i=0;i<t.length;i++)h=Math.imul(h^t.charCodeAt(i),16777619);return 'f'+(h>>>0).toString(16)}}
+const lerTrava=()=>{try{const t=JSON.parse(localStorage.getItem(CH_TRAVA)||'null');return t&&typeof t==='object'?t:null}catch(e){return null}};
+const guardarTrava=t=>{try{if(t)localStorage.setItem(CH_TRAVA,JSON.stringify(t));else localStorage.removeItem(CH_TRAVA)}catch(e){}};
+/* vale a senha do banco; sem ela na mão (sem internet ao recarregar), vale a que travou este aparelho */
+async function senhaConfere(s){const c=R.senha||lerTrava();if(!c||!c.sal||!c.hash)return false;return await resumo(c.sal,s)===c.hash}
+async function salvarSenha(s){
+ const sal=novoId()+novoId(),d={id:DOC_SENHA,sal,hash:await resumo(sal,s),alteradoEm:new Date().toISOString(),alteradoPor:APP.uid||'local'};
+ await contarEscrita(()=>tentar(()=>APP.db.doc(COL+'/'+DOC_SENHA).set(d)));R.senha=d;return d;
+}
+/* caixa de senha: fica por cima da tela travada. Devolve os valores ou null (cancelou ou ninguém mexeu) */
+function caixa({titulo,texto,campos,ok,conferir,espera}){
+ return new Promise(res=>{
+  const v=document.createElement('div');v.className='fc-dlg';
+  v.innerHTML=`<div role="dialog" aria-modal="true" aria-label="${esc(titulo)}"><h3>${esc(titulo)}</h3>${texto?`<p>${esc(texto)}</p>`:''}
+   <form>${campos.map((c,i)=>`<label>${esc(c)}<input type="password" data-i="${i}" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40"></label>`).join('')}
+   <div class="fc-er" role="alert"></div><div class="fc-db"><button type="button" data-r="0">Cancelar</button><button type="submit" class="fc-ok">${esc(ok||'Confirmar')}</button></div></form></div>`;
+  let tm=null,ocupado=false;const er=v.querySelector('.fc-er');
+  const fim=r=>{clearTimeout(tm);v.remove();res(r)};
+  const armar=()=>{clearTimeout(tm);if(espera)tm=setTimeout(()=>fim(null),espera)};
+  v.addEventListener('input',armar);v.addEventListener('pointerdown',armar);
+  v.addEventListener('click',e=>{if(e.target.closest('[data-r="0"]'))fim(null)});
+  v.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();if(ocupado)return;ocupado=true;armar();
+   const vals=Array.from(v.querySelectorAll('input')).map(i=>i.value);
+   let m='';try{m=conferir?await conferir(vals):''}catch(x){m=typeof msgErro==='function'?msgErro(x):'Não foi possível concluir. Tente de novo.'}
+   ocupado=false;if(m){er.textContent=m;const p=v.querySelector('input');if(p){v.querySelectorAll('input').forEach(i=>{i.value=''});p.focus()}return}
+   fim(vals)});
+  document.body.appendChild(v);armar();const p=v.querySelector('input');if(p)setTimeout(()=>p.focus(),50)});
+}
+const ERROS={n:0,ate:0};   // senha errada várias vezes: espera meio minuto
+async function pedirSenha(titulo,texto,espera){
+ return !!(await caixa({titulo,texto,campos:['Senha da tela do ponto'],ok:'Confirmar',espera,conferir:async([s])=>{
+  if(Date.now()<ERROS.ate)return 'Muitas tentativas. Espere '+Math.ceil((ERROS.ate-Date.now())/1000)+' segundos.';
+  if(!s)return 'Digite a senha.';
+  if(await senhaConfere(s)){ERROS.n=0;return ''}
+  ERROS.n++;if(ERROS.n>=5){ERROS.n=0;ERROS.ate=Date.now()+30000;return 'Senha errada 5 vezes. Espere 30 segundos.'}
+  return 'Senha errada. Tente de novo.'}}));
+}
+async function criarSenha(troca){
+ if(troca&&R.senha&&APP.papel!=='admin'&&!APP.isOwner){if(!await pedirSenha('Senha atual','Digite a senha atual da tela do ponto para trocar.'))return false}
+ const r=await caixa({titulo:troca?'Nova senha da tela do ponto':'Crie a senha da tela do ponto',
+  texto:'Essa senha trava e destrava a tela do ponto facial. Vale para todos os aparelhos. Guarde com o DP.',campos:['Senha (4 ou mais letras ou números)','Repita a senha'],ok:'Salvar a senha',
+  conferir:async([a,b])=>{if((a||'').length<4)return 'A senha precisa de pelo menos 4 letras ou números.';if(a!==b)return 'As duas senhas não são iguais.';await salvarSenha(a);return ''}});
+ if(r&&typeof toast==='function')toast('Senha da tela do ponto salva.','ok');
+ return !!r;
+}
+
+/* ================= a tela travada ================= */
+const K={v:null,vivo:false,tm:null,rel:null,cand:null,n:0,sem:0,falhas:0,ate:0,nomeAte:0,ultimo:new Map(),avisado:new Map(),semRosto:0,erroCam:0,erroIA:0,acesa:0,ocupado:false};
+const el=q=>K.v?K.v.querySelector(q):null;
+function status(t,sub,aro){const a=el('#fcStatus'),b=el('#fcSub'),c=el('#fcAro');if(a&&a.textContent!==t)a.textContent=t;if(b&&b.textContent!==(sub||''))b.textContent=sub||'';
+ if(c){c.classList.toggle('fc-vendo',aro==='vendo');c.classList.toggle('fc-achou',aro==='achou')}}
+function painel(tipo,html,ms){const p=el('#fcRes');if(!p)return;p.className='fc-res'+(tipo==='ok'?'':' fc-'+tipo);p.innerHTML=html;p.hidden=false;K.ate=Date.now()+ms;
+ clearTimeout(K.tp);K.tp=setTimeout(()=>{if(p.isConnected)p.hidden=true;K.cand=null;K.n=0;K.sem=0},ms)}
+function relogio(){const h=el('#fcHora'),d=el('#fcData');if(!h)return;const a=PF.agora();
+ h.innerHTML=`${pad(a.getHours())}:${pad(a.getMinutes())}<span>:${pad(a.getSeconds())}</span>`;const t=DIAS[a.getDay()]+', '+fData(isoDe(a));if(d&&d.textContent!==t)d.textContent=t}
+function travar(deNovo){
+ if(K.vivo)return;
+ const v=document.createElement('div');v.className='fc-tela';v.setAttribute('role','application');v.setAttribute('aria-label','Ponto facial');
+ v.innerHTML=`<div class="fc-topo"><div class="fc-hora" id="fcHora"></div><div class="fc-data" id="fcData"></div></div>
+  <div class="fc-meio"><div class="fc-video" id="fcAro"><video autoplay playsinline muted></video></div>
+   <div class="fc-status" id="fcStatus" aria-live="polite">Preparando a câmera…</div><div class="fc-sub" id="fcSub"></div></div>
+  <div class="fc-pe"><button type="button" class="fc-nomebt" id="fcNome" hidden>Não reconheceu? Toque aqui e escolha seu nome</button>
+   <button type="button" class="fc-destravar" id="fcSair">${CADEADO}Destravar</button></div>
+  <div class="fc-res" id="fcRes" hidden></div>`;
+ K.v=v;K.vivo=true;K.cand=null;K.n=0;K.sem=0;K.falhas=0;K.ate=0;K.nomeAte=0;K.erroCam=0;K.erroIA=0;
+ document.body.appendChild(v);document.body.classList.add('fc-travada');
+ v.querySelector('#fcSair').onclick=()=>pedirDestravar();
+ v.querySelector('#fcNome').onclick=()=>abrirNomes();
+ v.querySelector('#fcRes').onclick=()=>{if(Date.now()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
+ v.addEventListener('pointerdown',telaCheia);
+ if(!deNovo){const c=R.senha||lerTrava()||{};guardarTrava({em:new Date().toISOString(),sal:c.sal||null,hash:c.hash||null});telaCheia();som(true)}
+ if(lerRota().mod!==ROTA)location.replace('#/'+ROTA);
+ relogio();clearInterval(K.rel);K.rel=setInterval(relogio,1000);
+ PF.manterAcesa();PF.medirRelogio();carregarIA().catch(()=>{});
+ clearTimeout(K.tm);K.tm=setTimeout(passo,50);
+}
+function telaCheia(){try{const d=document.documentElement;if(!document.fullscreenElement&&d.requestFullscreen){const p=d.requestFullscreen({navigationUI:'hide'});if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
+function soltar(){   // tira a camada sem apagar a trava (sessão caiu: a tela de entrada precisa aparecer)
+ K.vivo=false;clearTimeout(K.tm);clearTimeout(K.tp);clearInterval(K.rel);if(K.v)K.v.remove();K.v=null;document.body.classList.remove('fc-travada');
+}
+function destravar(){
+ soltar();guardarTrava(null);
+ try{if(document.fullscreenElement&&document.exitFullscreen){const p=document.exitFullscreen();if(p&&p.catch)p.catch(()=>{})}}catch(e){}
+ if(lerRota().mod!==PF.ROTA)PF.desligarCamera(0);
+ try{renderTela()}catch(e){}
+}
+async function pedirDestravar(){
+ if(K.pedindo)return;K.pedindo=true;
+ try{if(await pedirSenha('Destravar a tela','Só o responsável destrava. Esqueceu a senha? Um administrador cria outra em outro aparelho, em Ponto facial, "Senha da tela".',25000))destravar()}
+ finally{K.pedindo=false}
+}
+/* escolher o nome: só aparece depois de duas tentativas sem reconhecer */
+function abrirNomes(){
+ if(!K.vivo||el('.fc-nomes'))return;
+ const p=document.createElement('div');p.className='fc-nomes';
+ p.innerHTML=`<h3>Toque no seu nome</h3><input type="search" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" aria-label="Procurar pelo nome ou pela matrícula">
+  <div class="fc-ng"></div><div><button type="button" class="btn" data-fc-v>Voltar para a câmera</button></div>`;
+ let tm=null;const fechar=()=>{clearTimeout(tm);p.remove();K.falhas=0;K.sem=0;K.nomeAte=0;const b=el('#fcNome');if(b)b.hidden=true};
+ const armar=()=>{clearTimeout(tm);tm=setTimeout(fechar,30000)};
+ const desenhar=()=>{const ps=normal(p.querySelector('input').value).trim().split(/\s+/).filter(Boolean);
+  const fs=ativos().sort((a,b)=>a.nome.localeCompare(b.nome)).filter(f=>{if(!ps.length)return true;const t=normal(f.nome)+' '+normal(f.matricula);return ps.every(x=>t.includes(x))});
+  p.querySelector('.fc-ng').innerHTML=fs.length?fs.map(f=>`<button type="button" class="pf-pes" data-fc-f="${esc(f.id)}">${avatarFunc(f)}<span class="pf-txt"><b>${esc(f.nome)}</b></span></button>`).join('')
+   :'<div class="vazio pf-vazio"><b>Ninguém encontrado</b>Confira o nome ou a matrícula.</div>'};
+ p.addEventListener('input',()=>{armar();desenhar()});p.addEventListener('pointerdown',armar);
+ p.addEventListener('click',e=>{if(e.target.closest('[data-fc-v]')){fechar();return}
+  const b=e.target.closest('[data-fc-f]');if(b){const fid=b.dataset.fcF;fechar();PF.abrirBatida(fid,{origem:'Ponto facial (tocou no nome)',conferir:true})}});
+ K.v.appendChild(p);desenhar();armar();
+}
+const primeiro=f=>String((f&&f.nome)||'').trim().split(/\s+/)[0]||'';
+async function bater(fid,d,vid){
+ const f=F(fid);if(!f)return;
+ const ag=PF.agora(),c=PF.conferir(fid,ag);
+ if(!c.ok){   // já bateu, dia completo…: avisa uma vez e não fica repetindo enquanto a pessoa está na frente
+  if(Date.now()-(K.avisado.get(fid)||0)>60000){K.avisado.set(fid,Date.now());som(false);
+   painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rm" role="alert">${esc(c.msg)}</div>`,5000)}
+  return}
+ K.ocupado=true;status('Registrando…',f.nome,'achou');
+ try{
+  const k=c.op[0];let foto=null,aviso='';
+  const cv=PF.recorte(vid,vid.videoWidth,vid.videoHeight);
+  if(cv&&APP.assets){try{foto=await PF.enviarFoto(await PF.jpeg(cv),isoDe(ag),k)}
+   catch(e){if(e&&(e.code==='unavailable'||e.code==='revoked'))throw e;aviso='A batida ficou registrada sem foto.'}}
+  else aviso='A batida ficou registrada sem foto.';
+  const c2=PF.conferir(fid,ag);if(!c2.ok){painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rm" role="alert">${esc(c2.msg)}</div>`,5000);return}
+  const r=await PF.gravarBatida(fid,c2.op.includes(k)?k:c2.op[0],c2,ag,foto,{origem:'Ponto facial',rosto:{d:Math.round(d*1000)/1000}});
+  K.ultimo.set(fid,Date.now());K.avisado.set(fid,Date.now());som(true);
+  painel('ok',`<div class="pf-sinal">${CHECK}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rt">${esc(PF.NOME_K(r.k))} registrada</div><div class="fc-rh">${esc(r.hora)}</div>
+   ${r.data!==isoDe(PF.agora())?`<div class="fc-rm">Da jornada que começou em ${esc(fData(r.data))}</div>`:''}${aviso?`<div class="fc-rm">${esc(aviso)}</div>`:''}`,aviso?5500:3500);
+ }catch(e){som(false);
+  painel('erro',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rm" role="alert">${esc(PF.motivoBatida(e))}</div>`,7000)}
+ finally{K.ocupado=false;status('Olhe para a câmera','')}
+}
+async function passo(){
+ if(!K.vivo)return;let prox=300;
+ try{
+  if(!acessoOk()||!pode(ROTA)){soltar();return}                    // a sessão caiu: deixa a tela de entrada aparecer; ao entrar, trava de novo
+  if(Date.now()-K.acesa>20000){K.acesa=Date.now();PF.manterAcesa()}
+  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||Date.now()<K.ate){prox=400;return}
+  if(!PF.liberado()){status('Ponto parado',PF.motivoBloqueio());prox=5000;return}
+  if(!APP.carregado||!R.pronto){status('Carregando…','');prox=600;return}
+  const vid=el('video');let st;
+  try{st=await PF.ligarCamera();if(!K.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}K.erroCam=0}
+  catch(e){K.erroCam++;status('A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Avise o DP. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=4000;return}
+  let v;
+  try{v=await ver(vid);K.erroIA=0}
+  catch(e){K.erroIA++;console.warn('ponto facial',e);status('Reconhecimento parado',motivoIA()+' Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=6000;return}
+  if(!K.vivo)return;
+  const nb=el('#fcNome');if(nb&&!nb.hidden&&K.nomeAte&&Date.now()>K.nomeAte){nb.hidden=true;K.falhas=0}
+  if(!indice().length){status('Nenhum rosto cadastrado','Peça ao DP para cadastrar o seu rosto. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=1500;return}
+  if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>25)K.falhas=0;status('Olhe para a câmera','');prox=350;return}
+  K.semRosto=0;
+  if(v.tam<TAM_MIN){K.cand=null;K.n=0;status('Chegue mais perto','Fique a um braço de distância do celular.','vendo');prox=250;return}
+  const r=comparar(v.desc);
+  if(r.fid){
+   if(Date.now()-(K.ultimo.get(r.fid)||0)<15000){status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
+   if(K.cand===r.fid)K.n++;else{K.cand=r.fid;K.n=1}
+   K.sem=0;status('Reconhecendo…','','achou');
+   if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);await bater(fid,r.d,vid)}
+   prox=120;return}
+  K.cand=null;K.n=0;K.sem++;status('Reconhecendo…','Olhe de frente, sem boné na frente dos olhos.','vendo');
+  if(K.sem>=9){K.sem=0;K.falhas++;som(false);
+   if(K.falhas>=2){mostrarNome(true,25000);painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Toque no botão "escolha seu nome" para bater o ponto.</div>`,2500)}
+   else painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Tente de novo: chegue mais perto, em lugar claro, e olhe de frente para a câmera.</div>`,3000)}
+  prox=150;
+ }catch(e){console.warn('ponto facial: passo',e);prox=1500}
+ finally{if(K.vivo){clearTimeout(K.tm);K.tm=setTimeout(passo,prox)}}
+}
+function mostrarNome(sim,ms){const b=el('#fcNome');if(!b)return;if(sim){b.hidden=false;K.nomeAte=ms?Date.now()+ms:0}else{b.hidden=true;K.nomeAte=0}}
+/* travada: nenhum endereço tira da tela */
+window.addEventListener('hashchange',()=>{if(K.vivo&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)});
+document.addEventListener('visibilitychange',()=>{if(K.vivo&&document.visibilityState==='visible'){clearTimeout(K.tm);K.tm=setTimeout(passo,100)}});
+document.addEventListener('keydown',e=>{if(K.vivo&&e.key==='Escape'&&!PF.capa()&&!document.querySelector('.fc-dlg')){e.preventDefault();pedirDestravar()}},true);
+
+async function iniciarTrava(){
+ if(K.vivo)return;
+ if(!podeUsar()){toast('Seu perfil não registra ponto.','erro');return}
+ if(!R.pronto){toast('Ainda carregando os rostos. Tente de novo em alguns segundos.');return}
+ if(!R.senha){
+  if(!await caixa({titulo:'Crie a senha da tela do ponto',texto:'É a primeira vez. Essa senha trava e destrava a tela do ponto facial e vale para todos os aparelhos. Guarde com o DP.',
+   campos:['Senha (4 ou mais letras ou números)','Repita a senha'],ok:'Salvar e travar',
+   conferir:async([a,b])=>{if((a||'').length<4)return 'A senha precisa de pelo menos 4 letras ou números.';if(a!==b)return 'As duas senhas não são iguais.';await salvarSenha(a);return ''}}))return}
+ else if(!await pedirSenha('Travar a tela','Digite a senha da tela do ponto. Depois de travada, só sai com esta senha.'))return;
+ travar(false);
+}
+
+/* ================= cadastro do rosto ================= */
+let CAD=null;
+function fecharCad(){
+ if(!CAD)return;const c=CAD;CAD=null;c.vivo=false;clearTimeout(c.tm);c.v.remove();document.removeEventListener('keydown',c.tecla,true);
+ if(!K.vivo)PF.desligarCamera(0);
+ if(lerRota().mod===ROTA&&lerRota().x)location.replace('#/'+ROTA+'/rostos');else try{renderTela()}catch(e){}
+}
+function abrirCadastro(fid){
+ if(CAD||K.vivo)return;const f=F(fid);
+ if(!f||!podeCadastrar()){toast(f?'Seu perfil não cadastra rosto.':'Funcionário não encontrado.','erro');return}
+ const v=document.createElement('div');v.className='pf-cam fc-cad';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Cadastrar rosto');
+ v.innerHTML=`<div class="pf-nome">${esc(f.nome)}</div><div class="pf-tipo">Cadastro do rosto<br><b id="fcPasso">Foto 1 de ${PASSOS.length}</b></div>
+  <div class="pf-video" id="fcCadAro"><video autoplay playsinline muted></video></div>
+  <div class="fc-pontos" id="fcPontos">${PASSOS.map(()=>'<i></i>').join('')}</div>
+  <div class="pf-msg fc-instr" id="fcInstr" aria-live="assertive">Preparando a câmera…</div><div class="pf-msg" id="fcAjuda"></div>
+  <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcSalvar" hidden></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
+ const c={v,fid,f,cods:[],bons:0,desde:Date.now(),vivo:true,tm:null,salvando:false};
+ c.tecla=e=>{if(e.key==='Escape'&&!c.salvando&&!document.querySelector('.fc-dlg')){e.preventDefault();fecharCad()}};
+ CAD=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
+ v.querySelector('#fcCancelar').onclick=()=>{if(!c.salvando)fecharCad()};
+ v.querySelector('#fcSalvar').onclick=()=>salvarCad(c);
+ som(true);c.tm=setTimeout(()=>passoCad(c),50);
+}
+function instr(c,t,ajuda){const a=c.v.querySelector('#fcInstr'),b=c.v.querySelector('#fcAjuda');if(a&&a.textContent!==t)a.textContent=t;if(b&&b.textContent!==(ajuda||''))b.textContent=ajuda||''}
+async function passoCad(c){
+ if(!c.vivo||c.salvando)return;let prox=150;
+ try{
+  const vid=c.v.querySelector('video');let st;
+  try{st=await PF.ligarCamera();if(!c.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}}
+  catch(e){instr(c,'A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Libere a câmera para este site e tente de novo.');prox=3000;return}
+  if(!window.faceapi)instr(c,'Preparando o reconhecimento…','Na primeira vez demora um pouco.');
+  let r;try{r=await ver(vid,true)}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}
+  if(!c.vivo||c.salvando)return;
+  const passoTxt=PASSOS[Math.min(c.cods.length,PASSOS.length-1)],aro=c.v.querySelector('#fcCadAro');
+  let ajuda='';
+  if(!r||!r.meio){c.bons=0;ajuda='Não estou vendo o rosto. Fique no meio do círculo, em lugar claro.'}
+  else if(r.outro>TAM_MIN*.8){c.bons=0;ajuda='Só uma pessoa na frente da câmera.'}
+  else if(r.tam<TAM_MIN+.04){c.bons=0;ajuda='Chegue mais perto.'}
+  else if(c.cods.length&&dist(r.desc,c.cods[0])>MESMA){c.bons=0;ajuda='O rosto mudou. Só '+primeiro(c.f)+' na frente da câmera.'}
+  else c.bons++;
+  instr(c,passoTxt,ajuda);
+  if(c.bons>=3&&Date.now()-c.desde>=1800){
+   c.cods.push(Float32Array.from(r.desc));c.bons=0;c.desde=Date.now();som(true);
+   if(aro){aro.classList.add('fc-achou');setTimeout(()=>aro.classList.remove('fc-achou'),500)}
+   c.v.querySelectorAll('#fcPontos i').forEach((p,i)=>p.classList.toggle('fc-feito',i<c.cods.length));
+   const n=c.cods.length,pp=c.v.querySelector('#fcPasso'),sb=c.v.querySelector('#fcSalvar');
+   if(pp)pp.textContent=n>=PASSOS.length?'Pronto':'Foto '+(n+1)+' de '+PASSOS.length;
+   if(sb&&n>=MIN_FOTOS&&n<PASSOS.length){sb.hidden=false;sb.textContent='Salvar com '+n+' fotos'}
+   if(n>=PASSOS.length){salvarCad(c);return}
+   instr(c,PASSOS[n],'');prox=400}
+ }catch(e){console.warn('ponto facial: cadastro',e);prox=1500}
+ finally{if(c.vivo&&!c.salvando){clearTimeout(c.tm);c.tm=setTimeout(()=>passoCad(c),prox)}}
+}
+async function salvarCad(c){
+ if(c.salvando||!c.vivo||c.cods.length<MIN_FOTOS)return;c.salvando=true;clearTimeout(c.tm);
+ const bts=c.v.querySelector('.pf-bts');instr(c,'Salvando…','');
+ try{
+  /* rosto muito parecido com o de outra pessoa já cadastrada: quase sempre é a mesma pessoa cadastrada no nome errado */
+  let par=null;for(const d of c.cods){const r=comparar(d,c.fid);if(r.perto&&r.d<PARECIDO&&(!par||r.d<par.d))par=r}
+  if(par){const ok=await new Promise(res=>{const v=document.createElement('div');v.className='fc-dlg';
+    v.innerHTML=`<div role="alertdialog" aria-modal="true"><h3>Rosto parecido com outro cadastro</h3><p>Este rosto é muito parecido com o de <b>${esc(nomeF(par.perto))}</b>, que já está cadastrado. Confira se o nome está certo. Se forem pessoas diferentes (irmãos, por exemplo), o ponto pode pedir para elas tocarem no nome.</p>
+     <div class="fc-db"><button type="button" data-r="0">Cancelar</button><button type="button" class="fc-ok" data-r="1">Salvar mesmo assim</button></div></div>`;
+    v.addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(b){v.remove();res(b.dataset.r==='1')}});document.body.appendChild(v)});
+   if(!ok){c.salvando=false;fecharCad();return}}
+  const ant=rostoDe(c.fid),em=new Date().toISOString();
+  const d={id:c.fid,funcionarioId:c.fid,cods:c.cods.map(codificar),fotos:c.cods.length,modelo:FONTE.versao,cadastradoEm:em,cadastradoPor:APP.uid||'local'};
+  await contarEscrita(()=>tentar(()=>APP.db.doc(COL+'/'+c.fid).set(d)));
+  R.docs=R.docs.filter(x=>x.id!==c.fid).concat([d]);R.idx=null;
+  Promise.resolve().then(()=>registrarLog('funcionarios',c.fid,'alterou',{rostoPonto:ant?'Cadastrado ('+(ant.fotos||ant.cods.length)+' fotos)':'Sem rosto'},{rostoPonto:'Cadastrado ('+c.cods.length+' fotos)'},{rostoPonto:'Rosto do ponto facial'})).catch(e=>console.warn('ponto facial: histórico',e));
+  c.v.className='pf-cam fc-cad pf-res-ok';
+  c.v.innerHTML=`<div class="pf-sinal">${CHECK}</div><div class="pf-res-h">Rosto cadastrado</div><div class="pf-nome">${esc(c.f.nome)}</div><div class="pf-msg">${c.cods.length} fotos. ${esc(primeiro(c.f))} já pode bater o ponto só olhando para a câmera.</div>
+   <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcFim">Pronto</button></div>`;
+  c.v.querySelector('#fcFim').onclick=fecharCad;c.tm=setTimeout(fecharCad,4000);
+ }catch(e){c.salvando=false;console.warn('ponto facial: salvar',e);
+  instr(c,'Não foi possível salvar',(typeof msgErro==='function'?msgErro(e):'Tente de novo.'));
+  if(bts)bts.innerHTML='<button type="button" class="btn pf-grande" id="fcDeNovo">Tentar de novo</button><button type="button" class="btn" id="fcCancelar2">Fechar</button>';
+  const a=c.v.querySelector('#fcDeNovo'),b=c.v.querySelector('#fcCancelar2');if(a)a.onclick=()=>salvarCad(c);if(b)b.onclick=fecharCad}
+}
+async function apagarRosto(fid){
+ const f=F(fid),d=rostoDe(fid);if(!f||!d||!podeCadastrar())return;
+ if(!await confirmar('Apagar o rosto de '+f.nome+'?','O ponto facial deixa de reconhecer esta pessoa até o rosto ser cadastrado de novo. As batidas já feitas não mudam.',{ok:'Apagar o rosto',perigo:true}))return;
+ try{await contarEscrita(()=>tentar(()=>APP.db.doc(COL+'/'+fid).delete()));R.docs=R.docs.filter(x=>x.id!==fid);R.idx=null;
+  Promise.resolve().then(()=>registrarLog('funcionarios',fid,'alterou',{rostoPonto:'Cadastrado'},{rostoPonto:'Apagado'},{rostoPonto:'Rosto do ponto facial'})).catch(()=>{});
+  toast('Rosto de '+primeiro(f)+' apagado.','ok');renderTela()}
+ catch(e){toast(typeof msgErro==='function'?msgErro(e):'Não foi possível apagar.','erro')}
+}
+
+/* ================= as telas: início (travar) e rostos cadastrados ================= */
+const UI={busca:'',aberto:''};
+function contagem(){const a=filtroSetor(ativos(),f=>f.setor);return{total:a.length,com:a.filter(f=>rostoDe(f.id)).length}}
+function desenharInicio(el){
+ const r=el.querySelector('#fcResumo');if(!r)return;const c=contagem();
+ r.innerHTML=R.pronto?`<b>${c.com} de ${c.total}</b><span>funcionário(s) com o rosto cadastrado${c.com<c.total?'. Quem ainda não tem rosto bate tocando no nome.':'.'}</span>`:'<span>Carregando os rostos…</span>';
+ const s=el.querySelector('#fcSenhaBt');if(s)s.textContent=R.senha?'Trocar a senha da tela':'Criar a senha da tela';
+}
+function desenharRostos(el){
+ const box=el.querySelector('#fcLista');if(!box)return;
+ const ps=normal(UI.busca).trim().split(/\s+/).filter(Boolean);
+ const fs=filtroSetor(ativos(),f=>f.setor).sort((a,b)=>a.nome.localeCompare(b.nome)).filter(f=>{if(!ps.length)return true;const t=normal(f.nome)+' '+normal(f.matricula);return ps.every(x=>t.includes(x))});
+ const c=contagem(),rs=el.querySelector('#fcResumo');if(rs)rs.innerHTML=R.pronto?`<b>${c.com} de ${c.total}</b><span>com o rosto cadastrado</span>`:'<span>Carregando os rostos…</span>';
+ box.innerHTML=fs.length?fs.map(f=>{const d=rostoDe(f.id);
+  return `<div class="fc-pessoa${d?' fc-tem':''}">${avatarFunc(f)}<span class="fc-txt"><b>${esc(f.nome)}</b><small>${d?'Rosto cadastrado · '+(d.fotos||d.cods.length)+' fotos'+(d.cadastradoEm?' · '+esc(fData(String(d.cadastradoEm).slice(0,10))):''):'Sem rosto: bate tocando no nome'}</small></span>
+   <span class="fc-pa"><button type="button" class="btn${d?'':' pri'}" data-fc-cad="${esc(f.id)}">${ic('camera')}${d?'Refazer':'Cadastrar rosto'}</button>${d?`<button type="button" class="btn" data-fc-del="${esc(f.id)}">Apagar</button>`:''}</span></div>`}).join('')
+  :`<div class="vazio"><b>${ps.length?'Ninguém encontrado':'Nenhum funcionário'}</b>${ps.length?'Confira o nome ou a matrícula.':'Os empregados ativos aparecem aqui (prestadores não batem ponto).'}</div>`;
+}
+function telaFacial(el){
+ ouvirRostos();
+ const r=lerRota(),lista=r.id==='rostos';
+ const voltar=PF.ehCelular()?'':lista?`<a class="btn" href="#/${ROTA}">${ic('esquerda')}<span>Ponto facial</span></a>`:`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`;
+ if(!APP.carregado){el.innerHTML=`<div class="spot">${cabSpot('Ponto facial','Carregando…',voltar)}<main class="spot-corpo pf-corpo">${typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>'}</main></div>`;return}
+ if(!PF.liberado()){el.innerHTML=`<div class="spot">${cabSpot('Ponto facial','',voltar)}<main class="spot-corpo pf-corpo"><div class="vazio"><b>Ponto facial indisponível</b>${esc(PF.motivoBloqueio())}</div></main></div>`;return}
+ if(lista&&!podeCadastrar()){location.replace('#/'+ROTA);return}
+ const chave=(lista?'rostos':'inicio')+'|'+APP.papel,rz=el.querySelector('#fcRaiz');
+ if(!rz||rz.dataset.chave!==chave){
+  if(lista){
+   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Rostos do ponto facial','Cadastro uma vez por pessoa',voltar)}<main class="spot-corpo pf-corpo">
+    <div class="fc-resumo" id="fcResumo" style="margin:0 0 14px"></div>
+    <input type="search" id="fcBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
+    <div class="fc-lista" id="fcLista"></div>
+    <p class="pf-rod">O cadastro tira de 3 a 5 fotos do rosto, com a pessoa na frente deste aparelho. As fotos não são guardadas: fica só um código numérico de cada uma, usado apenas para o ponto. Rosto é dado biométrico (LGPD): peça a cada funcionário para assinar o termo de ciência antes de cadastrar.</p>
+   </main></div>`;
+   $('#fcBusca',el).addEventListener('input',e=>{UI.busca=e.target.value;desenharRostos(el)});
+   $('#fcLista',el).addEventListener('click',e=>{const a=e.target.closest('[data-fc-cad]'),b=e.target.closest('[data-fc-del]');if(a)abrirCadastro(a.dataset.fcCad);else if(b)apagarRosto(b.dataset.fcDel)});
+  }else{
+   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Ponto facial','A pessoa só olha para a câmera',voltar)}<main class="spot-corpo pf-corpo"><div class="fc-ini">
+    <div class="fc-resumo" id="fcResumo"></div>
+    <button type="button" class="btn pri fc-travar" id="fcTravar">${CADEADO}Travar a tela e começar</button>
+    <div class="fc-acoes">${podeCadastrar()?`<a class="btn" href="#/${ROTA}/rostos">${ic('camera')}Cadastrar rostos</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater tocando no nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div>
+    <ol class="fc-passos"><li>Todo dia, abra esta tela no celular do ponto e toque em <b>Travar a tela e começar</b>.</li><li>Digite a senha. A tela fica só com a hora e a câmera.</li><li>Cada pessoa para na frente do celular e olha para a câmera. A batida é registrada sozinha, com a foto.</li><li>Para sair, toque em <b>Destravar</b> e digite a senha.</li></ol>
+    <p class="pf-rod">Para ninguém sair do programa pelos botões do aparelho, use também a função "Fixar tela" (ou "Fixar app") do Android. Quem o sistema não reconhecer em duas tentativas pode tocar no nome; essa batida fica marcada em "Fotos do dia" para o DP conferir. Registro gerencial: não substitui o ponto eletrônico oficial (Portaria MTE 671/2021).</p>
+   </div></main></div>`;
+   $('#fcTravar',el).onclick=()=>iniciarTrava();
+   const sb=$('#fcSenhaBt',el);if(sb)sb.onclick=()=>criarSenha(!!R.senha).then(()=>desenharInicio(el));
+   const fo=$('#fcFotos',el);if(fo)fo.onclick=()=>PF.modalFotos(hoje());
+  }
+ }
+ if(lista)desenharRostos(el);else desenharInicio(el);
+ /* veio da ficha do funcionário (#/pontoFacial/rostos/<id>): abre o cadastro dele uma vez */
+ if(lista&&r.x&&UI.aberto!==r.x){UI.aberto=r.x;setTimeout(()=>abrirCadastro(r.x),0)}
+ if(!r.x)UI.aberto='';
+ PF.medirRelogio();
+}
+TELAS_V[ROTA]=telaFacial;
+
+/* ---------- ao abrir o sistema: se este aparelho estava travado, trava de novo ---------- */
+const _renderCascaFC=renderCasca;
+renderCasca=function(){const r=_renderCascaFC.apply(this,arguments);
+ try{if(acessoOk()){ouvirRostos();if(lerTrava()&&!K.vivo&&pode(ROTA))travar(true)}}catch(e){console.warn('ponto facial: trava',e)}
+ return r};
+window.addEventListener('hashchange',()=>{if(lerRota().mod!==ROTA&&CAD)fecharCad()});
+
+/* ---------- ficha do funcionário, menu do Setor Pessoal e pesquisa ---------- */
+try{const a0=atalhosFunc;atalhosFunc=function(f){let h=a0.apply(this,arguments);
+ try{if(f&&f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao)&&podeCadastrar())h+=`<a class="btn" href="#/${ROTA}/rostos/${encodeURIComponent(f.id)}">${rostoDe(f.id)?'Refazer o rosto do ponto':'Cadastrar rosto do ponto'}</a>`}catch(e){}
+ return h}}catch(e){console.warn('ponto facial: ficha',e)}
+try{const g=MENU.find(x=>x[0]==='Ponto e jornada');
+ if(g&&!g[2].some(i=>i.m===ROTA)){const it={m:ROTA,l:'Ponto facial'};const p=g[2].findIndex(i=>i.m===PF.ROTA);g[2].splice(p<0?g[2].length:p+1,0,it);
+  MI_IX.set(it,MITENS.length);MITENS.push({...it,g:g[0],notaG:g[3]});GRUPO_DE[ROTA]=g[0];ROTULO_DE[ROTA]=it.l}}catch(e){console.warn('ponto facial: menu',e)}
+try{if(typeof msAddAba==='function'){msAddAba('Ponto e lançamentos',ROTA,'Ponto facial');
+ const a=AREAS_MS.find(x=>x.g==='Ponto e lançamentos'),i=a?a.A.findIndex(x=>x.m===ROTA):-1,p=a?a.A.findIndex(x=>x.m===PF.ROTA):-1;
+ if(i>=0&&p>=0&&i!==p+1){const[x]=a.A.splice(i,1);a.A.splice(a.A.findIndex(y=>y.m===PF.ROTA)+1,0,x)}
+ const x=a&&a.A.find(y=>y.m===ROTA),j=MITENS.findIndex(m=>m.m===ROTA);if(x&&j>=0){x.i=j;x.it=MITENS[j]}}}catch(e){console.warn('ponto facial: menu simplificado',e)}
+try{if(typeof ICONE_TELA==='object')ICONE_TELA[ROTA]='camera'}catch(e){}
+try{if(typeof PQ_SINON==='object')PQ_SINON[ROTA]='facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar'}catch(e){}
+try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===ROTA)return 'Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.';return d0.apply(this,arguments)}}}catch(e){}
+
+window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,carregarIA,
+ travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
 })();
 </script>
 
