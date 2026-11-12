@@ -197,21 +197,60 @@
   /* leitura de documentos por IA (Lançamento Inteligente por Foto): a função do servidor confere a
      sessão e a permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave */
   var LEITOR = SB_URL + '/functions/v1/jb-ler-documento';
+  var aquecido = 0;
   var leitor = Object.freeze({
-    ler: async function (corpo, sinal) {
+    /* V109: com aoAndar a leitura vem aos poucos (o programa mostra o andamento de verdade); sem ele, como antes */
+    ler: async function (corpo, sinal, aoAndar) {
       await pronto; atividade();
+      var aosPoucos = typeof aoAndar === 'function';
+      var envio = Object.assign({}, corpo || {}); if (aosPoucos) envio.fluxo = true;
+      var cancelou = function () { return !!(sinal && sinal.aborted); };
       var r;
       try {
         r = await fetch(LEITOR, { method: 'POST', signal: sinal,
           headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
-          body: JSON.stringify(corpo || {}) });
+          body: JSON.stringify(envio) });
       } catch (e) {
-        if (sinal && sinal.aborted) throw erro('cancelado', '');
+        if (cancelou()) throw erro('cancelado', '');
         throw erro('rede', 'Sem conexão com o servidor de leitura. Verifique a internet e tente de novo.');
+      }
+      aquecido = Date.now();
+      var tipo = r.headers.get('content-type') || '';
+      if (r.ok && r.body && /ndjson/i.test(tipo)) {
+        var leitorFluxo = r.body.getReader(), dec = new TextDecoder(), resto = '', texto = '', fim = null;
+        var linha = function (l) {
+          if (!l) return; var o; try { o = JSON.parse(l); } catch (e) { return; }
+          if (o.t === 'texto' && typeof o.d === 'string') { texto += o.d; try { aoAndar({ texto: texto }); } catch (e) {} }
+          else if (o.t === 'inicio') { try { aoAndar({ texto: '' }); } catch (e) {} }
+          else if (o.t === 'fim' || o.t === 'erro') fim = o;
+        };
+        try {
+          for (;;) {
+            var p = await leitorFluxo.read(); if (p.done) break;
+            resto += dec.decode(p.value, { stream: true });
+            var q; while ((q = resto.indexOf('\n')) >= 0) { linha(resto.slice(0, q)); resto = resto.slice(q + 1); }
+            atividade();
+          }
+          linha(resto);
+        } catch (e) {
+          if (cancelou()) throw erro('cancelado', '');
+          throw erro('rede', 'A conexão caiu no meio da leitura. Verifique a internet e tente de novo.');
+        }
+        if (cancelou()) throw erro('cancelado', '');
+        if (!fim) throw erro('rede', 'A leitura foi interrompida antes de terminar. Tente de novo.');
+        if (fim.t === 'erro') throw erro(fim.erro || 'erro', fim.mensagem || 'A leitura não deu certo. Tente de novo.');
+        return { ok: true, texto: fim.texto, modelo: fim.modelo };
       }
       var j = {}; try { j = await r.json(); } catch (e) {}
       if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || ('O servidor de leitura respondeu com erro (' + r.status + ').'));
       return j;
+    },
+    /* acorda a função do servidor quando a pessoa abre a tela da foto, para a leitura não esperar a partida */
+    aquecer: function () {
+      if (Date.now() - aquecido < 240000) return; aquecido = Date.now();
+      pronto.then(function () {
+        return fetch(LEITOR, { method: 'GET', headers: { apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token } });
+      }).catch(function () {});
     }
   });
 

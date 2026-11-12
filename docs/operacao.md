@@ -125,6 +125,24 @@ Dois ícones no alto de todos os setores (Ctrl+Z e Ctrl+Y). Código: bloco `<scr
 - `log`, uso e registros do sistema ficam de fora. Nota fiscal e acessos ficam na lista como "não pode ser desfeita".
 - Teste: `node scripts/construir.mjs && node scripts/testar-desfazer.mjs`.
 
+### Leitura mais rápida e tela mais suave (V109, 12/11/2026)
+
+Medido nos registros da função em 12/11/2026: cada leitura levava de 16 a 21 segundos, quase tudo no tempo de a IA
+escrever a resposta (cerca de 2.000 tokens de saída). O que mudou, sem trocar o modelo nem o cuidado da leitura:
+
+- **Resposta enxuta**: o pedido manda a IA responder em uma linha só e deixar de fora os campos vazios (chave ausente vale como null).
+- **Resposta aos poucos**: com `fluxo: true` a função devolve uma linha JSON por vez (`inicio`, `texto`, `pulso`, `fim` ou `erro`);
+  a tela mostra a barra andando e quantos itens já foram lidos. Sem `fluxo`, responde inteira como antes.
+- **Partes ao mesmo tempo**: documento com mais de 16 imagens é lido em partes, duas de cada vez (antes era uma depois da outra).
+- **Servidor acordado**: ao abrir a tela da foto o programa faz um GET na função, para a primeira leitura não esperar a partida.
+- **Cancelar interrompe a IA**: na resposta aos poucos, "Parar a leitura" (ou fechar a tela) derruba o pedido no servidor.
+- Fotos preparadas juntas e um pouco mais leves (JPEG 0,80 em vez de 0,85; mesmo tamanho em pontos).
+
+Cada leitura registra `ms_chegada`, `ms_primeira_letra`, `ms_ia`, `saida` e `letras` nos registros da função.
+Ajustes sem publicar de novo (segredos da função): `JB_IA_MODELO` e `JB_IA_ESFORCO` (`low`, `medium` — padrão — ou `high`).
+Baixar o esforço ou trocar para um modelo menor deixa mais rápido, mas pode errar mais em letra de mão: só com teste em documentos reais.
+Teste: `node scripts/testar-leitura-rapida.mjs` (função de verdade no Deno + adaptador, IA simulada).
+
 ## 8. Centro de Inventário
 
 Setor independente, de acesso exclusivo do dono: inventário patrimonial de várias empresas.

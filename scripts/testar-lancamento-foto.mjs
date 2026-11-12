@@ -190,6 +190,41 @@ try {
     ok(c4.fase === 'conferir' && /TEXTO EXTRAÍDO DO PDF/.test(c4.l.prompt || '') && /PARAFUSO SEXTAVADO/.test(c4.l.prompt || '') && c4.l.imagens >= 1, `PDF aberto: texto e imagem da página seguem para a leitura${c4.erro ? ' (' + c4.erro + ')' : ''}`);
   } else console.log('  - PDF: pulado (defina PDFJS_DIR para testar)');
 
+  /* ---------- 5. V109: leitura aos poucos (como na nuvem), partes ao mesmo tempo e andamento na tela ---------- */
+  await page.evaluate(() => {
+    LANC_IA_V65.novo(); location.hash = '#/almIA';
+    window.__nuvem = { pedidos: [], juntos: 0, maxJuntos: 0, frases: [], larguras: [] };
+    const N = window.__nuvem, antes = window.claude.use;
+    const leitor = { aquecer: () => { N.aqueceu = (N.aqueceu || 0) + 1; },
+      ler: async (corpo, sinal, aoAndar) => {
+        const parte = +((/PARTE (\d+) DE/.exec(corpo.prompt) || [])[1] || 1);
+        N.pedidos.push({ parte, paginas: corpo.paginas.length, b64: corpo.paginas.every((p) => p.tipo === 'image/jpeg' && /^[A-Za-z0-9+/]+=*$/.test(p.dados)), enxuto: /UMA linha só/.test(corpo.prompt), andamento: typeof aoAndar === 'function' });
+        N.juntos++; N.maxJuntos = Math.max(N.maxJuntos, N.juntos);
+        const item = (k) => `{"descricao":"PRODUTO DA PARTE ${parte} ITEM ${k}","quantidade":1,"valorTotal":10,"confianca":"alta"}`;
+        const texto = `{"tipoDocumento":"nota_fiscal","itens":[${item(1)},${item(2)}],"pagamento":{"situacao":"desconhecido"}}`;
+        for (const corte of [0.3, 0.6, 0.9]) { await new Promise((r) => setTimeout(r, 350)); aoAndar({ texto: texto.slice(0, Math.floor(texto.length * corte)) });
+          const p = document.getElementById('liaProgTxt'), b = document.getElementById('liaProgBar'); if (p) N.frases.push(p.textContent); if (b) N.larguras.push(parseFloat(b.style.width)); }
+        N.juntos--; return { ok: true, texto, modelo: 'teste' };
+      } };
+    window.claude = { use: async (n) => (n === 'leitor' ? leitor : antes(n)) };
+  });
+  await page.waitForSelector('#liaZona');
+  await page.evaluate(async () => {
+    const arqs = [];
+    for (let i = 0; i < 18; i++) { const cv = document.createElement('canvas'); cv.width = 900; cv.height = 1300; const x = cv.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 1300); x.fillStyle = '#000'; x.font = '28px sans-serif'; x.fillText('PÁGINA ' + (i + 1), 40, 60 + i * 20);
+      arqs.push(new File([await new Promise((r) => cv.toBlob(r, 'image/png'))], 'pagina' + (i + 1) + '.png', { type: 'image/png' })); }
+    LANC_IA_V65.adicionar(arqs);
+  });
+  await fase('conferir', 60000);
+  const c5 = await page.evaluate(() => ({ ...window.__nuvem, itens: LANC_IA_V65.estado().L.itens.map((i) => i.desc), motor: LANC_IA_V65.estado().motor, hashes: LANC_IA_V65.estado().arqs.every((a) => a.hash) }));
+  ok(c5.motor === 'nuvem' && c5.pedidos.length === 3 && c5.pedidos.every((p) => p.b64 && p.andamento && p.enxuto), `documento grande: ${c5.pedidos.length} partes pedidas à leitura aos poucos, com o pedido enxuto`);
+  ok(c5.maxJuntos === 2, `partes lidas ao mesmo tempo (${c5.maxJuntos} de cada vez)`);
+  ok(c5.itens.length === 6 && c5.itens.every((d, i) => d === `PRODUTO DA PARTE ${Math.floor(i / 2) + 1} ITEM ${(i % 2) + 1}`), 'itens das partes entram na ordem do documento');
+  ok(c5.frases.some((f) => /\d+ ite(m|ns) lidos?\./.test(f)) && !c5.frases.some((f) => /alguns minutos/.test(f)), 'a tela mostra quantos itens já foram lidos');
+  ok(c5.larguras.length > 3 && c5.larguras[c5.larguras.length - 1] > c5.larguras[0] && c5.larguras.every((w) => w >= 38 && w <= 95), `a barra anda enquanto a IA lê (${Math.round(c5.larguras[0])}% → ${Math.round(c5.larguras[c5.larguras.length - 1])}%)`);
+  ok(c5.hashes, 'impressão digital dos arquivos pronta na conferência');
+
   const relevantes = erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
   ok(relevantes.length === 0, `sem erros de JavaScript${relevantes.length ? ': ' + relevantes.slice(0, 3).join(' | ') : ''}`);
   await page.setViewportSize({ width: 390, height: 844 });

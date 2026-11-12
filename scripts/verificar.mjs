@@ -127,6 +127,18 @@ teste('programa', 'Setor Fiscal: chamarF usa a função jb-fiscal (nuvem e ponte
   const nv = ler('nuvem/jb-nuvem.js');
   assert.match(nv, /functions\/v1\/jb-fiscal/); assert.match(nv, /fiscal: fiscal,/);
 });
+teste('programa', 'leitura por foto aos poucos (V109): programa, adaptador da nuvem e função do servidor falam a mesma língua', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), fn = ler('supabase/functions/jb-ler-documento/index.ts');
+  assert.match(fn, /corpo\.fluxo !== true/, 'a função só responde aos poucos quando pedido (programa antigo continua recebendo a resposta inteira)');
+  assert.match(fn, /application\/x-ndjson/); assert.match(fn, /t: "fim"/); assert.match(fn, /t: "erro"/);
+  assert.match(fn, /req\.method === "GET"/, 'a função precisa aceitar o GET que só a acorda');
+  assert.match(fn, /cancel\(\) \{ parar\(\); \}/, 'cancelar na tela precisa interromper o pedido à IA');
+  assert.match(nv, /envio\.fluxo = true/); assert.match(nv, /ndjson/); assert.match(nv, /o\.t === 'fim' \|\| o\.t === 'erro'/);
+  assert.match(nv, /A leitura foi interrompida antes de terminar/, 'resposta sem o fim não pode valer como leitura');
+  assert.match(app, /lt\.ler\(\{prompt,paginas\},sinal,typeof aoAndar==='function'\?aoAndar:undefined\)/, 'o programa precisa pedir o andamento ao adaptador');
+  assert.ok(!/de 20 segundos a alguns minutos/.test(app), 'texto antigo de espera da leitura');
+  assert.equal(app.split('em UMA linha só').length - 1, 2, 'os dois pedidos de leitura (documentos e combustível) pedem a resposta enxuta');
+});
 teste('programa', 'ponto com foto: câmera liberada só para o próprio site e perfil "Celular do ponto" no painel', () => {
   const h = ler('nuvem/_headers');
   assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o celular do ponto precisa da câmera: nuvem/_headers deve ter camera=(self)');

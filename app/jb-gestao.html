@@ -20501,7 +20501,7 @@ window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,
 .lia-mini .lia-rm{position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;line-height:26px;padding:0}
 .lia-prog{margin:14px 0}
 .lia-barra{height:10px;border-radius:99px;background:var(--linha,#E8E1DA);overflow:hidden}
-.lia-barra>i{display:block;height:100%;background:var(--pri,#A3461F);transition:width .3s}
+.lia-barra>i{display:block;height:100%;background:var(--pri,#A3461F);transition:width .45s linear}
 .lia-sec{margin-top:14px}
 .lia-sec h3{margin:0 0 8px;font-size:15px}
 .lia-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px 14px}
@@ -20603,10 +20603,10 @@ function adicionar(files,semIniciar){
  if(J.ctl){J.ctl.abort();J.ctl=null}
  J.fase='captura';J.L=null;J.C=null;J.erro='';
  atualizar();
- clearTimeout(J.timer);if(!semIniciar)J.timer=setTimeout(()=>iniciarLeitura(),700);
+ clearTimeout(J.timer);if(!semIniciar)J.timer=setTimeout(()=>iniciarLeitura(),300);
 }
 function tirar(id){if(!J)return;const a=J.arqs.find(x=>x.id===id);if(a&&a.url)URL.revokeObjectURL(a.url);J.arqs=J.arqs.filter(x=>x.id!==id);
- if(J.ctl){J.ctl.abort();J.ctl=null}J.L=null;J.C=null;J.fase='captura';atualizar();if(J.arqs.length){clearTimeout(J.timer);J.timer=setTimeout(()=>iniciarLeitura(),700)}}
+ if(J.ctl){J.ctl.abort();J.ctl=null}J.L=null;J.C=null;J.fase='captura';atualizar();if(J.arqs.length){clearTimeout(J.timer);J.timer=setTimeout(()=>iniciarLeitura(),300)}}
 async function hashArq(f){try{const b=await crypto.subtle.digest('SHA-256',await f.arrayBuffer());return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){return ''}}
 function b64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=()=>rej(r.error);r.readAsDataURL(blob)})}
 const paraBlob=(cv,q)=>new Promise(r=>cv.toBlob(b=>r(b),'image/jpeg',q||.85));
@@ -20620,7 +20620,7 @@ async function recortes(cv,inteira){
  const n=inteira?1:Math.max(1,Math.min(5,Math.ceil((L/C)/1.35)));const passo=L/n,sob=Math.round(L*0.03);const out=[];
  for(let i=0;i<n;i++){const a=Math.max(0,Math.round(i*passo)-(i?sob:0)),b=Math.min(L,Math.round((i+1)*passo)+(i<n-1?sob:0));
   const tw=vert?w:b-a,th=vert?b-a:h;const s=Math.min(1,1568/Math.max(tw,th));const t=document.createElement('canvas');t.width=Math.max(1,Math.round(tw*s));t.height=Math.max(1,Math.round(th*s));
-  const x=t.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);x.drawImage(cv,vert?0:a,vert?a:0,tw,th,0,0,t.width,t.height);out.push(await paraBlob(t,.85))}
+  const x=t.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);x.drawImage(cv,vert?0:a,vert?a:0,tw,th,0,0,t.width,t.height);out.push(await paraBlob(t,.8))}
  return out}
 async function paginasImagem(f){
  const im=await abrirImg(f);const w=im.width||im.naturalWidth,h=im.height||im.naturalHeight;const s=Math.min(1,3200/Math.max(w,h));
@@ -20656,14 +20656,34 @@ async function paginasPdf(f,aoAndar,sinal){
  finally{try{doc.destroy()}catch(e){}}
  return{imgs,texto,cortou:doc.numPages>MAX_PAG,total:doc.numPages}}
 
+/* ================= V109 (12/11/2026) · leitura mais rápida e tela mais suave =================
+   Pedido do Jeferson: deixar o lançamento por foto mais suave e a leitura mais rápida.
+   · a barra anda o tempo todo enquanto a IA lê e mostra quantos itens já foram lidos (na nuvem a leitura chega aos poucos);
+   · as partes de um documento grande são lidas ao mesmo tempo (antes era uma depois da outra);
+   · a função do servidor é acordada quando a tela abre; as fotos sobem um pouco mais leves e são preparadas juntas;
+   · a resposta da IA vem enxuta (uma linha, sem os campos vazios): é o que mais pesa no tempo da leitura. */
+function andamento(de,ate,pinta){const t0=Date.now();
+ const passo=()=>{try{pinta(de+(ate-de)*Math.min(.97,1-Math.exp(-(Date.now()-t0)/9000)))}catch(e){}};
+ const id=setInterval(passo,400);passo();return{para:()=>clearInterval(id)}}
+async function emOrdem(lista,lim,fn){const out=new Array(lista.length);let i=0;
+ const um=async()=>{while(i<lista.length){const k=i++;out[k]=await fn(lista[k],k)}};
+ await Promise.all(Array.from({length:Math.max(1,Math.min(lim,lista.length))},um));return out}
+const contar=(a,re)=>(String(a&&a.texto||'').match(re)||[]).length;
+/* várias partes ao mesmo tempo, com um cancelamento só: se uma falha (ou a pessoa para), as outras param junto */
+async function lerPartes(motor,partes,sinal,fn){const filho=new AbortController();const cai=()=>filho.abort();
+ if(sinal.aborted)cai();else sinal.addEventListener('abort',cai,{once:true});
+ try{return await emOrdem(partes,2,(pt,k)=>fn(pt,k,filho.signal))}catch(e){cai();throw e}finally{sinal.removeEventListener('abort',cai)}}
+let AQUECEU=0;function aquecerLeitura(){if(!window.JB_NUVEM||Date.now()-AQUECEU<240000)return;AQUECEU=Date.now();motorLeitura().then(m=>{if(m&&m.aquecer)m.aquecer()}).catch(()=>{})}
+
 /* ================= quem lê: o Claude da página ou a função do servidor da nuvem ================= */
 async function motorLeitura(){
  const w=window.claude;
  if(w&&typeof w.use==='function'){
   const lt=await w.use('leitor').catch(()=>null);
   if(lt&&typeof lt.ler==='function')return{tipo:'nuvem',maxImgs:16,maxTexto:150000,
-   ler:async(prompt,imgs,sinal)=>{const paginas=[];for(const b of imgs)paginas.push({tipo:'image/jpeg',dados:await b64(b)});
-    const r=await lt.ler({prompt,paginas},sinal);if(!r||typeof r.texto!=='string')throw erroU('vazio','O servidor não devolveu a leitura.');return r.texto}};
+   aquecer:()=>{try{if(typeof lt.aquecer==='function')lt.aquecer()}catch(e){}},
+   ler:async(prompt,imgs,sinal,aoAndar)=>{const dados=await Promise.all(imgs.map(b=>b64(b)));const paginas=dados.map(d=>({tipo:'image/jpeg',dados:d}));
+    const r=await lt.ler({prompt,paginas},sinal,typeof aoAndar==='function'?aoAndar:undefined);if(!r||typeof r.texto!=='string')throw erroU('vazio','O servidor não devolveu a leitura.');return r.texto}};
  }
  const s=APP.sample;if(!s)return null;
  const lim=s.limits?await s.limits().catch(()=>null):null;
@@ -20707,7 +20727,7 @@ UNIDADES DO SISTEMA: ${B.UNIDS.join('; ')}
 CATEGORIAS FINANCEIRAS: ${(cf.categorias||[]).slice(0,80).join('; ')}
 FORMAS DE PAGAMENTO: ${formasF().join('; ')}
 
-Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, exatamente com estas chaves:
+Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, em UMA linha só (sem espaços nem quebras de linha entre chaves e valores). As chaves são as do modelo abaixo. Para a resposta sair rápida, deixe de fora toda chave cujo valor seria null, lista vazia ou objeto vazio: chave ausente vale como null. "tipoDocumento", "itens" e "pagamento" vêm sempre, e cada item traz sempre "descricao" e "confianca".
 {"tipoDocumento":null,"fornecedor":{"nome":null,"cnpjCpf":null,"inscricaoEstadual":null,"endereco":null,"cidade":null,"uf":null,"telefone":null},"documento":{"numero":null,"serie":null,"chaveAcesso":null,"dataEmissao":null},"itens":[{"codigo":null,"descricao":null,"quantidade":null,"unidade":null,"valorUnitario":null,"desconto":null,"valorTotal":null,"confianca":"alta","categoriaItem":null,"unidadeSistema":null}],"valores":{"produtos":null,"desconto":null,"frete":null,"seguro":null,"outrasDespesas":null,"ipi":null,"icmsST":null,"icms":null,"outrosImpostos":null,"total":null},"vencimentos":[{"data":null,"valor":null}],"boleto":{"linhaDigitavel":null,"banco":null},"pagamento":{"situacao":"desconhecido","forma":null,"data":null,"evidencia":null},"categoriaFinanceira":null,"ilegiveis":[],"observacoes":null}${texto?'\n\nTEXTO EXTRAÍDO DO PDF:\n'+texto:''}`}
 const formasF=()=>(window.FORMAS_F||FORMAS_V||[]).slice();
 function lerJson(t){
@@ -20760,7 +20780,7 @@ async function iniciarLeitura(){
  const parar=()=>{if(ctl.signal.aborted)throw erroU('cancelado','')};
  try{
   const motor=await motorLeitura();if(!motor)throw erroU('sem_motor',semMotorTxt());job.motor=motor.tipo;
-  for(const a of job.arqs)if(!a.hash)a.hash=await hashArq(a.file);
+  const digitais=Promise.all(job.arqs.map(async a=>{if(!a.hash)a.hash=await hashArq(a.file)}));
   parar();
   const imgs=[];let texto='',cortou=[];const nA=job.arqs.length;
   for(let i=0;i<nA;i++){const a=job.arqs[i];parar();
@@ -20772,12 +20792,15 @@ async function iniciarLeitura(){
   let usar=imgs;
   if(motor.semImagens){usar=[];if(!texto)throw erroU('sem_imagem','Esta página do Claude ainda não está autorizada a enviar imagens ao Claude. Use a versão da nuvem ou anexe o PDF digital da nota (com texto). O administrador libera as imagens ao republicar o sistema no Claude.')}
   const partes=[];for(let i=0;i<usar.length;i+=motor.maxImgs)partes.push(usar.slice(i,i+motor.maxImgs));if(!partes.length)partes.push([]);
-  let L=null;
-  for(let k=0;k<partes.length;k++){parar();
-   prog(job,(partes.length>1?'A IA está lendo o documento (parte '+(k+1)+' de '+partes.length+')…':'A IA está lendo o documento…')+' Isso leva de 20 segundos a alguns minutos.',38+55*k/partes.length);
-   const t=await motor.ler(promptLeitura(k,partes.length,k===0?texto:''),partes[k],ctl.signal);parar();
-   L=mesclar(L,lerJson(t))}
-  prog(job,'Conferindo com os cadastros…',96);
+  const nP=partes.length,lidos=partes.map(()=>0);
+  const frase=()=>{const n=lidos.reduce((a,b)=>a+b,0);return 'A IA está lendo o documento…'+(n?' '+n+(n===1?' item lido.':' itens lidos.'):'')+' Costuma levar menos de meio minuto'+(nP>1?' (documento grande: '+nP+' partes ao mesmo tempo).':'.')};
+  const and=andamento(38,95,p=>{if(job.fase==='lendo')prog(job,frase(),p)});let partesLidas;
+  try{partesLidas=await lerPartes(motor,partes,ctl.signal,async(pt,k,sinal)=>{
+   const t=await motor.ler(promptLeitura(k,nP,k===0?texto:''),pt,sinal,a=>{lidos[k]=contar(a,/"descricao"/g)});return lerJson(t)})}
+  finally{and.para()}
+  parar();
+  let L=null;for(const x of partesLidas)L=mesclar(L,x);
+  prog(job,'Conferindo com os cadastros…',96);await digitais;
   job.L=normalizar(L);job.L.cortou=cortou;job.C=montarConf(job);job.fase='conferir';
   if(!naTela())toast('Documento lido. Toque no aviso para conferir e lançar.','ok');
  }catch(e){
@@ -20928,6 +20951,7 @@ const tagLido=t=>`<span class="tag lia-lido">${esc(t||'lido')}</span>`,tagPres=t
 const TIPO_TXT={nota_fiscal:'Nota fiscal',nfce:'NFC-e',cupom:'Cupom',boleto:'Boleto',fatura:'Fatura / conta de consumo',recibo:'Recibo',comprovante:'Comprovante de pagamento',pedido:'Pedido',outro:'Documento'};
 function tela(c,origem){
  if(!J)J=novoJ(origem);
+ aquecerLeitura();
  if(J.fase==='captura'&&!J.arqs.length)J.origem=origem;
  const pa=podeAlm(),pf=podeFin();
  const sub='Fotografe ou anexe a nota, o cupom, o boleto ou a fatura. O sistema lê, confere com os cadastros e prepara a entrada no estoque e a conta no Financeiro. Nada é gravado antes de você confirmar.';
@@ -21215,7 +21239,7 @@ async function lancarFin(job,K,P,ia,anexos,fornAlmId,R){
  const t0=await aguardar(()=>B.TIT(ids[0]));R.tit=ids[0]?'t:'+ids[0]:'';
  R.passos.push('Financeiro: '+(n>1?n+' parcelas':'compromisso nº '+(t0?t0.numero:''))+' de <b>'+esc(fMoeda(valorFin(job)))+'</b> · '+esc(C.categoria)+(C.centro?' · '+esc(C.centro):'')+' · '+(C.pag.sit==='pago'?'<b>pago</b> via '+esc(C.pag.forma):'<b>em aberto</b>, vence '+esc(P.ls.map(p=>fData(p.venc)).join(', ')))+'.')}
 
-window.LANC_IA_V65={motorLeitura,paginasImagem,hashArq,semMotorTxt,msgSample,estado:()=>J,adicionar,iniciarLeitura,normalizar,mesclar,lerJson,vincular,semelhanca,calc:()=>J&&J.C?calc(J):null,alertas:()=>J&&J.C?alertas(J):null,promptLeitura,novo};
+window.LANC_IA_V65={motorLeitura,andamento,lerPartes,contar,aquecerLeitura,paginasImagem,hashArq,semMotorTxt,msgSample,estado:()=>J,adicionar,iniciarLeitura,normalizar,mesclar,lerJson,vincular,semelhanca,calc:()=>J&&J.C?calc(J):null,alertas:()=>J&&J.C?alertas(J):null,promptLeitura,novo};
 })();
 </script>
 <style id="controladoria-estilos">
@@ -29279,7 +29303,7 @@ MÁQUINAS E TERCEIROS: ${alvos.map(a=>a[1]).join('; ')||'(nenhuma cadastrada)'}
 COMBUSTÍVEIS: ${prodsComb().map(p=>nomeProduto(p)).join('; ')||'(nenhum cadastrado)'}
 OPERADORES JÁ USADOS: ${operadores().join('; ')||'(nenhum)'}
 
-Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, com estas chaves:
+Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois, em UMA linha só (sem espaços nem quebras de linha entre chaves e valores). As chaves são as do modelo abaixo. Para a resposta sair rápida, deixe de fora toda chave cujo valor seria null ou lista vazia: chave ausente vale como null. "abastecimentos" vem sempre, e cada abastecimento traz sempre "confianca".
 {"tipo":null,"dataGeral":null,"abastecimentos":[{"data":null,"maquina":null,"maquinaSugerida":null,"combustivel":null,"combustivelSugerido":null,"litros":null,"totalizador":null,"horimetroKm":null,"operador":null,"observacao":null,"confianca":"alta"}],"ilegiveis":[],"observacoes":null}`;
 }
 
@@ -29343,9 +29367,15 @@ async function ler(){
   const imgs=[];for(let i=0;i<J.arqs.length;i++){parar();prog('Preparando a foto '+(i+1)+' de '+J.arqs.length+'…',3+27*(i+1)/J.arqs.length);imgs.push(...await LI.paginasImagem(J.arqs[i].file))}
   const alvos=LC.alvos();const partes=[];for(let i=0;i<imgs.length;i+=Math.max(1,motor.maxImgs))partes.push(imgs.slice(i,i+Math.max(1,motor.maxImgs)));
   let R={abastecimentos:[],ilegiveis:[],observacoes:'',dataGeral:null};
-  for(let k=0;k<partes.length;k++){parar();
-   prog((partes.length>1?'A IA está lendo (parte '+(k+1)+' de '+partes.length+')…':'A IA está lendo a foto…')+' Leva de 20 segundos a alguns minutos.',32+60*k/partes.length);
-   const t=await motor.ler(prompt(k,partes.length,alvos),partes[k],ctl.signal);parar();const L=LI.lerJson(t);
+  /* V109: a barra anda o tempo todo, mostra quantos abastecimentos já foram lidos e as partes são lidas ao mesmo tempo */
+  const nP=partes.length,lidos=partes.map(()=>0);
+  const frase=()=>{const n=lidos.reduce((a,b)=>a+b,0);return 'A IA está lendo a foto…'+(n?' '+n+(n===1?' abastecimento lido.':' abastecimentos lidos.'):'')+' Costuma levar menos de meio minuto.'};
+  const and=LI.andamento(32,93,p=>{if(J.fase==='lendo')prog(frase(),p)});let partesLidas;
+  try{partesLidas=await LI.lerPartes(motor,partes,ctl.signal,async(pt,k,sinal)=>{
+   const t=await motor.ler(prompt(k,nP,alvos),pt,sinal,a=>{lidos[k]=LI.contar(a,/"confianca"/g)});return LI.lerJson(t)})}
+  finally{and.para()}
+  parar();
+  for(const L of partesLidas){
    R.abastecimentos.push(...(Array.isArray(L.abastecimentos)?L.abastecimentos:[]));R.ilegiveis.push(...(Array.isArray(L.ilegiveis)?L.ilegiveis:[]));
    if(L.observacoes)R.observacoes=[R.observacoes,L.observacoes].filter(Boolean).join(' ');if(!R.dataGeral&&L.dataGeral)R.dataGeral=L.dataGeral}
   let M=montar(R,null);
@@ -29369,6 +29399,7 @@ async function ler(){
 
 /* ---------- a tela ---------- */
 function corpo(c){
+ if(LI.aquecerLeitura)LI.aquecerLeitura();
  if(!pode('consumos','e')){c.innerHTML='<div class="vazio"><b>Seu perfil não lança abastecimentos</b>Fale com o administrador.</div>';return}
  const lendo=J.fase==='lendo';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('camera')}</span><div><h1>Lançar abastecimentos por foto</h1>
