@@ -11885,6 +11885,29 @@ function custoMedio(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))return
 const valorEstoqueP=p=>round2(Math.max(0,saldoP(p.id))*(modoV(p.setor)==='consumo'?custoMedio(p.id):(+p.precoCompra||0)));
 
 /* ---------- financeiro de uma venda ou compra (a conta mora dentro do próprio registro) ---------- */
+/* V101: multa e juros pagos ficam separados do valor original. O "valor" do pagamento continua sendo
+   o que abate a conta; multa e juros saem do caixa a mais e aparecem à parte (despesa financeira). */
+const encPagV=p=>round2((+((p||{}).multa)||0)+(+((p||{}).juros)||0));
+const encPagosV=v=>round2(soma(((v||{}).pagamentos||[]).filter(p=>!p.estornado),encPagV));
+const txtEncV=p=>encPagV(p)>0?'original '+fMoeda(p.valor)+' + multa '+fMoeda(+p.multa||0)+' + juros '+fMoeda(+p.juros||0)+' = total '+fMoeda(round2((+p.valor||0)+encPagV(p))):'';
+let ARQ_NOTA_V=null; /* arquivo da nota escolhido na tela de nova compra (ainda não enviado) */
+/* V102: previsão de multa e juros por atraso. Padrão da lei: multa de 2% (uma vez só) e juros de mora de 1% ao mês,
+   proporcional aos dias. O compromisso ou o cadastro do fornecedor pode ter outro percentual combinado. É só estimativa:
+   nada é gravado; quem paga confirma os valores no pagamento. */
+const ENC_LEI={multaPct:2,jurosMesPct:1};
+const pctEncV=x=>x===''||x==null||isNaN(+x)||+x<0?null:+x;
+function taxasEncV(fornecedorId,rec){const f=fornecedorId?(DATA.fornecedores||[]).find(x=>x.id===fornecedorId):null;
+ const pega=k=>{const a=pctEncV(rec&&rec[k]);if(a!=null)return[a,'combinado nesta conta'];const b=pctEncV(f&&f[k]);if(b!=null)return[b,'cadastro do fornecedor'];return[ENC_LEI[k],'']};
+ const m=pega('multaPct'),j=pega('jurosMesPct');return{multaPct:m[0],jurosPct:j[0],origem:m[1]||j[1]||'padrão da lei'}}
+function previsaoEncV(saldo,venc,data,fornecedorId,rec){saldo=+saldo||0;if(!(saldo>0.004)||!venc)return null;data=data||hoje();const t=taxasEncV(fornecedorId,rec);
+ const dias=data>venc?diasEntre(venc,data):0,falta=data<venc?diasEntre(data,venc):0;const multaSe=round2(saldo*t.multaPct/100),jDia=saldo*t.jurosPct/100/30;
+ const multa=dias>0?multaSe:0,juros=round2(jDia*dias);
+ return{...t,saldo,dias,falta,multa,juros,total:round2(saldo+multa+juros),multaSe,jurosDia:round2(jDia),total30:round2(saldo+multaSe+jDia*30)}}
+const fPctEncV=x=>String(Math.round(x*100)/100).replace('.',',')+'%';
+/* texto da previsão: só aparece com a conta atrasada ou a até 7 dias do vencimento */
+function txtPrevisaoEncV(pv){if(!pv||(pv.dias<=0&&pv.falta>7))return '';const base=' Estimativa pelo '+pv.origem+' (multa '+fPctEncV(pv.multaPct)+', juros '+fPctEncV(pv.jurosPct)+' ao mês); o fornecedor pode cobrar diferente.';
+ if(pv.dias>0)return 'Atrasada há '+pv.dias+' dia(s). Previsão para pagar hoje: '+fMoeda(pv.saldo)+' + multa '+fMoeda(pv.multa)+' + juros '+fMoeda(pv.juros)+' = '+fMoeda(pv.total)+'.'+base;
+ return (pv.falta===0?'Vence hoje.':'Vence em '+pv.falta+' dia(s).')+' Se atrasar: multa de '+fMoeda(pv.multaSe)+' (uma vez só) mais juros de cerca de '+fMoeda(pv.jurosDia)+' por dia. Com 30 dias de atraso, cerca de '+fMoeda(pv.total30)+'.'+base}
 function finVenda(v){
  if(v.fluxo==='pedido'&&typeof finPedidoV==='function')return finPedidoV(v);
  /* V50: compra importada do controle antigo, já paga antes do sistema: fora de contas a pagar e do caixa */
@@ -12039,6 +12062,8 @@ MODS.fornecedores={titulo:'Fornecedores',sing:'fornecedor',ic:'predio',
   {k:'cidade',l:'Cidade',t:'txt',s:'Contato'},
   {k:'uf',l:'Estado (UF)',t:'txt',s:'Contato'},
   {k:'pix',l:'Chave PIX ou dados bancários',t:'txt',w2:1,s:'Pagamento'},
+  {k:'multaPct',l:'Multa por atraso (%)',t:'num',aj:'O que este fornecedor cobra. Em branco: 2%, o padrão da lei.',s:'Pagamento'},
+  {k:'jurosMesPct',l:'Juros por atraso (% ao mês)',t:'num',aj:'Em branco: 1% ao mês, o padrão da lei.',s:'Pagamento'},
   {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativo','Inativo'],s:'Pagamento'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Observações'}],
  get cols(){const vd=modoV(setorAtualV())==='venda';const c=[{k:'nome',l:'Fornecedor',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},
@@ -12557,7 +12582,7 @@ function formOpV(c,O,s){
     <div class="cmp"><label for="vdConta">${venda?'Conta onde entrou o dinheiro':'Conta de onde saiu o dinheiro'}</label><select id="vdConta" data-v="contaId"><option value="">Selecione…</option>${(window.FINANCEIRO_SETOR&&FINANCEIRO_SETOR.h?FINANCEIRO_SETOR.h.optsContas():[]).map(([a,b])=>`<option value="${esc(a)}" ${d.contaId===a?'selected':''}>${esc(b)}</option>`).join('')}</select><span class="ajuda">Obrigatória quando há valor ${venda?'recebido':'pago'} no ato ou entrada.</span></div>
     <div class="cmp" data-vis="prazo" ${d.condicao==='A prazo'?'':'hidden'}><label for="vdVenc">Vencimento<i> *</i></label><input id="vdVenc" data-v="vencimento" type="date" value="${esc(d.vencimento)}"></div>
     <div class="cmp" data-vis="prazo" ${d.condicao==='A prazo'?'':'hidden'}><label for="vdEnt">Entrada ${venda?'recebida':'paga'} agora</label><input id="vdEnt" data-v="entrada" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.entrada===''?'':fMoedaCampo(d.entrada))}"><span class="ajuda">Em branco: nada ${venda?'recebido':'pago'} agora.</span></div>
-    ${venda?'':`<div class="cmp"><label for="vdNf">Nota ou documento do fornecedor</label><input id="vdNf" data-v="nf" inputmode="numeric" placeholder="Número da nota" value="${esc(d.nf||'')}"><span class="ajuda">Chave, XML e PDF você anexa depois, na tela da compra.</span></div><div class="cmp"><label for="vdRecPor">Recebido por</label><input id="vdRecPor" data-v="recebidoPor" value="${esc(d.recebidoPor||'')}"><span class="ajuda">Quem recebeu a mercadoria na cerâmica.</span></div>`}
+    ${venda?'':`<div class="cmp"><label for="vdNf">Nota ou documento do fornecedor</label><input id="vdNf" data-v="nf" inputmode="numeric" placeholder="Número da nota" value="${esc(d.nf||'')}"><span class="ajuda">A chave de acesso você completa depois, na tela da compra.</span></div><div class="cmp"><label for="vdNfArq">Nota fiscal ou foto que comprova (opcional)</label>${APP.assets?`<input id="vdNfArq" type="file" accept="application/pdf,image/*,.xml,text/xml,application/xml">`:''}<span class="ajuda" id="vdNfArqN">${APP.assets?(ARQ_NOTA_V?'Arquivo escolhido: '+esc(ARQ_NOTA_V.name)+'. Será guardado junto com a compra.':'PDF, XML ou foto da nota, do cupom ou do recibo. Fica guardado na compra.'):'Nesta sessão não é possível enviar arquivos.'}</span></div><div class="cmp"><label for="vdRecPor">Recebido por</label><input id="vdRecPor" data-v="recebidoPor" value="${esc(d.recebidoPor||'')}"><span class="ajuda">Quem recebeu a mercadoria na cerâmica.</span></div>`}
     <div class="cmp"><label for="vdData">Data da ${O.sing}<i> *</i></label><input id="vdData" data-v="data" type="date" max="${hoje()}" value="${esc(d.data)}"></div>
     <div class="cmp"><label for="vdHora">Hora</label><input id="vdHora" data-v="hora" type="time" value="${esc(d.hora)}"></div>
     <div class="cmp w2"><label for="vdObs">Observações</label><textarea id="vdObs" data-v="obs">${esc(d.obs)}</textarea></div></div></fieldset>
@@ -12569,6 +12594,9 @@ function formOpV(c,O,s){
  const moeda=k=>['descValor','frete','outros','entrada'].includes(k);
  const visPag=()=>{$$('[data-vis]',c).forEach(w=>w.hidden=w.dataset.vis!==(d.condicao==='A prazo'?'prazo':'avista'))};
  $('#vdBusca',c).oninput=e=>{d.busca=e.target.value;$('#vdCli',c).innerHTML=opcoesParteV(O,d)};
+ {const na=$('#vdNfArq',c);if(na)na.onchange=()=>{const f=na.files[0]||null;const sp=$('#vdNfArqN',c);
+   if(f&&f.size>20*1024*1024){na.value='';toast('Arquivo maior que 20 MB.','erro');return}
+   if(f||!ARQ_NOTA_V)ARQ_NOTA_V=f;if(sp&&ARQ_NOTA_V)sp.textContent='Arquivo escolhido: '+ARQ_NOTA_V.name+'. Será guardado junto com a compra.'}}
  $('#vdCli',c).onchange=e=>{d.parteId=e.target.value;if(d.parteId===SEM_CLIENTE&&d.condicao!=='À vista'){d.condicao='À vista';$('#vdCond',c).value='À vista';visPag()}$('#vdCliInfo',c).innerHTML=infoParteV(O,d);atuRes()};
  $('#vdDescTipo',c).onchange=e=>{d.descTipo=e.target.value;d.descValor='';renderTela()};
  c.addEventListener('input',e=>{const t=e.target;
@@ -12586,7 +12614,7 @@ function formOpV(c,O,s){
   if(t.id==='vdAdd'){d.itens.push({produtoId:'',qtd:'',preco:''});atuItens();const sl=$$('#vdItens select',c).pop();if(sl)sl.focus();return}
   if(t.dataset.vrm!=null){d.itens.splice(+t.dataset.vrm,1);if(!d.itens.length)d.itens.push({produtoId:'',qtd:'',preco:''});atuItens();return}
   if(t.id==='vdNovoCli'){d.aguardaParte=true;location.hash=venda?'#/clientes/novo':'#/fornecedores/novo';return}
-  if(t.id==='vdLimpar'){if(!await confirmar('Limpar esta '+O.sing+'?','Os dados preenchidos nesta tela se perdem. Nada foi gravado ainda.',{ok:'Limpar'}))return;RASC_V[O.K]=novoRascunhoV(O,s);renderTela();return}
+  if(t.id==='vdLimpar'){if(!await confirmar('Limpar esta '+O.sing+'?','Os dados preenchidos nesta tela se perdem. Nada foi gravado ainda.',{ok:'Limpar'}))return;if(!venda)ARQ_NOTA_V=null;RASC_V[O.K]=novoRascunhoV(O,s);renderTela();return}
   if(t.id==='vdOk')confirmarOpV(O,t)});
 }
 async function confirmarOpV(O,btn){
@@ -12597,6 +12625,11 @@ async function confirmarOpV(O,btn){
   (r.avisos.length?' Atenção: '+r.avisos.join(' '):'')+(venda?(temEstoqueV(d.itens)?' Ao confirmar, o estoque é baixado, a conta a receber é registrada e o comprovante é gerado.':' Ao confirmar, a venda é registrada, a conta a receber é lançada e o comprovante é gerado.'):' Ao confirmar, os itens entram no estoque e a conta a pagar é registrada.')+' Depois de confirmada ela não se edita; para corrigir, cancela-se com motivo.';
  if(!await confirmar('Confirmar a '+O.sing+'?',txt,{ok:'Confirmar '+O.sing}))return;
  btn.disabled=true;
+ /* V101: o arquivo da nota sobe antes de reservar o número; se não subir, nada é gravado */
+ let anxNota=null;if(!venda&&ARQ_NOTA_V&&APP.assets){const f=ARQ_NOTA_V;const ehXml=/\.xml$/i.test(f.name),ehPdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name);
+  try{toast('Enviando o arquivo da nota…');const up=ehXml?await APP.assets.upload(f,{type:'text/plain'}):ehPdf?await APP.assets.upload(f,{type:'application/pdf'}):await APP.assets.upload(f);
+   anxNota={k:ehXml?'xml':ehPdf?'pdf':'foto',a:{id:up.id,nome:f.name,tipo:up.contentType,tam:up.sizeBytes}}}
+  catch(e){btn.disabled=false;toast('Não foi possível enviar o arquivo da nota. Nada foi gravado. Tente de novo ou confirme sem o arquivo.','erro');return}}
  let numero;try{numero=await reservarNumeroV(O)}catch(e){btn.disabled=false;toast('Não deu para reservar o número agora. Tente de novo em alguns segundos. Nada foi gravado.','erro');return}
  /* confere de novo com os dados mais recentes (outra pessoa pode ter lançado no meio tempo) */
  const r2=conferirOpV(O,d);if(r2.erros.length){btn.disabled=false;toast(r2.erros[0]+' Nada foi gravado.','erro');renderTela();return}
@@ -12608,7 +12641,7 @@ async function confirmarOpV(O,btn){
   itens,subtotal:r2.c.subtotal,descTipo:d.descTipo,descValor:numV(d.descValor),desconto:r2.c.desconto,frete:r2.c.frete,outros:r2.c.outros,total:r2.c.total,
   forma:d.forma,condicao:d.condicao,vencimento:d.condicao==='A prazo'?d.vencimento:d.data,
   pagamentos:r2.c.pagoAgora>0?[{id:novoId(),data:d.data,valor:r2.c.pagoAgora,forma:d.forma,...(d.contaId?{contaId:d.contaId}:{}),obs:d.condicao==='À vista'?(venda?'Recebido na venda':'Pago na compra'):'Entrada',por:APP.uid||'local',em:agora}]:[],
-  ...(!venda&&!(r2.c.total>0)?{semPreco:true}:{}),status:'Concluída',fiscal:venda?{status:'Pendente'}:{status:d.nf?'Recebida':'Pendente',...(d.nf?{numero:String(d.nf).trim()}:{})},obs:String(d.obs||'').trim(),...(venda||!String(d.recebidoPor||'').trim()?{}:{recebidoPor:String(d.recebidoPor).trim()}),
+  ...(!venda&&!(r2.c.total>0)?{semPreco:true}:{}),status:'Concluída',fiscal:venda?{status:'Pendente'}:{status:d.nf?'Recebida':'Pendente',...(d.nf?{numero:String(d.nf).trim()}:{}),...(anxNota?{[anxNota.k]:anxNota.a}:{})},obs:String(d.obs||'').trim(),...(venda||!String(d.recebidoPor||'').trim()?{}:{recebidoPor:String(d.recebidoPor).trim()}),
   responsavel:APP.uid||'local',responsavelNome:APP.nome||nomeUsuario(APP.uid)||'Usuário',...(venda?{vendedor:APP.uid||'local',vendedorNome:APP.nome||nomeUsuario(APP.uid)||'Usuário'}:{}),
   criadoEm:agora,criadoPor:APP.uid||'local',alteradoEm:agora,alteradoPor:APP.uid||'local'};
  try{await gravar(O.col,v,null)}catch(err){btn.disabled=false;toast(msgFalhaSalvar(err),'erro');return}
@@ -12618,9 +12651,9 @@ async function confirmarOpV(O,btn){
  if(venda){const exc=[...(par&&par.situacao==='Bloqueado'?[{c:'Cliente bloqueado',de:par.motivoBloqueio||'',para:'venda autorizada por '+(APP.nome||nomeUsuario(APP.uid)||'usuário')}]:[]),
    ...itens.filter(i=>i.precoMinimo!=null&&i.preco<i.precoMinimo-0.004).map(i=>({c:'Preço abaixo do mínimo · '+i.nome,de:fMoeda(i.precoMinimo),para:fMoeda(i.preco)}))];
   if(exc.length)await logV(O.col,v.id,'autorizou exceção na venda',exc)}
- RASC_V[O.K]=null;
+ RASC_V[O.K]=null;if(!venda)ARQ_NOTA_V=null;
  if(venda){toast('Venda nº '+fNumV(numero)+' registrada.'+(itens.some(i=>i.baixaEstoque)?' Estoque baixado e conta a receber lançada.':' Conta a receber lançada.'),'ok');verDoc(docOpV(v),{voltar:'#/venda/'+v.id})}
- else{toast('Compra nº '+fNumV(numero)+' registrada. Itens no estoque e conta a pagar lançada.','ok');location.hash='#/compra/'+v.id}
+ else{toast('Compra nº '+fNumV(numero)+' registrada. Itens no estoque e conta a pagar lançada.'+(anxNota?' Arquivo da nota guardado.':''),'ok');location.hash='#/compra/'+v.id}
 }
 
 /* ================= a venda (ou a compra) e tudo o que está ligado a ela ================= */
@@ -12651,8 +12684,8 @@ function detalheOpV(c,O,v){
    <section class="bloco"><h3>Estoque movimentado<a href="#/estoque">Ver estoque</a></h3><div class="tabwrap"><table class="tbl"><thead><tr><th>Item</th><th>Movimento</th><th class="num">Qtd.</th><th class="num">Antes</th><th class="num">Depois</th></tr></thead><tbody>
     ${v.itens.map(i=>i.baixaEstoque?`<tr><td data-l="Item">${esc(i.nome)}</td><td data-l="Movimento">${tagV(O.movTipo)}</td><td data-l="Qtd." class="num">${esc((venda?'−':'+')+fQtd(i.qtd)+' '+(i.unidade||''))}</td><td data-l="Antes" class="num">${esc(fQtd(i.anterior))}</td><td data-l="Depois" class="num">${esc(fQtd(i.atual))}</td></tr>`:`<tr><td data-l="Item">${esc(i.nome)}</td><td colspan="4" style="color:var(--fraco)">Sem controle de estoque</td></tr>`).join('')}
     ${canc?(v.cancelamento.itens||[]).map(i=>`<tr><td data-l="Item">${esc(i.nome)}</td><td data-l="Movimento">${tagV('Estorno')}</td><td data-l="Qtd." class="num">${esc((venda?'+':'−')+fQtd(i.qtd))}</td><td data-l="Antes" class="num">${esc(fQtd(i.anterior))}</td><td data-l="Depois" class="num">${esc(fQtd(i.atual))}</td></tr>`).join(''):''}</tbody></table></div></section>
-   <section class="bloco"><h3>${venda?'Recebimento e conta a receber':'Pagamento e conta a pagar'}${pode(O.modFin)?`<a href="#/${O.modFin}">${O.finTit}</a>`:''}</h3>${kvV([['Situação',tagV(f.status)],['Total',esc(fMoeda(f.total))],[venda?'Recebido':'Pago',esc(fMoeda(f.pago))],[venda?'Saldo a receber':'Saldo a pagar',esc(fMoeda(f.saldo))],['Vencimento',esc(fData(v.vencimento))],canc&&f.devolver?[venda?'A devolver ao cliente':'A receber de volta do fornecedor',esc(fMoeda(f.devolver))]:null])}
-    ${pgs.length?`<div class="tabwrap"><table class="tbl"><thead><tr><th>Data</th><th>Forma</th><th class="num">Valor</th><th>Registro</th><th></th></tr></thead><tbody>${pgs.map(p=>`<tr${p.estornado?' class="vv-estornado"':''}><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma)}${p.obs?`<div class="ajuda">${esc(p.obs)}</div>`:''}${p.contaId&&window.FINANCEIRO_SETOR&&window.FINANCEIRO_SETOR.h?`<div class="ajuda">Conta: ${esc(window.FINANCEIRO_SETOR.h.nomeConta(p.contaId))}</div>`:''}${p.milheiros?`<div class="ajuda">${esc(fQtd(p.milheiros)+' milheiro(s) × '+fMoeda(p.precoMilheiro))}</div>`:''}${p.comprovante&&p.comprovante.id?`<div class="ajuda"><a href="/_blob/${esc(p.comprovante.id)}" target="_blank" rel="noopener">comprovante</a></div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}</td>
+   <section class="bloco"><h3>${venda?'Recebimento e conta a receber':'Pagamento e conta a pagar'}${pode(O.modFin)?`<a href="#/${O.modFin}">${O.finTit}</a>`:''}</h3>${kvV([['Situação',tagV(f.status)],['Total',esc(fMoeda(f.total))],[venda?'Recebido':(encPagosV(v)>0?'Pago (valor original)':'Pago'),esc(fMoeda(f.pago))],!venda&&encPagosV(v)>0?['Multa e juros pagos',esc(fMoeda(encPagosV(v)))+' <span class="ajuda">(fora do valor da compra)</span>']:null,(()=>{if(venda||canc)return null;const tx=txtPrevisaoEncV(previsaoEncV(f.saldo,v.vencimento,hoje(),v.fornecedorId,v));return tx?['Previsão de multa e juros',esc(tx),1]:null})(),[venda?'Saldo a receber':'Saldo a pagar',esc(fMoeda(f.saldo))],['Vencimento',esc(fData(v.vencimento))],canc&&f.devolver?[venda?'A devolver ao cliente':'A receber de volta do fornecedor',esc(fMoeda(f.devolver))]:null])}
+    ${pgs.length?`<div class="tabwrap"><table class="tbl"><thead><tr><th>Data</th><th>Forma</th><th class="num">Valor</th><th>Registro</th><th></th></tr></thead><tbody>${pgs.map(p=>`<tr${p.estornado?' class="vv-estornado"':''}><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma)}${p.obs?`<div class="ajuda">${esc(p.obs)}</div>`:''}${p.contaId&&window.FINANCEIRO_SETOR&&window.FINANCEIRO_SETOR.h?`<div class="ajuda">Conta: ${esc(window.FINANCEIRO_SETOR.h.nomeConta(p.contaId))}</div>`:''}${p.milheiros?`<div class="ajuda">${esc(fQtd(p.milheiros)+' milheiro(s) × '+fMoeda(p.precoMilheiro))}</div>`:''}${p.comprovante&&p.comprovante.id?`<div class="ajuda"><a href="/_blob/${esc(p.comprovante.id)}" target="_blank" rel="noopener">comprovante</a></div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}${!venda&&encPagV(p)>0?`<div class="ajuda">+ multa ${esc(fMoeda(+p.multa||0))}<br>+ juros ${esc(fMoeda(+p.juros||0))}<br>total ${esc(fMoeda(round2((+p.valor||0)+encPagV(p))))}</div>`:''}</td>
      <td data-l="Registro">${esc(nomeUsuario(p.por))}${p.estornado?`<div class="ajuda">Estornado em ${esc(fDataHora(p.estornado.em))}: ${esc(p.estornado.motivo)}</div>`:''}</td>
      <td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-vrec="${esc(p.id)}" data-tip="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}" aria-label="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}">${ic('doc')}</button>`}${!p.estornado&&pode(O.modFin,'e')?`<button type="button" class="ib" data-vest="${esc(p.id)}" data-tip="Estornar" aria-label="Estornar">${ic('desfazer')}</button>`:''}</span></td></tr>`).join('')}</tbody></table></div>`:`<p class="ajuda" style="margin:0 17px 14px">Nenhum ${venda?'recebimento':'pagamento'} registrado.</p>`}</section>
    <section class="bloco"><h3>${venda?'Comprovante':'Registro da compra'}</h3><p class="vv-tx">${venda?'Comprovante no padrão dos documentos do sistema, com empresa, setor, cliente, produtos, valores, pagamento e responsável.':'Registro da entrada no padrão dos documentos do sistema, para conferência e arquivo junto com a nota do fornecedor.'}</p>
@@ -12660,7 +12693,7 @@ function detalheOpV(c,O,v){
     ${venda&&wa?`<a class="btn" href="https://wa.me/${wa.length<=11?'55':''}${esc(wa)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('enviar')}WhatsApp</a>`:''}${venda&&cx.email?`<a class="btn" href="mailto:${esc(cx.email)}?subject=${encodeURIComponent('Comprovante de venda nº '+fNumV(v.numero)+' · '+razaoMostra())}&body=${encodeURIComponent(msg)}">${ic('enviar')}E-mail</a>`:''}</div>
     ${venda?'<p class="ajuda" style="margin:8px 17px 14px">WhatsApp e e-mail levam o resumo da venda. Para mandar o PDF, use “Compartilhar” na tela do comprovante.</p>':''}</section>
    <section class="bloco"><h3>${venda?'Documento fiscal':'Nota do fornecedor'}</h3>${kvV([['Situação',`<span class="tag ${COR_V[fs.status]||''}">${esc(fs.status||'Pendente')}</span>`],['Modelo',esc(fs.modelo||'—')],['Número',esc(fs.numero||'—')],['Série',esc(fs.serie||'—')],['Data de emissão',esc(fData(fs.data)||'—')],['Chave de acesso',fs.chave?`<span class="vv-chave">${esc(fs.chave)}</span>`:'—',1],
-     ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['PDF / DANFE',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—']])}
+     ['XML',fs.xml&&fs.xml.id?`<a href="/_blob/${esc(fs.xml.id)}" target="_blank" rel="noopener">${esc(fs.xml.nome||'arquivo.xml')}</a>`:'—'],['PDF / DANFE',fs.pdf&&fs.pdf.id?`<a href="/_blob/${esc(fs.pdf.id)}" target="_blank" rel="noopener">${esc(fs.pdf.nome||'arquivo.pdf')}</a>`:'—'],venda?null:['Foto da nota ou comprovante',fs.foto&&fs.foto.id?`<a href="/_blob/${esc(fs.foto.id)}" target="_blank" rel="noopener">${esc(fs.foto.nome||'foto')}</a>`:'—']])}
     <p class="ajuda" style="margin:0 17px 10px">${venda?'A NF-e pode ser emitida pelo Setor Fiscal do JB (quando o serviço fiscal está ligado). Se a nota saiu em outro emissor, vincule aqui o número, a chave e os arquivos.':'Guarde aqui os dados e os arquivos da nota que o fornecedor emitiu. O JB ERP não consulta a SEFAZ.'}</p>
     ${podeFis?`<div class="inline vv-bt"><button type="button" class="btn" id="vvFis">${ic('editar')}${fs.numero||fs.status!=='Pendente'?'Atualizar':'Vincular'} ${venda?'documento fiscal':'nota'}</button></div>`:''}</section>
    <section class="bloco"><h3>Relatórios</h3><p class="vv-tx">Esta ${O.sing} aparece nos relatórios do ${esc(S.nome||'setor')}: ${venda?'vendas, faturamento, produtos vendidos, clientes e contas a receber':'compras, compras por fornecedor, contas a pagar e estoque'}.</p>
@@ -12703,20 +12736,32 @@ const atualOp=v=>listaOp(opDe(v)).find(x=>x.id===v.id)||v;
 function modalPagamentoV(v){
  const O=opDe(v);const venda=O.K==='venda';const f=finVenda(v);
  modalV((venda?'Registrar recebimento':'Registrar pagamento')+' · '+O.sing+' nº '+fNumV(v.numero),`<p class="ajuda" style="margin:0 0 10px">Saldo em aberto: <b>${esc(fMoeda(f.saldo))}</b>${v.vencimento?' · vencimento '+esc(fData(v.vencimento)):''}. Valor parcial é aceito: o resto continua em aberto.</p>
-  <div class="campos" style="grid-template-columns:1fr 1fr"><div class="cmp"><label for="mpValor">${venda?'Valor recebido':'Valor pago'}<i> *</i></label><input id="mpValor" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(f.saldo))}"></div>
+  <div class="campos" style="grid-template-columns:1fr 1fr"><div class="cmp"><label for="mpValor">${venda?'Valor recebido':'Valor original pago'}<i> *</i></label><input id="mpValor" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(f.saldo))}"></div>
   <div class="cmp"><label for="mpData">Data<i> *</i></label><input id="mpData" type="date" max="${hoje()}" value="${hoje()}"></div>
   <div class="cmp"><label for="mpForma">Forma</label><select id="mpForma">${(venda?FORMAS_V:(window.FORMAS_F||FORMAS_V)).map(x=>`<option ${v.forma===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>${typeof window.extraPagV48==='function'?window.extraPagV48(venda):''}
+  ${venda?'':`<div class="cmp"><label for="mpMulta">Multa paga</label><input id="mpMulta" data-masc="moeda" inputmode="decimal" placeholder="0,00"><span class="ajuda">Só se pagou com atraso. Não abate a conta.</span></div>
+  <div class="cmp"><label for="mpJuros">Juros pagos</label><input id="mpJuros" data-masc="moeda" inputmode="decimal" placeholder="0,00"><span class="ajuda" id="mpTotV">Em branco: pagou só o valor original.</span></div>
+  <div class="cmp w2" id="mpPrevV" style="grid-column:1/-1" hidden></div>`}
   <div class="cmp"><label for="mpObs">Observação</label><input id="mpObs"></div></div>`,venda?'Registrar recebimento':'Registrar pagamento',async m=>{
   const val=round2(lerMoeda($('#mpValor',m).value));const data=$('#mpData',m).value;const atual=atualOp(v);const fa=finVenda(atual);
   if(!(val>0)){toast('Informe o valor.','erro');return false}
   if(val>fa.saldo+0.004){toast('O valor passa do saldo em aberto ('+fMoeda(fa.saldo)+').','erro');return false}
   if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
   if(data<atual.data){toast('A data não pode ser antes da '+O.sing+'.','erro');return false}
+  const mul=venda?0:round2(lerMoeda(($('#mpMulta',m)||{}).value||'')||0),jur=venda?0:round2(lerMoeda(($('#mpJuros',m)||{}).value||'')||0);
+  if(mul<0||jur<0||isNaN(mul)||isNaN(jur)){toast('Multa e juros: valores inválidos.','erro');return false}
   let ex48={};if(typeof window.lerPagV48==='function'){try{ex48=await window.lerPagV48(m,val)}catch(e){toast('Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}if(ex48===false)return false}
-  const p={id:novoId(),data,valor:val,forma:$('#mpForma',m).value,obs:$('#mpObs',m).value.trim(),...ex48,por:APP.uid||'local',em:new Date().toISOString()};
+  const p={id:novoId(),data,valor:val,forma:$('#mpForma',m).value,obs:$('#mpObs',m).value.trim(),...ex48,...(mul>0?{multa:mul}:{}),...(jur>0?{juros:jur}:{}),por:APP.uid||'local',em:new Date().toISOString()};
   const novoSaldo=round2(fa.saldo-val);
-  await salvarOpV(atual,{pagamentos:[...(atual.pagamentos||[]),p]},venda?'registrou recebimento':'registrou pagamento',[{c:venda?'Recebimento':'Pagamento',de:'',para:fMoeda(val)+' · '+p.forma+' · '+fData(data)},{c:venda?'Saldo a receber':'Saldo a pagar',de:fMoeda(fa.saldo),para:fMoeda(novoSaldo)}]);
-  toast((venda?'Recebimento':'Pagamento')+' de '+fMoeda(val)+' registrado. '+(novoSaldo>0?'Saldo: '+fMoeda(novoSaldo)+'.':'Conta quitada.'),'ok')});
+  await salvarOpV(atual,{pagamentos:[...(atual.pagamentos||[]),p]},venda?'registrou recebimento':'registrou pagamento',[{c:venda?'Recebimento':'Pagamento',de:'',para:fMoeda(val)+' · '+p.forma+' · '+fData(data)},...(mul>0||jur>0?[{c:'Multa e juros',de:'',para:'multa '+fMoeda(mul)+' · juros '+fMoeda(jur)+' · total pago '+fMoeda(round2(val+mul+jur))}]:[]),{c:venda?'Saldo a receber':'Saldo a pagar',de:fMoeda(fa.saldo),para:fMoeda(novoSaldo)}]);
+  toast((venda?'Recebimento':'Pagamento')+' de '+fMoeda(val)+' registrado'+(mul>0||jur>0?' (mais '+fMoeda(round2(mul+jur))+' de multa e juros)':'')+'. '+(novoSaldo>0?'Saldo: '+fMoeda(novoSaldo)+'.':'Conta quitada.'),'ok')},venda?undefined:{depois:m=>{
+  const tot=()=>{const a=round2(lerMoeda($('#mpValor',m).value)||0),b=round2(lerMoeda($('#mpMulta',m).value)||0),c2=round2(lerMoeda($('#mpJuros',m).value)||0);const sp=$('#mpTotV',m);if(sp)sp.textContent=b>0||c2>0?'Total que sai: '+fMoeda(round2(a+b+c2))+' (original '+fMoeda(a)+' + multa '+fMoeda(b)+' + juros '+fMoeda(c2)+').':'Em branco: pagou só o valor original.'};
+  ['mpValor','mpMulta','mpJuros'].forEach(id=>{const x=$('#'+id,m);if(x)x.addEventListener('input',tot)});
+  const prev=()=>{const w=$('#mpPrevV',m);if(!w)return;const at=atualOp(v);const pv=previsaoEncV(round2(lerMoeda($('#mpValor',m).value)||0),at.vencimento,$('#mpData',m).value||hoje(),at.fornecedorId,at);
+   if(!pv||pv.dias<=0){w.hidden=true;w.innerHTML='';return}w.hidden=false;
+   w.innerHTML=`<span class="ajuda">Previsão para ${esc(fData($('#mpData',m).value||hoje()))}, com ${pv.dias} dia(s) de atraso: multa ${esc(fMoeda(pv.multa))} (${esc(fPctEncV(pv.multaPct))}) e juros ${esc(fMoeda(pv.juros))} (${esc(fPctEncV(pv.jurosPct))} ao mês), pelo ${esc(pv.origem)}. Confira com o que o fornecedor cobrou.</span> <button type="button" class="btn min" data-usar-prev>Usar a previsão</button>`;
+   $('[data-usar-prev]',w).onclick=()=>{$('#mpMulta',m).value=fMoedaCampo(pv.multa);$('#mpJuros',m).value=fMoedaCampo(pv.juros);tot()}};
+  ['mpValor','mpData'].forEach(id=>{const x=$('#'+id,m);if(x){x.addEventListener('input',prev);x.addEventListener('change',prev)}});prev()}});
 }
 function modalEstornoV(v,p){
  const O=opDe(v);
@@ -12745,7 +12790,7 @@ function modalCancelarV(v){
   toast(O.Sing+' cancelada. Estoque estornado e conta cancelada.','ok')},{perigo:true});
 }
 function modalFiscalV(v){
- const O=opDe(v);const venda=O.K==='venda';const fs={...(v.fiscal||{status:'Pendente'})};const anexos={xml:fs.xml||null,pdf:fs.pdf||null};const sts=venda?ST_FISCAL:ST_NOTA_COMPRA;
+ const O=opDe(v);const venda=O.K==='venda';const fs={...(v.fiscal||{status:'Pendente'})};const anexos={xml:fs.xml||null,pdf:fs.pdf||null,foto:fs.foto||null};const sts=venda?ST_FISCAL:ST_NOTA_COMPRA;
  const campoArq=(k,rot,acc)=>`<div class="cmp"><label>${esc(rot)}</label><div class="inline" data-fa="${k}"><span class="ajuda" data-fn="${k}">${anexos[k]?esc(anexos[k].nome):'Nenhum arquivo.'}</span>${APP.assets?`<label class="btn min" style="cursor:pointer">${anexos[k]?'Trocar':'Anexar'}<input type="file" accept="${acc}" hidden data-fup="${k}"></label>`:''}</div>${APP.assets?'':'<span class="ajuda">Anexos funcionam na versão publicada, com armazenamento em nuvem.</span>'}</div>`;
  modalV((venda?'Documento fiscal':'Nota do fornecedor')+' · '+O.sing+' nº '+fNumV(v.numero),`<p class="ajuda" style="margin:0 0 10px">${venda?'Registre aqui a nota emitida em outro emissor. Para emitir pelo JB, use o Setor Fiscal.':'Registre a nota que o fornecedor emitiu, com os arquivos.'}</p>
   <div class="campos" style="grid-template-columns:1fr 1fr">
@@ -12755,15 +12800,15 @@ function modalFiscalV(v){
    <div class="cmp"><label for="mfSer">Série</label><input id="mfSer" value="${esc(fs.serie||'')}"></div>
    <div class="cmp"><label for="mfData">Data de emissão</label><input id="mfData" type="date" value="${esc(fs.data||'')}"></div>
    <div class="cmp"><label for="mfChave">Chave de acesso</label><input id="mfChave" inputmode="numeric" maxlength="54" placeholder="44 dígitos" value="${esc(fs.chave||'')}"></div>
-   ${campoArq('xml','XML','.xml,text/xml,application/xml')}${campoArq('pdf','PDF / DANFE','application/pdf')}
+   ${campoArq('xml','XML','.xml,text/xml,application/xml')}${campoArq('pdf','PDF / DANFE','application/pdf')}${venda?'':campoArq('foto','Foto da nota ou comprovante','image/*')}
    <div class="cmp w2" style="grid-column:1/-1"><label for="mfObs">Observação</label><input id="mfObs" value="${esc(fs.obs||'')}"></div></div>`,'Salvar',async m=>{
-  const n={status:$('#mfSt',m).value,modelo:$('#mfMod',m).value,numero:$('#mfNum',m).value.trim(),serie:$('#mfSer',m).value.trim(),data:$('#mfData',m).value,chave:digitos($('#mfChave',m).value),obs:$('#mfObs',m).value.trim(),xml:anexos.xml,pdf:anexos.pdf};
+  const n={status:$('#mfSt',m).value,modelo:$('#mfMod',m).value,numero:$('#mfNum',m).value.trim(),serie:$('#mfSer',m).value.trim(),data:$('#mfData',m).value,chave:digitos($('#mfChave',m).value),obs:$('#mfObs',m).value.trim(),xml:anexos.xml,pdf:anexos.pdf,...(venda?{}:{foto:anexos.foto})};
   if(n.chave&&n.chave.length!==44){toast('A chave de acesso tem 44 dígitos.','erro');return false}
   if((n.status==='Autorizada'||n.status==='Recebida')&&!n.numero){toast('Informe o número da nota.','erro');return false}
   if(n.numero&&!/^\d+$/.test(n.numero)){toast('O número da nota leva só dígitos.','erro');return false}
   const atual=atualOp(v);const a=atual.fiscal||{};const rot={status:'Situação da nota',modelo:'Modelo',numero:'Número',serie:'Série',data:'Data de emissão',chave:'Chave de acesso',obs:'Observação'};
   const campos=Object.keys(rot).filter(k=>String(a[k]||'')!==String(n[k]||'')).map(k=>({c:rot[k],de:String(a[k]||''),para:String(n[k]||'')}));
-  ['xml','pdf'].forEach(k=>{if((a[k]&&a[k].id)!==(n[k]&&n[k].id))campos.push({c:k==='xml'?'XML':'PDF / DANFE',de:a[k]?a[k].nome:'',para:n[k]?n[k].nome:''})});
+  ['xml','pdf','foto'].forEach(k=>{if((a[k]&&a[k].id)!==(n[k]&&n[k].id))campos.push({c:k==='xml'?'XML':k==='foto'?'Foto da nota':'PDF / DANFE',de:a[k]?a[k].nome:'',para:n[k]?n[k].nome:''})});
   if(!campos.length){toast('Nada mudou.');return}
   await salvarOpV(atual,{fiscal:{...a,...n,atualizadoEm:new Date().toISOString(),atualizadoPor:APP.uid||'local'}},venda?'atualizou o documento fiscal':'atualizou a nota do fornecedor',campos);
   toast('Nota atualizada.','ok')},{depois:m=>{
@@ -12772,7 +12817,8 @@ function modalFiscalV(v){
    const sp=$(`[data-fn="${k}"]`,m);const volta=()=>{sp.textContent=anexos[k]?anexos[k].nome:'Nenhum arquivo.'};sp.textContent='Enviando…';
    if(k==='xml'&&!/\.xml$/i.test(file.name)){volta();toast('Escolha um arquivo .xml.','erro');return}
    if(k==='pdf'&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){volta();toast('Escolha um arquivo PDF.','erro');return}
-   try{const r=await APP.assets.upload(file,{type:k==='xml'?'text/plain':'application/pdf'});anexos[k]={id:r.id,nome:file.name,tipo:r.contentType,tam:r.sizeBytes};sp.textContent=file.name+' (salve para confirmar)'}
+   if(k==='foto'&&!/^image\//.test(file.type||'')){volta();toast('Escolha uma foto (imagem).','erro');return}
+   try{const r=k==='foto'?await APP.assets.upload(file):await APP.assets.upload(file,{type:k==='xml'?'text/plain':'application/pdf'});anexos[k]={id:r.id,nome:file.name,tipo:r.contentType,tam:r.sizeBytes};sp.textContent=file.name+' (salve para confirmar)'}
    catch(err){volta();toast('Não foi possível enviar o arquivo'+(err&&err.code?' ('+err.code+')':'')+'. Nada foi alterado.','erro')}})}});
 }
 
@@ -12809,6 +12855,7 @@ function docRecebimentoV(v,p){
  D.blocos.push({tipo:'p',texto:venda?'Recebemos de '+(c.nome||'cliente')+' a importância de '+fMoeda(p.valor)+' ('+extensoMoeda(p.valor)+'), por '+p.forma+', referente à venda nº '+fNumV(v.numero)+' de '+fData(v.data)+', no valor total de '+fMoeda(v.total)+'.'
   :'Pagamento de '+fMoeda(p.valor)+' ('+extensoMoeda(p.valor)+') a '+(c.nome||'fornecedor')+', por '+p.forma+', referente à compra nº '+fNumV(v.numero)+' de '+fData(v.data)+', no valor total de '+fMoeda(v.total)+'.'});
  D.blocos.push({tipo:'tabela',head:['Conta','Valor'],dir:[1],body:[['Total da '+O.sing,fMoeda(v.total)],['Total pago até agora',fMoeda(f.pago)]],foot:['Saldo em aberto',fMoeda(f.saldo)]});
+ if(!venda&&encPagV(p)>0)D.blocos.push({tipo:'tabela',head:['Este pagamento','Valor'],dir:[1],body:[['Valor original',fMoeda(p.valor)],['Multa',fMoeda(+p.multa||0)],['Juros',fMoeda(+p.juros||0)]],foot:['Total pago',fMoeda(round2((+p.valor||0)+encPagV(p)))]});
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data)+'.';
  D.assinaturas=venda?[{nome:e.responsavel||'',sub:'Quem recebeu · pela empresa'}]:[{nome:c.nome||'',sub:'Quem recebeu · fornecedor'}];
  return D;
@@ -16778,14 +16825,14 @@ function obT(t){const pg=(t.pagamentos||[]).filter(p=>!p.estornado);
  return{ref:'t:'+t.id,fonte:'titulo',rec:t,origem:t.setorOrigem||'Geral (Financeiro)',num:t.numero?'Nº '+t.numero:'',descricao:t.descricao||'',categoria:t.categoria||'',
   benef:t.beneficiarioNome||t.beneficiario||'',centro:t.centroCusto||'',lanc:t.data||'',venc:t.vencimento||'',prog:t.dataPrevista||'',valor:r2(t.valor),
   forma:t.formaPrevista||'',conta:t.contaId||'',docOrigem:[t.docOrigemTipo,t.docOrigemNum].filter(Boolean).join(' nº '),temDocOrigem:!!(t.anexo&&t.anexo.id),
-  pagamentos:pg.map(p=>({id:p.id,data:p.data,valor:r2(p.valor),forma:p.forma||'',conta:p.contaId||'',quitacao:!!p.quitacao,motivo:p.motivoDif||'',por:p.por})),
+  pagamentos:pg.map(p=>({id:p.id,data:p.data,valor:r2(p.valor),forma:p.forma||'',conta:p.contaId||'',quitacao:!!p.quitacao,motivo:p.motivoDif||'',multa:r2(+p.multa||0),juros:r2(+p.juros||0),por:p.por})),
   estornados:(t.pagamentos||[]).filter(p=>p.estornado),cancelado:t.cancelado||null,justif:t.justificativa||null,parcela:t.parcelas>1?t.parcela+'/'+t.parcelas+(t.recorrente?' (mensal)':''):'',
   resp:t.criadoPor,href:null,podePagar:edF(),hist:[['fTitulos',t.id]]}}
 function obC(c){const f=finVenda(c);const m=metaDe('c:'+c.id)||{};const pg=(c.pagamentos||[]).filter(p=>!p.estornado);const fis=c.fiscal||{};
  return{ref:'c:'+c.id,fonte:'compra',rec:c,origem:nomeSetorV(c.setor),num:'Compra nº '+fNumV(c.numero),descricao:(c.itens||[]).map(i=>i.nome).filter(Boolean).join(', ')||'Compra',
   categoria:c.setor==='lenha'?'Lenha':'Combustíveis',benef:parteSnap(c).nome||'',centro:m.centroCusto||'',lanc:c.data||'',venc:c.condicao==='A prazo'&&!c.vencimento?'':(c.vencimento||c.data||''),prog:m.dataPrevista||'',valor:r2(f.total),
-  forma:m.formaPrevista||c.forma||'',conta:m.contaId||'',docOrigem:fis.numero?'NF nº '+fis.numero:'',temDocOrigem:!!((fis.pdf&&fis.pdf.id)||(fis.xml&&fis.xml.id)),
-  pagamentos:pg.map(p=>({id:p.id,data:p.data,valor:r2(p.valor),forma:p.forma||'',conta:p.contaId||'',quitacao:false,por:p.por})),
+  forma:m.formaPrevista||c.forma||'',conta:m.contaId||'',docOrigem:fis.numero?'NF nº '+fis.numero:'',temDocOrigem:!!((fis.pdf&&fis.pdf.id)||(fis.xml&&fis.xml.id)||(fis.foto&&fis.foto.id)),
+  pagamentos:pg.map(p=>({id:p.id,data:p.data,valor:r2(p.valor),forma:p.forma||'',conta:p.contaId||'',quitacao:false,multa:r2(+p.multa||0),juros:r2(+p.juros||0),por:p.por})),
   estornados:(c.pagamentos||[]).filter(p=>p.estornado),cancelado:cancV(c)?{motivo:c.motivoCancelamento||'compra cancelada no setor'}:null,justif:m.justificativa||null,parcela:'',
   resp:c.criadoPor,href:'#/compra/'+c.id,podePagar:pode('pagar','e'),hist:[['compras',c.id]],meta:m}}
 function obD(d){const m=metaDe('d:'+d.id)||{};const prev=r2(+d.valorPrevisto||0),real=r2(+d.valorRealizado||+d.valor||0);const val=prev>0?prev:real;
@@ -16803,7 +16850,7 @@ function situacao(o){
  const Bt=r2(soma(B,b=>b.valor));const pagoEf=r2(P+soma(livre,b=>b.valor));
  const quit=pags.some(p=>p.quitacao)||B.some(b=>b.quitacao);
  const div=[];
- atado.forEach(b=>{const p=pags.find(x=>x.id===b.pagId);if(p&&!ig(p.valor,b.valor))div.push('Pagamento informado de '+fMoeda(p.valor)+' em '+fData(p.data)+'; o banco mostra '+fMoeda(b.valor)+' em '+fData(b.linha.data)+'.')});
+ atado.forEach(b=>{const p=pags.find(x=>x.id===b.pagId);if(p&&!ig(r2(p.valor+(p.multa||0)+(p.juros||0)),b.valor))div.push('Pagamento informado de '+fMoeda(r2(p.valor+(p.multa||0)+(p.juros||0)))+' em '+fData(p.data)+'; o banco mostra '+fMoeda(b.valor)+' em '+fData(b.linha.data)+'.')});
  if(pagoEf>o.valor+0.004)div.push('Pago '+fMoeda(pagoEf)+', acima do previsto ('+fMoeda(o.valor)+'): diferença de '+fMoeda(pagoEf-o.valor)+'.');
  else if(quit&&pagoEf<o.valor-0.004)div.push('Quitado com '+fMoeda(pagoEf)+' para um previsto de '+fMoeda(o.valor)+': diferença de '+fMoeda(o.valor-pagoEf)+'.');
  const just=o.justif&&o.justif.valor!=null&&ig(o.justif.base,pagoEf)?o.justif:null; /* justificativa vale para o valor que foi conferido */
@@ -16865,6 +16912,8 @@ MODS.fTitulos={titulo:'Compromissos lançados no Financeiro',sing:'compromisso',
   {k:'dataPrevista',l:'Data programada para pagar',t:'data',aj:'Programar não marca como pago.',s:'Valores e datas'},
   {k:'formaPrevista',l:'Forma de pagamento prevista',t:'sel',op:FORMAS_V,s:'Valores e datas'},
   {k:'contaId',l:'Conta bancária prevista',t:'sel',op:()=>optsContas(),s:'Valores e datas'},
+  {k:'multaPct',l:'Multa por atraso combinada (%)',t:'num',aj:'Só para a previsão. Em branco: a do fornecedor ou 2%, o padrão da lei.',s:'Valores e datas'},
+  {k:'jurosMesPct',l:'Juros por atraso combinados (% ao mês)',t:'num',aj:'Em branco: os do fornecedor ou 1% ao mês, o padrão da lei.',s:'Valores e datas'},
   {k:'_sit',l:'Situação',t:'html',w2:1,calc:r=>{if(!r.criadoEm)return '<span class="ajuda">Aparece depois de salvar.</span>';const o=OB('t:'+r.id);return o?tagSit(o.s.st)+' · pago informado '+esc(fMoeda(o.s.P))+' · no banco '+esc(fMoeda(o.s.Bt))+' · saldo '+esc(fMoeda(o.s.saldo)):''},s:'Valores e datas'},
   {k:'repetir',l:'Repetição',t:'sel',op:['Não repete','Parcelar o valor','Repetir todo mês'],sh:r=>!r.criadoEm,aj:'Cria as parcelas ou os meses seguintes como compromissos separados, cada um com o próprio vencimento.',s:'Valores e datas'},
   {k:'nVezes',l:'Quantas vezes (total)',t:'num',sh:r=>!r.criadoEm&&r.repetir&&r.repetir!=='Não repete',s:'Valores e datas'},
@@ -17129,10 +17178,13 @@ function pagar(ref){
  if(o.fonte==='despesa')return pagarDespesa(o);
  const s=o.s;const t=o.rec;
  modalF('Registrar pagamento · '+(o.num||'compromisso'),`<p class="ajuda" style="margin:0 0 10px">${esc(rotuloO(o))}<br>Previsto ${esc(fMoeda(o.valor))} · já pago ${esc(fMoeda(s.pagoEf))} · <b>saldo ${esc(fMoeda(s.saldo))}</b>${o.venc?' · vence '+esc(fData(o.venc)):''}</p>
-  <div class="duas">${campoM('mpV','Valor pago<i> *</i>',`<input id="mpV" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(s.saldo))}">`)}
+  <div class="duas">${campoM('mpV','Valor original pago<i> *</i>',`<input id="mpV" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(s.saldo))}">`,'O que abate a conta, sem multa e sem juros.')}
   ${campoM('mpD','Data do pagamento<i> *</i>',`<input id="mpD" type="date" max="${hoje()}" value="${hoje()}">`)}
   ${campoM('mpF','Forma',`<select id="mpF">${optH(window.FORMAS_F||FORMAS_V,t.formaPrevista||'PIX')}</select>`)}
   ${campoM('mpC','Conta de saída<i> *</i>',`<select id="mpC"><option value="">Selecione…</option>${optH(optsContas(),t.contaId||'')}</select>`,'Caixa ou banco de onde saiu o dinheiro.')}</div>
+  <div class="duas">${campoM('mpMu','Multa paga',`<input id="mpMu" data-masc="moeda" inputmode="decimal" placeholder="0,00">`,'Só se pagou com atraso.')}${campoM('mpJu','Juros pagos',`<input id="mpJu" data-masc="moeda" inputmode="decimal" placeholder="0,00">`)}</div>
+  <p class="ajuda" id="mpTot" style="margin:-4px 0 10px">Multa e juros em branco: pagou só o valor original.</p>
+  <div id="mpPrev" style="margin:0 0 10px" hidden></div>
   <div id="mpPerm" ${t.formaPrevista&&t.formaPrevista===window.PERMUTA_V48?'':'hidden'}><div class="duas">${campoM('mpMil','Milheiros entregues',`<input id="mpMil" type="number" step="any" min="0" value="${esc(t.milheiros||'')}">`)}${campoM('mpPm','Preço do milheiro',`<input id="mpPm" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(t.precoMilheiro))}">`,'Permuta: pago em tijolos. O valor pago é milheiros × preço.')}</div></div>
   <div id="mpDif" hidden>${campoM('mpT','O valor é diferente do saldo. Este pagamento…',`<select id="mpT"><option value="parcial">é parcial: o restante continua em aberto</option><option value="quit">quita a conta com diferença (fica para conferência)</option></select>`)}
    ${campoM('mpM','Motivo da diferença',`<select id="mpM">${optH(['','Desconto obtido','Juros ou multa','Tarifa bancária','Arredondamento','Outro'],'')}</select>`)}
@@ -17141,22 +17193,30 @@ function pagar(ref){
   const atual=OB(ref);const sa=atual.s;const val=r2(lerMoeda(valM(v,'mpV')));const data=valM(v,'mpD');
   if(!(val>0)){toast('Informe o valor pago.','erro');return false}
   if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  const mul=r2(lerMoeda(valM(v,'mpMu'))||0),jur=r2(lerMoeda(valM(v,'mpJu'))||0);if(mul<0||jur<0||isNaN(mul)||isNaN(jur)){toast('Multa e juros: valores inválidos.','erro');return false}
   const dif=!ig(val,sa.saldo);let quit=val>=sa.saldo-0.004;
   if(dif){if(val<sa.saldo)quit=valM(v,'mpT')==='quit';if(quit&&!valM(v,'mpM')){toast('Informe o motivo da diferença.','erro');return false}}
   let arq=null;try{const f=$('#mpA',v)&&$('#mpA',v).files[0];if(f){toast('Enviando o comprovante…');arq=await subirComprovante(f)}}catch(e){toast(e&&e.code==='grande'?'Arquivo maior que 20 MB.':'Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}
   const perm48=valM(v,'mpF')===window.PERMUTA_V48;if(perm48&&!(+valM(v,'mpMil')>0&&lerMoeda(valM(v,'mpPm'))>0)){toast('Informe os milheiros e o preço do milheiro.','erro');return false}
   if(!perm48&&!valM(v,'mpC')){toast('Escolha a conta de saída (Caixa ou banco).','erro');return false}
-  const p={id:novoId(),data,valor:val,forma:valM(v,'mpF'),contaId:valM(v,'mpC'),...(perm48?{milheiros:+valM(v,'mpMil'),precoMilheiro:r2(lerMoeda(valM(v,'mpPm')))}:{}),quitacao:quit,motivoDif:quit&&dif?valM(v,'mpM'):'',obsDif:quit&&dif?valM(v,'mpO').trim():'',por:APP.uid||'local',em:new Date().toISOString()};
+  const p={id:novoId(),data,valor:val,forma:valM(v,'mpF'),contaId:valM(v,'mpC'),...(perm48?{milheiros:+valM(v,'mpMil'),precoMilheiro:r2(lerMoeda(valM(v,'mpPm')))}:{}),quitacao:quit,motivoDif:quit&&dif?valM(v,'mpM'):'',obsDif:quit&&dif?valM(v,'mpO').trim():'',...(mul>0?{multa:mul}:{}),...(jur>0?{juros:jur}:{}),por:APP.uid||'local',em:new Date().toISOString()};
   const tAt=DATA.fTitulos.find(x=>x.id===t.id)||t;const n={...clone(tAt),pagamentos:[...(tAt.pagamentos||[]),p],alteradoEm:p.em,alteradoPor:p.por};
   await gravar('fTitulos',n,tAt);
-  await logF('fTitulos',t.id,'registrou pagamento',[{c:'Pagamento',de:'',para:fMoeda(val)+' · '+p.forma+' · '+fData(data)+(p.contaId?' · '+nomeConta(p.contaId):'')},{c:'Tipo',de:'',para:quit?(dif?'quitação com diferença: '+p.motivoDif:'quitação'):'parcial'},{c:'Saldo',de:fMoeda(sa.saldo),para:fMoeda(quit?0:r2(sa.saldo-val))}]);
+  await logF('fTitulos',t.id,'registrou pagamento',[{c:'Pagamento',de:'',para:fMoeda(val)+' · '+p.forma+' · '+fData(data)+(p.contaId?' · '+nomeConta(p.contaId):'')},...(mul>0||jur>0?[{c:'Multa e juros',de:'',para:'multa '+fMoeda(mul)+' · juros '+fMoeda(jur)+' · total pago '+fMoeda(r2(val+mul+jur))}]:[]),{c:'Tipo',de:'',para:quit?(dif?'quitação com diferença: '+p.motivoDif:'quitação'):'parcial'},{c:'Saldo',de:fMoeda(sa.saldo),para:fMoeda(quit?0:r2(sa.saldo-val))}]);
   const lk=String(valM(v,'mpL')||'').trim();
-  if(arq||lk){try{await criarDoc(atual,{tipoDoc:/PIX/.test(p.forma)?'Comprovante de PIX':/Transfer/.test(p.forma)?'Comprovante de transferência':'Comprovante de pagamento',data,valor:val,arquivo:arq,linkDrive:lk,pagamentoId:p.id,contaId:p.contaId})}catch(e){toast('Pagamento registrado, mas o comprovante não foi salvo: '+msgErro(e),'erro')}}
-  toast(quit&&dif?'Pagamento registrado. A diferença ficou como divergência a conferir.':'Pagamento de '+fMoeda(val)+' registrado.'+(quit?'':' Saldo: '+fMoeda(r2(sa.saldo-val))+'.'),'ok');
+  if(arq||lk){try{await criarDoc(atual,{tipoDoc:/PIX/.test(p.forma)?'Comprovante de PIX':/Transfer/.test(p.forma)?'Comprovante de transferência':'Comprovante de pagamento',data,valor:r2(val+mul+jur),arquivo:arq,linkDrive:lk,pagamentoId:p.id,contaId:p.contaId})}catch(e){toast('Pagamento registrado, mas o comprovante não foi salvo: '+msgErro(e),'erro')}}
+  toast(quit&&dif?'Pagamento registrado. A diferença ficou como divergência a conferir.':'Pagamento de '+fMoeda(val)+' registrado'+(mul>0||jur>0?' (mais '+fMoeda(r2(mul+jur))+' de multa e juros)':'')+'.'+(quit?'':' Saldo: '+fMoeda(r2(sa.saldo-val))+'.'),'ok');
   if(GAV&&GAV.mod==='_fin')abrirObrig(ref)},{depois:v=>{
   const ch=()=>{const val=r2(lerMoeda(valM(v,'mpV')));const sa=OB(ref).s;const d=val>0&&!ig(val,sa.saldo);$('#mpDif',v).hidden=!d;
    if(d&&val>sa.saldo){$('#mpT',v).value='quit';$('#mpT',v).disabled=true}else $('#mpT',v).disabled=false};
   $('#mpV',v).addEventListener('input',ch);ch();
+  const tot=()=>{const a=r2(lerMoeda(valM(v,'mpV'))||0),b=r2(lerMoeda(valM(v,'mpMu'))||0),c2=r2(lerMoeda(valM(v,'mpJu'))||0);const sp=$('#mpTot',v);if(sp)sp.textContent=b>0||c2>0?'Total que sai da conta: '+fMoeda(r2(a+b+c2))+' (original '+fMoeda(a)+' + multa '+fMoeda(b)+' + juros '+fMoeda(c2)+').':'Multa e juros em branco: pagou só o valor original.'};
+  ['mpV','mpMu','mpJu'].forEach(id=>{const x=$('#'+id,v);if(x)x.addEventListener('input',tot)});
+  const prev=()=>{const w=$('#mpPrev',v);if(!w)return;const oa=OB(ref);const pv=previsaoEncV(r2(lerMoeda(valM(v,'mpV'))||0),oa.venc,valM(v,'mpD')||hoje(),oa.rec.fornecedorId,oa.rec);
+   if(!pv||pv.dias<=0){w.hidden=true;w.innerHTML='';return}w.hidden=false;
+   w.innerHTML=`<span class="ajuda">Previsão para ${esc(fData(valM(v,'mpD')||hoje()))}, com ${pv.dias} dia(s) de atraso: multa ${esc(fMoeda(pv.multa))} (${esc(fPctEncV(pv.multaPct))}) e juros ${esc(fMoeda(pv.juros))} (${esc(fPctEncV(pv.jurosPct))} ao mês), pelo ${esc(pv.origem)}. Confira com o que foi cobrado.</span> <button type="button" class="btn min" data-usar-prev>Usar a previsão</button>`;
+   $('[data-usar-prev]',w).onclick=()=>{$('#mpMu',v).value=fMoedaCampo(pv.multa);$('#mpJu',v).value=fMoedaCampo(pv.juros);tot()}};
+  ['mpV','mpD'].forEach(id=>{const x=$('#'+id,v);if(x){x.addEventListener('input',prev);x.addEventListener('change',prev)}});prev();
   $('#mpF',v).addEventListener('change',()=>{const w=$('#mpPerm',v);if(w)w.hidden=valM(v,'mpF')!==window.PERMUTA_V48});
   ['mpMil','mpPm'].forEach(id=>{const x=$('#'+id,v);if(x)x.addEventListener('input',()=>{const q=+valM(v,'mpMil'),pr=lerMoeda(valM(v,'mpPm'));if(q>0&&pr>0){$('#mpV',v).value=fMoedaCampo(r2(q*pr));ch()}})})}});
 }
@@ -17246,7 +17306,7 @@ function histObrig(o){
 function abrirObrig(ref){
  const o=OB(ref);if(!o){toast('Compromisso não encontrado ou fora do seu acesso.','erro');return}
  const s=o.s;const ed=edF();
- const linhaP=p=>{const b=s.banco.find(x=>x.pagId===p.id);return `<tr><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}</td><td data-l="Forma">${esc(p.forma||'—')}${p.conta?'<span class="sub">'+esc(nomeConta(p.conta))+'</span>':''}</td>
+ const linhaP=p=>{const b=s.banco.find(x=>x.pagId===p.id);return `<tr><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Valor" class="num">${esc(fMoeda(p.valor))}${(p.multa||0)+(p.juros||0)>0?'<span class="sub">+ multa '+esc(fMoeda(p.multa||0))+' · juros '+esc(fMoeda(p.juros||0))+'</span><span class="sub">total '+esc(fMoeda(r2(p.valor+(p.multa||0)+(p.juros||0))))+'</span>':''}</td><td data-l="Forma">${esc(p.forma||'—')}${p.conta?'<span class="sub">'+esc(nomeConta(p.conta))+'</span>':''}</td>
   <td data-l="Tipo">${p.quitacao?'quitação':'parcial'}</td><td data-l="No banco">${b?tagF((b.conciliado?'conciliado':'identificado')+' '+fData(b.linha.data),b.conciliado?'ok':'in'):tagF('não identificado','')}</td>
   <td class="acs">${o.fonte==='titulo'&&ed?`<button class="btn min" data-est="${esc(p.id)}">Estornar</button>`:''}${ed?`<button class="btn min" data-anx="${esc(p.id)}">Comprovante</button>`:''}</td></tr>`};
  const docs=docsDe(ref);
@@ -17255,6 +17315,7 @@ function abrirObrig(ref){
  <div class="gav-corpo">
   <p style="margin:0 0 10px">${tagSit(s.st)} ${s.vencido&&s.st!=='Vencido'?tagF('vencido','pe'):''} ${tagF(o.origem,'')} ${o.parcela?tagF('parcela '+o.parcela,'in'):''} ${o.retencao?tagF('retenção a recolher',''):''}</p>
   <div class="fi-det-val"><div><span>Valor previsto</span><b>${esc(fMoeda(o.valor))}</b></div><div><span>Pago informado</span><b>${esc(fMoeda(s.P))}</b></div><div><span>Identificado no banco</span><b>${esc(fMoeda(s.Bt))}</b></div><div><span>Saldo</span><b>${esc(fMoeda(s.saldo))}</b></div></div>
+  ${(()=>{if(o.cancelado||o.fonte==='despesa')return '';const tx=txtPrevisaoEncV(previsaoEncV(s.saldo,o.venc,hoje(),o.rec.fornecedorId,o.rec));return tx?`<div class="aviso ${s.vencido?'pe':'at'}" style="margin-bottom:12px"><span><b>Previsão de multa e juros.</b> ${esc(tx)}</span></div>`:''})()}
   ${s.div.length?`<div class="aviso ${s.just?'in':'pe'}" style="margin-bottom:12px"><span><b>${s.just?'Divergência conferida':'Divergência a conferir'}.</b> ${esc(s.div.join(' '))}${s.just?' Conclusão: '+esc(s.just.motivo+' — '+s.just.texto)+' ('+esc(nomeUsuario(s.just.por))+', '+esc(fDataHora(s.just.em))+').':''}</span></div>`:''}
   ${o.cancelado?`<div class="aviso at" style="margin-bottom:12px"><span><b>Cancelado.</b> ${esc(o.cancelado.motivo||'')}</span></div>`:''}
   <div class="fx-dl" style="margin-bottom:14px">${[['Descrição',o.descricao],['Beneficiário',o.benef],['Categoria',o.categoria],['Centro de custo',o.centro],['Vencimento',o.venc?fData(o.venc):(o.fonte==='despesa'?'não informado (competência '+fMes(o.rec.competencia)+')':'—')],['Programado para',o.prog?fData(o.prog):'—'],['Forma prevista',o.forma],['Conta prevista',nomeConta(o.conta)],['Documento de origem',o.docOrigem||'—'],['Lançamento',fData(o.lanc)],['Número',o.num]].map(([a,b])=>`<div><span>${esc(a)}</span><b>${esc(b||'—')}</b></div>`).join('')}</div>
@@ -17987,10 +18048,12 @@ const pagaEmDinheiro=p=>p&&p.forma!==PERMUTA&&!p.semDinheiro&&!(window.formaSemD
 /* tudo o que entrou e saiu de uma conta (Caixa ou banco), a partir do que foi lançado */
 function movimentos(){
  const L=[];const add=x=>L.push(x);
+ /* V101: multa e juros de um pagamento saem da mesma conta, em linhas próprias (categorias Multas e Juros) */
+ const addP=(b,p)=>{add(b);[['multa','Multas','Multa'],['juros','Juros','Juros']].forEach(([c,cat,rot])=>{const x=r2(+p[c]||0);if(x>0)add({...b,k:b.k+':'+c,valor:x,categoria:cat,descricao:rot+' · '+b.descricao})})};
  DATA.fTitulos.forEach(t=>{if(t.cancelado)return;(t.pagamentos||[]).forEach(p=>{if(p.estornado||!pagaEmDinheiro(p))return;
-  add({k:'tp:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Saída',valor:r2(p.valor),categoria:t.categoria||'',descricao:(t.beneficiarioNome||'')+' · '+(t.descricao||''),origem:t.setorOrigem||'Financeiro',abrir:()=>A.abrirObrig('t:'+t.id),forma:p.forma||''})})});
+  addP({k:'tp:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Saída',valor:r2(p.valor),categoria:t.categoria||'',descricao:(t.beneficiarioNome||'')+' · '+(t.descricao||''),origem:t.setorOrigem||'Financeiro',abrir:()=>A.abrirObrig('t:'+t.id),forma:p.forma||''},p)})});
  if(pode('pagar'))DATA.compras.filter(c=>c.tipoOp==='compra'&&!cancV(c)).forEach(c=>(c.pagamentos||[]).forEach(p=>{if(p.estornado||!pagaEmDinheiro(p))return;
-  add({k:'cp:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Saída',valor:r2(p.valor),categoria:c.setor==='lenha'?'Lenha':'Combustíveis',descricao:(parteSnap(c).nome||'')+' · compra nº '+fNumV(c.numero),origem:nomeSetorV(c.setor),abrir:()=>{location.hash='#/compra/'+c.id},forma:p.forma||''})}));
+  addP({k:'cp:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Saída',valor:r2(p.valor),categoria:c.setor==='lenha'?'Lenha':'Combustíveis',descricao:(parteSnap(c).nome||'')+' · compra nº '+fNumV(c.numero),origem:nomeSetorV(c.setor),abrir:()=>{location.hash='#/compra/'+c.id},forma:p.forma||''},p)}));
  if(pode('receber'))DATA.vendas.filter(v=>!cancV(v)).forEach(v=>(v.pagamentos||[]).forEach(p=>{if(p.estornado||p.tipo==='abatimento'||!pagaEmDinheiro(p))return;
   add({k:'vp:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Entrada',valor:r2(p.recebido!=null?+p.recebido:+p.valor),categoria:'Venda de tijolos',descricao:((v.cliente||{}).nome||'Cliente')+' · '+(v.fluxo==='pedido'?'pedido':'venda')+' nº '+fNumV(v.numero),origem:'Setor de Vendas',abrir:()=>{location.hash='#/venda/'+v.id},forma:p.forma||''})}));
  if(pode('despesas'))DATA.despesas.filter(d=>d.situacao==='Pago'&&d.dataPagamento).forEach(d=>{const v=r2(+d.valorRealizado||+d.valorPrevisto||0);if(!(v>0))return;
@@ -21439,6 +21502,10 @@ function setoresMes(m){
  try{(DATA.fTitulos||[]).filter(t=>!t.cancelado&&geral(t)&&compFin(t)===m).forEach(t=>{const o='Setor Financeiro';const txt=(t.numero?'Nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso')+(t.beneficiarioNome?' · '+t.beneficiarioNome:'');
   if(t.meiId||t.categoria==='DAS dos MEIs'){fora.push({o,t:txt,v:+t.valor||0,porque:'DAS de MEI: decida se é mão de obra ou outro custo e lance à mão'});return}
   const c=CAT_FIN[t.categoria];if(c)add(c,+t.valor||0,o,txt+' ('+t.categoria+')');else fora.push({o,t:txt+(t.categoria?' ('+t.categoria+')':''),v:+t.valor||0,porque:CAT_FORA[t.categoria]||'categoria sem campo na Controladoria'})})}catch(e){console.warn('ctl financeiro',e)}
+ /* V101: multa e juros pagos no mês (no Financeiro ou nas compras dos setores) = despesa financeira, pela data do pagamento */
+ try{const encs=(lista,rot)=>lista.forEach(x=>(x.pagamentos||[]).forEach(p=>{if(p.estornado||!emMes(p.data,m))return;const e=r2((+p.multa||0)+(+p.juros||0));if(e>0)add('financeiras',e,'Setor Financeiro','Multa e juros pagos em '+fData(p.data)+' · '+rot(x)+' (multa '+fMoeda(+p.multa||0)+', juros '+fMoeda(+p.juros||0)+')')}));
+  encs((DATA.fTitulos||[]).filter(t=>!t.cancelado),t=>(t.numero?'nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso'));
+  encs((DATA.compras||[]).filter(c=>c.tipoOp==='compra'&&!cancV(c)),c=>'compra nº '+fNumV(c.numero)+' · '+nomeSetorV(c.setor))}catch(e){console.warn('ctl multa e juros',e)}
  Object.keys(v).forEach(c=>{v[c]=ehQtd(c)?Math.round(v[c]*1000)/1000:r2(v[c])});
  const res={v,det,fora};MEMO_S.v[m]=res;return res;
 }
