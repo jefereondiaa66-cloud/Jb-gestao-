@@ -33282,14 +33282,45 @@ function motivoBatida(e){const c=e&&e.code;
 const CH_CAM='jb-ponto-camera';
 const CAM={st:null,tm:null,p:null,lado:(()=>{try{return localStorage.getItem(CH_CAM)==='environment'?'environment':'user'}catch(e){return 'user'}})()};
 const ladoCam=()=>CAM.lado;
-const marcarLado=()=>{try{document.body.classList.toggle('pf-traseira',CAM.lado==='environment')}catch(e){}};
+const marcarLado=()=>{try{const r=CAM.st?(CAM.st.getVideoTracks()[0].getSettings().facingMode||''):'';document.body.classList.toggle('pf-traseira',(r||CAM.lado)==='environment')}catch(e){}};
 const ROT_TROCA=()=>CAM.lado==='environment'?'Usar a câmera da frente':'Usar a câmera traseira';
 const SETAS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;flex:none"><path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/></svg>';
+/* V103 · em muitos celulares pedir a traseira "de preferência" devolve a da frente de novo. Então a traseira
+   é pedida de forma exigente; se o aparelho recusar, procura a câmera pelo nome; só por último aceita qualquer uma. */
+const gUM=c=>navigator.mediaDevices.getUserMedia(c);
+const TAM_CAM={width:{ideal:640},height:{ideal:480}};
+const ladoReal=st=>{try{return st.getVideoTracks()[0].getSettings().facingMode||''}catch(e){return ''}};
+const idCam=st=>{try{return st.getVideoTracks()[0].getSettings().deviceId||''}catch(e){return ''}};
+async function abrirLado(lado,evitar){
+ if(lado!=='environment'&&!evitar)return gUM({video:{facingMode:'user',...TAM_CAM},audio:false});
+ const negou=e=>e&&(e.name==='NotAllowedError'||e.name==='SecurityError');
+ let st=null;
+ try{st=await gUM({video:{facingMode:{exact:lado},...TAM_CAM},audio:false})}catch(e){if(negou(e))throw e}
+ if(st&&evitar&&idCam(st)===evitar){pararStream(st);st=null}
+ if(!st){try{
+  const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput'&&d.deviceId&&d.deviceId!==evitar);
+  const re=lado==='environment'?/back|rear|tras|environment|world/i:/front|user|frente|frontal|selfie/i;
+  const alvo=ds.find(d=>re.test(d.label))||(evitar||ds.length>1?ds[lado==='environment'?ds.length-1:0]:null);
+  if(alvo)st=await gUM({video:{deviceId:{exact:alvo.deviceId},...TAM_CAM},audio:false})}catch(e){if(negou(e))throw e}}
+ if(!st)st=await gUM({video:{facingMode:{ideal:lado},...TAM_CAM},audio:false});
+ return st;
+}
+async function quantasCameras(){try{return (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput').length}catch(e){return 0}}
 async function trocarCamera(){
  if(CAM.p){try{await CAM.p}catch(e){}}
- CAM.lado=CAM.lado==='user'?'environment':'user';try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}
- clearTimeout(CAM.tm);pararStream(CAM.st);CAM.st=null;marcarLado();
- return ligarCamera();
+ const antes=CAM.lado,idAntes=CAM.st?idCam(CAM.st):'';
+ CAM.lado=antes==='user'?'environment':'user';
+ clearTimeout(CAM.tm);pararStream(CAM.st);CAM.st=null;
+ await new Promise(r=>setTimeout(r,250));          // o Android demora um instante para soltar a câmera anterior
+ try{
+  CAM.p=abrirLado(CAM.lado,idAntes).then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
+  const st=await CAM.p;
+  /* voltou a mesma câmera: o aparelho só tem uma (ou não deixou trocar) */
+  if(idAntes&&idCam(st)===idAntes&&(await quantasCameras())<2){CAM.lado=antes;try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}marcarLado();const e=new Error('uma câmera');e.name='UmaCamera';throw e}
+  try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}marcarLado();return st;
+ }catch(e){
+  if(e&&e.name!=='UmaCamera'){CAM.lado=antes;marcarLado();try{await ligarCamera()}catch(x){}}
+  throw e}
 }
 const camViva=()=>!!(CAM.st&&CAM.st.getVideoTracks().some(t=>t.readyState==='live'));
 const pararStream=st=>{if(st)st.getTracks().forEach(t=>{try{t.stop()}catch(e){}})};
@@ -33297,9 +33328,8 @@ async function ligarCamera(){
  clearTimeout(CAM.tm);if(camViva())return CAM.st;
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){const e=new Error('sem câmera');e.name='NotSupportedError';throw e}
  /* duas aberturas ao mesmo tempo (cancelar e tocar em outro nome) usam o mesmo pedido: nunca sobra câmera ligada sem dono */
- marcarLado();
- if(!CAM.p)CAM.p=navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:CAM.lado},width:{ideal:640},height:{ideal:480}},audio:false})
-  .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
+ if(!CAM.p)CAM.p=abrirLado(CAM.lado)
+  .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;marcarLado();return st}).finally(()=>{CAM.p=null});
  return CAM.p;
 }
 /* fica ligada um minuto depois da batida (fila de gente chegando) e então desliga */
@@ -33308,7 +33338,7 @@ function desligarCamera(ms){
  const f=()=>{if(CAM.p&&!ms){CAM.p.then(()=>{if(!CAPA){pararStream(CAM.st);CAM.st=null}},()=>{})}pararStream(CAM.st);CAM.st=null};
  if(ms)CAM.tm=setTimeout(f,ms);else f();
 }
-const motivoCamera=e=>e&&e.name==='NotAllowedError'?'a permissão da câmera foi negada neste navegador':e&&e.name==='NotFoundError'?'nenhuma câmera foi encontrada'
+const motivoCamera=e=>e&&e.name==='UmaCamera'?'este aparelho só mostrou uma câmera':e&&e.name==='NotAllowedError'?'a permissão da câmera foi negada neste navegador':e&&e.name==='NotFoundError'?'nenhuma câmera foi encontrada'
  :e&&e.name==='NotReadableError'?'a câmera está ocupada ou não mandou imagem':'a câmera não está disponível aqui';
 /* quadrado do centro, 360 × 360, JPEG leve (uns 15 a 30 KB) */
 function recorte(fonte,w,h){
@@ -33339,7 +33369,7 @@ function fecharCapa(){
 function altBts(c){return c.op.filter(k=>k!==c.k).map(k=>`<button type="button" class="btn pf-alt" data-pf-k="${k}">Não é isso? Marcar ${esc(NOME_K(k).toLowerCase())}</button>`).join('')}
 function desenharBotoes(c){
  const b=c.v.querySelector('#pfBts');if(!b)return;const arq=c.modo==='arquivo';
- b.innerHTML=(arq?`<label class="btn pf-grande" style="cursor:pointer">${ic('camera')} Tirar foto<input type="file" accept="image/*" capture="user" hidden data-pf-arq></label>`:'')
+ b.innerHTML=(arq?`<label class="btn pf-grande" style="cursor:pointer">${ic('camera')} Tirar foto<input type="file" accept="image/*" capture="user" hidden data-pf-arq></label>`:`<button type="button" class="btn pf-grande" data-pf="agora">${ic('camera')} Tirar foto agora</button>`)
   +altBts(c)+(arq?'<button type="button" class="btn pf-alt" data-pf="semfoto">Registrar sem foto</button>':`<button type="button" class="btn pf-alt" data-pf="trocar">${SETAS}${ROT_TROCA()}</button>`)
   +'<button type="button" class="btn" data-pf="sair">Cancelar</button>';
 }
@@ -33447,6 +33477,8 @@ function clicarCapa(c,e){
  if(a==='soltar'){fecharCapa();return}
  if(a==='denovo'){const fid=c.fid,ex=c.extra;fecharCapa();abrirBatida(fid,ex);return}
  if(a==='semfoto'){registrar(c,null,'');return}
+ if(a==='agora'){   // V103: quem segura o celular aperta e a foto sai na hora, sem esperar a contagem
+  if(c.ocupado||c.trocando||c.modo!=='camera'||!camViva())return;clearInterval(c.cont);const el=c.v.querySelector('#pfConta');if(el)el.textContent='';fotografar(c);return}
  if(a==='trocar'){   // troca a câmera e recomeça a contagem
   if(c.ocupado||c.trocando||c.modo!=='camera')return;c.trocando=true;clearInterval(c.cont);
   const el=c.v.querySelector('#pfConta'),m=c.v.querySelector('#pfMsg');if(el)el.textContent='';if(m)m.textContent='Trocando a câmera…';
@@ -33877,7 +33909,8 @@ function travar(deNovo){
  K.v=v;K.vivo=true;K.cand=null;K.n=0;K.sem=0;K.falhas=0;K.ate=0;K.nomeAte=0;K.erroCam=0;K.erroIA=0;
  document.body.appendChild(v);document.body.classList.add('fc-travada');
  v.querySelector('#fcSair').onclick=()=>pedirDestravar();
- v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;if(K.vivo)status('Trocando a câmera…','')});
+ v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;if(K.vivo)status('Trocando a câmera…','')},
+  m=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(m)}</div>`,4000)});
  v.querySelector('#fcNome').onclick=()=>abrirNomes();
  v.querySelector('#fcRes').onclick=()=>{if(Date.now()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
  v.addEventListener('pointerdown',telaCheia);
@@ -33889,9 +33922,10 @@ function travar(deNovo){
 }
 /* frente ou traseira: vale para o cadastro, a tela travada e a batida com foto, e o aparelho lembra */
 let TROCANDO=false;
-async function trocarCam(rotulo,antes){
+async function trocarCam(rotulo,antes,falhou){
  if(TROCANDO)return;TROCANDO=true;
- try{if(antes)antes();await PF.trocarCamera()}catch(e){console.warn('ponto facial: trocar câmera',e);if(typeof toast==='function')toast('Não consegui trocar a câmera ('+PF.motivoCamera(e)+').','erro')}
+ try{if(antes)antes();await PF.trocarCamera()}
+ catch(e){console.warn('ponto facial: trocar câmera',e);const m='Não troquei a câmera: '+PF.motivoCamera(e)+'.';som(false);if(falhou)falhou(m);else if(typeof toast==='function')toast(m,'erro')}
  finally{TROCANDO=false;if(rotulo)rotulo.textContent=PF.rotuloTroca()}
 }
 function telaCheia(){try{const d=document.documentElement;if(!document.fullscreenElement&&d.requestFullscreen){const p=d.requestFullscreen({navigationUI:'hide'});if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
@@ -34018,13 +34052,14 @@ function abrirCadastro(fid){
   <div class="pf-video" id="fcCadAro"><video autoplay playsinline muted></video></div>
   <div class="fc-pontos" id="fcPontos">${PASSOS.map(()=>'<i></i>').join('')}</div>
   <div class="pf-msg fc-instr" id="fcInstr" aria-live="assertive">Preparando a câmera…</div><div class="pf-msg" id="fcAjuda"></div>
-  <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcSalvar" hidden></button><button type="button" class="btn pf-alt" id="fcCadCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
+  <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcTirar">${ic('camera')} Tirar foto</button><button type="button" class="btn pf-alt" id="fcSalvar" hidden></button><button type="button" class="btn pf-alt" id="fcCadCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
  const c={v,fid,f,cods:[],bons:0,desde:Date.now(),vivo:true,tm:null,salvando:false};
  c.tecla=e=>{if(e.key==='Escape'&&!c.salvando&&!document.querySelector('.fc-dlg')){e.preventDefault();fecharCad()}};
  CAD=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
  v.querySelector('#fcCancelar').onclick=()=>{if(!c.salvando)fecharCad()};
  v.querySelector('#fcSalvar').onclick=()=>salvarCad(c);
- v.querySelector('#fcCadCam').onclick=()=>{if(!c.salvando)trocarCam(v.querySelector('#fcCadCam span'),()=>{c.bons=0;c.desde=Date.now();instr(c,'Trocando a câmera…','')})};
+ v.querySelector('#fcCadCam').onclick=()=>{if(!c.salvando)trocarCam(v.querySelector('#fcCadCam span'),()=>{c.bons=0;c.desde=Date.now();c.aviso='';instr(c,'Trocando a câmera…','')},m=>{c.aviso=m;c.avisoAte=Date.now()+5000})};
+ v.querySelector('#fcTirar').onclick=()=>{if(!c.salvando)c.forcar=true};
  som(true);c.tm=setTimeout(()=>passoCad(c),50);
 }
 function instr(c,t,ajuda){const a=c.v.querySelector('#fcInstr'),b=c.v.querySelector('#fcAjuda');if(a&&a.textContent!==t)a.textContent=t;if(b&&b.textContent!==(ajuda||''))b.textContent=ajuda||''}
@@ -34045,8 +34080,14 @@ async function passoCad(c){
   else if(r.tam<TAM_MIN+.04){c.bons=0;ajuda='Chegue mais perto.'}
   else if(c.cods.length&&dist(r.desc,c.cods[0])>MESMA){c.bons=0;ajuda='O rosto mudou. Só '+primeiro(c.f)+' na frente da câmera.'}
   else c.bons++;
+  /* V103 · botão "Tirar foto": quem segura o celular aperta e a foto sai na hora, se houver um rosto na imagem */
+  let jaVai=false;
+  if(c.forcar){c.forcar=false;
+   if(r&&r.tam>=.12&&!(c.cods.length&&dist(r.desc,c.cods[0])>MESMA))jaVai=true;
+   else{som(false);if(!r||!ajuda)ajuda='Não achei o rosto. Aponte a câmera para o rosto, de perto e em lugar claro, e aperte de novo.'}}
+  if(c.aviso&&Date.now()<c.avisoAte)ajuda=c.aviso;
   instr(c,passoTxt,ajuda);
-  if(c.bons>=3&&Date.now()-c.desde>=1800){
+  if(jaVai||(c.bons>=3&&Date.now()-c.desde>=1800)){
    c.cods.push(Float32Array.from(r.desc));c.bons=0;c.desde=Date.now();som(true);
    if(aro){aro.classList.add('fc-achou');setTimeout(()=>aro.classList.remove('fc-achou'),500)}
    c.v.querySelectorAll('#fcPontos i').forEach((p,i)=>p.classList.toggle('fc-feito',i<c.cods.length));
@@ -34123,7 +34164,7 @@ function telaFacial(el){
  if(!rz||rz.dataset.chave!==chave){
   if(lista){
    el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Cadastrar rosto','Toque no nome da pessoa',voltar)}<main class="spot-corpo pf-corpo">
-    <p class="fc-como"><b>Como fazer:</b> toque no nome, deixe a pessoa na frente da câmera e espere as 5 fotos saírem sozinhas. É uma vez só por pessoa.</p>
+    <p class="fc-como"><b>Como fazer:</b> toque no nome e aponte a câmera para o rosto da pessoa. As 5 fotos saem sozinhas, ou aperte <b>Tirar foto</b> a cada uma. É uma vez só por pessoa.</p>
     <div class="fc-resumo" id="fcResumo" style="margin:0 0 14px"></div>
     <input type="search" id="fcBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
     <div class="fc-lista" id="fcLista"></div>
