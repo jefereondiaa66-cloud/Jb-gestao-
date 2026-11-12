@@ -124,11 +124,13 @@ try {
   ok(await page.evaluate(() => /Cadastrar rosto do ponto/.test(atalhosFunc(F('f1'))) && !/rosto/.test(atalhosFunc(F('f4'))) && !/rosto/.test(atalhosFunc(F('f5')))), 'ficha do funcionário: atalho "Cadastrar rosto do ponto" (não para prestador nem desligado)');
 
   /* ---------- 2. cadastro ---------- */
-  await page.click('a[href="#/pontoFacial/rostos"]');
+  ok(await page.evaluate(() => { const A = AREAS_MS.find((x) => x.g === 'Ponto e lançamentos').A; return A.findIndex((x) => x.m === 'cadastrarRosto') === A.findIndex((x) => x.m === 'pontoFacial') + 1 && MITENS.filter((m) => m.m === 'cadastrarRosto' && m.l === 'Cadastrar rosto').length === 1; }), 'item "Cadastrar rosto" no menu do ponto, logo depois de "Ponto facial"');
+  await page.click('a[href="#/cadastrarRosto"]');
   await page.waitForSelector('#fcLista [data-fc-cad="f1"]', { timeout: 10000 });
   ok((await page.$$eval('#fcLista [data-fc-cad]', (b) => b.map((x) => x.dataset.fcCad))).join() === 'f1,f2,f3', 'lista só os empregados ativos');
+  await page.screenshot({ path: join(RAIZ, 'saida/tela-cadastrar-rosto.png') });
   const t0 = Date.now();
-  await page.click('#fcLista [data-fc-cad="f1"]');
+  await page.click('#fcLista [data-fc-cad="f1"] .fc-txt b');   // tocar no nome abre o cadastro
   await page.waitForSelector('.fc-cad video', { timeout: 5000 });
   await page.waitForSelector('.fc-cad.pf-res-ok', { timeout: 180000 });
   const r2 = await page.evaluate(() => { const d = window.__srv.estado.docs.get('rostos/f1'); return { d: d && d.dados, arq: window.__arquivos.length, tela: document.querySelector('.fc-cad').textContent }; });
@@ -241,15 +243,15 @@ try {
   const r9 = await page.evaluate(async () => {
     APP.papel = 'celularPonto'; location.hash = '#/pontoFacial'; renderCasca(); renderTela();
     await new Promise((r) => setTimeout(r, 300));
-    const r = { h1: location.hash, travar: !!document.getElementById('fcTravar'), cadastrar: !!document.querySelector('a[href="#/pontoFacial/rostos"]'), senha: !!document.getElementById('fcSenhaBt'), fotos: !!document.getElementById('fcFotos') };
-    location.hash = '#/pontoFacial/rostos'; await new Promise((r) => setTimeout(r, 300)); r.h2 = location.hash; r.lista = !!document.getElementById('fcLista');
+    const r = { h1: location.hash, travar: !!document.getElementById('fcTravar'), cadastrar: !!document.querySelector('a[href="#/cadastrarRosto"]'), senha: !!document.getElementById('fcSenhaBt'), fotos: !!document.getElementById('fcFotos') };
+    location.hash = '#/cadastrarRosto'; await new Promise((r) => setTimeout(r, 400)); r.h2 = location.hash; r.lista = !!document.getElementById('fcLista');
     location.hash = '#/folha'; await new Promise((r) => setTimeout(r, 300)); r.h3 = location.hash;
     r.atalho = /rosto/.test(atalhosFunc(F('f1')));
     APP.papel = 'admin'; renderCasca(); renderTela();
     return r;
   });
   ok(r9.h1 === '#/pontoFacial' && r9.travar, 'o celular da parede abre o ponto facial e pode travar a tela');
-  ok(!r9.cadastrar && !r9.senha && !r9.fotos && !r9.lista && r9.h2 === '#/pontoFacial' && !r9.atalho, 'mas não cadastra rosto, não troca a senha e não vê as fotos');
+  ok(!r9.cadastrar && !r9.senha && !r9.fotos && !r9.lista && /^#\/ponto(Facial|Foto)$/.test(r9.h2) && !r9.atalho, 'mas não cadastra rosto, não troca a senha e não vê as fotos');
   ok(r9.h3 === '#/pontoFoto', `de outro endereço volta para o ponto (${r9.h3})`);
   ok(semErros(erros).length === 0, `sem erros de JavaScript${semErros(erros).length ? ': ' + semErros(erros).slice(0, 3).join(' | ') : ''}`);
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'celular da parede (412 px): a tela cabe sem rolar para o lado');

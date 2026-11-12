@@ -33494,7 +33494,7 @@ function telaPontoFoto(el){
  if(!rz||rz.dataset.papel!==String(APP.papel)){
   const cheia=!!document.documentElement.requestFullscreen;
   el.innerHTML=`<div class="spot" id="pfRaiz" data-papel="${esc(APP.papel)}">${cabSpot('Ponto com foto','Toque no seu nome para bater o ponto',voltar)}<main class="spot-corpo pf-corpo">
-   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes"><a class="btn pri" id="pfFacial" href="#/pontoFacial">${ic('camera')}Ponto facial</a>${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
+   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes"><a class="btn pri" id="pfFacial" href="#/pontoFacial">${ic('camera')}Ponto facial</a>${ehCelular()?'':`<a class="btn" id="pfCadRosto" href="#/cadastrarRosto">${ic('camera')}Cadastrar rosto</a>`}${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
    <div id="pfAvisos"></div>
    <input type="search" id="pfBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" enterkeyhint="search" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
    <div class="pf-grade" id="pfLista"></div>
@@ -33601,8 +33601,8 @@ window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,lib
 
 <style id="ponto-facial-v100-css">
 /* ================= V100 · Ponto facial (tela fixa, travada com senha) ================= */
-body[data-rota="pontoFacial"] .trilho-set{display:none!important}
-html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho[data-rota="pontoFacial"]{padding-left:0!important}
+body[data-rota="pontoFacial"] .trilho-set,body[data-rota="cadastrarRosto"] .trilho-set{display:none!important}
+html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho[data-rota="pontoFacial"],html.vis-nv body.com-trilho[data-rota="cadastrarRosto"],html.vis-cc body.com-trilho[data-rota="cadastrarRosto"]{padding-left:0!important}
 .fc-ini{display:grid;gap:14px;max-width:720px}
 .fc-resumo{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);box-shadow:var(--s1)}
 .fc-resumo b{font:700 30px/1 Inter,system-ui,sans-serif;color:var(--tinta);font-variant-numeric:tabular-nums}
@@ -33614,6 +33614,11 @@ html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho
 .fc-passos li{margin:0 0 2px}
 .fc-lista{display:grid;gap:10px}
 .fc-pessoa{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);box-shadow:var(--s1)}
+.fc-pessoa[data-fc-cad]{cursor:pointer}
+.fc-pessoa[data-fc-cad]:hover,.fc-pessoa[data-fc-cad]:focus-visible{border-color:var(--tinta);outline:none}
+.fc-pessoa .fc-pa .btn{pointer-events:none}
+.fc-pessoa .fc-pa button.btn{pointer-events:auto}
+.fc-como{margin:0 0 12px;padding:12px 14px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--papel);font-size:14.5px;line-height:1.5}
 .fc-pessoa .avatar{width:46px;height:46px;font-size:16px;border-radius:50%;overflow:hidden;flex:none}
 .fc-pessoa .avatar img{width:100%;height:100%;object-fit:cover}
 .fc-pessoa .fc-txt{flex:1;min-width:150px}
@@ -33692,7 +33697,7 @@ html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho
 (()=>{
 const PF=window.PONTO_FOTO_V78;
 if(!PF||!PF.abrirBatida){console.warn('ponto facial: o ponto com foto não carregou');return}
-const ROTA='pontoFacial',COL='rostos',DOC_SENHA='_senha',CH_TRAVA='jb-ponto-facial-travada';
+const ROTA='pontoFacial',ROTA_CAD='cadastrarRosto',COL='rostos',DOC_SENHA='_senha',CH_TRAVA='jb-ponto-facial-travada';
 const FONTE={lib:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js',modelos:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/',versao:'face-api 1.7.15'};
 /* distância entre dois códigos de rosto: a mesma pessoa costuma ficar abaixo de 0,45; pessoas diferentes, acima de 0,6 */
 const LIMITE=.48,FIRME=.42,MARGEM=.07,PARECIDO=.42,MESMA=.6;
@@ -33707,7 +33712,9 @@ const normal=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCas
 /* ---------- permissão: quem usa o ponto com foto usa o ponto facial ---------- */
 const USAM=((PERM[PF.ROTA]&&PERM[PF.ROTA].e)||['admin','rh','dp','gestor',PF.PAPEL]).slice();
 PERM[ROTA]={v:USAM.slice(),e:USAM.slice()};
-if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+/* V101 · "Cadastrar rosto" é uma tela própria no menu do ponto: abre a lista dos funcionários, toca no nome e cadastra */
+PERM[ROTA_CAD]={v:USAM.filter(p=>p!==PF.PAPEL),e:USAM.filter(p=>p!==PF.PAPEL)};
+for(const r of [ROTA,ROTA_CAD])if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r);
 const podeUsar=()=>pode(ROTA,'e')&&PF.liberado();
 const podeCadastrar=()=>podeUsar()&&!PF.ehCelular();     // o celular da parede não cadastra nem apaga rosto
 
@@ -33741,7 +33748,7 @@ function ouvirRostos(){
   R.docs=ds.filter(d=>d.id!==DOC_SENHA&&Array.isArray(d.cods)&&d.cods.length);R.idx=null;R.pronto=true;aoMudar()});
 }
 function aoMudar(){
- try{if(lerRota().mod===ROTA&&APP.pronto)renderTela()}catch(e){}
+ try{if([ROTA,ROTA_CAD].includes(lerRota().mod)&&APP.pronto)renderTela()}catch(e){}
  /* celular da parede: com rosto cadastrado, a tela dele passa a ser a do ponto facial (uma vez por sessão) */
  try{if(!R.celularFoi&&PF.ehCelular()&&R.docs.length){R.celularFoi=true;if(lerRota().mod===PF.ROTA&&!PF.capa())location.replace('#/'+ROTA)}}catch(e){}
 }
@@ -33969,7 +33976,7 @@ let CAD=null;
 function fecharCad(){
  if(!CAD)return;const c=CAD;CAD=null;c.vivo=false;clearTimeout(c.tm);c.v.remove();document.removeEventListener('keydown',c.tecla,true);
  if(!K.vivo)PF.desligarCamera(0);
- if(lerRota().mod===ROTA&&lerRota().x)location.replace('#/'+ROTA+'/rostos');else try{renderTela()}catch(e){}
+ if(lerRota().mod===ROTA_CAD&&lerRota().id)location.replace('#/'+ROTA_CAD);else try{renderTela()}catch(e){}
 }
 function abrirCadastro(fid){
  if(CAD||K.vivo)return;const f=F(fid);
@@ -34065,34 +34072,38 @@ function desenharRostos(el){
  const fs=filtroSetor(ativos(),f=>f.setor).sort((a,b)=>a.nome.localeCompare(b.nome)).filter(f=>{if(!ps.length)return true;const t=normal(f.nome)+' '+normal(f.matricula);return ps.every(x=>t.includes(x))});
  const c=contagem(),rs=el.querySelector('#fcResumo');if(rs)rs.innerHTML=R.pronto?`<b>${c.com} de ${c.total}</b><span>com o rosto cadastrado</span>`:'<span>Carregando os rostos…</span>';
  box.innerHTML=fs.length?fs.map(f=>{const d=rostoDe(f.id);
-  return `<div class="fc-pessoa${d?' fc-tem':''}">${avatarFunc(f)}<span class="fc-txt"><b>${esc(f.nome)}</b><small>${d?'Rosto cadastrado · '+(d.fotos||d.cods.length)+' fotos'+(d.cadastradoEm?' · '+esc(fData(String(d.cadastradoEm).slice(0,10))):''):'Sem rosto: bate tocando no nome'}</small></span>
-   <span class="fc-pa"><button type="button" class="btn${d?'':' pri'}" data-fc-cad="${esc(f.id)}">${ic('camera')}${d?'Refazer':'Cadastrar rosto'}</button>${d?`<button type="button" class="btn" data-fc-del="${esc(f.id)}">Apagar</button>`:''}</span></div>`}).join('')
+  return `<div class="fc-pessoa${d?' fc-tem':''}" data-fc-cad="${esc(f.id)}" role="button" tabindex="0" aria-label="${d?'Refazer o rosto de ':'Cadastrar o rosto de '}${esc(f.nome)}">${avatarFunc(f)}<span class="fc-txt"><b>${esc(f.nome)}</b><small>${d?'Rosto cadastrado · '+(d.fotos||d.cods.length)+' fotos'+(d.cadastradoEm?' · '+esc(fData(String(d.cadastradoEm).slice(0,10))):''):'Sem rosto: toque aqui para cadastrar'}</small></span>
+   <span class="fc-pa"><span class="btn${d?'':' pri'}" aria-hidden="true">${ic('camera')}${d?'Refazer':'Cadastrar rosto'}</span>${d?`<button type="button" class="btn" data-fc-del="${esc(f.id)}">Apagar</button>`:''}</span></div>`}).join('')
   :`<div class="vazio"><b>${ps.length?'Ninguém encontrado':'Nenhum funcionário'}</b>${ps.length?'Confira o nome ou a matrícula.':'Os empregados ativos aparecem aqui (prestadores não batem ponto).'}</div>`;
 }
 function telaFacial(el){
  ouvirRostos();
- const r=lerRota(),lista=r.id==='rostos';
- const voltar=PF.ehCelular()?'':lista?`<a class="btn" href="#/${ROTA}">${ic('esquerda')}<span>Ponto facial</span></a>`:`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`;
+ const r=lerRota();
+ if(r.mod===ROTA&&r.id==='rostos'){location.replace('#/'+ROTA_CAD+(r.x?'/'+r.x:''));return}   // endereço antigo
+ const lista=r.mod===ROTA_CAD,alvo=lista?r.id:'';
+ const voltar=PF.ehCelular()?'':lista?`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`:`<a class="btn" href="#/ponto">${ic('esquerda')}<span>Espelho de ponto</span></a>`;
  if(!APP.carregado){el.innerHTML=`<div class="spot">${cabSpot('Ponto facial','Carregando…',voltar)}<main class="spot-corpo pf-corpo">${typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>'}</main></div>`;return}
  if(!PF.liberado()){el.innerHTML=`<div class="spot">${cabSpot('Ponto facial','',voltar)}<main class="spot-corpo pf-corpo"><div class="vazio"><b>Ponto facial indisponível</b>${esc(PF.motivoBloqueio())}</div></main></div>`;return}
- if(lista&&!podeCadastrar()){location.replace('#/'+ROTA);return}
+ if(lista&&!podeCadastrar()){if(PF.ehCelular())location.replace('#/'+ROTA);else el.innerHTML=`<div class="spot">${cabSpot('Cadastrar rosto','',voltar)}<main class="spot-corpo pf-corpo"><div class="vazio"><b>Cadastro indisponível</b>Seu perfil não cadastra rosto.</div></main></div>`;return}
  const chave=(lista?'rostos':'inicio')+'|'+APP.papel,rz=el.querySelector('#fcRaiz');
  if(!rz||rz.dataset.chave!==chave){
   if(lista){
-   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Rostos do ponto facial','Cadastro uma vez por pessoa',voltar)}<main class="spot-corpo pf-corpo">
+   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Cadastrar rosto','Toque no nome da pessoa',voltar)}<main class="spot-corpo pf-corpo">
+    <p class="fc-como"><b>Como fazer:</b> toque no nome, deixe a pessoa na frente da câmera e espere as 5 fotos saírem sozinhas. É uma vez só por pessoa.</p>
     <div class="fc-resumo" id="fcResumo" style="margin:0 0 14px"></div>
     <input type="search" id="fcBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
     <div class="fc-lista" id="fcLista"></div>
     <p class="pf-rod">O cadastro tira de 3 a 5 fotos do rosto, com a pessoa na frente deste aparelho. As fotos não são guardadas: fica só um código numérico de cada uma, usado apenas para o ponto. Rosto é dado biométrico (LGPD): peça a cada funcionário para assinar o termo de ciência antes de cadastrar.</p>
    </main></div>`;
    $('#fcBusca',el).addEventListener('input',e=>{UI.busca=e.target.value;desenharRostos(el)});
-   $('#fcLista',el).addEventListener('click',e=>{const a=e.target.closest('[data-fc-cad]'),b=e.target.closest('[data-fc-del]');if(a)abrirCadastro(a.dataset.fcCad);else if(b)apagarRosto(b.dataset.fcDel)});
+   $('#fcLista',el).addEventListener('click',e=>{const b=e.target.closest('[data-fc-del]'),a=e.target.closest('[data-fc-cad]');if(b)apagarRosto(b.dataset.fcDel);else if(a)abrirCadastro(a.dataset.fcCad)});
+   $('#fcLista',el).addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-fc-cad]')){e.preventDefault();abrirCadastro(e.target.dataset.fcCad)}});
   }else{
    el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Ponto facial','A pessoa só olha para a câmera',voltar)}<main class="spot-corpo pf-corpo"><div class="fc-ini">
     ${window.JB_NUVEM?'':'<div class="aviso at" style="margin:0">O ponto facial usa a câmera e só funciona na versão da nuvem (jb-gestao-ceramica.netlify.app). Aqui no Claude a câmera não abre: use a nuvem para cadastrar os rostos e para travar a tela.</div>'}
     <div class="fc-resumo" id="fcResumo"></div>
     <button type="button" class="btn pri fc-travar" id="fcTravar">${CADEADO}Travar a tela e começar</button>
-    <div class="fc-acoes">${podeCadastrar()?`<a class="btn" href="#/${ROTA}/rostos">${ic('camera')}Cadastrar rostos</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater tocando no nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div>
+    <div class="fc-acoes">${podeCadastrar()?`<a class="btn" href="#/${ROTA_CAD}">${ic('camera')}Cadastrar rosto</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater tocando no nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div>
     <ol class="fc-passos"><li>Todo dia, abra esta tela no celular do ponto e toque em <b>Travar a tela e começar</b>.</li><li>Digite a senha. A tela fica só com a hora e a câmera.</li><li>Cada pessoa para na frente do celular e olha para a câmera. A batida é registrada sozinha, com a foto.</li><li>Para sair, toque em <b>Destravar</b> e digite a senha.</li></ol>
     <p class="pf-rod">Para ninguém sair do programa pelos botões do aparelho, use também a função "Fixar tela" (ou "Fixar app") do Android. Quem o sistema não reconhecer em duas tentativas pode tocar no nome; essa batida fica marcada em "Fotos do dia" para o DP conferir. Registro gerencial: não substitui o ponto eletrônico oficial (Portaria MTE 671/2021).</p>
    </div></main></div>`;
@@ -34103,33 +34114,37 @@ function telaFacial(el){
  }
  if(lista)desenharRostos(el);else desenharInicio(el);
  /* veio da ficha do funcionário (#/pontoFacial/rostos/<id>): abre o cadastro dele uma vez */
- if(lista&&r.x&&UI.aberto!==r.x){UI.aberto=r.x;setTimeout(()=>abrirCadastro(r.x),0)}
- if(!r.x)UI.aberto='';
+ if(alvo&&UI.aberto!==alvo){UI.aberto=alvo;setTimeout(()=>abrirCadastro(alvo),0)}
+ if(!alvo)UI.aberto='';
  PF.medirRelogio();
 }
-TELAS_V[ROTA]=telaFacial;
+TELAS_V[ROTA]=telaFacial;TELAS_V[ROTA_CAD]=telaFacial;
 
 /* ---------- ao abrir o sistema: se este aparelho estava travado, trava de novo ---------- */
 const _renderCascaFC=renderCasca;
 renderCasca=function(){const r=_renderCascaFC.apply(this,arguments);
  try{if(acessoOk()){ouvirRostos();if(lerTrava()&&!K.vivo&&pode(ROTA))travar(true)}}catch(e){console.warn('ponto facial: trava',e)}
  return r};
-window.addEventListener('hashchange',()=>{if(lerRota().mod!==ROTA&&CAD)fecharCad()});
+window.addEventListener('hashchange',()=>{if(lerRota().mod!==ROTA_CAD&&CAD)fecharCad()});
 
 /* ---------- ficha do funcionário, menu do Setor Pessoal e pesquisa ---------- */
 try{const a0=atalhosFunc;atalhosFunc=function(f){let h=a0.apply(this,arguments);
- try{if(f&&f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao)&&podeCadastrar())h+=`<a class="btn" href="#/${ROTA}/rostos/${encodeURIComponent(f.id)}">${rostoDe(f.id)?'Refazer o rosto do ponto':'Cadastrar rosto do ponto'}</a>`}catch(e){}
+ try{if(f&&f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao)&&podeCadastrar())h+=`<a class="btn" href="#/${ROTA_CAD}/${encodeURIComponent(f.id)}">${rostoDe(f.id)?'Refazer o rosto do ponto':'Cadastrar rosto do ponto'}</a>`}catch(e){}
  return h}}catch(e){console.warn('ponto facial: ficha',e)}
-try{const g=MENU.find(x=>x[0]==='Ponto e jornada');
- if(g&&!g[2].some(i=>i.m===ROTA)){const it={m:ROTA,l:'Ponto facial'};const p=g[2].findIndex(i=>i.m===PF.ROTA);g[2].splice(p<0?g[2].length:p+1,0,it);
-  MI_IX.set(it,MITENS.length);MITENS.push({...it,g:g[0],notaG:g[3]});GRUPO_DE[ROTA]=g[0];ROTULO_DE[ROTA]=it.l}}catch(e){console.warn('ponto facial: menu',e)}
-try{if(typeof msAddAba==='function'){msAddAba('Ponto e lançamentos',ROTA,'Ponto facial');
- const a=AREAS_MS.find(x=>x.g==='Ponto e lançamentos'),i=a?a.A.findIndex(x=>x.m===ROTA):-1,p=a?a.A.findIndex(x=>x.m===PF.ROTA):-1;
- if(i>=0&&p>=0&&i!==p+1){const[x]=a.A.splice(i,1);a.A.splice(a.A.findIndex(y=>y.m===PF.ROTA)+1,0,x)}
- const x=a&&a.A.find(y=>y.m===ROTA),j=MITENS.findIndex(m=>m.m===ROTA);if(x&&j>=0){x.i=j;x.it=MITENS[j]}}}catch(e){console.warn('ponto facial: menu simplificado',e)}
-try{if(typeof ICONE_TELA==='object')ICONE_TELA[ROTA]='camera'}catch(e){}
-try{if(typeof PQ_SINON==='object')PQ_SINON[ROTA]='facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar'}catch(e){}
-try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===ROTA)return 'Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.';return d0.apply(this,arguments)}}}catch(e){}
+function porNoMenu(rota,rotulo,depois,sinon,desc){
+ try{const g=MENU.find(x=>x[0]==='Ponto e jornada');
+  if(g&&!g[2].some(i=>i.m===rota)){const it={m:rota,l:rotulo};const p=g[2].findIndex(i=>i.m===depois);g[2].splice(p<0?g[2].length:p+1,0,it);
+   MI_IX.set(it,MITENS.length);MITENS.push({...it,g:g[0],notaG:g[3]});GRUPO_DE[rota]=g[0];ROTULO_DE[rota]=it.l}}catch(e){console.warn('ponto facial: menu',e)}
+ try{if(typeof msAddAba==='function'){msAddAba('Ponto e lançamentos',rota,rotulo);
+  const a=AREAS_MS.find(x=>x.g==='Ponto e lançamentos'),i=a?a.A.findIndex(x=>x.m===rota):-1,p=a?a.A.findIndex(x=>x.m===depois):-1;
+  if(i>=0&&p>=0&&i!==p+1){const[x]=a.A.splice(i,1);a.A.splice(a.A.findIndex(y=>y.m===depois)+1,0,x)}
+  const x=a&&a.A.find(y=>y.m===rota),j=MITENS.findIndex(m=>m.m===rota);if(x&&j>=0){x.i=j;x.it=MITENS[j]}}}catch(e){console.warn('ponto facial: menu simplificado',e)}
+ try{if(typeof ICONE_TELA==='object')ICONE_TELA[rota]='camera'}catch(e){}
+ try{if(typeof PQ_SINON==='object')PQ_SINON[rota]=sinon}catch(e){}
+ try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===rota)return desc;return d0.apply(this,arguments)}}}catch(e){}
+}
+porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar','Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.');
+porNoMenu(ROTA_CAD,'Cadastrar rosto',ROTA,'cadastrar rosto facial face foto funcionario ponto reconhecimento biometria cadastro','Lista dos funcionários: toque no nome para cadastrar o rosto do ponto facial.');
 
 window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,carregarIA,
  travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
