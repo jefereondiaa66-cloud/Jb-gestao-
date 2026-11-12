@@ -143,7 +143,8 @@ teste('programa', 'ponto facial: bloco presente, depois do ponto com foto, com a
   assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
   const fc = /<script id="ponto-facial-v100">([\s\S]*?)<\/script>/.exec(app)[1];
   assert.ok(!/toDataURL|assets\.upload/.test(fc.slice(fc.indexOf('cadastro do rosto ='), fc.indexOf('as telas: início'))), 'o cadastro do rosto não pode guardar foto, só os códigos');
-  assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
+  // o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
 });
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));
