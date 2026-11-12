@@ -107,7 +107,7 @@ A pessoa fotografa (câmera do celular ou do computador) ou anexa PDF/JPG/PNG, u
 | Gravação | Depois da confirmação: guarda o original (`anexo`/`anexos`), cadastra fornecedor e itens que faltam, grava a entrada pelo mesmo caminho da "Nova entrada" (`almEntradas` → `sincFinEntrada` → `fTitulos`) ou, se for só despesa (boleto, fatura), o compromisso em `fTitulos`. Cada registro leva o campo `ia` com o que foi lido. Nenhuma coleção nova. |
 
 Ativar na nuvem (uma vez): Supabase → projeto "JB Gestão" → Edge Functions → Secrets → `ANTHROPIC_API_KEY`
-(chave de console.anthropic.com). Opcional: `JB_IA_MODELO` (padrão `claude-opus-5-5`). Sem a chave, a tela avisa
+(chave de platform.claude.com; V104: se a chave foi guardada com outro nome, a função usa o segredo cujo valor é uma chave do Claude). Opcional: `JB_IA_MODELO` (padrão `claude-opus-5-5`). Sem a chave, a tela avisa
 "A leitura por IA ainda não foi ativada no servidor" e nada é lançado.
 Ativar no Claude: o artifact precisa declarar `sample: {images: true}`; sem isso, só PDFs digitais (com texto) são lidos lá.
 Teste: `node scripts/construir.mjs && PDFJS_DIR=<pasta do pdfjs-dist/build> node scripts/testar-lancamento-foto.mjs`.

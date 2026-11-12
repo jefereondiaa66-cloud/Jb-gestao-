@@ -23,7 +23,17 @@ import Anthropic from "npm:@anthropic-ai/sdk";
 
 const SB_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const CHAVE_IA = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+// V104 (12/11/2026): a chave vale mesmo se foi guardada nos segredos com outro nome
+// (aconteceu: salva como "Jb"). Primeiro o nome certo; se não houver, o segredo cujo valor é uma chave do Claude.
+const CHAVE_IA = (() => {
+  const direta = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim();
+  if (direta) return direta;
+  for (const v of Object.values(Deno.env.toObject())) {
+    const t = (v || "").trim();
+    if (/^sk-ant-\S+$/.test(t)) return t;
+  }
+  return "";
+})();
 const MODELO = Deno.env.get("JB_IA_MODELO") || "claude-opus-5-5";
 const MAX_PAGINAS = 20;
 const MAX_BYTES_PAGINA = 6 * 1024 * 1024;     // base64 de uma página
