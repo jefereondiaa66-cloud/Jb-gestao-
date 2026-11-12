@@ -33334,10 +33334,14 @@ function vigiar(st){
   CAM.ouvintes.forEach(f=>{try{f()}catch(e){console.warn('ponto: câmera caiu',e)}})},{once:true}));
 }
 async function trocarCamera(){
+ const g0=CAM.ger;
  if(CAM.p){try{await CAM.p}catch(e){}}
+ /* V108 · a tela que pediu a troca fechou enquanto a câmera ainda abria: não troca (abriria uma câmera sem dono) */
+ if(CAM.ger!==g0&&!camViva()){const e=new Error('a câmera foi desligada enquanto abria');e.name='AbortError';throw e}
  const antes=CAM.lado,idAntes=CAM.st?idCam(CAM.st):'';
  CAM.lado=antes==='user'?'environment':'user';
- clearTimeout(CAM.tm);const g=++CAM.ger;pararStream(CAM.st);CAM.st=null;
+ /* V108 · o desligar marcado (a camada fechou no meio da troca) continua valendo: a câmera nova não fica ligada sem dono */
+ const g=++CAM.ger;pararStream(CAM.st);CAM.st=null;
  try{
   /* abre na hora; só espera (e tenta de novo) se o aparelho disser que a câmera anterior ainda está ocupada */
   const abrir=()=>abrirLado(CAM.lado,idAntes);
@@ -33347,18 +33351,23 @@ async function trocarCamera(){
   try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}lembrarCam(st,CAM.lado);marcarLado();return st;
  }catch(e){
   /* não trocou: volta para a câmera de antes (a não ser que a tela tenha sido fechada no meio da troca) */
-  if(e&&e.name!=='UmaCamera'){CAM.lado=antes;marcarLado();if(g===CAM.ger){try{await ligarCamera()}catch(x){console.warn('ponto: a câmera de antes também não abriu',x&&x.name)}}}
+  if(e&&e.name!=='UmaCamera'){CAM.lado=antes;marcarLado();if(g===CAM.ger){try{await abrirSePreciso()}catch(x){console.warn('ponto: a câmera de antes também não abriu',x&&x.name)}}}
   throw e}
 }
 const camViva=()=>!!(CAM.st&&CAM.st.getVideoTracks().some(t=>t.readyState==='live'));
 const pararStream=st=>{if(st)st.getTracks().forEach(t=>{try{t.stop()}catch(e){}})};
-async function ligarCamera(){
- clearTimeout(CAM.tm);if(camViva())return CAM.st;
+/* uma tela pediu a câmera: o desligar marcado (fila de gente chegando) é cancelado */
+function ligarCamera(){clearTimeout(CAM.tm);return abrirSePreciso()}
+async function abrirSePreciso(){
+ if(camViva())return CAM.st;
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){const e=new Error('sem câmera');e.name='NotSupportedError';throw e}
  /* uma abertura da vez anterior (desligaram enquanto ela abria) ainda está em andamento: espera ela se desfazer
     (ela desliga a própria câmera) e só então abre de novo, para as duas não disputarem a câmera */
+ const g0=CAM.ger;
  while(CAM.p&&CAM.pg!==CAM.ger){try{await CAM.p}catch(e){}}
  if(camViva())return CAM.st;
+ /* V108 · desligaram de novo durante a espera (a tela que pediu fechou) e ninguém abriu outra: não abre uma câmera sem dono */
+ if(!CAM.p&&CAM.ger!==g0){const e=new Error('a câmera foi desligada enquanto abria');e.name='AbortError';throw e}
  /* duas aberturas ao mesmo tempo (cancelar e tocar em outro nome) usam o mesmo pedido: nunca sobra câmera ligada sem dono */
  if(!CAM.p){abrirCam(()=>abrirLado(CAM.lado),'abrir').then(st=>{if(ladoReal(st))lembrarCam(st,CAM.lado);marcarLado()},()=>{})}
  return CAM.p;
@@ -33384,7 +33393,10 @@ function deArquivo(file){return new Promise((ok,no)=>{const u=URL.createObjectUR
    imagem, a câmera é desligada para a próxima tentativa abrir uma nova (antes ficava presa na mesma câmera sem imagem). */
 async function esperarVideo(vid){
  const pronto=()=>vid.videoWidth>0&&vid.readyState>=2;
- try{await vid.play()}catch(e){}
+ /* V108 · o play() só termina quando chega o primeiro quadro. Antes ele era esperado ANTES de contar os 6 s: uma câmera que
+    abre e não manda imagem prendia a tela travada e a troca de câmera para sempre. Agora o play() corre junto com o limite. */
+ const aviso=e=>{if(e&&e.name!=='AbortError')console.warn('ponto: o vídeo não começou',e&&e.name)};   // AbortError: trocaram a câmera no meio, é normal
+ try{const p=vid.play();if(p&&typeof p.catch==='function')p.catch(aviso)}catch(e){aviso(e)}
  if(!pronto())await new Promise(ok=>{const ev=['loadeddata','canplay','playing','resize'];
   const fim=()=>{clearTimeout(t);ev.forEach(n=>vid.removeEventListener(n,ver));ok()},ver=()=>{if(pronto())fim()},t=setTimeout(fim,6000);
   ev.forEach(n=>vid.addEventListener(n,ver));ver()});
@@ -33433,7 +33445,8 @@ async function abrirBatida(fid,extra){
  desenharBotoes(c);
  try{const st=await ligarCamera();
   if(!c.vivo){if(!CAPA)desligarCamera(lerRota().mod===ROTA?60000:0);return}   // fechou enquanto a câmera abria
-  const vid=v.querySelector('video');vid.srcObject=st;await esperarVideo(vid);if(!c.vivo)return;contar(c)}
+  const vid=v.querySelector('video');vid.srcObject=st;await esperarVideo(vid);
+  if(!c.vivo||CAPA!==c||c.ocupado||c.trocando||c.modo!=='camera'||c.fim)return;contar(c)}   // V108 · nada de contagem se a camada já mudou (foto tirada, resultado)
  catch(e){if(c.vivo)semCamera(c,e)}
 }
 /* fecha sozinha quando ninguém mexe (não enquanto a câmera do próprio celular está aberta por cima) */
@@ -33445,7 +33458,7 @@ function armarFechar(c,ms){
 }
 document.addEventListener('visibilitychange',()=>{if(CAPA&&document.visibilityState==='visible')CAPA.toque=Date.now()});
 /* V107 · a câmera caiu no meio da contagem: reabre e recomeça a contagem, em vez de tirar uma foto preta */
-CAM.ouvintes.add(()=>{const c=CAPA;if(!c||!c.vivo||c.ocupado||c.trocando||c.modo!=='camera')return;
+CAM.ouvintes.add(()=>{const c=CAPA;if(!c||!c.vivo||c.ocupado||c.trocando||c.fim||c.modo!=='camera')return;   // V108 · na tela do resultado não reabre
  clearInterval(c.cont);const el=c.v.querySelector('#pfConta'),m=c.v.querySelector('#pfMsg');if(el)el.textContent='';if(m)m.textContent='Abrindo a câmera de novo…';
  ligarCamera().then(async st=>{if(!c.vivo||CAPA!==c)return;const vid=c.v.querySelector('video');if(vid){vid.srcObject=st;await esperarVideo(vid)}if(c.vivo&&CAPA===c&&!c.ocupado)contar(c)})
   .catch(e=>{if(c.vivo&&CAPA===c)semCamera(c,e)})});
@@ -33496,7 +33509,7 @@ async function registrar(c,blob,previa){
  catch(e){c.ocupado=false;resultado(c,false,motivoBatida(e),true)}
 }
 function resultado(c,ok,r,repetir,aviso){
- if(!c.vivo)return;clearInterval(c.cont);clearTimeout(c.tm);clearTimeout(c.vigia);c.solto=false;
+ if(!c.vivo)return;clearInterval(c.cont);clearTimeout(c.tm);clearTimeout(c.vigia);c.solto=false;c.fim=true;
  c.v.className='pf-cam '+(ok?'pf-res-ok':'pf-res-erro');
  if(ok){
   c.v.innerHTML=`<div class="pf-sinal">${CHECK}</div><div class="pf-res-h">${esc(NOME_K(r.k))} registrada</div><div class="pf-nome">${esc(c.f.nome)}</div><div class="pf-res-hora">${esc(r.hora)}</div>
@@ -33521,13 +33534,21 @@ function clicarCapa(c,e){
  if(a==='denovo'){const fid=c.fid,ex=c.extra;fecharCapa();abrirBatida(fid,ex);return}
  if(a==='semfoto'){registrar(c,null,'');return}
  if(a==='agora'){   // V103: quem segura o celular aperta e a foto sai na hora, sem esperar a contagem
-  if(c.ocupado||c.trocando||c.modo!=='camera'||!camViva())return;clearInterval(c.cont);const el=c.v.querySelector('#pfConta');if(el)el.textContent='';fotografar(c);return}
+  if(c.ocupado||c.trocando||c.modo!=='camera'||!camViva())return;
+  const vv=c.v.querySelector('video');if(!vv||!(vv.videoWidth>0&&vv.readyState>=2))return;   // V108 · a imagem ainda não chegou: espera (antes caía em "Câmera indisponível")
+  clearInterval(c.cont);const el=c.v.querySelector('#pfConta');if(el)el.textContent='';fotografar(c);return}
  if(a==='trocar'){   // troca a câmera e recomeça a contagem
   if(c.ocupado||c.trocando||c.modo!=='camera')return;c.trocando=true;clearInterval(c.cont);
   const el=c.v.querySelector('#pfConta'),m=c.v.querySelector('#pfMsg');if(el)el.textContent='';if(m)m.textContent='Trocando a câmera…';
-  trocarCamera().then(async st=>{if(!c.vivo||CAPA!==c)return;const vid=c.v.querySelector('video');if(vid){vid.srcObject=st;await esperarVideo(vid)}
-    desenharBotoes(c);if(c.vivo&&CAPA===c)contar(c)})
-   .catch(e=>{if(m)m.textContent='Não consegui trocar a câmera ('+motivoCamera(e)+').';desenharBotoes(c)})
+  const viva=()=>c.vivo&&CAPA===c&&!c.ocupado&&!c.fim;
+  const mostrar=async st=>{if(!viva())return false;const vid=c.v.querySelector('video');if(vid){if(vid.srcObject!==st)vid.srcObject=st;await esperarVideo(vid)}return viva()};
+  trocarCamera().then(async st=>{if(await mostrar(st)){desenharBotoes(c);contar(c)}})
+   .catch(async e=>{if(!viva())return;desenharBotoes(c);const msg='Não consegui trocar a câmera ('+motivoCamera(e)+').';
+    const mm=c.v.querySelector('#pfMsg');if(mm)mm.textContent=msg;
+    /* V108 · não trocou: o vídeo volta para a câmera que ficou ligada e a contagem recomeça
+       (antes o vídeo ficava parado na câmera desligada, sem contagem e sem fechar sozinho) */
+    try{const st=await ligarCamera();if(await mostrar(st)){contar(c);const m2=c.v.querySelector('#pfMsg');if(m2)m2.textContent=msg+' Olhe para a câmera. A foto sai sozinha.'}}
+    catch(x){console.warn('ponto: câmera depois da troca',x&&x.name);if(viva())semCamera(c,x)}})
    .finally(()=>{c.trocando=false});
   return}
 }
@@ -33861,7 +33882,9 @@ function aoMudar(){
 /* ---------- o reconhecimento (carrega só quando a tela é usada) ---------- */
 /* V106 · o reconhecimento roda FORA da tela, num "operário" (Web Worker): a conta pesada não disputa com a imagem
    da câmera nem com os botões, então a tela não trava. Se o aparelho não tiver esse recurso, roda na própria tela (como antes). */
-let CARGA=null,IA_PRONTA=false,MODO='',SEM_OPERARIO=false,OPER=null,OPN=0,OP_DEMORAS=0;
+let CARGA=null,IA_PRONTA=false,MODO='',SEM_OPERARIO=false,OPER=null,OPN=0;
+/* V108 · falhas seguidas do operário, contadas separadas: olhada leve, código do rosto e quadro da câmera */
+const OP_FALHAS={achar:0,ver:0,quadro:0};
 /* V107 · medições técnicas das últimas olhadas (PONTO_FACIAL_V100.medidas() no console do aparelho) */
 const MED={achar:[],ver:[],quedas:0};
 const medir=(k,t0)=>{const a=MED[k];a.push(Math.round(performance.now()-t0));if(a.length>20)a.shift()};
@@ -33892,7 +33915,7 @@ self.onmessage=async e=>{const m=e.data;let x=null;
    out=ds.map(d=>({b:{x:d.detection.box.x,y:d.detection.box.y,width:d.detection.box.width,height:d.detection.box.height},nota:d.detection.score,desc:d.descriptor}))}
   postMessage({id:m.id,ok:true,out});
  }catch(err){postMessage({id:m.id,ok:false,erro:String(err&&err.message||err)})}
- finally{if(x)try{x.dispose()}catch(z){}}
+ finally{if(x)try{x.dispose()}catch(z){}if(m.img)try{m.img.close()}catch(z){}}   // V108 · o quadro é solto mesmo quando a conta falha
 };`;
 /* erro "fatal": o operário não existe mais (caiu ou foi parado). Demora não é fatal: ele pode só estar ocupado. */
 const erroFatal=t=>{const e=new Error(t);e.fatal=true;return e};
@@ -33922,19 +33945,39 @@ async function ligarNaTela(){
   await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5}));
   await fa.nets.faceLandmark68Net.detectLandmarks(c);await fa.nets.faceRecognitionNet.computeFaceDescriptor(c)}catch(e){console.warn('ponto facial: aquecimento',e)}
 }
-function carregarIA(){
- if(CARGA)return CARGA;
+/* V108 · soOperario: a pré-carga (ninguém esperando ainda) só usa o operário. Carregar na tela congela a página por uns
+   segundos só de abri-la, em aparelhos sem operário (iPhone antigo, Firefox antigo); nesses fica para quando a tela travar ou o cadastro abrir. */
+const temOperario=()=>!SEM_OPERARIO&&typeof Worker==='function'&&typeof OffscreenCanvas==='function'&&typeof createImageBitmap==='function';
+let CARGA_SO=false;   // a carga em andamento é a pré-carga (só operário)
+function carregarIA(soOperario){
+ /* quem precisa de verdade e encontra a pré-carga no meio: se ela falhar, carrega de novo do jeito completo (com a tela de reserva) */
+ if(CARGA)return CARGA_SO&&!soOperario?CARGA.catch(()=>carregarIA()):CARGA;
+ if(soOperario&&!temOperario())return Promise.resolve(false);
+ CARGA_SO=!!soOperario;
  CARGA=(async()=>{
   let semOp=null;
-  if(!SEM_OPERARIO&&typeof Worker==='function'&&typeof OffscreenCanvas==='function'&&typeof createImageBitmap==='function'){
-   try{await ligarOper();MODO='operario';IA_PRONTA=true;OP_DEMORAS=0;return true}
-   catch(e){console.warn('ponto facial: sem operário, tenta na tela',e);pararOper();semOp=e}}
+  if(temOperario()){
+   try{await ligarOper();MODO='operario';IA_PRONTA=true;OP_FALHAS.achar=OP_FALHAS.ver=OP_FALHAS.quadro=0;return true}
+   catch(e){console.warn('ponto facial: sem operário'+(soOperario?' (pré-carga)':', tenta na tela'),e);pararOper();semOp=e;if(soOperario)throw e}}
   /* V107 · se a tela também não carregar, o problema era a internet, não o operário: a próxima tentativa volta a usar o operário */
   try{await ligarNaTela()}catch(e){if(semOp)SEM_OPERARIO=false;throw e}
-  if(semOp)SEM_OPERARIO=true;
+  if(semOp){SEM_OPERARIO=true;VOLTA.n=0;VOLTA.em=passageiro(semOp)?performance.now()+VOLTA_MS:0}
   MODO='tela';IA_PRONTA=true;return true})();
  CARGA.catch(()=>{CARGA=null});
  return CARGA;
+}
+/* V108 · o operário não carregou por um problema passageiro (internet lenta, tempo esgotado) e a tela carregou: o reconhecimento
+   segue na tela e, de tempos em tempos (10, 20 e 40 minutos), o operário é carregado de novo por trás, sem parar o ponto.
+   Antes ficava na tela até recarregar a página. Falta de recurso do aparelho (sem placa de vídeo no operário) não é tentada de novo. */
+const VOLTA={em:0,n:0,ligando:false},VOLTA_MS=600000;
+const passageiro=e=>!/placa de video|webgl|backend|offscreen|security/i.test(String((e&&(e.message||e.name))||e));
+function talvezVoltar(){
+ if(MODO!=='tela'||!VOLTA.em||VOLTA.ligando||performance.now()<VOLTA.em||typeof Worker!=='function')return;
+ VOLTA.ligando=true;VOLTA.n++;
+ ligarOper().then(()=>{if(MODO!=='tela'){pararOper();return}
+   MODO='operario';SEM_OPERARIO=false;VOLTA.em=0;OP_FALHAS.achar=OP_FALHAS.ver=OP_FALHAS.quadro=0;console.info('ponto facial: o reconhecimento voltou a rodar fora da tela')})
+  .catch(e=>{pararOper();VOLTA.em=VOLTA.n<3&&passageiro(e)?performance.now()+VOLTA_MS*2**VOLTA.n:0;console.warn('ponto facial: o operário ainda não carregou',e&&e.message)})
+  .finally(()=>{VOLTA.ligando=false});
 }
 /* uma olhada na imagem. completo=false: só as caixas dos rostos; completo=true: com o código de cada rosto */
 /* V107 · vídeo que ainda não mandou imagem (a câmera acabou de abrir ou trocar): não há o que olhar.
@@ -33943,14 +33986,23 @@ const temImagem=f=>!(typeof HTMLVideoElement==='function'&&f instanceof HTMLVide
 async function olhar(fonte,completo){
  await carregarIA();
  if(!temImagem(fonte))return [];
+ if(MODO==='tela')talvezVoltar();
  if(MODO==='operario'){
-  let img=null;
-  try{img=await createImageBitmap(fonte)}catch(e){console.warn('ponto facial: quadro da câmera indisponível',e&&e.name);return []}
-  try{const r=await chamarOper({t:completo?'ver':'achar',img},[img]);OP_DEMORAS=0;return r.out||[]}
-  catch(e){
-   /* uma falha isolada (aparelho ocupado, uma demora): pula esta olhada. O operário caiu, ou falhou duas vezes seguidas: passa a rodar na tela, sem parar o ponto */
-   if(!e.fatal&&++OP_DEMORAS<2){console.warn('ponto facial: olhada falhou; tentando de novo',e&&e.message);return []}
-   console.warn('ponto facial: operário falhou, roda na tela',e);pararOper();SEM_OPERARIO=true;MODO='';IA_PRONTA=false;CARGA=null;await carregarIA()}}
+  const t=completo?'ver':'achar';let img=null,erro=null;
+  /* V108 · o navegador não conseguiu tirar o quadro do vídeo: uma ou duas vezes, pula a olhada; três seguidas, passa para a tela
+     (lá o quadro não precisa ser copiado). Antes a falha era só engolida e o reconhecimento podia parar em silêncio. */
+  try{img=await createImageBitmap(fonte);OP_FALHAS.quadro=0}
+  catch(e){erro=e;console.warn('ponto facial: quadro da câmera indisponível',e&&e.name);if(++OP_FALHAS.quadro<3)return []}
+  if(img){
+   try{const r=await chamarOper({t,img},[img]);OP_FALHAS[t]=0;return r.out||[]}
+   catch(e){erro=e;try{img.close()}catch(x){}   // não chegou ao operário: solta o quadro aqui
+    /* uma falha isolada (aparelho ocupado, uma demora): pula esta olhada. V108 · conta separado a olhada leve e o código do rosto:
+       antes uma olhada leve boa zerava a conta, e um código do rosto que falhava sempre nunca passava para a tela */
+    if(!e.fatal&&++OP_FALHAS[t]<2){console.warn('ponto facial: olhada falhou; tentando de novo',e&&e.message);return []}}}
+  /* o operário caiu, ou falhou duas vezes seguidas: passa a rodar na tela, sem parar o ponto.
+     V108 · só a primeira olhada que percebe faz a passagem; as outras esperam a mesma carga (antes carregava tudo duas vezes) */
+  if(MODO==='operario'){console.warn('ponto facial: operário falhou, roda na tela',erro);pararOper();SEM_OPERARIO=true;MODO='';IA_PRONTA=false;CARGA=null}
+  await carregarIA();if(MODO!=='tela')return []}
  const fa=window.faceapi;
  if(!completo)return (await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}))).map(d=>({b:d.box,nota:d.score}));
  return (await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors()).map(d=>({b:d.detection.box,nota:d.detection.score,desc:d.descriptor}));
@@ -34036,11 +34088,15 @@ const K={v:null,vivo:false,tm:null,rel:null,cand:null,n:0,sem:0,falhas:0,ate:0,n
  ger:0,rodando:0,denovo:false,direto:false};   // V107 · ger: número da vez que a tela travou; rodando: a vez da olhada em andamento (0: nenhuma); direto: já tem rosto perto
 /* V107 · pede a próxima olhada logo. Se já houver uma em andamento, ela mesma marca a próxima ao terminar
    (antes, "a tela voltou" no meio de uma olhada criava um segundo laço rodando junto) */
+/* V108 · as esperas da tela travada usam o relógio interno, que só anda para a frente: se a hora do aparelho for acertada
+   para trás, o reconhecimento não fica parado em silêncio (antes K.ate, com a hora do aparelho, podia segurar a tela) */
+const seg=()=>performance.now();
+const desde=(m,k)=>{const t=m.get(k);return t==null?Infinity:seg()-t};
 function acordar(ms){if(!K.vivo)return;if(K.rodando===K.ger){K.denovo=true;return}clearTimeout(K.tm);K.tm=setTimeout(passo,ms||0)}
 const el=q=>K.v?K.v.querySelector(q):null;
 function status(t,sub,aro){const a=el('#fcStatus'),b=el('#fcSub'),c=el('#fcAro');if(a&&a.textContent!==t)a.textContent=t;if(b&&b.textContent!==(sub||''))b.textContent=sub||'';
  if(c){c.classList.toggle('fc-vendo',aro==='vendo');c.classList.toggle('fc-achou',aro==='achou')}}
-function painel(tipo,html,ms){const p=el('#fcRes');if(!p)return;p.className='fc-res'+(tipo==='ok'?'':' fc-'+tipo);p.innerHTML=html;p.hidden=false;K.ate=Date.now()+ms;
+function painel(tipo,html,ms){const p=el('#fcRes');if(!p)return;p.className='fc-res'+(tipo==='ok'?'':' fc-'+tipo);p.innerHTML=html;p.hidden=false;K.ate=seg()+ms;
  clearTimeout(K.tp);K.tp=setTimeout(()=>{if(p.isConnected)p.hidden=true;K.cand=null;K.n=0;K.sem=0},ms)}
 function relogio(){const h=el('#fcHora'),d=el('#fcData');if(!h)return;const a=PF.agora();
  h.innerHTML=`${pad(a.getHours())}:${pad(a.getMinutes())}<span>:${pad(a.getSeconds())}</span>`;const t=DIAS[a.getDay()]+', '+fData(isoDe(a));if(d&&d.textContent!==t)d.textContent=t}
@@ -34059,7 +34115,7 @@ function travar(deNovo){
  v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;K.direto=false;if(K.vivo)status('Trocando a câmera…','')},
   m=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(m)}</div>`,4000)},v.querySelector('video'));
  v.querySelector('#fcNome').onclick=()=>abrirNomes();
- v.querySelector('#fcRes').onclick=()=>{if(Date.now()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
+ v.querySelector('#fcRes').onclick=()=>{if(seg()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
  v.addEventListener('pointerdown',telaCheia);
  if(!deNovo){const c=R.senha||lerTrava()||{};guardarTrava({em:new Date().toISOString(),sal:c.sal||null,hash:c.hash||null});telaCheia();som(true)}
  if(lerRota().mod!==ROTA)location.replace('#/'+ROTA);
@@ -34077,7 +34133,9 @@ async function trocarCam(rotulo,antes,falhou,vid){
   const st=await p;
   /* espera o primeiro quadro da câmera nova antes de soltar o reconhecimento (antes ele olhava um vídeo ainda vazio) */
   if(vid&&vid.isConnected){if(vid.srcObject!==st)vid.srcObject=st;await PF.esperarVideo(vid)}}
- catch(e){console.warn('ponto facial: trocar câmera',e);const m='Não troquei a câmera: '+PF.motivoCamera(e)+'.';som(false);if(falhou)falhou(m);else if(typeof toast==='function')toast(m,'erro')}
+ catch(e){console.warn('ponto facial: trocar câmera',e);
+  if(e&&e.name==='AbortError'&&!(vid&&vid.isConnected))return;   // V108 · a tela fechou no meio da troca: não há a quem avisar
+  const m='Não troquei a câmera: '+PF.motivoCamera(e)+'.';som(false);if(falhou)falhou(m);else if(typeof toast==='function')toast(m,'erro')}
  finally{TROCANDO=false;if(rotulo)rotulo.textContent=PF.rotuloTroca();if(bt){bt.disabled=false;bt.removeAttribute('aria-busy')}}
 }
 function telaCheia(){try{const d=document.documentElement;if(!document.fullscreenElement&&d.requestFullscreen){const p=d.requestFullscreen({navigationUI:'hide'});if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
@@ -34117,7 +34175,7 @@ async function bater(fid,d,vid){
  const f=F(fid);if(!f||K.ocupado)return;   // V107 · uma batida por vez
  const ag=PF.agora(),c=PF.conferir(fid,ag);
  if(!c.ok){   // já bateu, dia completo…: avisa uma vez e não fica repetindo enquanto a pessoa está na frente
-  if(Date.now()-(K.avisado.get(fid)||0)>60000){K.avisado.set(fid,Date.now());som(false);
+  if(desde(K.avisado,fid)>60000){K.avisado.set(fid,seg());som(false);
    painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rm" role="alert">${esc(c.msg)}</div>`,5000)}
   return}
  K.ocupado=true;status('Registrando…',f.nome,'achou');
@@ -34129,7 +34187,7 @@ async function bater(fid,d,vid){
   else aviso='A batida ficou registrada sem foto.';
   const c2=PF.conferir(fid,ag);if(!c2.ok){painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rm" role="alert">${esc(c2.msg)}</div>`,5000);return}
   const r=await PF.gravarBatida(fid,c2.op.includes(k)?k:c2.op[0],c2,ag,foto,{origem:'Ponto facial',rosto:{d:Math.round(d*1000)/1000}});
-  K.ultimo.set(fid,Date.now());K.avisado.set(fid,Date.now());som(true);
+  K.ultimo.set(fid,seg());K.avisado.set(fid,seg());som(true);
   painel('ok',`<div class="pf-sinal">${CHECK}</div><div class="fc-rn">${esc(f.nome)}</div><div class="fc-rt">${esc(PF.NOME_K(r.k))} registrada</div><div class="fc-rh">${esc(r.hora)}</div>
    ${r.data!==isoDe(PF.agora())?`<div class="fc-rm">Da jornada que começou em ${esc(fData(r.data))}</div>`:''}${aviso?`<div class="fc-rm">${esc(aviso)}</div>`:''}`,aviso?5500:3500);
  }catch(e){som(false);
@@ -34144,9 +34202,11 @@ async function passo(){
  const ger=K.ger,vivo=()=>K.vivo&&K.ger===ger;
  K.rodando=ger;let prox=300;
  try{
-  if(!acessoOk()||!pode(ROTA)){soltar();return}                    // a sessão caiu: deixa a tela de entrada aparecer; ao entrar, trava de novo
-  if(Date.now()-K.acesa>20000){K.acesa=Date.now();PF.manterAcesa()}
-  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||Date.now()<K.ate){prox=400;return}
+  /* a sessão caiu: deixa a tela de entrada aparecer; ao entrar, trava de novo.
+     V108 · a câmera e a tela acesa também são soltas (antes ficavam ligadas atrás da tela de entrada, sem ninguém usar) */
+  if(!acessoOk()||!pode(ROTA)){soltar();if(!PF.capa())PF.desligarCamera(0);PF.soltarTela();return}
+  if(!K.acesa||seg()-K.acesa>20000){K.acesa=seg();PF.manterAcesa()}
+  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||seg()<K.ate){prox=400;return}
   if(TROCANDO){prox=100;return}
   if(!PF.liberado()){status('Ponto parado',PF.motivoBloqueio());prox=5000;return}
   if(!APP.carregado||!R.pronto){status('Carregando…','');prox=600;return}
@@ -34158,30 +34218,37 @@ async function passo(){
    status('A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Avise o DP. Para bater agora, toque no botão abaixo.');mostrarNome(true);
    /* V107 · permissão negada: tenta de novo cada vez mais devagar (até 15 s), para o navegador não ficar perguntando sem parar */
    prox=e&&(e.name==='NotAllowedError'||e.name==='SecurityError')?Math.min(15000,4000*K.erroCam):(K.erroCam<3?1500:4000);return}
-  let v;const t0=performance.now();
+  let v,soVer=false;const t0=performance.now();
   try{if(!IA_PRONTA){status('Preparando o reconhecimento…','Na primeira vez demora um pouco.');await carregarIA();if(!vivo())return}
    /* primeiro a olhada leve; o código do rosto só é calculado com alguém perto e no meio.
       V107 · se a última olhada já viu um rosto perto e no meio, vai direto ao código (a olhada leve seria repetida à toa).
       O código do rosto traz a mesma caixa, então as mesmas conferências (no meio, perto) continuam valendo. */
-   if(K.direto&&indice().length)v=await ver(vid);
+   if(K.direto&&indice().length){soVer=true;v=await ver(vid)}
    else{v=await achar(vid);if(v&&v.meio&&v.tam>=TAM_MIN&&indice().length){if(!vivo())return;v=await ver(vid)}}
    K.direto=!!(v&&v.desc&&v.meio&&v.tam>=TAM_MIN);K.erroIA=0}
   catch(e){if(!vivo())return;K.erroIA++;K.direto=false;console.warn('ponto facial',e);status('Reconhecimento parado',motivoIA()+' Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=6000;return}
   if(!vivo())return;
-  const nb=el('#fcNome');if(nb&&!nb.hidden&&K.nomeAte&&Date.now()>K.nomeAte){nb.hidden=true;K.falhas=0}
+  const nb=el('#fcNome');if(nb&&!nb.hidden&&K.nomeAte&&seg()>K.nomeAte){nb.hidden=true;K.falhas=0}
   if(!indice().length){status('Nenhum rosto cadastrado','Peça ao DP para cadastrar o seu rosto. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=1500;return}
   if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>18)K.falhas=0;status('Olhe para a câmera','');prox=folga(t0,450);return}
   K.semRosto=0;
   if(v.tam<TAM_MIN||!v.desc){K.cand=null;K.n=0;status('Chegue mais perto','Fique a um braço de distância do celular.','vendo');prox=folga(t0,300);return}
   const r=comparar(v.desc);
   if(r.fid){
-   if(Date.now()-(K.ultimo.get(r.fid)||0)<15000){status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
+   if(desde(K.ultimo,r.fid)<15000){status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
    if(K.cand===r.fid)K.n++;else{K.cand=r.fid;K.n=1}
    K.sem=0;status('Reconhecendo…','','achou');
    if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);await bater(fid,r.d,vid);prox=300;return}
    prox=folga(t0,150);return}
+  /* V108 · "Não reconheci" sai depois de 7 olhadas sem reconhecer E, no mínimo, do tempo que essas 7 olhadas levavam antes
+     do V107. As olhadas ficaram mais rápidas; sem esse tempo mínimo o aviso (que pausa a câmera por 3 s) e o botão do nome
+     apareciam quase na metade do tempo, interrompendo quem ainda estava sendo reconhecido. O limite de reconhecimento não muda. */
+  const g=performance.now()-t0+(soVer?(MED.achar[MED.achar.length-1]||0):0);   // a olhada antiga sempre incluía a leve
+  /* o tempo antigo das 7 primeiras olhadas: cada olhada e, entre elas, a pausa antiga (o dobro da olhada, de 0,2 a 1,2 s) */
+  if(!K.sem){K.semDesde=t0;K.semVelho=0}else if(K.sem<7)K.semVelho+=Math.min(1200,Math.max(200,K.semG*2));
+  if(K.sem<7){K.semVelho+=g;K.semG=g}
   K.cand=null;K.n=0;K.sem++;status('Reconhecendo…','Olhe de frente, sem boné na frente dos olhos.','vendo');
-  if(K.sem>=7){K.sem=0;K.falhas++;som(false);
+  if(K.sem>=7&&performance.now()-K.semDesde>=K.semVelho){K.sem=0;K.falhas++;som(false);
    if(K.falhas>=2){mostrarNome(true,25000);painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Toque no botão "escolha seu nome" para bater o ponto.</div>`,2500)}
    else painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Tente de novo: chegue mais perto, em lugar claro, e olhe de frente para a câmera.</div>`,3000)}
   prox=folga(t0,200);
@@ -34189,7 +34256,7 @@ async function passo(){
  finally{if(K.rodando===ger)K.rodando=0;
   if(K.vivo&&K.ger===ger){clearTimeout(K.tm);K.tm=setTimeout(passo,K.denovo?Math.min(prox,50):prox);K.denovo=false}}
 }
-function mostrarNome(sim,ms){const b=el('#fcNome');if(!b)return;if(sim){b.hidden=false;K.nomeAte=ms?Date.now()+ms:0}else{b.hidden=true;K.nomeAte=0}}
+function mostrarNome(sim,ms){const b=el('#fcNome');if(!b)return;if(sim){b.hidden=false;K.nomeAte=ms?seg()+ms:0}else{b.hidden=true;K.nomeAte=0}}
 /* travada: nenhum endereço tira da tela */
 window.addEventListener('hashchange',()=>{if(K.vivo&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)});
 document.addEventListener('visibilitychange',()=>{if(K.vivo&&document.visibilityState==='visible')acordar(100)});
@@ -34243,8 +34310,10 @@ async function passoCad(c){
  try{
   if(TROCANDO){prox=100;return}
   const vid=c.v.querySelector('video');let st;
-  try{st=await PF.ligarCamera();if(!c.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}}
-  catch(e){instr(c,'A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Libere a câmera para este site e tente de novo.');prox=3000;return}
+  try{st=await PF.ligarCamera();if(!c.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}c.abortos=0}
+  catch(e){if(!c.vivo)return;
+   if(e&&e.name==='AbortError'&&(c.abortos=(c.abortos||0)+1)<=3){prox=50;return}   // V108 · desligada enquanto abria: só abre de novo, sem aviso
+   instr(c,'A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Libere a câmera para este site e tente de novo.');prox=3000;return}
   if(!IA_PRONTA){instr(c,'Preparando o reconhecimento…','Na primeira vez demora um pouco. Só um instante.');try{await carregarIA()}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}if(!c.vivo||c.salvando)return}
   const t0=performance.now();
   let r;try{r=await achar(vid)}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}
@@ -34383,7 +34452,7 @@ TELAS_V[ROTA]=telaFacial;TELAS_V[ROTA_CAD]=telaFacial;
 let PREP=null;
 function preparar(){
  if(PREP||CARGA||IA_PRONTA||!window.JB_NUVEM||!podeUsar())return;
- PREP=setTimeout(()=>{PREP=null;if([ROTA,ROTA_CAD].includes(lerRota().mod)&&!CARGA&&!IA_PRONTA)carregarIA().catch(e=>console.warn('ponto facial: pré-carga',e))},1200);
+ PREP=setTimeout(()=>{PREP=null;if([ROTA,ROTA_CAD].includes(lerRota().mod)&&!CARGA&&!IA_PRONTA)carregarIA(true).catch(e=>console.warn('ponto facial: pré-carga',e))},1200);
 }
 /* V107 · saiu das telas do ponto e ninguém voltou em 5 minutos: o operário (com os modelos na memória) é desligado.
    Ao voltar, ele é recriado a partir dos arquivos já guardados pelo navegador. Na tela travada ou no cadastro, nunca. */
@@ -34421,7 +34490,7 @@ function porNoMenu(rota,rotulo,depois,sinon,desc){
 porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar','Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.');
 porNoMenu(ROTA_CAD,'Cadastrar rosto',ROTA,'cadastrar rosto facial face foto funcionario ponto reconhecimento biometria cadastro','Lista dos funcionários: toque no nome para cadastrar o rosto do ponto facial.');
 
-window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modo:()=>MODO,_derrubar:()=>{MED.quedas++;pararOper()},medidas:()=>({modo:MODO,achar:MED.achar.slice(),ver:MED.ver.slice(),quedasOperario:MED.quedas,camera:(PF.camera().medidas||[])}),
+window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modo:()=>MODO,_derrubar:()=>{MED.quedas++;pararOper()},_voltarJa:()=>{if(VOLTA.em)VOLTA.em=1;return !!VOLTA.em},medidas:()=>({modo:MODO,voltasOperario:VOLTA.n,achar:MED.achar.slice(),ver:MED.ver.slice(),quedasOperario:MED.quedas,camera:(PF.camera().medidas||[])}),
  travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
 })();
 </script>

@@ -11,6 +11,10 @@
 //   G. vários avisos de "tela voltou" seguidos não podem criar dois reconhecimentos ao mesmo tempo
 //   H. uso prolongado (45 s): CPU da tela, memória, travadas da tela (tarefas longas) e uma batida só
 //   I. sair do módulo: nenhuma câmera fica ligada
+//   J. câmera que abre e não manda imagem (ao cair e ao trocar): a tela não fica presa, abre outra câmera
+//   K. batida com foto: a troca de câmera falha; o vídeo volta para a câmera que ficou e a foto sai sozinha
+//   L. o operário não carregou por falha passageira da internet: roda na tela e depois volta sozinho para fora dela
+//   M. o código do rosto falha sempre no operário (a olhada leve não): passa para a tela e continua reconhecendo
 // Uso: npm install --no-save @vladmandic/face-api@1.7.15 && node scripts/construir.mjs && node scripts/testar-ponto-facial-desempenho.mjs
 import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -225,6 +229,57 @@ async function cenario(nome, opcoes) {
     ok(g1 <= g0 * 1.5 + 1, `G. avisos seguidos não multiplicam o reconhecimento (${g0.toFixed(1)} → ${g1.toFixed(1)} por segundo)`);
     await page.evaluate(async () => { await APP.db.doc('rostos/f2').delete(); });
 
+    /* J. a câmera abre mas não manda imagem (acontece em celular com a câmera presa por outro aplicativo) */
+    const semImagem = (n) => page.evaluate((n) => {
+      const md = navigator.mediaDevices; window.__gumReal = window.__gumReal || md.getUserMedia; let k = n;
+      md.getUserMedia = async (c) => { if (k-- > 0) { const cv = document.createElement('canvas'); cv.width = 640; cv.height = 480; const s = cv.captureStream(0); window.__streams.push(s); return s; } return window.__gumReal(c); };
+    }, n);
+    const real = () => page.evaluate(() => { if (window.__gumReal) navigator.mediaDevices.getUserMedia = window.__gumReal; });
+    await semImagem(1);
+    const tJ = await page.evaluate(async () => {
+      const v = document.querySelector('.fc-video video'); const t0 = performance.now();
+      v.srcObject.getVideoTracks().forEach((t) => { t.stop(); t.dispatchEvent(new Event('ended')); });
+      while (performance.now() - t0 < 25000) { await new Promise((r) => setTimeout(r, 50)); const tr = v.srcObject && v.srcObject.getVideoTracks()[0]; if (tr && tr.readyState === 'live' && !('canvas' in tr) && v.videoWidth > 2 && v.readyState >= 2) return performance.now() - t0; }
+      return -1;
+    });
+    await real();
+    R.semImagem = tJ; console.log(`  · J. a câmera voltou sem imagem: outra câmera com imagem em ${ms(tJ)}`);
+    ok(tJ > 0 && tJ < 12000, `J. câmera que abre sem imagem não prende a tela: em ${ms(tJ)} já abriu outra com imagem`);
+    await imagemViva();
+    await semImagem(1);
+    const J2 = await page.evaluate(async () => {
+      const b = document.getElementById('fcCam'); const t0 = performance.now(); b.click();
+      await new Promise((r) => setTimeout(r, 100));
+      while (b.disabled && performance.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
+      return { solto: !b.disabled, ms: performance.now() - t0 };
+    });
+    await real();
+    ok(J2.solto && J2.ms < 10000, `J. troca para uma câmera sem imagem: o botão volta em ${ms(J2.ms)} (não fica preso em "Trocando a câmera…")`);
+    await imagemViva();
+    const vivasJ = await page.evaluate(() => window.__vivas());
+    ok(vivasJ === 1, `J. depois disso, uma câmera só ligada (${vivasJ})`);
+
+    /* K. batida com foto: a outra câmera está ocupada e a troca falha */
+    const K1 = await page.evaluate(async () => {
+      const P = PONTO_FOTO_V78, md = navigator.mediaDevices, g = md.getUserMedia;
+      P.abrirBatida('f2', { origem: 'teste de desempenho' });
+      const t0 = performance.now(), conta = () => document.querySelector('#pfConta');
+      while (!(conta() && /\d/.test(conta().textContent)) && performance.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 30));
+      const alvo = P.ladoCam() === 'user' ? 'environment' : 'user';
+      md.getUserMedia = async (c) => { if (JSON.stringify(c).includes(alvo)) throw new DOMException('a outra câmera está ocupada', 'NotReadableError'); return g(c); };
+      document.querySelector('.pf-cam [data-pf="trocar"]').click();
+      const t1 = performance.now(), fim = () => document.querySelector('.pf-cam.pf-res-ok,.pf-cam.pf-res-erro');
+      while (!fim() && performance.now() - t1 < 20000) await new Promise((r) => setTimeout(r, 50));
+      md.getUserMedia = g;
+      const r = fim();
+      return { ok: !!(r && r.classList.contains('pf-res-ok')), ms: performance.now() - t1, txt: r ? r.textContent.replace(/\s+/g, ' ').slice(0, 120) : (document.querySelector('#pfMsg') || {}).textContent || '' };
+    });
+    ok(K1.ok, `K. batida com foto: a troca falhou, a imagem voltou e a foto saiu sozinha em ${ms(K1.ms)}${K1.ok ? '' : ' — ' + K1.txt}`);
+    await page.waitForSelector('.pf-cam', { state: 'detached', timeout: 15000 });
+    await imagemViva();
+    const vivasK = await page.evaluate(() => window.__vivas());
+    ok(vivasK === 1, `K. depois da batida com foto, uma câmera só ligada (${vivasK})`);
+
     /* H. uso prolongado com a pessoa na frente: 45 s */
     await page.evaluate(async (base) => { const P = PONTO_FACIAL_V100; const i = new Image(); i.src = base + '/saida/teste-facial/rosto-desempenho.jpg'; await i.decode(); const v = await P.ver(i); await APP.db.doc('rostos/f1').set({ id: 'f1', funcionarioId: 'f1', cods: [P.codificar(v.desc)], fotos: 1 }); }, base);
     await page.evaluate(() => { window.__longas.length = 0; });
@@ -246,6 +301,42 @@ async function cenario(nome, opcoes) {
     await page.waitForTimeout(800);
     const vivasI = await page.evaluate(() => window.__vivas());
     ok(vivasI === 0, `I. destravou e saiu do ponto: nenhuma câmera ligada (${vivasI})`);
+
+    /* L. o operário não carregou (a internet falhou na hora) e a tela carregou: depois ele volta sozinho para fora da tela */
+    let falhouLib = 0;
+    const rotaLib = (r) => (falhouLib++ ? r.fallback() : r.abort('internetdisconnected'));
+    await ctx.route(/face-api\.js(\?|$)/, rotaLib);
+    const p2 = await ctx.newPage(); const e2 = [];
+    p2.on('pageerror', (e) => e2.push(String(e && e.message)));
+    await p2.addInitScript(iniciar, { codigo: servidorFalso, funcs: FUNCS });
+    await p2.goto(base + '/saida/claude.html');
+    await p2.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 });
+    const L = await p2.evaluate(async (base) => {
+      const P = PONTO_FACIAL_V100; await P.carregarIA(); const m1 = P.modo();
+      const i = new Image(); i.src = base + '/saida/teste-facial/rosto-desempenho.jpg'; await i.decode();
+      const marcado = P._voltarJa(); await P.achar(i);
+      const t0 = performance.now(); while (P.modo() !== 'operario' && performance.now() - t0 < 60000) await new Promise((r) => setTimeout(r, 100));
+      const v = await P.ver(i);
+      return { m1, marcado, m2: P.modo(), ms: performance.now() - t0, desc: !!(v && v.desc), voltas: P.medidas().voltasOperario };
+    }, base);
+    await ctx.unroute(/face-api\.js(\?|$)/, rotaLib);
+    R.voltaOperario = L;
+    ok(L.m1 === 'tela' && L.marcado, `L. o operário não carregou por falha da internet: o reconhecimento roda na tela (${L.m1}) e fica marcado para tentar de novo (${L.marcado})`);
+    ok(L.m2 === 'operario' && L.desc, `L. na nova tentativa o reconhecimento volta para fora da tela e funciona (${L.m2}, em ${ms(L.ms)})`);
+
+    /* M. o código do rosto falha sempre no operário, mas a olhada leve funciona: antes ficava mudo para sempre */
+    const M = await p2.evaluate(async (base) => {
+      const P = PONTO_FACIAL_V100; const i = new Image(); i.src = base + '/saida/teste-facial/rosto-desempenho.jpg'; await i.decode();
+      const pm = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function (m, t) { if (m && m.t === 'ver') m = { ...m, img: null }; return pm.call(this, m, t); };
+      let n = 0; while (P.modo() === 'operario' && n < 8) { await P.achar(i); await P.ver(i); n++; }
+      Worker.prototype.postMessage = pm;
+      const v = await P.ver(i);
+      return { modo: P.modo(), n, desc: !!(v && v.desc) };
+    }, base);
+    ok(M.modo === 'tela' && M.desc, `M. o código do rosto falha sempre no operário: passa para a tela e continua reconhecendo (${M.modo} depois de ${M.n} tentativas)`);
+    await p2.close();
+    ok(e2.length === 0, `L/M. sem erros de JavaScript${e2.length ? ': ' + e2.slice(0, 3).join(' | ') : ''}`);
     ok(erros.length === 0, `sem erros de JavaScript${erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''}`);
     await ctx.close();
   } finally { await browser.close(); }
