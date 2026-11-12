@@ -33820,22 +33820,83 @@ function aoMudar(){
 }
 
 /* ---------- o reconhecimento (carrega só quando a tela é usada) ---------- */
-let CARGA=null,IA_PRONTA=false;
+/* V106 · o reconhecimento roda FORA da tela, num "operário" (Web Worker): a conta pesada não disputa com a imagem
+   da câmera nem com os botões, então a tela não trava. Se o aparelho não tiver esse recurso, roda na própria tela (como antes). */
+let CARGA=null,IA_PRONTA=false,MODO='',SEM_OPERARIO=false,OPER=null,OPN=0;
+const OPP=new Map();
+const COD_OPERARIO=`
+let fa=null;
+const opc=n=>new fa.TinyFaceDetectorOptions({inputSize:n,scoreThreshold:.5});
+async function ini(lib,mod){
+ importScripts(lib);fa=self.faceapi;
+ try{fa.env.getEnv()}catch(e){fa.env.setEnv({Canvas:OffscreenCanvas,CanvasRenderingContext2D:OffscreenCanvasRenderingContext2D,Image:class{},ImageData:ImageData,Video:class{},
+  createCanvasElement:()=>new OffscreenCanvas(1,1),createImageElement:()=>{throw new Error('sem imagem')},createVideoElement:()=>{throw new Error('sem video')},
+  fetch:(u,o)=>fetch(u,o),readFile:()=>{throw new Error('sem arquivo')}})}
+ await fa.tf.setBackend('webgl');await fa.tf.ready();
+ if(fa.tf.getBackend()!=='webgl')throw new Error('sem placa de video no operario');
+ try{fa.tf.enableProdMode()}catch(e){}
+ await Promise.all([fa.nets.tinyFaceDetector.loadFromUri(mod),fa.nets.faceLandmark68Net.loadFromUri(mod),fa.nets.faceRecognitionNet.loadFromUri(mod)]);
+ const z=fa.tf.zeros([160,160,3],'int32');
+ try{await fa.detectAllFaces(z,opc(224));await fa.detectAllFaces(z,opc(320));await fa.nets.faceLandmark68Net.detectLandmarks(z);await fa.nets.faceRecognitionNet.computeFaceDescriptor(z)}catch(e){}
+ z.dispose();
+}
+self.onmessage=async e=>{const m=e.data;let x=null;
+ try{
+  if(m.t==='ini'){await ini(m.lib,m.mod);postMessage({id:m.id,ok:true});return}
+  x=fa.tf.browser.fromPixels(m.img);try{m.img.close()}catch(z){}
+  let out;
+  if(m.t==='achar'){const ds=await fa.detectAllFaces(x,opc(224));out=ds.map(d=>({b:{x:d.box.x,y:d.box.y,width:d.box.width,height:d.box.height},nota:d.score}))}
+  else{const ds=await fa.detectAllFaces(x,opc(320)).withFaceLandmarks().withFaceDescriptors();
+   out=ds.map(d=>({b:{x:d.detection.box.x,y:d.detection.box.y,width:d.detection.box.width,height:d.detection.box.height},nota:d.detection.score,desc:d.descriptor}))}
+  postMessage({id:m.id,ok:true,out});
+ }catch(err){postMessage({id:m.id,ok:false,erro:String(err&&err.message||err)})}
+ finally{if(x)try{x.dispose()}catch(z){}}
+};`;
+function chamarOper(m,transf,ms){
+ return new Promise((ok,no)=>{if(!OPER){no(new Error('operário parado'));return}
+  const id=++OPN,tm=setTimeout(()=>{OPP.delete(id);no(new Error('operário demorou'))},ms||10000);
+  OPP.set(id,r=>{clearTimeout(tm);if(r.ok)ok(r);else no(new Error(r.erro||'operário'))});
+  m.id=id;try{OPER.postMessage(m,transf||[])}catch(e){clearTimeout(tm);OPP.delete(id);no(e)}});
+}
+function pararOper(){try{if(OPER)OPER.terminate()}catch(e){}OPER=null;for(const f of OPP.values())try{f({ok:false,erro:'operário parado'})}catch(e){}OPP.clear()}
+async function ligarOper(){
+ const u=URL.createObjectURL(new Blob([COD_OPERARIO],{type:'text/javascript'}));
+ OPER=new Worker(u);
+ OPER.onmessage=e=>{const f=OPP.get(e.data&&e.data.id);if(f){OPP.delete(e.data.id);f(e.data)}};
+ OPER.onerror=e=>{console.warn('ponto facial: operário',e&&e.message);for(const f of Array.from(OPP.values()))try{f({ok:false,erro:'operário caiu'})}catch(x){}OPP.clear()};
+ try{await chamarOper({t:'ini',lib:FONTE.lib,mod:FONTE.modelos},null,90000)}finally{try{URL.revokeObjectURL(u)}catch(e){}}
+}
+async function ligarNaTela(){
+ if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=FONTE.lib;s.async=true;s.onload=ok;s.onerror=()=>no(new Error('biblioteca'));document.head.appendChild(s)});
+ const fa=window.faceapi;if(!fa||!fa.nets)throw new Error('biblioteca');
+ try{if(fa.tf&&fa.tf.getBackend&&fa.tf.getBackend()!=='webgl'){await fa.tf.setBackend('webgl')}if(fa.tf&&fa.tf.ready)await fa.tf.ready();if(fa.tf&&fa.tf.enableProdMode)fa.tf.enableProdMode()}catch(e){console.warn('ponto facial: placa de vídeo',e)}
+ await Promise.all([fa.nets.tinyFaceDetector.loadFromUri(FONTE.modelos),fa.nets.faceLandmark68Net.loadFromUri(FONTE.modelos),fa.nets.faceRecognitionNet.loadFromUri(FONTE.modelos)]);
+ /* a primeira conta de cada rede é a mais lenta: faz agora, com uma imagem vazia, para não travar na hora da pessoa */
+ try{const c=document.createElement('canvas');c.width=160;c.height=160;const x=c.getContext('2d');x.fillStyle='#888';x.fillRect(0,0,160,160);
+  await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}));
+  await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5}));
+  await fa.nets.faceLandmark68Net.detectLandmarks(c);await fa.nets.faceRecognitionNet.computeFaceDescriptor(c)}catch(e){console.warn('ponto facial: aquecimento',e)}
+}
 function carregarIA(){
  if(CARGA)return CARGA;
  CARGA=(async()=>{
-  if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=FONTE.lib;s.async=true;s.onload=ok;s.onerror=()=>no(new Error('biblioteca'));document.head.appendChild(s)});
-  const fa=window.faceapi;if(!fa||!fa.nets)throw new Error('biblioteca');
-  try{if(fa.tf&&fa.tf.getBackend&&fa.tf.getBackend()!=='webgl'){await fa.tf.setBackend('webgl')}if(fa.tf&&fa.tf.ready)await fa.tf.ready();if(fa.tf&&fa.tf.enableProdMode)fa.tf.enableProdMode()}catch(e){console.warn('ponto facial: placa de vídeo',e)}
-  await Promise.all([fa.nets.tinyFaceDetector.loadFromUri(FONTE.modelos),fa.nets.faceLandmark68Net.loadFromUri(FONTE.modelos),fa.nets.faceRecognitionNet.loadFromUri(FONTE.modelos)]);
-  /* a primeira conta de cada rede é a mais lenta: faz agora, com uma imagem vazia, para não travar na hora da pessoa */
-  try{const c=document.createElement('canvas');c.width=160;c.height=160;const x=c.getContext('2d');x.fillStyle='#888';x.fillRect(0,0,160,160);
-   await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}));
-   await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5}));
-   await fa.nets.faceLandmark68Net.detectLandmarks(c);await fa.nets.faceRecognitionNet.computeFaceDescriptor(c)}catch(e){console.warn('ponto facial: aquecimento',e)}
-  IA_PRONTA=true;return fa})();
+  if(!SEM_OPERARIO&&typeof Worker==='function'&&typeof OffscreenCanvas==='function'&&typeof createImageBitmap==='function'){
+   try{await ligarOper();MODO='operario';IA_PRONTA=true;return true}
+   catch(e){console.warn('ponto facial: sem operário, roda na tela',e);pararOper();SEM_OPERARIO=true}}
+  await ligarNaTela();MODO='tela';IA_PRONTA=true;return true})();
  CARGA.catch(()=>{CARGA=null});
  return CARGA;
+}
+/* uma olhada na imagem. completo=false: só as caixas dos rostos; completo=true: com o código de cada rosto */
+async function olhar(fonte,completo){
+ await carregarIA();
+ if(MODO==='operario'){
+  try{const img=await createImageBitmap(fonte);return (await chamarOper({t:completo?'ver':'achar',img},[img])).out||[]}
+  catch(e){   // o operário falhou: passa a rodar na tela, sem parar o ponto
+   console.warn('ponto facial: operário falhou, roda na tela',e);pararOper();SEM_OPERARIO=true;MODO='';IA_PRONTA=false;CARGA=null;await carregarIA()}}
+ const fa=window.faceapi;
+ if(!completo)return (await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}))).map(d=>({b:d.box,nota:d.score}));
+ return (await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors()).map(d=>({b:d.detection.box,nota:d.detection.score,desc:d.descriptor}));
 }
 const motivoIA=()=>'Não consegui carregar o reconhecimento facial. Confira a internet e tente de novo.'+(window.JB_NUVEM?'':' Se continuar, use a versão da nuvem (jb-gestao-ceramica.netlify.app).');
 /* o maior rosto da imagem: código, nota da detecção, tamanho (parte do lado menor) e se está no meio */
@@ -33848,16 +33909,12 @@ function medida(fonte,caixas){
  return{m,nota:m.nota,tam:Math.max(m.b.width,m.b.height)/lado,meio:Math.abs(cx-w/2)<=lado*.42&&Math.abs(cy-h/2)<=lado*.42,outro:o[1]?Math.max(o[1].b.width,o[1].b.height)/lado:0};
 }
 async function achar(fonte){
- const fa=await carregarIA();
- const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}));
- if(!ds||!ds.length)return null;
- const r=medida(fonte,ds.map(d=>({b:d.box,nota:d.score})));delete r.m;return r;
+ const cs=await olhar(fonte,false);if(!cs.length)return null;
+ const r=medida(fonte,cs);delete r.m;return r;
 }
 async function ver(fonte){
- const fa=await carregarIA();
- const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors();
- if(!ds||!ds.length)return null;
- const r=medida(fonte,ds.map(d=>({b:d.detection.box,nota:d.detection.score,desc:d.descriptor})));r.desc=r.m.desc;delete r.m;return r;
+ const cs=await olhar(fonte,true);if(!cs.length)return null;
+ const r=medida(fonte,cs);r.desc=r.m.desc;delete r.m;return r;
 }
 /* pausa entre uma olhada e outra: no mínimo o dobro do tempo que a olhada levou, para a imagem da câmera não engasgar */
 const folga=(t0,min)=>Math.round(Math.min(1200,Math.max(min,(performance.now()-t0)*2)));
@@ -34260,7 +34317,7 @@ function porNoMenu(rota,rotulo,depois,sinon,desc){
 porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar','Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.');
 porNoMenu(ROTA_CAD,'Cadastrar rosto',ROTA,'cadastrar rosto facial face foto funcionario ponto reconhecimento biometria cadastro','Lista dos funcionários: toque no nome para cadastrar o rosto do ponto facial.');
 
-window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,
+window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modo:()=>MODO,_derrubar:()=>{try{if(OPER)OPER.terminate()}catch(e){}},
  travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
 })();
 </script>

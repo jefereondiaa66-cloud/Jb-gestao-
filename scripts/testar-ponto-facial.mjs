@@ -138,7 +138,8 @@ try {
   await page.waitForFunction(() => /só mostrou uma câmera/.test(document.getElementById('fcAjuda').textContent), null, { timeout: 15000 });
   ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'user' && /traseira/.test(document.getElementById('fcCadCam').textContent)), 'aparelho com uma câmera só: avisa "só mostrou uma câmera" e continua na da frente');
   // botão "Tirar foto": a foto sai na hora
-  await page.waitForFunction(() => window.faceapi && PONTO_FOTO_V78.camera().ligada, null, { timeout: 60000 });
+  await page.waitForFunction(() => PONTO_FACIAL_V100.pronta() && PONTO_FOTO_V78.camera().ligada, null, { timeout: 90000 });
+  ok(await page.evaluate(() => PONTO_FACIAL_V100.modo()) === 'operario', 'o reconhecimento roda fora da tela (operário), para não travar o celular');
   const n0 = await page.$$eval('#fcPontos i.fc-feito', (x) => x.length);
   await page.click('#fcTirar');
   await page.waitForFunction((n) => document.querySelectorAll('#fcPontos i.fc-feito').length > n || !!document.querySelector('.fc-cad.pf-res-ok'), n0, { timeout: 20000 });
@@ -277,6 +278,9 @@ try {
   ok(r9.h1 === '#/pontoFacial' && r9.travar, 'o celular da parede abre o ponto facial e pode travar a tela');
   ok(!r9.cadastrar && !r9.senha && !r9.fotos && !r9.lista && /^#\/ponto(Facial|Foto)$/.test(r9.h2) && !r9.atalho, 'mas não cadastra rosto, não troca a senha e não vê as fotos');
   ok(r9.h3 === '#/pontoFoto', `de outro endereço volta para o ponto (${r9.h3})`);
+  // se o operário cair, o ponto continua, rodando na tela
+  const rq = await page.evaluate(async (base) => { const P = PONTO_FACIAL_V100; const i = new Image(); i.src = base + '/saida/teste-facial/rosto0.jpg'; await i.decode(); await P.carregarIA(); const antes = P.modo(); P._derrubar(); const v = await P.ver(i); return { antes, depois: P.modo(), achou: !!(v && v.desc && v.desc.length === 128) }; }, base);
+  ok(rq.antes === 'operario' && rq.depois === 'tela' && rq.achou, `operário derrubado: o reconhecimento continua na própria tela (${rq.antes} → ${rq.depois})`);
   ok(semErros(erros).length === 0, `sem erros de JavaScript${semErros(erros).length ? ': ' + semErros(erros).slice(0, 3).join(' | ') : ''}`);
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'celular da parede (412 px): a tela cabe sem rolar para o lado');
   await ctx.close();
