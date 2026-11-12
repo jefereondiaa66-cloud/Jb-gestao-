@@ -154,7 +154,7 @@ try {
   // a segunda pessoa (Bruna) recebe o código de outro rosto; mede as distâncias de verdade
   const r2b = await page.evaluate(async (base) => {
     const P = PONTO_FACIAL_V100, img = async (u) => { const i = new Image(); i.src = u; await i.decode(); return i; };
-    const a = await P.ver(await img(base + '/saida/teste-facial/rosto0.jpg'), true), b = await P.ver(await img(base + '/saida/teste-facial/rosto1.jpg'), true), c = await P.ver(await img(base + '/saida/teste-facial/rosto2.jpg'), true);
+    const a = await P.ver(await img(base + '/saida/teste-facial/rosto0.jpg')), b = await P.ver(await img(base + '/saida/teste-facial/rosto1.jpg')), c = await P.ver(await img(base + '/saida/teste-facial/rosto2.jpg'));
     const ida = P.decodificar(P.codificar(a.desc));
     await APP.db.doc('rostos/f2').set({ id: 'f2', funcionarioId: 'f2', cods: [P.codificar(b.desc)], fotos: 1 });
     await new Promise((r) => setTimeout(r, 600));

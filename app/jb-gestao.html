@@ -33291,11 +33291,16 @@ const gUM=c=>navigator.mediaDevices.getUserMedia(c);
 const TAM_CAM={width:{ideal:640},height:{ideal:480}};
 const ladoReal=st=>{try{return st.getVideoTracks()[0].getSettings().facingMode||''}catch(e){return ''}};
 const idCam=st=>{try{return st.getVideoTracks()[0].getSettings().deviceId||''}catch(e){return ''}};
+/* V104 · depois da primeira troca o aparelho lembra o código de cada câmera e abre direto por ele (é o caminho mais rápido) */
+const CH_IDS='jb-ponto-camera-ids';
+const IDS=(()=>{try{const o=JSON.parse(localStorage.getItem(CH_IDS)||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}})();
+function lembrarCam(st,lado){try{const id=idCam(st),real=ladoReal(st)||lado;if(id&&(real==='user'||real==='environment')&&IDS[real]!==id){IDS[real]=id;localStorage.setItem(CH_IDS,JSON.stringify(IDS))}}catch(e){}}
 async function abrirLado(lado,evitar){
  if(lado!=='environment'&&!evitar)return gUM({video:{facingMode:'user',...TAM_CAM},audio:false});
  const negou=e=>e&&(e.name==='NotAllowedError'||e.name==='SecurityError');
  let st=null;
- try{st=await gUM({video:{facingMode:{exact:lado},...TAM_CAM},audio:false})}catch(e){if(negou(e))throw e}
+ if(IDS[lado]&&IDS[lado]!==evitar){try{st=await gUM({video:{deviceId:{exact:IDS[lado]},...TAM_CAM},audio:false})}catch(e){if(negou(e))throw e;delete IDS[lado]}}
+ if(!st){try{st=await gUM({video:{facingMode:{exact:lado},...TAM_CAM},audio:false})}catch(e){if(negou(e))throw e}}
  if(st&&evitar&&idCam(st)===evitar){pararStream(st);st=null}
  if(!st){try{
   const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput'&&d.deviceId&&d.deviceId!==evitar);
@@ -33311,13 +33316,15 @@ async function trocarCamera(){
  const antes=CAM.lado,idAntes=CAM.st?idCam(CAM.st):'';
  CAM.lado=antes==='user'?'environment':'user';
  clearTimeout(CAM.tm);pararStream(CAM.st);CAM.st=null;
- await new Promise(r=>setTimeout(r,250));          // o Android demora um instante para soltar a câmera anterior
  try{
-  CAM.p=abrirLado(CAM.lado,idAntes).then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
+  /* abre na hora; só espera (e tenta de novo) se o aparelho disser que a câmera anterior ainda está ocupada */
+  const abrir=()=>abrirLado(CAM.lado,idAntes);
+  CAM.p=abrir().catch(e=>{if(e&&(e.name==='NotReadableError'||e.name==='AbortError'))return new Promise(r=>setTimeout(r,350)).then(abrir);throw e})
+   .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;return st}).finally(()=>{CAM.p=null});
   const st=await CAM.p;
   /* voltou a mesma câmera: o aparelho só tem uma (ou não deixou trocar) */
   if(idAntes&&idCam(st)===idAntes&&(await quantasCameras())<2){CAM.lado=antes;try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}marcarLado();const e=new Error('uma câmera');e.name='UmaCamera';throw e}
-  try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}marcarLado();return st;
+  try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}lembrarCam(st,CAM.lado);marcarLado();return st;
  }catch(e){
   if(e&&e.name!=='UmaCamera'){CAM.lado=antes;marcarLado();try{await ligarCamera()}catch(x){}}
   throw e}
@@ -33329,7 +33336,7 @@ async function ligarCamera(){
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){const e=new Error('sem câmera');e.name='NotSupportedError';throw e}
  /* duas aberturas ao mesmo tempo (cancelar e tocar em outro nome) usam o mesmo pedido: nunca sobra câmera ligada sem dono */
  if(!CAM.p)CAM.p=abrirLado(CAM.lado)
-  .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;marcarLado();return st}).finally(()=>{CAM.p=null});
+  .then(st=>{if(CAM.st&&CAM.st!==st)pararStream(CAM.st);CAM.st=st;if(ladoReal(st))lembrarCam(st,CAM.lado);marcarLado();return st}).finally(()=>{CAM.p=null});
  return CAM.p;
 }
 /* fica ligada um minuto depois da batida (fila de gente chegando) e então desliga */
@@ -33731,7 +33738,10 @@ html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho
 .fc-cad .fc-pontos{display:flex;gap:10px;justify-content:center}
 .fc-cad .fc-pontos i{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.6)}
 .fc-cad .fc-pontos i.fc-feito{border-color:#3FB56F;background:#3FB56F}
-.fc-cad .pf-video.fc-achou{box-shadow:0 0 0 7px #3FB56F}
+.fc-cad .pf-video.fc-vendo{box-shadow:0 0 0 6px #E9A23B}
+.fc-cad .pf-video.fc-pronto,.fc-cad .pf-video.fc-achou{box-shadow:0 0 0 7px #3FB56F}
+.fc-cad .fc-ajuda{min-height:1.4em;font-weight:600}
+.fc-cad .fc-dica{max-width:520px;padding:10px 12px;border:1px solid rgba(255,255,255,.25);border-radius:12px;font-size:13.5px;line-height:1.45;color:rgba(255,255,255,.85);text-align:left}
 .fc-cad .fc-instr{font-size:20px;font-weight:600;color:#fff;min-height:2.6em}
 @media (max-width:720px){.fc-hora{font-size:52px}.fc-status{font-size:23px}.fc-res .fc-rn{font-size:27px}.fc-res .fc-rh{font-size:60px}.fc-nomes .fc-ng{grid-template-columns:1fr}}
 @media (orientation:landscape) and (max-height:520px){.fc-tela{flex-direction:row;flex-wrap:wrap;justify-content:center}.fc-topo{width:100%}.fc-hora{font-size:36px}.fc-hora span{font-size:20px}.fc-data{display:none}.fc-meio{flex-direction:row;gap:20px}.fc-video{width:min(52vh,300px)}.fc-pe{width:auto}}
@@ -33758,7 +33768,7 @@ const FONTE={lib:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/
 /* distância entre dois códigos de rosto: a mesma pessoa costuma ficar abaixo de 0,45; pessoas diferentes, acima de 0,6 */
 const LIMITE=.48,FIRME=.42,MARGEM=.07,PARECIDO=.42,MESMA=.6;
 const TAM_MIN=.24,MIN_FOTOS=3;
-const PASSOS=['Olhe de frente para a câmera','Vire o rosto um pouco para um lado','Agora um pouco para o outro lado','Levante um pouco o queixo','Se usa boné, capacete ou óculos no trabalho, coloque agora. Se não usa, olhe de frente de novo'];
+const PASSOS=['1ª foto: olhe de frente para a câmera','2ª foto: vire o rosto um pouco para um lado','3ª foto: agora um pouco para o outro lado','4ª foto: levante um pouco o queixo','5ª foto: se usa boné, capacete ou óculos no trabalho, coloque agora. Se não usa, olhe de frente de novo'];
 const CADEADO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const EXCL='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v8"/><path d="M12 18.2v.1"/></svg>';
@@ -33810,30 +33820,47 @@ function aoMudar(){
 }
 
 /* ---------- o reconhecimento (carrega só quando a tela é usada) ---------- */
-let CARGA=null;
+let CARGA=null,IA_PRONTA=false;
 function carregarIA(){
  if(CARGA)return CARGA;
  CARGA=(async()=>{
   if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=FONTE.lib;s.async=true;s.onload=ok;s.onerror=()=>no(new Error('biblioteca'));document.head.appendChild(s)});
   const fa=window.faceapi;if(!fa||!fa.nets)throw new Error('biblioteca');
+  try{if(fa.tf&&fa.tf.getBackend&&fa.tf.getBackend()!=='webgl'){await fa.tf.setBackend('webgl')}if(fa.tf&&fa.tf.ready)await fa.tf.ready();if(fa.tf&&fa.tf.enableProdMode)fa.tf.enableProdMode()}catch(e){console.warn('ponto facial: placa de vídeo',e)}
   await Promise.all([fa.nets.tinyFaceDetector.loadFromUri(FONTE.modelos),fa.nets.faceLandmark68Net.loadFromUri(FONTE.modelos),fa.nets.faceRecognitionNet.loadFromUri(FONTE.modelos)]);
-  return fa})();
+  /* a primeira conta de cada rede é a mais lenta: faz agora, com uma imagem vazia, para não travar na hora da pessoa */
+  try{const c=document.createElement('canvas');c.width=160;c.height=160;const x=c.getContext('2d');x.fillStyle='#888';x.fillRect(0,0,160,160);
+   await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}));
+   await fa.detectAllFaces(c,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5}));
+   await fa.nets.faceLandmark68Net.detectLandmarks(c);await fa.nets.faceRecognitionNet.computeFaceDescriptor(c)}catch(e){console.warn('ponto facial: aquecimento',e)}
+  IA_PRONTA=true;return fa})();
  CARGA.catch(()=>{CARGA=null});
  return CARGA;
 }
 const motivoIA=()=>'Não consegui carregar o reconhecimento facial. Confira a internet e tente de novo.'+(window.JB_NUVEM?'':' Se continuar, use a versão da nuvem (jb-gestao-ceramica.netlify.app).');
 /* o maior rosto da imagem: código, nota da detecção, tamanho (parte do lado menor) e se está no meio */
-async function ver(fonte,grande){
- const fa=await carregarIA();
- const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:grande?416:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors();
- if(!ds||!ds.length)return null;
+/* V105 · para não travar o celular, o trabalho é em dois tempos:
+   achar() só procura o rosto na imagem (leve, roda o tempo todo);
+   ver() calcula o código do rosto (pesado) e só é chamado quando há um rosto perto, no meio da imagem. */
+function medida(fonte,caixas){
  const w=fonte.videoWidth||fonte.naturalWidth||fonte.width,h=fonte.videoHeight||fonte.naturalHeight||fonte.height,lado=Math.min(w,h)||1;
- const o=ds.map(d=>({d,b:d.detection.box})).sort((a,b)=>b.b.width*b.b.height-a.b.width*a.b.height);
- const m=o[0],cx=m.b.x+m.b.width/2,cy=m.b.y+m.b.height/2;
- return{desc:m.d.descriptor,nota:m.d.detection.score,tam:Math.max(m.b.width,m.b.height)/lado,
-  meio:Math.abs(cx-w/2)<=lado*.42&&Math.abs(cy-h/2)<=lado*.42,
-  outro:o[1]?Math.max(o[1].b.width,o[1].b.height)/lado:0};
+ const o=caixas.slice().sort((a,b)=>b.b.width*b.b.height-a.b.width*a.b.height),m=o[0],cx=m.b.x+m.b.width/2,cy=m.b.y+m.b.height/2;
+ return{m,nota:m.nota,tam:Math.max(m.b.width,m.b.height)/lado,meio:Math.abs(cx-w/2)<=lado*.42&&Math.abs(cy-h/2)<=lado*.42,outro:o[1]?Math.max(o[1].b.width,o[1].b.height)/lado:0};
 }
+async function achar(fonte){
+ const fa=await carregarIA();
+ const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5}));
+ if(!ds||!ds.length)return null;
+ const r=medida(fonte,ds.map(d=>({b:d.box,nota:d.score})));delete r.m;return r;
+}
+async function ver(fonte){
+ const fa=await carregarIA();
+ const ds=await fa.detectAllFaces(fonte,new fa.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptors();
+ if(!ds||!ds.length)return null;
+ const r=medida(fonte,ds.map(d=>({b:d.detection.box,nota:d.detection.score,desc:d.descriptor})));r.desc=r.m.desc;delete r.m;return r;
+}
+/* pausa entre uma olhada e outra: no mínimo o dobro do tempo que a olhada levou, para a imagem da câmera não engasgar */
+const folga=(t0,min)=>Math.round(Math.min(1200,Math.max(min,(performance.now()-t0)*2)));
 let AC=null;
 function som(ok){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime,d=ok?.3:.55;o.connect(g);g.connect(AC.destination);o.frequency.value=ok?880:300;
@@ -33910,7 +33937,7 @@ function travar(deNovo){
  document.body.appendChild(v);document.body.classList.add('fc-travada');
  v.querySelector('#fcSair').onclick=()=>pedirDestravar();
  v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;if(K.vivo)status('Trocando a câmera…','')},
-  m=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(m)}</div>`,4000)});
+  m=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(m)}</div>`,4000)},v.querySelector('video'));
  v.querySelector('#fcNome').onclick=()=>abrirNomes();
  v.querySelector('#fcRes').onclick=()=>{if(Date.now()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
  v.addEventListener('pointerdown',telaCheia);
@@ -33922,9 +33949,10 @@ function travar(deNovo){
 }
 /* frente ou traseira: vale para o cadastro, a tela travada e a batida com foto, e o aparelho lembra */
 let TROCANDO=false;
-async function trocarCam(rotulo,antes,falhou){
+async function trocarCam(rotulo,antes,falhou,vid){
  if(TROCANDO)return;TROCANDO=true;
- try{if(antes)antes();await PF.trocarCamera()}
+ try{if(antes)antes();const p=PF.trocarCamera();if(rotulo)rotulo.textContent=PF.rotuloTroca();
+  const st=await p;if(vid&&vid.isConnected&&vid.srcObject!==st){vid.srcObject=st;try{const q=vid.play();if(q&&q.catch)q.catch(()=>{})}catch(e){}}}
  catch(e){console.warn('ponto facial: trocar câmera',e);const m='Não troquei a câmera: '+PF.motivoCamera(e)+'.';som(false);if(falhou)falhou(m);else if(typeof toast==='function')toast(m,'erro')}
  finally{TROCANDO=false;if(rotulo)rotulo.textContent=PF.rotuloTroca()}
 }
@@ -33989,33 +34017,36 @@ async function passo(){
  try{
   if(!acessoOk()||!pode(ROTA)){soltar();return}                    // a sessão caiu: deixa a tela de entrada aparecer; ao entrar, trava de novo
   if(Date.now()-K.acesa>20000){K.acesa=Date.now();PF.manterAcesa()}
-  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||TROCANDO||Date.now()<K.ate){prox=400;return}
+  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||Date.now()<K.ate){prox=400;return}
+  if(TROCANDO){prox=100;return}
   if(!PF.liberado()){status('Ponto parado',PF.motivoBloqueio());prox=5000;return}
   if(!APP.carregado||!R.pronto){status('Carregando…','');prox=600;return}
   const vid=el('video');let st;
   try{st=await PF.ligarCamera();if(!K.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}K.erroCam=0}
   catch(e){K.erroCam++;status('A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Avise o DP. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=4000;return}
-  let v;
-  try{v=await ver(vid);K.erroIA=0}
+  let v;const t0=performance.now();
+  try{if(!IA_PRONTA){status('Preparando o reconhecimento…','Na primeira vez demora um pouco.');await carregarIA();if(!K.vivo)return}
+   /* primeiro a olhada leve; o código do rosto só é calculado com alguém perto e no meio */
+   v=await achar(vid);if(v&&v.meio&&v.tam>=TAM_MIN&&indice().length){v=await ver(vid)}K.erroIA=0}
   catch(e){K.erroIA++;console.warn('ponto facial',e);status('Reconhecimento parado',motivoIA()+' Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=6000;return}
   if(!K.vivo)return;
   const nb=el('#fcNome');if(nb&&!nb.hidden&&K.nomeAte&&Date.now()>K.nomeAte){nb.hidden=true;K.falhas=0}
   if(!indice().length){status('Nenhum rosto cadastrado','Peça ao DP para cadastrar o seu rosto. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=1500;return}
-  if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>25)K.falhas=0;status('Olhe para a câmera','');prox=350;return}
+  if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>18)K.falhas=0;status('Olhe para a câmera','');prox=folga(t0,450);return}
   K.semRosto=0;
-  if(v.tam<TAM_MIN){K.cand=null;K.n=0;status('Chegue mais perto','Fique a um braço de distância do celular.','vendo');prox=250;return}
+  if(v.tam<TAM_MIN||!v.desc){K.cand=null;K.n=0;status('Chegue mais perto','Fique a um braço de distância do celular.','vendo');prox=folga(t0,300);return}
   const r=comparar(v.desc);
   if(r.fid){
    if(Date.now()-(K.ultimo.get(r.fid)||0)<15000){status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
    if(K.cand===r.fid)K.n++;else{K.cand=r.fid;K.n=1}
    K.sem=0;status('Reconhecendo…','','achou');
-   if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);await bater(fid,r.d,vid)}
-   prox=120;return}
+   if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);await bater(fid,r.d,vid);prox=300;return}
+   prox=folga(t0,150);return}
   K.cand=null;K.n=0;K.sem++;status('Reconhecendo…','Olhe de frente, sem boné na frente dos olhos.','vendo');
-  if(K.sem>=9){K.sem=0;K.falhas++;som(false);
+  if(K.sem>=7){K.sem=0;K.falhas++;som(false);
    if(K.falhas>=2){mostrarNome(true,25000);painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Toque no botão "escolha seu nome" para bater o ponto.</div>`,2500)}
    else painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Tente de novo: chegue mais perto, em lugar claro, e olhe de frente para a câmera.</div>`,3000)}
-  prox=150;
+  prox=folga(t0,200);
  }catch(e){console.warn('ponto facial: passo',e);prox=1500}
  finally{if(K.vivo){clearTimeout(K.tm);K.tm=setTimeout(passo,prox)}}
 }
@@ -34051,14 +34082,15 @@ function abrirCadastro(fid){
  v.innerHTML=`<div class="pf-nome">${esc(f.nome)}</div><div class="pf-tipo">Cadastro do rosto<br><b id="fcPasso">Foto 1 de ${PASSOS.length}</b></div>
   <div class="pf-video" id="fcCadAro"><video autoplay playsinline muted></video></div>
   <div class="fc-pontos" id="fcPontos">${PASSOS.map(()=>'<i></i>').join('')}</div>
-  <div class="pf-msg fc-instr" id="fcInstr" aria-live="assertive">Preparando a câmera…</div><div class="pf-msg" id="fcAjuda"></div>
+  <div class="pf-msg fc-instr" id="fcInstr" aria-live="assertive">Preparando a câmera…</div><div class="pf-msg fc-ajuda" id="fcAjuda"></div>
+  <div class="fc-dica"><b>Como fazer:</b> aponte a câmera para o rosto, a um braço de distância, em lugar claro. Quando o círculo ficar <b>verde</b>, a foto sai sozinha. Se preferir, aperte <b>Tirar foto</b>. São 5 fotos.</div>
   <div class="pf-bts"><button type="button" class="btn pf-grande" id="fcTirar">${ic('camera')} Tirar foto</button><button type="button" class="btn pf-alt" id="fcSalvar" hidden></button><button type="button" class="btn pf-alt" id="fcCadCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="btn" id="fcCancelar">Cancelar</button></div>`;
  const c={v,fid,f,cods:[],bons:0,desde:Date.now(),vivo:true,tm:null,salvando:false};
  c.tecla=e=>{if(e.key==='Escape'&&!c.salvando&&!document.querySelector('.fc-dlg')){e.preventDefault();fecharCad()}};
  CAD=c;document.body.appendChild(v);document.addEventListener('keydown',c.tecla,true);
  v.querySelector('#fcCancelar').onclick=()=>{if(!c.salvando)fecharCad()};
  v.querySelector('#fcSalvar').onclick=()=>salvarCad(c);
- v.querySelector('#fcCadCam').onclick=()=>{if(!c.salvando)trocarCam(v.querySelector('#fcCadCam span'),()=>{c.bons=0;c.desde=Date.now();c.aviso='';instr(c,'Trocando a câmera…','')},m=>{c.aviso=m;c.avisoAte=Date.now()+5000})};
+ v.querySelector('#fcCadCam').onclick=()=>{if(!c.salvando)trocarCam(v.querySelector('#fcCadCam span'),()=>{c.bons=0;c.desde=Date.now();c.aviso='';instr(c,'Trocando a câmera…','')},m=>{c.aviso=m;c.avisoAte=Date.now()+6000;const b=v.querySelector('#fcAjuda');if(b)b.textContent=m},v.querySelector('video'))};
  v.querySelector('#fcTirar').onclick=()=>{if(!c.salvando)c.forcar=true};
  som(true);c.tm=setTimeout(()=>passoCad(c),50);
 }
@@ -34066,29 +34098,36 @@ function instr(c,t,ajuda){const a=c.v.querySelector('#fcInstr'),b=c.v.querySelec
 async function passoCad(c){
  if(!c.vivo||c.salvando)return;let prox=150;
  try{
-  if(TROCANDO){prox=300;return}
+  if(TROCANDO){prox=100;return}
   const vid=c.v.querySelector('video');let st;
   try{st=await PF.ligarCamera();if(!c.vivo)return;if(vid.srcObject!==st){vid.srcObject=st;await PF.esperarVideo(vid)}}
   catch(e){instr(c,'A câmera não abriu','Motivo: '+PF.motivoCamera(e)+'. Libere a câmera para este site e tente de novo.');prox=3000;return}
-  if(!window.faceapi)instr(c,'Preparando o reconhecimento…','Na primeira vez demora um pouco.');
-  let r;try{r=await ver(vid,true)}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}
+  if(!IA_PRONTA){instr(c,'Preparando o reconhecimento…','Na primeira vez demora um pouco. Só um instante.');try{await carregarIA()}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}if(!c.vivo||c.salvando)return}
+  const t0=performance.now();
+  let r;try{r=await achar(vid)}catch(e){console.warn('ponto facial: cadastro',e);instr(c,'Reconhecimento indisponível',motivoIA());prox=5000;return}
   if(!c.vivo||c.salvando)return;
   const passoTxt=PASSOS[Math.min(c.cods.length,PASSOS.length-1)],aro=c.v.querySelector('#fcCadAro');
   let ajuda='';
-  if(!r||!r.meio){c.bons=0;ajuda='Não estou vendo o rosto. Fique no meio do círculo, em lugar claro.'}
+  if(!r||!r.meio){c.bons=0;ajuda='Não estou vendo o rosto. Deixe o rosto no meio do círculo, em lugar claro.'}
   else if(r.outro>TAM_MIN*.8){c.bons=0;ajuda='Só uma pessoa na frente da câmera.'}
   else if(r.tam<TAM_MIN+.04){c.bons=0;ajuda='Chegue mais perto.'}
-  else if(c.cods.length&&dist(r.desc,c.cods[0])>MESMA){c.bons=0;ajuda='O rosto mudou. Só '+primeiro(c.f)+' na frente da câmera.'}
-  else c.bons++;
-  /* V103 · botão "Tirar foto": quem segura o celular aperta e a foto sai na hora, se houver um rosto na imagem */
-  let jaVai=false;
-  if(c.forcar){c.forcar=false;
-   if(r&&r.tam>=.12&&!(c.cods.length&&dist(r.desc,c.cods[0])>MESMA))jaVai=true;
-   else{som(false);if(!r||!ajuda)ajuda='Não achei o rosto. Aponte a câmera para o rosto, de perto e em lugar claro, e aperte de novo.'}}
+  else{c.bons++;ajuda='Rosto encontrado. Fique parado…'}
+  if(aro){aro.classList.toggle('fc-vendo',!c.bons);aro.classList.toggle('fc-pronto',c.bons>0)}
+  /* a foto sai sozinha com o rosto parado, ou na hora ao apertar "Tirar foto" (V103) */
+  const apertou=c.forcar;c.forcar=false;
+  let tirar=apertou?!!(r&&r.tam>=.12):(c.bons>=2&&Date.now()-c.desde>=1500),cod=null;
+  if(apertou&&!tirar){som(false);ajuda='Não achei o rosto. Aponte a câmera para o rosto, de perto e em lugar claro, e aperte de novo.'}
+  if(tirar){   // só agora a parte pesada: o código do rosto
+   let f=null;try{f=await ver(vid)}catch(e){console.warn('ponto facial: cadastro',e)}
+   if(!c.vivo||c.salvando)return;
+   if(!f||!f.desc){c.bons=0;ajuda='A foto não ficou boa. Fique parado, em lugar claro.';if(apertou)som(false)}
+   else if(c.cods.length&&dist(f.desc,c.cods[0])>MESMA){c.bons=0;ajuda='O rosto mudou. Só '+primeiro(c.f)+' na frente da câmera.';if(apertou)som(false)}
+   else cod=f.desc}
   if(c.aviso&&Date.now()<c.avisoAte)ajuda=c.aviso;
   instr(c,passoTxt,ajuda);
-  if(jaVai||(c.bons>=3&&Date.now()-c.desde>=1800)){
-   c.cods.push(Float32Array.from(r.desc));c.bons=0;c.desde=Date.now();som(true);
+  prox=folga(t0,250);
+  if(cod){
+   c.cods.push(Float32Array.from(cod));c.bons=0;c.desde=Date.now();som(true);
    if(aro){aro.classList.add('fc-achou');setTimeout(()=>aro.classList.remove('fc-achou'),500)}
    c.v.querySelectorAll('#fcPontos i').forEach((p,i)=>p.classList.toggle('fc-feito',i<c.cods.length));
    const n=c.cods.length,pp=c.v.querySelector('#fcPasso'),sb=c.v.querySelector('#fcSalvar');
@@ -34221,7 +34260,7 @@ function porNoMenu(rota,rotulo,depois,sinon,desc){
 porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar','Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.');
 porNoMenu(ROTA_CAD,'Cadastrar rosto',ROTA,'cadastrar rosto facial face foto funcionario ponto reconhecimento biometria cadastro','Lista dos funcionários: toque no nome para cadastrar o rosto do ponto facial.');
 
-window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,carregarIA,
+window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,
  travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
 })();
 </script>
