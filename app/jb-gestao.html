@@ -33986,14 +33986,16 @@ function motivoBatida(e){const c=e&&e.code;
  return 'A batida NÃO foi registrada ('+motivoErro(e)+'). Tente de novo ou avise o DP.';
 }
 
-/* ---------- câmera: da frente (padrão) ou traseira ----------
-   V102: o aparelho lembra a escolha. A traseira serve para quando outra pessoa (o supervisor) segura o
+/* ---------- câmera: traseira (padrão desde o V112) ou da frente ----------
+   V102: o aparelho lembrava a escolha (desde o V112 toda tela volta para a traseira ao abrir). A traseira serve para quando outra pessoa (o supervisor) segura o
    celular e aponta para o funcionário. A imagem só fica espelhada na câmera da frente. */
 const CH_CAM='jb-ponto-camera';
 /* V107 · ger: número da "vez" da câmera. Cada desligar aumenta o número; uma abertura que termina depois de um
    desligar (vez antiga) desliga a própria câmera e não é entregue a ninguém. Assim desligar e ligar de novo no
    mesmo instante nunca deixa a tela preta nem câmera ligada sem dono. */
-const CAM={st:null,tm:null,p:null,ger:0,ouvintes:new Set(),med:[],lado:(()=>{try{return localStorage.getItem(CH_CAM)==='environment'?'environment':'user'}catch(e){return 'user'}})()};
+/* V112 · a câmera TRASEIRA é o padrão: um responsável segura o celular e aponta para o rosto de cada funcionário.
+   Toda tela do ponto que abre volta para a traseira (voltarTraseira); a troca para a frente vale só enquanto a tela está aberta. */
+const CAM={st:null,tm:null,p:null,ger:0,ouvintes:new Set(),med:[],lado:'environment'};
 const medirCam=(o,t0)=>{CAM.med.push({o,ms:Math.round(performance.now()-t0)});if(CAM.med.length>20)CAM.med.shift()};
 const ladoCam=()=>CAM.lado;
 const marcarLado=()=>{try{const r=CAM.st?(CAM.st.getVideoTracks()[0].getSettings().facingMode||''):'';document.body.classList.toggle('pf-traseira',(r||CAM.lado)==='environment')}catch(e){}};
@@ -34087,6 +34089,13 @@ function desligarCamera(ms){
  clearTimeout(CAM.tm);
  const f=()=>{CAM.ger++;pararStream(CAM.st);CAM.st=null};   // uma abertura em andamento se desfaz sozinha (ver abrirCam)
  if(ms)CAM.tm=setTimeout(f,ms);else f();
+}
+/* V112 · entrar numa tela do ponto (tela travada, cadastro do rosto, lista do ponto com foto) começa sempre na traseira.
+   Se a câmera da frente ainda estiver ligada (o desligar de 1 minuto), ela é solta para a próxima abertura já vir na traseira. */
+function voltarTraseira(){
+ if(CAM.lado==='environment')return;
+ CAM.lado='environment';try{localStorage.setItem(CH_CAM,CAM.lado)}catch(e){}
+ if(camViva()||CAM.p)desligarCamera(0);marcarLado();
 }
 const motivoCamera=e=>e&&e.name==='UmaCamera'?'este aparelho só mostrou uma câmera':e&&e.name==='NotAllowedError'?'a permissão da câmera foi negada neste navegador':e&&e.name==='NotFoundError'?'nenhuma câmera foi encontrada'
  :e&&e.name==='NotReadableError'?'a câmera está ocupada ou não mandou imagem':'a câmera não está disponível aqui';
@@ -34325,8 +34334,9 @@ function telaPontoFoto(el){
  const rz=el.querySelector('#pfRaiz');
  if(!rz||rz.dataset.papel!==String(APP.papel)){
   const cheia=!!document.documentElement.requestFullscreen;
+  if(!CAPA)voltarTraseira();   // V112 · entrou na tela: câmera traseira
   el.innerHTML=`<div class="spot" id="pfRaiz" data-papel="${esc(APP.papel)}">${cabSpot('Ponto com foto','Toque no seu nome para bater o ponto',voltar)}<main class="spot-corpo pf-corpo">
-   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes"><a class="btn pri" id="pfFacial" href="#/pontoFacial">${ic('camera')}Ponto facial</a>${ehCelular()?'':`<a class="btn" id="pfCadRosto" href="#/cadastrarRosto">${ic('camera')}Cadastrar rosto</a>`}${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}</div></div>
+   <div class="pf-topo"><div class="pf-hora" id="pfHora"></div><div class="pf-acoes"><a class="btn pri" id="pfFacial" href="#/pontoFacial">${ic('camera')}Ponto facial</a>${(!ehCelular()||cheia)?`<details class="fc-mais"><summary class="btn">Mais opções</summary><div class="fc-mais-l">${ehCelular()?'':`<a class="btn" id="pfCadRosto" href="#/cadastrarRosto">${ic('camera')}Cadastrar rosto</a>`}${ehCelular()?'':`<button type="button" class="btn" id="pfFotos">${ic('camera')}Fotos do dia</button>`}${cheia?'<button type="button" class="btn" id="pfCheia">Tela cheia</button>':''}</div></details>`:''}</div></div>
    <div id="pfAvisos"></div>
    <input type="search" id="pfBusca" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" enterkeyhint="search" aria-label="Procurar pelo nome ou pela matrícula" value="${esc(UI.busca)}">
    <div class="pf-grade" id="pfLista"></div>
@@ -34427,7 +34437,7 @@ function decorarEspelho(el){
 /* ---------- fim ---------- */
 window.PONTO_FOTO_V78={conferir,alvo,opcoes,idDoDia,gravarBatida,relogio:REL,liberado,camera:()=>({ligada:camViva(),abrindo:!!CAM.p,medidas:CAM.med.slice()}),aoCairCamera:f=>{CAM.ouvintes.add(f);return()=>CAM.ouvintes.delete(f)},
  /* V100 · usados pelo ponto facial */
- abrirBatida,capa:()=>CAPA,ligarCamera,desligarCamera,camViva,trocarCamera,ladoCam,rotuloTroca:ROT_TROCA,SETAS,esperarVideo,recorte,jpeg,enviarFoto,agora:agoraPF,motivoCamera,motivoBatida,motivoBloqueio,ehCelular,manterAcesa,soltarTela,medirRelogio,modalFotos,resumoHoje,presencas,NOME_K,ROTA,PAPEL};
+ abrirBatida,capa:()=>CAPA,ligarCamera,desligarCamera,voltarTraseira,camViva,trocarCamera,ladoCam,rotuloTroca:ROT_TROCA,SETAS,esperarVideo,recorte,jpeg,enviarFoto,agora:agoraPF,motivoCamera,motivoBatida,motivoBloqueio,ehCelular,manterAcesa,soltarTela,medirRelogio,modalFotos,resumoHoje,presencas,NOME_K,ROTA,PAPEL};
 })();
 </script>
 
@@ -34487,6 +34497,31 @@ html.vis-nv body.com-trilho[data-rota="pontoFacial"],html.vis-cc body.com-trilho
 .fc-res .fc-rt{font:600 24px/1.2 Inter,system-ui,sans-serif}
 .fc-res .fc-rh{font:700 76px/1 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
 .fc-res .fc-rm{max-width:600px;font-size:19px;line-height:1.4}
+/* V112 · nome reconhecido + botão "Bater ponto" */
+.fc-conf{display:flex;flex-direction:column;align-items:center;gap:8px;width:min(520px,100%);padding:14px 14px 10px;border-radius:18px;background:#163d28;box-shadow:0 0 0 2px #3FB56F inset}
+.fc-conf .fc-cn{max-width:100%;font:700 26px/1.15 Inter,system-ui,sans-serif;overflow-wrap:anywhere}
+.fc-conf .fc-ct{min-height:1.2em;font:600 17px/1.2 Inter,system-ui,sans-serif;color:#bfe8cf}
+.fc-bater{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:68px;padding:14px 20px;border:0;border-radius:16px;background:#2E9E5B;color:#fff;font:800 24px/1 Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.fc-bater:active{transform:scale(.98);background:#27884e}
+.fc-bater svg{width:28px;height:28px;flex:none}
+.fc-naoe{padding:8px 12px;border:0;background:transparent;color:rgba(255,255,255,.75);font:500 14px/1 Inter,system-ui,sans-serif;text-decoration:underline;cursor:pointer}
+.fc-destravar.fc-forte{padding:14px 20px;border:0;border-radius:14px;background:#fff;color:#2A211C;font:700 17px/1.2 Inter,system-ui,sans-serif}
+#fcMenu svg{width:16px;height:16px;flex:none}
+/* V112 · menu da tela travada */
+.fc-menu{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;justify-content:center;padding:16px;background:rgba(0,0,0,.55)}
+.fc-menu-c{display:flex;flex-direction:column;gap:8px;width:min(420px,100%);padding:16px;border-radius:18px;background:#fff;color:#2A211C;text-align:left}
+.fc-menu-c h3{margin:0 0 4px;font:700 19px/1.2 Inter,system-ui,sans-serif}
+.fc-menu-c button{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:12px 14px;border:1px solid #e3d9d0;border-radius:12px;background:#fff;color:#2A211C;font:600 16px/1.2 Inter,system-ui,sans-serif;text-align:left;cursor:pointer}
+.fc-menu-c button svg{width:20px!important;height:20px!important;flex:none}
+.fc-menu-c .fc-menu-f{justify-content:center;background:#2A211C;border-color:#2A211C;color:#fff}
+/* V112 · "Mais opções" e "Como usar" recolhidos */
+.fc-mais{position:relative}
+.fc-mais>summary{list-style:none;cursor:pointer}
+.fc-mais>summary::-webkit-details-marker{display:none}
+.fc-mais[open]>summary{border-color:var(--tinta)}
+.fc-mais-l{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.fc-ajuda-d>summary{cursor:pointer;font-weight:600;font-size:14.5px;color:var(--suave);padding:4px 0}
+.fc-ajuda-d[open]>summary{margin-bottom:8px}
 /* escolher o nome (só depois de não reconhecer duas vezes) */
 .fc-nomes{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--papel,#f6f1ec);color:var(--tinta,#2A211C);text-align:left}
 .fc-nomes h3{margin:0;font:700 22px/1.2 Inter,system-ui,sans-serif}
@@ -34536,6 +34571,7 @@ if(!PF||!PF.abrirBatida){console.warn('ponto facial: o ponto com foto não carre
 const ROTA='pontoFacial',ROTA_CAD='cadastrarRosto',COL='rostos',DOC_SENHA='_senha',CH_TRAVA='jb-ponto-facial-travada';
 const FONTE={lib:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js',modelos:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/',versao:'face-api 1.7.15'};
 /* distância entre dois códigos de rosto: a mesma pessoa costuma ficar abaixo de 0,45; pessoas diferentes, acima de 0,6 */
+const ICO_MENU='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 const LIMITE=.48,FIRME=.42,MARGEM=.07,PARECIDO=.42,MESMA=.6;
 const TAM_MIN=.24,MIN_FOTOS=3;
 const PASSOS=['1ª foto: olhe de frente para a câmera','2ª foto: vire o rosto um pouco para um lado','3ª foto: agora um pouco para o outro lado','4ª foto: levante um pouco o queixo','5ª foto: se usa boné, capacete ou óculos no trabalho, coloque agora. Se não usa, olhe de frente de novo'];
@@ -34795,7 +34831,7 @@ async function criarSenha(troca){
 
 /* ================= a tela travada ================= */
 const K={v:null,vivo:false,tm:null,rel:null,cand:null,n:0,sem:0,falhas:0,ate:0,nomeAte:0,ultimo:new Map(),avisado:new Map(),semRosto:0,erroCam:0,erroIA:0,acesa:0,ocupado:false,
- ger:0,rodando:0,denovo:false,direto:false};   // V107 · ger: número da vez que a tela travou; rodando: a vez da olhada em andamento (0: nenhuma); direto: já tem rosto perto
+ ger:0,rodando:0,denovo:false,direto:false,pronto:null,ign:null};   // V112 · pronto: rosto reconhecido esperando o toque em "Bater ponto"; ign: "não é esta pessoa"   // V107 · ger: número da vez que a tela travou; rodando: a vez da olhada em andamento (0: nenhuma); direto: já tem rosto perto
 /* V107 · pede a próxima olhada logo. Se já houver uma em andamento, ela mesma marca a próxima ao terminar
    (antes, "a tela voltou" no meio de uma olhada criava um segundo laço rodando junto) */
 /* V108 · as esperas da tela travada usam o relógio interno, que só anda para a frente: se a hora do aparelho for acertada
@@ -34816,14 +34852,16 @@ function travar(deNovo){
  v.innerHTML=`<div class="fc-topo"><div class="fc-hora" id="fcHora"></div><div class="fc-data" id="fcData"></div></div>
   <div class="fc-meio"><div class="fc-video" id="fcAro"><video autoplay playsinline muted></video></div>
    <div class="fc-status" id="fcStatus" aria-live="polite">Preparando a câmera…</div><div class="fc-sub" id="fcSub"></div></div>
-  <div class="fc-pe"><button type="button" class="fc-nomebt" id="fcNome" hidden>Não reconheceu? Toque aqui e escolha seu nome</button>
-   <div class="fc-pe2"><button type="button" class="fc-destravar" id="fcCam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button><button type="button" class="fc-destravar" id="fcSair">${CADEADO}Destravar</button></div></div>
+  <div class="fc-pe"><div class="fc-conf" id="fcConf" hidden><div class="fc-cn" id="fcConfNome"></div><div class="fc-ct" id="fcConfTipo"></div>
+    <button type="button" class="fc-bater" id="fcBater">${CHECK}<span>Bater ponto</span></button><button type="button" class="fc-naoe" id="fcNaoE">Não é esta pessoa</button></div>
+   <div class="fc-pe2"><button type="button" class="fc-destravar" id="fcNome">Não reconheceu? Bater pelo nome</button><button type="button" class="fc-destravar" id="fcMenu">${ICO_MENU}Menu</button></div></div>
   <div class="fc-res" id="fcRes" hidden></div>`;
- K.v=v;K.vivo=true;K.ger++;K.cand=null;K.n=0;K.sem=0;K.falhas=0;K.ate=0;K.nomeAte=0;K.erroCam=0;K.erroIA=0;K.direto=false;
+ K.v=v;K.vivo=true;K.ger++;K.cand=null;K.n=0;K.sem=0;K.falhas=0;K.ate=0;K.nomeAte=0;K.erroCam=0;K.erroIA=0;K.direto=false;K.pronto=null;K.ign=null;
+ PF.voltarTraseira();   // V112 · toda vez que a tela do ponto abre, começa na câmera traseira
  document.body.appendChild(v);document.body.classList.add('fc-travada');
- v.querySelector('#fcSair').onclick=()=>pedirDestravar();
- v.querySelector('#fcCam').onclick=()=>trocarCam(v.querySelector('#fcCam span'),()=>{K.cand=null;K.n=0;K.sem=0;K.direto=false;if(K.vivo)status('Trocando a câmera…','')},
-  m=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(m)}</div>`,4000)},v.querySelector('video'));
+ v.querySelector('#fcMenu').onclick=()=>abrirMenu();
+ v.querySelector('#fcBater').onclick=()=>confirmarBatida();
+ v.querySelector('#fcNaoE').onclick=()=>{const p=K.pronto;if(p)K.ign={fid:p.fid,ate:seg()+5000};esconderConf();K.cand=null;K.n=0;status('Olhe para a câmera','');acordar(200)};
  v.querySelector('#fcNome').onclick=()=>abrirNomes();
  v.querySelector('#fcRes').onclick=()=>{if(seg()<K.ate){const p=el('#fcRes');if(p&&!p.classList.contains('fc-erro')){clearTimeout(K.tp);p.hidden=true;K.ate=0}}};
  v.addEventListener('pointerdown',telaCheia);
@@ -34848,6 +34886,45 @@ async function trocarCam(rotulo,antes,falhou,vid){
   const m='Não troquei a câmera: '+PF.motivoCamera(e)+'.';som(false);if(falhou)falhou(m);else if(typeof toast==='function')toast(m,'erro')}
  finally{TROCANDO=false;if(rotulo)rotulo.textContent=PF.rotuloTroca();if(bt){bt.disabled=false;bt.removeAttribute('aria-busy')}}
 }
+/* V112 · menu da tela travada: trocar a câmera não pede senha (é o responsável que segura o celular);
+   sair e cadastrar rosto pedem a senha, porque tiram da tela do ponto */
+function abrirMenu(){
+ if(!K.vivo||el('.fc-menu')||K.pedindo)return;
+ const m=document.createElement('div');m.className='fc-menu';m.setAttribute('role','dialog');m.setAttribute('aria-label','Menu do ponto');
+ m.innerHTML=`<div class="fc-menu-c"><h3>Menu</h3>
+  <button type="button" data-fm="cam">${PF.SETAS}<span>${esc(PF.rotuloTroca())}</span></button>
+  ${podeCadastrar()?`<button type="button" data-fm="cad">${ic('camera')}<span>Cadastrar rosto</span></button>`:''}
+  <button type="button" data-fm="sair">${CADEADO}<span>Sair do ponto facial</span></button>
+  <button type="button" class="fc-menu-f" data-fm="fechar">Voltar para a câmera</button></div>`;
+ let tm=null;const fechar=()=>{clearTimeout(tm);m.remove();acordar(100)};
+ tm=setTimeout(fechar,20000);
+ m.addEventListener('click',async e=>{if(e.target===m){fechar();return}const b=e.target.closest('[data-fm]');if(!b)return;const a=b.dataset.fm;fechar();
+  if(a==='cam')trocarCam(null,()=>{esconderConf();K.cand=null;K.n=0;K.sem=0;K.direto=false;if(K.vivo)status('Trocando a câmera…','')},
+   x=>{if(K.vivo)painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Câmera</div><div class="fc-rm" role="alert">${esc(x)}</div>`,4000)},el('video'));
+  else if(a==='sair')pedirDestravar();
+  else if(a==='cad'){if(K.pedindo)return;K.pedindo=true;
+   try{if(await pedirSenha('Cadastrar rosto','Para cadastrar, a tela do ponto é destravada. Digite a senha.',25000)){destravar();location.hash='#/'+ROTA_CAD}}finally{K.pedindo=false}}});
+ K.v.appendChild(m);
+ const b0=m.querySelector('button');if(b0)try{b0.focus()}catch(e){}
+}
+/* V112 · reconheceu: mostra o nome e o tipo da batida e espera o toque em "Bater ponto" (como os totens de ponto do mercado).
+   Some sozinho se a pessoa sair da frente da câmera, se aparecer outro rosto ou depois de 8 s sem ver a pessoa. */
+const ESPERA_CONF=8000;
+function mostrarConf(fid,d){
+ const f=F(fid),c=el('#fcConf');if(!f||!c)return;
+ const k=PF.conferir(fid,PF.agora());
+ K.pronto={fid,d,ate:seg()+ESPERA_CONF,outro:0};
+ const n=el('#fcConfNome'),t=el('#fcConfTipo');if(n)n.textContent=f.nome;if(t)t.textContent=k.ok?PF.NOME_K(k.op[0]):'';
+ c.hidden=false;mostrarNome(false);status('Reconhecido','Confira o nome e toque em Bater ponto.','achou');
+ try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}
+}
+function esconderConf(){K.pronto=null;const c=el('#fcConf');if(c)c.hidden=true}
+async function confirmarBatida(){
+ const p=K.pronto;if(!p||K.ocupado||!K.vivo)return;
+ esconderConf();
+ await bater(p.fid,p.d,el('video'));   // a foto é tirada agora, no toque
+ acordar(300);
+}
 function telaCheia(){try{const d=document.documentElement;if(!document.fullscreenElement&&d.requestFullscreen){const p=d.requestFullscreen({navigationUI:'hide'});if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
 function soltar(){   // tira a camada sem apagar a trava (sessão caiu: a tela de entrada precisa aparecer)
  K.vivo=false;K.ger++;clearTimeout(K.tm);clearTimeout(K.tp);clearInterval(K.rel);if(K.v)K.v.remove();K.v=null;document.body.classList.remove('fc-travada');
@@ -34866,10 +34943,11 @@ async function pedirDestravar(){
 /* escolher o nome: só aparece depois de duas tentativas sem reconhecer */
 function abrirNomes(){
  if(!K.vivo||el('.fc-nomes'))return;
+ esconderConf();const mn=el('.fc-menu');if(mn)mn.remove();
  const p=document.createElement('div');p.className='fc-nomes';
  p.innerHTML=`<h3>Toque no seu nome</h3><input type="search" class="pf-busca" placeholder="Procure pelo nome ou pela matrícula" autocomplete="off" aria-label="Procurar pelo nome ou pela matrícula">
   <div class="fc-ng"></div><div><button type="button" class="btn" data-fc-v>Voltar para a câmera</button></div>`;
- let tm=null;const fechar=()=>{clearTimeout(tm);p.remove();K.falhas=0;K.sem=0;K.nomeAte=0;const b=el('#fcNome');if(b)b.hidden=true};
+ let tm=null;const fechar=()=>{clearTimeout(tm);p.remove();K.falhas=0;K.sem=0;K.nomeAte=0;const b=el('#fcNome');if(b)b.classList.remove('fc-forte')};
  const armar=()=>{clearTimeout(tm);tm=setTimeout(fechar,30000)};
  const desenhar=()=>{const ps=normal(p.querySelector('input').value).trim().split(/\s+/).filter(Boolean);
   const fs=ativos().sort((a,b)=>a.nome.localeCompare(b.nome)).filter(f=>{if(!ps.length)return true;const t=normal(f.nome)+' '+normal(f.matricula);return ps.every(x=>t.includes(x))});
@@ -34916,7 +34994,8 @@ async function passo(){
      V108 · a câmera e a tela acesa também são soltas (antes ficavam ligadas atrás da tela de entrada, sem ninguém usar) */
   if(!acessoOk()||!pode(ROTA)){soltar();if(!PF.capa())PF.desligarCamera(0);PF.soltarTela();return}
   if(!K.acesa||seg()-K.acesa>20000){K.acesa=seg();PF.manterAcesa()}
-  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||K.pedindo||K.ocupado||seg()<K.ate){prox=400;return}
+  if(K.pronto&&seg()>K.pronto.ate){esconderConf();status('Olhe para a câmera','')}
+  if(document.visibilityState!=='visible'||PF.capa()||el('.fc-nomes')||el('.fc-menu')||K.pedindo||K.ocupado||seg()<K.ate){prox=400;return}
   if(TROCANDO){prox=100;return}
   if(!PF.liberado()){status('Ponto parado',PF.motivoBloqueio());prox=5000;return}
   if(!APP.carregado||!R.pronto){status('Carregando…','');prox=600;return}
@@ -34938,35 +35017,46 @@ async function passo(){
    K.direto=!!(v&&v.desc&&v.meio&&v.tam>=TAM_MIN);K.erroIA=0}
   catch(e){if(!vivo())return;K.erroIA++;K.direto=false;console.warn('ponto facial',e);status('Reconhecimento parado',motivoIA()+' Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=6000;return}
   if(!vivo())return;
-  const nb=el('#fcNome');if(nb&&!nb.hidden&&K.nomeAte&&seg()>K.nomeAte){nb.hidden=true;K.falhas=0}
+  const nb=el('#fcNome');if(nb&&nb.classList.contains('fc-forte')&&K.nomeAte&&seg()>K.nomeAte){nb.classList.remove('fc-forte');K.falhas=0}
   if(!indice().length){status('Nenhum rosto cadastrado','Peça ao DP para cadastrar o seu rosto. Para bater agora, toque no botão abaixo.');mostrarNome(true);prox=1500;return}
-  if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>18)K.falhas=0;status('Olhe para a câmera','');prox=folga(t0,450);return}
+  if(!v||!v.meio){K.cand=null;K.n=0;K.sem=0;K.semRosto++;if(K.semRosto>18)K.falhas=0;
+   if(K.pronto){K.pronto.ate=Math.min(K.pronto.ate,seg()+3000);prox=folga(t0,300);return}   // V112 · saiu da frente: o botão some em 3 s
+   status('Olhe para a câmera','');prox=folga(t0,450);return}
   K.semRosto=0;
-  if(v.tam<TAM_MIN||!v.desc){K.cand=null;K.n=0;status('Chegue mais perto','Fique a um braço de distância do celular.','vendo');prox=folga(t0,300);return}
+  if(v.tam<TAM_MIN||!v.desc){K.cand=null;K.n=0;if(K.pronto){prox=folga(t0,300);return}status('Chegue mais perto','Aproxime a câmera: um braço de distância do rosto.','vendo');prox=folga(t0,300);return}
   const r=comparar(v.desc);
   if(r.fid){
-   if(desde(K.ultimo,r.fid)<15000){status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
+   if(desde(K.ultimo,r.fid)<15000){if(K.pronto&&K.pronto.fid!==r.fid)esconderConf();if(!K.pronto)status('Olhe para a câmera','');prox=500;return}     // acabou de bater e ainda está na frente
+   if(K.ign&&K.ign.fid===r.fid&&seg()<K.ign.ate){if(!K.pronto)status('Olhe para a câmera','');prox=500;return}   // V112 · tocaram em "Não é esta pessoa"
+   /* V112 · a mesma pessoa continua na frente: o botão "Bater ponto" continua valendo */
+   if(K.pronto&&K.pronto.fid===r.fid){K.pronto.ate=seg()+ESPERA_CONF;K.pronto.outro=0;K.pronto.d=r.d;K.sem=0;K.falhas=0;prox=folga(t0,350);return}
+   if(K.pronto&&++K.pronto.outro>=2)esconderConf();   // outro rosto na frente: o nome de antes sai
    if(K.cand===r.fid)K.n++;else{K.cand=r.fid;K.n=1}
-   K.sem=0;status('Reconhecendo…','','achou');
-   if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);await bater(fid,r.d,vid);prox=300;return}
+   K.sem=0;if(!K.pronto)status('Reconhecendo…','','achou');
+   if(K.n>=(r.d>FIRME?3:2)){const fid=r.fid;K.cand=null;K.n=0;K.falhas=0;mostrarNome(false);
+    /* já bateu, dia completo…: só avisa (bater não grava nesses casos). Senão mostra o nome e espera o toque. */
+    if(!PF.conferir(fid,PF.agora()).ok){esconderConf();await bater(fid,r.d,vid)}else mostrarConf(fid,r.d);
+    prox=300;return}
    prox=folga(t0,150);return}
   /* V108 · "Não reconheci" sai depois de 7 olhadas sem reconhecer E, no mínimo, do tempo que essas 7 olhadas levavam antes
      do V107. As olhadas ficaram mais rápidas; sem esse tempo mínimo o aviso (que pausa a câmera por 3 s) e o botão do nome
      apareciam quase na metade do tempo, interrompendo quem ainda estava sendo reconhecido. O limite de reconhecimento não muda. */
+  if(K.pronto){if(++K.pronto.outro>=2)esconderConf();else{prox=folga(t0,250);return}}   // V112 · outro rosto (não reconhecido) na frente
   const g=performance.now()-t0+(soVer?(MED.achar[MED.achar.length-1]||0):0);   // a olhada antiga sempre incluía a leve
   /* o tempo antigo das 7 primeiras olhadas: cada olhada e, entre elas, a pausa antiga (o dobro da olhada, de 0,2 a 1,2 s) */
   if(!K.sem){K.semDesde=t0;K.semVelho=0}else if(K.sem<7)K.semVelho+=Math.min(1200,Math.max(200,K.semG*2));
   if(K.sem<7){K.semVelho+=g;K.semG=g}
   K.cand=null;K.n=0;K.sem++;status('Reconhecendo…','Olhe de frente, sem boné na frente dos olhos.','vendo');
   if(K.sem>=7&&performance.now()-K.semDesde>=K.semVelho){K.sem=0;K.falhas++;som(false);
-   if(K.falhas>=2){mostrarNome(true,25000);painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Toque no botão "escolha seu nome" para bater o ponto.</div>`,2500)}
+   if(K.falhas>=2){mostrarNome(true,25000);painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Toque em "Bater pelo nome", embaixo da câmera.</div>`,2500)}
    else painel('aviso',`<div class="pf-sinal">${EXCL}</div><div class="fc-rn">Não reconheci</div><div class="fc-rm" role="alert">Tente de novo: chegue mais perto, em lugar claro, e olhe de frente para a câmera.</div>`,3000)}
   prox=folga(t0,200);
  }catch(e){console.warn('ponto facial: passo',e);prox=1500}
  finally{if(K.rodando===ger)K.rodando=0;
   if(K.vivo&&K.ger===ger){clearTimeout(K.tm);K.tm=setTimeout(passo,K.denovo?Math.min(prox,50):prox);K.denovo=false}}
 }
-function mostrarNome(sim,ms){const b=el('#fcNome');if(!b)return;if(sim){b.hidden=false;K.nomeAte=ms?seg()+ms:0}else{b.hidden=true;K.nomeAte=0}}
+/* V112 · "Bater pelo nome" fica sempre na tela; depois de não reconhecer ele só ganha destaque */
+function mostrarNome(sim,ms){const b=el('#fcNome');if(!b)return;if(sim){b.classList.add('fc-forte');K.nomeAte=ms?seg()+ms:0}else{b.classList.remove('fc-forte');K.nomeAte=0}}
 /* travada: nenhum endereço tira da tela */
 window.addEventListener('hashchange',()=>{if(K.vivo&&lerRota().mod!==ROTA)location.replace('#/'+ROTA)});
 document.addEventListener('visibilitychange',()=>{if(K.vivo&&document.visibilityState==='visible')acordar(100)});
@@ -34996,6 +35086,7 @@ function fecharCad(){
 function abrirCadastro(fid){
  if(CAD||K.vivo)return;const f=F(fid);
  if(!f||!podeCadastrar()){toast(f?'Seu perfil não cadastra rosto.':'Funcionário não encontrado.','erro');return}
+ PF.voltarTraseira();   // V112 · o cadastro também começa na câmera traseira
  const v=document.createElement('div');v.className='pf-cam fc-cad';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Cadastrar rosto');
  v.innerHTML=`<div class="pf-nome">${esc(f.nome)}</div><div class="pf-tipo">Cadastro do rosto<br><b id="fcPasso">Foto 1 de ${PASSOS.length}</b></div>
   <div class="pf-video" id="fcCadAro"><video autoplay playsinline muted></video></div>
@@ -35135,13 +35226,15 @@ function telaFacial(el){
    $('#fcLista',el).addEventListener('click',e=>{const b=e.target.closest('[data-fc-del]'),a=e.target.closest('[data-fc-cad]');if(b)apagarRosto(b.dataset.fcDel);else if(a)abrirCadastro(a.dataset.fcCad)});
    $('#fcLista',el).addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-fc-cad]')){e.preventDefault();abrirCadastro(e.target.dataset.fcCad)}});
   }else{
-   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Ponto facial','A pessoa só olha para a câmera',voltar)}<main class="spot-corpo pf-corpo"><div class="fc-ini">
+   el.innerHTML=`<div class="spot" id="fcRaiz" data-chave="${esc(chave)}">${cabSpot('Ponto facial','Aponte a câmera e toque em Bater ponto',voltar)}<main class="spot-corpo pf-corpo"><div class="fc-ini">
     ${window.JB_NUVEM?'':'<div class="aviso at" style="margin:0">O ponto facial usa a câmera e só funciona na versão da nuvem (jb-gestao-ceramica.netlify.app). Aqui no Claude a câmera não abre: use a nuvem para cadastrar os rostos e para travar a tela.</div>'}
     <div class="fc-resumo" id="fcResumo"></div>
-    <button type="button" class="btn pri fc-travar" id="fcTravar">${CADEADO}Travar a tela e começar</button>
-    <div class="fc-acoes">${podeCadastrar()?`<a class="btn" href="#/${ROTA_CAD}">${ic('camera')}Cadastrar rosto</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater tocando no nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div>
-    <ol class="fc-passos"><li>Todo dia, abra esta tela no celular do ponto e toque em <b>Travar a tela e começar</b>.</li><li>Digite a senha. A tela fica só com a hora e a câmera.</li><li>Cada pessoa para na frente do celular e olha para a câmera. A batida é registrada sozinha, com a foto.</li><li>Para sair, toque em <b>Destravar</b> e digite a senha.</li><li>Se o supervisor for segurar o celular e apontar para cada pessoa, toque em <b>Usar a câmera traseira</b> (embaixo da tela travada). O aparelho lembra a escolha.</li></ol>
-    <p class="pf-rod">Para ninguém sair do programa pelos botões do aparelho, use também a função "Fixar tela" (ou "Fixar app") do Android. Quem o sistema não reconhecer em duas tentativas pode tocar no nome; essa batida fica marcada em "Fotos do dia" para o DP conferir. Registro gerencial: não substitui o ponto eletrônico oficial (Portaria MTE 671/2021).</p>
+    <button type="button" class="btn pri fc-travar" id="fcTravar">${ic('camera')}Começar o ponto facial</button>
+    <p class="fc-como" style="margin:0">Aponte a <b>câmera traseira</b> para o rosto do funcionário. Quando aparecer o nome dele, toque em <b>Bater ponto</b>. A foto é tirada nessa hora.</p>
+    <details class="fc-mais"><summary class="btn">Mais opções</summary><div class="fc-mais-l">${podeCadastrar()?`<a class="btn" href="#/${ROTA_CAD}">${ic('camera')}Cadastrar rosto</a><button type="button" class="btn" id="fcSenhaBt">Senha da tela</button>`:''}<a class="btn" href="#/${PF.ROTA}">Bater pelo nome</a>${PF.ehCelular()?'':`<button type="button" class="btn" id="fcFotos">${ic('camera')}Fotos do dia</button>`}</div></details>
+    <details class="fc-ajuda-d"><summary>Como usar</summary>
+    <ol class="fc-passos"><li>Abra esta tela no celular do ponto e toque em <b>Começar o ponto facial</b>. Digite a senha da tela.</li><li>A tela fica só com a hora e a câmera. A câmera traseira já vem ligada.</li><li>Aponte a câmera para o rosto do funcionário, a um braço de distância, em lugar claro.</li><li>Quando aparecer o nome e o tipo (Entrada, Saída…), confira e toque em <b>Bater ponto</b>. Se o nome estiver errado, toque em <b>Não é esta pessoa</b>.</li><li>Não reconheceu? Toque em <b>Bater pelo nome</b>.</li><li>Para trocar a câmera ou sair, toque em <b>Menu</b>. Sair pede a senha.</li></ol>
+    <p class="pf-rod">Para ninguém sair do programa pelos botões do aparelho, use também a função "Fixar tela" (ou "Fixar app") do Android. A batida pelo nome fica marcada em "Fotos do dia" para o DP conferir. Registro gerencial: não substitui o ponto eletrônico oficial (Portaria MTE 671/2021).</p></details>
    </div></main></div>`;
    $('#fcTravar',el).onclick=()=>iniciarTrava();
    const sb=$('#fcSenhaBt',el);if(sb)sb.onclick=()=>criarSenha(!!R.senha).then(()=>desenharInicio(el));
@@ -35197,11 +35290,11 @@ function porNoMenu(rota,rotulo,depois,sinon,desc){
  try{if(typeof PQ_SINON==='object')PQ_SINON[rota]=sinon}catch(e){}
  try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===rota)return desc;return d0.apply(this,arguments)}}}catch(e){}
 }
-porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto sem tocar','Tela fixa do ponto: a pessoa só olha para a câmera e a batida é registrada sozinha.');
+porNoMenu(ROTA,'Ponto facial',PF.ROTA,'facial rosto reconhecimento face biometria camera celular parede quiosque tela fixa travada senha bater ponto camera traseira','Tela fixa do ponto: aponte a câmera para o rosto, aparece o nome e você toca em Bater ponto.');
 porNoMenu(ROTA_CAD,'Cadastrar rosto',ROTA,'cadastrar rosto facial face foto funcionario ponto reconhecimento biometria cadastro','Lista dos funcionários: toque no nome para cadastrar o rosto do ponto facial.');
 
 window.PONTO_FACIAL_V100={travada:()=>K.vivo,temRostos:()=>R.docs.length>0,rostos:()=>R.docs.map(d=>({id:d.id,fotos:d.cods.length})),comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modo:()=>MODO,_derrubar:()=>{MED.quedas++;pararOper()},_voltarJa:()=>{if(VOLTA.em)VOLTA.em=1;return !!VOLTA.em},medidas:()=>({modo:MODO,voltasOperario:VOLTA.n,achar:MED.achar.slice(),ver:MED.ver.slice(),quedasOperario:MED.quedas,camera:(PF.camera().medidas||[])}),
- travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto})};
+ travar:iniciarTrava,destravar:pedirDestravar,abrirCadastro,senha:()=>!!R.senha,limites:{LIMITE,FIRME,MARGEM,PARECIDO,TAM_MIN},estado:()=>({cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:R.pronto,confirmar:K.pronto?K.pronto.fid:null}),trocando:()=>TROCANDO};
 })();
 </script>
 

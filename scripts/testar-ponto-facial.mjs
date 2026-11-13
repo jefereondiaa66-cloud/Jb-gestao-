@@ -3,13 +3,14 @@
 // com banco central simulado e a câmera mostrando um rosto de verdade (fotos de exemplo que vêm com a
 // biblioteca face-api). O reconhecimento roda de verdade; nada sai para a internet.
 // Confere:
-//   1. a tela abre em #/pontoFacial, com o resumo e o botão "Travar a tela e começar"
+//   1. a tela abre em #/pontoFacial, com o resumo e o botão "Começar o ponto facial" (o resto em "Mais opções")
 //   2. o cadastro tira 5 fotos sozinho e guarda só os códigos (nenhuma foto do cadastro é guardada)
-//   3. travar pede a senha (na primeira vez, cria) e a tela fica só com a hora e a câmera
-//   4. a pessoa é reconhecida sem tocar em nada e a ENTRADA cai no Diário do DP, com a foto
+//   3. travar pede a senha (na primeira vez, cria) e a tela fica só com a hora, a câmera TRASEIRA, "Bater pelo nome" e "Menu"
+//   4. V112: a pessoa é reconhecida, aparece o nome e o botão "Bater ponto"; nada é gravado até tocar.
+//      "Não é esta pessoa" tira o nome. Tocou: a ENTRADA cai no Diário do DP, com a foto tirada no toque
 //   5. não registra para outra pessoa nem bate duas vezes
-//   6. senha errada não destrava; a certa destrava; nenhum endereço tira da tela travada
-//   7. rosto desconhecido: depois de duas tentativas aparece "escolha seu nome"; a batida fica marcada para conferir
+//   6. senha errada não destrava; a certa destrava (Menu → Sair); nenhum endereço tira da tela travada
+//   7. rosto desconhecido: "Bater pelo nome" ganha destaque; a batida fica marcada para conferir; entrar de novo volta para a traseira
 //   8. recarregar a página não destrava
 //   9. o perfil "Celular do ponto" usa a tela, mas não cadastra rosto
 // Uso: npm install --no-save playwright @vladmandic/face-api@1.7.15 && node scripts/construir.mjs && node scripts/testar-ponto-facial.mjs
@@ -119,12 +120,13 @@ try {
   await page.evaluate(() => { location.hash = '#/pontoFacial'; });
   await page.waitForSelector('#fcTravar', { timeout: 10000 });
   await page.waitForFunction(() => /0 de 3/.test(document.getElementById('fcResumo').textContent), null, { timeout: 10000 });
-  ok(true, 'a tela abre com o resumo (0 de 3 com rosto) e o botão "Travar a tela e começar"');
+  ok(await page.evaluate(() => /Começar o ponto facial/.test(document.getElementById('fcTravar').textContent) && !document.querySelector('.fc-mais').open), 'a tela abre com o resumo (0 de 3 com rosto), o botão "Começar o ponto facial" e o resto fechado em "Mais opções"');
   ok(await page.evaluate(() => AREAS_MS.find((x) => x.g === 'Ponto e lançamentos').A.some((x) => x.m === 'pontoFacial') && MITENS.filter((m) => m.m === 'pontoFacial').length === 1), 'item "Ponto facial" no menu do DP, uma vez só');
   ok(await page.evaluate(() => /Cadastrar rosto do ponto/.test(atalhosFunc(F('f1'))) && !/rosto/.test(atalhosFunc(F('f4'))) && !/rosto/.test(atalhosFunc(F('f5')))), 'ficha do funcionário: atalho "Cadastrar rosto do ponto" (não para prestador nem desligado)');
 
   /* ---------- 2. cadastro ---------- */
   ok(await page.evaluate(() => { const A = AREAS_MS.find((x) => x.g === 'Ponto e lançamentos').A; return A.findIndex((x) => x.m === 'cadastrarRosto') === A.findIndex((x) => x.m === 'pontoFacial') + 1 && MITENS.filter((m) => m.m === 'cadastrarRosto' && m.l === 'Cadastrar rosto').length === 1; }), 'item "Cadastrar rosto" no menu do ponto, logo depois de "Ponto facial"');
+  await page.click('.fc-mais summary');
   await page.click('a[href="#/cadastrarRosto"]');
   await page.waitForSelector('#fcLista [data-fc-cad="f1"]', { timeout: 10000 });
   ok((await page.$$eval('#fcLista [data-fc-cad]', (b) => b.map((x) => x.dataset.fcCad))).join() === 'f1,f2,f3', 'lista só os empregados ativos');
@@ -132,11 +134,11 @@ try {
   const t0 = Date.now();
   await page.click('#fcLista [data-fc-cad="f1"] .fc-txt b');   // tocar no nome abre o cadastro
   await page.waitForSelector('.fc-cad video', { timeout: 5000 });
-  ok(/Usar a câmera traseira/.test(await page.textContent('#fcCadCam')), 'o cadastro tem o botão "Usar a câmera traseira"');
+  ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'environment' && /Usar a câmera da frente/.test(document.getElementById('fcCadCam').textContent)), 'o cadastro começa na câmera traseira (botão "Usar a câmera da frente")');
   // só uma câmera no aparelho: avisa em vez de fingir que trocou
   await page.click('#fcCadCam');
   await page.waitForFunction(() => /só mostrou uma câmera/.test(document.getElementById('fcAjuda').textContent), null, { timeout: 15000 });
-  ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'user' && /traseira/.test(document.getElementById('fcCadCam').textContent)), 'aparelho com uma câmera só: avisa "só mostrou uma câmera" e continua na da frente');
+  ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'environment' && /frente/.test(document.getElementById('fcCadCam').textContent)), 'aparelho com uma câmera só: avisa "só mostrou uma câmera" e continua na traseira');
   // botão "Tirar foto": a foto sai na hora
   await page.waitForFunction(() => PONTO_FACIAL_V100.pronta() && PONTO_FOTO_V78.camera().ligada, null, { timeout: 90000 });
   ok(await page.evaluate(() => PONTO_FACIAL_V100.modo()) === 'operario', 'o reconhecimento roda fora da tela (operário), para não travar o celular');
@@ -180,25 +182,42 @@ try {
   await page.fill('.fc-dlg input[data-i="0"]', '1234'); await page.fill('.fc-dlg input[data-i="1"]', '1234');
   await page.click('.fc-dlg .fc-ok');
   await page.waitForSelector('.fc-tela', { timeout: 8000 });
-  const r3 = await page.evaluate(() => { const s = window.__srv.estado.docs.get('rostos/_senha'); return { s: s && s.dados, trava: localStorage.getItem('jb-ponto-facial-travada'), botoes: [...document.querySelectorAll('.fc-tela button')].filter((b) => !b.hidden).map((b) => b.textContent.trim()), hora: document.getElementById('fcHora').textContent }; });
+  const r3 = await page.evaluate(() => { const s = window.__srv.estado.docs.get('rostos/_senha'); return { s: s && s.dados, trava: localStorage.getItem('jb-ponto-facial-travada'), botoes: [...document.querySelectorAll('.fc-tela button')].filter((b) => b.offsetParent !== null).map((b) => b.textContent.trim()), lado: PONTO_FOTO_V78.ladoCam(), traseira: document.body.classList.contains('pf-traseira'), hora: document.getElementById('fcHora').textContent }; });
   ok(!!(r3.s && r3.s.hash && r3.s.hash.length === 64 && !JSON.stringify(r3.s).includes('1234')), 'a senha vai para o banco embaralhada (nunca a senha em si)');
-  ok(!!r3.trava && r3.botoes.join() === 'Usar a câmera traseira,Destravar' && /\d{2}:\d{2}/.test(r3.hora), `tela travada: só a hora, a câmera, "Usar a câmera traseira" e "Destravar" (${r3.botoes.join(', ')})`);
-  // trocar de câmera: pede a traseira ao aparelho, tira o espelho e o aparelho lembra
+  ok(!!r3.trava && r3.botoes.join() === 'Não reconheceu? Bater pelo nome,Menu' && /\d{2}:\d{2}/.test(r3.hora), `tela travada: só a hora, a câmera, "Bater pelo nome" e "Menu" (${r3.botoes.join(', ')})`);
+  ok(r3.lado === 'environment' && r3.traseira && await page.evaluate(() => getComputedStyle(document.querySelector('.fc-video video')).transform === 'none'), 'a tela travada começa na câmera traseira, sem espelho');
+  // menu: trocar para a frente (sem senha) e voltar
   await page.evaluate(() => { window.__pedidos = []; const g = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getUserMedia = (c) => { window.__pedidos.push(JSON.stringify(c.video.facingMode || 'pelo aparelho')); return g(c); }; });
   // o navegador de teste só tem uma câmera: para testar a troca, ele passa a mostrar duas
-  await page.evaluate(() => { const e = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices); navigator.mediaDevices.enumerateDevices = async () => { const d = await e(); const v = d.find((x) => x.kind === 'videoinput'); return v ? d.concat([{ kind: 'videoinput', deviceId: v.deviceId, label: 'camera 0, facing back', groupId: '' }]) : d; }; });
-  await page.click('#fcCam');
-  await page.waitForFunction(() => /câmera da frente/.test(document.getElementById('fcCam').textContent) && PONTO_FOTO_V78.camera().ligada, null, { timeout: 8000 });
-  const rc = await page.evaluate(() => ({ pedidos: window.__pedidos, lado: PONTO_FOTO_V78.ladoCam(), guardado: localStorage.getItem('jb-ponto-camera'), classe: document.body.classList.contains('pf-traseira'), espelho: getComputedStyle(document.querySelector('.fc-video video')).transform }));
-  ok(rc.lado === 'environment' && rc.guardado === 'environment' && /"exact":"environment"/.test(rc.pedidos.join()), `"Usar a câmera traseira": exige a traseira do aparelho e lembra a escolha (${rc.pedidos.join()})`);
-  ok(rc.classe && rc.espelho === 'none', 'na traseira a imagem não fica espelhada');
+  await page.evaluate(() => { const e = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices); navigator.mediaDevices.enumerateDevices = async () => { const d = await e(); const v = d.find((x) => x.kind === 'videoinput'); return v ? d.concat([{ kind: 'videoinput', deviceId: v.deviceId, label: 'camera 0, facing front', groupId: '' }]) : d; }; });
+  await page.click('#fcMenu');
+  await page.waitForSelector('.fc-menu [data-fm="cam"]');
+  ok(/Usar a câmera da frente/.test(await page.textContent('.fc-menu [data-fm="cam"]')) && !(await page.$('.fc-dlg')), 'Menu abre sem senha, com "Usar a câmera da frente"');
+  await page.click('.fc-menu [data-fm="cam"]');
+  await page.waitForFunction(() => PONTO_FOTO_V78.ladoCam() === 'user' && !PONTO_FACIAL_V100.trocando() && PONTO_FOTO_V78.camera().ligada, null, { timeout: 8000 });
+  const rc = await page.evaluate(() => ({ pedidos: window.__pedidos, classe: document.body.classList.contains('pf-traseira'), menu: !!document.querySelector('.fc-menu') }));
+  ok(!rc.classe && !rc.menu, `Menu → câmera da frente: troca e o menu fecha (${rc.pedidos.join()})`);
+  await page.click('#fcMenu'); await page.click('.fc-menu [data-fm="cam"]');
+  await page.waitForFunction(() => PONTO_FOTO_V78.ladoCam() === 'environment' && !PONTO_FACIAL_V100.trocando() && PONTO_FOTO_V78.camera().ligada, null, { timeout: 8000 });
+  ok(await page.evaluate(() => document.body.classList.contains('pf-traseira')), 'e volta para a traseira pelo mesmo menu');
 
-  /* ---------- 4 e 5. reconhece e registra sozinho ---------- */
-  await page.waitForFunction((H) => DATA.diario.some((x) => x.funcionarioId === 'f1' && x.data === H && x.entrada), H, { timeout: 120000 });
+  /* ---------- 4 e 5. reconhece, mostra o nome e só registra no toque ---------- */
+  await page.waitForSelector('#fcConf:not([hidden])', { timeout: 120000 });
+  const r4a = await page.evaluate((H) => ({ nome: document.getElementById('fcConfNome').textContent, tipo: document.getElementById('fcConfTipo').textContent, n: DATA.diario.length, arq: window.__arquivos.length }), H);
+  ok(r4a.nome === 'Ana Teste Souza' && r4a.tipo === 'Entrada' && r4a.n === 0 && r4a.arq === 0, `reconheceu: mostra "${r4a.nome}" · "${r4a.tipo}" e o botão Bater ponto, sem gravar nada ainda`);
+  await page.screenshot({ path: join(RAIZ, 'saida/tela-ponto-facial-confirmar.png') });
+  await page.waitForTimeout(4000);
+  ok(await page.evaluate(() => DATA.diario.length === 0 && !document.getElementById('fcConf').hidden), 'parada na frente sem tocar: o nome continua na tela e nada é gravado');
+  await page.click('#fcNaoE');
+  ok(await page.evaluate(() => document.getElementById('fcConf').hidden && DATA.diario.length === 0), '"Não é esta pessoa": o nome some e nada é gravado');
+  await page.waitForSelector('#fcConf:not([hidden])', { timeout: 60000 });
+  ok(true, 'depois de alguns segundos a pessoa é reconhecida de novo');
+  await page.click('#fcBater');
+  await page.waitForFunction((H) => DATA.diario.some((x) => x.funcionarioId === 'f1' && x.data === H && x.entrada), H, { timeout: 20000 });
   await page.waitForSelector('#fcRes:not([hidden])', { timeout: 5000 });
   const r4 = await page.evaluate((H) => ({ r: DATA.diario.find((x) => x.funcionarioId === 'f1' && x.data === H), outros: DATA.diario.filter((x) => x.funcionarioId !== 'f1').length, arq: window.__arquivos, tela: document.getElementById('fcRes').textContent, classe: document.getElementById('fcRes').className }), H);
   const m4 = r4.r.fotosPonto && r4.r.fotosPonto.entrada;
-  ok(/^\d{2}:\d{2}$/.test(r4.r.entrada) && r4.r.tipo === 'Presença normal', `sem tocar em nada: entrada de Ana no Diário do DP (${r4.r.entrada})`);
+  ok(/^\d{2}:\d{2}$/.test(r4.r.entrada) && r4.r.tipo === 'Presença normal', `tocou em Bater ponto: entrada de Ana no Diário do DP (${r4.r.entrada})`);
   ok(!!(m4 && m4.origem === 'Ponto facial' && m4.rosto && m4.rosto.d < 0.3 && !m4.conferir), `marcada como reconhecida pelo rosto (distância ${m4 && m4.rosto && m4.rosto.d})`);
   ok(!!(m4 && m4.id && r4.arq.length === 1 && r4.arq[0].tam < 80000), `a foto da batida foi guardada (${r4.arq[0] && Math.round(r4.arq[0].tam / 1024)} KB)`);
   ok(/Ana Teste Souza/.test(r4.tela) && /Entrada registrada/.test(r4.tela) && r4.classe === 'fc-res', 'a tela mostra o nome, "Entrada registrada" e a hora, em verde');
@@ -214,7 +233,7 @@ try {
   await page.evaluate(() => { location.hash = '#/ponto'; });
   await page.waitForTimeout(400);
   ok(await page.evaluate(() => location.hash === '#/pontoFacial' && !!document.querySelector('.fc-tela')), 'trocar o endereço não tira da tela travada');
-  await page.click('#fcSair');
+  await page.click('#fcMenu'); await page.click('.fc-menu [data-fm="sair"]');
   await page.waitForSelector('.fc-dlg input');
   await page.fill('.fc-dlg input', '0000'); await page.click('.fc-dlg .fc-ok');
   await page.waitForFunction(() => /Senha errada/.test(document.querySelector('.fc-dlg .fc-er').textContent));
@@ -231,17 +250,18 @@ try {
   ok((await page.$$('.fc-dlg input')).length === 1 && /Travar a tela/.test(await page.textContent('.fc-dlg')), 'nos outros dias: pede a senha para travar');
   await page.fill('.fc-dlg input', '1234'); await page.click('.fc-dlg .fc-ok');
   await page.waitForSelector('.fc-tela');
-  ok(await page.evaluate(() => document.getElementById('fcNome').hidden), 'o botão de escolher o nome começa escondido');
-  await page.waitForFunction(() => { const b = document.getElementById('fcNome'); return b && !b.hidden; }, null, { timeout: 120000 });
-  const r7a = await page.evaluate(() => ({ falhas: PONTO_FACIAL_V100.estado().falhas, n: DATA.diario.length }));
-  ok(r7a.falhas >= 2 && r7a.n === 1, 'não reconheceu duas vezes: aparece "escolha seu nome" e nada é registrado sozinho');
+  ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'environment' && document.body.classList.contains('pf-traseira')), 'travou de novo: começa na traseira outra vez');
+  ok(await page.evaluate(() => { const b = document.getElementById('fcNome'); return b.offsetParent !== null && !b.classList.contains('fc-forte'); }), '"Bater pelo nome" fica sempre na tela, discreto no começo');
+  await page.waitForFunction(() => { const b = document.getElementById('fcNome'); return b && b.classList.contains('fc-forte'); }, null, { timeout: 120000 });
+  const r7a = await page.evaluate(() => ({ falhas: PONTO_FACIAL_V100.estado().falhas, n: DATA.diario.length, conf: document.getElementById('fcConf').hidden }));
+  ok(r7a.falhas >= 2 && r7a.n === 1 && r7a.conf, 'não reconheceu duas vezes: "Bater pelo nome" ganha destaque, sem botão Bater ponto e nada registrado');
   await page.waitForSelector('#fcRes', { state: 'hidden', timeout: 8000 });
   await page.click('#fcNome');
   await page.waitForSelector('.fc-nomes [data-fc-f="f3"]');
   ok((await page.$$eval('.fc-nomes [data-fc-f]', (b) => b.map((x) => x.dataset.fcF))).join() === 'f1,f2,f3', 'a lista de nomes aparece por cima, ainda travada');
   await page.click('.fc-nomes [data-fc-f="f3"]');
   await page.waitForSelector('.pf-cam [data-pf="trocar"]', { timeout: 8000 });
-  ok(/câmera da frente/.test(await page.textContent('.pf-cam [data-pf="trocar"]')), 'a batida com foto também tem o botão de trocar a câmera (e lembra que está na traseira)');
+  ok(/câmera da frente/.test(await page.textContent('.pf-cam [data-pf="trocar"]')), 'a batida pelo nome também usa a traseira (botão "Usar a câmera da frente")');
   ok(!!(await page.$('.pf-cam [data-pf="agora"]')), 'a batida com foto tem o botão "Tirar foto agora"');
   await page.click('.pf-cam [data-pf="agora"]');
   await page.waitForSelector('.pf-cam.pf-res-ok', { timeout: 20000 });
@@ -255,8 +275,8 @@ try {
   /* ---------- 8. recarregar não destrava ---------- */
   await abrir();
   await page.waitForSelector('.fc-tela', { timeout: 15000 });
-  ok(await page.evaluate(() => location.hash === '#/pontoFacial'), 'recarregar a página: volta travada, na tela do ponto');
-  await page.click('#fcSair');
+  ok(await page.evaluate(() => location.hash === '#/pontoFacial' && PONTO_FOTO_V78.ladoCam() === 'environment'), 'recarregar a página: volta travada, na tela do ponto, na traseira');
+  await page.click('#fcMenu'); await page.click('.fc-menu [data-fm="sair"]');
   await page.waitForSelector('.fc-dlg input');
   await page.fill('.fc-dlg input', '9999'); await page.click('.fc-dlg .fc-ok');
   await page.waitForFunction(() => /Senha errada/.test(document.querySelector('.fc-dlg .fc-er').textContent));

@@ -132,22 +132,29 @@ async function cenario(nome, opcoes) {
     await page.waitForSelector('#fcTravar');
     await page.waitForFunction(() => /1 de 3/.test(document.getElementById('fcResumo').textContent), null, { timeout: 10000 });
 
+    /* V112 · trocar a câmera e sair ficam no Menu da tela travada */
+    const sair = async () => { await page.click('#fcMenu'); await page.click('.fc-menu [data-fm="sair"]'); await senha(); };
+    const trocar = async () => { await page.click('#fcMenu'); await page.click('.fc-menu [data-fm="cam"]'); };
     const senha = async () => { await page.waitForSelector('.fc-dlg input'); const n = (await page.$$('.fc-dlg input')).length; for (let i = 0; i < n; i++) await page.fill(`.fc-dlg input[data-i="${i}"]`, '1234'); await page.click('.fc-dlg .fc-ok'); };
     const imagemViva = () => page.waitForFunction(() => { const v = document.querySelector('.fc-video video'); return v && v.videoWidth > 0 && v.readyState >= 2 && v.srcObject && v.srcObject.getVideoTracks().some((t) => t.readyState === 'live'); }, null, { timeout: 20000, polling: 16 });
 
     /* A. abrir a tela travada 5 vezes */
     const abrir = [];
     for (let i = 0; i < 5; i++) {
-      await page.click('#fcTravar'); await page.waitForSelector('.fc-dlg input');
+      /* logo depois de destravar a tela ainda está saindo da tela cheia: se o toque cair na troca, toca de novo */
+      await page.click('#fcTravar'); await page.waitForSelector('.fc-dlg input', { timeout: 4000 }).catch(async () => { await page.click('#fcTravar'); await page.waitForSelector('.fc-dlg input'); });
       const n = (await page.$$('.fc-dlg input')).length; for (let j = 0; j < n; j++) await page.fill(`.fc-dlg input[data-i="${j}"]`, '1234');
       const t0 = Date.now(); await page.click('.fc-dlg .fc-ok');
       await imagemViva(); abrir.push(Date.now() - t0);
-      if (i === 0) {   // na primeira vez, espera a batida de Ana (reconhecimento de ponta a ponta)
+      if (i === 0) {   // na primeira vez, espera Ana ser reconhecida e toca em "Bater ponto" (reconhecimento de ponta a ponta)
         const t1 = Date.now();
-        await page.waitForFunction((H) => DATA.diario.some((x) => x.funcionarioId === 'f1' && x.data === H && x.entrada), H, { timeout: 60000 });
-        R.batida = Date.now() - t0; console.log(`  · da senha à batida de Ana registrada sozinha: ${ms(R.batida)} (depois da imagem: ${ms(Date.now() - t1)})`);
+        await page.waitForSelector('#fcConf:not([hidden])', { timeout: 60000 });
+        R.reconhecer = Date.now() - t0;
+        await page.click('#fcBater');
+        await page.waitForFunction((H) => DATA.diario.some((x) => x.funcionarioId === 'f1' && x.data === H && x.entrada), H, { timeout: 20000 });
+        R.batida = Date.now() - t0; console.log(`  · da senha ao nome de Ana na tela: ${ms(R.reconhecer)} (depois da imagem: ${ms(Date.now() - t1)} até gravar); batida gravada ${ms(R.batida - R.reconhecer)} depois do toque`);
       }
-      if (i < 4) { await page.click('#fcSair'); await senha(); await page.waitForSelector('.fc-tela', { state: 'detached' }); }
+      if (i < 4) { await sair(); await page.waitForSelector('.fc-tela', { state: 'detached' }); }
     }
     R.abrir = abrir; console.log(`  · A. câmera com imagem ao travar (5×): ${abrir.map(ms).join(', ')} → ${resumo(abrir)}`);
     ok(mediana(abrir) < 2000, `A. a câmera abre com imagem em menos de 2 s (${resumo(abrir)})`);
@@ -155,9 +162,9 @@ async function cenario(nome, opcoes) {
     /* B. 10 trocas de câmera */
     const trocas = [];
     for (let i = 0; i < 10; i++) {
-      const antes = await page.evaluate(() => document.getElementById('fcCam').textContent);
-      const t0 = Date.now(); await page.click('#fcCam');
-      await page.waitForFunction((a) => document.getElementById('fcCam').textContent !== a, antes, { timeout: 20000, polling: 16 });
+      const antes = await page.evaluate(() => PONTO_FOTO_V78.ladoCam());
+      const t0 = Date.now(); await trocar();
+      await page.waitForFunction((a) => PONTO_FOTO_V78.ladoCam() !== a && !PONTO_FACIAL_V100.trocando(), antes, { timeout: 20000, polling: 16 });
       await imagemViva(); trocas.push(Date.now() - t0);
     }
     await page.waitForTimeout(400);
@@ -166,7 +173,8 @@ async function cenario(nome, opcoes) {
     ok(Math.max(...trocas) < 2000, `B. cada troca de câmera leva menos de 2 s (${resumo(trocas)})`);
     ok(vivasB === 1, `B. depois de 10 trocas só uma câmera ligada (${vivasB})`);
     /* troca dupla (dois toques seguidos) */
-    await page.evaluate(() => { const b = document.getElementById('fcCam'); b.click(); b.click(); });
+    await page.click('#fcMenu');
+    await page.evaluate(() => { const b = document.querySelector('.fc-menu [data-fm="cam"]'); b.click(); b.click(); });
     await page.waitForTimeout(1500); await imagemViva();
     const vivasB2 = await page.evaluate(() => window.__vivas());
     ok(vivasB2 === 1, `B. dois toques seguidos no botão: continua uma câmera só, com imagem (${vivasB2})`);
@@ -248,10 +256,10 @@ async function cenario(nome, opcoes) {
     await imagemViva();
     await semImagem(1);
     const J2 = await page.evaluate(async () => {
-      const b = document.getElementById('fcCam'); const t0 = performance.now(); b.click();
+      document.getElementById('fcMenu').click(); const b = document.querySelector('.fc-menu [data-fm="cam"]'); const t0 = performance.now(); b.click();
       await new Promise((r) => setTimeout(r, 100));
-      while (b.disabled && performance.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
-      return { solto: !b.disabled, ms: performance.now() - t0 };
+      while (PONTO_FACIAL_V100.trocando() && performance.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
+      return { solto: !PONTO_FACIAL_V100.trocando(), ms: performance.now() - t0 };
     });
     await real();
     ok(J2.solto && J2.ms < 10000, `J. troca para uma câmera sem imagem: o botão volta em ${ms(J2.ms)} (não fica preso em "Trocando a câmera…")`);
@@ -296,7 +304,7 @@ async function cenario(nome, opcoes) {
     ok(h1 < h0 * 1.5 + 8 * 1048576, 'H. a memória não cresce sem parar');
 
     /* I. sair do módulo */
-    await page.click('#fcSair'); await senha(); await page.waitForSelector('.fc-tela', { state: 'detached' });
+    await sair(); await page.waitForSelector('.fc-tela', { state: 'detached' });
     await page.evaluate(() => { location.hash = '#/inicio'; });
     await page.waitForTimeout(800);
     const vivasI = await page.evaluate(() => window.__vivas());
