@@ -287,6 +287,9 @@
     return c === 'P0002' || c === '22023' || c === '54000' ? 'invalid_argument' : c === '42501' ? 'permission_denied' : 'unknown';
   }
   function tirarDaFila(op) { var i = fila.indexOf(op); if (i >= 0) fila.splice(i, 1); salvarFila(); }
+  /* operações que a tela já deu como NÃO gravadas (o usuário foi avisado e vai salvar de novo):
+     saem da fila, e uma resposta atrasada delas não vira um segundo aviso de erro */
+  var desistidas = new Set();
   async function recarregarDoc(c, i) {
     try {
       var r = await sqlJ('select (select jsonb_build_array(d.dados, d.versao) from public.docs d where d.colecao = ' + txt64(c) + ' and d.id = ' + txt64(i) + ') as j');
@@ -297,6 +300,7 @@
   function concluir(op, falha, res) {
     tirarDaFila(op);
     var w = esperas.get(op.op_id); esperas.delete(op.op_id);
+    if (!w && desistidas.has(op.op_id)) { desistidas.delete(op.op_id); if (falha) { recarregarDoc(op.colecao, op.id); return; } }
     if (falha) {
       recarregarDoc(op.colecao, op.id);
       if (w) w.rej(falha);
@@ -366,7 +370,7 @@
         if (!esperas.has(op.op_id)) return;
         esperas.delete(op.op_id);
         if (otimista) res();      // guardado na fila deste navegador; sobe quando a conexão voltar
-        else rej(erro('unavailable', 'Sem resposta do banco central.'));
+        else { desistidas.add(op.op_id); tirarDaFila(op); mudou(); rej(erro('unavailable', 'Sem resposta do banco central.')); }
       }, otimista ? CFG.esperaGravacao : CFG.esperaSemCache);
       esperas.set(op.op_id, { res: function () { clearTimeout(t); res(); }, rej: function (e) { clearTimeout(t); rej(e); } });
     });
@@ -521,6 +525,8 @@
     versao: VERSAO,
     estado: function () { return { modo: estado.modo, motivo: estado.motivo, erro: estado.erro, motivoErro: estado.motivoErro, ultimaSinc: estado.ultimaSinc,
       pendentes: fila.length, conflitos: estado.conflitos, falhas: estado.falhas.slice(), registros: cache.size, cursor: cursor }; },
+    /* gravações que esperam a confirmação do banco há mais de ms milissegundos (a tela não diz "salvo" para elas) */
+    pendentesDesde: function (ms) { var lim = Date.now() - (+ms || 0); return fila.filter(function (o) { return Date.parse(o.criadoEm) <= lim; }).length; },
     sincronizar: sincronizar,
     fiscal: fiscal,
     inventario: inventario
@@ -7724,11 +7730,17 @@ function redesenharDados(){const a=document.activeElement;
  if(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)){renderPend=true;return}
  if(telaOcupada()){clearTimeout(tRender);tRender=setTimeout(redesenharDados,700);return}
  renderSemPular();atualizarSino()}
-function agendarRender(col){if(!APP.pronto)return;if(col&&COL_FUNDO.has(col)&&!telaMostraFundo(lerRota().mod))return;clearTimeout(tRender);tRender=setTimeout(redesenharDados,80)}
+function agendarRender(col){if(!APP.pronto)return;if(col&&COL_FUNDO.has(col)&&!telaMostraFundo(lerRota().mod))return;if(document.hidden){renderPend=true;return}clearTimeout(tRender);tRender=setTimeout(redesenharDados,80)}
 document.addEventListener('focusout',()=>{if(renderPend){renderPend=false;setTimeout(()=>{const a=document.activeElement;if(!(a&&$('#conteudo').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))){redesenharDados()}else renderPend=true},150)}});
+/* página em segundo plano: guarda o redesenho para quando ela voltar a aparecer */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&renderPend){renderPend=false;redesenharDados()}});
 let ROTA_ANT=null;
 function navegar(){
  const r=lerRota();
+ if(GAV&&GAV.sujo&&GAV.jan&&!(r.mod===GAV.mod&&r.id===GAV.id)&&typeof janMinimizar==='function'){
+  /* outra tela ou outro lançamento: o formulário em andamento vai para "Janelas minimizadas", intacto */
+  if(r.mod!==GAV.mod||r.id)janMinimizar({aviso:true});
+  else{const volta='#/'+GAV.mod+'/'+GAV.id;janPerguntarFechar().then(x=>{if(x==='voltar'&&location.hash!==volta)location.hash=volta;else if(x!=='voltar')navegar()});return}}
  if(GAV&&GAV.sujo&&!(r.mod===GAV.mod&&r.id===GAV.id)){const volta='#/'+GAV.mod+'/'+GAV.id;
   confirmaSairGaveta().then(ok=>{if(ok){if(GAV)GAV.sujo=false;navegar()}else if(location.hash!==volta)location.hash=volta});return}
  if(ROTA_ANT==='config'&&r.mod!=='config'&&RASC_SUJO){
@@ -7739,7 +7751,8 @@ function navegar(){
  if(!acessoOk()){renderCasca();renderTela();return}
  if(!pode(r.mod)){$('#conteudo').innerHTML=`<div class="vazio"><b>Sem acesso a esta área</b>Seu perfil (${esc(PAPEIS[APP.papel])}) não inclui este módulo. Fale com o administrador.</div>`;renderCasca();return}
  renderCasca();renderTela();
- if(r.id&&MODS[r.mod]){if(!GAV||GAV.mod!==r.mod||GAV.id!==r.id)abrirRegistro(r.mod,r.id)}else if(GAV)fecharGaveta(true);
+ if(r.id&&MODS[r.mod]){if(!GAV||GAV.mod!==r.mod||GAV.id!==r.id){if(!(typeof janRestaurarRota==='function'&&janRestaurarRota(r.mod,r.id)))abrirRegistro(r.mod,r.id)}}else if(GAV)fecharGaveta(true);
+ if(typeof abasNavegou==='function'){try{abasNavegou(r)}catch(e){console.warn('abas',e)}}
  if(!(MODS[r.mod]&&modAnt===r.mod))window.scrollTo(0,0);
 }
 window.addEventListener('hashchange',navegar);
@@ -8138,10 +8151,10 @@ function resumoModulo(mod,rows){
 }
 
 /* ================= gaveta e formulário ================= */
-function abrirGaveta(html){$('#camada').innerHTML='';const v=document.createElement('div');v.className='veu';v.innerHTML=`<div class="gaveta" role="dialog" aria-modal="true">${html}</div>`;v.addEventListener('mousedown',e=>{if(e.target===v)fecharRota()});$('#camada').appendChild(v);document.addEventListener('keydown',escFecha);return v}
+function abrirGaveta(html){if(typeof janGuardarAtual==='function')janGuardarAtual();$('#camada').innerHTML='';const v=document.createElement('div');v.className='veu';v.innerHTML=`<div class="gaveta" role="dialog" aria-modal="true">${html}</div>`;v.addEventListener('mousedown',e=>{if(e.target===v)fecharRota()});$('#camada').appendChild(v);document.addEventListener('keydown',escFecha);return v}
 function escFecha(e){if(e.key==='Escape'&&!document.querySelector('.modal'))fecharRota()}
-function fecharGaveta(){if(typeof animarSaida==='function')animarSaida($('#camada .veu'));$('#camada').innerHTML='';GAV=null;document.removeEventListener('keydown',escFecha)}
-function fecharRota(forcar){if(!forcar&&GAV&&GAV.sujo){confirmaSairGaveta().then(ok=>{if(ok){if(GAV)GAV.sujo=false;fecharRota(true)}});return}const r=lerRota();fecharGaveta();if(r.id)location.hash='#/'+r.mod}
+function fecharGaveta(){if(GAV&&GAV.jan&&typeof janAoFechar==='function')janAoFechar(GAV);if(typeof animarSaida==='function')animarSaida($('#camada .veu'));$('#camada').innerHTML='';GAV=null;document.removeEventListener('keydown',escFecha)}
+function fecharRota(forcar){if(!forcar&&GAV&&GAV.sujo&&GAV.jan&&typeof janPerguntarFechar==='function'){janPerguntarFechar();return}if(!forcar&&GAV&&GAV.sujo){confirmaSairGaveta().then(ok=>{if(ok){if(GAV)GAV.sujo=false;fecharRota(true)}});return}const r=lerRota();fecharGaveta();if(r.id)location.hash='#/'+r.mod}
 function rotulo(f,st){return typeof f.l==='function'?f.l(st):f.l}
 function opcoesCampo(f){const o=typeof f.op==='function'?f.op():f.op||[];return o.map(x=>Array.isArray(x)?x:[x,x])}
 function htmlCampo(f,st,ro){
@@ -8173,17 +8186,22 @@ function campoLinhas(f,v,ro){const l=Array.isArray(v)?v:[];return `<div class="l
 
 function abrirRegistro(mod,id){
  const M=MODS[mod];const novo=id==='novo';
+ if(novo&&M.rotaNovo&&typeof M.padrao!=='function'){location.replace(M.rotaNovo);return}
+ if(typeof janGuardarAtual==='function')janGuardarAtual();
  if(novo&&!pode(mod,'e')){toast('Seu perfil não pode criar registros aqui.','erro');location.hash='#/'+mod;return}
  let st;
  if(novo){st={...M.padrao(),id:novoId()};if(PREFILL&&PREFILL.mod===mod){Object.assign(st,PREFILL.dados);if(M.aoMudar)Object.keys(PREFILL.dados).forEach(k=>M.aoMudar(st,k))}PREFILL=null}else{const r=DATA[mod].find(x=>x.id===id);if(!r){if(!APP.carregado){setTimeout(()=>{if(lerRota().id===id)abrirRegistro(mod,id)},600);return}toast('Registro não encontrado.','erro');location.hash='#/'+mod;return}st=clone(r)}
  if(temSens(mod)&&veSensivel()){const s=clone(sensDe(mod,st.id));delete s.id;Object.assign(st,s)}
  const ant=novo?null:clone(st);
+ /* rascunho guardado neste navegador (escolhido em "Janelas minimizadas"): volta por cima, sem ter sido salvo */
+ const rasc=typeof janRascunhoPedido==='function'?janRascunhoPedido(mod,id):null;
+ if(rasc)Object.assign(st,clone(rasc.st));
  const vinculado=mod==='despesas'&&st.origem;
  const ro=!pode(mod,'e')||vinculado||(!!M.imutavel&&!novo)||(!novo&&st.travado===true&&!podeDestravar());
- GAV={mod,id};
+ GAV={mod,id,jan:true,novo,rasc:rasc||null};
  const campos=M.fields.filter(f=>!(f.sens&&!veSensivel()));
  const secoes=[...new Set(campos.map(f=>f.s))];
- const titulo=novo?'Novo '+M.sing:(mod==='funcionarios'?st.nome:M.sing.charAt(0).toUpperCase()+M.sing.slice(1)+(st.funcionarioId?': '+nomeF(st.funcionarioId):st.numero?' '+st.numero:st.nome?': '+st.nome:''));
+ const titulo=novo?(feminino(M.sing)?'Nova ':'Novo ')+M.sing:(mod==='funcionarios'?st.nome:M.sing.charAt(0).toUpperCase()+M.sing.slice(1)+(st.funcionarioId?': '+nomeF(st.funcionarioId):st.numero?' '+st.numero:st.nome?': '+st.nome:''));
  const abas=mod==='funcionarios'&&!novo?['Dados','Registros relacionados','Histórico']:novo?['Dados']:['Dados','Histórico'];
  const v=abrirGaveta(`<div class="gav-cab"><h2>${esc(titulo)}</h2><button class="x" data-fechar aria-label="Fechar">${ic('fechar')}</button></div>
   <div class="gav-corpo">${abas.length>1?`<div class="abas">${abas.map((a,i)=>`<button data-aba="${i}" class="${i?'':'on'}">${a}</button>`).join('')}</div>`:''}
@@ -8202,6 +8220,7 @@ function abrirRegistro(mod,id){
  };
  refrescar();
  ligarFormPadrao(v,frm,campos,st,ro);
+ if(typeof janLigar==='function'){try{janLigar(v,GAV,{mod,id,novo,titulo,st,ant,campos,ro,refrescar})}catch(e){console.warn('janela',e)}}
  frm.addEventListener('input',e=>{const k=e.target.dataset.k;if(k){const f=M.fields.find(x=>x.k===k);let val=e.target.value;if(f&&(f.t==='num'||f.t==='moeda'))val=val===''?'':(f.t==='moeda'?lerMoeda(val):+val);st[k]=val;if(M.aoMudar)M.aoMudar(st,k);refrescar(k);const w=e.target.closest('.cmp');w.classList.remove('erro');$('.msg',w).textContent=''}
   if(e.target.dataset.chk){const k=e.target.dataset.chk;st[k]={...(st[k]||{}),[e.target.value]:e.target.checked};if(M.aoMudar)M.aoMudar(st,k)}
   if(e.target.dataset.lc){const k=e.target.closest('[data-linhas]').dataset.linhas;const i=+e.target.dataset.li;st[k]=st[k]||[];st[k][i]={...st[k][i],[e.target.dataset.lc]:e.target.dataset.lc==='valor'?(e.target.value===''?'':+e.target.value):e.target.value}}});
@@ -8297,13 +8316,19 @@ async function salvarRegistro(mod,st,ant,novo,v,campos,botao){
   campos.forEach(f=>{if(f.req&&!(f.sh&&!f.sh(st))){const x=st[f.k];if(x==null||x===''||(typeof x==='number'&&isNaN(x)))contarUso('validacao',mod+'.'+f.k)}})}catch(e){}}
  if(!ok){toast(msgCampos(v),'erro');const w=$('.cmp.erro',v);if(w){w.scrollIntoView({block:'center'});const i=$('input:not([readonly]),select,textarea',w);if(i&&!matchMedia('(pointer:coarse)').matches)i.focus()}return}
  if(aviso&&!await confirmar('Confirmar mesmo assim?',aviso,{ok:'Salvar assim mesmo'}))return;
- botao.disabled=true;botao.textContent='Salvando…';
+ if(botao.disabled)return;
+ const J=GAV;if(J)J.salvando=true;
+ botao.disabled=true;botao.textContent='Salvando…';botao.classList.add('aguarde');botao.setAttribute('aria-busy','true');
+ /* conexão lenta: diz o que está acontecendo em vez de deixar a tela parecendo travada */
+ const tLento=setTimeout(()=>{const sp=v.querySelector('.gav-pend');if(sp){sp.hidden=false;sp.textContent='Aguardando a confirmação do banco… não feche esta janela.'}},5000);
  try{
   const rec=await gravarRegistro(mod,st,ant,novo);
   toast(novo?(mod==='ferias'?'Férias cadastradas.':M.sing.charAt(0).toUpperCase()+M.sing.slice(1)+' cadastrad'+(feminino(M.sing)?'a':'o')+'.'):'Alterações salvas.','ok');
-  if(GAV)GAV.sujo=false;fecharRota(true);
-  await posSalvar(mod,rec,ant);
- }catch(err){console.error(err);toast(msgFalhaSalvar(err),'erro');botao.disabled=false;botao.textContent='Salvar'}
+  if(J){J.salvando=false;J.sujo=false}
+  /* se a janela foi minimizada enquanto gravava, só ela sai da bandeja; a janela aberta agora fica */
+  if(GAV===J)fecharRota(true);else if(J&&typeof janDescartar==='function')janDescartar(J);
+  clearTimeout(tLento);await posSalvar(mod,rec,ant);
+ }catch(err){clearTimeout(tLento);{const sp=v.querySelector('.gav-pend');if(sp)sp.textContent=''}console.error(err);if(J)J.salvando=false;toast(msgFalhaSalvar(err),'erro');botao.disabled=false;botao.textContent='Salvar';botao.classList.remove('aguarde');botao.removeAttribute('aria-busy');if(J&&typeof janSalvarRascunho==='function')janSalvarRascunho(J)}
 }
 async function mudarSituacaoFunc(fid,sit,extra){const f=F(fid);if(!f)return;const n={...f,situacao:sit,...(extra||{}),alteradoEm:new Date().toISOString(),alteradoPor:APP.uid};await gravar('funcionarios',n,f);await registrarLog('funcionarios',fid,'alterou',f,n,rotulosDe(MODS.funcionarios))}
 async function posSalvar(mod,rec,ant){
@@ -32167,6 +32192,349 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
  setInterval(()=>{try{if(ligada()&&acessoOk())atualizarAlertas()}catch(e){}},10000);
  window.JB_CASCA={ligada,alternar,atualizar:()=>atualizarContexto(true),funcoes:abrirFuncoes};
 })();
+</script>
+<style id="jb-janelas-estilos">
+/* ===== V57 · janelas de lançamento, abas de trabalho, bandeja e sons =====
+   Só aparência e organização da área de trabalho: nenhum cálculo ou regra muda aqui. */
+:root{--abas-h:0px}
+.top,.sv-topo{top:var(--abas-h)}
+.toast.at{background:var(--at-bg,#FEF3C7);color:var(--tinta,#221C18);border:1px solid var(--at,#D97706)}
+/* barra de trabalho: telas abertas (abas) + janelas minimizadas + preferências */
+.jb-barra{position:sticky;top:0;z-index:52;display:flex;align-items:stretch;gap:6px;min-height:38px;padding:0 8px 0 6px;background:var(--papel2,var(--papel));border-bottom:1px solid var(--linha)}
+.jb-barra[hidden]{display:none}
+.abas-trab{display:flex;align-items:flex-end;gap:2px;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;padding-top:5px}
+.abas-trab::-webkit-scrollbar{display:none}
+.aba-t{display:flex;align-items:center;gap:6px;flex:0 1 210px;min-width:92px;max-width:220px;height:32px;padding:0 6px 0 10px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--suave);font-size:12.5px;cursor:pointer;user-select:none;position:relative;background:transparent;transition:background .12s}
+.aba-t:hover{background:var(--linha2)}
+.aba-t.on{background:var(--branco);border-color:var(--linha);color:var(--tinta);font-weight:600;margin-bottom:-1px;height:33px}
+.aba-t.on:before{content:"";position:absolute;left:8px;right:8px;top:-1px;height:2px;border-radius:2px;background:var(--brasa)}
+.aba-t svg{width:14px;height:14px;flex:none;opacity:.8}
+.aba-t .aba-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aba-t .aba-dot{width:7px;height:7px;border-radius:50%;background:var(--at);flex:none}
+.aba-x{flex:none;display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:5px;background:none;color:inherit;cursor:pointer;opacity:.55;padding:0}
+.aba-x:hover{opacity:1;background:var(--linha)}
+.aba-x svg{width:12px;height:12px}
+.aba-t:focus-visible,.jan-chip:focus-visible{outline:2px solid var(--brasa);outline-offset:-2px}
+.jan-min{display:flex;align-items:center;gap:6px;flex:0 0 auto;max-width:45%;overflow-x:auto;scrollbar-width:thin;padding:4px 0}
+.jan-min-rot{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--fraco);white-space:nowrap}
+.jan-chip{display:inline-flex;align-items:center;gap:6px;height:28px;max-width:230px;padding:0 4px 0 9px;border:1px solid var(--linha);border-radius:7px;background:var(--branco);color:var(--tinta);font:inherit;font-size:12.5px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.jan-chip:hover{border-color:var(--brasa)}
+.jan-chip.rec{border-style:dashed}
+.jan-chip svg{width:14px;height:14px;flex:none}
+.jan-chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jan-chip i{width:7px;height:7px;border-radius:50%;background:var(--at);flex:none}
+.jan-chip .aba-x{width:18px;height:18px}
+.jb-pref{flex:none;align-self:center;display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:7px;background:none;color:var(--suave);cursor:pointer}
+.jb-pref:hover{background:var(--linha2);color:var(--tinta)}
+.jb-pref svg{width:16px;height:16px}
+/* janela de lançamento */
+.veu:not(.jan){z-index:60}
+.veu.jan{top:var(--abas-h)}
+.jan-tit{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.jan-tit h2{flex:none!important}
+.jan-sub{font-size:12px;color:var(--suave);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jan-sujo{flex:none;font-size:11.5px;font-weight:600;color:var(--at);background:var(--at-bg);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.jan-bt{flex:none;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:7px;background:none;color:var(--suave);cursor:pointer}
+.jan-bt:hover{background:var(--linha2);color:var(--tinta)}
+.jan-bt svg{width:16px;height:16px}
+.jan-bt:disabled{opacity:.35;cursor:not-allowed}
+.jan-aviso{margin-bottom:12px}
+.jan-dica{align-self:center;font-size:11.5px;color:var(--fraco);margin-right:2px}
+.veu.jan .gav-pe{align-items:center}
+.veu.jan .gav-pe .esq{flex-wrap:wrap;min-width:0;flex:1 1 auto}
+.veu.jan .gav-pe .esq:empty{display:none}
+@media (min-width:721px){
+ .veu.jan{justify-content:center;align-items:center;padding:20px 24px}
+ .veu.jan .gaveta{width:min(1100px,100%);height:auto;max-height:100%;border-radius:14px;overflow:hidden;box-shadow:0 28px 70px -18px rgba(0,0,0,.38),0 0 0 1px rgba(0,0,0,.05);animation:janEntra .16s ease-out}
+ .veu.jan .gaveta.max{width:100%;height:100%;border-radius:10px}
+ .veu.jan .gav-corpo{min-height:0}
+ .veu.jan .gaveta.max .campos{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .veu.jan .gaveta.max .cmp.w2{grid-column:1/-1}
+ .veu.jan.saindo .gaveta{animation:janSai .14s ease-in forwards}
+}
+@media (min-width:1500px){.veu.jan .gaveta:not(.max) .campos{gap:12px 18px}}
+@media (max-width:720px){.jan-bt[data-jan="max"],.jan-dica{display:none}.jan-min{max-width:55%}.jan-min-rot{display:none}.aba-t{flex-basis:150px;min-width:72px}.veu.jan .gav-pend{flex-basis:100%;text-align:right;order:-1}}
+@keyframes janEntra{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes janSai{to{opacity:0;transform:translateY(8px) scale(.985)}}
+/* diálogo de três escolhas */
+.jan-dlg .acoes{flex-wrap:wrap}
+.jan-dlg .acoes .btn{flex:1 1 auto}
+/* preferências de trabalho */
+.som-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--linha2)}
+.som-lin:last-child{border-bottom:0}
+.som-lin input[type=range]{width:160px}
+.som-lin input[type=checkbox]{width:18px;height:18px}
+@media (prefers-reduced-motion:reduce){.veu.jan .gaveta{animation:none}}
+</style>
+<script id="jb-janelas">
+"use strict";
+/* ================= V57 · ÁREA DE TRABALHO =================
+   Camada por cima do que já existe. Não grava nada no banco, não muda cálculo,
+   regra nem permissão. Organiza o trabalho:
+   - JANELAS: todo lançamento (cadastros de todos os setores) abre numa janela que
+     pode ser minimizada, restaurada, maximizada e fechada. Abrir outra tela ou outro
+     lançamento NÃO perde o que foi digitado: a janela vai para "Janelas minimizadas".
+   - RASCUNHOS: o que foi digitado e não salvo fica guardado neste navegador (sem os
+     campos sigilosos) e volta depois de recarregar a página. Rascunho nunca é
+     lançamento: aparece tracejado, com o aviso "não salvo", e só vira registro no Salvar.
+   - ABAS: cada tela aberta vira uma aba no topo; trocar de aba não duplica a tela.
+   - SONS: discretos, desligáveis, com volume; nunca bloqueiam nada.
+   - SALVAMENTO HONESTO: "salvo" só quando o banco confirmou; clique duplo não grava duas vezes. */
+
+if(!IC.menos)IC.menos='<path d="M5 12h14"/>';
+if(!IC.expandir)IC.expandir='<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>';
+const JAN={min:[],restaurar:null,alvo:null};
+const jLer=(k,pad)=>{try{const x=localStorage.getItem(k);return x?JSON.parse(x):pad}catch(e){return pad}};
+const jGravar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+const chaveRasc=()=>'jb_rasc_v1:'+(APP.uid||'anon');
+const rascunhosJan=()=>{const r=jLer(chaveRasc(),{});return r&&typeof r==='object'?r:{}};
+const chaveJan=g=>g.mod+'|'+(g.novo?'novo:'+((g.st&&g.st.id)||''):g.id);
+const rotaJan=g=>'#/'+g.mod+'/'+(g.novo?'novo':g.id);
+const icMod=mod=>(MODS[mod]&&MODS[mod].ic)||'doc';
+
+/* ---------- rascunhos ---------- */
+function janSalvarRascunho(g){
+ if(!g||!g.jan||g.ro||!g.st||!g.sujo)return;
+ const sens=new Set((MODS[g.mod]&&MODS[g.mod].fields||[]).filter(f=>f.sens).map(f=>f.k));
+ const st={};Object.keys(g.st).forEach(k=>{if(!k.startsWith('_')&&!sens.has(k))st[k]=g.st[k]});
+ const r=rascunhosJan();
+ r[g.chave]={mod:g.mod,id:g.novo?'novo':g.id,novo:!!g.novo,titulo:g.titulo,st,base:g.ant?(g.ant.alteradoEm||''):'',ts:new Date().toISOString()};
+ const ks=Object.keys(r).sort((a,b)=>String(r[b].ts).localeCompare(String(r[a].ts)));ks.slice(30).forEach(k=>delete r[k]);
+ jGravar(chaveRasc(),r);
+}
+function janApagarRascunho(g){const r=rascunhosJan();const k=g&&(g.chave||chaveJan(g));if(k&&r[k]){delete r[k];jGravar(chaveRasc(),r)}}
+/* chamado por abrirRegistro: só entrega o rascunho que o usuário escolheu na bandeja */
+function janRascunhoPedido(mod,id){
+ const x=JAN.restaurar;if(!x||x.mod!==mod||(id==='novo'?!x.novo:x.id!==id))return null;
+ JAN.restaurar=null;return x;
+}
+
+/* ---------- janelas ---------- */
+function janLigar(v,g,o){
+ const M=MODS[o.mod]||{};
+ g.v=v;g.titulo=o.titulo;g.st=o.st;g.ant=o.ant;g.ro=!!o.ro;g.chave=chaveJan(g);g.aba=abaChave(lerRota());
+ v.classList.add('jan');
+ const gav=v.querySelector('.gaveta'),cab=v.querySelector('.gav-cab'),h2=cab&&cab.querySelector('h2');
+ if(gav){gav.setAttribute('aria-label',o.titulo);if(jLer('jb_jan_max',false))gav.classList.add('max')}
+ if(cab&&h2){
+  const t=document.createElement('div');t.className='jan-tit';h2.before(t);t.appendChild(h2);
+  t.insertAdjacentHTML('beforeend',`<small class="jan-sub">${esc(M.titulo||'')}${M.titulo?' · ':''}${o.novo?'novo lançamento':o.ro?'somente consulta':'editando registro'}</small>`);
+  const x=cab.querySelector('.x[data-fechar]');
+  const bts=document.createElement('span');bts.style.display='contents';
+  bts.innerHTML=`<span class="jan-sujo" hidden>Não salvo</span>
+   <button type="button" class="jan-bt" data-jan="min" aria-label="Minimizar (o que foi digitado fica guardado)" data-tip="Minimizar">${ic('menos')||'—'}</button>
+   <button type="button" class="jan-bt" data-jan="max" aria-label="Maximizar ou restaurar o tamanho" data-tip="Maximizar">${ic('expandir')||'□'}</button>`;
+  if(x)x.before(bts);else cab.appendChild(bts);
+  cab.addEventListener('click',e=>{const b=e.target.closest('[data-jan]');if(!b)return;
+   if(b.dataset.jan==='min'){if(g.salvando){toast('Aguarde: este lançamento está sendo gravado.');return}janMinimizar({rota:true,aviso:false})}
+   if(b.dataset.jan==='max'&&gav){const on=gav.classList.toggle('max');jGravar('jb_jan_max',on)}});
+ }
+ const sv=v.querySelector('[data-acao="salvar"]');
+ if(sv){sv.title='Salvar (Ctrl+Enter)';const cc=sv.parentElement.querySelector(':scope>[data-fechar]')||sv;if(!matchMedia('(pointer:coarse)').matches)cc.insertAdjacentHTML('beforebegin','<span class="jan-dica">Ctrl+Enter salva</span>')}
+ const chip=v.querySelector('.jan-sujo');
+ const atu=()=>{if(chip)chip.hidden=!g.sujo;renderBarraTrab()};
+ let tR=null,eraSujo=!!g.sujo;
+ const mexeu=()=>setTimeout(()=>{if(!!g.sujo!==eraSujo){eraSujo=!!g.sujo;atu()}clearTimeout(tR);tR=setTimeout(()=>janSalvarRascunho(g),500)},0);
+ v.addEventListener('input',mexeu);v.addEventListener('change',mexeu);
+ v.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='Enter'||e.key==='s'||e.key==='S')){const b=v.querySelector('[data-acao="salvar"]');if(b){e.preventDefault();if(!b.disabled){const a=document.activeElement;if(a&&a.blur&&v.contains(a)){a.blur();a.focus&&a.focus()}b.click()}}}});
+ if(g.rasc){
+  g.sujo=true;eraSujo=true;
+  let txt='Rascunho recuperado de '+fDataHora(g.rasc.ts)+'. Ele ainda NÃO foi salvo: confira e toque em Salvar para lançar.';
+  if(!o.novo){const atual=(DATA[o.mod]||[]).find(x=>x.id===o.id);if(atual&&(atual.alteradoEm||'')!==(g.rasc.base||''))txt+=' Atenção: este registro foi alterado depois do rascunho (por você ou por outra pessoa). Salvar o rascunho substitui os campos que ele traz.'}
+  const p=v.querySelector('[data-painel="0"]');if(p)p.insertAdjacentHTML('afterbegin',`<div class="aviso at jan-aviso" role="status">${esc(txt)}</div>`);
+  if(typeof o.refrescar==='function')o.refrescar();
+ }
+ atu();
+}
+/* tira a janela da tela sem perder nada (o DOM fica guardado: campos, seleções, arquivos escolhidos) */
+function janMinimizar(o){
+ o=o||{};const g=GAV;if(!g||!g.jan||!g.v)return false;
+ janSalvarRascunho(g);
+ const a=document.activeElement;if(a&&g.v.contains(a)){g.foco=a;a.blur()}
+ g.v.remove();document.removeEventListener('keydown',escFecha);
+ JAN.min=JAN.min.filter(x=>x!==g);JAN.min.push(g);GAV=null;
+ if(o.aviso)toast('“'+g.titulo+'” foi minimizado com tudo o que você digitou. Para continuar, toque nele em “Janelas minimizadas”, no topo.');
+ tocar('janela');
+ if(o.rota){const r=lerRota();if(r.id&&r.mod===g.mod)location.hash='#/'+g.mod}
+ renderBarraTrab();return true;
+}
+/* devolve uma janela minimizada à tela, exatamente como estava */
+function janRestaurar(g){
+ if(GAV&&GAV!==g){if(GAV.jan&&GAV.sujo)janMinimizar({aviso:false});else fecharGaveta()}
+ JAN.min=JAN.min.filter(x=>x!==g);
+ const cam=$('#camada');cam.innerHTML='';cam.appendChild(g.v);GAV=g;
+ document.addEventListener('keydown',escFecha);
+ const f=g.foco&&g.v.contains(g.foco)?g.foco:g.v.querySelector('input:not([readonly]),select,textarea');
+ if(f&&!matchMedia('(pointer:coarse)').matches)setTimeout(()=>{try{f.focus({preventScroll:false})}catch(e){}},30);
+ renderBarraTrab();return true;
+}
+/* chamado pela navegação: a rota pede um lançamento que já está minimizado? então volta ele */
+function janRestaurarRota(mod,id){
+ if(JAN.restaurar&&JAN.restaurar.mod===mod)return false;
+ let g=JAN.alvo&&JAN.min.includes(JAN.alvo)&&JAN.alvo.mod===mod?JAN.alvo:null;JAN.alvo=null;
+ if(!g)g=JAN.min.find(x=>x.mod===mod&&(id==='novo'?x.novo:(!x.novo&&x.id===id)));
+ if(!g)return false;
+ janRestaurar(g);
+ if(id==='novo'&&g.sujo)toast('Você já tinha “'+g.titulo+'” em andamento: ele foi reaberto como estava. Salve ou feche para começar outro.');
+ return true;
+}
+/* antes de abrir outra gaveta por cima: a janela suja não é descartada, é minimizada */
+function janGuardarAtual(){const g=GAV;if(g&&g.jan&&g.v&&g.v.isConnected&&g.sujo&&!g.ro)janMinimizar({aviso:true})}
+function janAoFechar(g){janApagarRascunho(g);JAN.min=JAN.min.filter(x=>x!==g);setTimeout(renderBarraTrab,0)}
+function janDescartar(g){janApagarRascunho(g);JAN.min=JAN.min.filter(x=>x!==g);renderBarraTrab()}
+/* fechar com alteração não salva: guardar para depois, descartar ou continuar */
+function dialogo3(titulo,texto,bts){
+ return new Promise(res=>{const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+  v.innerHTML=`<div class="modal jan-dlg" role="alertdialog" aria-modal="true" aria-labelledby="jdT"><h3 id="jdT">${esc(titulo)}</h3><p>${esc(texto)}</p><div class="acoes">${bts.map(([k,l,c])=>`<button type="button" class="btn ${c||''}" data-r="${k}">${esc(l)}</button>`).join('')}</div></div>`;
+  const fim=k=>{document.removeEventListener('keydown',tec,true);if(typeof animarSaida==='function')animarSaida(v);else v.remove();res(k)};
+  const tec=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fim(bts[bts.length-1][0])}};
+  v.addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(b)fim(b.dataset.r);else if(e.target===v)fim(bts[bts.length-1][0])});
+  document.addEventListener('keydown',tec,true);document.body.appendChild(v);const p=v.querySelector('.btn.pri');if(p)p.focus()})
+}
+function janPerguntarFechar(){
+ const g=GAV;
+ return dialogo3('Fechar sem salvar?','“'+((g&&g.titulo)||'Este lançamento')+'” tem alterações que ainda não foram salvas. Nada foi gravado até aqui.',
+  [['guardar','Minimizar e continuar depois','pri'],['descartar','Descartar o que digitei','perigo'],['voltar','Voltar ao formulário','']]).then(x=>{
+  if(!GAV||GAV!==g)return x;
+  if(x==='guardar')janMinimizar({rota:true});
+  else if(x==='descartar'){g.sujo=false;janApagarRascunho(g);fecharRota(true)}
+  return x});
+}
+window.addEventListener('beforeunload',e=>{if(JAN.min.some(g=>g.sujo)){e.preventDefault();e.returnValue=''}});
+
+/* ---------- abas de trabalho ---------- */
+const ABAS={lista:[],ativa:null,carregou:false};
+const ABAS_MAX=10;
+const chaveAbas=()=>'jb_abas_v1:'+(APP.uid||'anon');
+function abaChave(r){if(r.id&&MODS[r.mod])return '#/'+r.mod;const h=(location.hash||'#/setores').split('?')[0];return h==='#/'||h==='#'?'#/setores':h}
+function tituloAba(r){
+ if(r.mod==='setores')return 'Setores';
+ if(r.mod==='painel')return 'Painel do DP';
+ let t='';const h=document.querySelector('#conteudo h1');if(h)t=h.textContent.trim();
+ if(!t&&MODS[r.mod])t=MODS[r.mod].titulo;
+ if(!t&&r.mod==='setores')t='Setores';
+ if(!t&&typeof ROTULO_DE!=='undefined'&&ROTULO_DE[r.mod])t=ROTULO_DE[r.mod];
+ if(!t)t=r.mod.charAt(0).toUpperCase()+r.mod.slice(1);
+ if(document.body.classList.contains('modo-setor')&&r.mod!=='setores'){const s=document.querySelector('#conteudo .sv-topo .spot-id b');
+  const n=s?s.textContent.trim().replace(/^Setor (de |da |do |)/i,''):'';if(n&&!t.toLowerCase().includes(n.toLowerCase()))t=n+' · '+t}
+ return t.replace(/\s+/g,' ').slice(0,60);
+}
+function guardarAbas(){jGravar(chaveAbas(),{lista:ABAS.lista.map(a=>({k:a.k,titulo:a.titulo,ic:a.ic})),ativa:ABAS.ativa})}
+function abasNavegou(r){
+ if(!acessoOk()){renderBarraTrab();return}
+ if(!ABAS.carregou){ABAS.carregou=true;const s=jLer(chaveAbas(),null);if(s&&Array.isArray(s.lista))ABAS.lista=s.lista.filter(a=>a&&typeof a.k==='string'&&/^#\//.test(a.k)).slice(0,ABAS_MAX).map(a=>({...a,y:0,ult:0}))}
+ const k=abaChave(r);
+ let a=ABAS.lista.find(x=>x.k===k);const nova=!a;
+ if(!a){a={k,titulo:'',ic:'doc',y:0,ult:0};const i=ABAS.lista.findIndex(x=>x.k===ABAS.ativa);ABAS.lista.splice(i<0?ABAS.lista.length:i+1,0,a)}
+ a.ult=Date.now();ABAS.ativa=k;
+ while(ABAS.lista.length>ABAS_MAX){const vel=ABAS.lista.filter(x=>x.k!==k&&!temJanelaNaAba(x.k)).sort((x,y)=>x.ult-y.ult)[0];if(!vel)break;ABAS.lista.splice(ABAS.lista.indexOf(vel),1)}
+ const y=a.y;
+ setTimeout(()=>{if(ABAS.ativa!==k)return;a.titulo=tituloAba(r);try{a.ic=typeof iconeTela==='function'?iconeTela(r):icMod(r.mod)}catch(e){a.ic='doc'}
+  if(!nova&&y>0&&!(r.id&&MODS[r.mod]))window.scrollTo(0,y);renderBarraTrab();guardarAbas()},60);
+ renderBarraTrab();
+}
+window.addEventListener('scroll',()=>{const a=ABAS.lista.find(x=>x.k===ABAS.ativa);if(a)a.y=window.scrollY},{passive:true});
+function temJanelaNaAba(k){return JAN.min.some(g=>g.aba===k)||(GAV&&GAV.jan&&GAV.aba===k&&GAV.sujo)}
+function fecharAba(k){
+ const i=ABAS.lista.findIndex(x=>x.k===k);if(i<0)return;
+ if(JAN.min.some(g=>g.aba===k))toast('As janelas minimizadas desta tela continuam guardadas em “Janelas minimizadas”.');
+ ABAS.lista.splice(i,1);
+ if(ABAS.ativa===k){const viz=ABAS.lista[i]||ABAS.lista[i-1];ABAS.ativa=null;location.hash=viz?viz.k:'#/setores'}
+ guardarAbas();renderBarraTrab();
+}
+
+/* ---------- a barra no topo ---------- */
+function renderBarraTrab(){
+ const main=document.querySelector('#app .main');if(!main)return;
+ let b=document.getElementById('jbBarra');
+ if(!b){b=document.createElement('div');b.id='jbBarra';b.className='jb-barra';b.setAttribute('role','navigation');b.setAttribute('aria-label','Área de trabalho: telas abertas e janelas minimizadas');main.insertBefore(b,main.firstChild);ligarBarraTrab(b)}
+ const vis=APP.pronto&&acessoOk()&&ABAS.lista.length>0;
+ b.hidden=!vis;document.documentElement.style.setProperty('--abas-h',vis?b.offsetHeight+'px':'0px');
+ if(!vis)return;
+ const rec=Object.entries(rascunhosJan()).filter(([k])=>!JAN.min.some(g=>g.chave===k)&&!(GAV&&GAV.chave===k));
+ const abas=ABAS.lista.map(a=>{const on=a.k===ABAS.ativa;const dot=temJanelaNaAba(a.k);
+  return `<div class="aba-t${on?' on':''}" role="tab" tabindex="0" aria-selected="${on}" data-aba-k="${esc(a.k)}" title="${esc(a.titulo||'')}">${ic(a.ic||'doc')}<span class="aba-nm">${esc(a.titulo||'…')}</span>${dot?'<span class="aba-dot" title="Tem lançamento não salvo"></span>':''}<button type="button" class="aba-x" data-aba-fecha="${esc(a.k)}" aria-label="Fechar a aba ${esc(a.titulo||'')}">${ic('fechar')}</button></div>`}).join('');
+ const mins=JAN.min.map((g,i)=>`<button type="button" class="jan-chip" data-jan-i="${i}" title="Restaurar: ${esc(g.titulo)}${g.sujo?' (não salvo)':''}">${ic(icMod(g.mod))}<span class="nm">${esc(g.titulo)}</span>${g.sujo?'<i aria-label="não salvo"></i>':''}<span class="aba-x" role="button" tabindex="0" data-jan-fecha="${i}" aria-label="Fechar ${esc(g.titulo)}">${ic('fechar')}</span></button>`).join('')
+  +rec.map(([k,r])=>`<button type="button" class="jan-chip rec" data-rasc="${esc(k)}" title="Rascunho guardado em ${esc(fDataHora(r.ts))}: ainda não foi salvo">${ic(icMod(r.mod))}<span class="nm">Rascunho: ${esc(r.titulo||'')}</span><span class="aba-x" role="button" tabindex="0" data-rasc-fecha="${esc(k)}" aria-label="Descartar o rascunho">${ic('fechar')}</span></button>`).join('');
+ b.innerHTML=`<div class="abas-trab" role="tablist" aria-label="Telas abertas">${abas}</div>${mins?`<div class="jan-min" aria-label="Janelas minimizadas"><span class="jan-min-rot">Minimizadas</span>${mins}</div>`:''}<button type="button" class="jb-pref" data-pref aria-label="Preferências de trabalho (sons)" title="Preferências de trabalho (sons)">${ic('engrenagem')}</button>`;
+ document.documentElement.style.setProperty('--abas-h',b.offsetHeight+'px');
+ const on=b.querySelector('.aba-t.on');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}
+}
+function ligarBarraTrab(b){
+ b.addEventListener('click',async e=>{
+  const fa=e.target.closest('[data-aba-fecha]');if(fa){e.stopPropagation();fecharAba(fa.dataset.abaFecha);return}
+  const jf=e.target.closest('[data-jan-fecha]');if(jf){e.stopPropagation();const g=JAN.min[+jf.dataset.janFecha];if(!g)return;
+   if(g.sujo){const x=await dialogo3('Descartar este lançamento?','“'+g.titulo+'” tem alterações que não foram salvas. Se descartar, o que foi digitado se perde.',[['descartar','Descartar','perigo'],['voltar','Manter minimizado','']]);if(x!=='descartar')return}
+   janDescartar(g);return}
+  const rf=e.target.closest('[data-rasc-fecha]');if(rf){e.stopPropagation();const x=await dialogo3('Descartar o rascunho?','Este rascunho nunca foi salvo. Se descartar, ele some deste navegador.',[['descartar','Descartar','perigo'],['voltar','Manter','']]);if(x==='descartar'){const r=rascunhosJan();delete r[rf.dataset.rascFecha];jGravar(chaveRasc(),r);renderBarraTrab()}return}
+  const a=e.target.closest('[data-aba-k]');if(a){if(location.hash!==a.dataset.abaK)location.hash=a.dataset.abaK;return}
+  const j=e.target.closest('[data-jan-i]');if(j){const g=JAN.min[+j.dataset.janI];if(!g)return;JAN.alvo=g;const rt=rotaJan(g);if(location.hash===rt)janRestaurar(g);else location.hash=rt;return}
+  const rc=e.target.closest('[data-rasc]');if(rc){const r=rascunhosJan()[rc.dataset.rasc];if(!r)return;if(!pode(r.mod,'e')){toast('Seu perfil não pode lançar aqui.','erro');return}
+   JAN.restaurar=r;const rt='#/'+r.mod+'/'+r.id;if(location.hash===rt){if(GAV&&GAV.jan&&GAV.sujo)janMinimizar({aviso:true});abrirRegistro(r.mod,r.id)}else location.hash=rt;return}
+  if(e.target.closest('[data-pref]'))abrirPrefsTrab();
+ });
+ b.addEventListener('auxclick',e=>{if(e.button!==1)return;const a=e.target.closest('[data-aba-k]');if(a){e.preventDefault();fecharAba(a.dataset.abaK)}});
+ b.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const x=e.target.closest('[data-jan-fecha],[data-rasc-fecha]');if(x){e.preventDefault();x.click();return}
+  const a=e.target.closest('[data-aba-k]');if(a&&e.target===a){e.preventDefault();a.click()}});
+}
+
+/* ---------- sons ---------- */
+const SOM_PAD={on:true,vol:.3,ev:{ok:true,erro:true,exclusao:true,aviso:true,janela:false}};
+function somPrefs(){const p=jLer('jb_som_v1',{})||{};return {...SOM_PAD,...p,ev:{...SOM_PAD.ev,...(p.ev||{})}}}
+let SOM_CTX=null;
+const SONS={ok:[[660,0,.09,'sine'],[880,.09,.13,'sine']],erro:[[330,0,.14,'triangle'],[220,.15,.2,'triangle']],
+ exclusao:[[520,0,.1,'sine'],[350,.1,.16,'sine']],aviso:[[587,0,.12,'sine']],janela:[[1046,0,.035,'sine']]};
+function tocar(ev,forcar){
+ try{const p=somPrefs();if(!forcar&&(!p.on||!p.ev[ev]))return;const ns=SONS[ev];if(!ns)return;
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!SOM_CTX)SOM_CTX=new AC();const c=SOM_CTX;if(c.state==='suspended')c.resume().catch(()=>{});
+  const t0=c.currentTime+.01,vol=Math.max(0,Math.min(1,+p.vol||0))*.25;
+  ns.forEach(([f,ini,dur,tipo])=>{const o=c.createOscillator(),g=c.createGain();o.type=tipo;o.frequency.value=f;
+   g.gain.setValueAtTime(0,t0+ini);g.gain.linearRampToValueAtTime(vol,t0+ini+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+ini+dur);
+   o.connect(g);g.connect(c.destination);o.start(t0+ini);o.stop(t0+ini+dur+.02)});
+ }catch(e){}
+}
+function abrirPrefsTrab(){
+ const p=somPrefs();const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ const evs=[['ok','Lançamento salvo / operação concluída'],['erro','Erro ou gravação recusada'],['exclusao','Exclusão ou cancelamento'],['aviso','Aviso (ex.: aguardando o banco)'],['janela','Minimizar janela']];
+ v.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="pfT" style="max-width:480px"><h3 id="pfT">Preferências de trabalho</h3>
+  <p class="ajuda">Valem só para você, neste navegador. Os sons são curtos e nunca impedem uma operação.</p>
+  <div class="som-lin"><label for="pfOn"><b>Sons ligados</b></label><input type="checkbox" id="pfOn" ${p.on?'checked':''}></div>
+  <div class="som-lin"><label for="pfVol">Volume</label><input type="range" id="pfVol" min="0" max="1" step="0.05" value="${p.vol}"></div>
+  ${evs.map(([k,l])=>`<div class="som-lin"><label for="pfE_${k}">${esc(l)}</label><span><button type="button" class="btn min" data-teste="${k}">Ouvir</button> <input type="checkbox" id="pfE_${k}" data-ev="${k}" ${p.ev[k]?'checked':''}></span></div>`).join('')}
+  <div class="som-lin"><span>Abas e rascunhos</span><button type="button" class="btn min" data-limpar-abas>Fechar todas as abas</button></div>
+  <div class="acoes"><button type="button" class="btn pri" data-ok-pref>Pronto</button></div></div>`;
+ const gravar=()=>{const n={on:$('#pfOn',v).checked,vol:+$('#pfVol',v).value,ev:{}};$$('[data-ev]',v).forEach(x=>n.ev[x.dataset.ev]=x.checked);jGravar('jb_som_v1',n)};
+ v.addEventListener('change',gravar);v.addEventListener('input',e=>{if(e.target.id==='pfVol')gravar()});
+ v.addEventListener('click',e=>{const t=e.target.closest('[data-teste]');if(t){gravar();tocar(t.dataset.teste,true);return}
+  if(e.target.closest('[data-limpar-abas]')){ABAS.lista=ABAS.lista.filter(a=>a.k===ABAS.ativa);guardarAbas();renderBarraTrab();toast('Ficou aberta só a tela atual.');return}
+  if(e.target.closest('[data-ok-pref]')||e.target===v){gravar();if(typeof animarSaida==='function')animarSaida(v);else v.remove()}});
+ document.body.appendChild(v);$('[data-ok-pref]',v).focus();
+}
+
+/* ---------- avisos: som + salvamento honesto ---------- */
+{const _toast0=toast;
+ toast=function(msg,tipo,semContar){
+  try{
+   /* no Claude, a gravação pode ficar só na fila deste navegador quando o banco não responde:
+      então a tela NÃO diz que salvou; diz que está guardado e aguardando a confirmação */
+   if(tipo==='ok'&&APP.central&&typeof APP.central.pendentesDesde==='function'&&APP.central.estado().modo==='central'&&APP.central.pendentesDesde(8000)>0){
+    msg=String(msg).replace(/\.$/,'')+' — ATENÇÃO: o banco central ainda não confirmou. Ficou guardado neste navegador e sobe sozinho quando a conexão voltar; não feche o navegador até o topo mostrar “Sincronizado”.';tipo='at'}
+   if(tipo==='erro')tocar('erro');else if(tipo==='at')tocar('aviso');
+   else if(tipo==='ok')tocar(/exclu|apagad|removid|cancelad|estornad/i.test(String(msg))?'exclusao':'ok');
+  }catch(e){}
+  return _toast0(msg,tipo,semContar);
+ };
+}
+
+/* ---------- clique duplo não grava duas vezes ----------
+   Nos botões que gravam ou confirmam, um segundo clique em menos de 0,7 s é ignorado. */
+document.addEventListener('click',e=>{
+ const b=e.target&&e.target.closest&&e.target.closest('button');if(!b)return;
+ if(!b.matches('.btn.pri,[data-acao="salvar"],[data-ok],.vd-ok,[data-r="1"]'))return;
+ const t=Date.now();if(b._jbClique&&t-b._jbClique<700){e.preventDefault();e.stopImmediatePropagation();return}
+ b._jbClique=t;
+},true);
 </script>
 <script>
 /* ================= ponto e jornada ================= */

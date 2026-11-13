@@ -349,6 +349,17 @@ teste('ponte', 'atualizar documento que não existe é recusado e não cria nada
   await assert.rejects(db.doc('horasExtras/2026-10-s1').update({ items: { h: 1 } }), (e) => e.code === 'invalid_argument');
   assert.ok(!srv.estado.docs.has('horasExtras/2026-10-s1'));
 }));
+teste('ponte', 'gravação recusada por falta de conexão sai da fila e não gera erro repetido depois', () => cenario(async ({ amb, srv }) => {
+  const { db, api } = await ligar(amb, srv);
+  srv.estado.falhas.permanente = 'server_unavailable';
+  await assert.rejects(db.doc('vales/2026-11-s0').update({ items: { v1: { valor: 10 } } }), (e) => e.code === 'unavailable');
+  assert.equal(api.estado().pendentes, 0, 'a operação já dada como não gravada não pode continuar na fila');
+  srv.estado.falhas.permanente = null;
+  await api.sincronizar();
+  await esperar(50);
+  assert.equal(amb.toasts.filter(([t]) => t === 'erro').length, 0, 'não pode aparecer um segundo aviso de erro');
+  assert.ok(!srv.estado.docs.has('vales/2026-11-s0'));
+}));
 teste('ponte', 'exclusão chega ao banco e repetir a exclusão não dá erro', () => cenario(async ({ amb, srv }) => {
   srv.estado.gravarDireto('clientes', 'k1', { nome: 'Cliente' });
   const { db } = await ligar(amb, srv);
