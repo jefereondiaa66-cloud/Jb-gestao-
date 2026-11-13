@@ -11116,7 +11116,7 @@ let DOC_VER=null;
 ROTULO_DE.documento='Visualizar documento';
 function verDoc(D,opc){
  if(!D)return;opc=opc||{};const r=lerRota();
- DOC_VER={D,voltar:opc.voltar||(r.mod==='documento'?(DOC_VER&&DOC_VER.voltar)||'#/painel':location.hash||'#/painel'),aoPdf:opc.aoPdf||null,origem:r.mod==='documento'?(DOC_VER&&DOC_VER.origem):r.mod,em:new Date().toISOString()};
+ DOC_VER={D,formato:opc.formato||'',voltar:opc.voltar||(r.mod==='documento'?(DOC_VER&&DOC_VER.voltar)||'#/painel':location.hash||'#/painel'),aoPdf:opc.aoPdf||null,origem:r.mod==='documento'?(DOC_VER&&DOC_VER.origem):r.mod,em:new Date().toISOString()};
  const it=MITENS[miAtual(r)];GRUPO_DE.documento=(it&&it.g)||GRUPO_DE[r.mod]||'';ROTULO_DE.documento='Visualizar documento';
  if(location.hash==='#/documento')renderTela();else location.hash='#/documento';
 }
@@ -11132,7 +11132,7 @@ function telaDocumento(el){
  if(!X){el.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('doc')}</span><div><h1>Visualizar documento</h1><p>Aqui aparece o documento antes de imprimir, gerar o PDF ou baixar.</p></div></div></div>
   <div class="painel"><div class="vazio"><b>Nenhum documento aberto</b>O documento é montado na hora, a partir da tela de origem, e não fica guardado nesta página. Volte à tela de onde ele saiu e toque em “Visualizar” de novo.
   <div class="vazio-acoes"><a class="btn" href="#/painel">${ic('esquerda')}Ir para o início</a></div></div></div>`;return}
- const D=X.D;const feitas=['abrir','visualizar'];const fmt=formatoDoc(D);const cp=fmt!=='a4';
+ const D=X.D;const feitas=['abrir','visualizar'];const fmt=D.cupom&&['a4','c80','c58'].includes(X.formato)?X.formato:formatoDoc(D);const cp=fmt!=='a4';
  el.innerHTML=`<div class="fv-topo"><a class="btn" href="${esc(X.voltar)}">${ic('esquerda')}Voltar</a>
    <span class="dc-tt"><b>${esc(String(D.tipo).charAt(0)+String(D.tipo).slice(1).toLowerCase())}</b><small>${esc([D.sub,D.parteNome&&D.parteNome!==D.sub?D.parteNome:''].filter(Boolean).join(' · '))}</small></span>
    <span class="fv-acoes dc-acoes"><button type="button" class="btn" id="dxImp">${ic('doc')}Imprimir</button><button type="button" class="btn pri" id="dxPdf">${ic('baixar')}Exportar PDF</button>
@@ -11143,9 +11143,10 @@ function telaDocumento(el){
   ${D.estimativa?`<div class="aviso at"><span><b>${esc(D.estimativa===true?'Estimativa':D.estimativa)}.</b> Os valores são calculados na hora pelos dados cadastrados, para conferência. Visualizar, imprimir ou gerar o PDF não altera nenhum registro.</span></div>`:''}
   ${cp?`<div class="cp-fundo">${htmlCupom(D.cupom,fmt==='c58'?58:80)}</div>`:`<div class="fvd-fundo">${htmlDoc(D)}</div>`}
   <p class="ajuda" style="margin-top:10px">Documento montado em ${esc(fDataHora(X.em))}. Se os dados mudarem, volte e abra de novo para atualizar.</p>`;
+ D.formatoTela=fmt;
  const pdf=async()=>{const ok=await emitirPdfDoc(D,'PDF gerado.');if(ok!==false&&X.aoPdf){try{await X.aoPdf()}catch(e){toast(msgErro(e),'erro')}}};
  $('#dxImp',el).onclick=imprimirDoc;$('#dxPdf',el).onclick=pdf;$('#dxWord',el).onclick=()=>baixarWordDoc(D);$('#dxShare',el).onclick=()=>compartilharDoc(D);
- $$('[data-fmt]',el).forEach(b=>b.onclick=()=>{guardarFormatoDoc(D,b.dataset.fmt);telaDocumento(el)});
+ $$('[data-fmt]',el).forEach(b=>b.onclick=()=>{guardarFormatoDoc(D,b.dataset.fmt);X.formato='';D.formatoTela='';telaDocumento(el)});
  $$('[data-passo]',el).forEach(b=>b.onclick=()=>{const p=b.dataset.passo;if(p==='imprimir')imprimirDoc();else if(p==='pdf')pdf();else if(p==='baixar')baixarWordDoc(D);else if(p==='abrir')location.hash=X.voltar});
 }
 
@@ -28466,7 +28467,7 @@ function pdfCupom(C,w){
 }
 /* formato de saída dos documentos que também têm versão cupom (escolha guardada neste aparelho) */
 const FMT_PAD_DOC={venda:'c80',pedido:'c80',recibo:'c80',pagamento:'c80',lenha:'c80',orcamento:'a4',carga:'a4',entrega:'a4'};
-function formatoDoc(D){if(!D||!D.cupom)return 'a4';let f='';try{f=localStorage.getItem('jb_fmt_doc_'+D.cupom.kind)||''}catch(e){}
+function formatoDoc(D){if(!D||!D.cupom)return 'a4';if(['a4','c80','c58'].includes(D.formatoTela))return D.formatoTela;let f='';try{f=localStorage.getItem('jb_fmt_doc_'+D.cupom.kind)||''}catch(e){}
  return ['c80','c58','a4'].includes(f)?f:(FMT_PAD_DOC[D.cupom.kind]||'c80')}
 function guardarFormatoDoc(D,f){try{localStorage.setItem('jb_fmt_doc_'+D.cupom.kind,f)}catch(e){}}
 function pdfDoDoc(D){const f=formatoDoc(D);return f==='a4'?pdfDoc(D):pdfCupom(D.cupom,f==='c58'?58:80)}
@@ -28494,7 +28495,7 @@ function cupomOpV(v){const O=opDe(v);if(O.K!=='venda')return null;const f=finVen
   itens:itensCp(v.itens,true),resumo:resumoCp(v,v.itens),total:['TOTAL',fMoeda(v.total)],
   blocos:[{rot:'Pagamento',linhas:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento&&v.condicao!=='À vista'?[['Vencimento',fData(v.vencimento)]]:[]),['Valor recebido',fMoeda(f.pago)],['Saldo pendente',fMoeda(f.saldo),1]]},...fiscalCp(v.fiscal)],
   obs:v.obs||'',assinaturas:[{rot:'Assinatura do cliente',nome:c.nome&&c.nome!=='Consumidor final'?c.nome:'',sub:'Recebi os produtos acima'}],
-  mensagem:msgCupom(),aviso:'Cupom não fiscal · não é documento fiscal',rodape:agoraCp()}}
+  mensagem:msgCupom(),aviso:'Cupom não fiscal · sem valor fiscal',rodape:agoraCp()}}
 /* pedido de venda */
 function cupomPedidoV(v){const f=finVenda(v);const c=v.cliente||{};const pl=v.parcelasPlano||[];const en=v.entrega||null;
  return{kind:'pedido',para:'cliente',tipo:'CUPOM NÃO FISCAL',titulo:'Pedido de venda',numero:fNumV(v.numero),
@@ -28508,7 +28509,7 @@ function cupomPedidoV(v){const f=finVenda(v);const c=v.cliente||{};const pl=v.pa
    ...fiscalCp(v.fiscal)],
   obs:[v.origemOrcamento?'Referente ao orçamento nº '+fNumV(v.origemOrcamento.numero)+'.':'',v.obs||''].filter(Boolean).join(' '),
   assinaturas:[{rot:'Assinatura do cliente',nome:c.nome||'',sub:'De acordo com o pedido'}],
-  mensagem:msgCupom(),aviso:'Pedido · não é documento fiscal',rodape:agoraCp()}}
+  mensagem:msgCupom(),aviso:'Pedido · sem valor fiscal',rodape:agoraCp()}}
 /* orçamento */
 function cupomOrcamentoV(o){const c=o.cliente||{};const g=CFGV();const pl=o.parcelasPlano||[];
  return{kind:'orcamento',para:'cliente',tipo:'ORÇAMENTO',titulo:'Proposta comercial',numero:fNumV(o.numero),
@@ -40101,7 +40102,7 @@ function ticketHtmlAntigo(x,larg){
 const cupomDoTicket=x=>{try{const t=tipoDe(x);return t==='orc'?cupomOrcamentoV(x):t==='ped'?cupomPedidoV(x):cupomOpV(x)}catch(e){console.warn('cupom do ticket',e);return null}};
 function ticketHtml(x,larg){const C=cupomDoTicket(x);return C?htmlCupom(C,larg===58?58:80,{semId:1}):ticketHtmlAntigo(x,larg)}
 async function pdfTicket(x,larg){const C=cupomDoTicket(x);if(!C)return pdfTicketAntigo(x,larg);larg=larg===58?58:80;
- const doc=pdfCupom(C,larg);if(!doc)return;const t=tipoDe(x);const nome=(t==='orc'?'Orcamento_':t==='ped'?'Pedido_':'Venda_')+fNumV(x.numero)+'_cupom_'+larg+'mm.pdf';
+ const doc=pdfCupom(C,larg);if(!doc)return;const t=tipoDe(x);const nome=(t==='orc'?'Orcamento_':t==='ped'?'Pedido_':'Venda_')+fNumV(x.numero)+'_ticket_'+larg+'mm.pdf';
  const ok=await salvarArquivo(nome,new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));if(ok!==false)toast('Cupom em PDF gerado ('+larg+' mm).','ok')}
 /* imprime só o ticket, numa página do tamanho do papel da impressora térmica */
 function imprimirTicket(x,larg,aoFalhar){
@@ -40167,7 +40168,7 @@ function abrirImpressao(x,opc){
   const b=e.target.closest('[data-i]');if(!b)return;
   if(b.dataset.i==='ticket')return imprimirTicket(x,larg);
   if(b.dataset.i==='pdf')return pdfTicket(x,larg);
-  if(b.dataset.i==='a4'){fechar();verDoc(docA4(x,t),{voltar:location.hash||'#/vendas'})}});
+  if(b.dataset.i==='a4'){fechar();verDoc(docA4(x,t),{voltar:location.hash||'#/vendas',formato:'a4'})}});
  v.querySelector('[data-auto]').onchange=e=>{gravarLS(LS_AUTO,e.target.checked?'1':'');toast(e.target.checked?'Neste aparelho o ticket sai direto depois de finalizar.':'Depois de finalizar, esta janela aparece para escolher.','ok')};
  setTimeout(()=>{const b=v.querySelector('[data-i="ticket"]');if(b)b.focus()},40);
  return v;

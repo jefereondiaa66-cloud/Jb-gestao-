@@ -143,13 +143,13 @@ try {
     ok(ped && ped.status !== 'Concluída' && ped.status !== 'Concluído', 'pedido confirmado continua em aberto (não vira venda concluída)');
     ok(!!(await noBanco(page, 'vendas', pedId)), 'pedido gravado no banco central');
     ok(await page.evaluate(() => !!document.querySelector('.vs-imp') && /Pronto/.test(document.querySelector('.vs-imp h3').textContent)), 'janela de impressão abre sozinha depois de confirmar');
-    const prev = await page.evaluate(() => { const t = document.querySelector('.vs-imp .tk'); return { cls: t.className, txt: t.textContent }; });
-    ok(/l(80|58)/.test(prev.cls) && /Nº 0+\d+/.test(prev.txt) && /Maria Teste da Silva/.test(prev.txt) && /TOTAL/.test(prev.txt) && /sem valor fiscal/.test(prev.txt), 'ver antes de imprimir: ticket com número, cliente, total e aviso de não fiscal');
+    const prev = await page.evaluate(() => { const t = document.querySelector('.vs-imp .cupom'); return { cls: t.className, txt: t.textContent }; });
+    ok(/w(80|58)/.test(prev.cls) && /Nº 0+\d+/.test(prev.txt) && /Maria Teste da Silva/.test(prev.txt) && /TOTAL/.test(prev.txt) && /sem valor fiscal/.test(prev.txt), 'ver antes de imprimir: cupom não fiscal com número, cliente, total e aviso de não fiscal');
     await page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove())); await page.waitForTimeout(700);
     await page.screenshot({ path: join(RAIZ, `saida/vendas-impressao-${vp.nome}.png`) });
     // ticket 58 e 80 mm
     await page.click('.vs-imp [data-l="58"]');
-    ok(await page.evaluate(() => document.querySelector('.vs-imp .tk').classList.contains('l58')), 'troca para o papel de 58 mm');
+    ok(await page.evaluate(() => document.querySelector('.vs-imp .cupom').classList.contains('w58')), 'troca para o papel de 58 mm');
     await page.click('.vs-imp [data-i="ticket"]');
     await page.waitForTimeout(1100);
     await page.click('.vs-imp [data-l="80"]');
@@ -157,7 +157,7 @@ try {
     await page.waitForTimeout(1100);
     const imp = await page.evaluate(() => window.__impressoes.slice(-2));
     ok(imp.length === 2 && /size:58mm \d+mm/.test(imp[0].pagina) && /size:80mm \d+mm/.test(imp[1].pagina), `ticket impresso em 58 mm e em 80 mm (${imp.map((i) => (i.pagina.match(/size:[^;]+/) || [''])[0]).join(' · ')})`);
-    ok(imp.every((i) => /class="num"/.test(i.html) && /tk l(58|80)/.test(i.html) && !/fvd/.test(i.html)), 'só o ticket vai para a impressora, com desenho próprio (não é o A4 reduzido)');
+    ok(imp.every((i) => /cp-numero/.test(i.html) && /cupom w(58|80)/.test(i.html) && /CUPOM NÃO FISCAL/.test(i.html) && !/fvd/.test(i.html)), 'só o cupom vai para a impressora, com desenho próprio de cupom não fiscal (não é o A4 reduzido)');
     ok(await page.evaluate(() => !document.body.classList.contains('imprime-doc') && !document.getElementById('printDoc')), 'depois de imprimir, a tela volta ao normal');
     // PDF do ticket
     const temPdf = await page.waitForFunction(() => window.jspdf && window.jspdf.jsPDF, null, { timeout: 8000 }).then(() => true).catch(() => false);
@@ -268,7 +268,7 @@ try {
     ok(!!(await noBanco(page, 'orcamentos', oid)) && vendasAntesOrc === antes + 1, 'orçamento gravado, sem criar venda');
     await ir(page, '#/orcamento/' + oid);
     await page.click('.sec-cab [data-vsimp]');
-    const tOrc = await page.evaluate(() => document.querySelector('.vs-imp .tk').textContent);
+    const tOrc = await page.evaluate(() => document.querySelector('.vs-imp .cupom').textContent);
     ok(/ORÇAMENTO/.test(tOrc) && /Válido até/.test(tOrc), 'ticket do orçamento com validade');
     await page.click('.vs-imp [data-fechar]');
     await page.click('[data-oa="aprovado"]'); await confirmarDialogo(page).catch(() => {});
