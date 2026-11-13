@@ -207,6 +207,51 @@ try {
     ok(await page.evaluate(() => conferirOpV(OP.compra, RASC_V.compra).erros.some((e) => /para onde foi a lenha/i.test(e))), 'Nova compra: destino é obrigatório');
     await foto('nova-compra');
 
+    /* ---------- V113 · Corrigir lançamento: tipo, caminhão com medidas e destino ---------- */
+    await page.evaluate(() => { RASC_V.compra = null; });
+    const abrirCorr = async (id) => { await page.evaluate((i) => corrigirCompraLenhaV76(i), id); await page.waitForSelector('body>.veu .modal #lcCl', { timeout: 5000 }); };
+    const salvarCorr = async () => { await page.click('body>.veu .modal [data-ok]'); await page.waitForTimeout(900); };
+    const fecharCorr = async () => { if (await page.$('body>.veu .modal [data-r="0"]')) { await page.click('body>.veu .modal [data-r="0"]'); await page.waitForTimeout(200); } };
+    const C = (id) => page.evaluate((i) => DATA.compras.find((c) => c.id === i), id);
+    /* compra antiga (sem tipo, sem local, sem medição) é completada */
+    await abrirCorr('zzc0');
+    ok(await page.evaluate(() => ['lcCl', 'lcDep', 'lcCam', 'lcComp', 'lcLarg', 'lcAlt'].every((i) => !!document.querySelector('body>.veu .modal #' + i))), 'Corrigir lançamento: tipo, destino, caminhão e medidas aparecem');
+    await page.fill('#lcComp', '5'); await page.fill('#lcLarg', '2'); await page.waitForTimeout(100);
+    await salvarCorr();
+    ok((await toasts()).some((t) => /comprimento, largura e altura/.test(t)), 'medida pela metade não salva');
+    await page.fill('#lcAlt', '2.5'); await page.waitForTimeout(150);
+    ok(perto(+(await page.inputValue('body>.veu .modal [data-q="0"]')), 25), 'medidas 5 × 2 × 2,5 levam 25 m³ para a quantidade');
+    await page.selectOption('#lcCl', 'Fina'); await page.selectOption('#lcDep', 'chao');
+    await foto('corrigir');
+    ok(!(await estoura()), 'janela de correção não estoura a largura da tela');
+    await salvarCorr();
+    let cz = await C('zzc0');
+    ok(cz.lenhaClasse === 'Fina' && cz.itens[0].lenhaClasse === 'Fina' && cz.lenhaLocal === 'chao' && cz.lenhaMedicao && perto(cz.lenhaMedicao.m3, 25) && cz.lenhaMedicao.caminhao === '' && perto(cz.itens[0].qtd, 25) && cz.total === 1250 && perto(cz.itens[0].atual, 525), 'compra antiga corrigida: tipo, destino, medidas, 25 m³ e total R$ 1.250,00');
+    ok(await page.evaluate(() => { const l = DATA.log.filter((x) => x.recId === 'zzc0' && x.acao === 'corrigiu o lançamento').pop(); const t = JSON.stringify(l || {}); return /Tipo da lenha/.test(t) && /Foi para/.test(t) && /Medição do caminhão/.test(t); }), 'histórico da correção guarda tipo, destino e medição');
+    /* compra com caminhão: trocar o caminhão traz as medidas dele; o tipo traz o preço do fornecedor */
+    await abrirCorr(c1.id);
+    ok(await page.evaluate(() => document.querySelector('#lcCam').value !== '' && document.querySelector('#lcCl').value === 'Grossa' && document.querySelector('#lcDep').value === 'fora' && +document.querySelector('#lcAlt').value === 1.5), 'abre com o caminhão, o tipo, o destino e a altura que foram lançados');
+    await page.fill('#lcAlt', '1'); await page.waitForTimeout(150);
+    ok(perto(+(await page.inputValue('body>.veu .modal [data-q="0"]')), 14.4), 'mudar a altura recalcula o m³ (14,4)');
+    await salvarCorr();
+    cz = await C(c1.id);
+    ok(perto(cz.itens[0].qtd, 14.4) && perto(cz.lenhaMedicao.alt, 1) && cz.lenhaMedicao.caminhao === 'ZZ Truck' && cz.lenhaLocal === 'fora' && cz.lenhaClasse === 'Grossa' && cz.total === 792, 'correção da altura grava 14,4 m³ e R$ 792,00, sem mexer no resto');
+    const foraAntes = s.fora; s = await S();
+    ok(perto(foraAntes - s.fora, 7.2), 'estoque de fora acompanha a correção (7,2 m³ a menos)');
+    /* já levaram lenha do estoque de fora: não deixa tirar a compra de lá */
+    await page.evaluate(async (q) => { const a = new Date().toISOString(); await gravar('lenhaMov', { id: 'zzmv9', tipo: 'transferencia', de: 'fora', para: 'chao', quantidade: q, classe: 'Grossa', data: hoje(), criadoEm: a, criadoPor: 'u_DONO', alteradoEm: a, alteradoPor: 'u_DONO' }, null); if (!DATA.lenhaMov.some((x) => x.id === 'zzmv9')) DATA.lenhaMov = [...DATA.lenhaMov, { id: 'zzmv9', tipo: 'transferencia', de: 'fora', para: 'chao', quantidade: q, classe: 'Grossa', data: hoje() }]; }, +(s.fora - 5).toFixed(3));
+    await page.waitForTimeout(300);
+    await abrirCorr(c1.id);
+    await page.selectOption('#lcDep', 'chao');
+    await salvarCorr();
+    ok((await toasts()).some((t) => /já foi levada/.test(t)) && (await C(c1.id)).lenhaLocal === 'fora', 'não deixa mudar o destino quando a lenha já saiu do estoque de fora');
+    await fecharCorr();
+    /* sem mudar nada, não grava */
+    await abrirCorr(c1.id); await salvarCorr();
+    ok((await toasts()).some((t) => /Nada foi alterado/.test(t)), 'abrir e salvar sem mudar nada não grava correção');
+    await fecharCorr();
+    await page.evaluate(async () => { const m = DATA.lenhaMov.find((x) => x.id === 'zzmv9'); if (m) { await gravar('lenhaMov', { ...m, cancelado: true }, m); DATA.lenhaMov = DATA.lenhaMov.map((x) => x.id === 'zzmv9' ? { ...x, cancelado: true } : x); } });
+
     /* ---------- outros setores não mudam ---------- */
     await page.evaluate(() => { RASC_V.compra = null; SV = 'combustivel'; if (typeof marcarSetor === 'function') marcarSetor('combustivel'); });
     await ir('#/setor-combustivel'); await ir('#/compra/nova');

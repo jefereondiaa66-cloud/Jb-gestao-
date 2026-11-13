@@ -34408,7 +34408,10 @@ function iniSecaoConfig(el){
      pode destravar (dono e Bayron).
    · Histórico: toda correção fica gravada (quem, quando, valor antigo e novo, motivo). Ele NÃO aparece
      na tela da compra: fica só em Configurações › "Setor da Lenha · correções dos lançamentos".
-   Só acrescenta: nada antigo é apagado, renomeado ou recalculado. */
+   Só acrescenta: nada antigo é apagado, renomeado ou recalculado.
+   V113 (13/11/2026): a mesma janela passa a corrigir também o tipo da lenha, o caminhão com as
+   medidas (comprimento × largura × altura) e para onde a lenha foi. Essa parte vem do bloco
+   "lenha-v111" (LENHA_V111.corrExtra); sem ele a janela fica como era. */
 (()=>{
 const LS='lenha';
 const FECHADO_ATE='2026-10-01';
@@ -34435,7 +34438,8 @@ function corrigir(v){
   <td data-l="Quantidade${i.unidade?' ('+esc(i.unidade)+')':''}"><input data-q="${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(i.qtd)}" aria-label="Quantidade de ${esc(i.nome||'item')}" style="max-width:120px"> ${esc(i.unidade||'')}</td>
   <td data-l="Preço por ${esc(i.unidade||'unidade')}"><input data-p="${k}" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(i.preco))}" aria-label="Preço de ${esc(i.nome||'item')}" style="max-width:120px"></td>
   <td data-l="Total" class="num" data-t="${k}">${esc(fMoeda(i.total))}</td></tr>`).join('');
- const corpo=`<p class="ajuda" style="margin:0 0 10px">Corrija o que foi lançado errado, como a metragem. O estoque, o total e a conta a pagar se ajustam sozinhos. A correção fica registrada no histórico com o seu nome.</p>
+ let X=null;try{X=window.LENHA_V111&&typeof window.LENHA_V111.corrExtra==='function'?window.LENHA_V111.corrExtra(atual):null}catch(e){console.warn('V113 corrigir lenha',e);X=null}
+ const corpo=`<p class="ajuda" style="margin:0 0 10px">Corrija o que foi lançado errado, como a metragem${X?', o tipo da lenha, o caminhão ou para onde ela foi':''}. O estoque, o total e a conta a pagar se ajustam sozinhos. A correção fica registrada no histórico com o seu nome.</p>${X?X.html:''}
   <div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Item</th><th>Quantidade</th><th>Preço unit.</th><th class="num">Total</th></tr></thead><tbody>${linhas}</tbody><tfoot class="vr-sem-total"></tfoot></table></div>
   <div class="campos" style="grid-template-columns:1fr 1fr;margin-top:10px">
    <div class="cmp"><label for="lcData">Data<i> *</i></label><input id="lcData" type="date" max="${hoje()}" value="${esc(atual.data||'')}"></div>
@@ -34463,6 +34467,7 @@ function corrigir(v){
   if(d.desc>d.sub+0.004){toast('O desconto da compra passa do valor dos itens. Ajuste as quantidades ou os preços.','erro');return false}
   const pagoAgora=r2(finVenda(agora).pago);
   if(d.total+0.004<pagoAgora){toast('Esta compra já tem '+fMoeda(pagoAgora)+' pagos e o novo total ('+fMoeda(d.total)+') fica menor. Estorne o pagamento a mais antes de corrigir.','erro');return false}
+  const xl=X?X.ler(m):null;if(X){const er=X.validar(xl,agora,d.itens);if(er){toast(er,'erro');return false}}
   const novosItens=d.itens.map(i=>{const x={...i};if(x.baixaEstoque&&x.anterior!=null&&x.anterior!=='')x.atual=r3((+x.anterior||0)+x.qtd);return x});
   const mud={itens:novosItens,subtotal:d.sub,desconto:d.desc,frete:d.frete,total:d.total,data:d.data,hora:d.hora,obs:d.obs};
   if(agora.vencimento&&(agora.condicao!=='A prazo'||agora.vencimento===agora.data))mud.vencimento=d.data;
@@ -34475,11 +34480,12 @@ function corrigir(v){
   if((agora.data||'')!==d.data)campos.push({c:'Data',de:fData(agora.data),para:fData(d.data)});
   if((agora.hora||'')!==d.hora)campos.push({c:'Hora',de:agora.hora||'—',para:d.hora||'—'});
   if((agora.obs||'')!==d.obs)campos.push({c:'Observações',de:(agora.obs||'—').slice(0,80),para:(d.obs||'—').slice(0,80)});
+  if(X)X.aplicar(xl,agora,mud,campos);
   if(!campos.length){toast('Nada foi alterado.');return}
   if(d.motivo)campos.push({c:'Motivo',de:'',para:d.motivo.slice(0,200)});
   await salvarOpV(agora,mud,ACAO,campos);
   toast('Lançamento corrigido. O estoque e a conta a pagar já foram ajustados.','ok');
- },{depois:m=>{resumo(m);m.addEventListener('input',e=>{if(e.target.closest('[data-q],[data-p],#lcFrete'))resumo(m)})}});
+ },{depois:m=>{resumo(m);m.addEventListener('input',e=>{if(e.target.closest('[data-q],[data-p],#lcFrete'))resumo(m)});if(X)X.ligar(m)}});
 }
 window.corrigirCompraLenhaV76=id=>{const v=(DATA.compras||[]).find(x=>x.id===id);if(v)corrigir(v)};
 
@@ -40125,7 +40131,70 @@ const noLenha=(ativa,corpo)=>el=>{if(typeof marcarSetor==='function')marcarSetor
 Object.assign(TELAS_V,{lenhaLancar:noLenha('lenhaLancar',c=>telaLancar(c)),lenhaLevar:noLenha('lenhaLevar',c=>telaLevar(c)),lenhaLocais:noLenha('lenhaLocais',c=>telaLocais(c)),
  [CL]:noLenha(CL,c=>telaLista(c,CL)),[DP]:noLenha(DP,c=>telaLista(c,DP))});
 
-window.LENHA_V111={saldosLocais,depositos,classes,editarForn,saldoInicial,medicaoDe,precoDe,
+/* ---------- V113 · "Corrigir lançamento" da compra de lenha: tipo, caminhão com medidas e destino ----------
+   Pedido do Jeferson (13/11/2026): ao editar o lançamento da compra de lenha, aparecer o que foi pedido
+   no V111 (tipo de lenha, metragem do caminhão, para onde foi). Usado pela janela do bloco
+   "lenha-editar-v76". Grava os mesmos campos da compra nova (lenhaClasse, lenhaMedicao, lenhaLocal) e
+   entra no mesmo histórico de correções. Compra antiga sem esses dados pode ser completada aqui. */
+function corrExtra(atual){
+ const f=FORN(atual.fornecedorId);const md0=atual.lenhaMedicao||null;
+ const cs=camsDe(f).map(c=>({...c}));
+ if(md0&&md0.caminhao&&!cs.some(x=>x.id===md0.caminhaoId))cs.push({id:md0.caminhaoId||'_ant',nome:md0.caminhao,comp:md0.comp,larg:md0.larg,alt:md0.alt,ant:true});
+ const cam0=md0?(cs.find(x=>x.id===(md0.caminhaoId||'_ant'))||{id:''}).id:'';
+ const ids=idsM3();const ehM3=i=>ids.has(i.produtoId)||String(i.unidade||'').trim()==='m³';
+ const alvo=Math.max(0,(atual.itens||[]).findIndex(ehM3));
+ const txtMd=md=>md?(md.caminhao?md.caminhao+' · ':'')+fNum(md.comp,2)+' × '+fNum(md.larg,2)+' × '+fNum(md.alt,2)+' m = '+fM3(md.m3):'—';
+ const txtLoc=id=>id?nomeDep(id):SEM_LOCAL;
+ const inp=(id,rot,val)=>`<div class="cmp"><label for="${id}">${rot}</label><input id="${id}" type="number" step="any" min="0" inputmode="decimal" value="${esc(val??'')}"></div>`;
+ const html=`<h4 style="margin:4px 0 6px">Lenha: tipo, caminhão e destino</h4>
+  <div class="campos" style="grid-template-columns:1fr 1fr;margin-bottom:6px">
+   <div class="cmp"><label for="lcCl">Tipo da lenha (grossa, fina…)</label><select id="lcCl">${optsCl(f,atual.lenhaClasse||'')}</select></div>
+   <div class="cmp"><label for="lcDep">Para onde foi a lenha?${atual.lenhaLocal?'<i> *</i>':''}</label><select id="lcDep">${optsDep(atual.lenhaLocal||'').replace('>Selecione…<','>'+esc(SEM_LOCAL)+'<')}</select></div>
+   <div class="cmp w2" style="grid-column:1/-1"><label for="lcCam">Caminhão do fornecedor</label><select id="lcCam"><option value="">${cs.length?'Sem caminhão (digitar as medidas ou o m³)':'Nenhum caminhão cadastrado (digitar as medidas ou o m³)'}</option>${cs.map(x=>`<option value="${esc(x.id)}" ${cam0===x.id?'selected':''}>${esc(x.nome+' · '+fM3(m3Cam(x))+(x.ant?' (do lançamento)':''))}</option>`).join('')}</select></div></div>
+  <div class="campos" style="grid-template-columns:1fr 1fr 1fr">${inp('lcComp','Compr. (m)',md0?md0.comp:'')}${inp('lcLarg','Largura (m)',md0?md0.larg:'')}${inp('lcAlt','Altura da carga (m)',md0?md0.alt:'')}</div>
+  <p class="ajuda" id="lcM3" style="margin:6px 0 12px"></p>`;
+ const numV=(m,id)=>{const el=$('#'+id,m);const t=el?String(el.value).trim():'';return t===''?'':+t.replace(',','.')};
+ function ler(m){
+  const comp=numV(m,'lcComp'),larg=numV(m,'lcLarg'),alt=numV(m,'lcAlt');const camId=($('#lcCam',m)||{}).value||'';const c=cs.find(x=>x.id===camId);
+  const vazio=comp===''&&larg===''&&alt==='';const cheio=comp>0&&larg>0&&alt>0;
+  return{classe:String(($('#lcCl',m)||{}).value||'').trim(),local:($('#lcDep',m)||{}).value||'',
+   med:cheio?{caminhaoId:c&&c.id!=='_ant'?c.id:'',caminhao:c?c.nome:'',comp,larg,alt,m3:r3(comp*larg*alt)}:null,parcial:!vazio&&!cheio};
+ }
+ function ligar(m){
+  const set=(sel,val)=>{const el=$(sel,m);if(!el)return;el.value=val;el.dispatchEvent(new Event('input',{bubbles:true}))};
+  const mostra=aplica=>{const x=ler(m);const sp=$('#lcM3',m);
+   if(sp)sp.textContent=x.med?fNum(x.med.comp,2)+' × '+fNum(x.med.larg,2)+' × '+fNum(x.med.alt,2)+' = '+fM3(x.med.m3)+(aplica?' (foi para a quantidade)':''):x.parcial?'Informe comprimento, largura e altura para o m³ vir calculado.':'Escolha o caminhão ou digite as medidas para o m³ vir calculado. Em branco: vale a quantidade digitada.';
+   if(aplica&&x.med)set(`[data-q="${alvo}"]`,String(x.med.m3))};
+  {const cx=$('.modal',m);if(cx){cx.style.maxHeight='calc(100dvh - 24px)';cx.style.overflowY='auto'}}   /* a janela ficou mais alta: rola no celular */
+  mostra(false);
+  m.addEventListener('change',e=>{const t=e.target;
+   if(t.id==='lcCam'){const c=cs.find(x=>x.id===t.value);if(c){$('#lcComp',m).value=c.comp;$('#lcLarg',m).value=c.larg;$('#lcAlt',m).value=c.alt}mostra(true)}
+   if(t.id==='lcCl'&&t.value){const tp=tiposDe(f).find(x=>norm(x.classe)===norm(t.value));if(tp&&tp.preco!==''&&tp.preco!=null){set(`[data-p="${alvo}"]`,fMoedaCampo(+tp.preco));toast('Preço de “'+tp.classe+'” deste fornecedor: '+fMoeda(+tp.preco)+' por m³. Confira antes de salvar.')}}});
+  m.addEventListener('input',e=>{if(['lcComp','lcLarg','lcAlt'].includes(e.target.id))mostra(true)});
+ }
+ const qtdM3=its=>r3((its||[]).reduce((a,i)=>a+(ids.has(i.produtoId)&&i.baixaEstoque!==false?(+i.qtd||0):0),0));
+ function validar(x,agora,itensNovos){
+  if(x.parcial)return 'Medidas do caminhão: informe comprimento, largura e altura (ou deixe as três em branco).';
+  if(agora.lenhaLocal&&!x.local)return 'Informe para onde foi a lenha: estoque de fora ou chão da fábrica.';
+  if(x.local&&!DEP(x.local))return 'O local escolhido para a lenha não foi encontrado.';
+  const ant=agora.lenhaLocal;
+  if(ant&&ant!==CHAO){const fica=r3(saldoDep(ant)-qtdM3(agora.itens)+(x.local===ant?qtdM3(itensNovos):0));
+   if(fica<-0.0005&&fica<saldoDep(ant))return 'Parte desta lenha já foi levada de “'+nomeDep(ant)+'”. Com a correção faltariam '+fM3(-fica)+' nesse local. Cancele antes a levada para a fábrica ou ajuste a quantidade.'}
+  return '';
+ }
+ const igualMd=(a,b)=>(!a&&!b)||(!!a&&!!b&&(a.caminhaoId||'')===(b.caminhaoId||'')&&(a.caminhao||'')===(b.caminhao||'')&&r3(a.comp)===r3(b.comp)&&r3(a.larg)===r3(b.larg)&&r3(a.alt)===r3(b.alt));
+ function aplicar(x,agora,mud,campos){
+  const cl0=String(agora.lenhaClasse||'').trim();
+  if(cl0!==x.classe){mud.lenhaClasse=x.classe;(mud.itens||[]).forEach(i=>{if(x.classe)i.lenhaClasse=x.classe;else delete i.lenhaClasse});
+   campos.push({c:'Tipo da lenha',de:nomeCl(cl0),para:nomeCl(x.classe)})}
+  if((agora.lenhaLocal||'')!==x.local){mud.lenhaLocal=x.local;campos.push({c:'Foi para',de:txtLoc(agora.lenhaLocal),para:txtLoc(x.local)})}
+  const m0=agora.lenhaMedicao||null;
+  if(!igualMd(m0,x.med)){mud.lenhaMedicao=x.med;campos.push({c:'Medição do caminhão',de:txtMd(m0),para:txtMd(x.med)})}
+ }
+ return{html,ler,ligar,validar,aplicar};
+}
+
+window.LENHA_V111={saldosLocais,depositos,classes,editarForn,saldoInicial,medicaoDe,precoDe,corrExtra,
  editarFornDaFicha(id){try{if(typeof fecharGaveta==='function')fecharGaveta()}catch(e){}setTimeout(()=>editarForn(id),60)}};
 })();
 </script>
