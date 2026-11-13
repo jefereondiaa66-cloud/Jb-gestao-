@@ -6489,10 +6489,14 @@ const VERIF=[
 
 {id:'backup',n:'Backup atrasado',area:'Segurança',sev:'alta',
  oque:'Confere quando foi baixado o último backup. Sem backup recente, um erro de digitação em massa não tem como ser desfeito.',
- run(){if(!DATA.funcionarios.length)return[];const ub=PREFS.ultimoBackup;const d=ub?diasEntre(ub,hoje()):null;
+ run(){if(!DATA.funcionarios.length)return[];
+  /* banco central (nuvem ou Claude ligado à ponte): a cópia de segurança é feita no servidor todo dia às 3h
+     (seg.copias, painel JB Core). Cobrar o download manual aqui virava um alarme crítico falso a cada abertura. */
+  if(window.JB_NUVEM||(APP.central&&APP.central.estado().modo==='central'))return[];
+  const ub=PREFS.ultimoBackup;const d=ub?diasEntre(ub,hoje()):null;
   if(d!=null&&d<=7)return[];
   return[{txt:ub?'Último backup em '+fData(ub)+', há '+d+' dias':'Nenhum backup foi baixado ainda',mod:'config',id:'backup'}]},
- nota:'Baixe em Configurações › Dados, backup e retenção e guarde fora deste computador.'},
+ nota:'No banco central a cópia é automática, todo dia às 3h (veja no painel JB Core). Fora dele, baixe em Configurações › Dados, backup e retenção e guarde fora deste computador.'},
 
 {id:'retencao',n:'Histórico além do prazo de retenção',area:'Desempenho',sev:'baixa',
  oque:'Compara o histórico de alterações guardado com o prazo configurado. Histórico antigo demais só ocupa espaço e atrasa o carregamento.',
@@ -11556,6 +11560,10 @@ function animarSaida(v){
  if(!v||!v.parentNode)return;
  if(SEM_MOV()){v.remove();return}
  if(v.contains(document.activeElement))document.activeElement.blur();
+ /* a animação usa uma CÓPIA: o original sai da tela intacto. Antes os atributos do próprio
+    elemento eram apagados, e quem ainda lia um deles depois de fechar (atalhos da ficha:
+    data-mod, linhas data-go) recebia undefined e ia para "#/undefined/novo". */
+ const orig=v;v=orig.cloneNode(true);orig.remove();
  /* a cópia que sai não responde a nada nem é encontrada pelo código: só a aparência fica */
  v.querySelectorAll('*').forEach(x=>{[...x.attributes].forEach(a=>{if(!['class','style','src','viewBox','d','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','points','cx','cy','r','x','y','width','height','rx','x1','x2','y1','y2'].includes(a.name))x.removeAttribute(a.name)})});
  v.removeAttribute('id');v.classList.add('saindo');v.style.pointerEvents='none';
@@ -19621,6 +19629,8 @@ function inicioAlm(c){
 
 /* ================= almoxarifado: entrada (tela própria, com as linhas de itens) ================= */
 let RE=null;
+/* o cofre de rascunhos (área de trabalho V57) lê e devolve o rascunho daqui */
+window.JB_RASC_E={ler:()=>RE,por:v=>{RE=v}};
 function rascunhoE(e){
  if(e)return{id:e.id,data:e.data||hoje(),fornecedorId:e.fornecedorId||'',nota:e.nota||'',itens:clone(e.itens||[]).map(l=>({itemId:l.itemId,qtd:l.qtd,preco:l.preco})),frete:e.frete||'',
   forma:e.forma==='vista'?'vista':'prazo',pagoVia:e.pagoVia||'PIX',contaId:'',nParc:Math.max(1,(e.parcelas||[]).length||1),venc1:((e.parcelas||[])[0]||{}).venc||addDias(e.data||hoje(),30),recebedor:e.recebedor||'',obs:e.obs||'',
@@ -19842,6 +19852,7 @@ function voltarDoCadastro(d){if(!d||!d.aguardaId)return;const id=d.aguardaId;d.a
 
 /* ================= almoxarifado: requisição (saída) ================= */
 let RS=null;
+window.JB_RASC_S={ler:()=>RS,por:v=>{RS=v}};
 const setoresAlm=()=>[...new Set([...(CFG.setores||[]),'Cozinha','Manutenção','Produção','Administrativo',...DATA.almSaidas.map(s=>s.setor).filter(Boolean)])];
 function rascunhoS(s){
  if(s)return{id:s.id,numero:s.numero,data:s.data||hoje(),setor:s.setor||'',maquinaId:s.maquinaId||'',finalidade:s.finalidade||'',solicitante:s.solicitante||'',autorizado:s.autorizado||'',entregador:s.entregador||'',obs:s.obs||'',itens:clone(s.itens||[]).map(l=>({itemId:l.itemId,qtd:l.qtd}))};
@@ -23865,6 +23876,7 @@ function telaBombas(c){
 
 /* ================= 1.5 lançar vários abastecimentos ================= */
 let LOTE=null;
+window.JB_RASC_LOTE={ler:()=>LOTE,por:v=>{LOTE=v}};
 const linhaLote=()=>({data:hoje(),alvo:'',produtoId:(()=>{const ps=prodsSetor();return ps.length===1?ps[0].id:''})(),totalizador:'',quantidade:'',operador:'',anexo:null,erro:''});
 const alvosLote=()=>[...DATA.locais.filter(l=>l.setor==='combustivel'&&l.situacao!=='Inativo').sort(porNome).map(l=>['m:'+l.id,nomeLocal(l)]),...tercAtivos().map(t=>['t:'+t.id,'Terceiro: '+t.nome+(t.placa?' · '+t.placa:'')])];
 /* registro que a linha vira (o mesmo formato do formulário normal) */
@@ -32443,6 +32455,50 @@ function fecharAba(k){
  guardarAbas();renderBarraTrab();
 }
 
+
+/* ---------- rascunhos das telas próprias de lançamento ----------
+   Nova venda, nova compra, orçamento, pedido, entrada e requisição do almoxarifado e o lote de
+   abastecimentos guardam o que foi digitado em variáveis da própria tela: somem ao recarregar.
+   Aqui elas passam a ser guardadas neste navegador enquanto o usuário digita (só lançamentos
+   NOVOS) e voltam depois de recarregar. Continuam sendo rascunho: só viram registro no botão
+   de confirmar da própria tela, que as limpa. */
+const RASC_TELA=[
+ {k:'venda',nome:'Nova venda',rx:/^#\/venda\/nova/,rota:'#/venda/nova',ler:()=>typeof RASC_V!=='undefined'?RASC_V.venda:null,por:v=>{RASC_V.venda=v}},
+ {k:'compra',nome:'Nova compra',rx:/^#\/compra\/nova/,rota:'#/compra/nova',ler:()=>typeof RASC_V!=='undefined'?RASC_V.compra:null,por:v=>{RASC_V.compra=v}},
+ {k:'orc',nome:'Novo orçamento',rx:/^#\/orcamento\/novo/,rota:'#/orcamento/novo',ler:()=>typeof RASC_C!=='undefined'?RASC_C.orc:null,por:v=>{RASC_C.orc=v}},
+ {k:'ped',nome:'Novo pedido',rx:/^#\/pedido\/novo/,rota:'#/pedido/novo',ler:()=>typeof RASC_C!=='undefined'?RASC_C.ped:null,por:v=>{RASC_C.ped=v}},
+ {k:'almE',nome:'Entrada no almoxarifado',rx:/^#\/almEntrada\/nova/,rota:'#/almEntrada/nova',ler:()=>window.JB_RASC_E?JB_RASC_E.ler():null,por:v=>{if(window.JB_RASC_E)JB_RASC_E.por(v)}},
+ {k:'almS',nome:'Requisição do almoxarifado',rx:/^#\/almSaida\/nova/,rota:'#/almSaida/nova',ler:()=>window.JB_RASC_S?JB_RASC_S.ler():null,por:v=>{if(window.JB_RASC_S)JB_RASC_S.por(v)}},
+ {k:'lote',nome:'Lote de abastecimentos',rx:/^#\/consLote/,rota:'#/consLote',ler:()=>window.JB_RASC_LOTE?JB_RASC_LOTE.ler():null,por:v=>{if(window.JB_RASC_LOTE)JB_RASC_LOTE.por(v)}}];
+const RT={tocado:{},rec:{},ult:''};
+const chaveRT=()=>'jb_rasc_telas_v1:'+(APP.uid||'anon');
+function rtNovo(d){return d&&typeof d==='object'&&!d.id}
+document.addEventListener('input',e=>{if(!e.target.closest||!e.target.closest('#conteudo'))return;const h=location.hash;RASC_TELA.forEach(x=>{if(x.rx.test(h))RT.tocado[x.k]=true})},true);
+function rtGuardar(){
+ if(!APP.pronto||!APP.uid)return;
+ const o={};
+ RASC_TELA.forEach(x=>{if(!RT.tocado[x.k])return;let d=null;try{d=x.ler()}catch(e){}
+  if(rtNovo(d)){try{o[x.k]={d:JSON.parse(JSON.stringify(d)),ts:(RT.rec[x.k]&&RT.rec[x.k].mesmo)?RT.rec[x.k].ts:new Date().toISOString()}}catch(e){}}
+  else{RT.tocado[x.k]=false;delete RT.rec[x.k]}});
+ const j=JSON.stringify(o);if(j===RT.ult)return;RT.ult=j;
+ if(Object.keys(o).length)jGravar(chaveRT(),o);else{try{localStorage.removeItem(chaveRT())}catch(e){}}
+ renderBarraTrab();
+}
+setInterval(rtGuardar,2000);
+window.addEventListener('pagehide',rtGuardar);
+function rtRecuperar(){
+ const o=jLer(chaveRT(),null);if(!o||typeof o!=='object')return;let n=0;
+ RASC_TELA.forEach(x=>{const s=o[x.k];if(!s||!rtNovo(s.d))return;let atual=null;try{atual=x.ler()}catch(e){}
+  if(atual)return;try{x.por(s.d);RT.tocado[x.k]=true;RT.rec[x.k]={ts:s.ts,mesmo:true};n++}catch(e){}});
+ RT.ult=JSON.stringify(o);
+ if(n)setTimeout(()=>toast(n===1?'Um lançamento que não tinha sido confirmado foi recuperado. Ele aparece como rascunho no topo.':n+' lançamentos que não tinham sido confirmados foram recuperados. Eles aparecem como rascunho no topo.'),900);
+}
+function rtChips(){
+ const h=location.hash;
+ return RASC_TELA.filter(x=>{if(!RT.tocado[x.k]||x.rx.test(h))return false;let d=null;try{d=x.ler()}catch(e){}return rtNovo(d)}).map(x=>
+  `<button type="button" class="jan-chip rec" data-rt="${x.k}" title="${esc(x.nome)}: ainda não foi confirmado">${ic('mais')}<span class="nm">Rascunho: ${esc(x.nome)}</span><span class="aba-x" role="button" tabindex="0" data-rt-fecha="${x.k}" aria-label="Descartar o rascunho">${ic('fechar')}</span></button>`).join('');
+}
+
 /* ---------- a barra no topo ---------- */
 function renderBarraTrab(){
  const main=document.querySelector('#app .main');if(!main)return;
@@ -32455,7 +32511,7 @@ function renderBarraTrab(){
  const abas=ABAS.lista.map(a=>{const on=a.k===ABAS.ativa;const dot=temJanelaNaAba(a.k);
   return `<div class="aba-t${on?' on':''}" role="tab" tabindex="0" aria-selected="${on}" data-aba-k="${esc(a.k)}" title="${esc(a.titulo||'')}">${ic(a.ic||'doc')}<span class="aba-nm">${esc(a.titulo||'…')}</span>${dot?'<span class="aba-dot" title="Tem lançamento não salvo"></span>':''}<button type="button" class="aba-x" data-aba-fecha="${esc(a.k)}" aria-label="Fechar a aba ${esc(a.titulo||'')}">${ic('fechar')}</button></div>`}).join('');
  const mins=JAN.min.map((g,i)=>`<button type="button" class="jan-chip" data-jan-i="${i}" title="Restaurar: ${esc(g.titulo)}${g.sujo?' (não salvo)':''}">${ic(icMod(g.mod))}<span class="nm">${esc(g.titulo)}</span>${g.sujo?'<i aria-label="não salvo"></i>':''}<span class="aba-x" role="button" tabindex="0" data-jan-fecha="${i}" aria-label="Fechar ${esc(g.titulo)}">${ic('fechar')}</span></button>`).join('')
-  +rec.map(([k,r])=>`<button type="button" class="jan-chip rec" data-rasc="${esc(k)}" title="Rascunho guardado em ${esc(fDataHora(r.ts))}: ainda não foi salvo">${ic(icMod(r.mod))}<span class="nm">Rascunho: ${esc(r.titulo||'')}</span><span class="aba-x" role="button" tabindex="0" data-rasc-fecha="${esc(k)}" aria-label="Descartar o rascunho">${ic('fechar')}</span></button>`).join('');
+  +rtChips()+rec.map(([k,r])=>`<button type="button" class="jan-chip rec" data-rasc="${esc(k)}" title="Rascunho guardado em ${esc(fDataHora(r.ts))}: ainda não foi salvo">${ic(icMod(r.mod))}<span class="nm">Rascunho: ${esc(r.titulo||'')}</span><span class="aba-x" role="button" tabindex="0" data-rasc-fecha="${esc(k)}" aria-label="Descartar o rascunho">${ic('fechar')}</span></button>`).join('');
  b.innerHTML=`<div class="abas-trab" role="tablist" aria-label="Telas abertas">${abas}</div>${mins?`<div class="jan-min" aria-label="Janelas minimizadas"><span class="jan-min-rot">Minimizadas</span>${mins}</div>`:''}<button type="button" class="jb-pref" data-pref aria-label="Preferências de trabalho (sons)" title="Preferências de trabalho (sons)">${ic('engrenagem')}</button>`;
  document.documentElement.style.setProperty('--abas-h',b.offsetHeight+'px');
  const on=b.querySelector('.aba-t.on');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}
@@ -32467,6 +32523,10 @@ function ligarBarraTrab(b){
    if(g.sujo){const x=await dialogo3('Descartar este lançamento?','“'+g.titulo+'” tem alterações que não foram salvas. Se descartar, o que foi digitado se perde.',[['descartar','Descartar','perigo'],['voltar','Manter minimizado','']]);if(x!=='descartar')return}
    janDescartar(g);return}
   const rf=e.target.closest('[data-rasc-fecha]');if(rf){e.stopPropagation();const x=await dialogo3('Descartar o rascunho?','Este rascunho nunca foi salvo. Se descartar, ele some deste navegador.',[['descartar','Descartar','perigo'],['voltar','Manter','']]);if(x==='descartar'){const r=rascunhosJan();delete r[rf.dataset.rascFecha];jGravar(chaveRasc(),r);renderBarraTrab()}return}
+  const rtf=e.target.closest('[data-rt-fecha]');if(rtf){e.stopPropagation();const x=RASC_TELA.find(y=>y.k===rtf.dataset.rtFecha);if(!x)return;
+   const r=await dialogo3('Descartar o rascunho?','“'+x.nome+'” nunca foi confirmado. Se descartar, o que foi digitado se perde.',[['descartar','Descartar','perigo'],['voltar','Manter','']]);
+   if(r==='descartar'){try{x.por(null)}catch(err){}RT.tocado[x.k]=false;rtGuardar();renderBarraTrab()}return}
+  const rt=e.target.closest('[data-rt]');if(rt){const x=RASC_TELA.find(y=>y.k===rt.dataset.rt);if(x)location.hash=x.rota;return}
   const a=e.target.closest('[data-aba-k]');if(a){if(location.hash!==a.dataset.abaK)location.hash=a.dataset.abaK;return}
   const j=e.target.closest('[data-jan-i]');if(j){const g=JAN.min[+j.dataset.janI];if(!g)return;JAN.alvo=g;const rt=rotaJan(g);if(location.hash===rt)janRestaurar(g);else location.hash=rt;return}
   const rc=e.target.closest('[data-rasc]');if(rc){const r=rascunhosJan()[rc.dataset.rasc];if(!r)return;if(!pode(r.mod,'e')){toast('Seu perfil não pode lançar aqui.','erro');return}
@@ -33056,6 +33116,7 @@ async function iniciar(){
  definirPapel();await carregarAcesso();
  if(acessoOk()){assinar();ASSINOU_DADOS=true}
  if(acessoOk()&&(!location.hash||location.hash==='#'||location.hash==='#/'))history.replaceState(null,'','#/setores');
+ if(acessoOk()&&typeof rtRecuperar==='function'){try{rtRecuperar()}catch(e){console.warn('rascunhos',e)}}
  APP.pronto=true;navegar();garantirBibliotecas();
  /* ciclo de autoanálise: ao abrir, espera os dados carregarem, roda as verificações
     e registra a rodada. Só aponta e grava contagem; corrigir continua sendo um ato

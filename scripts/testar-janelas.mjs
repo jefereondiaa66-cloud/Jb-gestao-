@@ -134,6 +134,24 @@ try {
   await page.waitForFunction(() => APP.central.estado().pendentes === 0, null, { timeout: 30000 }).catch(() => {});
   ok(await ev(() => APP.central.estado().pendentes === 0), 'quando a conexão volta, o lançamento sobe');
 
+  // atalho da ficha do funcionário (antes ia para "#/undefined/novo")
+  await nav('#/funcionarios/f1');
+  await page.click('#camada [data-acao="atalho"][data-mod="vales"]'); await page.waitForTimeout(700);
+  const at = await ev(() => ({ h: location.hash, f: document.querySelector('#camada [data-k="funcionarioId"]') && document.querySelector('#camada [data-k="funcionarioId"]').value }));
+  ok(at.h === '#/vales/novo' && at.f === 'f1', `atalho "Lançar vale" da ficha abre o vale já com o funcionário (${at.h})`);
+  await ev(() => { if (GAV) { GAV.sujo = false; fecharRota(true); } });
+
+  // rascunho das telas próprias (entrada do almoxarifado) sobrevive a recarregar
+  await nav('#/almEntrada/nova');
+  await page.fill('#conteudo #eObs', 'Nota 123 rascunho');
+  await page.waitForTimeout(2600);
+  await page.reload();
+  await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 });
+  await page.waitForTimeout(800);
+  ok(await ev(() => document.getElementById('eObs') && document.getElementById('eObs').value === 'Nota 123 rascunho'), 'tela própria de lançamento: o que foi digitado volta depois de recarregar');
+  await nav('#/painel');
+  ok(await ev(() => !!document.querySelector('.jan-chip[data-rt="almE"]')), 'tela própria de lançamento: o rascunho aparece no topo');
+
   ok(relevantes(erros).length === 0, `sem erros de JavaScript${relevantes(erros).length ? ': ' + relevantes(erros).slice(0, 3).join(' | ') : ''}`);
   await ctx.close();
 
