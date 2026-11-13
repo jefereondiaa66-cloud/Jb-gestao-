@@ -538,7 +538,7 @@
 <script>/* visual escolhido (Concretiza, Branco e laranja ou JB): aplicado antes de desenhar a tela, para não piscar */try{var vj=localStorage.getItem('jb_visual3');if(vj==='nv')document.documentElement.classList.add('vis-nv');else if(vj!=='jb')document.documentElement.classList.add('vis-cc')}catch(e){document.documentElement.classList.add('vis-cc')}</script>
 <script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.cores)document.documentElement.setAttribute('data-jbcores','');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onload="try{if(typeof APP!=='undefined'&&APP.pronto&&document.querySelector('#conteudo canvas')&&typeof renderTela==='function')renderTela()}catch(e){}"></script>
 <!-- Excel e PDF (cerca de 1,3 MB) carregam depois que a tela abre: ver garantirBibliotecas() -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
@@ -9369,7 +9369,7 @@ function fichaFeriasPDF(fid){
   ['Admissão',f.admissao?fData(f.admissao):'—'],['Contratação',f.tipoContratacao||'—'],...(sens?[['Salário base',v.sal?fMoeda(v.sal):'não cadastrado']]:[])];
  const linhasQ=Math.ceil(campos.length/2);const hQ=10+linhasQ*26;y+=20;
  tituloPdfCC(doc,M,y,'','EMPREGADO');y+=8;
- if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,hQ,'S')}
+ if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);if(doc.roundedRect)doc.roundedRect(M,y,L,hQ,7,7,'S');else doc.rect(M,y,L,hQ,'S')}
  campos.forEach(([l,val],k)=>{const cx=M+16+(k%2)*(L/2),cy=y+15+Math.floor(k/2)*26;
   doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(l,cx,cy);
   doc.setFont('helvetica','bold');doc.setFontSize(10.4);cor(TX,'setTextColor');doc.text(String(val).slice(0,52),cx,cy+12);tracoPdfCC(doc,cx,cx+L/2-32,cy+16)});
@@ -9380,8 +9380,7 @@ function fichaFeriasPDF(fid){
  doc.setFont('helvetica','normal');doc.setFontSize(9.4);cor(TX,'setTextColor');const ls=doc.splitTextToSize(st.sub,L);y+=14;doc.text(ls,M,y);y+=ls.length*12;
  if(!pf.erro&&v.per.length&&v.sal&&sens){doc.setFont('helvetica','bold');doc.setFontSize(10.4);doc.text('Valor estimado em aberto: '+fMoeda(v.total)+' ('+v.diasAbertos+' dia(s)'+(v.diasVencidos?', '+v.diasVencidos+' em dobro':'')+')',M,y+4);y+=16}
  if(!temCarteira(f.tipoContratacao)){doc.setFont('helvetica','italic');doc.setFontSize(8.6);cor(CZ,'setTextColor');const lo=doc.splitTextToSize('Vínculo cadastrado sem carteira assinada: os períodos e valores mostram o que seria devido se o vínculo fosse registrado. Servem para medir o risco.',L);doc.text(lo,M,y+4);y+=lo.length*11+4}
- const tab={theme:'plain',margin:{left:M,right:M},styles:{font:'helvetica',fontSize:8.8,cellPadding:4.2,textColor:TX,lineColor:FI,lineWidth:.4},
-  headStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold',fontSize:8.6},alternateRowStyles:{fillColor:BG2},didDrawCell:filetePdfCC(doc)};
+ const tab={...estiloTabPdfCC(doc,8.8),margin:{left:M,right:M,top:62,bottom:70}};
  const secao=(n,t)=>{y+=20;tituloPdfCC(doc,M,y,n,t);y+=12};
  if(!pf.erro){
   secao('1','Períodos aquisitivos e prazos');
@@ -9396,7 +9395,6 @@ function fichaFeriasPDF(fid){
    doc.autoTable({...tab,startY:y,head:[['Período aquisitivo','Dias','Férias','1/3','Simples','Em dobro','Valor']],
     body:v.per.map(p=>[p.label,String(p.saldo),fMoeda(p.base),fMoeda(p.terco),fMoeda(p.simples),p.dobro?'Sim':'Não',fMoeda(p.valor)]),
     foot:[['Total',String(v.diasAbertos),'','',fMoeda(v.simples),'',fMoeda(v.total)]],
-    footStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold'},
     columnStyles:{1:{halign:'center'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'center'},6:{halign:'right',fontStyle:'bold'}}});
    y=doc.lastAutoTable.finalY+12;
    doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');
@@ -9933,9 +9931,13 @@ function htmlTxtDoc(s,editor){
 }
 const htmlVal=(s,editor)=>esc(String(s||'')).replace(/\u0001(\w+)\u0002/g,()=>`<span class="fvd-vz">${editor?'preencher':'__________'}</span>`);
 function htmlTabelaDoc(b,editor){
- return `<div class="fvd-tw"><table class="fvd-tb"><thead><tr>${b.head.map((h,i)=>`<th class="${(b.dir||[]).includes(i)?'d':''}">${esc(cabFormalDoc(h))}</th>`).join('')}</tr></thead><tbody>
-  ${b.body.map(r=>`<tr>${r.map((x,i)=>`<td class="${(b.dir||[]).includes(i)?'d':''}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}
-  ${(b.foots||(b.foot?[b.foot]:[])).map(f=>`<tr class="tot">${f.map((x,i)=>`<td class="${(b.dir||[]).includes(i)?'d':''}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+ const d=i=>(b.dir||[]).includes(i)?'d':'';const foots=b.foots||(b.foot?[b.foot]:[]);
+ const linhas=`${b.body.map(r=>`<tr>${r.map((x,i)=>`<td class="${d(i)}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}
+  ${foots.map(f=>`<tr class="tot">${f.map((x,i)=>`<td class="${d(i)}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}`;
+ /* resumo de duas colunas (rótulo · valor): título discreto no lugar da barra de cabeçalho */
+ if(ehKvDoc(b))return `<div class="fvd-kv">${String(b.head[0]||'').trim()?`<div class="fvd-kv-t">${esc(cabFormalDoc(b.head[0]))}</div>`:''}<table class="fvd-tb kv"><tbody>${linhas}</tbody></table></div>`;
+ return `<div class="fvd-tw"><table class="fvd-tb"><thead><tr>${b.head.map((h,i)=>`<th class="${d(i)}">${esc(cabFormalDoc(h))}</th>`).join('')}</tr></thead><tbody>
+  ${linhas}</tbody></table></div>`;
 }
 function htmlDoc(D,opc){
  opc=opc||{};const ed=!!opc.editor;
@@ -9951,12 +9953,17 @@ function htmlDoc(D,opc){
    ${(b.paras||[]).map(p=>htmlTxtDoc(p,ed)).join('')}${b.tabela?htmlTabelaDoc(b.tabela,ed):''}${b.vazio?`<p class="fvd-p fvd-nada">${esc(b.vazio)}</p>`:''}${b.nota?`<p class="fvd-nota">${esc(b.nota)}</p>`:''}`;
   return '';
  };
+ /* dois resumos seguidos (valores e pagamento, por exemplo) ficam lado a lado */
+ const B=D.blocos||[];const corpo=[];
+ for(let i=0;i<B.length;i++){if(ehKvDoc(B[i])&&ehKvDoc(B[i+1])){corpo.push(`<div class="fvd-par">${htmlTabelaDoc(B[i],ed)}${htmlTabelaDoc(B[i+1],ed)}</div>`);i++}else corpo.push(bloco(B[i]))}
+ const qs=D.quadros.filter(q=>q&&(q.campos||[]).length);
+ const qh=q=>`<section class="fvd-quadro"><div class="fvd-rot">${esc(rotFormalDoc(q.rot))}</div><div class="fvd-grade">${q.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x,ed)}</b></div>`).join('')}</div></section>`;
  const cb=carimboDoc(D);
  return `<article class="fvd fvd-doc k-${esc(cb.classe)}${D.paisagem?' paisagem':''}" id="fvdDoc">
   ${cabDocHtml(D.marca,linhaEmpDoc(D.marca,linhaCabDoc(D)),`<h2 class="fvd-tit">${esc(D.tipo)}</h2>${D.sub?`<div class="fvd-sub">${esc(String(D.sub).toUpperCase())}</div>`:''}`,identDoc(D),sobreTituloDoc(D),cb.classe)}
-  <div class="fvd-meta">${metaDoc(D).map(([l,x])=>`<span><i>${esc(l)}</i><b>${esc(x)}</b></span>`).join('')}</div>
-  ${D.quadros.filter(q=>q&&(q.campos||[]).length).map(q=>`<section class="fvd-quadro"><div class="fvd-rot">${esc(rotFormalDoc(q.rot))}</div><div class="fvd-grade">${q.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x,ed)}</b></div>`).join('')}</div></section>`).join('')}
-  ${D.blocos.map(bloco).join('')}
+  <div class="fvd-meta">${metaDoc(D).map(([l,x])=>`<span><i>${esc(l)}</i><b>${/^situa[cç][aã]o$/i.test(String(l).trim())?`<span class="fvd-chip ${tomDoc(x)}">${esc(x)}</span>`:esc(x)}</b></span>`).join('')}</div>
+  ${qs.length>1?`<div class="fvd-partes">${qs.map(qh).join('')}</div>`:qs.map(qh).join('')}
+  ${corpo.join('')}
   ${D.fecho?`<p class="fvd-p fvd-fecho">${esc(D.fecho)}</p>`:''}
   ${D.local?`<div class="fvd-local">${esc(D.local)}</div>`:''}
   ${D.assinaturas.length?`<div class="fvd-ass ${D.assinaturas.length===1?'um':''}">${D.assinaturas.map(a=>`<div><i></i><b>${htmlVal(a.nome||'',ed)||'&nbsp;'}</b><small>${esc(a.sub||'')}</small></div>`).join('')}</div>`:''}
@@ -9970,159 +9977,207 @@ function htmlDoc(D,opc){
 /* ---------- PDF, no mesmo desenho ---------- */
 function pdfDoc(D){
  if(!(window.jspdf&&window.jspdf.jsPDF)){toast('A biblioteca de PDF não carregou. Tente de novo em alguns segundos.','erro');return null}
- const doc=new window.jspdf.jsPDF({unit:'pt',format:'a4',orientation:D.paisagem?'landscape':'portrait'});const pz=doc.internal&&doc.internal.pageSize;const W=D.paisagem?842:595,H=pz&&pz.getHeight?pz.getHeight():(D.paisagem?595:842),M=D.paisagem?40:54,L=W-2*M,BOT=H-60;let y=56;
- const {TC,TX,CZ,FI,BG,BG2,PT}=PDF_CC;
- const cor=(c,fn)=>doc[fn](c[0],c[1],c[2]);
- const tx=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').replace(/ /g,' ').replace(/[−]/g,'-').replace(/³/g,'3').replace(/²/g,'2');
+ const doc=new window.jspdf.jsPDF({unit:'pt',format:'a4',orientation:D.paisagem?'landscape':'portrait'});const pz=doc.internal&&doc.internal.pageSize;const W=D.paisagem?842:595,H=pz&&pz.getHeight?pz.getHeight():(D.paisagem?595:842),M=D.paisagem?36:48,L=W-2*M,BOT=H-60,TOPO=62;let y=56;
+ const {TC,TX,CZ,FI,BG,BG2,PT,FR,L2,HR}=PDF_CC;
+ const cor=(c,fn)=>{if(doc[fn])doc[fn](c[0],c[1],c[2])};
+ const tx=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').replace(/[   ]/g,' ').replace(/[−]/g,'-').replace(/³/g,'3').replace(/²/g,'2');
  const centro=(t,yy,cs)=>{t=tx(t);if(cs&&doc.getTextWidth){const w=doc.getTextWidth(t)+cs*(t.length-1);doc.text(t,(W-w)/2,yy,{charSpace:cs})}else doc.text(t,W/2,yy,{align:'center'})};
- const novaPag=()=>{if(doc.addPage)doc.addPage();y=62};
+ const fonte=(e,t,c)=>{doc.setFont('helvetica',e||'normal');doc.setFontSize(t);if(c)cor(c,'setTextColor')};
+ const caixa=(x,yy,w,h,{fill,stroke,r=6,lw=.7}={})=>{if(!doc.rect)return;if(fill)cor(fill,'setFillColor');if(stroke){cor(stroke,'setDrawColor');doc.setLineWidth(lw)}
+  const st=fill&&stroke?'FD':fill?'F':'S';if(doc.roundedRect&&r)doc.roundedRect(x,yy,w,h,r,r,st);else doc.rect(x,yy,w,h,st)};
+ const novaPag=()=>{if(doc.addPage)doc.addPage();y=TOPO+6};
  const cabe=h=>{if(y+h>BOT)novaPag()};
- const paragrafo=(t,{size=10,ind=0,lh=13.4,bold=false,cz=false}={})=>{
+ const paragrafo=(t,{size=9.6,ind=0,lh=13.2,bold=false,cz=false,c=null}={})=>{
   String(t||'').split('\n').filter(l=>l.trim()).forEach(l=>{const li=/^[a-z]\) /.test(l);const x=M+ind+(li?12:0),w=L-ind-(li?12:0);
-   doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);cor(cz?CZ:TX,'setTextColor');
+   fonte(bold?'bold':'normal',size,c||(cz?CZ:TX));
    const ls=doc.splitTextToSize(tx(l),w);let i=0;
    while(i<ls.length){cabe(lh);const cabem=Math.max(1,Math.floor((BOT-y)/lh));const ch=ls.slice(i,i+cabem);
     doc.text(ch,x,y,ch.length>1?{align:'justify',maxWidth:w}:undefined);y+=ch.length*lh;i+=ch.length}
    y+=3})};
- const tabela=b=>{cabe(40);const fs=b.fonte||9;const ft=b.foots||(b.foot?[b.foot]:null);doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:62,bottom:70},head:[b.head.map(h=>tx(cabFormalDoc(h)))],body:b.body.map(r=>r.map(tx)),foot:ft?ft.map(r=>r.map(tx)):undefined,showFoot:'lastPage',
-  styles:{font:'helvetica',fontSize:fs,cellPadding:fs<8.5?3.4:4.4,textColor:TX,lineColor:FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold',fontSize:fs-.2},
-  /* linhas zebradas leves; total em negrito, fundo cinza claro e um fio escuro em cima */
-  footStyles:{fillColor:FI,textColor:TX,fontStyle:'bold'},alternateRowStyles:{fillColor:BG},
-  didParseCell:c=>{if(c.section!=='body'&&(b.dir||[]).includes(c.column.index))c.cell.styles.halign='right'},
-  didDrawCell:(fil=>c=>{fil(c);if(c.section==='foot'&&c.row.index===0&&doc.setFillColor&&doc.rect){cor(PT,'setFillColor');doc.rect(c.cell.x,c.cell.y,c.cell.width,1,'F')}})(filetePdfCC(doc)),
-  columnStyles:Object.fromEntries([...(b.dir||[]).map(i=>[i,{halign:'right'}]),...(b.larg||[]).map((w,i)=>[i,{cellWidth:w,halign:'center'}])]),
-  didDrawPage:()=>{}});y=(doc.lastAutoTable&&doc.lastAutoTable.finalY||y)+12};
+ /* tabela: cabeçalho claro com filete azul, linhas finas, total com fio escuro em cima; kv = resumo rótulo · valor */
+ const tabela=(b,o)=>{o=o||{};const kv=!!o.kv;const fs=b.fonte||(kv?9:8.8);const ft=b.foots||(b.foot?[b.foot]:null);const nF=ft?ft.length:0;
+  const x=o.x!=null?o.x:M,w=o.w!=null?o.w:L;if(o.startY==null)cabe(kv?52:46);let st=o.startY!=null?o.startY:y;
+  if(kv&&String((b.head||[])[0]||'').trim()){fonte('bold',6.6,PT);doc.text(tx(cabFormalDoc(b.head[0])).toUpperCase(),x,st+6,{charSpace:.9});cor(PT,'setDrawColor');doc.setLineWidth(1.1);doc.line(x,st+11,x+w,st+11);st+=12}
+  const pad=fs<8.5?3.4:4.4;const cs={};
+  (b.dir||[]).forEach(i=>{cs[i]={...(cs[i]||{}),halign:'right'}});(b.larg||[]).forEach((lw,i)=>{cs[i]={...(cs[i]||{}),cellWidth:lw,halign:'center'}});
+  if(kv){cs[0]={...(cs[0]||{}),cellPadding:{top:pad,bottom:pad,left:0,right:8}};cs[1]={...(cs[1]||{}),cellPadding:{top:pad,bottom:pad,left:8,right:0}}}
+  doc.autoTable({theme:'plain',startY:st,margin:{left:x,right:W-x-w,top:TOPO,bottom:70},tableWidth:w,
+   head:kv?undefined:[b.head.map(h=>tx(cabFormalDoc(h)))],body:b.body.map(r=>r.map(tx)),foot:ft?ft.map(r=>r.map(tx)):undefined,showFoot:'lastPage',showHead:'everyPage',
+   styles:{font:'helvetica',fontSize:fs,cellPadding:{top:pad,bottom:pad,left:6,right:6},textColor:TX,lineWidth:0,overflow:'linebreak',valign:'top'},
+   headStyles:{fillColor:HR,textColor:PT,fontStyle:'bold',fontSize:Math.max(6,fs-1.4),valign:'bottom'},
+   footStyles:{fillColor:kv?false:BG,textColor:TX,fontStyle:'bold'},columnStyles:cs,
+   didParseCell:c=>{const ci=c.column.index;if((b.dir||[]).includes(ci))c.cell.styles.halign='right';
+    if(kv&&cs[ci]&&cs[ci].cellPadding)c.cell.styles.cellPadding=cs[ci].cellPadding;
+    if(kv&&c.section==='body'&&ci===0)c.cell.styles.textColor=CZ;
+    if(c.section==='foot'&&c.row.index===nF-1){c.cell.styles.textColor=PT;if(kv)c.cell.styles.fontSize=fs+1.2}},
+   didDrawCell:c=>{const {x:cx,y:cy,width:cw,height:ch}=c.cell;if(!doc.line)return;
+    if(c.section==='head'){cor(PT,'setDrawColor');doc.setLineWidth(1);doc.line(cx,cy+ch,cx+cw,cy+ch)}
+    else if(c.section==='body'){cor(L2,'setDrawColor');doc.setLineWidth(.5);doc.line(cx,cy+ch,cx+cw,cy+ch)}
+    else if(c.section==='foot'&&c.row.index===0){cor(TX,'setDrawColor');doc.setLineWidth(.9);doc.line(cx,cy,cx+cw,cy)}},
+   didDrawPage:()=>{}});
+  const fy=(doc.lastAutoTable&&doc.lastAutoTable.finalY)||st;if(o.startY==null)y=fy+14;return fy};
+ /* dois resumos lado a lado, quando os dois cabem juntos na mesma folha */
+ const altKv=b=>(b.body.length+(b.foots||(b.foot?[b.foot]:[])).length)*19+32;
+ const par=(a,b)=>{const h=Math.max(altKv(a),altKv(b));if(h>BOT-TOPO-30)return false;cabe(h);const g=24,w=(L-g)/2,y0=y;
+  const p0=doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;
+  const f1=tabela(a,{kv:1,x:M,w,startY:y0});if(doc.setPage&&doc.internal.getNumberOfPages&&doc.internal.getNumberOfPages()!==p0)doc.setPage(p0);
+  const f2=tabela(b,{kv:1,x:M+w+g,w,startY:y0});y=Math.max(f1,f2)+16;return true};
  /* imagem (ex.: gráfico da tela em dataURL): ocupa a largura útil, sem passar da página */
  const imagem=b=>{if(!doc.addImage||!/^data:image\/(png|jpe?g);base64,/i.test(String(b.src||'')))return;
   const pr=b.w&&b.h?b.h/b.w:(()=>{try{const p=doc.getImageProperties(b.src);return p.height/p.width}catch(e){return .5}})();
   let w=Math.min(L,b.larg||L),h=w*pr;const hMax=BOT-62-(b.titulo?22:0)-10;if(h>hMax){h=hMax;w=h/pr}
   cabe(h+(b.titulo?22:0)+8);y+=4;
-  if(b.titulo){doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(PT,'setTextColor');doc.text(tx(String(b.titulo).toUpperCase()),M,y,{charSpace:.4});cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+5,W-M,y+5);y+=16}
+  if(b.titulo){fonte('bold',6.6,PT);doc.text(tx(String(b.titulo).toUpperCase()),M,y,{charSpace:.9});cor(PT,'setDrawColor');doc.setLineWidth(1.1);doc.line(M,y+5,W-M,y+5);y+=16}
   try{doc.addImage(b.src,/^data:image\/png/i.test(b.src)?'PNG':'JPEG',M+(L-w)/2,y,w,h)}catch(e){console.warn('imagem no PDF',e)}
-  y+=h+10;if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})};
- /* cabeçalho: faixa preta com a logo e a empresa; título e subtítulo à direita */
+  y+=h+10;if(b.nota)paragrafo(b.nota,{size:7.8,c:FR,lh:10.2})};
+ /* cabeçalho: empresa e logo à esquerda, identificação do documento à direita; setor, título e subtítulo embaixo */
  const cb=carimboDoc(D);
  y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,linhaCabDoc(D))),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M,ident:identDoc(D).map(tx),sobre:tx(sobreTituloDoc(D)),centro:['comprovante','formal'].includes(cb.classe)});
- /* faixa de identificação: setor, dados do documento, emissão e responsável, em colunas (rótulo em cima, valor embaixo) */
+ /* faixa de identificação: colunas separadas por fios (rótulo em cima, valor embaixo); situação com cor */
  const mtd=metaDoc(D);
- if(mtd.length){const porL=Math.min(D.paisagem?5:4,mtd.length),cw=L/porL;doc.setFont('helvetica','bold');doc.setFontSize(8.6);
-  const cel=mtd.map(([l,x])=>({l:tx(String(l).toUpperCase()),v:doc.splitTextToSize(tx(x),cw-16)}));const filas=[];for(let i=0;i<cel.length;i+=porL)filas.push(cel.slice(i,i+porL));
-  const alts=filas.map(f=>19+Math.max(...f.map(c=>c.v.length))*10.4+5),hm=alts.reduce((a,b)=>a+b,0);
-  if(doc.setFillColor&&doc.rect){cor(BG2,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(M,y,L,hm,'FD');cor(TC,'setFillColor');doc.rect(M,y,2.4,hm,'F')}
-  let ym=y;filas.forEach((f,i)=>{f.forEach((c,j)=>{const cx=M+10+j*cw;doc.setFont('helvetica','normal');doc.setFontSize(6.4);cor(CZ,'setTextColor');doc.text(c.l,cx,ym+12,{charSpace:.5});
-    doc.setFont('helvetica','bold');doc.setFontSize(8.6);cor(TX,'setTextColor');doc.text(c.v,cx,ym+23);
-    if(j&&doc.line){cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M+j*cw,ym+6,M+j*cw,ym+alts[i]-6)}});
-   ym+=alts[i];if(i<filas.length-1&&doc.line){cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M+8,ym,M+L-8,ym)}});
-  y+=hm+16}
+ if(mtd.length){const porL=Math.min(D.paisagem?6:4,mtd.length),cw=L/porL;fonte('bold',8.6);
+  const cel=mtd.map(([l,x])=>({l:tx(String(l).toUpperCase()),v:doc.splitTextToSize(tx(x),cw-18),sit:/^situa[cç][aã]o$/i.test(String(l).trim()),raw:tx(x)}));const filas=[];for(let i=0;i<cel.length;i+=porL)filas.push(cel.slice(i,i+porL));
+  const alts=filas.map(f=>18+Math.max(...f.map(c=>c.v.length))*10.6+6),hm=alts.reduce((a,b)=>a+b,0);cabe(hm+16);
+  cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y,W-M,y);
+  let ym=y+4;filas.forEach((f,i)=>{f.forEach((c,j)=>{const cx=M+(j?12:0)+j*cw;fonte('bold',6.2,FR);doc.text(c.l,cx,ym+10,{charSpace:.5});
+    if(c.sit){const tom=TOM_PDF[tomDoc(c.raw)];fonte('bold',8);const tw=doc.getTextWidth(c.raw);
+     if(tw+14<=cw-14){caixa(cx,ym+14,tw+14,13,{fill:tom.b,r:6.5});fonte('bold',8,tom.c);doc.text(c.raw,cx+7,ym+23.2)}else{fonte('bold',8.6,tom.c);doc.text(c.v,cx,ym+23)}}
+    else{fonte('bold',8.6,TX);doc.text(c.v,cx,ym+23)}
+    if(j&&doc.line){cor(L2,'setDrawColor');doc.setLineWidth(.6);doc.line(M+j*cw,ym+4,M+j*cw,ym+alts[i]-6)}});
+   ym+=alts[i]});
+  cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+hm+6,W-M,y+hm+6);y+=hm+24}
  /* indicadores principais: cartões lado a lado; o primeiro em destaque */
- const indicadores=b=>{const it=(b.itens||[]).slice(0,4);if(!it.length)return;const g=8,w=(L-g*(it.length-1))/it.length,hC=44;cabe(hC+14);
-  it.forEach(([l,v],i)=>{const x=M+i*(w+g);if(doc.setFillColor&&doc.rect){cor(i?BG2:PT,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(x,y,w,hC,i?'FD':'F');if(!i){cor(TC,'setFillColor');doc.rect(x,y+hC-2.4,w,2.4,'F')}}
-   doc.setFont('helvetica','normal');doc.setFontSize(6.6);if(i)cor(CZ,'setTextColor');else doc.setTextColor(200,200,206);doc.text(String(doc.splitTextToSize(tx(String(l).toUpperCase()),w-16)[0]||''),x+9,y+15,{charSpace:.5});
-   doc.setFont('helvetica','bold');doc.setFontSize(12.4);if(i)cor(TX,'setTextColor');else doc.setTextColor(255,255,255);doc.text(String(doc.splitTextToSize(tx(v),w-16)[0]||''),x+9,y+33)});
+ const indicadores=b=>{const it=(b.itens||[]).slice(0,4);if(!it.length)return;const g=8,w=(L-g*(it.length-1))/it.length;
+  fonte('bold',13);const vs=it.map(([,v])=>doc.splitTextToSize(tx(v),w-20));const nl=Math.max(...vs.map(a=>a.length));const hC=34+nl*15;cabe(hC+14);
+  it.forEach(([l,v,tm],i)=>{const x=M+i*(w+g),pri=!i,tom=TOM_PDF[tm];
+   caixa(x,y,w,hC,{fill:pri?PT:[255,255,255],stroke:pri?PT:FI,r:6});if(doc.rect){cor(pri?TC:(tom?tom.c:FI),'setFillColor');doc.rect(x,y+6,2.4,hC-12,'F')}
+   fonte('bold',6.2,pri?[183,198,214]:CZ);doc.text(String(doc.splitTextToSize(tx(String(l).toUpperCase()),w-20)[0]||''),x+11,y+14,{charSpace:.5});
+   fonte('bold',13,pri?[255,255,255]:(tom&&tm!=='in'?tom.c:TX));doc.text(vs[i],x+11,y+31,{lineHeightFactor:15/13})});
   y+=hC+14};
- /* quadros */
- D.quadros.filter(q=>q&&(q.campos||[]).length).forEach(q=>{const colW=(L-32)/2;const linhas=[];let fila=[];
-  q.campos.forEach(([l,x,w])=>{if(w){if(fila.length){linhas.push(fila);fila=[]}linhas.push([[l,x,1]])}else{fila.push([l,x,0]);if(fila.length===2){linhas.push(fila);fila=[]}}});if(fila.length)linhas.push(fila);
-  doc.setFontSize(10);const alt=linhas.map(f=>Math.max(...f.map(([,x,w])=>doc.splitTextToSize(tx(x),w?L-32:colW-8).length))*12+17);
-  const hQ=alt.reduce((a,b)=>a+b,0)+14;cabe(hQ+24);
-  y+=8;tituloPdfCC(doc,M,y,'',tx(rotFormalDoc(q.rot)));y+=8;
-  if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,hQ,'S')}
-  let yy=y+17;linhas.forEach((f,i)=>{f.forEach(([l,x,w],j)=>{const cx=M+16+j*(colW+8);doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(tx(l),cx,yy);
-   doc.setFont('helvetica','bold');doc.setFontSize(10);cor(TX,'setTextColor');doc.text(doc.splitTextToSize(tx(x),w?L-32:colW-8),cx,yy+11);tracoPdfCC(doc,cx,cx+(w?L-32:colW-8),yy+alt[i]-13)});yy+=alt[i]});
-  y+=hQ+14});
+ /* partes do documento: caixas leves, duas lado a lado */
+ const layQ=(q,qw,cols)=>{const gg=12,cw=(qw-28-(cols-1)*gg)/cols;const rows=[];let row=[],uso=0;
+  q.campos.forEach(([l,x,w])=>{const sp=w?Math.min(2,cols):1;if(uso+sp>cols){rows.push(row);row=[];uso=0}
+   fonte('bold',9.2);row.push({l,ls:doc.splitTextToSize(tx(x),sp*cw+(sp-1)*gg),col:uso,sp});uso+=sp});
+  if(row.length)rows.push(row);const hs=rows.map(r=>9+Math.max(...r.map(c=>c.ls.length))*11+8);return{rows,hs,cw,gg,h:30+hs.reduce((a,b)=>a+b,0)+2}};
+ const qs=D.quadros.filter(q=>q&&(q.campos||[]).length);
+ for(let i=0;i<qs.length;i+=2){const pq=qs.slice(i,i+2);const qw=pq.length===2?(L-12)/2:L,cols=pq.length===2?2:3;
+  const lay=pq.map(q=>layQ(q,qw,cols));const hQ=Math.max(...lay.map(l=>l.h));cabe(hQ+8);
+  pq.forEach((q,j)=>{const x=M+j*(qw+12),Ly=lay[j];caixa(x,y,qw,hQ,{fill:[255,255,255],stroke:FI,r:7});
+   tituloPdfCC(doc,x+14,y+17,'',tx(rotFormalDoc(q.rot)));
+   let ry=y+29;Ly.rows.forEach((r,k)=>{r.forEach(c=>{const cx=x+14+c.col*(Ly.cw+Ly.gg);fonte('normal',6.8,FR);doc.text(tx(c.l),cx,ry+6);
+    fonte('bold',9.2,TX);doc.text(c.ls,cx,ry+16.5)});ry+=Ly.hs[k]})});
+  y+=hQ+14}
  /* corpo */
- D.blocos.forEach(b=>{
+ const aviso=t=>{fonte('normal',8.2);const ls=[];tx(t).split('\n').filter(l=>l.trim()).forEach(l=>ls.push(...doc.splitTextToSize(l,L-26)));
+  const h=ls.length*10.6+13;if(h>BOT-TOPO-20){paragrafo(t,{size:8.6,cz:true});return}cabe(h+4);
+  caixa(M,y,L,h,{fill:BG,r:3});if(doc.rect){cor(TC,'setFillColor');doc.rect(M,y,2.4,h,'F')}
+  fonte('normal',8.2,CZ);doc.text(ls,M+13,y+12.4,{lineHeightFactor:10.6/8.2});y+=h+12};
+ const B=D.blocos||[];
+ for(let i=0;i<B.length;i++){const b=B[i];
+  if(ehKvDoc(b)&&ehKvDoc(B[i+1])&&par(b,B[i+1])){i++;continue}
   if(b.tipo==='p')paragrafo(b.texto);
-  else if(b.tipo==='tabela')tabela(b);
+  else if(b.tipo==='tabela')tabela(b,{kv:ehKvDoc(b)});
   else if(b.tipo==='imagem')imagem(b);
   else if(b.tipo==='indicadores')indicadores(b);
-  else if(b.tipo==='aviso'){paragrafo(b.texto,{size:9,cz:true})}
-  else if(b.tipo==='clausula'){cabe(40);y+=4;doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(PT,'setTextColor');
-   doc.splitTextToSize(tx(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase()),L).forEach(l=>{doc.text(l,M,y,{charSpace:.4});y+=12.5});y+=2;paragrafo(b.texto)}
-  else if(b.tipo==='secao'){cabe(46);y+=10;tituloPdfCC(doc,M,y,b.n,tx(b.titulo));y+=12;
-   if(b.campos&&b.campos.length){tabela({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])})}
-   (b.paras||[]).forEach(p=>paragrafo(p));if(b.tabela)tabela(b.tabela);if(b.vazio)paragrafo(b.vazio,{cz:true});if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})}
- });
+  else if(b.tipo==='aviso')aviso(b.texto);
+  else if(b.tipo==='clausula'){cabe(40);y+=6;fonte('bold',9,PT);
+   doc.splitTextToSize(tx(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase()),L).forEach(l=>{doc.text(l,M,y,{charSpace:.3});y+=12});y+=2;paragrafo(b.texto)}
+  else if(b.tipo==='secao'){cabe(110);y+=10;tituloPdfCC(doc,M,y,b.n,tx(b.titulo));cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.line(M,y+8,W-M,y+8);y+=24;
+   if(b.campos&&b.campos.length)tabela({head:['',''],dir:[1],body:b.campos.map(([l,x])=>[l,x||'—'])},{kv:1});
+   (b.paras||[]).forEach(p=>paragrafo(p));if(b.tabela)tabela(b.tabela,{kv:ehKvDoc(b.tabela)});if(b.vazio)paragrafo(b.vazio,{cz:true});if(b.nota)paragrafo(b.nota,{size:7.6,c:FR,lh:10})}
+ }
  /* local, assinaturas e testemunhas ficam juntos; se não couberem na página, o fecho vai junto, para a assinatura não ficar sozinha */
- const nAss=Math.ceil((D.assinaturas.length||0)/2);const hFim=40+nAss*70+(D.testemunhas?98:0);
- if(D.fecho){doc.setFont('helvetica','normal');doc.setFontSize(10);const hf=doc.splitTextToSize(tx(D.fecho),L).length*13.4+10;
+ const nAss=Math.ceil((D.assinaturas.length||0)/2);const hFim=40+nAss*74+(D.testemunhas?98:0);
+ if(D.fecho){fonte('normal',9.6);const hf=doc.splitTextToSize(tx(D.fecho),L).length*13.2+10;
   if(D.assinaturas.length&&y+hf+hFim>BOT)novaPag();y+=4;paragrafo(D.fecho)}
  if(y+hFim>BOT)novaPag();
- if(D.local){y+=18;doc.setFont('helvetica','normal');doc.setFontSize(10);cor(TX,'setTextColor');centro(D.local,y)}
- const linhaAss=(a,x,w)=>{cor(TX,'setDrawColor');doc.setLineWidth(.6);doc.line(x,y,x+w,y);doc.setFont('helvetica','bold');doc.setFontSize(9.2);cor(TX,'setTextColor');
-  doc.text(tx(a.nome||' ').slice(0,60),x+w/2,y+12,{align:'center'});doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(tx(a.sub||'').slice(0,70),x+w/2,y+22,{align:'center'})};
- const wA=205;
- for(let i=0;i<D.assinaturas.length;i+=2){y+=52;const par=D.assinaturas.slice(i,i+2);
-  if(par.length===1)linhaAss(par[0],(W-wA)/2,wA);else{linhaAss(par[0],M,wA);linhaAss(par[1],W-M-wA,wA)}y+=16}
- if(D.testemunhas){y+=40;tituloPdfCC(doc,M,y,'','TESTEMUNHAS');y+=34;
-  D.testemunhas.forEach((t,i)=>{const x=i?W-M-wA:M;linhaAss({nome:t.nome||'Testemunha '+(i+1),sub:t.cpf?'CPF '+t.cpf:'Nome e CPF'},x,wA)});y+=26}
- if(D.observacoes){const ls=doc.splitTextToSize(tx(D.observacoes),L-24);const h=28+ls.length*12;cabe(h+20);y+=20;
-  if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,h,'S')}
-  tituloPdfCC(doc,M+12,y+16,'','OBSERVAÇÕES');
-  doc.setFont('helvetica','normal');doc.setFontSize(9.4);cor(TX,'setTextColor');doc.text(ls,M+12,y+31);y+=h+8}
- if(D.notaFinal){y+=D.assinaturas.length&&!D.testemunhas&&!D.observacoes?26:6;paragrafo(D.notaFinal,{size:7.8,cz:true,lh:10})}
- /* rodapé em todas as páginas */
+ if(D.local){y+=20;fonte('normal',9.2,CZ);centro(D.local,y)}
+ const wA=Math.min(220,(L-56)/2);
+ const linhaAss=(a,x,w)=>{cor(TX,'setDrawColor');doc.setLineWidth(.6);doc.line(x,y,x+w,y);let fsN=8.8;const nome=tx(a.nome||' ');
+  doc.setFont('helvetica','bold');doc.setFontSize(fsN);while(fsN>6.6&&doc.getTextWidth&&doc.getTextWidth(nome)>w){fsN-=.4;doc.setFontSize(fsN)}
+  fonte('bold',fsN,TX);doc.text(doc.splitTextToSize(nome,w)[0]||' ',x+w/2,y+12,{align:'center'});fonte('normal',7.2,CZ);doc.text(doc.splitTextToSize(tx(a.sub||''),w)[0]||'',x+w/2,y+22,{align:'center'})};
+ for(let i=0;i<D.assinaturas.length;i+=2){y+=52;const pr=D.assinaturas.slice(i,i+2);
+  if(pr.length===1)linhaAss(pr[0],(W-wA)/2,wA);else{linhaAss(pr[0],M,wA);linhaAss(pr[1],W-M-wA,wA)}y+=30}
+ if(D.testemunhas){y+=26;tituloPdfCC(doc,M,y,'','TESTEMUNHAS');y+=36;
+  D.testemunhas.forEach((t,i)=>{const x=i?W-M-wA:M;linhaAss({nome:t.nome||'Testemunha '+(i+1),sub:t.cpf?'CPF '+t.cpf:'Nome e CPF'},x,wA)});y+=30}
+ if(D.observacoes){fonte('normal',9);const ls=doc.splitTextToSize(tx(D.observacoes),L-28);const h=30+ls.length*12;cabe(h+20);y+=12;
+  caixa(M,y,L,h,{fill:BG2,stroke:FI,r:7});tituloPdfCC(doc,M+14,y+17,'','OBSERVAÇÕES');
+  fonte('normal',9,TX);doc.text(ls,M+14,y+31);y+=h+8}
+ if(D.notaFinal){y+=8;paragrafo(D.notaFinal,{size:7.4,c:FR,lh:9.8})}
+ /* rodapé em todas as páginas; da segunda em diante, uma linha de continuação no topo */
  try{const tot=doc.internal&&doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;
   for(let k=1;k<=tot;k++){if(doc.setPage)doc.setPage(k);
-   if(k>1){doc.setFont('helvetica','normal');doc.setFontSize(7.6);cor(CZ,'setTextColor');doc.text(tx(D.marca+'  ·  '+D.tipo+(D.numero?'  ·  Nº '+D.numero:'')),M,38);cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M,43,W-M,43)}
+   if(k>1){fonte('bold',6.6,PT);doc.text(tx(D.marca).toUpperCase(),M,36,{charSpace:.4});fonte('normal',7,CZ);doc.text(tx(D.tipo+(D.numero?'  ·  Nº '+D.numero:'')),W-M,36,{align:'right'});cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M,43,W-M,43)}
    rodPdfCC(doc,W,H,M,tx([MARCA_DOCS(),cb.setor].filter(Boolean).join('  ·  ')),tx([rodapeDoc(D),idDocs().rodEmissao?'Emitido em '+fDataHora(cb.em):''].filter(Boolean).join('  ·  ')),k,tot)}}catch(e){}
  return doc;
 }
 const nomeArqDoc=D=>D.arquivo?String(D.arquivo):String((D.numero?D.numero+'_':'')+D.tipo+(D.parteNome?'_'+D.parteNome:'')).replace(/[^\wÀ-ú]+/g,'_').replace(/_+/g,'_').slice(0,90);
-async function baixarPdfDoc(D){const doc=pdfDoc(D);if(!doc)return false;const ok=await salvarArquivo(nomeArqDoc(D)+'.pdf',new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));if(ok!==false)toast('PDF gerado.','ok');return ok}
+async function baixarPdfDoc(D){const doc=pdfDoDoc(D);if(!doc)return false;const ok=await salvarArquivo(nomeArqPdf(D),new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));if(ok!==false)toast('PDF gerado.','ok');return ok}
 
-/* ---------- Word editável (.doc) ---------- */
+/* ---------- Word editável (.doc), no mesmo desenho ---------- */
 function wordDoc(D){
+ const C={pri:'#183756',acc:'#C4602D',ink:'#16202A',mut:'#5B6875',fr:'#8A95A0',li:'#DFE4E9',l2:'#EAEEF2',soft:'#F5F7F9',hr:'#EEF2F6'};
  const t=s=>esc(String(s==null?'':s)).replace(/\u0001\w+\u0002/g,'__________');
- const ps=s=>String(s||'').split('\n').filter(l=>l.trim()).map(l=>`<p style="margin:0 0 6pt;text-align:justify;${/^[a-z]\) /.test(l)?'margin-left:14pt;':''}">${t(l)}</p>`).join('');
+ const ps=s=>String(s||'').split('\n').filter(l=>l.trim()).map(l=>`<p style="margin:0 0 6pt;text-align:justify;line-height:1.45;${/^[a-z]\) /.test(l)?'margin-left:14pt;':''}">${t(l)}</p>`).join('');
  const al=(b,k)=>(b.dir||[]).includes(k)?'text-align:right;':'';
- const tb=b=>`<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:${b.fonte&&b.fonte<8.5?8.5:10}pt"><tr>${b.head.map((h,k)=>`<th style="background:#111114;color:#fff;border-bottom:2pt solid #D3121C;text-align:left;padding:4pt 6pt;${al(b,k)}">${t(cabFormalDoc(h))}</th>`).join('')}</tr>
-  ${b.body.map((r,i)=>`<tr>${r.map((x,k)=>`<td style="padding:4pt 6pt;border-bottom:1px solid #E3E3E8;${i%2?'background:#F5F5F7;':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
-  ${(b.foots||(b.foot?[b.foot]:[])).map((f,j)=>`<tr>${f.map((x,k)=>`<td style="padding:4pt 6pt;background:#E3E3E8;color:#141416;font-weight:bold;${j?'':'border-top:1.5pt solid #111114;'}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`;
- const quadro=q=>`<p style="margin:8pt 0 4pt;color:#111114;font-size:10pt;font-weight:bold;letter-spacing:1pt"><span style="color:#D3121C">■</span> ${t(rotFormalDoc(q.rot))}</p><table style="width:100%;border-collapse:collapse;border:1px solid #E3E3E8;margin:0 0 10pt"><tr><td colspan="2" style="height:4pt"></td></tr>
-  ${q.campos.map(([l,x])=>`<tr><td style="padding:2pt 10pt;width:32%;color:#5B5B63;font-size:9pt">${t(l)}</td><td style="padding:2pt 10pt;font-weight:bold">${t(x)}</td></tr>`).join('')}<tr><td colspan="2" style="height:4pt"></td></tr></table>`;
- const corpo=D.blocos.map(b=>b.tipo==='p'||b.tipo==='aviso'?ps(b.texto):b.tipo==='tabela'?tb(b)
-  :b.tipo==='imagem'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(String(b.titulo||'Gráfico').toUpperCase())}</p><p style="margin:0 0 8pt;font-size:9pt;color:#5B5B63">O gráfico sai no PDF e na impressão.</p>`
-  :b.tipo==='indicadores'?((b.itens||[]).length?`<table style="width:100%;border-collapse:collapse;margin:4pt 0 10pt"><tr>${b.itens.slice(0,4).map(([l,v],i)=>`<td style="padding:6pt 8pt;border:1px solid #E3E3E8;${i?'background:#FAFAFB;':'background:#111114;border-bottom:2pt solid #D3121C;'}"><p style="margin:0;font-size:7pt;letter-spacing:.5pt;color:${i?'#5B5B63':'#CFCFD6'}">${t(String(l).toUpperCase())}</p><p style="margin:2pt 0 0;font-size:12pt;font-weight:bold;color:${i?'#141416':'#fff'}">${t(v)}</p></td>`).join('')}</tr></table>`:'')
-  :b.tipo==='clausula'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase())}</p>${ps(b.texto)}`
-  :b.tipo==='secao'?`<p style="margin:14pt 0 6pt;font-size:11pt;color:#111114;font-weight:bold;letter-spacing:.5pt;text-transform:uppercase"><span style="color:#D3121C">■</span> <span style="color:#5B5B63">${t(b.n)}</span> ${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:#5B5B63">${t(b.nota)}</p>`:''}`:'').join('');
- const cb=carimboDoc(D),linhaW=linhaEmpDoc(D.marca,linhaCabDoc(D)),sobreW=sobreTituloDoc(D),meioW=['comprovante','formal'].includes(cb.classe)?'text-align:center;':'',instW=rodInstDoc();
- const ass=l=>`<table style="width:100%;margin-top:30pt"><tr>${l.map(a=>`<td style="width:50%;text-align:center;padding:0 12pt"><div style="border-top:1px solid #141416;padding-top:3pt;font-weight:bold">${t(a.nome||' ')}</div><div style="font-size:8pt;color:#5B5B63">${t(a.sub||'')}</div></td>`).join('')}</tr></table>`;
+ const rot=s=>`<p style="margin:0 0 4pt;color:${C.pri};font-size:7.5pt;font-weight:bold;letter-spacing:1.2pt;text-transform:uppercase"><span style="color:${C.acc}">■</span> ${t(s)}</p>`;
+ const tb=b=>{const kv=ehKvDoc(b);const fs=b.fonte&&b.fonte<8.5?8.5:9.5;const foots=b.foots||(b.foot?[b.foot]:[]);
+  return `${kv&&String(b.head[0]||'').trim()?`<p style="margin:8pt 0 0;padding-bottom:3pt;border-bottom:1.5pt solid ${C.pri};color:${C.pri};font-size:7.5pt;font-weight:bold;letter-spacing:1.2pt;text-transform:uppercase">${t(cabFormalDoc(b.head[0]))}</p>`:''}
+  <table style="width:100%;border-collapse:collapse;margin:${kv?'0':'6pt'} 0 10pt;font-size:${fs}pt">${kv?'':`<tr>${b.head.map((h,k)=>`<th style="background:${C.hr};color:${C.pri};border-bottom:1.5pt solid ${C.pri};text-align:left;padding:4pt 6pt;font-size:7.5pt;text-transform:uppercase;letter-spacing:.5pt;${al(b,k)}">${t(cabFormalDoc(h))}</th>`).join('')}</tr>`}
+  ${b.body.map(r=>`<tr>${r.map((x,k)=>`<td style="padding:4pt ${kv?'0':'6pt'};border-bottom:1px solid ${C.l2};${kv&&!k?'color:'+C.mut+';':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
+  ${foots.map((f,j)=>`<tr>${f.map((x,k)=>`<td style="padding:5pt ${kv?'0':'6pt'};${j?'':'border-top:1.2pt solid '+C.ink+';'}${kv?'':'background:'+C.soft+';'}font-weight:bold;${j===foots.length-1?'color:'+C.pri+';':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`};
+ const quadro=q=>`<table style="width:100%;border-collapse:collapse;border:1px solid ${C.li};margin:0 0 10pt"><tr><td colspan="2" style="padding:7pt 10pt 2pt">${rot(rotFormalDoc(q.rot))}</td></tr>
+  ${q.campos.map(([l,x])=>`<tr><td style="padding:2pt 10pt;width:32%;color:${C.fr};font-size:8.5pt">${t(l)}</td><td style="padding:2pt 10pt;font-weight:bold">${t(x)}</td></tr>`).join('')}<tr><td colspan="2" style="height:5pt"></td></tr></table>`;
+ const ind=b=>(b.itens||[]).length?`<table style="width:100%;border-collapse:separate;border-spacing:5pt 0;margin:4pt -5pt 12pt"><tr>${b.itens.slice(0,4).map(([l,v],i)=>`<td style="border:1px solid ${i?C.li:C.pri};border-left:3pt solid ${i?C.li:C.acc};background:${i?'#fff':C.pri};padding:6pt 8pt;vertical-align:top"><p style="margin:0;font-size:7pt;font-weight:bold;letter-spacing:.8pt;text-transform:uppercase;color:${i?C.mut:'#B7C6D6'}">${t(l)}</p><p style="margin:2pt 0 0;font-size:12pt;font-weight:bold;color:${i?C.ink:'#fff'}">${t(v)}</p></td>`).join('')}</tr></table>`:'';
+ const corpo=D.blocos.map(b=>b.tipo==='p'?ps(b.texto):b.tipo==='aviso'?`<div style="background:${C.soft};border-left:3pt solid ${C.acc};padding:5pt 9pt;margin:0 0 10pt;color:${C.mut};font-size:9pt">${ps(b.texto)}</div>`:b.tipo==='tabela'?tb(b)
+  :b.tipo==='imagem'?`${rot(String(b.titulo||'Gráfico'))}<p style="margin:0 0 8pt;font-size:9pt;color:${C.mut}">O gráfico sai no PDF e na impressão.</p>`
+  :b.tipo==='indicadores'?ind(b)
+  :b.tipo==='clausula'?`<p style="margin:10pt 0 4pt;color:${C.pri};font-weight:bold;font-size:9.5pt;letter-spacing:.4pt">${t(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase())}</p>${ps(b.texto)}`
+  :b.tipo==='secao'?`<p style="margin:16pt 0 6pt;padding-bottom:3pt;font-size:12pt;color:${C.ink};font-weight:bold;border-bottom:1px solid ${C.li}">${b.n!==''&&b.n!=null?`<span style="background:${C.pri};color:#fff;padding:0 4pt">${t(b.n)}</span>&nbsp; `:''}${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['',''],dir:[1],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:${C.fr}">${t(b.nota)}</p>`:''}`:'').join('');
+ const cb=carimboDoc(D),linhaW=linhaEmpDoc(D.marca,linhaCabDoc(D)),sobreW=sobreTituloDoc(D),meioW=['comprovante','formal'].includes(cb.classe)?'text-align:center;':'',instW=rodInstDoc(),idW=identDoc(D);
+ const ass=l=>`<table style="width:100%;margin-top:34pt"><tr>${l.map(a=>`<td style="width:50%;text-align:center;padding:0 14pt"><div style="border-top:1px solid ${C.ink};padding-top:3pt;font-weight:bold">${t(a.nome||' ')}</div><div style="font-size:8pt;color:${C.mut}">${t(a.sub||'')}</div></td>`).join('')}</tr></table>`;
  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${t(D.tipo)}</title>
- <style>@page{size:${D.paisagem?'29.7cm 21cm':'21cm 29.7cm'};margin:${D.paisagem?'1.5cm 1.5cm':'2cm 1.9cm'}}body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#141416}</style></head><body>
- <table style="width:100%;border-collapse:collapse;margin:0 0 10pt;border-bottom:3pt solid #D3121C"><tr>
- <td style="background:#111114;color:#fff;padding:12pt 14pt"><p style="margin:0;font-weight:bold;font-size:11pt;letter-spacing:1pt;color:#fff">${t(D.marca)}</p>${linhaW?`<p style="margin:2pt 0 0;font-size:8pt;color:#CFCFD6">${t(linhaW)}</p>`:''}</td>
- <td style="background:#D3121C;color:#fff;text-align:right;padding:12pt 14pt;width:28%"><p style="margin:0;font-size:8pt;font-weight:bold;letter-spacing:1pt;color:#fff">${t(identDoc(D)[0])}</p><p style="margin:2pt 0 0;font-size:${String(identDoc(D)[1]).length>9?10:14}pt;font-weight:bold;color:#fff">${t(identDoc(D)[1])}</p></td></tr></table>
- ${sobreW?`<p style="margin:0 0 2pt;${meioW}font-size:7.5pt;color:#D3121C;font-weight:bold;letter-spacing:1pt">${t(sobreW)}</p>`:''}
- <p style="margin:0;${meioW}font-weight:bold;font-size:13pt;letter-spacing:.5pt;color:#111114;text-transform:uppercase">${t(D.tipo)}</p>${D.sub?`<p style="margin:2pt 0 0;${meioW}font-size:8.5pt;color:#5B5B63;letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}
- <table style="width:100%;border-collapse:collapse;margin:8pt 0 14pt;border:1px solid #E3E3E8;border-left:2pt solid #D3121C;background:#FAFAFB"><tr>${metaDoc(D).map(([l,x])=>`<td style="padding:5pt 8pt;vertical-align:top"><p style="margin:0;font-size:7pt;letter-spacing:.5pt;color:#5B5B63">${t(String(l).toUpperCase())}</p><p style="margin:1pt 0 0;font-size:9pt;font-weight:bold;color:#141416">${t(x)}</p></td>`).join('')}</tr></table>
+ <style>@page{size:${D.paisagem?'29.7cm 21cm':'21cm 29.7cm'};margin:${D.paisagem?'1.5cm 1.5cm':'2cm 1.9cm'}}body{font-family:Calibri,Arial,Helvetica,sans-serif;font-size:10.5pt;color:${C.ink}}</style></head><body>
+ <table style="width:100%;border-collapse:collapse;margin:0 0 12pt;border-bottom:2pt solid ${C.pri}"><tr>
+ <td style="padding:0 0 10pt;vertical-align:bottom"><p style="margin:0;font-weight:bold;font-size:12pt;letter-spacing:.5pt;color:${C.ink};text-transform:uppercase">${t(D.marca)}</p>${linhaW?`<p style="margin:2pt 0 0;font-size:8pt;color:${C.mut}">${t(linhaW)}</p>`:''}</td>
+ <td style="text-align:right;padding:0 0 10pt 14pt;width:30%;vertical-align:bottom;border-left:1px solid ${C.li}"><p style="margin:0;font-size:7.5pt;font-weight:bold;letter-spacing:1.2pt;color:${C.acc}">${t(idW[0])}</p><p style="margin:2pt 0 0;font-size:${String(idW[1]).length>9?11:15}pt;font-weight:bold;color:${C.pri}">${t(idW[1])}</p></td></tr></table>
+ ${sobreW?`<p style="margin:0 0 3pt;${meioW}font-size:7.5pt;color:${C.acc};font-weight:bold;letter-spacing:1.4pt">${t(sobreW)}</p>`:''}
+ <p style="margin:0;${meioW}font-weight:bold;font-size:15pt;letter-spacing:.3pt;color:${C.pri};text-transform:uppercase">${t(D.tipo)}</p>${D.sub?`<p style="margin:3pt 0 0;${meioW}font-size:8.5pt;color:${C.mut};letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}
+ <table style="width:100%;border-collapse:collapse;margin:10pt 0 14pt;border-top:1px solid ${C.li};border-bottom:1px solid ${C.li}"><tr>${metaDoc(D).map(([l,x])=>`<td style="padding:5pt 8pt 5pt 0;vertical-align:top"><p style="margin:0;font-size:7pt;color:${C.fr};letter-spacing:.8pt;text-transform:uppercase;font-weight:bold">${t(l)}</p><p style="margin:1pt 0 0;font-size:9pt;font-weight:bold;color:${C.ink}">${t(x)}</p></td>`).join('')}</tr></table>
  ${D.quadros.filter(q=>q&&(q.campos||[]).length).map(quadro).join('')}${corpo}${D.fecho?ps(D.fecho):''}
- ${D.local?`<p style="text-align:center;margin-top:18pt">${t(D.local)}</p>`:''}
+ ${D.local?`<p style="text-align:center;margin-top:20pt;color:${C.mut}">${t(D.local)}</p>`:''}
  ${D.assinaturas.length?(()=>{const o=[];for(let i=0;i<D.assinaturas.length;i+=2)o.push(ass(D.assinaturas.slice(i,i+2)));return o.join('')})():''}
- ${D.testemunhas?`<p style="margin:18pt 0 0;color:#D3121C;font-size:8pt;font-weight:bold;letter-spacing:1pt">TESTEMUNHAS</p>${ass(D.testemunhas.map((x,i)=>({nome:x.nome||'Testemunha '+(i+1),sub:x.cpf?'CPF '+x.cpf:'Nome e CPF'})))}`:''}
- ${D.observacoes?`<div style="background:#F5F5F7;border-left:4px solid #D3121C;padding:6pt 10pt;margin-top:14pt"><p style="margin:0 0 3pt;color:#D3121C;font-size:8pt;font-weight:bold">OBSERVAÇÕES</p>${ps(D.observacoes)}</div>`:''}
- ${D.notaFinal?`<p style="font-size:8pt;color:#5B5B63">${t(D.notaFinal)}</p>`:''}
- <p style="margin-top:20pt;font-size:7.5pt;color:#fff;background:#111114;border-top:2pt solid #D3121C;padding:4pt 8pt"><b>${t(MARCA_DOCS())}</b>${cb.setor?' · '+t(cb.setor):''} · ${t(rodapeDoc(D))}${idDocs().rodEmissao?' · Emitido em '+t(fDataHora(cb.em)):''}</p>${instW?`<p style="margin:3pt 0 0;font-size:7pt;color:#5B5B63;text-align:center">${t(instW)}</p>`:''}</body></html>`;
+ ${D.testemunhas?`<p style="margin:20pt 0 0">${rot('TESTEMUNHAS')}</p>${ass(D.testemunhas.map((x,i)=>({nome:x.nome||'Testemunha '+(i+1),sub:x.cpf?'CPF '+x.cpf:'Nome e CPF'})))}`:''}
+ ${D.observacoes?`<div style="border:1px solid ${C.li};padding:7pt 10pt;margin-top:14pt">${rot('OBSERVAÇÕES')}${ps(D.observacoes)}</div>`:''}
+ ${D.notaFinal?`<p style="font-size:8pt;color:${C.fr}">${t(D.notaFinal)}</p>`:''}
+ <p style="margin-top:22pt;padding-top:5pt;border-top:1px solid ${C.li};font-size:7.5pt;color:${C.mut}"><b style="color:${C.pri};letter-spacing:.6pt">${t(String(MARCA_DOCS()).toUpperCase())}</b>${cb.setor?' · '+t(cb.setor):''} · ${t(rodapeDoc(D))}${idDocs().rodEmissao?' · Emitido em '+t(fDataHora(cb.em)):''}</p>${instW?`<p style="margin:3pt 0 0;font-size:7pt;color:${C.fr}">${t(instW)}</p>`:''}</body></html>`;
 }
 async function baixarWordDoc(D){const ok=await salvarArquivo(nomeArqDoc(D)+'.doc',new Blob(['﻿',wordDoc(D)],{type:'application/msword'}));if(ok!==false)toast('Documento editável (Word) gerado.','ok');return ok}
 
 /* ---------- imprimir e compartilhar ---------- */
 function imprimirDoc(){
- /* imprime só a folha: uma cópia dela vai para um contêiner próprio que a folha de estilo de impressão mostra sozinho */
+ /* imprime só a folha (ou o cupom): uma cópia vai para um contêiner próprio que a folha de estilo de impressão mostra sozinho */
  const src=document.getElementById('fvdDoc');if(!src){toast('Abra o documento para imprimir.');return}
  let box=document.getElementById('printDoc');if(box)box.remove();
- box=document.createElement('div');box.id='printDoc';box.classList.add('folha');if(src.classList.contains('paisagem'))box.classList.add('paisagem');const cp=src.cloneNode(true);cp.removeAttribute('id');box.appendChild(cp);document.body.appendChild(box);
+ box=document.createElement('div');box.id='printDoc';const cp=src.cloneNode(true);cp.removeAttribute('id');box.appendChild(cp);
+ let st=null;
+ if(src.classList.contains('cupom')){
+  /* cupom: página da largura da bobina e da altura do conteúdo, sem margens (não usa a página A4 numerada) */
+  const w=+src.dataset.largura||80;const h=Math.ceil(src.getBoundingClientRect().height*25.4/96)+6;
+  box.classList.add('cupom-print');st=document.createElement('style');st.id='printDocPag';st.textContent=`@media print{@page{size:${w}mm ${Math.max(h,w+1)}mm;margin:0}}`;document.head.appendChild(st);
+ }else{box.classList.add('folha');if(src.classList.contains('paisagem'))box.classList.add('paisagem')}
+ document.body.appendChild(box);
  document.body.classList.add('imprime-doc');
  let abriu=false;const f=()=>{abriu=true};window.addEventListener('beforeprint',f);
  try{window.print()}catch(e){}
- setTimeout(()=>{window.removeEventListener('beforeprint',f);box.remove();document.body.classList.remove('imprime-doc');
+ setTimeout(()=>{window.removeEventListener('beforeprint',f);box.remove();if(st)st.remove();document.body.classList.remove('imprime-doc');
   if(!abriu)toast('A impressão direta não abriu neste ambiente. Baixe o PDF e imprima por ele.')},900);
 }
 async function compartilharDoc(D){
- const doc=pdfDoc(D);
- if(doc){try{const file=new File([doc.output('arraybuffer')],nomeArqDoc(D)+'.pdf',{type:'application/pdf'});
+ const doc=pdfDoDoc(D);
+ if(doc){try{const file=new File([doc.output('arraybuffer')],nomeArqPdf(D),{type:'application/pdf'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:D.tipo});return}}catch(e){if(e&&e.name==='AbortError')return}}
- const resumo=D.tipo+(D.numero?' · Nº '+D.numero:'')+(D.parteNome?' · '+D.parteNome:'')+' · '+D.meta.map(([l,x])=>l+' '+x).slice(1).join(' · ');
+ const resumo=D.tipo+(D.numero?' · Nº '+String(D.numero).replace(/^n[º°o]\.?\s*/i,''):'')+(D.parteNome?' · '+D.parteNome:'')+' · '+D.meta.map(([l,x])=>l+' '+x).slice(1).join(' · ');
  try{await navigator.clipboard.writeText(resumo);toast('O compartilhamento direto não está disponível aqui. Copiei um resumo; para enviar o documento, baixe o PDF e anexe na conversa.','ok');return}catch(e){}
  toast('Compartilhar não está disponível aqui. Baixe o PDF e envie por WhatsApp ou e-mail.');
 }
@@ -11067,8 +11122,8 @@ function verDoc(D,opc){
 }
 /* gera e baixa o PDF; o toast só aparece depois que o arquivo saiu */
 async function emitirPdfDoc(D,msg){
- const doc=pdfDoc(D);if(!doc)return false;
- const ok=await salvarArquivo(nomeArqDoc(D)+'.pdf',new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
+ const doc=pdfDoDoc(D);if(!doc)return false;
+ const ok=await salvarArquivo(nomeArqPdf(D),new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
  if(ok!==false&&msg)toast(msg,'ok');return ok;
 }
 const ETAPAS_VER=[['abrir','Abrir'],['visualizar','Visualizar'],['imprimir','Imprimir'],['pdf','Gerar PDF'],['baixar','Baixar']];
@@ -11077,17 +11132,20 @@ function telaDocumento(el){
  if(!X){el.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('doc')}</span><div><h1>Visualizar documento</h1><p>Aqui aparece o documento antes de imprimir, gerar o PDF ou baixar.</p></div></div></div>
   <div class="painel"><div class="vazio"><b>Nenhum documento aberto</b>O documento é montado na hora, a partir da tela de origem, e não fica guardado nesta página. Volte à tela de onde ele saiu e toque em “Visualizar” de novo.
   <div class="vazio-acoes"><a class="btn" href="#/painel">${ic('esquerda')}Ir para o início</a></div></div></div>`;return}
- const D=X.D;const feitas=['abrir','visualizar'];
+ const D=X.D;const feitas=['abrir','visualizar'];const fmt=formatoDoc(D);const cp=fmt!=='a4';
  el.innerHTML=`<div class="fv-topo"><a class="btn" href="${esc(X.voltar)}">${ic('esquerda')}Voltar</a>
    <span class="dc-tt"><b>${esc(String(D.tipo).charAt(0)+String(D.tipo).slice(1).toLowerCase())}</b><small>${esc([D.sub,D.parteNome&&D.parteNome!==D.sub?D.parteNome:''].filter(Boolean).join(' · '))}</small></span>
    <span class="fv-acoes dc-acoes"><button type="button" class="btn" id="dxImp">${ic('doc')}Imprimir</button><button type="button" class="btn pri" id="dxPdf">${ic('baixar')}Exportar PDF</button>
-   <button type="button" class="btn" id="dxWord" title="Baixar em Word, para editar">${ic('baixar')}Baixar</button><button type="button" class="btn" id="dxShare">${ic('enviar')}Compartilhar</button></span></div>
+   <button type="button" class="btn" id="dxWord" title="Baixar em Word (folha A4), para editar">${ic('baixar')}Baixar</button><button type="button" class="btn" id="dxShare">${ic('enviar')}Compartilhar</button></span></div>
   ${fluxoDoc(ETAPAS_VER,feitas,'')}
+  ${D.cupom?`<div class="dx-fmt-l"><div class="dx-fmt" role="group" aria-label="Formato do documento">${[['c80','Cupom 80 mm'],['c58','Cupom 58 mm'],['a4','Folha A4']].map(([k,l])=>`<button type="button" data-fmt="${k}" class="${fmt===k?'on':''}" aria-pressed="${fmt===k}">${l}</button>`).join('')}</div>
+   <p class="ajuda">${cp?'Cupom para impressora térmica, para entregar '+({cliente:'ao cliente',fornecedor:'ao fornecedor',entregador:'a quem fez a entrega',motorista:'ao motorista'}[D.cupom.para]||'ao cliente')+'. Imprimir, PDF e Compartilhar saem neste formato.':'Folha A4 completa, para arquivo e conferência.'}</p></div>`:''}
   ${D.estimativa?`<div class="aviso at"><span><b>${esc(D.estimativa===true?'Estimativa':D.estimativa)}.</b> Os valores são calculados na hora pelos dados cadastrados, para conferência. Visualizar, imprimir ou gerar o PDF não altera nenhum registro.</span></div>`:''}
-  <div class="fvd-fundo">${htmlDoc(D)}</div>
+  ${cp?`<div class="cp-fundo">${htmlCupom(D.cupom,fmt==='c58'?58:80)}</div>`:`<div class="fvd-fundo">${htmlDoc(D)}</div>`}
   <p class="ajuda" style="margin-top:10px">Documento montado em ${esc(fDataHora(X.em))}. Se os dados mudarem, volte e abra de novo para atualizar.</p>`;
  const pdf=async()=>{const ok=await emitirPdfDoc(D,'PDF gerado.');if(ok!==false&&X.aoPdf){try{await X.aoPdf()}catch(e){toast(msgErro(e),'erro')}}};
  $('#dxImp',el).onclick=imprimirDoc;$('#dxPdf',el).onclick=pdf;$('#dxWord',el).onclick=()=>baixarWordDoc(D);$('#dxShare',el).onclick=()=>compartilharDoc(D);
+ $$('[data-fmt]',el).forEach(b=>b.onclick=()=>{guardarFormatoDoc(D,b.dataset.fmt);telaDocumento(el)});
  $$('[data-passo]',el).forEach(b=>b.onclick=()=>{const p=b.dataset.passo;if(p==='imprimir')imprimirDoc();else if(p==='pdf')pdf();else if(p==='baixar')baixarWordDoc(D);else if(p==='abrir')location.hash=X.voltar});
 }
 
@@ -12862,6 +12920,8 @@ function detalheOpV(c,O,v){
      <td data-l="Registro">${esc(nomeUsuario(p.por))}${p.estornado?`<div class="ajuda">Estornado em ${esc(fDataHora(p.estornado.em))}: ${esc(p.estornado.motivo)}</div>`:''}</td>
      <td><span class="acoes-li">${p.estornado?'':`<button type="button" class="ib" data-vrec="${esc(p.id)}" data-tip="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}" aria-label="${venda?'Recibo deste recebimento':'Comprovante deste pagamento'}">${ic('doc')}</button>`}${!p.estornado&&pode(O.modFin,'e')?`<button type="button" class="ib" data-vest="${esc(p.id)}" data-tip="Estornar" aria-label="Estornar">${ic('desfazer')}</button>`:''}</span></td></tr>`).join('')}</tbody></table></div>`:`<p class="ajuda" style="margin:0 17px 14px">Nenhum ${venda?'recebimento':'pagamento'} registrado.</p>`}</section>
    <section class="bloco"><h3>${venda?'Comprovante':'Registro da compra'}</h3><p class="vv-tx">${venda?'Comprovante no padrão dos documentos do sistema, com empresa, setor, cliente, produtos, valores, pagamento e responsável.':'Registro da entrada no padrão dos documentos do sistema, para conferência e arquivo junto com a nota do fornecedor.'}</p>
+    ${ehLenhaV(v)?`<p class="vv-tx"><b>Entrega de lenha:</b> dois documentos. O <b>comprovante de entrega</b> é impresso na hora e fica com quem trouxe a lenha; o <b>relatório da entrega</b> vai para o dono da empresa.</p>
+    <div class="inline vv-bt"><button type="button" class="btn pri" id="vvLenhaEnt">${ic('recibo')}Comprovante de entrega</button><button type="button" class="btn" id="vvLenhaRel">${ic('grafico')}Relatório para o dono</button></div>`:''}
     <div class="inline vv-bt"><button type="button" class="btn" id="vvComp2">${ic('doc')}Visualizar e imprimir</button><button type="button" class="btn" id="vvPdf">${ic('baixar')}Gerar PDF</button>
     ${venda&&wa?`<a class="btn" href="https://wa.me/${wa.length<=11?'55':''}${esc(wa)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('enviar')}WhatsApp</a>`:''}${venda&&cx.email?`<a class="btn" href="mailto:${esc(cx.email)}?subject=${encodeURIComponent('Comprovante de venda nº '+fNumV(v.numero)+' · '+razaoMostra())}&body=${encodeURIComponent(msg)}">${ic('enviar')}E-mail</a>`:''}</div>
     ${venda?'<p class="ajuda" style="margin:8px 17px 14px">WhatsApp e e-mail levam o resumo da venda. Para mandar o PDF, use “Compartilhar” na tela do comprovante.</p>':''}</section>
@@ -12876,6 +12936,8 @@ function detalheOpV(c,O,v){
  const abrirComp=()=>verDoc(docOpV(v),{voltar:O.rota+v.id});
  $('#vvComp',c).onclick=abrirComp;$('#vvComp2',c).onclick=abrirComp;
  $('#vvPdf',c).onclick=()=>emitirPdfDoc(docOpV(v),'PDF gerado.');
+ if($('#vvLenhaEnt',c))$('#vvLenhaEnt',c).onclick=()=>verDoc(docEntregaLenhaV(v),{voltar:O.rota+v.id});
+ if($('#vvLenhaRel',c))$('#vvLenhaRel',c).onclick=()=>verDoc(docRelLenhaDonoV(v),{voltar:O.rota+v.id});
  if($('#vvPag',c))$('#vvPag',c).onclick=()=>modalPagamentoV(v);
  if($('#vvCanc',c))$('#vvCanc',c).onclick=()=>modalCancelarV(v);
  if($('#vvFis',c))$('#vvFis',c).onclick=()=>modalFiscalV(v);
@@ -13016,6 +13078,8 @@ function docOpV(v){
  D.assinaturas=venda?[{nome:c.nome&&c.nome!=='Consumidor final'?c.nome:'',sub:'Cliente · recebi os produtos acima'},{nome:v.vendedorNome||'',sub:'Responsável pela venda'}]
   :[{nome:v.responsavelNome||'',sub:'Recebido e conferido por'}];
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'. Registrado em '+fDataHora(v.criadoEm)+'.';
+ D.blocos.unshift({tipo:'indicadores',itens:[['Valor total',fMoeda(v.total)],[venda?'Recebido':'Pago',fMoeda(f.pago),'ok'],[venda?'Saldo a receber':'Saldo a pagar',fMoeda(f.saldo),f.saldo>0.005?'at':''],['Itens',String((v.itens||[]).length)]]});
+ if(venda)D.cupom=cupomOpV(v);
  return D;
 }
 function docRecebimentoV(v,p){
@@ -13031,6 +13095,8 @@ function docRecebimentoV(v,p){
  if(!venda&&encPagV(p)>0)D.blocos.push({tipo:'tabela',head:['Este pagamento','Valor'],dir:[1],body:[['Valor original',fMoeda(p.valor)],['Multa',fMoeda(+p.multa||0)],['Juros',fMoeda(+p.juros||0)]],foot:['Total pago',fMoeda(round2((+p.valor||0)+encPagV(p)))]});
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data)+'.';
  D.assinaturas=venda?[{nome:e.responsavel||'',sub:'Quem recebeu · pela empresa'}]:[{nome:c.nome||'',sub:'Quem recebeu · fornecedor'}];
+ D.blocos.unshift({tipo:'indicadores',itens:[[venda?'Valor recebido':'Valor pago',fMoeda(p.valor)],['Total da '+O.sing,fMoeda(v.total)],['Saldo em aberto',fMoeda(f.saldo),f.saldo>0.005?'at':'ok']]});
+ D.cupom=cupomRecebimentoV(v,p);
  return D;
 }
 
@@ -14042,6 +14108,8 @@ function docOrcamentoV(o){
  D.blocos.push({tipo:'aviso',texto:'Proposta comercial sem valor fiscal. Preços e condições válidos até '+fData(o.validade)+'. Não reserva estoque: a disponibilidade é confirmada no pedido.'});
  const e=CFG.empresa||{};D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(o.data)+'.';
  D.assinaturas=[{nome:o.responsavelNome||'',sub:'Responsável pelo atendimento'},{nome:'',sub:'De acordo do cliente'}];
+ D.blocos.unshift({tipo:'indicadores',itens:[['Valor total',fMoeda(o.total)],['Itens',String((o.itens||[]).length)],['Válido até',fData(o.validade)||'—',['Recusado','Expirado'].includes(st)?'pe':'']]});
+ D.cupom=cupomOrcamentoV(o);
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'.';return D}
 function docPedidoV(v){
  const D=baseRel('PEDIDO DE VENDA','Setor de Vendas · Pedido nº '+fNumV(v.numero),[]);const f=finVenda(v);
@@ -14055,6 +14123,8 @@ function docPedidoV(v){
  D.blocos.push({tipo:'aviso',texto:'Pedido de venda: documento comercial, sem valor fiscal. '+(f.status==='A faturar'?'Ainda não faturado.':'Situação financeira: '+String(f.status).toLowerCase()+'.')});
  const e=CFG.empresa||{};D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(v.data)+'.';
  D.assinaturas=[{nome:(v.cliente||{}).nome||'',sub:'Cliente'},{nome:v.vendedorNome||'',sub:'Vendedor'}];
+ D.blocos.unshift({tipo:'indicadores',itens:[['Valor total',fMoeda(v.total)],['Recebido',fMoeda(f.pago),'ok'],(f.titulos||[]).length?['Saldo a receber',fMoeda(f.saldo),f.saldo>0.005?'at':'']:['A faturar',fMoeda(f.aFaturar!=null?f.aFaturar:0),'at'],['Itens',String((v.itens||[]).length)]]});
+ D.cupom=cupomPedidoV(v);
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'. Registrado em '+fDataHora(v.criadoEm)+'.';return D}
 
 /* ---------- lista de pedidos: a mesma lista de vendas, com os estados do pedido ---------- */
@@ -14350,6 +14420,7 @@ function docCargaV(v,cg){
  D.blocos.push({tipo:'aviso',texto:'Comprovante interno de carregamento: não substitui a nota fiscal nem o documento de transporte exigido.'});
  const e=CFG.empresa||{};D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(cg.data)+'.';
  D.assinaturas=[{nome:cg.conferente||'',sub:'Conferido por'},{nome:cg.motorista||'',sub:'Motorista · recebi a carga'}];
+ D.cupom=cupomCargaV(v,cg);
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'.';return D}
 function docEntregaV(v,e){const cg=(v.cargas||[]).find(c=>c.id===e.cargaId)||{};const ret=e.tipo==='Retirada pelo cliente';
  const D=baseRel(ret?'COMPROVANTE DE RETIRADA':'COMPROVANTE DE ENTREGA','Setor de Vendas · Pedido nº '+fNumV(v.numero),[]);
@@ -14362,6 +14433,7 @@ function docEntregaV(v,e){const cg=(v.cargas||[]).find(c=>c.id===e.cargaId)||{};
  (e.ocorrencias||[]).forEach(o=>D.blocos.push({tipo:'p',texto:'Ocorrência ('+fDataHora(o.em)+'): '+o.texto}));
  const ce=CFG.empresa||{};D.local=(ce.cidade?ce.cidade+', ':'')+dataExtenso((e.entregaEm||{}).data||hoje())+'.';
  D.assinaturas=[{nome:e.recebedor||'',sub:ret?'Quem retirou · recebi os produtos acima':'Quem recebeu · recebi os produtos acima'},{nome:ret?(e.conferente||''):(cg.motorista||''),sub:ret?'Conferido por':'Motorista'}];
+ D.cupom=cupomEntregaV(v,e);
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'.';return D}
 function docReciboPedV(v,p){const f=finVenda(v);const t=(f.titulos||[]).find(x=>x.id===p.tituloId)||{};const c=v.cliente||{};const e=CFG.empresa||{};
  const D=baseRel('RECIBO DE PAGAMENTO','Setor de Vendas · Recibo nº '+fNumV(p.recibo),[]);
@@ -14375,6 +14447,8 @@ function docReciboPedV(v,p){const f=finVenda(v);const t=(f.titulos||[]).find(x=>
  D.blocos.push({tipo:'tabela',head:['Registro','Detalhe'],body:[['Forma',p.forma],['Conta',p.conta||'—'],['Registrado por',nomeUsuario(p.por)],['Registrado em',fDataHora(p.em)]]});
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data)+'.';
  D.assinaturas=[{nome:e.responsavel||'',sub:'Quem recebeu · pela empresa'}];
+ D.blocos.unshift({tipo:'indicadores',itens:[['Valor recebido',fMoeda(val)],['Saldo do título',fMoeda(t.saldo||0),quita?'ok':'at'],['Saldo do pedido',fMoeda(f.saldo),f.saldo>0.005?'at':'ok']]});
+ D.cupom=cupomReciboPedV(v,p);
  D.notaFinal='Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'. O recibo só existe para recebimento efetivamente registrado.';return D}
 
 /* ================= Setor de Vendas · devoluções, renegociação, expedição e contas a receber ================= */
@@ -27884,93 +27958,187 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 })();
 </script>
 <style id="docs-concretiza">
-/* ===== Documentos · visual Concretiza (V40) =====
-   Só aparência: cada documento mantém todos os campos, valores, tabelas, assinaturas e notas.
-   Faixa preta com logo e razão social no topo, título à direita, quadros com marcador vermelho,
-   tabelas com cabeçalho preto e filete vermelho, totais em destaque e rodapé com a empresa. */
-.fvd.fvd{--t:#D3121C;--tx:#141416;--cz:#5B5B63;--fi:#E3E3E8;--bg:#F5F5F7;--bg2:#FAFAFB;--pt:#111114;
- font-family:Inter,'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:0 0 0;overflow:hidden;border-radius:6px;
- -webkit-print-color-adjust:exact;print-color-adjust:exact}
-.fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:44px;margin-right:44px}
-.fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:30px;margin-right:30px}
-.fvd.fvd>.fvd-ass,.fvd.fvd>.fvd-local{margin-top:28px}
-.fvd .fvd-band{display:flex;align-items:stretch;justify-content:space-between;gap:0;text-align:left;padding:0;margin:0 0 22px;border-bottom:4px solid var(--t);background:var(--pt)}
-.fvd .fvd-band-marca{display:flex;align-items:center;gap:14px;color:#fff;padding:11px 18px 11px 44px;flex:1 1 auto;min-width:0}
-.fvd .fvd-band .fvd-logo{height:54px;width:54px;max-width:none;object-fit:contain;border-radius:50%;flex:none;margin:0}
-.fvd .fvd-band .fvd-emp{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:600;font-size:16.5px;letter-spacing:.09em;line-height:1.1;color:#fff;text-transform:uppercase}
-.fvd .fvd-band .fvd-id{font-size:10.4px;color:#BDBDC6;letter-spacing:.03em;margin-top:3px}
-.fvd .fvd-band-num{flex:0 0 31%;min-width:0;box-sizing:border-box;background:var(--t);color:#fff;clip-path:polygon(52px 0,100% 0,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;align-items:flex-end;text-align:right;padding:8px 44px 8px 58px}
-.fvd .fvd-band-num span{font-size:9.4px;font-weight:600;letter-spacing:.13em;opacity:.92}
-.fvd .fvd-band-num b{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:600;font-size:23px;letter-spacing:.03em;line-height:1.1;overflow-wrap:anywhere}
-.fvd .fvd-band-num b.lg{font-size:15.5px;line-height:1.15}
-.fvd.paisagem .fvd-band-marca{padding-left:30px}.fvd.paisagem .fvd-band-num{padding-right:30px;flex-basis:26%}
-.fvd .fvd-band-tit{margin-top:0;margin-bottom:14px}
-.fvd .fvd-band-tit .fvd-tit{margin:0;text-align:left;font-family:inherit;font-weight:700;font-size:18px;letter-spacing:.01em;line-height:1.2;color:var(--pt);text-transform:uppercase}
-.fvd .fvd-band-tit .fvd-sub{margin:4px 0 0;text-align:left;color:var(--cz);font-weight:500;letter-spacing:.11em;font-size:10.2px}
-.fvd .fvd-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 18px;font-size:11.5px;color:var(--cz);border:1px solid var(--fi);border-radius:6px;padding:8px 12px;background:var(--bg2);margin-top:0;margin-bottom:18px}
-.fvd .fvd-meta i{font-style:normal;font-weight:600;color:var(--pt)}
-.fvd .fvd-quadro{background:none;border:0;border-radius:0;padding:0;margin-bottom:18px}
-.fvd .fvd-quadro .fvd-grade{border:1px solid var(--fi);border-radius:6px;padding:15px 18px}
-.fvd .fvd-rot{color:var(--pt);font-size:12px;font-weight:700;letter-spacing:.11em;margin-bottom:8px}
-.fvd .fvd-rot:before{content:"";display:inline-block;width:8px;height:8px;background:var(--t);margin-right:8px;vertical-align:1px}
-.fvd .fvd-grade{gap:7px 22px}
-.fvd .fvd-grade>div{border-bottom:1px dashed #D4D4DA;padding-bottom:6px}
-.fvd .fvd-h{align-items:center;color:var(--pt);font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;border-bottom:0;padding-bottom:0;margin:22px 0 8px}
-.fvd .fvd-h:before{content:"";flex:none;width:8px;height:8px;background:var(--t)}
-.fvd .fvd-h span{color:var(--cz)}
-.fvd .fvd-tb{font-family:inherit;border:1px solid var(--fi)}
-.fvd .fvd-tb th{background:var(--pt);color:#fff;border-bottom:3px solid var(--t);text-transform:uppercase;letter-spacing:.04em;font-size:10.8px}
-.fvd .fvd-tb td{border-bottom:1px solid var(--fi)}
-.fvd .fvd-tb tbody tr:nth-child(even) td{background:var(--bg)}
-/* total: negrito, fundo cinza claro e um fio escuro em cima (o mesmo do PDF) */
-.fvd .fvd-tb tr.tot td,.fvd .fvd-tb tfoot td{background:var(--fi)!important;color:var(--tx);font-weight:700;border-top:1.5px solid var(--pt)}
-/* imagem no documento (gráfico da tela) */
-.fvd .fvd-fig{margin:16px 0 8px;text-align:center;break-inside:avoid;page-break-inside:avoid}
-.fvd .fvd-fig img{max-width:100%;height:auto;display:inline-block}
-.fvd .fvd-fig-t{margin:0 0 8px;text-align:left;color:var(--pt);font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:14px;letter-spacing:.03em;text-transform:uppercase;border-bottom:1px solid var(--fi);padding-bottom:4px}
-.fvd .fvd-aviso,.fvd .fvd-obsbox{background:#fff;border:1px solid var(--fi);border-radius:6px}
-.fvd .fvd-sit{border-radius:6px}
-.fvd .fvd-tot b{color:var(--t)}
-.fvd .fvd-ass i{border-top:1.5px solid var(--pt)}
-.fvd .fvd-cl h4{color:var(--pt)}
-.fvd .fvd-rod{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:none;color:var(--cz);font-size:11.5px;padding:10px 44px 14px;margin:26px 0 0}
-.fvd .fvd-rod:before{content:"";flex:0 0 100%;height:1px;background:var(--fi);margin-bottom:-2px}
-.fvd.paisagem .fvd-rod{padding-left:30px;padding-right:30px}
-.fvd .fvd-rod b{color:var(--cz);font-weight:500}
-.dc-prev .fvd.fvd{padding:0}
-#printDoc .fvd.fvd{padding:0;border-radius:0}
-/* ===== Identidade documental (V111): cabeçalho configurável, faixa de identificação, indicadores, rodapé institucional e impressão A4 ===== */
-.fvd .fvd-band.lg-P .fvd-logo{height:42px;width:42px}
-.fvd .fvd-band.lg-G .fvd-logo{height:66px;width:66px}
-.fvd .fvd-band .fvd-band-tx{min-width:0;flex:1 1 auto}
-.fvd .fvd-band.logo-dir .fvd-logo{margin-right:30px}
-.fvd .fvd-setor{font-size:9.6px;font-weight:700;letter-spacing:.14em;color:var(--t);margin:0 0 5px}
-.fvd .fvd-band-tit.k-comprovante,.fvd .fvd-band-tit.k-formal{text-align:center;border-bottom:1px solid var(--fi);padding-bottom:13px}
-.fvd .fvd-band-tit.k-comprovante .fvd-tit,.fvd .fvd-band-tit.k-formal .fvd-tit,.fvd .fvd-band-tit.k-comprovante .fvd-sub,.fvd .fvd-band-tit.k-formal .fvd-sub{text-align:center}
-.fvd .fvd-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;justify-content:stretch;padding:0;background:var(--fi);border:1px solid var(--fi);border-left:3px solid var(--t);border-radius:0 6px 6px 0;overflow:hidden}
-.fvd.paisagem .fvd-meta{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
-.fvd .fvd-meta span{display:flex;flex-direction:column;gap:2px;padding:8px 14px;background:var(--bg2);min-width:0}
-.fvd .fvd-meta span:last-child{grid-column-end:-1}
-.fvd .fvd-meta i{font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--cz);margin:0}
-.fvd .fvd-meta b{font-size:12px;font-weight:600;color:var(--tx);overflow-wrap:anywhere}
-.fvd .fvd-ind{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}
-.fvd .fvd-ind.n1{grid-template-columns:minmax(0,1fr)}.fvd .fvd-ind.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.fvd .fvd-ind.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.fvd .fvd-ind>div{border:1px solid var(--fi);border-radius:6px;background:var(--bg2);padding:10px 13px;min-width:0}
-.fvd .fvd-ind>div:first-child{background:var(--pt);border-color:var(--pt);border-bottom:3px solid var(--t)}
-.fvd .fvd-ind span{display:block;font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--cz)}
-.fvd .fvd-ind b{display:block;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:20px;font-weight:600;letter-spacing:.02em;line-height:1.15;margin-top:3px;color:var(--tx);overflow-wrap:anywhere}
-.fvd .fvd-ind>div:first-child span{color:#C8C8CE}.fvd .fvd-ind>div:first-child b{color:#fff}
-.fvd .fvd-rod{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 18px;align-items:baseline}
-.fvd .fvd-rod:before{grid-column:1/-1;margin-bottom:5px}
-.fvd .fvd-rod-l b{color:var(--tx);font-weight:700}
-.fvd .fvd-rod-l span:before{content:"·";margin:0 7px}
-.fvd .fvd-rod-r{text-align:right;font-size:10.8px}
-.fvd .fvd-rod-inst{grid-column:1/-1;font-size:10.2px;color:var(--cz)}
+/* ===== Documentos · padrão empresarial (V116) =====
+   Reformulação visual sobre a identidade documental (V111): a estrutura (logo e dados configuráveis,
+   setor responsável, família do documento, carimbo de emissão, rodapé institucional, página X de Y)
+   continua a mesma; muda só o desenho. Dois padrões que não se misturam:
+   A) relatórios e documentos (.fvd): folha branca, azul-petróleo institucional com detalhe terracota
+      (a cor da cerâmica), faixa de identificação, partes lado a lado, cartões de indicadores, tabelas
+      leves, resumos de valores lado a lado e rodapé institucional;
+   B) cupom não fiscal / recibo térmico (.cupom): 58 ou 80 mm, preto no branco, no modelo do
+      comprovante físico da empresa.
+   Só aparência: nenhum dado, cálculo, número, campo ou assinatura muda. */
+.fvd-fundo{background:#E7EBEF}
+.fvd.fvd{--t:#C4602D;--pt:#183756;--tx:#16202A;--cz:#5B6875;--fr:#8A95A0;--fi:#DFE4E9;--l2:#EAEEF2;--bg:#F5F7F9;--bg2:#FAFBFC;--hr:#EEF2F6;
+ --ok:#1E7B4F;--okb:#EAF5EF;--at:#9C6300;--atb:#FBF4E6;--pe:#B4231C;--peb:#FCEDEC;--inb:#EAF0F6;
+ max-width:840px;margin:0 auto;background:#fff;color:var(--tx);font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+ font-size:12.6px;line-height:1.55;padding:0;border-radius:6px;overflow:hidden;font-variant-numeric:tabular-nums;
+ box-shadow:0 1px 2px rgba(16,32,48,.06),0 14px 34px -10px rgba(16,32,48,.22);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.fvd.fvd.paisagem{max-width:1120px}
+.fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:48px;margin-right:48px}
+.fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:34px;margin-right:34px}
+.fvd.fvd>.fvd-ass,.fvd.fvd>.fvd-local{margin-top:0}
+/* cabeçalho institucional: empresa à esquerda, identificação do documento à direita, filete azul com detalhe terracota */
+.fvd.fvd .fvd-band{position:relative;display:flex;align-items:center;justify-content:space-between;gap:24px;text-align:left;margin:0;padding:30px 48px 20px;background:#fff;border:0}
+.fvd.fvd.paisagem .fvd-band{padding-left:34px;padding-right:34px}
+.fvd.fvd .fvd-band:after{content:"";position:absolute;left:48px;right:48px;bottom:0;height:2px;background:linear-gradient(90deg,var(--t) 0 56px,var(--pt) 56px 100%)}
+.fvd.fvd.paisagem .fvd-band:after{left:34px;right:34px}
+.fvd.fvd .fvd-band-marca{display:flex;align-items:center;gap:14px;padding:0;color:var(--tx);flex:1 1 auto;min-width:0;background:none;clip-path:none}
+.fvd.fvd .fvd-band .fvd-logo{display:block;height:54px;width:54px;max-width:none;max-height:none;object-fit:contain;border-radius:10px;flex:none;margin:0;background:none;border:0}
+.fvd.fvd .fvd-band.lg-P .fvd-logo{height:42px;width:42px}.fvd.fvd .fvd-band.lg-G .fvd-logo{height:68px;width:68px}
+.fvd.fvd .fvd-band.logo-dir .fvd-logo{margin:0 0 0 auto}
+.fvd.fvd .fvd-band .fvd-band-tx{min-width:0;flex:1 1 auto}
+.fvd.fvd .fvd-band .fvd-emp{font-family:inherit;font-weight:700;font-size:14.4px;letter-spacing:.015em;line-height:1.25;color:var(--tx);text-transform:uppercase}
+.fvd.fvd .fvd-band .fvd-id{font-size:10.8px;color:var(--cz);letter-spacing:0;margin-top:3px;line-height:1.45}
+.fvd.fvd .fvd-band-num{flex:none;max-width:42%;min-width:0;background:none;color:var(--tx);clip-path:none;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;text-align:right;padding:2px 0 2px 20px;border-left:1px solid var(--fi)}
+.fvd.fvd .fvd-band-num span{font-size:9.2px;font-weight:700;letter-spacing:.14em;color:var(--t);opacity:1}
+.fvd.fvd .fvd-band-num b{font-family:inherit;font-weight:700;font-size:21px;letter-spacing:-.01em;line-height:1.15;color:var(--pt);overflow-wrap:anywhere;margin-top:2px}
+.fvd.fvd .fvd-band-num b.lg{font-size:15px}
+/* título: setor e família em cima, título em destaque e subtítulo */
+.fvd.fvd .fvd-band-tit{margin-top:22px;margin-bottom:16px;padding:0;border:0;text-align:left}
+.fvd.fvd .fvd-setor{font-size:9.8px;font-weight:700;letter-spacing:.15em;color:var(--t);margin:0 0 6px;text-transform:uppercase}
+.fvd.fvd .fvd-band-tit .fvd-tit{margin:0;text-align:left;font-family:inherit;font-weight:700;font-size:21px;letter-spacing:.01em;line-height:1.2;color:var(--pt);text-transform:uppercase}
+.fvd.fvd .fvd-band-tit .fvd-sub{margin:5px 0 0;text-align:left;color:var(--cz);font-weight:500;letter-spacing:.1em;font-size:10.4px}
+.fvd.fvd .fvd-band-tit.k-comprovante,.fvd.fvd .fvd-band-tit.k-formal{text-align:center;border:0;padding:0}
+.fvd.fvd .fvd-band-tit.k-comprovante .fvd-tit,.fvd.fvd .fvd-band-tit.k-formal .fvd-tit,.fvd.fvd .fvd-band-tit.k-comprovante .fvd-sub,.fvd.fvd .fvd-band-tit.k-formal .fvd-sub{text-align:center}
+/* faixa de identificação: colunas leves separadas por fios */
+.fvd.fvd .fvd-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 0;justify-content:stretch;margin-top:0;margin-bottom:22px;padding:12px 0;background:none;border:0;border-top:1px solid var(--fi);border-bottom:1px solid var(--fi);border-radius:0;font-size:12px;color:var(--cz);overflow:visible}
+.fvd.fvd.paisagem .fvd-meta{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.fvd.fvd .fvd-meta span{display:flex;flex-direction:column;gap:3px;padding:0 14px;background:none;border-left:1px solid var(--l2);min-width:0}
+.fvd.fvd .fvd-meta span:first-child{border-left:0;padding-left:0}
+.fvd.fvd .fvd-meta span:last-child{grid-column-end:auto}
+.fvd.fvd .fvd-meta i{font-style:normal;font-size:9.2px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fr);margin:0}
+.fvd.fvd .fvd-meta b{font-size:12.2px;font-weight:600;color:var(--tx);overflow-wrap:anywhere}
+.fvd.fvd .fvd-chip{display:inline-block;align-self:flex-start;font-size:11px;font-weight:600;line-height:1.55;border-radius:999px;padding:0 9px;background:var(--inb);color:var(--pt)}
+.fvd.fvd .fvd-chip.ok{background:var(--okb);color:var(--ok)}.fvd.fvd .fvd-chip.at{background:var(--atb);color:var(--at)}.fvd.fvd .fvd-chip.pe{background:var(--peb);color:var(--pe)}
+/* partes do documento (empresa, cliente, fornecedor, funcionário): caixas leves, duas lado a lado */
+.fvd.fvd .fvd-partes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:20px;align-items:stretch}
+.fvd.fvd .fvd-quadro{background:#fff;border:1px solid var(--fi);border-left:1px solid var(--fi);border-radius:10px;padding:14px 16px 13px;margin-bottom:20px;break-inside:avoid;page-break-inside:avoid}
+.fvd.fvd .fvd-partes>.fvd-quadro{margin:0}
+.fvd.fvd .fvd-quadro .fvd-grade{border:0;border-radius:0;padding:0}
+.fvd.fvd .fvd-rot{display:flex;align-items:center;gap:8px;font-size:9.4px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--pt);margin-bottom:10px}
+.fvd.fvd .fvd-rot:before{content:"";display:block;width:6px;height:6px;border-radius:1px;background:var(--t);margin:0;flex:none}
+.fvd.fvd .fvd-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 18px}
+.fvd.fvd .fvd-partes .fvd-grade{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fvd.fvd .fvd-grade>div{min-width:0;border:0;padding:0}
+.fvd.fvd .fvd-grade .w2{grid-column:span 2}
+.fvd.fvd .fvd-grade span{display:block;font-size:10px;color:var(--fr);font-weight:500;margin-bottom:1px}
+.fvd.fvd .fvd-grade b{display:block;font-size:12.5px;font-weight:600;color:var(--tx);overflow-wrap:anywhere}
+.fvd.fvd .fvd-pares{margin-bottom:12px}
+/* cartões de indicadores: o primeiro em destaque */
+.fvd.fvd .fvd-ind{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 22px;break-inside:avoid;page-break-inside:avoid}
+.fvd.fvd .fvd-ind.n1{grid-template-columns:minmax(0,1fr)}.fvd.fvd .fvd-ind.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.fvd.fvd .fvd-ind.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fvd.fvd .fvd-ind>div{position:relative;border:1px solid var(--fi);border-radius:10px;background:#fff;padding:12px 14px 11px 17px;min-width:0;overflow:hidden}
+.fvd.fvd .fvd-ind>div:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--fi)}
+.fvd.fvd .fvd-ind span{display:block;font-size:9.2px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--cz)}
+.fvd.fvd .fvd-ind b{display:block;font-family:inherit;font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.22;margin-top:5px;color:var(--tx);overflow-wrap:anywhere}
+.fvd.fvd .fvd-ind>div:first-child{background:var(--pt);border-color:var(--pt);border-bottom:1px solid var(--pt)}
+.fvd.fvd .fvd-ind>div:first-child:before{background:var(--t)}
+.fvd.fvd .fvd-ind>div:first-child span{color:#B7C6D6}.fvd.fvd .fvd-ind>div:first-child b{color:#fff}
+.fvd.fvd .fvd-ind>div.ok:before{background:var(--ok)}.fvd.fvd .fvd-ind>div.ok b{color:var(--ok)}
+.fvd.fvd .fvd-ind>div.at:before{background:var(--at)}.fvd.fvd .fvd-ind>div.at b{color:var(--at)}
+.fvd.fvd .fvd-ind>div.pe:before{background:var(--pe)}.fvd.fvd .fvd-ind>div.pe b{color:var(--pe)}
+.fvd.fvd .fvd-ind>div.in:before{background:var(--pt)}
+/* seções numeradas */
+.fvd.fvd .fvd-h{display:flex;align-items:center;gap:10px;margin-top:26px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--fi);font-family:inherit;font-size:14.2px;font-weight:700;letter-spacing:-.005em;text-transform:none;color:var(--tx);break-after:avoid;page-break-after:avoid}
+.fvd.fvd .fvd-h:before{content:none;display:none}
+.fvd.fvd .fvd-h span{flex:none;display:grid;place-items:center;min-width:22px;height:22px;padding:0 5px;border-radius:6px;background:var(--pt);color:#fff;font-size:11px;font-weight:700;letter-spacing:0}
+.fvd.fvd .fvd-h span:empty{display:none}
+/* tabelas: cabeçalho claro com filete azul, linhas finas, total em destaque */
+.fvd.fvd .fvd-tw{overflow-x:auto;margin-bottom:18px}
+.fvd.fvd .fvd-tb{width:100%;border-collapse:collapse;font-family:inherit;font-size:11.8px;border:0}
+.fvd.fvd .fvd-tb th{background:var(--hr);color:var(--pt);font-size:9.4px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;text-align:left;padding:8px 10px;border:0;border-bottom:1.5px solid var(--pt);white-space:nowrap;vertical-align:bottom}
+.fvd.fvd .fvd-tb th:first-child{border-top-left-radius:6px}.fvd.fvd .fvd-tb th:last-child{border-top-right-radius:6px}
+.fvd.fvd .fvd-tb td{padding:7.5px 10px;border:0;border-bottom:1px solid var(--l2);vertical-align:top;color:var(--tx);background:none}
+.fvd.fvd .fvd-tb tbody tr:nth-child(even) td{background:none}
+.fvd.fvd .fvd-tb td.d,.fvd.fvd .fvd-tb th.d{text-align:right}
+.fvd.fvd .fvd-tb td.d{white-space:nowrap}
+.fvd.fvd .fvd-tb .n{text-align:center;white-space:nowrap}
+.fvd.fvd .fvd-tb td small{display:block;font-size:10px;color:var(--fr)}
+.fvd.fvd .fvd-tb td.venc{color:var(--pe);font-weight:600}
+.fvd.fvd .fvd-tb tr.tot td,.fvd.fvd .fvd-tb tfoot td{background:var(--bg)!important;color:var(--tx);font-weight:700;border-top:1.5px solid var(--tx);border-bottom:0}
+.fvd.fvd .fvd-tb tr.tot+tr.tot td{border-top:1px solid var(--l2)}
+.fvd.fvd .fvd-tb tr.tot:last-child td{color:var(--pt)}
+.fvd.fvd.paisagem .fvd-tb{font-size:11px}
+.fvd.fvd.paisagem .fvd-tb th{font-size:9px;white-space:normal}
+/* resumos de duas colunas (rótulo · valor): título discreto e, quando são dois seguidos, lado a lado */
+.fvd.fvd .fvd-kv{margin-bottom:18px;break-inside:avoid;page-break-inside:avoid;min-width:0}
+.fvd.fvd .fvd-kv-t{font-size:9.4px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--pt);padding-bottom:7px;border-bottom:1.5px solid var(--pt)}
+.fvd.fvd .fvd-tb.kv td{padding:6.5px 0;border-bottom:1px solid var(--l2)}
+.fvd.fvd .fvd-tb.kv td+td{padding-left:14px}
+.fvd.fvd .fvd-tb.kv td:first-child{color:var(--cz)}
+.fvd.fvd .fvd-tb.kv tr.tot td{background:none!important;border-top:1.5px solid var(--tx);font-size:13.4px;padding-top:9px;color:var(--tx)}
+.fvd.fvd .fvd-tb.kv tr.tot:last-child td{color:var(--pt)}
+.fvd.fvd .fvd-tb.kv tr.tot td:first-child{color:var(--tx)}
+.fvd.fvd .fvd-par{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:30px;align-items:start}
+/* textos */
+.fvd.fvd .fvd-p{margin-top:0;margin-bottom:8px}
+.fvd.fvd .fvd-intro{margin-top:0;margin-bottom:14px;font-size:12.8px;line-height:1.66}
+.fvd.fvd.fvd-doc .fvd-p{text-align:justify;hyphens:auto}
+.fvd.fvd .fvd-cl{margin-top:16px}
+.fvd.fvd .fvd-cl h4{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pt);break-after:avoid;page-break-after:avoid}
+.fvd.fvd .fvd-fecho{margin-top:16px}
+.fvd.fvd .fvd-aviso{background:var(--bg);border:0;border-left:3px solid var(--t);border-radius:0 8px 8px 0;padding:10px 14px;margin-top:0;margin-bottom:16px;font-size:11.3px;color:var(--cz);break-inside:avoid;page-break-inside:avoid}
+.fvd.fvd .fvd-aviso .fvd-p{margin:0 0 3px;text-align:left}.fvd.fvd .fvd-aviso .fvd-p:last-child{margin-bottom:0}
+.fvd.fvd .fvd-nota{font-size:10.3px;color:var(--fr);margin-top:12px;margin-bottom:0;line-height:1.5}
+.fvd.fvd .fvd-nada{color:var(--fr);font-style:italic}
+.fvd.fvd .fvd-obs{font-size:11.3px;font-style:italic;color:var(--cz);margin-top:-6px;margin-bottom:16px}
+.fvd.fvd .fvd-obsbox{background:var(--bg2);border:1px solid var(--fi);border-radius:10px;padding:12px 16px;margin-top:22px;break-inside:avoid;page-break-inside:avoid}
+.fvd.fvd .fvd-obsbox .fvd-p:last-child{margin-bottom:0}
+.fvd.fvd .fvd-fig{margin-top:16px;margin-bottom:12px;text-align:center;break-inside:avoid;page-break-inside:avoid}
+.fvd.fvd .fvd-fig img{max-width:100%;height:auto;display:inline-block}
+.fvd.fvd .fvd-fig-t{margin:0 0 10px;text-align:left;color:var(--pt);font-family:inherit;font-size:9.4px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border-bottom:1.5px solid var(--pt);padding-bottom:7px}
+/* situação em destaque (ficha de férias) */
+.fvd.fvd .fvd-sit{display:flex;gap:18px;align-items:center;justify-content:space-between;border:1px solid var(--fi);border-left:3px solid var(--pt);border-radius:10px;padding:14px 18px;margin-bottom:12px;break-inside:avoid}
+.fvd.fvd .fvd-sit b{font-size:15px;font-weight:700}
+.fvd.fvd .fvd-sit p{margin:3px 0 0;font-size:11.6px;color:var(--cz)}
+.fvd.fvd .fvd-sit.ok{border-left-color:var(--ok)}.fvd.fvd .fvd-sit.ok>div>b{color:var(--ok)}
+.fvd.fvd .fvd-sit.at{border-left-color:var(--at);background:var(--atb)}.fvd.fvd .fvd-sit.at>div>b{color:var(--at)}
+.fvd.fvd .fvd-sit.pe{border-left-color:var(--pe);background:var(--peb)}.fvd.fvd .fvd-sit.pe>div>b{color:var(--pe)}
+.fvd.fvd .fvd-tot{text-align:right;flex:none}
+.fvd.fvd .fvd-tot span{display:block;font-size:9.2px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--cz)}
+.fvd.fvd .fvd-tot b{display:block;font-size:22px;color:var(--pt)}
+.fvd.fvd .fvd-tot small{display:block;font-size:10.4px;color:var(--cz)}
+/* fecho, assinaturas e testemunhas */
+.fvd.fvd .fvd-local{text-align:center;color:var(--cz);margin-top:30px;margin-bottom:52px}
+.fvd.fvd .fvd-ass{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px 56px;margin-top:0}
+.fvd.fvd .fvd-local+.fvd-ass{margin-top:0}
+.fvd.fvd>.fvd-ass:not(.fvd-local+.fvd-ass){margin-top:56px}
+.fvd.fvd .fvd-ass.um{grid-template-columns:minmax(0,320px);justify-content:center}
+.fvd.fvd .fvd-ass>div{text-align:center;min-width:0}
+.fvd.fvd .fvd-ass i{display:block;border-top:1px solid var(--tx);margin-bottom:7px}
+.fvd.fvd .fvd-ass b{display:block;font-size:12.2px;font-weight:600}
+.fvd.fvd .fvd-ass small{display:block;font-size:10.2px;color:var(--cz)}
+.fvd.fvd .fvd-test{margin-top:34px}.fvd.fvd .fvd-test .fvd-ass{margin-top:46px}
+/* rodapé institucional */
+.fvd.fvd .fvd-rod{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 22px;align-items:baseline;margin:30px 0 0;padding:15px 48px 18px;background:var(--bg2);border-top:1px solid var(--fi);color:var(--cz);font-size:10.2px;line-height:1.45}
+.fvd.fvd.paisagem .fvd-rod{padding-left:34px;padding-right:34px}
+.fvd.fvd .fvd-rod:before{content:none;display:none}
+.fvd.fvd .fvd-rod-l{display:flex;align-items:center;flex-wrap:nowrap;white-space:nowrap;gap:2px 0}
+.fvd.fvd .fvd-rod-l b{display:inline-flex;align-items:center;gap:7px;color:var(--pt);font-weight:700;letter-spacing:.07em;text-transform:uppercase;font-size:10.4px}
+.fvd.fvd .fvd-rod-l b:before{content:"";width:6px;height:6px;background:var(--t);border-radius:1px;flex:none}
+.fvd.fvd .fvd-rod-l span{color:var(--cz)}
+.fvd.fvd .fvd-rod-l span:before{content:"·";margin:0 7px}
+.fvd.fvd .fvd-rod-r{text-align:right;font-size:10.2px}
+.fvd.fvd .fvd-rod-inst{grid-column:1/-1;font-size:10px;color:var(--fr)}
 @media (max-width:720px){
- .fvd .fvd-meta{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
- .fvd .fvd-ind,.fvd .fvd-ind.n3{grid-template-columns:repeat(2,minmax(0,1fr))}
- .fvd .fvd-rod{grid-template-columns:minmax(0,1fr)}.fvd .fvd-rod-r{text-align:left}
- .fvd .fvd-band.lg-G .fvd-logo{height:52px;width:52px}}
+ .fvd-fundo{padding:10px 0;background:none}
+ .fvd.fvd{border-radius:8px;box-shadow:none;border:1px solid var(--linha);font-size:12.4px}
+ .fvd.fvd>*:not(.fvd-band):not(.fvd-rod),.fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:16px;margin-right:16px}
+ .fvd.fvd .fvd-band,.fvd.fvd.paisagem .fvd-band{flex-direction:column;align-items:stretch;gap:12px;padding:20px 16px 16px}
+ .fvd.fvd .fvd-band:after,.fvd.fvd.paisagem .fvd-band:after{left:16px;right:16px}
+ .fvd.fvd .fvd-band-num,.fvd.fvd.paisagem .fvd-band-num{max-width:none;flex-direction:row;justify-content:space-between;align-items:baseline;border-left:0;border-top:1px solid var(--fi);padding:8px 0 0}
+ .fvd.fvd .fvd-band .fvd-logo{height:44px;width:44px}
+ .fvd.fvd .fvd-band-tit .fvd-tit{font-size:17px}
+ .fvd.fvd .fvd-partes,.fvd.fvd .fvd-par{grid-template-columns:minmax(0,1fr)}
+ .fvd.fvd .fvd-grade,.fvd.fvd .fvd-partes .fvd-grade{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fvd.fvd .fvd-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fvd.fvd .fvd-meta span,.fvd.fvd .fvd-meta span:first-child{border-left:0;padding:0 8px 0 0}
+ .fvd.fvd .fvd-ind,.fvd.fvd .fvd-ind.n3,.fvd.fvd .fvd-ind.n4{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fvd.fvd .fvd-ind.n1{grid-template-columns:minmax(0,1fr)}
+ .fvd.fvd .fvd-sit{flex-direction:column;align-items:flex-start}.fvd.fvd .fvd-tot{text-align:left}
+ .fvd.fvd .fvd-ass{grid-template-columns:minmax(0,1fr);gap:48px}
+ .fvd.fvd .fvd-rod,.fvd.fvd.paisagem .fvd-rod{grid-template-columns:minmax(0,1fr);padding:14px 16px 18px}.fvd.fvd .fvd-rod-r{text-align:left}.fvd.fvd .fvd-rod-l{flex-wrap:wrap;white-space:normal}}
 @media print{
  /* quebra de página inteligente: o cabeçalho da tabela repete, linha não parte ao meio, total e assinaturas não ficam sozinhos */
  #printDoc .fvd-tb thead{display:table-header-group}
@@ -28000,18 +28168,67 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 /* cabeçalho e rodapé corporativos das telas que se imprimem direto (ex.: Resumo do dia): só aparecem no papel */
 .so-papel{display:none}
 @media print{.so-papel{display:block}.so-papel .fvd.fvd{box-shadow:none;border:0;margin:0 0 10px;max-width:none;padding:0}}
-@media print{#printDoc .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:6mm;margin-right:6mm}#printDoc .fvd .fvd-band-marca{padding-left:6mm}#printDoc .fvd .fvd-band-num{padding-right:6mm}#printDoc .fvd .fvd-rod{padding-left:6mm;padding-right:6mm}}
-@media (max-width:720px){
- .fvd.fvd{padding:0}
- .fvd.fvd>*:not(.fvd-band):not(.fvd-rod),.fvd.fvd.paisagem>*:not(.fvd-band):not(.fvd-rod){margin-left:14px;margin-right:14px}
- .fvd .fvd-band{flex-direction:column;gap:0}
- .fvd .fvd-band-num,.fvd.paisagem .fvd-band-num{flex:none;clip-path:none;flex-direction:row;justify-content:space-between;align-items:center;padding:8px 14px}
- .fvd .fvd-band-num b{font-size:19px}.fvd .fvd-band-num b.lg{font-size:14px}
- .fvd .fvd-band-marca,.fvd.paisagem .fvd-band-marca{padding:12px 14px;flex:none}
- .fvd .fvd-band .fvd-logo{height:44px;width:44px}
- .fvd .fvd-band .fvd-emp{font-size:17px}
- .fvd .fvd-band-tit .fvd-tit{font-size:16.5px}
- .fvd .fvd-rod,.fvd.paisagem .fvd-rod{padding:10px 14px}}
+/* ---------- padrão B: cupom térmico ---------- */
+.cp-fundo{background:#E7EBEF;border-radius:var(--r2);padding:30px 12px 34px;display:flex;justify-content:center;overflow-x:auto}
+.cupom{--w:80mm;width:var(--w);flex:none;box-sizing:border-box;background:#fff;color:#000;font-family:'IBM Plex Mono','Courier New',ui-monospace,Consolas,monospace;
+ font-size:11.4px;line-height:1.36;padding:18px 4mm 20px;position:relative;font-variant-numeric:tabular-nums;box-shadow:0 12px 26px -12px rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cupom.w58{--w:58mm;font-size:9.6px;padding:14px 3mm 16px}
+.cupom:before,.cupom:after{content:"";position:absolute;left:0;right:0;height:8px;background:radial-gradient(circle at 5px 0,transparent 4.2px,#fff 4.6px) 0 0/10px 8px repeat-x}
+.cupom:before{top:-8px;transform:scaleY(-1)}.cupom:after{bottom:-8px}
+.cupom *{box-sizing:border-box}
+.cp-cab{text-align:center}
+.cp-logo{display:block;width:52%;max-width:150px;max-height:62px;object-fit:contain;margin:0 auto 7px;filter:grayscale(1) contrast(1.25)}
+.cp-emp{font-weight:700;font-size:1.12em;text-transform:uppercase;letter-spacing:.02em;line-height:1.25}
+.cp-fant{font-weight:600;text-transform:uppercase}
+.cp-dados{margin-top:3px}
+.cp-sep{border-top:1px dashed #000;margin:7px 0}
+.cp-sep.d{border-top:3px double #000;margin:8px 0}
+.cp-tipo{text-align:center;font-weight:700;letter-spacing:.12em;background:#000;color:#fff;padding:2px 0;margin:2px 0 5px}
+.cp-tit{text-align:center;font-weight:700;text-transform:uppercase;font-size:1.06em}
+.cp-numero{text-align:center;font-weight:700;font-size:1.2em;margin:1px 0 5px}
+.cp-ln{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cp-ln>span:first-child{min-width:0;overflow-wrap:anywhere}
+.cp-ln>span:last-child{text-align:right;white-space:nowrap;flex:none}
+.cp-ln.q>span:first-child{flex:none;white-space:nowrap}
+.cp-ln.q>span:last-child{white-space:normal;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.cp-ln.f{font-weight:700}
+.cp-rot{font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1px}
+.cp-forte{font-weight:700;text-transform:uppercase}
+.cp-itcab{font-weight:700;font-size:.92em}
+.cp-it{padding:3px 0}
+.cp-it+.cp-it{border-top:1px dotted #9a9a9a}
+.cp-it-d{font-weight:600;text-transform:uppercase;overflow-wrap:anywhere}
+.cp-it-d em{font-style:normal;font-weight:700;margin-right:6px}
+.cp-it-x{font-size:.92em}
+.cp-total{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:1.42em;margin:3px 0}
+.cp-canc{text-align:center;font-weight:700;border:2px solid #000;padding:4px 2px;margin:6px 0;text-transform:uppercase}
+.cp-txt{text-align:justify;margin:2px 0}
+.cp-ass{text-align:center;margin-top:34px}
+.cp-ass+.cp-ass{margin-top:30px}
+.cp-ass i{display:block;border-top:1px solid #000;margin:0 4% 3px}
+.cp-ass b{display:block;text-transform:uppercase;font-size:.95em}
+.cp-ass small{display:block;font-size:.88em}
+.cp-msg{text-align:center;font-weight:700;margin-top:12px;white-space:pre-line}
+.cp-aviso{text-align:center;font-weight:700;margin-top:8px;text-transform:uppercase;font-size:.92em}
+.cp-rod{text-align:center;font-size:.86em;margin-top:6px}
+.dx-fmt{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--linha2);margin:0 0 12px}
+.dx-fmt button{border:0;background:none;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;font-weight:500;color:var(--suave);cursor:pointer;white-space:nowrap}
+.dx-fmt button.on{background:var(--branco);color:var(--tinta);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.dx-fmt-l{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dx-fmt-l .ajuda{margin:0 0 12px}
+@media (max-width:720px){.cp-fundo{padding:20px 0 26px;background:none}.dx-fmt{display:flex;width:100%}.dx-fmt button{flex:1;padding:8px 6px;font-size:12.5px}}
+@media print{
+ #printDoc .fvd.fvd{box-shadow:none;border:0;border-radius:0;max-width:none;margin:0;font-size:9.6pt;overflow:visible}
+ #printDoc .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:0;margin-right:0}
+ #printDoc .fvd.fvd .fvd-band{padding:0 0 14px}
+ #printDoc .fvd.fvd .fvd-band:after{left:0;right:0}
+ #printDoc .fvd.fvd .fvd-band-tit .fvd-tit{font-size:16pt}
+ #printDoc .fvd.fvd .fvd-rod{background:none}
+ #printDoc .fvd.fvd .fvd-tw{overflow:visible}
+ #printDoc .fvd-vz{background:none;border:none;color:inherit}
+ #printDoc.cupom-print .cupom{box-shadow:none;margin:0}
+ #printDoc.cupom-print .cupom:before,#printDoc.cupom-print .cupom:after{display:none}
+}
 </style>
 <script>
 /* ===== Documentos · visual Concretiza (V40) =====
@@ -28023,7 +28240,7 @@ function logoDocSrc(){const l=imgMarca('doc')||imgMarca('menu');return l&&l.src?
 const rodapeDoc=D=>{const t=String((D&&(D.rodape||D.tipo))||'');return idDocs().rodEmissao?t.replace(/\s*·\s*gerad[oa] em .*$/i,'').replace(new RegExp('\\s*·\\s*'+fData(hoje()).replace(/\//g,'\\/')+'$'),''):t};
 const linhaCabDoc=D=>D&&D.linhaPropria?String(D.empresaLinha||''):(linhaInstDoc()||String((D&&D.empresaLinha)||''));
 /* indicadores principais (relatórios e demonstrativos): cartões com rótulo e valor */
-const htmlIndDoc=b=>`<div class="fvd-ind n${Math.min(4,(b.itens||[]).length)}">${(b.itens||[]).map(([l,v])=>`<div><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>`;
+const htmlIndDoc=b=>`<div class="fvd-ind n${Math.min(4,(b.itens||[]).length)}">${(b.itens||[]).map(([l,v,t])=>`<div${t?` class="${esc(t)}"`:''}><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>`;
 function linhaEmpDoc(marca,linha){const m=semAcento(marca||'');return String(linha||'').split(' · ').filter(p=>p&&semAcento(p)!==m).join(' · ')}
 /* ===== Identidade documental (V111) =====
    Um só lugar decide logo, nome, dados institucionais, cabeçalho e rodapé de todos os documentos
@@ -28090,64 +28307,333 @@ function cabDocHtml(marca,linha,tituloHtml,ident,sobre,classe){const lg=logoDocS
 function rodDocHtml(marca,linha,dir,c){const cf=idDocs();const inst=rodInstDoc();c=c||{};
  const d=[dir,cf.rodEmissao&&c.em?'Emitido em '+fDataHora(c.em):''].filter(Boolean).join(' · ');
  return `<footer class="fvd-rod"><div class="fvd-rod-l"><b>${esc(marca)}</b>${c.setor?`<span>${esc(c.setor)}</span>`:''}</div><div class="fvd-rod-r">${esc(d)}</div>${inst||linha?`<div class="fvd-rod-inst">${esc(inst||linha)}</div>`:''}</footer>`}
-const PDF_CC={TC:[211,18,28],TX:[20,20,22],CZ:[91,91,99],FI:[227,227,232],BG:[245,245,247],BG2:[250,250,251],PT:[17,17,20]};
-/* faixa do topo do PDF; devolve a linha onde o conteúdo começa */
+const PDF_CC={TC:[196,96,45],TX:[22,32,42],CZ:[91,104,117],FI:[223,228,233],BG:[245,247,249],BG2:[250,251,252],PT:[24,55,86],FR:[138,149,160],L2:[234,238,242],HR:[238,242,246]};
+const TOM_PDF={ok:{c:[30,123,79],b:[234,245,239]},at:{c:[156,99,0],b:[251,244,230]},pe:{c:[180,35,28],b:[252,237,236]},in:{c:[24,55,86],b:[234,240,246]}};
+/* cor da situação: só leitura do texto que já existe no documento */
+function tomDoc(s){s=semAcento(String(s||'')).toLowerCase();
+ if(/cancel|vencid|recusad|estornad|critic|atrasad|bloquead|perdid/.test(s))return 'pe';
+ if(/abert|pendent|previa|rascunho|a receber|a pagar|parcial|aguard|simula|conferenc|a faturar|atencao|estimativa|elabora|andamento|transito|adiantad/.test(s))return 'at';
+ if(/pag[ao]|quitad|fechad|conclu|autoriz|assinad|entregue|carregad|aprovad|regular|ativ[oa]|vigente|retirad|recebid|emitid|no prazo/.test(s))return 'ok';
+ return 'in'}
+/* tabela de duas colunas (rótulo · valor): vira um quadro de resumo; dois seguidos ficam lado a lado */
+const ehKvDoc=b=>!!(b&&b.tipo==='tabela'&&Array.isArray(b.head)&&b.head.length===2&&!b.larg&&Array.isArray(b.body)&&b.body.length>0&&b.body.length<=16&&b.body.every(r=>r.length===2));
+/* cabeçalho do PDF: empresa e logo à esquerda, identificação do documento à direita, filete azul com detalhe
+   terracota; embaixo, setor e família, título e subtítulo (ao centro nos comprovantes e documentos formais).
+   Devolve a linha onde o conteúdo começa. */
 function cabPdfCC(doc,W,o){
- const P=PDF_CC,c=(k,fn)=>doc[fn](P[k][0],P[k][1],P[k][2]);const M=o.M||52;
+ const P=PDF_CC,c=(k,fn)=>{if(doc[fn])doc[fn](P[k][0],P[k][1],P[k][2])};const M=o.M||48,L=W-2*M;
  const cf=idDocs(),tam=(LOGO_TAM_DOC[cf.logoTam]||LOGO_TAM_DOC.M).pt;
- const src=logoDocSrc(),tLogo=o.paisagem?Math.min(tam,46):tam,wP=Math.round(W*(o.paisagem?.26:.31)),incl=36,xP=W-wP;
- const temLogo=!!(src&&doc.addImage),logoDir=temLogo&&cf.logoPos==='dir';
- const x=M+(temLogo&&!logoDir?tLogo+11:0),larg=xP-x-12-(logoDir?tLogo+22:0),id=o.ident||['EMITIDO EM',fData(hoje())];
- /* nada é cortado: a faixa cresce para caber todas as linhas */
- doc.setFont('helvetica','bold');doc.setFontSize(10.8);const ms=doc.splitTextToSize(String(o.marca||''),larg);
- doc.setFont('helvetica','normal');doc.setFontSize(7.2);const lsE=o.linha?doc.splitTextToSize(String(o.linha),larg):[];
- const altE=ms.length*13+(lsE.length?4+lsE.length*9.5:0),h=Math.max(o.paisagem?58:62,altE+20,tLogo+16);
- if(doc.setFillColor&&doc.rect){
-  c('PT','setFillColor');doc.rect(0,0,W,h,'F');
-  c('TC','setFillColor');doc.rect(xP+incl-1,0,wP-incl+1,h,'F');if(doc.triangle)doc.triangle(xP+incl,0,xP+incl,h,xP,h,'F');
-  doc.rect(0,h,W,3,'F')}
- if(temLogo){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',logoDir?xP-tLogo-18:M,(h-tLogo)/2,tLogo,tLogo)}catch(e){console.warn('logo no PDF',e)}}
- let yy=(h-altE)/2+10;doc.setFont('helvetica','bold');doc.setFontSize(10.8);doc.setTextColor(255,255,255);
- ms.forEach(l=>{doc.text(l,x,yy,{charSpace:.7});yy+=13});
- if(lsE.length){doc.setFont('helvetica','normal');doc.setFontSize(7.2);doc.setTextColor(189,189,198);yy+=1;lsE.forEach(l=>{doc.text(l,x,yy);yy+=9.5})}
- /* painel vermelho: número do documento, matrícula ou data */
- const xr=W-M,val=String(id[1]||''),fv=val.length>16?9:val.length>9?11.5:17,lV=wP-incl-(W-xr)-6;
- doc.setFont('helvetica','bold');doc.setFontSize(fv);const vs=doc.splitTextToSize(val,lV);const aV=vs.length*(fv+2),yR=(h-(aV+13))/2+8;
- doc.setFont('helvetica','normal');doc.setFontSize(6.8);doc.setTextColor(255,255,255);doc.text(String(id[0]||''),xr,yR,{align:'right',charSpace:.8});doc.setFont('helvetica','bold');
- doc.setFontSize(fv);vs.forEach((l,i)=>doc.text(l,xr,yR+10+(fv*.8)+i*(fv+2),{align:'right'}));
- /* embaixo da faixa: setor e família do documento, título grande e subtítulo; ao centro nos comprovantes e documentos formais */
- const meio=!!o.centro,pos=(t,yy,cs)=>{if(!meio){doc.text(t,M,yy,{charSpace:cs});return}const w=doc.getTextWidth?doc.getTextWidth(t)+cs*Math.max(0,t.length-1):0;doc.text(t,(W-w)/2,yy,{charSpace:cs})};
- let yt=h+3+(o.sobre?20:25);
- if(o.sobre){doc.setFont('helvetica','bold');doc.setFontSize(6.8);c('TC','setTextColor');pos(String(o.sobre),yt,.9);yt+=16}
- doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?13:13.5);const ts=doc.splitTextToSize(String(o.titulo||'').toUpperCase(),W-2*M);
- c('PT','setTextColor');ts.forEach((l,i)=>{pos(l,yt,.5);if(i<ts.length-1)yt+=16});
- if(o.sub){doc.setFont('helvetica','normal');doc.setFontSize(7.4);const ss=doc.splitTextToSize(String(o.sub),W-2*M);c('CZ','setTextColor');yt+=12;ss.forEach((l,i)=>{pos(l,yt,.7);if(i<ss.length-1)yt+=10})}
- if(meio&&doc.setDrawColor&&doc.line){c('FI','setDrawColor');doc.setLineWidth(.7);doc.line(M,yt+9,W-M,yt+9);yt+=6}
- return yt+16;
+ const src=logoDocSrc(),temLogo=!!(src&&doc.addImage),logoDir=temLogo&&cf.logoPos==='dir',tL=o.paisagem?Math.min(tam,42):Math.min(tam,50);
+ const top=o.paisagem?26:32,id=o.ident||['EMITIDO EM',fData(hoje())],xr=W-M;
+ const lab=String(id[0]||''),val=String(id[1]||''),fv=val.length>16?10:val.length>9?12.5:17;
+ doc.setFont('helvetica','bold');doc.setFontSize(fv);const vs=doc.splitTextToSize(val,L*.34);
+ const larg=t=>doc.getTextWidth?doc.getTextWidth(String(t)):String(t).length*5;
+ let wId=Math.max(...vs.map(larg));doc.setFontSize(6.4);wId=Math.max(wId,larg(lab)+.9*lab.length);
+ const xSep=xr-wId-18,xE=M+(temLogo&&!logoDir?tL+12:0),lE=Math.max(80,xSep-16-xE-(logoDir?tL+12:0));
+ doc.setFont('helvetica','bold');doc.setFontSize(10.4);const ms=doc.splitTextToSize(String(o.marca||''),lE);
+ doc.setFont('helvetica','normal');doc.setFontSize(7.3);const ls=o.linha?doc.splitTextToSize(String(o.linha),lE):[];
+ const hE=ms.length*12.6+(ls.length?3+ls.length*9.4:0),hD=10+vs.length*(fv+2);
+ const h=Math.max(temLogo?tL:0,hE,hD);
+ if(temLogo){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',logoDir?xSep-16-tL:M,top+(h-tL)/2,tL,tL)}catch(e){console.warn('logo no PDF',e)}}
+ let ye=top+(h-hE)/2+9;doc.setFont('helvetica','bold');doc.setFontSize(10.4);c('TX','setTextColor');ms.forEach(l=>{doc.text(l,xE,ye,{charSpace:.2});ye+=12.6});
+ if(ls.length){doc.setFont('helvetica','normal');doc.setFontSize(7.3);c('CZ','setTextColor');ye+=1;ls.forEach(l=>{doc.text(l,xE,ye);ye+=9.4})}
+ if(doc.line&&doc.setDrawColor){c('FI','setDrawColor');doc.setLineWidth(.7);doc.line(xSep,top+2,xSep,top+h-2)}
+ let yd=top+(h-hD)/2+7;doc.setFont('helvetica','bold');doc.setFontSize(6.4);c('TC','setTextColor');doc.text(lab,xr-(larg(lab)+.9*Math.max(0,lab.length-1)),yd,{charSpace:.9});
+ doc.setFontSize(fv);c('PT','setTextColor');yd+=3+fv*.82;vs.forEach(l=>{doc.text(l,xr,yd,{align:'right'});yd+=fv+2});
+ const yl=top+h+12;if(doc.line&&doc.setDrawColor){c('PT','setDrawColor');doc.setLineWidth(1.4);doc.line(M,yl,W-M,yl);c('TC','setDrawColor');doc.setLineWidth(2.4);doc.line(M,yl,M+46,yl)}
+ const meio=!!o.centro,pos=(t,yy,cs)=>{if(!meio){doc.text(t,M,yy,{charSpace:cs});return}const w=larg(t)+cs*Math.max(0,t.length-1);doc.text(t,(W-w)/2,yy,{charSpace:cs})};
+ let yt=yl+26;
+ if(o.sobre){doc.setFont('helvetica','bold');doc.setFontSize(6.6);c('TC','setTextColor');pos(String(o.sobre),yt,.9);yt+=16}
+ const tT=o.paisagem?15:16.5;doc.setFont('helvetica','bold');doc.setFontSize(tT);const ts=doc.splitTextToSize(String(o.titulo||'').toUpperCase(),L);
+ c('PT','setTextColor');ts.forEach((l,i)=>{pos(l,yt,.3);if(i<ts.length-1)yt+=tT+3});
+ if(o.sub){doc.setFont('helvetica','normal');doc.setFontSize(7.4);const ss=doc.splitTextToSize(String(o.sub),L);c('CZ','setTextColor');yt+=13;ss.forEach((l,i)=>{pos(l,yt,.7);if(i<ss.length-1)yt+=10})}
+ return yt+22;
 }
-/* título de seção com o quadrado vermelho */
-function tituloPdfCC(doc,M,y,n,t){const P=PDF_CC;if(doc.setFillColor&&doc.rect){doc.setFillColor(...P.TC);doc.rect(M,y-6.2,6.2,6.2,'F')}
- doc.setFont('helvetica','bold');doc.setFontSize(9);let x=M+12;
- if(n!==''&&n!=null){doc.setTextColor(...P.CZ);doc.text(String(n),x,y);x+=(doc.getTextWidth?doc.getTextWidth(String(n)):7)+6}
- doc.setTextColor(...P.PT);doc.text(String(t).toUpperCase(),x,y,{charSpace:.8})}
-/* filete tracejado embaixo de cada campo */
-function tracoPdfCC(doc,x1,x2,y){if(!doc.line||!doc.setDrawColor)return;doc.setDrawColor(212,212,218);doc.setLineWidth(.6);if(doc.setLineDashPattern)doc.setLineDashPattern([2,2],0);doc.line(x1,y,x2,y);if(doc.setLineDashPattern)doc.setLineDashPattern([],0)}
-/* faixa do rodapé, em todas as páginas */
+/* título de seção: com número, selo azul e título; sem número, marcador terracota e rótulo em maiúsculas */
+function tituloPdfCC(doc,M,y,n,t){const P=PDF_CC;
+ if(n!==''&&n!=null){doc.setFont('helvetica','bold');doc.setFontSize(7.8);const sn=String(n);const ws=Math.max(15,(doc.getTextWidth?doc.getTextWidth(sn):7)+8);
+  if(doc.setFillColor){doc.setFillColor(...P.PT);if(doc.roundedRect)doc.roundedRect(M,y-10.5,ws,15,3,3,'F');else if(doc.rect)doc.rect(M,y-10.5,ws,15,'F')}
+  doc.setTextColor(255,255,255);doc.text(sn,M+ws/2,y-.4,{align:'center'});
+  doc.setFontSize(11);doc.setTextColor(...P.TX);doc.text(String(t),M+ws+7,y);return}
+ if(doc.setFillColor&&doc.rect){doc.setFillColor(...P.TC);doc.rect(M,y-5.2,4.4,4.4,'F')}
+ doc.setFont('helvetica','bold');doc.setFontSize(6.6);doc.setTextColor(...P.PT);doc.text(String(t).toUpperCase(),M+9,y-.6,{charSpace:.9})}
+/* filete fino embaixo de cada campo */
+function tracoPdfCC(doc,x1,x2,y){if(!doc.line||!doc.setDrawColor)return;doc.setDrawColor(...PDF_CC.L2);doc.setLineWidth(.6);doc.line(x1,y,x2,y)}
+/* rodapé em todas as páginas: empresa e setor · emissão e página; embaixo, dados institucionais · documento */
 function rodPdfCC(doc,W,H,M,esq,dir,k,tot){
- const P=PDF_CC;if(doc.setDrawColor&&doc.line){doc.setDrawColor(...P.FI);doc.setLineWidth(.7);doc.line(M,H-32,W-M,H-32)}
+ const P=PDF_CC;if(doc.setDrawColor&&doc.line){doc.setDrawColor(...P.FI);doc.setLineWidth(.7);doc.line(M,H-34,W-M,H-34)}
  const L=W-2*M,corta=(t,w)=>{t=String(t||'');if(!t||!doc.splitTextToSize)return t;const l=doc.splitTextToSize(t,Math.max(40,w));return l.length>1?String(l[0]).replace(/[\s·,]+$/,'')+'…':t};
  const larg=t=>doc.getTextWidth?doc.getTextWidth(String(t||'')):String(t||'').length*4;
- /* linha 1: empresa e setor · emissão e página; linha 2: dados institucionais · nome ou número do documento */
  const pt=String(dir||'').split(/\s+·\s+(?=Emitido em )/),em=pt[1]||'',nomeDoc=pt[0]||'';
  const pag=(em?em+'   ·   ':'')+'Página '+k+' de '+tot,inst=(()=>{try{return rodInstDoc()}catch(e){return ''}})();
- doc.setFont('helvetica','bold');doc.setFontSize(7.6);doc.setTextColor(...P.TX);doc.text(pag,W-M,H-21,{align:'right'});
- doc.text(corta(esq,L-larg(pag)-16),M,H-21);
- doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...P.CZ);
- const d=corta(nomeDoc,inst?L*.5:L);doc.text(d,W-M,H-11,{align:'right'});
- if(inst)doc.text(corta(inst,L-larg(d)-16),M,H-11);
+ if(doc.setFillColor&&doc.rect){doc.setFillColor(...P.TC);doc.rect(M,H-25.6,4,4,'F')}
+ doc.setFont('helvetica','bold');doc.setFontSize(7.4);doc.setTextColor(...P.TX);doc.text(pag,W-M,H-21.5,{align:'right'});
+ doc.setTextColor(...P.PT);doc.text(corta(esq,L-larg(pag)-26),M+9,H-21.5);
+ doc.setFont('helvetica','normal');doc.setFontSize(6.9);doc.setTextColor(...P.CZ);
+ const d=corta(nomeDoc,inst?L*.5:L);doc.text(d,W-M,H-11.5,{align:'right'});
+ if(inst)doc.text(corta(inst,L-larg(d)-16),M,H-11.5);
 }
-/* filete vermelho embaixo do cabeçalho preto das tabelas */
-function filetePdfCC(doc){return c=>{if(c.section==='head'&&doc.setFillColor&&doc.rect){doc.setFillColor(...PDF_CC.TC);doc.rect(c.cell.x,c.cell.y+c.cell.height-2,c.cell.width,2,'F')}}}
+/* filete azul embaixo do cabeçalho das tabelas */
+function filetePdfCC(doc){return c=>{if(c.section==='head'&&doc.setDrawColor&&doc.line){doc.setDrawColor(...PDF_CC.PT);doc.setLineWidth(1);doc.line(c.cell.x,c.cell.y+c.cell.height,c.cell.x+c.cell.width,c.cell.y+c.cell.height)}}}
+/* estilo de tabela do PDF para os desenhos próprios (ficha de férias, inventário): o mesmo do documento */
+function estiloTabPdfCC(doc,fs){const P=PDF_CC;fs=fs||8.8;return {theme:'plain',styles:{font:'helvetica',fontSize:fs,cellPadding:{top:4.2,bottom:4.2,left:6,right:6},textColor:P.TX,lineWidth:0,overflow:'linebreak'},
+ headStyles:{fillColor:P.HR,textColor:P.PT,fontStyle:'bold',fontSize:Math.max(6,fs-1.4),valign:'bottom'},footStyles:{fillColor:P.BG,textColor:P.PT,fontStyle:'bold'},
+ didDrawCell:c=>{if(!doc.line)return;const {x,y,width:w,height:h}=c.cell;if(c.section==='head'){doc.setDrawColor(...P.PT);doc.setLineWidth(1);doc.line(x,y+h,x+w,y+h)}
+  else if(c.section==='body'){doc.setDrawColor(...P.L2);doc.setLineWidth(.5);doc.line(x,y+h,x+w,y+h)}else if(c.section==='foot'&&c.row.index===0){doc.setDrawColor(...P.TX);doc.setLineWidth(.9);doc.line(x,y,x+w,y)}}}}
+</script>
+<script id="docs-cupom">
+/* ===== Cupom não fiscal / recibo térmico (V116) e documentos da lenha · só leitura dos registros ===== */
+const txPdf=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').replace(/[\u00a0\u202f\u2007]/g,' ').replace(/[−]/g,'-').replace(/³/g,'3').replace(/²/g,'2');
+/* ---------- padrão B: cupom térmico (58 ou 80 mm) ----------
+   Cupom não fiscal / recibo / comprovante: nunca se apresenta como documento fiscal.
+   Modelo C = {kind,tipo,titulo,numero,id:[[rótulo,valor]],cancelado,parte:{rot,nome,linhas},
+   itens:[{cod,desc,linha,total,x:[]}],resumo:[[rótulo,valor]],total:[rótulo,valor],blocos:[{rot,linhas}],
+   texto,obs,assinaturas:[{rot,nome,sub}],mensagem,aviso,rodape} */
+function empCupom(){const e=(CFG&&CFG.empresa)||{};const razao=String(e.razao||e.fantasia||MARCA_DOCS()).trim();
+ const fant=String(e.fantasia||'').trim();return{razao,fantasia:fant&&semAcento(fant).toLowerCase()!==semAcento(razao).toLowerCase()?fant:'',cnpj:e.cnpj||'',endereco:e.endereco||'',cidade:e.cidade||'',telefone:e.telefone||''}}
+const MSG_CUPOM_PAD='Obrigado pela preferência!';
+function msgCupom(){let m='';try{m=typeof CFGV==='function'?String(CFGV().textoTicket||'').trim():''}catch(e){}return m||MSG_CUPOM_PAD}
+function htmlCupom(C,w,opc){
+ const E=empCupom(),lg=logoDocSrc();w=w===58?58:80;opc=opc||{};
+ const ln=(l,v,cls)=>`<div class="cp-ln${cls?' '+cls:''}"><span>${esc(l)}</span><span>${esc(v==null?'':v)}</span></div>`;
+ const dados=[E.cnpj?'CNPJ '+E.cnpj:'',E.endereco,[E.cidade,E.telefone?'Tel. '+E.telefone:''].filter(Boolean).join(' · ')].filter(Boolean);
+ return `<article class="cupom w${w}"${opc.semId?'':' id="fvdDoc"'} data-largura="${w}">
+  <header class="cp-cab">${lg?`<img class="cp-logo" src="${esc(lg)}" alt="">`:''}<div class="cp-emp">${esc(E.razao)}</div>${E.fantasia?`<div class="cp-fant">${esc(E.fantasia)}</div>`:''}
+   ${dados.length?`<div class="cp-dados">${dados.map(esc).join('<br>')}</div>`:''}</header>
+  <div class="cp-sep d"></div>
+  <div class="cp-tipo">${esc(C.tipo)}</div><div class="cp-tit">${esc(C.titulo)}</div>${C.numero?`<div class="cp-numero">Nº ${esc(C.numero)}</div>`:''}
+  ${(C.id||[]).map(([l,v])=>ln(l,v,'q')).join('')}
+  ${C.cancelado?`<div class="cp-canc">*** ${esc(C.cancelado)} ***</div>`:''}
+  ${C.parte?`<div class="cp-sep"></div><div class="cp-rot">${esc(C.parte.rot)}</div><div class="cp-forte">${esc(C.parte.nome||'—')}</div>${(C.parte.linhas||[]).filter(Boolean).map(x=>`<div>${esc(x)}</div>`).join('')}`:''}
+  ${C.itens?`<div class="cp-sep"></div><div class="cp-itcab">${esc(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO')}</div><div class="cp-itcab cp-ln"><span>${esc(C.itensCab2||'QTD  UN  ×  VL. UNIT.')}</span><span>${C.semValor?'':'VL. TOTAL'}</span></div><div class="cp-sep"></div>
+   ${C.itens.length?C.itens.map((i,k)=>`<div class="cp-it"><div class="cp-it-d"><em>${String(k+1).padStart(3,'0')}</em>${i.cod?esc(i.cod)+' ':''}${esc(i.desc)}</div>${ln(i.linha,i.total)}${(i.x||[]).map(x=>`<div class="cp-it-x">${esc(x)}</div>`).join('')}</div>`).join(''):'<div>Nenhum item.</div>'}`:''}
+  ${(C.resumo||[]).length||C.total?`<div class="cp-sep"></div>${(C.resumo||[]).map(([l,v])=>ln(l,v)).join('')}`:''}
+  ${C.total?`<div class="cp-sep d"></div><div class="cp-total"><span>${esc(C.total[0])}</span><span>${esc(C.total[1])}</span></div><div class="cp-sep d"></div>`:''}
+  ${(C.blocos||[]).map(b=>`${b.semSep?'':'<div class="cp-sep"></div>'}${b.rot?`<div class="cp-rot">${esc(b.rot)}</div>`:''}${(b.linhas||[]).map(([l,v,f])=>v==null?`<div>${esc(l)}</div>`:ln(l,v,f?'f':'q')).join('')}`).join('')}
+  ${C.texto?`<div class="cp-sep"></div><div class="cp-txt">${esc(C.texto)}</div>`:''}
+  ${C.obs?`<div class="cp-sep"></div><div class="cp-rot">Observações</div><div class="cp-txt">${esc(C.obs)}</div>`:''}
+  ${(C.assinaturas||[]).map(a=>`<div class="cp-ass"><i></i><b>${esc(a.rot)}</b>${a.nome?`<small>${esc(a.nome)}</small>`:''}${a.sub?`<small>${esc(a.sub)}</small>`:''}</div>`).join('')}
+  <div class="cp-sep"></div>
+  ${C.mensagem?`<div class="cp-msg">${esc(C.mensagem)}</div>`:''}
+  <div class="cp-aviso">${esc(C.aviso||'Não é documento fiscal')}</div>
+  <div class="cp-rod">${esc(C.rodape||'')}</div>
+ </article>`;
+}
+function pdfCupom(C,w){
+ if(!(window.jspdf&&window.jspdf.jsPDF)){toast('A biblioteca de PDF não carregou. Tente de novo em alguns segundos.','erro');return null}
+ w=w===58?58:80;const mg=w===80?4:3,Lm=w-2*mg,fs=w===80?8.2:7,lh=fs*.3528*1.36;const E=empCupom();const src=logoDocSrc();
+ const desenhar=(doc,draw)=>{let y=mg+1;
+  const T=(t,x,op)=>{if(draw)doc.text(t,x,y,op)};
+  const F=(b,s)=>{doc.setFont('courier',b?'bold':'normal');doc.setFontSize(s||fs)};
+  const pula=k=>{y+=lh*(k||1)};
+  const centro=(t,{b,s}={})=>{F(b,s);const f=(s||fs)/fs;doc.splitTextToSize(txPdf(t),Lm).forEach(l=>{pula(f);T(l,w/2,{align:'center'})})};
+  const texto=(t,{b}={})=>{F(b);doc.splitTextToSize(txPdf(t),Lm).forEach(l=>{pula();T(l,mg)})};
+  const lr=(l,v,{b,s,q}={})=>{F(b,s);const f=(s||fs)/fs;const vv=txPdf(v==null?'':v);const vw=doc.getTextWidth(vv);
+   if(q&&vw>Lm*.62){texto(l,{b});F(b,s);doc.splitTextToSize(vv,Lm).forEach(x=>{pula(f);T(x,w-mg,{align:'right'})});return}
+   const ls=doc.splitTextToSize(txPdf(l),Math.max(8,Lm-vw-2));ls.forEach((x,i)=>{pula(f);T(x,mg);if(i===0&&vv)T(vv,w-mg,{align:'right'})})};
+  const sep=d=>{y+=lh*.55;if(draw&&doc.line){doc.setDrawColor(0,0,0);doc.setLineWidth(.2);
+   if(d){doc.line(mg,y-.45,w-mg,y-.45);doc.line(mg,y+.45,w-mg,y+.45)}else{if(doc.setLineDashPattern)doc.setLineDashPattern([.9,.7],0);doc.line(mg,y,w-mg,y);if(doc.setLineDashPattern)doc.setLineDashPattern([],0)}}y+=lh*.35};
+  /* cabeçalho */
+  if(src&&doc.addImage){try{let iw=w===80?30:24,ih=iw*.42;try{const pr=doc.getImageProperties(src);if(pr&&pr.width){ih=Math.min(w===80?16:13,iw*pr.height/pr.width);iw=ih*pr.width/pr.height;if(iw>Lm*.6){iw=Lm*.6;ih=iw*pr.height/pr.width}}}catch(e){}
+   if(draw)doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',(w-iw)/2,y,iw,ih);y+=ih+.5}catch(e){}}
+  centro(E.razao.toUpperCase(),{b:1,s:fs+.8});if(E.fantasia)centro(E.fantasia.toUpperCase(),{b:1});
+  [E.cnpj?'CNPJ '+E.cnpj:'',E.endereco,[E.cidade,E.telefone?'Tel. '+E.telefone:''].filter(Boolean).join(' · ')].filter(Boolean).forEach(l=>centro(l));
+  sep(1);
+  /* identificação */
+  F(1);pula(1.05);if(draw&&doc.rect){doc.setFillColor(0,0,0);doc.rect(mg,y-lh*.82,Lm,lh*1.12,'F');doc.setTextColor(255,255,255)}T(txPdf(C.tipo),w/2,{align:'center',charSpace:.4});if(draw)doc.setTextColor(0,0,0);y+=lh*.2;
+  centro(String(C.titulo).toUpperCase(),{b:1});if(C.numero)centro('Nº '+C.numero,{b:1,s:fs+1.6});
+  (C.id||[]).forEach(([l,v])=>lr(l,v,{q:1}));
+  if(C.cancelado){y+=lh*.3;F(1);const t='*** '+txPdf(C.cancelado)+' ***';const ls=doc.splitTextToSize(t,Lm-4);const h=ls.length*lh+lh*.6;
+   if(draw&&doc.rect){doc.setLineWidth(.5);doc.setDrawColor(0,0,0);doc.rect(mg,y,Lm,h,'S')}ls.forEach(l=>{pula();T(l,w/2,{align:'center'})});y+=lh*.6}
+  if(C.parte){sep();texto(String(C.parte.rot).toUpperCase(),{b:1});texto(String(C.parte.nome||'—').toUpperCase(),{b:1});(C.parte.linhas||[]).filter(Boolean).forEach(l=>texto(l))}
+  if(C.itens){sep();texto(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO',{b:1});lr(C.itensCab2||'QTD  UN  x  VL. UNIT.',C.semValor?'':'VL. TOTAL',{b:1});sep();
+   if(!C.itens.length)texto('Nenhum item.');
+   C.itens.forEach((i,k)=>{texto(String(k+1).padStart(3,'0')+' '+(i.cod?i.cod+' ':'')+String(i.desc||'').toUpperCase(),{b:1});lr(String(i.linha).replace(/×/g,'x'),i.total);(i.x||[]).forEach(x=>texto(x))})}
+  if((C.resumo||[]).length||C.total){sep();(C.resumo||[]).forEach(([l,v])=>lr(l,v))}
+  if(C.total){sep(1);lr(C.total[0],C.total[1],{b:1,s:fs+2.4});y+=lh*.25;sep(1)}
+  (C.blocos||[]).forEach(b=>{if(!b.semSep)sep();if(b.rot)texto(String(b.rot).toUpperCase(),{b:1});(b.linhas||[]).forEach(([l,v,f])=>v==null?texto(l):lr(l,v,{b:!!f,q:!f}))});
+  if(C.texto){sep();texto(C.texto)}
+  if(C.obs){sep();texto('OBSERVAÇÕES',{b:1});texto(C.obs)}
+  (C.assinaturas||[]).forEach(a=>{y+=lh*3.4;if(draw&&doc.line){doc.setDrawColor(0,0,0);doc.setLineWidth(.25);doc.line(mg+Lm*.06,y,w-mg-Lm*.06,y)}centro(String(a.rot).toUpperCase(),{b:1});if(a.nome)centro(a.nome);if(a.sub)centro(a.sub)});
+  sep();if(C.mensagem){y+=lh*.3;String(C.mensagem).split('\n').forEach(l=>centro(l,{b:1}))}
+  y+=lh*.3;centro(String(C.aviso||'Não é documento fiscal').toUpperCase(),{b:1});
+  if(C.rodape)centro(C.rodape,{s:fs-.8});
+  return y+mg+2};
+ const med=new window.jspdf.jsPDF({unit:'mm',format:[w,3000],orientation:'portrait'});const h=Math.max(w+2,Math.ceil(desenhar(med,false)));
+ const doc=new window.jspdf.jsPDF({unit:'mm',format:[w,h],orientation:'portrait'});desenhar(doc,true);return doc;
+}
+/* formato de saída dos documentos que também têm versão cupom (escolha guardada neste aparelho) */
+const FMT_PAD_DOC={venda:'c80',pedido:'c80',recibo:'c80',pagamento:'c80',lenha:'c80',orcamento:'a4',carga:'a4',entrega:'a4'};
+function formatoDoc(D){if(!D||!D.cupom)return 'a4';let f='';try{f=localStorage.getItem('jb_fmt_doc_'+D.cupom.kind)||''}catch(e){}
+ return ['c80','c58','a4'].includes(f)?f:(FMT_PAD_DOC[D.cupom.kind]||'c80')}
+function guardarFormatoDoc(D,f){try{localStorage.setItem('jb_fmt_doc_'+D.cupom.kind,f)}catch(e){}}
+function pdfDoDoc(D){const f=formatoDoc(D);return f==='a4'?pdfDoc(D):pdfCupom(D.cupom,f==='c58'?58:80)}
+const nomeArqPdf=D=>nomeArqDoc(D)+(formatoDoc(D)==='a4'?'':'_cupom_'+(formatoDoc(D)==='c58'?'58':'80')+'mm')+'.pdf';
+const nMoedaCp=x=>fNum(+x||0,2);
+const agoraCp=()=>'Emitido em '+fDataHora(new Date().toISOString())+' · '+SPOT_NOME;
+function linhasParteCp(c){c=c||{};const tel=c.whatsapp||c.telefone||'';
+ return [c.doc?'CPF/CNPJ: '+c.doc:'',c.codigo?'Código: '+c.codigo:'',c.ie?'IE: '+c.ie:'',c.endereco||'',[c.cidade,tel?'Tel. '+tel:''].filter(Boolean).join(' · ')].filter(Boolean)}
+function itensCp(itens,venda){return (itens||[]).map(i=>{const p=typeof PROD==='function'?PROD(i.produtoId):null;const x=[];
+ if(i.dimensoes)x.push(i.dimensoes);if(i.pecas)x.push(fNum(i.pecas)+' peças');
+ if(venda&&i.precoTabela&&i.preco<i.precoTabela-0.004)x.push('Preço de tabela '+nMoedaCp(i.precoTabela));
+ return{cod:i.codigo||(p&&p.codigo)||'',desc:i.nome||'',linha:fQtd(i.qtd)+' '+(i.unidade||'')+' × '+nMoedaCp(i.preco),total:nMoedaCp(i.total),x}})}
+function resumoCp(x,itens){itens=itens||[];const r=[['Qtd. de itens',String(itens.length)]];
+ const uns=[...new Set(itens.map(i=>i.unidade||''))];if(itens.length>1&&uns.length===1)r.push(['Quantidade total',fQtd(round3(soma(itens,i=>+i.qtd||0)))+' '+uns[0]]);
+ r.push(['Subtotal',fMoeda(x.subtotal)]);
+ if(+x.desconto)r.push(['(-) Desconto'+(x.descTipo==='pct'&&x.descValor?' ('+fNum(x.descValor,2)+'%)':''),'-'+fMoeda(x.desconto)]);
+ if(+x.frete)r.push(['(+) Frete',fMoeda(x.frete)]);if(+x.outros)r.push(['(+) Outras despesas',fMoeda(x.outros)]);return r}
+function fiscalCp(fs){fs=fs||{};if(fs.status!=='Autorizada')return [];
+ return [{rot:'Documento fiscal (emitido à parte)',linhas:[[[fs.modelo||'Nota fiscal',fs.numero?'nº '+fs.numero:'',fs.serie?'série '+fs.serie:''].filter(Boolean).join(' ')],...(fs.chave?[['Chave: '+fs.chave]]:[])]}]}
+/* venda rápida (balcão) */
+function cupomOpV(v){const O=opDe(v);if(O.K!=='venda')return null;const f=finVenda(v);const c=parteSnap(v);
+ return{kind:'venda',para:'cliente',tipo:'CUPOM NÃO FISCAL',titulo:'Comprovante de venda',numero:fNumV(v.numero),
+  id:[['Data',fData(v.data)+(v.hora?' '+v.hora:'')],['Setor',(SETORES_V[v.setor]||{}).nome||''],['Vendedor',v.vendedorNome||v.responsavelNome||nomeUsuario(v.criadoPor)||'']].filter(x=>x[1]),
+  cancelado:cancV(v)?'Venda cancelada':'',parte:{rot:'Cliente',nome:c.nome||'Consumidor final',linhas:linhasParteCp(c)},
+  itens:itensCp(v.itens,true),resumo:resumoCp(v,v.itens),total:['TOTAL',fMoeda(v.total)],
+  blocos:[{rot:'Pagamento',linhas:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento&&v.condicao!=='À vista'?[['Vencimento',fData(v.vencimento)]]:[]),['Valor recebido',fMoeda(f.pago)],['Saldo pendente',fMoeda(f.saldo),1]]},...fiscalCp(v.fiscal)],
+  obs:v.obs||'',assinaturas:[{rot:'Assinatura do cliente',nome:c.nome&&c.nome!=='Consumidor final'?c.nome:'',sub:'Recebi os produtos acima'}],
+  mensagem:msgCupom(),aviso:'Cupom não fiscal · não é documento fiscal',rodape:agoraCp()}}
+/* pedido de venda */
+function cupomPedidoV(v){const f=finVenda(v);const c=v.cliente||{};const pl=v.parcelasPlano||[];const en=v.entrega||null;
+ return{kind:'pedido',para:'cliente',tipo:'CUPOM NÃO FISCAL',titulo:'Pedido de venda',numero:fNumV(v.numero),
+  id:[['Data',fData(v.data)+(v.hora?' '+v.hora:'')],['Situação',v.status||''],['Vendedor',v.vendedorNome||'']].filter(x=>x[1]),
+  cancelado:v.status==='Cancelado'?'Pedido cancelado':'',parte:{rot:'Cliente',nome:c.nome||(v.prospect||{}).nome||'—',linhas:linhasParteCp({...(v.prospect||{}),...c})},
+  itens:itensCp(v.itens,true),resumo:resumoCp(v,v.itens),total:['TOTAL',fMoeda(v.total)],
+  blocos:[{rot:'Pagamento',linhas:[['Forma',v.forma||'—'],['Condição',typeof txtPlanoV==='function'?txtPlanoV(pl):(v.condicao||'—')],
+    ...(pl.length>1?pl.map(p=>[p.rot,fMoeda(p.valor)+(p.dias?' · '+p.dias+' d':'')]):[]),['Valor recebido',fMoeda(f.pago)],
+    ...((f.titulos||[]).length?[['Saldo pendente',fMoeda(f.saldo),1]]:[['A faturar',fMoeda(f.aFaturar!=null?f.aFaturar:Math.max(0,(+v.total||0)-(+f.pago||0))),1]])]},
+   {rot:'Entrega',linhas:[['Tipo',v.tipoVenda||'—'],['Carregamento',fData(v.prevCarga)||'a combinar'],['Entrega',fData(v.prevEntrega)||'a combinar'],...(en?[[[en.endereco,en.cidade,en.uf].filter(Boolean).join(' · ')]]:[]),...(en&&en.referencia?[['Ref.: '+en.referencia]]:[])]},
+   ...fiscalCp(v.fiscal)],
+  obs:[v.origemOrcamento?'Referente ao orçamento nº '+fNumV(v.origemOrcamento.numero)+'.':'',v.obs||''].filter(Boolean).join(' '),
+  assinaturas:[{rot:'Assinatura do cliente',nome:c.nome||'',sub:'De acordo com o pedido'}],
+  mensagem:msgCupom(),aviso:'Pedido · não é documento fiscal',rodape:agoraCp()}}
+/* orçamento */
+function cupomOrcamentoV(o){const c=o.cliente||{};const g=CFGV();const pl=o.parcelasPlano||[];
+ return{kind:'orcamento',para:'cliente',tipo:'ORÇAMENTO',titulo:'Proposta comercial',numero:fNumV(o.numero),
+  id:[['Emissão',fData(o.data)],['Válido até',fData(o.validade)],['Atendimento',o.responsavelNome||nomeUsuario(o.criadoPor)||'']].filter(x=>x[1]),
+  parte:{rot:'Cliente',nome:c.nome||(o.prospect||{}).nome||'—',linhas:linhasParteCp({...(o.prospect||{}),...c})},
+  itens:itensCp(o.itens,true),resumo:resumoCp(o,o.itens),total:['TOTAL',fMoeda(o.total)],
+  blocos:[{rot:'Pagamento previsto',linhas:[['Forma',o.forma||'—'],['Condição',typeof txtPlanoV==='function'?txtPlanoV(pl):'—'],...(pl.length>1?pl.map(p=>[p.rot,fMoeda(p.valor)]):[])]},
+   {rot:'Entrega',linhas:[['Tipo',o.tipoVenda||'—'],['Prazo',o.prazoEntrega||'a combinar']]}],
+  texto:g.textoOrcamento?'Condições: '+g.textoOrcamento:'',obs:o.obs||'',assinaturas:[{rot:'De acordo do cliente',nome:c.nome||''}],
+  mensagem:msgCupom(),aviso:'Proposta sem valor fiscal · não reserva estoque',rodape:agoraCp()}}
+/* recibo do recebimento de uma venda rápida, ou comprovante do pagamento de uma compra */
+function cupomRecebimentoV(v,p){const O=opDe(v);const venda=O.K==='venda';const c=parteSnap(v);const f=finVenda(v);const e=CFG.empresa||{};
+ return{kind:venda?'recibo':'pagamento',para:venda?'cliente':'fornecedor',tipo:venda?'RECIBO':'COMPROVANTE DE PAGAMENTO',titulo:venda?'Recibo de pagamento':'Pagamento ao fornecedor',numero:'',
+  id:[[O.Sing+' nº',fNumV(v.numero)],['Pago em',fData(p.data)],['Setor',(SETORES_V[v.setor]||{}).nome||'']].filter(x=>x[1]),
+  cancelado:p.estornado?'Pagamento estornado':'',parte:{rot:venda?'Recebido de':'Pago a',nome:c.nome||'—',linhas:linhasParteCp(c)},
+  texto:venda?'Recebemos de '+(c.nome||'cliente')+' a importância de '+fMoeda(p.valor)+' ('+extensoMoeda(p.valor)+'), por '+p.forma+', referente à venda nº '+fNumV(v.numero)+' de '+fData(v.data)+', no valor total de '+fMoeda(v.total)+'.'
+   :'Pagamento de '+fMoeda(p.valor)+' ('+extensoMoeda(p.valor)+') a '+(c.nome||'fornecedor')+', por '+p.forma+', referente à compra nº '+fNumV(v.numero)+' de '+fData(v.data)+', no valor total de '+fMoeda(v.total)+'.',
+  total:[venda?'VALOR RECEBIDO':'VALOR PAGO',fMoeda(p.valor)],
+  blocos:[{rot:'Conta',linhas:[['Forma',p.forma||'—'],['Total da '+O.sing,fMoeda(v.total)],['Total pago até agora',fMoeda(f.pago)],['Saldo em aberto',fMoeda(f.saldo),1]]}],
+  assinaturas:[venda?{rot:'Pela empresa',nome:e.responsavel||'',sub:'Quem recebeu'}:{rot:'Assinatura do fornecedor',nome:c.nome||'',sub:'Quem recebeu'}],
+  mensagem:venda?msgCupom():'',aviso:(venda?'Recibo':'Comprovante')+' · não é documento fiscal',rodape:agoraCp()}}
+/* recibo de um título do pedido */
+function cupomReciboPedV(v,p){const f=finVenda(v);const t=(f.titulos||[]).find(x=>x.id===p.tituloId)||{};const c=v.cliente||{};const e=CFG.empresa||{};const val=p.recebido!=null?p.recebido:p.valor;const quita=t.saldo<0.005;
+ return{kind:'recibo',para:'cliente',tipo:'RECIBO',titulo:'Recibo de pagamento',numero:fNumV(p.recibo),
+  id:[['Recebido em',fData(p.data)],['Pedido nº',fNumV(v.numero)],['Título',[t.numero||p.tituloNumero||'',t.rot?'('+t.rot+')':''].filter(Boolean).join(' ')]].filter(x=>x[1]),
+  cancelado:p.estornado?'Recebimento estornado':'',parte:{rot:'Recebido de',nome:c.nome||'—',linhas:linhasParteCp(c)},
+  texto:'Recebemos de '+(c.nome||'cliente')+' a importância de '+fMoeda(val)+' ('+extensoMoeda(val)+'), por '+p.forma+', referente ao título '+(t.numero||p.tituloNumero||'')+' do pedido de venda nº '+fNumV(v.numero)+'. '+(quita?'Este pagamento quita o título.':'Pagamento parcial: o título continua com saldo em aberto.'),
+  total:['VALOR RECEBIDO',fMoeda(val)],
+  blocos:[{rot:'Conta',linhas:[['Valor do título',fMoeda(t.valor||0)],...(p.juros?[['Juros',fMoeda(p.juros)]]:[]),...(p.multa?[['Multa',fMoeda(p.multa)]]:[]),...(p.descontoFin?[['Desconto financeiro',fMoeda(p.descontoFin)]]:[]),['Saldo do título',fMoeda(t.saldo||0)],['Saldo do pedido',fMoeda(f.saldo),1]]},
+   {rot:'Registro',linhas:[['Forma',p.forma||'—'],['Conta',p.conta||'—'],['Registrado por',nomeUsuario(p.por)||'—']]}],
+  assinaturas:[{rot:'Pela empresa',nome:e.responsavel||'',sub:'Quem recebeu'}],mensagem:msgCupom(),aviso:'Recibo · não é documento fiscal',rodape:agoraCp()}}
+/* carregamento e entrega (só quantidades) */
+function cupomCargaV(v,cg){const c=v.cliente||{};const conf=cg.status==='Carregada';
+ return{kind:'carga',para:'motorista',tipo:'COMPROVANTE',titulo:'Carregamento',numero:fNumV(cg.numero),
+  id:[['Data',fData(cg.data)+(cg.hora?' '+cg.hora:'')],['Pedido nº',fNumV(v.numero)],['Situação',cg.status||'']].filter(x=>x[1]),
+  cancelado:cg.status==='Cancelada'?'Carregamento cancelado':'',parte:{rot:'Cliente',nome:c.nome||'—',linhas:linhasParteCp(c)},
+  itensCab2:conf?'QTD. CARREGADA':'QTD. SOLICITADA',semValor:true,
+  itens:(cg.itens||[]).map(i=>{const p=PROD(i.produtoId)||{};const q=conf?i.carregada:i.solicitada;return{cod:p.codigo||'',desc:i.nome,linha:fQtd(q)+' '+(i.unidade||'')+(conf&&p.pecasMilheiro?' ('+fNum(i.carregada*p.pecasMilheiro)+' peças)':''),total:'',x:[]}}),
+  blocos:[{rot:'Transporte',linhas:[['Veículo',cg.veiculo||'—'],['Placa',cg.placa||'—'],['Motorista',cg.motorista||'—'],['Transportadora',cg.transportadora||'Própria'],['Conferência',cg.conferente||'—']]}],
+  obs:cg.obs||'',assinaturas:[{rot:'Conferido por',nome:cg.conferente||''},{rot:'Motorista · recebi a carga',nome:cg.motorista||''}],
+  aviso:'Não substitui a nota fiscal',rodape:agoraCp()}}
+function cupomEntregaV(v,e){const c=v.cliente||{};const cg=(v.cargas||[]).find(x=>x.id===e.cargaId)||{};const ret=e.tipo==='Retirada pelo cliente';
+ return{kind:'entrega',para:'cliente',tipo:'COMPROVANTE',titulo:ret?'Retirada de produtos':'Entrega de produtos',numero:fNumV(v.numero),
+  id:[['Pedido nº',fNumV(v.numero)],['Carregamento nº',fNumV(cg.numero)],[ret?'Retirado em':'Entregue em',fData((e.entregaEm||{}).data)]].filter(x=>x[1]),
+  cancelado:e.status==='Recusada'?'Entrega recusada':'',parte:{rot:'Cliente',nome:c.nome||'—',linhas:linhasParteCp(c)},itensCab2:ret?'QTD. RETIRADA':'QTD. ENTREGUE',semValor:true,
+  itens:(cg.itens||[]).map(i=>({cod:'',desc:i.nome,linha:fQtd(soma((e.itens||[]).filter(x=>x.produtoId===i.produtoId),x=>x.qtd))+' '+(i.unidade||''),total:'',x:['Carregado: '+fQtd(i.carregada)+' '+(i.unidade||'')]})),
+  blocos:[{rot:'Detalhe',linhas:[['Recebido por',e.recebedor||'—'],...(e.docRecebedor?[['Documento',e.docRecebedor]]:[]),['Veículo / placa',[cg.veiculo,cg.placa].filter(Boolean).join(' · ')||'—'],['Motorista',cg.motorista||'—']]}],
+  obs:(e.ocorrencias||[]).map(o=>o.texto).join(' · '),assinaturas:[{rot:ret?'Quem retirou':'Quem recebeu',nome:e.recebedor||'',sub:'Recebi os produtos acima'}],
+  mensagem:msgCupom(),aviso:'Não substitui a nota fiscal',rodape:agoraCp()}}
+
+/* ---------- Setor da Lenha: os dois documentos de cada entrega ----------
+   1) comprovante de entrega, impresso na hora e entregue a quem trouxe a lenha (cupom ou folha A4),
+      com a assinatura de quem entregou e de quem recebeu;
+   2) relatório da entrega para o dono da empresa (folha A4 completa).
+   Só leitura da compra registrada (tipo, caminhão e medidas, destino, itens, valores e pagamento):
+   nenhum número é recalculado e nenhum registro é alterado. */
+const ehLenhaV=v=>!!(v&&v.setor==='lenha'&&opDe(v).K==='compra');
+function qtdLenhaV(v){const its=v.itens||[];const uns=[...new Set(its.map(i=>i.unidade||''))];
+ return uns.length===1?fQtd(round3(soma(its,i=>+i.qtd||0)))+' '+uns[0]:its.map(i=>fQtd(i.qtd)+' '+(i.unidade||'')).join(' + ')}
+function destinoLenhaV(v){if(!v.lenhaLocal)return '';try{const L=window.LENHA_V111&&window.LENHA_V111.depositos?window.LENHA_V111.depositos(true):[];const d=(L||[]).find(x=>x.id===v.lenhaLocal);return d?String(d.nome||d.curto||''):''}catch(e){return ''}}
+function medicaoLenhaV(v){const m=v.lenhaMedicao;if(!m)return null;const n=x=>x===''||x==null||isNaN(+x)?'—':fNum(+x,2)+' m';
+ return [['Caminhão',m.caminhao||'—'],['Comprimento',n(m.comp)],['Largura',n(m.larg)],['Altura',n(m.alt)],['Volume medido',m.m3!=null&&m.m3!==''?fQtd(round3(+m.m3))+' m³':'—']]}
+function docEntregaLenhaV(v){
+ const f=finVenda(v);const c=parteSnap(v);const fs=v.fiscal||{};const e=CFG.empresa||{};const rec=v.recebidoPor||v.responsavelNome||'';
+ const tipoL=String(v.lenhaClasse||'').trim(),dest=destinoLenhaV(v),med=medicaoLenhaV(v),cam=(v.lenhaMedicao||{}).caminhao||'';
+ const D=baseRel('COMPROVANTE DE ENTREGA DE LENHA','Setor da Lenha · Compra nº '+fNumV(v.numero),[]);D.setor=nomeSetorDoc('lenha');D.classe='comprovante';
+ D.numero='Nº '+fNumV(v.numero);D.meta=[['Data e hora da entrega',fData(v.data)+(v.hora?' às '+v.hora:'')],['Nota do fornecedor',fs.numero||'não informada'],['Situação',cancV(v)?'Cancelada':'Recebida']];
+ D.quadros=[{rot:'QUEM ENTREGOU · FORNECEDOR',campos:[['Madeireira / fornecedor',c.nome||'—',1],['CPF/CNPJ',c.doc||'—'],['Cidade',c.cidade||'—'],...(cam?[['Caminhão',cam]]:[]),...(c.whatsapp||c.telefone?[['Telefone',c.whatsapp||c.telefone]]:[])]},
+  {rot:'QUEM RECEBEU · CERÂMICA',campos:[['Razão social',e.razao||e.fantasia||'—',1],['CNPJ',e.cnpj||'—'],['Recebido por',rec||'—'],...(dest?[['Lenha descarregada em',dest,1]]:[])]}];
+ D.parteNome=c.nome||'';D.arquivo='Entrega_lenha_'+fNumV(v.numero)+'_'+nomeArq(c.nome||'fornecedor');D.rodape='Comprovante de entrega de lenha · compra nº '+fNumV(v.numero)+' · '+(c.nome||'');
+ D.blocos.push({tipo:'indicadores',itens:[['Lenha recebida',qtdLenhaV(v)],['Valor da entrega',fMoeda(v.total)],...(tipoL?[['Tipo de lenha',tipoL]]:[]),['Pagamento',[v.forma,v.condicao].filter(Boolean).join(' · ')||'—']]});
+ if(cancV(v))D.blocos.push({tipo:'aviso',texto:'COMPRA CANCELADA em '+fDataHora(v.cancelamento.em)+'. Motivo: '+v.cancelamento.motivo+'.'});
+ D.blocos.push({tipo:'p',texto:'A '+(e.razao||e.fantasia||'cerâmica')+' declara que recebeu de '+(c.nome||'fornecedor')+(cam?', no caminhão '+cam:'')+', em '+fData(v.data)+(v.hora?' às '+v.hora:'')+', a lenha relacionada abaixo'+(dest?', descarregada em '+dest:'')+'.'});
+ D.blocos.push({tipo:'tabela',head:['Tipo de lenha','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:(v.itens||[]).map(i=>[i.nome+(i.lenhaClasse||tipoL?' · '+(i.lenhaClasse||tipoL):''),fQtd(i.qtd),i.unidade||'',fMoeda(i.preco),fMoeda(i.total)]),foot:['Lenha','','','',fMoeda(v.subtotal)]});
+ D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[['Lenha',fMoeda(v.subtotal)],...(+v.desconto?[['(–) Desconto',fMoeda(-v.desconto)]]:[]),...(+v.frete?[['(+) Frete',fMoeda(v.frete)]]:[]),...(+v.outros?[['(+) Outros valores',fMoeda(v.outros)]]:[])],foot:['Valor total',fMoeda(v.total)]});
+ D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],body:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento?[['Vencimento',fData(v.vencimento)]]:[]),['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo)]]});
+ if(med)D.blocos.push({tipo:'tabela',head:['Medição da carga','Medida'],dir:[1],body:med});
+ if(v.obs)D.blocos.push({tipo:'p',texto:'Observações: '+v.obs});
+ D.blocos.push({tipo:'aviso',texto:'Comprovante de recebimento de mercadoria, sem valor fiscal. '+(fs.numero?'Nota do fornecedor nº '+fs.numero+'.':'A nota do fornecedor ainda não foi informada.')});
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(v.data)+'.';
+ D.assinaturas=[{nome:'',sub:'Entregue por (nome e assinatura) · '+(c.nome||'fornecedor')},{nome:rec,sub:'Recebido e conferido por · cerâmica'}];
+ D.notaFinal='Via de quem entregou a lenha. Emitido em '+fDataHora(new Date().toISOString())+' pelo '+SPOT_NOME+'.';
+ D.cupom={kind:'lenha',para:'entregador',tipo:'COMPROVANTE DE ENTREGA',titulo:'Recebimento de lenha',numero:fNumV(v.numero),
+  id:[['Data',fData(v.data)+(v.hora?' '+v.hora:'')],['Nota do fornecedor',fs.numero||'—']],cancelado:cancV(v)?'Compra cancelada':'',
+  parte:{rot:'Fornecedor (madeireira)',nome:c.nome||'—',linhas:linhasParteCp(c)},
+  blocos:[{rot:'Entrega',linhas:[...(cam?[['Caminhão',cam]]:[]),...(tipoL?[['Tipo de lenha',tipoL]]:[]),...(dest?[['Descarregada em',dest]]:[]),['Recebido por',rec||'—']]},
+   ...(med?[{rot:'Medição da carga',linhas:med.slice(1)}]:[])],
+  itensCab:'ITEM  TIPO DE LENHA',itens:itensCp(v.itens,false),resumo:resumoCp(v,v.itens),total:['TOTAL',fMoeda(v.total)],
+  obs:v.obs||'',assinaturas:[{rot:'Entregue por',sub:'Nome e assinatura'},{rot:'Recebido por (cerâmica)',nome:rec}],
+  mensagem:'Via de quem entregou',aviso:'Comprovante de entrega · não é documento fiscal',rodape:agoraCp()};
+ D.cupom.blocos.push({rot:'Pagamento',linhas:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento?[['Vencimento',fData(v.vencimento)]]:[]),['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo),1]]});
+ return D;
+}
+function docRelLenhaDonoV(v){
+ const O=opDe(v);const f=finVenda(v);const c=parteSnap(v);const fs=v.fiscal||{};const mes=String(v.data||'').slice(0,7);
+ const tipoL=String(v.lenhaClasse||'').trim(),dest=destinoLenhaV(v),med=medicaoLenhaV(v),cam=(v.lenhaMedicao||{}).caminhao||'';
+ const D=baseRel('RELATÓRIO DE ENTREGA DE LENHA','Compra nº '+fNumV(v.numero)+' · para a direção da empresa',[]);D.setor=nomeSetorDoc('lenha');D.classe='relatorio';
+ D.numero='Nº '+fNumV(v.numero);D.meta=[['Data e hora da entrega',fData(v.data)+(v.hora?' às '+v.hora:'')],['Situação',cancV(v)?'Cancelada':f.status]];
+ D.quadros=[{rot:'FORNECEDOR · MADEIREIRA',campos:[['Nome / razão social',c.nome||'—',1],['CPF/CNPJ',c.doc||'—'],['Cidade',c.cidade||'—'],...(c.whatsapp||c.telefone?[['Telefone',c.whatsapp||c.telefone]]:[])]},
+  {rot:'RECEBIMENTO NA CERÂMICA',campos:[['Tipo de lenha',tipoL||'não informado'],['Descarregada em',dest||'não informado'],['Caminhão',cam||'não informado'],['Recebido por',v.recebidoPor||'não informado'],['Registrado por',v.responsavelNome||nomeUsuario(v.criadoPor)||'—'],['Nota do fornecedor',fs.numero?fs.numero+(fs.serie?' · série '+fs.serie:''):'não informada']]}];
+ D.parteNome=c.nome||'';D.arquivo='Relatorio_lenha_'+fNumV(v.numero)+'_'+nomeArq(c.nome||'fornecedor');D.rodape='Relatório de entrega de lenha · compra nº '+fNumV(v.numero);
+ D.blocos.push({tipo:'indicadores',itens:[['Valor da entrega',fMoeda(v.total)],['Lenha recebida',qtdLenhaV(v)],['Pago',fMoeda(f.pago),'ok'],['Saldo a pagar',fMoeda(f.saldo),f.saldo>0.005?'at':'']]});
+ if(cancV(v))D.blocos.push({tipo:'aviso',texto:'COMPRA CANCELADA em '+fDataHora(v.cancelamento.em)+'. Motivo: '+v.cancelamento.motivo+'. O estoque foi estornado.'});
+ if(v.semPreco)D.blocos.push({tipo:'aviso',texto:'Entrega registrada sem preço: entrou com valor zero e fica marcada como sem preço até ser acertada.'});
+ let k=0;const sec=(t,o)=>D.blocos.push({tipo:'secao',n:String(++k),titulo:t,...o});
+ sec('Lenha recebida',{tabela:{head:['Tipo de lenha','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:(v.itens||[]).map(i=>[i.nome+(i.lenhaClasse||tipoL?' · '+(i.lenhaClasse||tipoL):''),fQtd(i.qtd),i.unidade||'',fMoeda(i.preco),fMoeda(i.total)]),foot:['Total da lenha','','','',fMoeda(v.subtotal)]}});
+ D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[['Lenha',fMoeda(v.subtotal)],['(–) Desconto',fMoeda(-(+v.desconto||0))],['(+) Frete',fMoeda(v.frete)],['(+) Outros valores',fMoeda(v.outros)]],foot:['Valor total',fMoeda(v.total)]});
+ D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],dir:[1],body:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],['Vencimento',fData(v.vencimento)||'—'],['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo)]]});
+ if(med)sec('Medição da carga',{tabela:{head:['Medida','Valor'],dir:[1],body:med}});
+ const est=(v.itens||[]).filter(i=>i.baixaEstoque!==false&&i.anterior!=null&&i.atual!=null);
+ if(est.length)sec('Estoque de lenha',{tabela:{head:['Tipo de lenha','Antes da entrega','Entrou','Depois da entrega','Saldo hoje'],dir:[1,2,3,4],
+  body:est.map(i=>[i.nome,fQtd(i.anterior)+' '+(i.unidade||''),'+'+fQtd(i.qtd)+' '+(i.unidade||''),fQtd(i.atual)+' '+(i.unidade||''),typeof saldoP==='function'?fQtd(saldoP(i.produtoId))+' '+(i.unidade||''):'—'])},
+  nota:'Antes e depois: o saldo gravado no momento da entrega. Saldo hoje: o estoque atual, já com a lenha queimada nos fornos.'});
+ const pgs=v.pagamentos||[];if(pgs.length)sec('Pagamentos feitos',{tabela:{head:['Data','Forma','Valor','Situação'],dir:[2],body:pgs.map(p=>[fData(p.data),p.forma||'—',fMoeda(p.valor),p.estornado?'Estornado':'Válido'])}});
+ /* entregas do mesmo fornecedor e do setor no mês: só leitura das compras registradas */
+ const doMes=listaOp(O).filter(x=>x.setor==='lenha'&&!cancV(x)&&String(x.data||'').slice(0,7)===mes);
+ const doForn=doMes.filter(x=>x[O.campoId]&&x[O.campoId]===v[O.campoId]).sort((a,b)=>String(a.data+(a.hora||'')).localeCompare(String(b.data+(b.hora||''))));
+ if(doForn.length)sec('Entregas deste fornecedor em '+mesLongo(mes),{tabela:{head:['Data','Compra nº','Tipo','Lenha','Total','Pagamento'],dir:[4],
+  body:doForn.map(x=>[fData(x.data)+(x.hora?' '+x.hora:''),fNumV(x.numero)+(x.id===v.id?' (esta)':''),String(x.lenhaClasse||'').trim()||'—',qtdLenhaV(x),fMoeda(x.total),finVenda(x).status]),
+  foot:[doForn.length+' entrega(s)','','','',fMoeda(round2(soma(doForn,x=>+x.total||0))),'']}});
+ if(doMes.length)sec('Lenha comprada no mês (todas as madeireiras)',{campos:[['Entregas em '+mesLongo(mes),String(doMes.length)],['Fornecedores',String(new Set(doMes.map(x=>x[O.campoId]||parteSnap(x).nome)).size)],
+  ['Valor das entregas',fMoeda(round2(soma(doMes,x=>+x.total||0)))],['Saldo a pagar dessas entregas',fMoeda(round2(soma(doMes,x=>finVenda(x).saldo)))]]});
+ if(v.obs)D.blocos.push({tipo:'p',texto:'Observações: '+v.obs});
+ D.assinaturas=[{nome:v.recebidoPor||'',sub:'Recebido e conferido por'}];
+ D.notaFinal='Relatório para a direção, montado a partir da compra registrada no '+SPOT_NOME+'. Nenhum valor foi recalculado: quantidades, preços, pagamentos e estoque são os gravados no sistema.';
+ return D;
+}
 </script>
 <style id="menu-simplificado">
 /* ===== Menu simplificado do Departamento Pessoal (V41) · só organização e aparência ===== */
@@ -38798,7 +39284,7 @@ function faixaPdf(p,e,tit,sub){const {doc,W,M}=p;const em=fDataHora(new Date().t
 function rodapes(p,tit,capa){const {doc,W,H,M}=p;const tot=doc.internal.getNumberOfPages(),ini=capa?2:1;for(let k=ini;k<=tot;k++){doc.setPage(k);rodPdfCC(doc,W,H,M,[MARCA_DOCS(),nomeSetorDoc('inventario')].filter(Boolean).join('  ·  '),tit+' · Emitido em '+fDataHora(new Date().toISOString()),k-ini+1,tot-ini+1)}}
 function capaPdf(p,e,r){const {doc,W,H,M}=p,c=COR(),h=H*.56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,6,'F');let xC=M;try{const lg=logoDocSrc();if(lg&&doc.addImage){const tl=(LOGO_TAM_DOC[idDocs().logoTam]||LOGO_TAM_DOC.M).pt;doc.addImage(lg,/^data:image\/png/.test(lg)?'PNG':'JPEG',M,M,tl,tl);xC=M+tl+12}}catch(er){}doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(189,189,198);doc.text(String(nomeSetorDoc('inventario')||'Centro de Inventário').toUpperCase(),xC,M+22,{charSpace:1.6});doc.setFont('helvetica','bold');doc.setFontSize(p.W>700?32:28);doc.setTextColor(255,255,255);const ts=doc.splitTextToSize(r.titulo,W-2*M);doc.text(ts,M,h-46-(ts.length-1)*32);doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(220,220,226);doc.text(String(r.todas?'Todas as empresas':nomeEmp(e)).slice(0,80),M,h-20);
  const L=[['Empresa',r.todas?'Todas as empresas':e.razao_social],['CNPJ',r.todas?'—':(e.cnpj?fCnpj(e.cnpj):'—')],['Período de referência',r.periodo||'Posição atual'],['Filtros',r.filtros||'Nenhum'],['Data de emissão',fDataHora(new Date().toISOString())],['Responsável pela emissão',INV.nome||'—']];let y=h+44;L.forEach(([a,b])=>{doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...c.CZ);doc.text(a,M,y);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...c.TX);const v=doc.splitTextToSize(String(b),W-2*M-160);doc.text(v,M+160,y);y+=Math.max(26,v.length*14+10)})}
-function tabelaPdf(p,y,cols,linhas,o){const {doc,M,H}=p,c=COR();o=o||{};doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:40,bottom:48},head:[cols.map(x=>x.l)],body:linhas,foot:o.foot?[o.foot]:undefined,showFoot:'lastPage',styles:{font:'helvetica',fontSize:o.fs||7.8,cellPadding:3.4,textColor:c.TX,lineColor:c.FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:c.PT,textColor:[255,255,255],fontStyle:'bold'},footStyles:{fillColor:c.FI,textColor:c.TX,fontStyle:'bold'},alternateRowStyles:{fillColor:c.BG},columnStyles:Object.fromEntries(cols.map((x,i)=>[i,{halign:x.t==='moeda'||x.t==='num'?'right':'left'}])),didDrawCell:filetePdfCC(doc)});return doc.lastAutoTable.finalY+14}
+function tabelaPdf(p,y,cols,linhas,o){const {doc,M,H}=p,c=COR();o=o||{};doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:40,bottom:48},head:[cols.map(x=>x.l)],body:linhas,foot:o.foot?[o.foot]:undefined,showFoot:'lastPage',...estiloTabPdfCC(doc,o.fs||7.8),columnStyles:Object.fromEntries(cols.map((x,i)=>[i,{halign:x.t==='moeda'||x.t==='num'?'right':'left'}]))});return doc.lastAutoTable.finalY+14}
 const fmt=(c,v)=>v==null||v===''?'':c.t==='moeda'?fMoeda(v):c.t==='num'?qt(v):c.t==='data'?fData(v):String(v);
 async function pdfRel(r,e){await Promise.resolve();const p=novoPdf(true);if(!p)return;const {doc,W,H,M}=p,c=COR();capaPdf(p,e,r);doc.addPage();let y=faixaPdf(p,e,r.titulo,[r.periodo?'Período: '+r.periodo:'',r.filtros].filter(Boolean).join(' · '));
  if(r.ind&&r.ind.length){const g=8,n=Math.min(r.ind.length,6),w=(W-2*M-g*(n-1))/n;r.ind.slice(0,6).forEach(([l,v],i)=>{const x=M+i*(w+g);doc.setDrawColor(...c.FI);doc.setFillColor(...(i?c.BG2:c.PT));doc.roundedRect(x,y,w,46,5,5,'FD');doc.setFont('helvetica','normal');doc.setFontSize(7.4);doc.setTextColor(...(i?c.CZ:[200,200,206]));doc.text(doc.splitTextToSize(l,w-14)[0],x+7,y+15);doc.setFont('helvetica','bold');doc.setFontSize(12.5);doc.setTextColor(...(i?c.TX:[255,255,255]));doc.text(doc.splitTextToSize(String(v),w-12)[0],x+7,y+34)});y+=60}
@@ -39356,11 +39842,17 @@ function modeloTicket(x){
  c('Impresso em '+fDataHora(new Date().toISOString()),{pq:1});
  return L;
 }
-function ticketHtml(x,larg){
+function ticketHtmlAntigo(x,larg){
  const L=modeloTicket(x);const cl=o=>[o.b?'b':'',o.g?'g':'',o.pq?'pq':'',o.it?'it':''].filter(Boolean).join(' ');
  return `<div class="tk l${larg}">${L.map(o=>o.t==='hr'?'<div class="hr"></div>':o.t==='num'?`<p class="num">${esc(o.txt)}</p>`:o.t==='rot'?`<p class="rot">${esc(o.txt)}</p>`:
   o.t==='lr'?`<p class="lr ${o.tot?'tot':''} ${cl(o)}"><span>${esc(o.l)}</span><span>${esc(o.r)}</span></p>`:`<p class="${o.t==='c'?'c ':''}${cl(o)}">${esc(o.txt)}</p>`).join('')}</div>`;
 }
+/* V116: o ticket usa o mesmo cupom não fiscal dos outros comprovantes (modelo do comprovante físico da empresa) */
+const cupomDoTicket=x=>{try{const t=tipoDe(x);return t==='orc'?cupomOrcamentoV(x):t==='ped'?cupomPedidoV(x):cupomOpV(x)}catch(e){console.warn('cupom do ticket',e);return null}};
+function ticketHtml(x,larg){const C=cupomDoTicket(x);return C?htmlCupom(C,larg===58?58:80,{semId:1}):ticketHtmlAntigo(x,larg)}
+async function pdfTicket(x,larg){const C=cupomDoTicket(x);if(!C)return pdfTicketAntigo(x,larg);larg=larg===58?58:80;
+ const doc=pdfCupom(C,larg);if(!doc)return;const t=tipoDe(x);const nome=(t==='orc'?'Orcamento_':t==='ped'?'Pedido_':'Venda_')+fNumV(x.numero)+'_cupom_'+larg+'mm.pdf';
+ const ok=await salvarArquivo(nome,new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));if(ok!==false)toast('Cupom em PDF gerado ('+larg+' mm).','ok')}
 /* imprime só o ticket, numa página do tamanho do papel da impressora térmica */
 function imprimirTicket(x,larg,aoFalhar){
  larg=larg===58?58:80;gravarLS(LS_LARG,String(larg));
@@ -39368,7 +39860,7 @@ function imprimirTicket(x,larg,aoFalhar){
  const med=document.createElement('div');med.style.cssText='position:fixed;left:-9999px;top:0;visibility:hidden';med.innerHTML=html;document.body.appendChild(med);
  const alt=Math.ceil(med.firstElementChild.getBoundingClientRect().height*25.4/96)+6;med.remove();
  let box=document.getElementById('printDoc');if(box)box.remove();
- box=document.createElement('div');box.id='printDoc';box.innerHTML=html;document.body.appendChild(box);
+ box=document.createElement('div');box.id='printDoc';box.className='cupom-print';box.innerHTML=html;document.body.appendChild(box);
  const st=document.createElement('style');st.id='tkPagina';st.textContent=`@media print{@page{size:${larg}mm ${Math.max(alt,60)}mm;margin:0}html,body{background:#fff!important}}`;document.body.appendChild(st);
  document.body.classList.add('imprime-doc');
  let abriu=false;const f=()=>{abriu=true};window.addEventListener('beforeprint',f);
@@ -39377,7 +39869,7 @@ function imprimirTicket(x,larg,aoFalhar){
   if(!abriu){if(typeof aoFalhar==='function')aoFalhar();else toast('A impressão direta não abriu neste lugar. Use “Baixar ticket em PDF” e imprima pelo arquivo.')}},900);
 }
 /* o mesmo ticket em PDF, na largura do papel (para quem imprime pelo arquivo) */
-async function pdfTicket(x,larg){
+async function pdfTicketAntigo(x,larg){
  if(!(window.jspdf&&window.jspdf.jsPDF)){toast('A biblioteca de PDF não carregou. Tente de novo em alguns segundos.','erro');return}
  larg=larg===58?58:80;const L=modeloTicket(x);const M=larg===58?5:4;const W=larg-2*M;const base=larg===58?7.6:8.6;
  const limpo=s=>String(s).replace(/[−–]/g,'-').replace(/ /g,' ');

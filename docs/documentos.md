@@ -26,3 +26,24 @@ Regras:
 
 Testes: `node scripts/verificar.mjs` (grupo `documentos`) e `node scripts/testar-documentos.mjs`
 (navegador; para conferir os PDFs, `npm i jspdf@2.5.1 jspdf-autotable@3.8.2` numa pasta e aponte `JB_LIBS` para ela).
+
+## Padrão visual empresarial (V116)
+
+Dois padrões, que não se misturam:
+
+- **A · Relatórios e documentos (folha A4)**: mesma estrutura da V111, com desenho novo: cabeçalho branco
+  (logo e empresa à esquerda, identificação do documento à direita, filete azul-petróleo com detalhe
+  terracota), faixa de identificação com a situação colorida, partes lado a lado, cartões de indicadores
+  (`{tipo:'indicadores',itens:[[rótulo,valor,tom?]]}`, tom `ok`/`at`/`pe`), tabelas leves e resumos de
+  duas colunas (rótulo · valor) mostrados como quadro, dois seguidos lado a lado (`ehKvDoc`).
+  Peças: CSS `#docs-concretiza`, `htmlDoc`, `pdfDoc`, `wordDoc`, `cabPdfCC`, `rodPdfCC`, `tituloPdfCC`,
+  `estiloTabPdfCC` (desenhos próprios: ficha de férias, inventário).
+- **B · Cupom não fiscal / recibo térmico (58 e 80 mm)**: `htmlCupom(C,larg)` e `pdfCupom(C,larg)` no
+  bloco `#docs-cupom`. Documento com versão cupom traz `D.cupom` (venda, pedido, orçamento, recibos,
+  comprovante de pagamento, carregamento, entrega, entrega de lenha); a tela do documento oferece
+  Cupom 80 mm, Cupom 58 mm ou Folha A4 (escolha guardada no aparelho, `formatoDoc`). O ticket da
+  janela "Imprimir" das Vendas (V110) usa o mesmo cupom. Nunca se apresenta como documento fiscal.
+
+Lenha: na tela da compra de lenha, **Comprovante de entrega** (`docEntregaLenhaV`, para quem trouxe a lenha,
+com assinatura de quem entregou e de quem recebeu) e **Relatório para o dono** (`docRelLenhaDonoV`).
+Só leitura da compra registrada: tipo, destino, caminhão e medidas, itens, valores, pagamento e estoque.
