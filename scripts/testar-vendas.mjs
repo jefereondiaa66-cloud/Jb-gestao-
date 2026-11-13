@@ -32,6 +32,9 @@ const DOCS = [
   ['produtos', 'p1', { id: 'p1', setor: 'vendas', nome: 'Tijolo 8 furos (teste)', codigo: 'T8', unidade: 'milheiro', precoVenda: 650, tipoId: 't1', situacao: 'Ativo', controlaEstoque: 'Não' }],
   ['produtos', 'p2', { id: 'p2', setor: 'vendas', nome: 'Tijolo 6 furos (teste)', codigo: 'T6', unidade: 'milheiro', precoVenda: 580, tipoId: 't1', situacao: 'Ativo', controlaEstoque: 'Não' }],
   ['clientes', 'c1', { id: 'c1', codigo: 'C0001', tipoPessoa: 'Jurídica', razao: 'Construtora Exemplo Teste', cnpj: '11.444.777/0001-61', cidade: 'Cidade Teste', uf: 'MA', situacao: 'Ativo' }],
+  ['clientes', 'c9', { id: 'c9', codigo: 'C0009', tipoPessoa: 'Física', razao: 'Cliente Inativo Exemplo', cidade: 'Cidade Teste', situacao: 'Inativo' }],
+  // faixa de quantidade: a partir de 20 milheiros, o 8 furos sai a R$ 600
+  ['precos', 'r1', { id: 'r1', produtoId: 'p1', tabela: 'Geral', qtdMin: 20, preco: 600, situacao: 'Ativo' }],
 ];
 const iniciar = ({ codigo, docs }) => {
   const criar = (0, eval)('(' + codigo.replace(/^function criarServidorFalso/m, 'function') + ')');
@@ -95,6 +98,10 @@ try {
     await page.fill('#qcNome', 'Construtora Exemplo');
     await page.waitForTimeout(150);
     ok(await page.evaluate(() => /Parecido com cliente já cadastrado/.test(document.getElementById('qcDup').textContent)), 'cadastro rápido avisa cliente parecido (duplicidade)');
+    await page.fill('#qcNome', 'Inativo Exemplo');
+    await page.waitForTimeout(150);
+    ok(await page.evaluate(() => /Cliente Inativo Exemplo/.test(document.getElementById('qcDup').textContent) && !document.querySelector('#qcDup [data-usar="c9"]')), 'cliente inativo aparece como parecido, mas sem o botão "Usar este"');
+    ok(await page.evaluate(() => document.getElementById('qcUf').value === ''), 'Estado começa vazio (nada é marcado sozinho)');
     await page.fill('#qcNome', 'Maria Teste da Silva');
     await page.fill('#qcDoc', '52998224725');
     await page.fill('#qcWa', '98999990000');
@@ -174,7 +181,21 @@ try {
     await page.waitForSelector('[data-vsimp]', { timeout: 8000 }).catch(() => {});
     await page.click('.sec-cab [data-vsimp]');
     ok(await page.waitForSelector('.vs-imp', { timeout: 4000 }).then(() => true).catch(() => false), 'reimprimir pela tela do pedido');
-    await page.click('.vs-imp [data-fechar]');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    ok(await page.evaluate(() => !document.querySelector('.vs-imp')), 'tecla Esc fecha a janela de impressão');
+    const histImp = await page.evaluate((id) => (typeof historicoHtml === 'function' ? historicoHtml('vendas', id) : ''), pedId);
+    ok(!/imprimiu/.test(histImp), 'imprimir não grava nada no histórico');
+
+    /* ---------- cartão não ocupa a linha de um produto desativado ou apagado ---------- */
+    await ir(page, '#/venda/nova');
+    await page.evaluate(() => { RASC_V.venda.itens = [{ produtoId: 'produto-apagado', qtd: 10, preco: 500 }]; renderTela(); });
+    await page.waitForSelector('[data-vsp="p1"]', { timeout: 5000 });
+    await page.click('[data-vsp="p1"]'); await page.waitForTimeout(200);
+    const fant = await page.evaluate(() => RASC_V.venda.itens.map((i) => i.produtoId + ':' + i.qtd).join(','));
+    ok(/^produto-apagado:10,p1:/.test(fant), `tocar no cartão não troca a linha de um produto desativado (${fant})`);
+    await page.evaluate(() => { RASC_V.venda = null; });
+    await ir(page, '#/setor-vendas');
 
     /* ---------- 4. nova venda (balcão) ---------- */
     await ir(page, '#/venda/nova');
@@ -184,6 +205,12 @@ try {
     await page.click('[data-vsp="p2"]');
     await page.waitForTimeout(150);
     await page.fill('#vdItens tr[data-li="0"] input[data-vi="qtd"]', '2'); await page.dispatchEvent('#vdItens tr[data-li="0"] input[data-vi="qtd"]', 'input');
+    await page.fill('#vdItens tr[data-li="0"] input[data-vi="preco"]', '550,00'); await page.dispatchEvent('#vdItens tr[data-li="0"] input[data-vi="preco"]', 'input');
+    // escolher cliente pelo cadastro rápido ("Usar este") não pode trocar o preço combinado
+    await page.click('[data-vscad]'); await page.fill('#qcNome', 'Construtora Exemplo'); await page.waitForTimeout(150);
+    await page.click('#qcDup [data-usar="c1"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => RASC_V.venda.parteId === 'c1' && +RASC_V.venda.itens[0].preco === 550), 'Nova venda: cliente escolhido pelo cadastro rápido mantém o preço combinado (R$ 550,00)');
+    await page.selectOption('#vdCli', '__cf'); await page.waitForTimeout(150);
     const conta = await page.evaluate(() => { const s = document.getElementById('vdConta'); const o = s && [...s.options].find((x) => x.value); if (o) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } return o ? o.value : ''; });
     await page.waitForTimeout(150);
     const antes = await page.evaluate(() => DATA.vendas.length);
@@ -192,7 +219,7 @@ try {
     await page.waitForSelector('.vs-imp', { timeout: 12000 }).catch(() => {});
     const vid = await page.evaluate(() => (location.hash.match(/#\/venda\/(.+)$/) || [])[1]);
     const ven = await page.evaluate((id) => VEN(id), vid);
-    ok(ven && !ven.fluxo && ven.status === 'Concluída' && ven.total === 1160 && (ven.cliente || {}).nome === 'Consumidor final', `venda direta nº ${ven && ven.numero} finalizada (${ven && ven.status}, R$ ${ven && ven.total}${conta ? '' : ', sem conta financeira'})`);
+    ok(ven && !ven.fluxo && ven.status === 'Concluída' && ven.total === 1100 && (ven.cliente || {}).nome === 'Consumidor final', `venda direta nº ${ven && ven.numero} finalizada (${ven && ven.status}, R$ ${ven && ven.total}${conta ? '' : ', sem conta financeira'})`);
     ok(ven && ped && ven.numero === ped.numero + 1, `numeração automática e única (pedido ${ped && ped.numero}, venda ${ven && ven.numero})`);
     ok(!!(await noBanco(page, 'vendas', vid)) && (await page.evaluate(() => DATA.vendas.length)) === antes + 1, 'venda gravada no banco central (uma vez só)');
     ok(await page.evaluate(() => !!document.querySelector('.vs-imp') && location.hash.startsWith('#/venda/')), 'depois de finalizar: tela da venda e janela de impressão');
@@ -210,6 +237,10 @@ try {
     const sim = await page.evaluate(() => document.getElementById('smRes').textContent);
     // p1: 3 × 650 = 1950; p2: 1 × 580 = 580; total 2530; 10% = 253; final 2277
     ok(/2\.277,00/.test(sim), 'simulação: quantidades, desconto simulado e valor final (R$ 2.277,00)');
+    // faixa de quantidade da tabela de preço: 20 milheiros do 8 furos saem a R$ 600
+    await page.fill('.vs-sim tr[data-sk="0"] [data-sq]', '20'); await page.dispatchEvent('.vs-sim tr[data-sk="0"] [data-sq]', 'input'); await page.waitForTimeout(150);
+    const sim2 = await page.evaluate(() => ({ preco: document.querySelector('.vs-sim tr[data-sk="0"] [data-sp]').value, res: document.getElementById('smRes').textContent }));
+    ok(sim2.preco === '600,00' && /11\.322,00/.test(sim2.res), `simulação segue a tabela por quantidade (20 × R$ ${sim2.preco}; final R$ 11.322,00)`);
     await page.screenshot({ path: join(RAIZ, `saida/vendas-simulacao-${vp.nome}.png`), fullPage: vp.nome === 'computador' });
     ok(await semRolagemLado(page), 'simulação sem rolagem para o lado');
     await page.click('[data-s="limpar"]'); await confirmarDialogo(page); await page.waitForTimeout(150);
@@ -259,17 +290,35 @@ try {
     /* ---------- 7. consulta de pedidos: filtros, ações e reimpressão ---------- */
     await ir(page, '#/vendas');
     await page.waitForTimeout(400);
-    const lista = await page.evaluate(() => ({ acoes: document.querySelectorAll('#conteudo [aria-label^="Imprimir nº"]').length, filtroProd: [...document.querySelectorAll('#conteudo select')].some((s) => [...s.options].some((o) => o.value === 'p1')), linhas: document.querySelectorAll('#conteudo tbody tr').length }));
+    const lista = await page.evaluate(() => ({ acoes: document.querySelectorAll('#conteudo [aria-label^="Imprimir nº"]').length, filtroProd: [...document.querySelectorAll('#conteudo select')].some((s) => [...s.options].some((o) => o.value === 'Tijolo 8 furos (teste)')), linhas: document.querySelectorAll('#conteudo tbody tr').length }));
     ok(lista.acoes >= 3 && lista.filtroProd, `lista com botão de imprimir em cada linha (${lista.acoes}) e filtro por produto`);
-    const filtrado = await page.evaluate(() => { const s = [...document.querySelectorAll('#conteudo select')].find((x) => [...x.options].some((o) => o.value === 'p1')); s.value = 'p1'; s.dispatchEvent(new Event('change', { bubbles: true })); return true; });
+    const filtrado = await page.evaluate(() => { const s = [...document.querySelectorAll('#conteudo select')].find((x) => [...x.options].some((o) => o.value === 'Tijolo 8 furos (teste)')); s.value = 'Tijolo 8 furos (teste)'; s.dispatchEvent(new Event('change', { bubbles: true })); return true; });
     await page.waitForTimeout(400);
     const nFiltro = await page.evaluate(() => document.querySelectorAll('#conteudo [aria-label^="Imprimir nº"]').length);
     ok(filtrado && nFiltro === 1, `filtro por produto: só o pedido com o Tijolo 8 furos (${nFiltro})`);
+    ok(await page.evaluate(() => /Produto: Tijolo 8 furos \(teste\)/.test(document.getElementById('conteudo').textContent)), 'aviso do filtro mostra o nome do produto (não o código interno)');
     await page.click('#conteudo [aria-label^="Imprimir nº"]');
     ok(await page.waitForSelector('.vs-imp', { timeout: 4000 }).then(() => true).catch(() => false), 'reimprimir pela lista de pedidos');
     await page.click('.vs-imp [data-fechar]');
     ok(await semRolagemLado(page), 'consulta sem rolagem para o lado');
     await page.screenshot({ path: join(RAIZ, `saida/vendas-consulta-${vp.nome}.png`) });
+
+    // números do início abrem a lista filtrada com o mesmo critério
+    await ir(page, '#/setor-vendas');
+    const kAb = await page.evaluate(() => +document.querySelector('[data-vk="abertos"] .v').textContent);
+    await page.click('.kpi[data-vk="abertos"]'); await page.waitForTimeout(500);
+    const nAb = await page.evaluate(() => document.querySelectorAll('#conteudo [aria-label^="Imprimir nº"]').length);
+    ok(kAb === 1 && nAb === kAb, `"Pedidos em aberto" (${kAb}) abre a lista só com eles (${nAb}); rascunho e venda de balcão ficam fora`);
+
+    // código de registro malicioso: o botão de imprimir não executa nada que venha do banco
+    const mal = "x');window.__xss=1;//";
+    await page.evaluate((id) => gravar('vendas', { id, numero: 999, setor: 'vendas', data: hoje(), hora: '10:00', itens: [], total: 1, subtotal: 1, status: 'Concluída', cliente: { nome: 'Teste' }, forma: 'PIX', condicao: 'À vista', pagamentos: [], criadoEm: new Date().toISOString() }), mal);
+    await page.waitForFunction((id) => !!VEN(id), mal, { timeout: 10000 }).catch(() => {});
+    await page.evaluate(() => irListaV('vendas', {})); await page.waitForTimeout(500);
+    await page.evaluate((id) => { const b = [...document.querySelectorAll('#conteudo [data-vsid]')].find((x) => x.dataset.vsid === id); if (b) b.click(); }, mal);
+    await page.waitForTimeout(300);
+    ok(await page.evaluate(() => window.__xss === undefined && !!document.querySelector('.vs-imp')), 'código de registro com aspas não executa nada (só abre a impressão)');
+    await page.keyboard.press('Escape');
 
     /* ---------- 8. relatórios e cliente (histórico) ---------- */
     await ir(page, '#/relvendas');

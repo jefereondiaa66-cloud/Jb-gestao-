@@ -72,3 +72,27 @@ como era; nenhum dado depende dele.
 
 `node scripts/construir.mjs && node scripts/testar-vendas.mjs` (computador 1300 px e celular 390 px),
 com banco simulado e dados fictícios. Com `jspdf` instalado (CI) também confere o PDF do ticket.
+
+## 6. Revisão com vários agentes (13/11/2026)
+
+Cinco revisores procuraram problemas (encaixe com o código antigo, dados e regras, impressão,
+telas e segurança); cada achado foi conferido no código antes de corrigir. Corrigido:
+
+- **Segurança:** o código do registro entrava como texto de JavaScript no botão de imprimir da
+  lista; agora vai num atributo de dados (um código malicioso gravado no banco não executa nada).
+- **Venda finalizada:** a marca que troca o A4 pela janela de impressão ficou presa à venda que
+  está sendo criada (antes, abrir o comprovante de outra venda durante a gravação confundia as duas).
+- **Preços:** a simulação segue a tabela por quantidade e por tipo de venda, e leva o preço certo
+  para o pedido; o cartão do produto mostra o mesmo preço que a linha vai usar (condição, tipo de
+  venda, cliente); na Nova venda, escolher o cliente pelo cadastro rápido não muda mais o preço combinado.
+- **Cartões:** um toque nunca ocupa a linha de um produto desativado ou apagado.
+- **Cadastro rápido:** Estado começa vazio; cliente inativo aparece como parecido, mas não pode ser usado.
+- **Impressão:** não grava nada no banco; o texto do ticket fica na área que a cabeça térmica
+  alcança (48 mm no papel de 58 mm, 72 mm no de 80 mm), também no PDF; ticket de orçamento vencido,
+  recusado ou convertido avisa como o A4; se a impressão direta não abrir, a janela aparece com o PDF;
+  Esc fecha a janela, que também fecha ao trocar de tela.
+- **Início:** rascunhos não contam como pedidos feitos nem em aberto; "finalizados no mês" usa a data
+  da entrega; cada número abre a lista ou o relatório já filtrado com o mesmo critério; nos modelos de
+  tela 1 e 2 os botões grandes ficam logo abaixo da saudação.
+- **Consulta:** filtro "Andamento" (em aberto, rascunhos, finalizados no mês, feitos hoje); filtro de
+  produto mostra o nome; "Venda rápida" virou "Nova venda (balcão)" também no filtro e no Painel completo.
