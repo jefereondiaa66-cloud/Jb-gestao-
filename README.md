@@ -27,6 +27,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/verificar.mjs` | verificações do programa, da construção, da ponte (testes B–F) e do JB Fiscal |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
+| `node scripts/testar-vendas.mjs` | Setor de Vendas: pedido, venda, ticket 58/80 mm, orçamento, simulação ([docs/vendas-v110.md](docs/vendas-v110.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
