@@ -30,7 +30,8 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-janelas.mjs` | testa janelas, abas, rascunhos, clique duplo e gravação sem conexão (21 itens) |
 | `node scripts/testar-vendas.mjs` | Setor de Vendas: pedido, venda, ticket 58/80 mm, orçamento, simulação ([docs/vendas-v110.md](docs/vendas-v110.md)) |
 | `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta: lançamentos, foto (IA simulada), programação, descontos e acerto (69 conferências) |
-| `node scripts/testar-custo-buscar.mjs` | V115: custo por litro = média das compras + custo de buscar, lenha paga com combustível (saldo geral, rateio e crédito) e posição do fornecedor no relatório de compras (35 conferências) |
+| `node scripts/testar-custo-buscar.mjs` | V115: custo por litro do combustível = média das compras + custo de buscar |
+| `node scripts/testar-combustivel-fornecedor-lenha.mjs` | V117: combustível para fornecedor de lenha, descontado sozinho do que a cerâmica deve, painéis nos dois setores, lançamento à mão e acerto ([docs/combustivel-fornecedor-lenha-v117.md](docs/combustivel-fornecedor-lenha-v117.md)) (37 conferências) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
@@ -41,4 +42,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/auditoria-2026-10-30.md`](docs/auditoria-2026-10-30.md) (estado encontrado e decisões) ·
 [`docs/evolucao-2026-11-13.md`](docs/evolucao-2026-11-13.md) (área de trabalho: janelas, abas, rascunhos) ·
 [`docs/combustivel-lenha-2026-11-13.md`](docs/combustivel-lenha-2026-11-13.md) (Combustível e Lenha, V112) ·
+[`docs/combustivel-fornecedor-lenha-v117.md`](docs/combustivel-fornecedor-lenha-v117.md) (combustível para fornecedor de lenha, V117) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

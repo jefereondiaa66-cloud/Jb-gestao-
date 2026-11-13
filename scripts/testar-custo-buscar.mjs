@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Teste de ponta a ponta da V115, no navegador, com o programa REAL (saida/claude.html) e o banco
 // central simulado (scripts/lib/servidor-falso.mjs). Dados de teste, só em memória.
-//  1. custo por litro do combustível = média das compras + custo de buscar (R$ 0,40, editável);
-//  2. lenha paga com combustível com esse custo: fornecedor, saldo geral, rateio e crédito;
-//  3. relatório de compras da lenha com a posição do fornecedor.
-// Uso: node scripts/construir.mjs && node scripts/testar-custo-buscar.mjs   (FOTOS=<pasta> guarda capturas)
+//  Custo por litro do combustível = média das compras + custo de buscar (R$ 0,40, editável).
+//  (Os itens 2 e 3 da V115, lenha paga pelo saldo geral e posição no relatório de compras, foram trocados
+//  pela V117: o combustível do fornecedor de lenha é testado em scripts/testar-combustivel-fornecedor-lenha.mjs.)
+// Uso: node scripts/construir.mjs && node scripts/testar-custo-buscar.mjs
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -90,7 +90,6 @@ try {
     };
   });
 
-  const SIM = 'Sim, pagamento de compra de lenha';
   console.log('1. Custo por litro = média das compras + custo de buscar');
   const a = await page.evaluate(async () => { const c = await T.comprar('combustivel', 'f_posto', 'p_s10', 1000, 7.6); await T.sincronizado();
     const ob = window.FINANCEIRO_SETOR ? window.FINANCEIRO_SETOR.obrigacoes().find((o) => o.ref === 'c:' + c.id) : null;
@@ -120,77 +119,9 @@ try {
   ok(cad.cm === 8.1 && cad.nota === 7.6 && cad.banco === 0.5, `custo de buscar editado para 0,50: custo por litro ${cad.cm}`);
   ok(cad.antes === 8, 'mudar o custo de buscar não mexe no abastecimento já gravado');
 
-  console.log('2. Lenha paga com combustível');
-  const l = await page.evaluate(async (SIM) => {
-    const c1 = await T.comprar('lenha', 'f_lenha', 'p_lenha', 10, 50, { data: addDias(hoje(), -3) }); const c2 = await T.comprar('lenha', 'f_lenha', 'p_lenha', 6, 50); await T.sincronizado();
-    await T.abrirNovo('consumos', 'combustivel', { produtoId: 'p_s10', quantidade: 80, pagLenhaSim: SIM, pagLenhaForn: 'f_lenha' });
-    const cx = document.querySelector('#camada'); const st0 = { compra: cx.querySelector('[data-k="pagLenhaCompra"]').value, preco: cx.querySelector('[data-k="pagLenhaPreco"]').value, txt: cx.textContent };
-    await T.salvarGaveta(); await T.esperar(() => DATA.consumos.some((x) => x.pagLenha)); await T.esperar(() => finVenda(COMPRA_(c2.id)).pago > 0, 10000); await T.sincronizado();
-    const ab = DATA.consumos.find((x) => x.pagLenha);
-    return { st0: { compra: st0.compra, preco: st0.preco, abertas: /Total a pagar em 2 compra/.test(st0.txt), conta: /custo de buscar/.test(st0.txt) && /Abate em 2 compras/.test(st0.txt) }, pl: ab.pagLenha, cu: ab.custoUnit, fora: ab.foraDaProducao,
-      s1: finVenda(COMPRA_(c1.id)).saldo, s2: finVenda(COMPRA_(c2.id)).saldo, p1: (COMPRA_(c1.id).pagamentos || []).length, p2: (COMPRA_(c2.id).pagamentos || []).length, ids: [c1.id, c2.id], estoque: saldoP('p_s10') }; }, SIM);
-  ok(l.st0.compra === '__geral', 'escolher o fornecedor com 2 compras em aberto já propõe abater do saldo geral');
-  ok(/8,10/.test(l.st0.preco), `o preço combinado vem com o custo novo (média + custo de buscar): ${l.st0.preco}`);
-  ok(l.st0.abertas, 'a tela lista as compras em aberto do fornecedor com o saldo de cada uma');
-  ok(l.st0.conta, 'a tela mostra a conta: litros, média, custo de buscar, preço por litro e valor abatido');
-  ok(l.pl.valor === 648 && l.pl.rateio.length === 2 && l.pl.rateio[0].valor === 500 && l.pl.rateio[1].valor === 148, `80 L × 8,10 = 648 abatidos da compra mais antiga para a mais nova (500 + 148)`);
-  ok(l.s1 === 0 && l.s2 === 152 && l.p1 === 1 && l.p2 === 1, `saldos depois: compra antiga quitada, a outra com ${l.s2} a pagar`);
-  ok(l.pl.custoMediaNota === 7.6 && l.pl.custoBuscar === 0.5 && l.fora === true, 'o lançamento guarda a média e o custo de buscar e fica fora do custo da produção');
-
-  const cr = await page.evaluate(async (SIM) => {
-    await T.abrirNovo('consumos', 'combustivel', { produtoId: 'p_s10', quantidade: 30, pagLenhaSim: SIM, pagLenhaForn: 'f_lenha' });
-    const st = { ...MODS.consumos.padrao(), id: 'zz', produtoId: 'p_s10', quantidade: 30, pagLenhaSim: SIM, pagLenhaForn: 'f_lenha', pagLenhaCompra: document.querySelector('#camada [data-k="pagLenhaCompra"]').value, pagLenhaPreco: 8.1 };
-    const conf = conferirRegistro('consumos', st); const antes = DATA.consumos.length;
-    await T.salvarGaveta(); await T.esperar(() => DATA.consumos.length === antes + 1); await T.esperar(() => window.PAGLENHA_V115.devidoA('f_lenha') === 0, 10000); await T.sincronizado();
-    const ab = DATA.consumos.filter((x) => x.pagLenha).sort((x, y) => String(x.criadoEm).localeCompare(String(y.criadoEm))).pop();
-    return { aviso: String(conf.erros._aviso || conf.aviso || JSON.stringify(conf.erros)), trava: !!(conf.erros.pagLenhaPreco || conf.erros.pagLenhaCompra), pl: ab.pagLenha, cred: window.PAGLENHA_V115.creditosDe('f_lenha').total, deve: window.PAGLENHA_V115.devidoA('f_lenha') }; }, SIM);
-  ok(!cr.trava && /crédito/.test(cr.aviso), 'valor maior que a dívida não trava: avisa que a sobra vira crédito');
-  ok(cr.pl.valor === 243 && cr.pl.credito === 91 && cr.cred === 91 && cr.deve === 0, `30 L × 8,10 = 243: quitou os 152 e guardou ${cr.cred} de crédito`);
-
-  const us = await page.evaluate(async () => { const c3 = await T.comprar('lenha', 'f_lenha', 'p_lenha', 4, 50); await T.sincronizado();
-    SV = 'lenha'; location.hash = '#/compra/' + c3.id; await T.esperar(() => document.querySelector('#vvCred115')); const rot = document.querySelector('#vvCred115').textContent;
-    document.querySelector('#vvCred115').click(); await T.confirmarJanela(); await T.esperar(() => finVenda(COMPRA_(c3.id)).saldo === 109, 10000); await T.sincronizado();
-    window.usarCreditoCombV115(c3.id); await T.dorme(600);
-    return { rot, saldo: finVenda(COMPRA_(c3.id)).saldo, cred: window.PAGLENHA_V115.creditosDe('f_lenha').total, pag: (COMPRA_(c3.id).pagamentos || []).filter((p) => p.creditoDe).length, banco: (T.banco('compras').find((x) => x.id === c3.id).pagamentos || []).length, id: c3.id }; });
-  ok(/91,00/.test(us.rot), 'a compra nova do fornecedor oferece “Abater crédito de combustível (R$ 91,00)”');
-  ok(us.saldo === 109 && us.cred === 0 && us.pag === 1 && us.banco === 1, `crédito abatido uma vez só: compra de 200 ficou com ${us.saldo} a pagar e o crédito zerou`);
-
-  console.log('3. Relatório de compras da lenha com a posição do fornecedor');
-  const rl = await page.evaluate(async () => { await T.comprar('lenha', 'f_lenha2', 'p_lenha', 2, 50); await T.sincronizado();
-    SV = 'lenha'; Object.assign(UIRV, { id: 'rc_compras', setor: 'lenha', rapido: 'mes', ini: hoje().slice(0, 8) + '01', fim: hoje(), fornecedor: '', produto: '', usuario: '', forma: '', stvenda: '', stfin: '' });
-    location.hash = '#/relvendas'; await T.esperar(() => document.querySelectorAll('.rel-extra').length === 3);
-    const res = RELS_V.find((r) => r.id === 'rc_compras').b(UIRV); const pos = res.extras[1].rows; const f1 = pos.find((x) => /Exemplo/.test(x.nome)); const f2 = pos.find((x) => /Outro/.test(x.nome));
-    const quadro = res.extras[0].itens.map((x) => x[1]); const tela = [...document.querySelectorAll('.rel-extra h3')].map((h) => h.textContent);
-    /* compra em aberto de outro período tem de entrar na posição mesmo com o relatório só de hoje */
-    Object.assign(UIRV, { rapido: 'hoje', ini: hoje(), fim: hoje(), fornecedor: 'f_lenha' }); const r2_ = RELS_V.find((r) => r.id === 'rc_compras').b(UIRV); const só = r2_.extras[1].rows;
-    UIRV.fornecedor = ''; Object.assign(UIRV, { rapido: 'mes', ini: hoje().slice(0, 8) + '01', fim: hoje() });
-    return { n: res.rows.length, f1, f2, quadro, tela, lista: res.extras[2].rows.length, litros: res.extras[2].rows.reduce((s, x) => s + (+x.litros || 0), 0), so: só.length, soNome: só[0] && só[0].nome, soPer: só[0] && só[0].nPer }; });
-  ok(rl.tela.length === 3 && /Resumo/.test(rl.tela[0]) && /Posição por fornecedor/.test(rl.tela[1]) && /Lenha paga com combustível/.test(rl.tela[2]), 'o relatório de compras mostra o resumo, a posição por fornecedor e a lenha paga com combustível');
-  ok(rl.f1 && rl.f1.antes === 1000 && rl.f1.comb === 891 && rl.f1.outros === 0 && rl.f1.saldo === 109, `fornecedor pago com combustível: deve antes 1.000 − combustível 891 = saldo ${rl.f1 && rl.f1.saldo}`);
-  ok(rl.f1 && Math.abs(rl.f1.antes - rl.f1.comb - rl.f1.outros - rl.f1.cred - rl.f1.saldo) < 0.005, 'a conta fecha: deve antes − combustível − outros pagamentos = saldo a pagar');
-  ok(rl.f2 && rl.f2.saldo === 100 && rl.f2.comb === 0, 'fornecedor sem combustível aparece com o saldo cheio');
-  ok(rl.lista === 4 && Math.abs(rl.litros - 110) < 0.01, `lista dos abastecimentos que pagaram lenha: ${rl.lista} linhas, ${rl.litros} L no total`);
-  ok(rl.so === 1 && /Exemplo/.test(rl.soNome), 'filtrando um fornecedor, sai só a posição dele (com o que está em aberto de outros dias)');
-
-  const doc = await page.evaluate(async () => { document.querySelector('[data-x="ver"]').click(); await T.esperar(() => /POSIÇÃO POR FORNECEDOR/i.test(document.body.textContent) && document.querySelector('.fvd-h, #printDoc, .veu'));
-    const t = document.body.textContent; return { pos: /Posição por fornecedor/i.test(t), res: /Saldo a pagar/i.test(t), lista: /Lenha paga com combustível/i.test(t) }; });
-  ok(doc.pos && doc.res && doc.lista, 'o documento do relatório (visualizar/PDF) sai com o resumo, a posição e a lista');
-
-  console.log('4. Celular (390 px)');
-  await page.setViewportSize({ width: 390, height: 800 });
-  const cel = await page.evaluate(async (SIM) => { try { if (typeof fecharGaveta === 'function') fecharGaveta(); } catch (e) {} document.querySelectorAll('.veu').forEach((v) => v.remove());
-    SV = 'lenha'; location.hash = '#/relvendas'; await T.dorme(700); await T.esperar(() => document.querySelectorAll('.rel-extra').length === 3);
-    const larg = document.documentElement.scrollWidth; const q = document.querySelector('.rel-quadro').getBoundingClientRect().width;
-    await T.abrirNovo('consumos', 'combustivel', { produtoId: 'p_s10', quantidade: 5, pagLenhaSim: SIM, pagLenhaForn: 'f_lenha' }); const ok2 = !!document.querySelector('#camada [data-k="pagLenhaForn"]');
-    return { larg, q, ok2 }; }, SIM).catch((e) => ({ erro: String(e) }));
-  ok(!cel.erro && cel.larg <= 392 && cel.q <= 390, `no celular o relatório cabe na tela (largura ${cel.larg} px)`);
-  ok(cel.ok2, 'no celular o abastecimento “pago com combustível” abre com o fornecedor');
-  if (process.env.FOTOS) { await page.screenshot({ path: join(process.env.FOTOS, 'v115-celular-abastecimento.png') }); await page.evaluate(() => { fecharGaveta(); document.querySelectorAll('.toast, .veu').forEach((x) => x.remove()); SV = 'lenha'; if (typeof marcarSetor === 'function') marcarSetor('lenha'); location.hash = '#/setor-lenha'; }); await page.waitForTimeout(500); await page.evaluate(() => { location.hash = '#/relvendas'; }); await page.waitForTimeout(1200); await page.screenshot({ path: join(process.env.FOTOS, 'v115-celular-relatorio.png'), fullPage: true });
-    await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(700); await page.screenshot({ path: join(process.env.FOTOS, 'v115-computador-relatorio.png'), fullPage: true }); }
-
   { const rel = erros.filter((e) => !/Chart|XLSX|jspdf|fonts|Failed to fetch|NetworkError/i.test(e)); ok(rel.length === 0, rel.length ? 'erros de JavaScript: ' + rel.slice(0, 3).join(' | ') : 'sem erros de JavaScript'); }
 } catch (e) { falhas++; console.log('  ✘ o teste parou: ' + (e && e.message ? e.message : e)); }
 finally { await browser.close(); http.close(); }
 const ap = resultados.filter((r) => r[0] === 'ok').length;
-console.log(`\nCusto de buscar e lenha paga com combustível (V115): ${ap} aprovados, ${falhas} falharam.`);
+console.log(`\nCusto de buscar o combustível (V115): ${ap} aprovados, ${falhas} falharam.`);
 process.exit(falhas ? 1 : 0);

@@ -1,4 +1,4 @@
-# V115 · Custo de buscar o combustível, lenha paga com combustível e posição do fornecedor (13/11/2026)
+# V115 · Custo de buscar o combustível (13/11/2026)
 
 Pedido do Jeferson. Tudo dentro do programa que já existe (`app/jb-gestao.html`). Só acrescenta: nenhum
 dado gravado muda e os lançamentos antigos guardam o custo com que foram gravados.
@@ -21,35 +21,19 @@ dado gravado muda e os lançamentos antigos guardam o custo com que foram gravad
   ("Custo por litro", com média + buscar), formulário do abastecimento (saldo e custo com as duas parcelas),
   estoque e relatório de estoque do Combustível.
 
-## 2. Lenha paga com combustível (bloco V62)
+## 2 e 3. Trocados pela V117
 
-- O "preço combinado por litro" vem com o custo novo (média + custo de buscar) e continua editável.
-- Novo campo **Fornecedor de lenha**: ao escolher, a tela lista as compras dele em aberto (valor, já pago, a pagar).
-- **De onde abater:** uma compra só, ou o **saldo geral do fornecedor** (da compra mais antiga para a mais nova).
-  O abastecimento grava `pagLenha.rateio[]` e um pagamento em cada compra (`pl-<abastecimento>`, `-2`, `-3`…).
-- A tela mostra a conta: litros × preço = valor, a média, o custo de buscar e quanto fica a pagar.
-- Valor maior que a dívida **não trava mais**: avisa e guarda a sobra em `pagLenha.credito`
-  (crédito da cerâmica com o fornecedor).
-- Na compra de lenha do mesmo fornecedor aparece **"Abater crédito de combustível (R$ …)"**. O abatimento é um
-  pagamento na compra, forma "Combustível da fábrica", com `creditoDe` = abastecimento e código fixo
-  (`plc-<abastecimento>-<compra>`), então não repete. Crédito disponível = sobra − o que já foi abatido.
-
-## 3. Relatório de compras da lenha (`#/relvendas` › Compras, no Setor da Lenha)
-
-Depois da lista de compras do período saem três blocos (na tela, no visualizar/PDF e em abas no Excel):
-
-1. **Resumo**: compras do período + compras de outros períodos ainda em aberto = deve antes dos pagamentos;
-   − pago com combustível (litros e valor) − outros pagamentos (− crédito de combustível) = **saldo a pagar**.
-2. **Posição por fornecedor**: uma linha por fornecedor com as mesmas colunas e o total.
-3. **Lenha paga com combustível**: data, fornecedor, compra, combustível, litros, preço por litro e valor abatido.
-
-Com o filtro de fornecedor, sai só a posição dele. O responsável escolhido no relatório (V80) continua valendo.
+A pedido do Jeferson (13/11/2026), da V115 fica só o item 1 (custo de buscar). A lenha paga com combustível
+pelo saldo geral (com crédito abatido à mão) e a posição do fornecedor no relatório de compras foram trocadas
+pela V117: o combustível dado ao fornecedor de lenha é lançado como "Abastecido em: Fornecedor de lenha" e é
+descontado sozinho do que a cerâmica deve a ele, com painéis nos dois setores e lançamento à mão no Setor da
+Lenha. Ver [combustivel-fornecedor-lenha-v117.md](combustivel-fornecedor-lenha-v117.md). O preço sugerido ao
+fornecedor continua vindo com o custo por litro deste item 1.
 
 ## Técnico
 
 - Núcleo: `custoMedioNota`, `custoBuscar`, `custoPartes`, `custoMedio`, `txtCustoV` (junto do estoque).
-- `opcoesCampo(f, st)` passou a entregar o registro às opções de lista (para filtrar as compras pelo fornecedor).
-- `telaRelatorios` e `exportar` aceitam `res.extras` (quadro ou tabela com título); `htmlExtraRel`, `totaisExtraRel`.
-- Bloco novo `custo-buscar-v115` (cadastro do combustível e posição do fornecedor); `window.PAGLENHA_V115`,
-  `window.POSICAO_LENHA_V115`.
-- Teste: `node scripts/testar-custo-buscar.mjs` (35 conferências, 1280 px e 390 px).
+- `opcoesCampo(f, st)` entrega o registro às opções de lista; `telaRelatorios` e `exportar` aceitam `res.extras`
+  (quadro ou tabela com título; `htmlExtraRel`, `totaisExtraRel`). Ficaram prontos para uso, sem relatório usando hoje.
+- Bloco `custo-buscar-v115`: cadastro do combustível (custo de buscar).
+- Teste: `node scripts/testar-custo-buscar.mjs` (só o custo de buscar).
