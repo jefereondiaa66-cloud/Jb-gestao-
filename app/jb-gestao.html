@@ -6887,6 +6887,7 @@ const MENU=[
 
 ['Configurações','engrenagem',[
  {m:'config',l:'Parâmetros gerais'},
+ {m:'config',l:'Identidade visual e documentos',sec:'identidade'},
  {m:'config',l:'Tabelas legais'},
  {m:'config',l:'Categorias de despesa'},
  {m:'config',l:'Checklists'},
@@ -6937,7 +6938,7 @@ function abrirItem(i){
  if(it.f&&it.m==='feriasvenc'&&typeof UIFV!=='undefined')Object.assign(UIFV,it.f);
  if(it.r&&typeof UIR!=='undefined'){UIR.id=it.r;UIR.extra=''}
  if(it.a&&typeof DIR!=='undefined')DIR.aba=it.a;
- location.hash='#/'+it.m+(it.novo?'/novo':'');
+ location.hash='#/'+it.m+(it.novo?'/novo':it.sec?'/'+it.sec:'');
  if(lerRota().mod===it.m){renderCasca();renderTela()}
 }
 function navHtml(r){
@@ -9251,7 +9252,8 @@ function htmlFichaFerias(d){
  const mon=x=>sens?fMoeda(x):'•••';
  const lista=pf.lista.slice().reverse();
  return `<article class="fvd" id="fvdDoc">
-  ${cabDocHtml(String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),id,'<h2 class="fvd-tit">FICHA DE CONTROLE DE FÉRIAS</h2><div class="fvd-sub">PERÍODOS AQUISITIVOS, PRAZOS E VALORES</div>',f.matricula?['MATRÍCULA',String(f.matricula)]:null)}
+  ${cabDocHtml(MARCA_DOCS().toUpperCase(),linhaEmpDoc(MARCA_DOCS(),linhaInstDoc()||id),'<h2 class="fvd-tit">FICHA DE CONTROLE DE FÉRIAS</h2><div class="fvd-sub">PERÍODOS AQUISITIVOS, PRAZOS E VALORES</div>',f.matricula?['MATRÍCULA',String(f.matricula)]:null,[idDocs().mostrarSetor?nomeSetorDoc('dp'):'',CLASSES_DOC.ficha].filter(Boolean).join('  ·  ').toUpperCase(),'ficha')}
+  <div class="fvd-meta">${[...(idDocs().mostrarSetor?[['Setor responsável',nomeSetorDoc('dp')]]:[]),['Emissão',emissaoTxt({em:new Date().toISOString()})],...(idDocs().mostrarEmitente&&APP.nome?[['Responsável pela emissão',APP.nome]]:[])].map(([l,x])=>`<span><i>${esc(l)}</i><b>${esc(x)}</b></span>`).join('')}</div>
   <section class="fvd-quadro"><div class="fvd-rot">EMPREGADO</div>
    <div class="fvd-grade">${cmp('Nome',f.nome,'w2')}${sens?cmp('CPF',s.cpf?mascCPF(s.cpf):''):''}${cmp('Matrícula',f.matricula)}${cmp('Cargo',f.cargo)}${cmp('Setor',f.setor)}
     ${cmp('Admissão',f.admissao?fData(f.admissao):'')}${cmp('Contratação',f.tipoContratacao)}${sens?cmp('Salário base',v.sal?fMoeda(v.sal):'não cadastrado'):''}
@@ -9260,7 +9262,7 @@ function htmlFichaFerias(d){
    ${!pf.erro&&v.per.length?`<div class="fvd-tot"><span>Valor estimado em aberto</span><b>${v.sal?mon(v.total):'—'}</b><small>${v.diasAbertos} dia(s)${v.diasVencidos?' · '+v.diasVencidos+' em dobro':''}</small></div>`:''}</section>
   ${temCarteira(f.tipoContratacao)?'':`<p class="fvd-obs">Vínculo cadastrado sem carteira assinada. Os períodos e valores abaixo mostram o que seria devido se o vínculo fosse registrado: servem para medir o risco, não é o que está formalizado hoje.</p>`}
   ${pf.erro?'':`<h3 class="fvd-h"><span>1</span>Períodos aquisitivos e prazos</h3>
-  <div class="fvd-tw"><table class="fvd-tb"><thead><tr><th>Período aquisitivo</th><th>Conceder até</th><th>Situação</th><th class="n">Direito</th><th class="n">Tirados</th><th class="n">Programados</th><th class="n">Em aberto</th></tr></thead><tbody>
+  <div class="fvd-tw"><table class="fvd-tb"><thead><tr><th>Período aquisitivo</th><th>Conceder até</th><th>Situação</th><th class="n">Direito</th><th class="n">Gozados</th><th class="n">Programados</th><th class="n">Em aberto</th></tr></thead><tbody>
    ${lista.map(p=>`<tr><td>${esc(p.label)}</td><td>${p.completo?fData(p.concessivo):'—'}</td>
     <td class="${p.situacao==='Crítico'?'venc':''}">${esc(p.situacao==='Crítico'?'Vencido':p.situacao==='Atenção'?'Perto do prazo':p.situacao==='Regular'?'No prazo':p.situacao)}</td>
     <td class="n">${p.completo?'30 dias':'em formação'}</td><td class="n">${p.gozados||'—'}${p.deAntes?'<small>'+p.deAntes+' antes do sistema</small>':''}</td>
@@ -9279,7 +9281,7 @@ function htmlFichaFerias(d){
   ${pf.anterioresSobra?`<p class="fvd-p">Sobraram ${pf.anterioresSobra} dia(s) informados como tirados antes do sistema que não couberam nos períodos calculados. Confira o cadastro.</p>`:''}`}
   <div class="fvd-local">${esc(emp.cidade||'')}${emp.cidade?', ':''}${dataExtenso(H)}.</div>
   <div class="fvd-ass"><div><i></i><b>Departamento Pessoal</b><small>${esc(emp.razao||emp.fantasia||'')}</small></div><div><i></i><b>${esc(f.nome)}</b><small>Empregado · ciência</small></div></div>
-  ${rodDocHtml(String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),id,'Ficha de controle de férias · '+fData(H))}
+  ${rodDocHtml(MARCA_DOCS().toUpperCase(),id,'Ficha de controle de férias · '+f.nome,{setor:nomeSetorDoc('dp'),em:new Date().toISOString()})}
  </article>`;
 }
 function fichaFeriasTela(el,fid){
@@ -9311,7 +9313,7 @@ function fichaFeriasPDF(fid){
  const cor=(c,fn)=>doc[fn](c[0],c[1],c[2]);
  const centro=(t,yy,cs)=>{if(cs&&doc.getTextWidth){const w=doc.getTextWidth(t)+cs*(t.length-1);doc.text(t,(W-w)/2,yy,{charSpace:cs})}else doc.text(t,W/2,yy,{align:'center'})};
  const id=[emp.cnpj?'CNPJ '+emp.cnpj:'',emp.endereco||'',emp.cidade||''].filter(Boolean).join('  ·  ');
- y=cabPdfCC(doc,W,{marca:String(emp.razao||emp.fantasia||'Empresa').toUpperCase(),linha:id,titulo:'FICHA DE CONTROLE DE FÉRIAS',sub:'PERÍODOS AQUISITIVOS, PRAZOS E VALORES',M,ident:f.matricula?['MATRÍCULA',String(f.matricula)]:null})-20;
+ y=cabPdfCC(doc,W,{marca:MARCA_DOCS().toUpperCase(),linha:linhaEmpDoc(MARCA_DOCS(),linhaInstDoc()||id),titulo:'FICHA DE CONTROLE DE FÉRIAS',sub:'PERÍODOS AQUISITIVOS, PRAZOS E VALORES',M,ident:f.matricula?['MATRÍCULA',String(f.matricula)]:null,sobre:[idDocs().mostrarSetor?nomeSetorDoc('dp'):'',CLASSES_DOC.ficha].filter(Boolean).join('  ·  ').toUpperCase()})-20;
  /* quadro do empregado: título com o quadrado vermelho e campos tracejados */
  const campos=[['Nome',f.nome],...(sens?[['CPF',s.cpf?mascCPF(s.cpf):'—']]:[]),['Matrícula',f.matricula||'—'],['Cargo',f.cargo||'—'],['Setor',f.setor||'—'],
   ['Admissão',f.admissao?fData(f.admissao):'—'],['Contratação',f.tipoContratacao||'—'],...(sens?[['Salário base',v.sal?fMoeda(v.sal):'não cadastrado']]:[])];
@@ -9333,7 +9335,7 @@ function fichaFeriasPDF(fid){
  const secao=(n,t)=>{y+=20;tituloPdfCC(doc,M,y,n,t);y+=12};
  if(!pf.erro){
   secao('1','Períodos aquisitivos e prazos');
-  doc.autoTable({...tab,startY:y,head:[['Período aquisitivo','Conceder até','Situação','Direito','Tirados','Programados','Em aberto']],
+  doc.autoTable({...tab,startY:y,head:[['Período aquisitivo','Conceder até','Situação','Direito','Gozados','Programados','Em aberto']],
    body:pf.lista.slice().reverse().map(p=>[p.label,p.completo?fData(p.concessivo):'—',p.situacao==='Crítico'?'Vencido':p.situacao==='Atenção'?'Perto do prazo':p.situacao==='Regular'?'No prazo':p.situacao,
     p.completo?'30 dias':'em formação',String(p.gozados||'—'),String(p.programados||'—'),p.completo?String(p.saldo):'—']),
    columnStyles:{3:{halign:'center'},4:{halign:'center'},5:{halign:'center'},6:{halign:'center',fontStyle:'bold'}},
@@ -9364,7 +9366,7 @@ function fichaFeriasPDF(fid){
  doc.setFont('helvetica','normal');doc.setFontSize(8);cor(CZ,'setTextColor');y+=11;doc.text(String(emp.razao||emp.fantasia||'').slice(0,46),M+wA/2,y,{align:'center'});doc.text('Empregado · ciência',W-M-wA/2,y,{align:'center'});
  /* rodapé em todas as páginas */
  try{const tot=doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;const A=doc.internal.pageSize.getHeight?doc.internal.pageSize.getHeight():842;
-  for(let k=1;k<=tot;k++){if(doc.setPage)doc.setPage(k);rodPdfCC(doc,W,A,M,String(emp.razao||emp.fantasia||''),'Ficha de controle de férias · '+f.nome+' · emitida em '+fData(hoje()),k,tot)}}catch(e){}
+  for(let k=1;k<=tot;k++){if(doc.setPage)doc.setPage(k);rodPdfCC(doc,W,A,M,[MARCA_DOCS(),nomeSetorDoc('dp')].filter(Boolean).join('  ·  '),'Ficha de controle de férias · '+f.nome+' · Emitido em '+fDataHora(new Date().toISOString()),k,tot)}}catch(e){}
  salvarArquivo('Ficha_de_ferias_'+String(f.nome).replace(/[^\wÀ-ú]+/g,'_')+'_'+hoje()+'.pdf',new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
  toast('Ficha de férias gerada.','ok');
 }
@@ -9747,7 +9749,9 @@ const ICONE_GRUPO={'Pessoa Física / Autônomo':'pessoas','MEI':'carteira','Pess
    a mesma estrutura D e passa pelos mesmos desenhos: tela, PDF, Word e impressão.
    É assim que tudo fica com a cara da ficha de férias: serifada, terracota, filete
    duplo, quadro bege com barra lateral, seções numeradas e tabelas terracota. */
-const MARCA_DOCS=()=>{const m=String((CFG&&CFG.marcaDocumentos)||'').trim();if(m&&!/^jb gest[aã]o de cer[aâ]mica$/i.test(m))return m;const e=(CFG&&CFG.empresa)||{};return String(e.razao||e.fantasia||(typeof razaoMostra==='function'?razaoMostra():'Cerâmica Concretiza LTDA'))};
+/* identidade dos documentos: lida sempre daqui. ID_PREVIA é o rascunho das Configurações, só enquanto a prévia é desenhada */
+let ID_PREVIA=null;const cfgDocs=()=>ID_PREVIA||(typeof CFG!=='undefined'&&CFG)||{};
+const MARCA_DOCS=()=>{const C=cfgDocs();const m=String(C.marcaDocumentos||'').trim();if(m&&!/^jb gest[aã]o de cer[aâ]mica$/i.test(m))return m;const e=C.empresa||{};return String(e.razao||e.fantasia||(typeof razaoMostra==='function'?razaoMostra():'Cerâmica Concretiza LTDA'))};
 const STATUS_CT=['Rascunho','Pronto para assinar','Assinado','Vigente','Encerrado','Cancelado'];
 const STATUS_CP=['Rascunho','Emitido','Assinado','Cancelado'];
 const statusOp=m=>m&&m.serie==='CP'?STATUS_CP:STATUS_CT;
@@ -9879,7 +9883,7 @@ function htmlTxtDoc(s,editor){
 }
 const htmlVal=(s,editor)=>esc(String(s||'')).replace(/\u0001(\w+)\u0002/g,()=>`<span class="fvd-vz">${editor?'preencher':'__________'}</span>`);
 function htmlTabelaDoc(b,editor){
- return `<div class="fvd-tw"><table class="fvd-tb"><thead><tr>${b.head.map((h,i)=>`<th class="${(b.dir||[]).includes(i)?'d':''}">${esc(h)}</th>`).join('')}</tr></thead><tbody>
+ return `<div class="fvd-tw"><table class="fvd-tb"><thead><tr>${b.head.map((h,i)=>`<th class="${(b.dir||[]).includes(i)?'d':''}">${esc(cabFormalDoc(h))}</th>`).join('')}</tr></thead><tbody>
   ${b.body.map(r=>`<tr>${r.map((x,i)=>`<td class="${(b.dir||[]).includes(i)?'d':''}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}
   ${(b.foots||(b.foot?[b.foot]:[])).map(f=>`<tr class="tot">${f.map((x,i)=>`<td class="${(b.dir||[]).includes(i)?'d':''}">${htmlVal(x,editor)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
@@ -9890,16 +9894,18 @@ function htmlDoc(D,opc){
   if(b.tipo==='tabela')return htmlTabelaDoc(b,ed);
   if(b.tipo==='imagem')return /^data:image\/(png|jpe?g);base64,/i.test(String(b.src||''))?`<figure class="fvd-fig">${b.titulo?`<h4 class="fvd-fig-t">${esc(b.titulo)}</h4>`:''}<img src="${esc(b.src)}" alt="${esc(b.alt||b.titulo||'Gráfico')}">${b.nota?`<p class="fvd-nota">${esc(b.nota)}</p>`:''}</figure>`:'';
   if(b.tipo==='aviso')return `<div class="fvd-aviso">${htmlTxtDoc(b.texto,ed)}</div>`;
+  if(b.tipo==='indicadores')return (b.itens||[]).length?htmlIndDoc(b):'';
   if(b.tipo==='clausula')return `<section class="fvd-cl"><h4>Cláusula ${ordinalFem(b.n)} — ${htmlVal(b.titulo,ed)}</h4>${htmlTxtDoc(b.texto,ed)}</section>`;
   if(b.tipo==='secao')return `<h3 class="fvd-h"><span>${esc(b.n)}</span>${esc(b.titulo)}</h3>
    ${b.campos&&b.campos.length?`<div class="fvd-grade fvd-pares">${b.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x||'—',ed)}</b></div>`).join('')}</div>`:''}
    ${(b.paras||[]).map(p=>htmlTxtDoc(p,ed)).join('')}${b.tabela?htmlTabelaDoc(b.tabela,ed):''}${b.vazio?`<p class="fvd-p fvd-nada">${esc(b.vazio)}</p>`:''}${b.nota?`<p class="fvd-nota">${esc(b.nota)}</p>`:''}`;
   return '';
  };
- return `<article class="fvd fvd-doc${D.paisagem?' paisagem':''}" id="fvdDoc">
-  ${cabDocHtml(D.marca,linhaEmpDoc(D.marca,D.empresaLinha),`<h2 class="fvd-tit">${esc(D.tipo)}</h2>${D.sub?`<div class="fvd-sub">${esc(String(D.sub).toUpperCase())}</div>`:''}`,identDoc(D))}
-  <div class="fvd-meta">${D.meta.map(([l,x])=>`<span><i>${esc(l)}</i> ${esc(x)}</span>`).join('')}</div>
-  ${D.quadros.map(q=>`<section class="fvd-quadro"><div class="fvd-rot">${esc(q.rot)}</div><div class="fvd-grade">${q.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x,ed)}</b></div>`).join('')}</div></section>`).join('')}
+ const cb=carimboDoc(D);
+ return `<article class="fvd fvd-doc k-${esc(cb.classe)}${D.paisagem?' paisagem':''}" id="fvdDoc">
+  ${cabDocHtml(D.marca,linhaEmpDoc(D.marca,linhaCabDoc(D)),`<h2 class="fvd-tit">${esc(D.tipo)}</h2>${D.sub?`<div class="fvd-sub">${esc(String(D.sub).toUpperCase())}</div>`:''}`,identDoc(D),sobreTituloDoc(D),cb.classe)}
+  <div class="fvd-meta">${metaDoc(D).map(([l,x])=>`<span><i>${esc(l)}</i><b>${esc(x)}</b></span>`).join('')}</div>
+  ${D.quadros.filter(q=>q&&(q.campos||[]).length).map(q=>`<section class="fvd-quadro"><div class="fvd-rot">${esc(rotFormalDoc(q.rot))}</div><div class="fvd-grade">${q.campos.map(([l,x,w])=>`<div class="${w?'w2':''}"><span>${esc(l)}</span><b>${htmlVal(x,ed)}</b></div>`).join('')}</div></section>`).join('')}
   ${D.blocos.map(bloco).join('')}
   ${D.fecho?`<p class="fvd-p fvd-fecho">${esc(D.fecho)}</p>`:''}
   ${D.local?`<div class="fvd-local">${esc(D.local)}</div>`:''}
@@ -9907,7 +9913,7 @@ function htmlDoc(D,opc){
   ${D.testemunhas?`<div class="fvd-test"><div class="fvd-rot">TESTEMUNHAS</div><div class="fvd-ass">${D.testemunhas.map((t,i)=>`<div><i></i><b>${t.nome?esc(t.nome):'Testemunha '+(i+1)}</b><small>${t.cpf?'CPF '+esc(t.cpf):'Nome e CPF'}</small></div>`).join('')}</div></div>`:''}
   ${D.observacoes?`<section class="fvd-obsbox"><div class="fvd-rot">OBSERVAÇÕES</div>${htmlTxtDoc(D.observacoes,ed)}</section>`:''}
   ${D.notaFinal?`<p class="fvd-nota">${esc(D.notaFinal)}</p>`:''}
-  ${rodDocHtml(D.marca,linhaEmpDoc(D.marca,D.empresaLinha),D.rodape||'')}
+  ${rodDocHtml(D.marca,'',rodapeDoc(D),cb)}
  </article>`;
 }
 
@@ -9917,7 +9923,7 @@ function pdfDoc(D){
  const doc=new window.jspdf.jsPDF({unit:'pt',format:'a4',orientation:D.paisagem?'landscape':'portrait'});const pz=doc.internal&&doc.internal.pageSize;const W=D.paisagem?842:595,H=pz&&pz.getHeight?pz.getHeight():(D.paisagem?595:842),M=D.paisagem?40:54,L=W-2*M,BOT=H-60;let y=56;
  const {TC,TX,CZ,FI,BG,BG2,PT}=PDF_CC;
  const cor=(c,fn)=>doc[fn](c[0],c[1],c[2]);
- const tx=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').replace(/ /g,' ').replace(/[−]/g,'-');
+ const tx=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').replace(/ /g,' ').replace(/[−]/g,'-').replace(/³/g,'3').replace(/²/g,'2');
  const centro=(t,yy,cs)=>{t=tx(t);if(cs&&doc.getTextWidth){const w=doc.getTextWidth(t)+cs*(t.length-1);doc.text(t,(W-w)/2,yy,{charSpace:cs})}else doc.text(t,W/2,yy,{align:'center'})};
  const novaPag=()=>{if(doc.addPage)doc.addPage();y=62};
  const cabe=h=>{if(y+h>BOT)novaPag()};
@@ -9928,7 +9934,7 @@ function pdfDoc(D){
    while(i<ls.length){cabe(lh);const cabem=Math.max(1,Math.floor((BOT-y)/lh));const ch=ls.slice(i,i+cabem);
     doc.text(ch,x,y,ch.length>1?{align:'justify',maxWidth:w}:undefined);y+=ch.length*lh;i+=ch.length}
    y+=3})};
- const tabela=b=>{cabe(40);const fs=b.fonte||9;const ft=b.foots||(b.foot?[b.foot]:null);doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:62,bottom:70},head:[b.head.map(tx)],body:b.body.map(r=>r.map(tx)),foot:ft?ft.map(r=>r.map(tx)):undefined,showFoot:'lastPage',
+ const tabela=b=>{cabe(40);const fs=b.fonte||9;const ft=b.foots||(b.foot?[b.foot]:null);doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:62,bottom:70},head:[b.head.map(h=>tx(cabFormalDoc(h)))],body:b.body.map(r=>r.map(tx)),foot:ft?ft.map(r=>r.map(tx)):undefined,showFoot:'lastPage',
   styles:{font:'helvetica',fontSize:fs,cellPadding:fs<8.5?3.4:4.4,textColor:TX,lineColor:FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:PT,textColor:[255,255,255],fontStyle:'bold',fontSize:fs-.2},
   /* linhas zebradas leves; total em negrito, fundo cinza claro e um fio escuro em cima */
   footStyles:{fillColor:FI,textColor:TX,fontStyle:'bold'},alternateRowStyles:{fillColor:BG},
@@ -9945,15 +9951,31 @@ function pdfDoc(D){
   try{doc.addImage(b.src,/^data:image\/png/i.test(b.src)?'PNG':'JPEG',M+(L-w)/2,y,w,h)}catch(e){console.warn('imagem no PDF',e)}
   y+=h+10;if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})};
  /* cabeçalho: faixa preta com a logo e a empresa; título e subtítulo à direita */
- y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,D.empresaLinha)),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M,ident:identDoc(D).map(tx)});
- if(D.meta&&D.meta.length){doc.setFont('helvetica','normal');doc.setFontSize(8.4);const mt=doc.splitTextToSize(tx(D.meta.map(([l,x])=>l+' '+x).join('   ·   ')),L-24);const hm=12+mt.length*10.5;
-  if(doc.setFillColor&&doc.rect){cor(BG2,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(M,y,L,hm,'FD')}cor(CZ,'setTextColor');doc.text(mt,W/2,y+14,{align:'center'});y+=hm+16}
+ const cb=carimboDoc(D);
+ y=cabPdfCC(doc,W,{marca:tx(D.marca),linha:tx(linhaEmpDoc(D.marca,linhaCabDoc(D))),titulo:tx(D.tipo),sub:D.sub?tx(String(D.sub).toUpperCase()):'',paisagem:D.paisagem,M,ident:identDoc(D).map(tx),sobre:tx(sobreTituloDoc(D)),centro:['comprovante','formal'].includes(cb.classe)});
+ /* faixa de identificação: setor, dados do documento, emissão e responsável, em colunas (rótulo em cima, valor embaixo) */
+ const mtd=metaDoc(D);
+ if(mtd.length){const porL=Math.min(D.paisagem?5:4,mtd.length),cw=L/porL;doc.setFont('helvetica','bold');doc.setFontSize(8.6);
+  const cel=mtd.map(([l,x])=>({l:tx(String(l).toUpperCase()),v:doc.splitTextToSize(tx(x),cw-16)}));const filas=[];for(let i=0;i<cel.length;i+=porL)filas.push(cel.slice(i,i+porL));
+  const alts=filas.map(f=>19+Math.max(...f.map(c=>c.v.length))*10.4+5),hm=alts.reduce((a,b)=>a+b,0);
+  if(doc.setFillColor&&doc.rect){cor(BG2,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(M,y,L,hm,'FD');cor(TC,'setFillColor');doc.rect(M,y,2.4,hm,'F')}
+  let ym=y;filas.forEach((f,i)=>{f.forEach((c,j)=>{const cx=M+10+j*cw;doc.setFont('helvetica','normal');doc.setFontSize(6.4);cor(CZ,'setTextColor');doc.text(c.l,cx,ym+12,{charSpace:.5});
+    doc.setFont('helvetica','bold');doc.setFontSize(8.6);cor(TX,'setTextColor');doc.text(c.v,cx,ym+23);
+    if(j&&doc.line){cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M+j*cw,ym+6,M+j*cw,ym+alts[i]-6)}});
+   ym+=alts[i];if(i<filas.length-1&&doc.line){cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M+8,ym,M+L-8,ym)}});
+  y+=hm+16}
+ /* indicadores principais: cartões lado a lado; o primeiro em destaque */
+ const indicadores=b=>{const it=(b.itens||[]).slice(0,4);if(!it.length)return;const g=8,w=(L-g*(it.length-1))/it.length,hC=44;cabe(hC+14);
+  it.forEach(([l,v],i)=>{const x=M+i*(w+g);if(doc.setFillColor&&doc.rect){cor(i?BG2:PT,'setFillColor');cor(FI,'setDrawColor');doc.setLineWidth(.6);doc.rect(x,y,w,hC,i?'FD':'F');if(!i){cor(TC,'setFillColor');doc.rect(x,y+hC-2.4,w,2.4,'F')}}
+   doc.setFont('helvetica','normal');doc.setFontSize(6.6);if(i)cor(CZ,'setTextColor');else doc.setTextColor(200,200,206);doc.text(String(doc.splitTextToSize(tx(String(l).toUpperCase()),w-16)[0]||''),x+9,y+15,{charSpace:.5});
+   doc.setFont('helvetica','bold');doc.setFontSize(12.4);if(i)cor(TX,'setTextColor');else doc.setTextColor(255,255,255);doc.text(String(doc.splitTextToSize(tx(v),w-16)[0]||''),x+9,y+33)});
+  y+=hC+14};
  /* quadros */
- D.quadros.forEach(q=>{const colW=(L-32)/2;const linhas=[];let fila=[];
+ D.quadros.filter(q=>q&&(q.campos||[]).length).forEach(q=>{const colW=(L-32)/2;const linhas=[];let fila=[];
   q.campos.forEach(([l,x,w])=>{if(w){if(fila.length){linhas.push(fila);fila=[]}linhas.push([[l,x,1]])}else{fila.push([l,x,0]);if(fila.length===2){linhas.push(fila);fila=[]}}});if(fila.length)linhas.push(fila);
   doc.setFontSize(10);const alt=linhas.map(f=>Math.max(...f.map(([,x,w])=>doc.splitTextToSize(tx(x),w?L-32:colW-8).length))*12+17);
   const hQ=alt.reduce((a,b)=>a+b,0)+14;cabe(hQ+24);
-  y+=8;tituloPdfCC(doc,M,y,'',tx(q.rot));y+=8;
+  y+=8;tituloPdfCC(doc,M,y,'',tx(rotFormalDoc(q.rot)));y+=8;
   if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,hQ,'S')}
   let yy=y+17;linhas.forEach((f,i)=>{f.forEach(([l,x,w],j)=>{const cx=M+16+j*(colW+8);doc.setFont('helvetica','normal');doc.setFontSize(7.8);cor(CZ,'setTextColor');doc.text(tx(l),cx,yy);
    doc.setFont('helvetica','bold');doc.setFontSize(10);cor(TX,'setTextColor');doc.text(doc.splitTextToSize(tx(x),w?L-32:colW-8),cx,yy+11);tracoPdfCC(doc,cx,cx+(w?L-32:colW-8),yy+alt[i]-13)});yy+=alt[i]});
@@ -9963,6 +9985,7 @@ function pdfDoc(D){
   if(b.tipo==='p')paragrafo(b.texto);
   else if(b.tipo==='tabela')tabela(b);
   else if(b.tipo==='imagem')imagem(b);
+  else if(b.tipo==='indicadores')indicadores(b);
   else if(b.tipo==='aviso'){paragrafo(b.texto,{size:9,cz:true})}
   else if(b.tipo==='clausula'){cabe(40);y+=4;doc.setFont('helvetica','bold');doc.setFontSize(9.6);cor(PT,'setTextColor');
    doc.splitTextToSize(tx(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase()),L).forEach(l=>{doc.text(l,M,y,{charSpace:.4});y+=12.5});y+=2;paragrafo(b.texto)}
@@ -9970,9 +9993,10 @@ function pdfDoc(D){
    if(b.campos&&b.campos.length){tabela({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])})}
    (b.paras||[]).forEach(p=>paragrafo(p));if(b.tabela)tabela(b.tabela);if(b.vazio)paragrafo(b.vazio,{cz:true});if(b.nota)paragrafo(b.nota,{size:8,cz:true,lh:10.4})}
  });
- if(D.fecho){y+=4;paragrafo(D.fecho)}
- /* local, assinaturas e testemunhas ficam juntos */
- const nAss=Math.ceil((D.assinaturas.length||0)/2);const hFim=40+nAss*70+(D.testemunhas?84:0);
+ /* local, assinaturas e testemunhas ficam juntos; se não couberem na página, o fecho vai junto, para a assinatura não ficar sozinha */
+ const nAss=Math.ceil((D.assinaturas.length||0)/2);const hFim=40+nAss*70+(D.testemunhas?98:0);
+ if(D.fecho){doc.setFont('helvetica','normal');doc.setFontSize(10);const hf=doc.splitTextToSize(tx(D.fecho),L).length*13.4+10;
+  if(D.assinaturas.length&&y+hf+hFim>BOT)novaPag();y+=4;paragrafo(D.fecho)}
  if(y+hFim>BOT)novaPag();
  if(D.local){y+=18;doc.setFont('helvetica','normal');doc.setFontSize(10);cor(TX,'setTextColor');centro(D.local,y)}
  const linhaAss=(a,x,w)=>{cor(TX,'setDrawColor');doc.setLineWidth(.6);doc.line(x,y,x+w,y);doc.setFont('helvetica','bold');doc.setFontSize(9.2);cor(TX,'setTextColor');
@@ -9980,7 +10004,7 @@ function pdfDoc(D){
  const wA=205;
  for(let i=0;i<D.assinaturas.length;i+=2){y+=52;const par=D.assinaturas.slice(i,i+2);
   if(par.length===1)linhaAss(par[0],(W-wA)/2,wA);else{linhaAss(par[0],M,wA);linhaAss(par[1],W-M-wA,wA)}y+=16}
- if(D.testemunhas){y+=26;tituloPdfCC(doc,M,y,'','TESTEMUNHAS');y+=34;
+ if(D.testemunhas){y+=40;tituloPdfCC(doc,M,y,'','TESTEMUNHAS');y+=34;
   D.testemunhas.forEach((t,i)=>{const x=i?W-M-wA:M;linhaAss({nome:t.nome||'Testemunha '+(i+1),sub:t.cpf?'CPF '+t.cpf:'Nome e CPF'},x,wA)});y+=26}
  if(D.observacoes){const ls=doc.splitTextToSize(tx(D.observacoes),L-24);const h=28+ls.length*12;cabe(h+20);y+=20;
   if(doc.setDrawColor&&doc.rect){cor(FI,'setDrawColor');doc.setLineWidth(.7);doc.rect(M,y,L,h,'S')}
@@ -9991,7 +10015,7 @@ function pdfDoc(D){
  try{const tot=doc.internal&&doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;
   for(let k=1;k<=tot;k++){if(doc.setPage)doc.setPage(k);
    if(k>1){doc.setFont('helvetica','normal');doc.setFontSize(7.6);cor(CZ,'setTextColor');doc.text(tx(D.marca+'  ·  '+D.tipo+(D.numero?'  ·  Nº '+D.numero:'')),M,38);cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M,43,W-M,43)}
-   rodPdfCC(doc,W,H,M,tx(MARCA_DOCS()),tx(D.rodape||D.tipo),k,tot)}}catch(e){}
+   rodPdfCC(doc,W,H,M,tx([MARCA_DOCS(),cb.setor].filter(Boolean).join('  ·  ')),tx([rodapeDoc(D),idDocs().rodEmissao?'Emitido em '+fDataHora(cb.em):''].filter(Boolean).join('  ·  ')),k,tot)}}catch(e){}
  return doc;
 }
 const nomeArqDoc=D=>D.arquivo?String(D.arquivo):String((D.numero?D.numero+'_':'')+D.tipo+(D.parteNome?'_'+D.parteNome:'')).replace(/[^\wÀ-ú]+/g,'_').replace(/_+/g,'_').slice(0,90);
@@ -10002,30 +10026,33 @@ function wordDoc(D){
  const t=s=>esc(String(s==null?'':s)).replace(/\u0001\w+\u0002/g,'__________');
  const ps=s=>String(s||'').split('\n').filter(l=>l.trim()).map(l=>`<p style="margin:0 0 6pt;text-align:justify;${/^[a-z]\) /.test(l)?'margin-left:14pt;':''}">${t(l)}</p>`).join('');
  const al=(b,k)=>(b.dir||[]).includes(k)?'text-align:right;':'';
- const tb=b=>`<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:${b.fonte&&b.fonte<8.5?8.5:10}pt"><tr>${b.head.map((h,k)=>`<th style="background:#111114;color:#fff;border-bottom:2pt solid #D3121C;text-align:left;padding:4pt 6pt;${al(b,k)}">${t(h)}</th>`).join('')}</tr>
+ const tb=b=>`<table style="width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:${b.fonte&&b.fonte<8.5?8.5:10}pt"><tr>${b.head.map((h,k)=>`<th style="background:#111114;color:#fff;border-bottom:2pt solid #D3121C;text-align:left;padding:4pt 6pt;${al(b,k)}">${t(cabFormalDoc(h))}</th>`).join('')}</tr>
   ${b.body.map((r,i)=>`<tr>${r.map((x,k)=>`<td style="padding:4pt 6pt;border-bottom:1px solid #E3E3E8;${i%2?'background:#F5F5F7;':''}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}
   ${(b.foots||(b.foot?[b.foot]:[])).map((f,j)=>`<tr>${f.map((x,k)=>`<td style="padding:4pt 6pt;background:#E3E3E8;color:#141416;font-weight:bold;${j?'':'border-top:1.5pt solid #111114;'}${al(b,k)}">${t(x)}</td>`).join('')}</tr>`).join('')}</table>`;
- const quadro=q=>`<p style="margin:8pt 0 4pt;color:#111114;font-size:10pt;font-weight:bold;letter-spacing:1pt"><span style="color:#D3121C">■</span> ${t(q.rot)}</p><table style="width:100%;border-collapse:collapse;border:1px solid #E3E3E8;margin:0 0 10pt"><tr><td colspan="2" style="height:4pt"></td></tr>
+ const quadro=q=>`<p style="margin:8pt 0 4pt;color:#111114;font-size:10pt;font-weight:bold;letter-spacing:1pt"><span style="color:#D3121C">■</span> ${t(rotFormalDoc(q.rot))}</p><table style="width:100%;border-collapse:collapse;border:1px solid #E3E3E8;margin:0 0 10pt"><tr><td colspan="2" style="height:4pt"></td></tr>
   ${q.campos.map(([l,x])=>`<tr><td style="padding:2pt 10pt;width:32%;color:#5B5B63;font-size:9pt">${t(l)}</td><td style="padding:2pt 10pt;font-weight:bold">${t(x)}</td></tr>`).join('')}<tr><td colspan="2" style="height:4pt"></td></tr></table>`;
  const corpo=D.blocos.map(b=>b.tipo==='p'||b.tipo==='aviso'?ps(b.texto):b.tipo==='tabela'?tb(b)
   :b.tipo==='imagem'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(String(b.titulo||'Gráfico').toUpperCase())}</p><p style="margin:0 0 8pt;font-size:9pt;color:#5B5B63">O gráfico sai no PDF e na impressão.</p>`
+  :b.tipo==='indicadores'?((b.itens||[]).length?`<table style="width:100%;border-collapse:collapse;margin:4pt 0 10pt"><tr>${b.itens.slice(0,4).map(([l,v],i)=>`<td style="padding:6pt 8pt;border:1px solid #E3E3E8;${i?'background:#FAFAFB;':'background:#111114;border-bottom:2pt solid #D3121C;'}"><p style="margin:0;font-size:7pt;letter-spacing:.5pt;color:${i?'#5B5B63':'#CFCFD6'}">${t(String(l).toUpperCase())}</p><p style="margin:2pt 0 0;font-size:12pt;font-weight:bold;color:${i?'#141416':'#fff'}">${t(v)}</p></td>`).join('')}</tr></table>`:'')
   :b.tipo==='clausula'?`<p style="margin:10pt 0 4pt;color:#D3121C;font-weight:bold;font-size:10pt">${t(('Cláusula '+ordinalFem(b.n)+' — '+b.titulo).toUpperCase())}</p>${ps(b.texto)}`
   :b.tipo==='secao'?`<p style="margin:14pt 0 6pt;font-size:11pt;color:#111114;font-weight:bold;letter-spacing:.5pt;text-transform:uppercase"><span style="color:#D3121C">■</span> <span style="color:#5B5B63">${t(b.n)}</span> ${t(b.titulo)}</p>${b.campos&&b.campos.length?tb({head:['Informação','Detalhe'],body:b.campos.map(([l,x])=>[l,x||'—'])}):''}${(b.paras||[]).map(ps).join('')}${b.tabela?tb(b.tabela):''}${b.vazio?ps(b.vazio):''}${b.nota?`<p style="font-size:8pt;color:#5B5B63">${t(b.nota)}</p>`:''}`:'').join('');
+ const cb=carimboDoc(D),linhaW=linhaEmpDoc(D.marca,linhaCabDoc(D)),sobreW=sobreTituloDoc(D),meioW=['comprovante','formal'].includes(cb.classe)?'text-align:center;':'',instW=rodInstDoc();
  const ass=l=>`<table style="width:100%;margin-top:30pt"><tr>${l.map(a=>`<td style="width:50%;text-align:center;padding:0 12pt"><div style="border-top:1px solid #141416;padding-top:3pt;font-weight:bold">${t(a.nome||' ')}</div><div style="font-size:8pt;color:#5B5B63">${t(a.sub||'')}</div></td>`).join('')}</tr></table>`;
  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${t(D.tipo)}</title>
  <style>@page{size:${D.paisagem?'29.7cm 21cm':'21cm 29.7cm'};margin:${D.paisagem?'1.5cm 1.5cm':'2cm 1.9cm'}}body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#141416}</style></head><body>
  <table style="width:100%;border-collapse:collapse;margin:0 0 10pt;border-bottom:3pt solid #D3121C"><tr>
- <td style="background:#111114;color:#fff;padding:12pt 14pt"><p style="margin:0;font-weight:bold;font-size:11pt;letter-spacing:1pt;color:#fff">${t(D.marca)}</p>${linhaEmpDoc(D.marca,D.empresaLinha)?`<p style="margin:2pt 0 0;font-size:8pt;color:#CFCFD6">${t(linhaEmpDoc(D.marca,D.empresaLinha))}</p>`:''}</td>
+ <td style="background:#111114;color:#fff;padding:12pt 14pt"><p style="margin:0;font-weight:bold;font-size:11pt;letter-spacing:1pt;color:#fff">${t(D.marca)}</p>${linhaW?`<p style="margin:2pt 0 0;font-size:8pt;color:#CFCFD6">${t(linhaW)}</p>`:''}</td>
  <td style="background:#D3121C;color:#fff;text-align:right;padding:12pt 14pt;width:28%"><p style="margin:0;font-size:8pt;font-weight:bold;letter-spacing:1pt;color:#fff">${t(identDoc(D)[0])}</p><p style="margin:2pt 0 0;font-size:${String(identDoc(D)[1]).length>9?10:14}pt;font-weight:bold;color:#fff">${t(identDoc(D)[1])}</p></td></tr></table>
- <p style="margin:0;font-weight:bold;font-size:13pt;letter-spacing:.5pt;color:#111114;text-transform:uppercase">${t(D.tipo)}</p>${D.sub?`<p style="margin:2pt 0 0;font-size:8.5pt;color:#D3121C;font-weight:bold;letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}
- <p style="text-align:center;margin:6pt 0 14pt;font-size:9pt;color:#5B5B63">${D.meta.map(([l,x])=>t(l)+' '+t(x)).join(' &nbsp;·&nbsp; ')}</p>
- ${D.quadros.map(quadro).join('')}${corpo}${D.fecho?ps(D.fecho):''}
+ ${sobreW?`<p style="margin:0 0 2pt;${meioW}font-size:7.5pt;color:#D3121C;font-weight:bold;letter-spacing:1pt">${t(sobreW)}</p>`:''}
+ <p style="margin:0;${meioW}font-weight:bold;font-size:13pt;letter-spacing:.5pt;color:#111114;text-transform:uppercase">${t(D.tipo)}</p>${D.sub?`<p style="margin:2pt 0 0;${meioW}font-size:8.5pt;color:#5B5B63;letter-spacing:1pt">${t(String(D.sub).toUpperCase())}</p>`:''}
+ <table style="width:100%;border-collapse:collapse;margin:8pt 0 14pt;border:1px solid #E3E3E8;border-left:2pt solid #D3121C;background:#FAFAFB"><tr>${metaDoc(D).map(([l,x])=>`<td style="padding:5pt 8pt;vertical-align:top"><p style="margin:0;font-size:7pt;letter-spacing:.5pt;color:#5B5B63">${t(String(l).toUpperCase())}</p><p style="margin:1pt 0 0;font-size:9pt;font-weight:bold;color:#141416">${t(x)}</p></td>`).join('')}</tr></table>
+ ${D.quadros.filter(q=>q&&(q.campos||[]).length).map(quadro).join('')}${corpo}${D.fecho?ps(D.fecho):''}
  ${D.local?`<p style="text-align:center;margin-top:18pt">${t(D.local)}</p>`:''}
  ${D.assinaturas.length?(()=>{const o=[];for(let i=0;i<D.assinaturas.length;i+=2)o.push(ass(D.assinaturas.slice(i,i+2)));return o.join('')})():''}
  ${D.testemunhas?`<p style="margin:18pt 0 0;color:#D3121C;font-size:8pt;font-weight:bold;letter-spacing:1pt">TESTEMUNHAS</p>${ass(D.testemunhas.map((x,i)=>({nome:x.nome||'Testemunha '+(i+1),sub:x.cpf?'CPF '+x.cpf:'Nome e CPF'})))}`:''}
  ${D.observacoes?`<div style="background:#F5F5F7;border-left:4px solid #D3121C;padding:6pt 10pt;margin-top:14pt"><p style="margin:0 0 3pt;color:#D3121C;font-size:8pt;font-weight:bold">OBSERVAÇÕES</p>${ps(D.observacoes)}</div>`:''}
  ${D.notaFinal?`<p style="font-size:8pt;color:#5B5B63">${t(D.notaFinal)}</p>`:''}
- <p style="margin-top:20pt;font-size:7.5pt;color:#fff;background:#111114;border-top:2pt solid #D3121C;padding:4pt 8pt"><b>${t(MARCA_DOCS())}</b> · ${t(D.rodape||D.tipo)}</p></body></html>`;
+ <p style="margin-top:20pt;font-size:7.5pt;color:#fff;background:#111114;border-top:2pt solid #D3121C;padding:4pt 8pt"><b>${t(MARCA_DOCS())}</b>${cb.setor?' · '+t(cb.setor):''} · ${t(rodapeDoc(D))}${idDocs().rodEmissao?' · Emitido em '+t(fDataHora(cb.em)):''}</p>${instW?`<p style="margin:3pt 0 0;font-size:7pt;color:#5B5B63;text-align:center">${t(instW)}</p>`:''}</body></html>`;
 }
 async function baixarWordDoc(D){const ok=await salvarArquivo(nomeArqDoc(D)+'.doc',new Blob(['﻿',wordDoc(D)],{type:'application/msword'}));if(ok!==false)toast('Documento editável (Word) gerado.','ok');return ok}
 
@@ -10034,7 +10061,7 @@ function imprimirDoc(){
  /* imprime só a folha: uma cópia dela vai para um contêiner próprio que a folha de estilo de impressão mostra sozinho */
  const src=document.getElementById('fvdDoc');if(!src){toast('Abra o documento para imprimir.');return}
  let box=document.getElementById('printDoc');if(box)box.remove();
- box=document.createElement('div');box.id='printDoc';if(src.classList.contains('paisagem'))box.classList.add('paisagem');const cp=src.cloneNode(true);cp.removeAttribute('id');box.appendChild(cp);document.body.appendChild(box);
+ box=document.createElement('div');box.id='printDoc';box.classList.add('folha');if(src.classList.contains('paisagem'))box.classList.add('paisagem');const cp=src.cloneNode(true);cp.removeAttribute('id');box.appendChild(cp);document.body.appendChild(box);
  document.body.classList.add('imprime-doc');
  let abriu=false;const f=()=>{abriu=true};window.addEventListener('beforeprint',f);
  try{window.print()}catch(e){}
@@ -10682,10 +10709,11 @@ const RELS_DOC=[
  {id:'contratos',n:'Relatório de contratos',ic:'contrato',d:'Contratos ativos, encerrados e próximos do vencimento, por tipo de contratação: pessoa física, MEI, PJ e contrato de trabalho.',pode:()=>pode('central')},
  {id:'disciplinar',n:'Relatório de documentos disciplinares',ic:'aviso',d:'Total de advertências, advertência 1, advertência 2, suspensões, últimas ocorrências, funcionários envolvidos e datas.',pode:()=>pode('disciplinar')},
  {id:'individual',n:'Relatório individual do funcionário',ic:'pessoas',d:'Dados do funcionário, contrato, histórico de medidas, advertências, suspensões, documentos vinculados e observações.',pode:()=>pode('central')||pode('disciplinar')}];
-function baseRel(tipo,sub,parametros){const emp=CFG.empresa||{};
+const TIPOS_FORMAIS={'FÉRIAS VENCIDAS E A VENCER':'RELATÓRIO DE FÉRIAS VENCIDAS E A VENCER','FOLHA QUINZENAL':'FOLHA DE PAGAMENTO QUINZENAL','FECHAMENTO DA FOLHA':'FECHAMENTO DA FOLHA DE PAGAMENTO','EXTRATO DE CARRADAS':'EXTRATO DE CARRADAS DE BARRO','REGISTRO DE ENTRADA':'REGISTRO DE ENTRADA DE MATERIAIS'};
+function baseRel(tipo,sub,parametros){const emp=CFG.empresa||{};tipo=TIPOS_FORMAIS[tipo]||tipo;
  return {marca:MARCA_DOCS().toUpperCase(),empresaLinha:[emp.razao||emp.fantasia,emp.cnpj?'CNPJ '+emp.cnpj:'',emp.cidade].filter(Boolean).join(' · '),tipo,sub,numero:'',parteNome:'',
   meta:[['Emitido em',fData(hoje())],['Por',APP.nome||nomeUsuario(APP.uid)||'Usuário'],['Situação','Relatório']],quadros:[{rot:'PARÂMETROS',campos:parametros}],blocos:[],fecho:'',local:'',assinaturas:[],testemunhas:null,observacoes:'',vazios:[],
-  rodape:tipo.charAt(0)+tipo.slice(1).toLowerCase()+' · '+fData(hoje())}}
+  rodape:tipo.charAt(0)+tipo.slice(1).toLowerCase()}}
 function itensContratosRel(){
  const docs=DATA.docsEmitidos.filter(d=>d.serie==='CT'&&(d.tags||[]).some(t=>['pf','mei','pj','trabalho','aditivo','distrato'].includes(t)));
  const ids=new Set(docs.map(d=>d.id));const it=[];
@@ -11013,17 +11041,48 @@ function telaDocumento(el){
  $$('[data-passo]',el).forEach(b=>b.onclick=()=>{const p=b.dataset.passo;if(p==='imprimir')imprimirDoc();else if(p==='pdf')pdf();else if(p==='baixar')baixarWordDoc(D);else if(p==='abrir')location.hash=X.voltar});
 }
 
+/* ---------- nomenclatura empresarial dos documentos (só o texto que sai no documento; dados e telas não mudam) ---------- */
+const TITULOS_FORMAIS=[
+ [/^contas a pagar$/i,'Relatório de Contas a Pagar'],[/^contas a receber\b/i,'Relatório de Contas a Receber'],
+ [/^pagamentos do dia\b/i,'Relatório de Pagamentos do Dia'],[/^pagamentos por setor$/i,'Demonstrativo de Pagamentos por Setor'],
+ [/^caixa e bancos\b/i,'Demonstrativo de Movimentação de Caixa e Bancos'],[/^custo da lenha m[eê]s a m[eê]s$/i,'Demonstrativo Mensal do Custo da Lenha'],
+ [/^diagn[oó]stico das compras de lenha\b/i,'Relatório de Análise das Compras de Lenha'],[/^movimenta[cç][oõ]es de estoque\b/i,'Demonstrativo de Movimentações de Estoque'],
+ [/^estoque do almoxarifado$/i,'Relatório de Posição de Estoque do Almoxarifado'],[/^movimenta[cç][oõ]es do almoxarifado$/i,'Demonstrativo de Movimentações do Almoxarifado'],
+ [/^paletes com clientes$/i,'Relatório de Paletes em Poder de Clientes'],[/^carregamentos e entregas\b/i,'Relatório de Carregamentos e Entregas'],
+ [/^lan[cç]amentos da extra[cç][aã]o de barro$/i,'Relatório de Lançamentos da Extração de Barro'],[/^custo do barro extra[ií]do\b/i,'Demonstrativo de Custo do Barro Extraído'],
+ [/^consumo do estoque de barro\b/i,'Demonstrativo de Consumo do Estoque de Barro'],[/^motoristas a pagar\b/i,'Demonstrativo de Valores a Pagar a Motoristas'],
+ [/^trilha de auditoria\b/i,'Relatório da Trilha de Auditoria'],[/^auditoria\b/i,'Relatório de Auditoria'],[/^espelho de ponto\b/i,'Espelho de Ponto'],
+ [/^f[eé]rias$/i,'Relatório de Férias'],[/^horas extras$/i,'Relatório de Horas Extras'],[/^banco de horas$/i,'Demonstrativo de Banco de Horas'],
+ [/^vales e adiantamentos$/i,'Demonstrativo de Vales e Adiantamentos'],[/^admiss[oõ]es e desligamentos$/i,'Relatório de Admissões e Desligamentos'],
+ [/^despesas\b/i,null,'Relatório de '],[/^custo\b/i,null,'Demonstrativo de '],[/^resultado e margem\b/i,null,'Demonstrativo de '],[/^saídas bancárias\b/i,null,'Demonstrativo de '],
+ [/^contas a pagar por\b/i,null,'Relatório de '],[/^provis[aã]o\b/i,null,'Demonstrativo de '],[/^folha estimada\b/i,null,'Demonstrativo da ']];
+const DOC_JA_FORMAL=/^(relat[oó]rio|rela[cç][aã]o|demonstrativo|extrato|ficha|recibo|comprovante|espelho|confer[eê]ncia|fechamento|folha|registro|requisi[cç][aã]o|or[cç]amento|pedido|termo|contrato|declara[cç][aã]o|autoriza[cç][aã]o|aviso|advert[eê]ncia|resumo|controle|hist[oó]rico|di[aá]rio|invent[aá]rio|autodiagn[oó]stico|curva|comparativo|quadro|mapa|posi[cç][aã]o)\b/i;
+/* título formal de um relatório: mantém o complemento (período, setor) que vem depois de " · " */
+function tituloFormalDoc(t){
+ const partes=String(t||'Relatório').trim().split(' · ');let n=partes[0].replace(/^\d+\.\s*/,'').trim();
+ const r=TITULOS_FORMAIS.find(x=>x[0].test(n));
+ if(r)n=r[1]?n.replace(r[0],r[1]):r[2]+n.charAt(0).toLowerCase()+n.slice(1);
+ else if(n&&!DOC_JA_FORMAL.test(n))n='Relatório de '+n.charAt(0).toLowerCase()+n.slice(1);
+ return [n||'Relatório',...partes.slice(1)].join(' · ')}
+const CAB_FORMAL={'Saíram':'Saídas','Voltaram':'Devoluções','O que aconteceu':'Ocorrência','O que foi':'Descrição','O que foi encontrado':'Constatação','O que mudou':'Alteração','O que muda':'Alteração',
+ 'Como era':'Situação anterior','Como fica':'Situação nova','De quem é':'Titular','Com quem':'Em poder de','Quando':'Data e hora','Onde':'Local','Feito em':'Data de execução','Já pago':'Valor pago','Já guardado':'Valor provisionado',
+ 'Do mês, ainda sem pagar':'Pendente no mês','Conta de onde saiu o dinheiro':'Conta de origem do pagamento','Qual motivo':'Motivo','O que fazer':'Providência','Tirados':'Gozados','Por que e quando':'Motivo e data','Este pagamento':'Pagamento'};
+const ROT_FORMAL={'QUEM PAGA':'PAGADOR','PARÂMETROS':'PARÂMETROS DO RELATÓRIO'};const rotFormalDoc=r=>ROT_FORMAL[String(r)]||r;
+const cabFormalDoc=l=>CAB_FORMAL[String(l)]||l;
 /* ---------- lista exportada (cadastros, relatórios, espelho, conferência) ---------- */
 function docLista(titulo,cols,cab,corpo,base,opc){
+ titulo=tituloFormalDoc(titulo);cab=(cab||[]).map(cabFormalDoc);
  const dir=cols.map((c,i)=>['moeda','num','hm'].includes(c.t)?i:-1).filter(i=>i>=0);
  let body=corpo.map(r=>r.map(x=>x==null?'':String(x)));let foot=null;
  if(body.length>1&&/^total/i.test(body[body.length-1][0]||'')){foot=body.pop()}
- const D=baseRel(String(titulo||'Relatório').toUpperCase(),'',[['Registros',String(body.length)],['Emitido em',fDataHora(new Date().toISOString())]]);
+ const D=baseRel(String(titulo||'Relatório').toUpperCase(),'',[['Quantidade de registros',String(body.length)]]);D.quadros[0].rot='PARÂMETROS DA CONSULTA';
+ /* indicadores principais: quantidade de registros e os totais da própria linha de total (nenhum valor é recalculado) */
+ if(foot){const ind=dir.filter(i=>String(foot[i]||'').trim()).slice(0,3).map(i=>['Total · '+cab[i],foot[i]]);if(ind.length)D.blocos.push({tipo:'indicadores',itens:[['Registros no relatório',String(body.length)],...ind]})}
  /* filtros usados na tela (opcional): saem nos parâmetros, no topo do documento */
  const fl=String((opc&&opc.filtros)||'').trim();if(fl)D.quadros[0].campos.push(['Filtros',fl,1]);
- D.arquivo=base;D.paisagem=cols.length>6;D.rodape=String(titulo||'Relatório');
- D.blocos.push({tipo:'tabela',head:cab,body:body.length?body:[[ 'Nenhum registro.',...cab.slice(1).map(()=>'')]],foot,dir,fonte:fonteTab(cols.length)});
- D.notaFinal='Emitido por '+(APP.nome||'usuário do sistema')+' em '+fDataHora(new Date().toISOString())+', com os filtros que estavam na tela.';
+ D.arquivo=base;D.paisagem=cols.length>6;D.rodape=String(titulo||'Relatório').split(' · ')[0];
+ D.blocos.push({tipo:'tabela',head:cab,body:body.length?body:[[ 'Nenhum registro localizado para os parâmetros informados.',...cab.slice(1).map(()=>'')]],foot,dir,fonte:fonteTab(cols.length)});
+ D.notaFinal='Documento emitido por '+(APP.nome||'usuário do sistema')+' em '+fDataHora(new Date().toISOString())+', conforme os filtros aplicados na consulta.';
  /* relatório de um setor com encarregado principal (Financeiro › Cadastros › Responsáveis): o nome dele sai como responsável */
  const rs=REL_RESP;
  if(rs&&rs.nome){const txt=rs.nome+(rs.cargo?' · '+rs.cargo:'');
@@ -11339,7 +11398,7 @@ document.addEventListener('keydown',e=>{
 /* ================= aparência: imagens da marca e modo compacto =================
    As imagens ficam nas Configurações (marcaImg.menu e marcaImg.doc), já reduzidas
    no próprio navegador para não pesar no banco. O modo compacto é de cada usuário. */
-const imgMarca=k=>CFG&&CFG.marcaImg&&CFG.marcaImg[k]&&CFG.marcaImg[k].src?CFG.marcaImg[k]:null;
+const imgMarca=k=>{const C=cfgDocs();return C.marcaImg&&C.marcaImg[k]&&C.marcaImg[k].src?C.marcaImg[k]:null};
 function logoDocHtml(){const l=imgMarca('doc');return l?`<img class="fvd-logo" src="${esc(l.src)}" alt="">`:''}
 /* desenha a imagem dos documentos no alto do PDF; devolve a nova linha de base do nome */
 function logoDocPdf(doc,W,y){
@@ -11365,18 +11424,62 @@ function prepararImagem(file,maxW,maxH){
 }
 /* o histórico de alterações não guarda a imagem inteira, só a indicação */
 function semImagens(c){if(!c||!c.marcaImg)return c;const o={...c,marcaImg:{}};Object.keys(c.marcaImg).forEach(k=>{const v=c.marcaImg[k];o.marcaImg[k]=v&&v.src?'imagem '+(v.nome||'')+' ('+v.w+'×'+v.h+')':v});return o}
-const IMG_SLOTS=[['menu','Logo da empresa','Troca a logo em todo o sistema: topo, menu e cabeçalho dos relatórios. Funciona melhor quadrada ou redonda, com fundo transparente (PNG).',320,320],
+const IMG_SLOTS=[['menu','Logo da empresa','Logo oficial, usada em todo o sistema e em todos os documentos: topo, menu, relatórios, fichas, recibos e comprovantes. Funciona melhor quadrada ou redonda, com fundo transparente (PNG).',320,320],
  ['doc','Logo só nos documentos (opcional)','Use apenas se quiser uma imagem diferente em contratos, recibos, holerites e relatórios. Sem ela, os documentos usam a Logo da empresa.',600,200]];
-function htmlAparencia(R){
+/* logos da marca: usadas pelo sistema inteiro e por todos os documentos (fonte única) */
+function htmlLogosMarca(R){
  const m=R.marcaImg||{};
  return `<div class="ap-grade">${IMG_SLOTS.map(([k,l,aj])=>{const v=m[k];return `<div class="ap-slot">
   <div class="ap-prev ${k}">${v&&v.src?`<img src="${esc(v.src)}" alt="${esc(l)}">`:k==='menu'&&window.LOGO_CC?`<img src="${esc(LOGO_CC)}" alt="Logo da Cerâmica Concretiza">`:'<span>Nenhuma imagem</span>'}</div>
-  <div class="ap-tx"><b>${esc(l)}</b><span class="ajuda">${esc(aj)}</span>${k==='menu'&&!(v&&v.src)&&window.LOGO_CC?'<span class="ajuda">Sem imagem enviada, aparece a logo atual da Cerâmica Concretiza.</span>':''}
+  <div class="ap-tx"><b>${esc(l)}</b><span class="ajuda">${esc(aj)}</span>${k==='menu'&&!(v&&v.src)&&window.LOGO_CC?'<span class="ajuda"> Sem imagem enviada, aparece a logo atual da Cerâmica Concretiza.</span>':''}
    <div class="inline" style="margin-top:8px"><label class="btn min" style="cursor:pointer">${ic('mais')}${v&&v.src?'Trocar imagem':'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp" data-img="${k}" hidden></label>
    ${v&&v.src?`<button type="button" class="btn min perigo" data-rmimg="${k}">Remover</button>`:''}</div></div></div>`}).join('')}</div>
-  <p class="ajuda" style="margin:10px 0 0">PNG, JPG ou WEBP. A imagem é reduzida automaticamente e só passa a valer depois de <b>Salvar</b>.</p>
-  <label class="inline ap-comp"><input type="checkbox" id="cfCompacto" ${compactoLigado()?'checked':''}> <b>Modo compacto</b></label>
-  <span class="ajuda">Linhas mais baixas e menos espaço em volta, para ver mais pessoas de uma vez. Vale só para você e entra na hora, sem salvar.</span>`;
+  <p class="ajuda" style="margin:10px 0 0">PNG, JPG ou WEBP. A imagem é reduzida automaticamente e só passa a valer depois de <b>Salvar</b>. Trocou aqui, trocou em todos os documentos de todos os setores.</p>`;
+}
+function htmlAparencia(R){
+ return `<label class="inline ap-comp" style="margin-top:0"><input type="checkbox" id="cfCompacto" ${compactoLigado()?'checked':''}> <b>Modo compacto</b></label>
+  <span class="ajuda">Linhas mais baixas e menos espaço em volta, para ver mais pessoas de uma vez. Vale só para você e entra na hora, sem salvar.</span>
+  <p class="ajuda" style="margin:10px 0 0">A logo e o padrão dos documentos ficam em <b>Identidade visual e documentos</b>, logo abaixo.</p>`;
+}
+/* prévia do cabeçalho e do rodapé com o rascunho da tela (nada é gravado) */
+function previaIdDocs(R){
+ ID_PREVIA=R;
+ try{const D=baseRel('TÍTULO DO DOCUMENTO','Subtítulo, período ou referência',[]);D.quadros=[];D.setor=nomeSetorDoc('dp');
+  D.blocos=[{tipo:'aviso',texto:'Prévia do padrão. Aqui entra o conteúdo de cada documento (dados, tabelas, totais e assinaturas), sem nenhuma alteração.'}];D.rodape='Nome do documento';
+  return htmlDoc(D).replace(' id="fvdDoc"','')}catch(e){console.warn('prévia da identidade',e);return '<p class="ajuda" style="padding:12px">Não foi possível montar a prévia.</p>'}
+ finally{ID_PREVIA=null}
+}
+function htmlIdDocs(R){
+ const v=k=>{const x=getCaminho(R,'idDocs.'+k);return x===undefined||x===null?ID_DOCS_PADRAO[k]:x};
+ const chk=(k,l)=>`<label class="inline"><input type="checkbox" data-c="idDocs.${k}" ${v(k)?'checked':''}> ${esc(l)}</label>`;
+ const sel=(k,l,ops)=>`<div class="cmp"><label>${esc(l)}</label><select data-c="idDocs.${k}">${ops.map(([a,b])=>`<option value="${a}" ${String(v(k))===a?'selected':''}>${esc(b)}</option>`).join('')}</select></div>`;
+ const txt=(c,l,ph,aj)=>`<div class="cmp"><label>${esc(l)}</label><input data-c="${c}" type="text" value="${esc(getCaminho(R,c)??'')}" placeholder="${esc(ph||'')}">${aj?`<span class="ajuda">${esc(aj)}</span>`:''}</div>`;
+ const e=R.empresa||{};const falta=[!e.cnpj&&'CNPJ',!e.endereco&&'endereço',!e.cidade&&'cidade',!e.telefone&&'telefone'].filter(Boolean);
+ return `${htmlLogosMarca(R)}
+  <h3 class="idd-sub">Logo no cabeçalho</h3>
+  <div class="campos">${sel('logoTam','Tamanho da logo',[['P','Pequena'],['M','Média (padrão)'],['G','Grande']])}${sel('logoPos','Posição da logo',[['esq','À esquerda do nome da empresa'],['dir','À direita do nome da empresa']])}</div>
+  <h3 class="idd-sub">Identificação empresarial</h3>
+  <div class="campos">${txt('marcaDocumentos','Nome da empresa no topo dos documentos','','Em branco: a razão social cadastrada em Empresa.')}${txt('idDocs.email','E-mail institucional (opcional)','','Sai no rodapé.')}${txt('idDocs.site','Site ou rede social (opcional)','','Sai no rodapé.')}${txt('idDocs.rodTexto','Texto institucional do rodapé (opcional)','','Uma linha curta, no fim do rodapé.')}</div>
+  <p class="ajuda" style="margin:6px 0 0">Razão social, CNPJ, endereço, cidade e telefone vêm do cadastro em <b>Empresa</b>, no alto desta tela. O sistema só mostra o que estiver cadastrado${falta.length?': hoje falta '+esc(falta.join(', '))+'.':'.'}</p>
+  <h3 class="idd-sub">Cabeçalho</h3>
+  <div class="idd-grade">${chk('cabCnpj','Mostrar o CNPJ')}${chk('cabEndereco','Mostrar o endereço')}${chk('cabCidade','Mostrar a cidade')}${chk('cabTelefone','Mostrar o telefone')}${chk('mostrarSetor','Identificar o setor responsável')}${chk('mostrarHora','Emissão com data e horário')}${chk('mostrarEmitente','Identificar o responsável pela emissão')}</div>
+  <h3 class="idd-sub">Rodapé</h3>
+  <div class="idd-grade">${chk('rodInstitucional','Mostrar endereço, telefone e contatos')}${chk('rodEmissao','Mostrar a data e a hora de emissão')}</div>
+  <p class="ajuda" style="margin:6px 0 0">O rodapé sempre traz a empresa, o setor, o nome ou número do documento e, nos PDFs e na impressão, “Página X de Y”.</p>
+  <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Nome de cada setor nos documentos (opcional)</summary>
+   <p class="ajuda" style="margin:8px 0">Só preencha se quiser um nome diferente do padrão em um setor. A identidade visual continua a mesma em todos.</p>
+   <div class="campos">${Object.keys(SETOR_DOC_PADRAO).map(k=>txt('idDocs.setores.'+k,SETOR_DOC_PADRAO[k],SETOR_DOC_PADRAO[k])).join('')}</div></details>
+  <h3 class="idd-sub">Prévia</h3>
+  <div class="idd-prev" id="iddPrev">${previaIdDocs(R)}</div>
+  <p class="ajuda" style="margin:6px 0 0">A prévia acompanha o que você muda aqui. O padrão só passa a valer para todos depois de <b>Salvar configurações</b>.</p>`;
+}
+/* a prévia é refeita a cada mudança na seção (e na seção Empresa, de onde vêm os dados institucionais) */
+function ligarIdDocs(el,R){
+ const refaz=()=>{const b=$('#iddPrev',el);if(b)b.innerHTML=previaIdDocs(R)};let t=0;
+ const ouvir=e=>{const c=e.target&&e.target.dataset&&e.target.dataset.c;if(!c||!/^(idDocs\.|marcaDocumentos$|empresa\.)/.test(c))return;clearTimeout(t);t=setTimeout(refaz,e.type==='change'?0:180)};
+ $$('fieldset.sec',el).forEach(f=>{f.addEventListener('input',ouvir);f.addEventListener('change',ouvir)});
+ /* chegou pelo menu (#/config/identidade): rola até a seção uma vez e volta o endereço ao normal, sem recarregar a tela */
+ if(lerRota().id==='identidade'){const s=$('#secIdDocs',el);try{history.replaceState(null,'','#/config')}catch(e){}if(s)setTimeout(()=>{try{s.scrollIntoView({block:'start'})}catch(e){}},80)}
 }
 function ligarAparencia(el,R,sujo){
  $$('[data-img]',el).forEach(i=>i.onchange=async()=>{const f=i.files[0];i.value='';if(!f)return;const s=IMG_SLOTS.find(x=>x[0]===i.dataset.img);
@@ -27662,6 +27765,67 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .fvd .fvd-rod b{color:var(--cz);font-weight:500}
 .dc-prev .fvd.fvd{padding:0}
 #printDoc .fvd.fvd{padding:0;border-radius:0}
+/* ===== Identidade documental (V111): cabeçalho configurável, faixa de identificação, indicadores, rodapé institucional e impressão A4 ===== */
+.fvd .fvd-band.lg-P .fvd-logo{height:42px;width:42px}
+.fvd .fvd-band.lg-G .fvd-logo{height:66px;width:66px}
+.fvd .fvd-band .fvd-band-tx{min-width:0;flex:1 1 auto}
+.fvd .fvd-band.logo-dir .fvd-logo{margin-right:30px}
+.fvd .fvd-setor{font-size:9.6px;font-weight:700;letter-spacing:.14em;color:var(--t);margin:0 0 5px}
+.fvd .fvd-band-tit.k-comprovante,.fvd .fvd-band-tit.k-formal{text-align:center;border-bottom:1px solid var(--fi);padding-bottom:13px}
+.fvd .fvd-band-tit.k-comprovante .fvd-tit,.fvd .fvd-band-tit.k-formal .fvd-tit,.fvd .fvd-band-tit.k-comprovante .fvd-sub,.fvd .fvd-band-tit.k-formal .fvd-sub{text-align:center}
+.fvd .fvd-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;justify-content:stretch;padding:0;background:var(--fi);border:1px solid var(--fi);border-left:3px solid var(--t);border-radius:0 6px 6px 0;overflow:hidden}
+.fvd.paisagem .fvd-meta{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.fvd .fvd-meta span{display:flex;flex-direction:column;gap:2px;padding:8px 14px;background:var(--bg2);min-width:0}
+.fvd .fvd-meta span:last-child{grid-column-end:-1}
+.fvd .fvd-meta i{font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--cz);margin:0}
+.fvd .fvd-meta b{font-size:12px;font-weight:600;color:var(--tx);overflow-wrap:anywhere}
+.fvd .fvd-ind{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.fvd .fvd-ind.n1{grid-template-columns:minmax(0,1fr)}.fvd .fvd-ind.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.fvd .fvd-ind.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fvd .fvd-ind>div{border:1px solid var(--fi);border-radius:6px;background:var(--bg2);padding:10px 13px;min-width:0}
+.fvd .fvd-ind>div:first-child{background:var(--pt);border-color:var(--pt);border-bottom:3px solid var(--t)}
+.fvd .fvd-ind span{display:block;font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--cz)}
+.fvd .fvd-ind b{display:block;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-size:20px;font-weight:600;letter-spacing:.02em;line-height:1.15;margin-top:3px;color:var(--tx);overflow-wrap:anywhere}
+.fvd .fvd-ind>div:first-child span{color:#C8C8CE}.fvd .fvd-ind>div:first-child b{color:#fff}
+.fvd .fvd-rod{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 18px;align-items:baseline}
+.fvd .fvd-rod:before{grid-column:1/-1;margin-bottom:5px}
+.fvd .fvd-rod-l b{color:var(--tx);font-weight:700}
+.fvd .fvd-rod-l span:before{content:"·";margin:0 7px}
+.fvd .fvd-rod-r{text-align:right;font-size:10.8px}
+.fvd .fvd-rod-inst{grid-column:1/-1;font-size:10.2px;color:var(--cz)}
+@media (max-width:720px){
+ .fvd .fvd-meta{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+ .fvd .fvd-ind,.fvd .fvd-ind.n3{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fvd .fvd-rod{grid-template-columns:minmax(0,1fr)}.fvd .fvd-rod-r{text-align:left}
+ .fvd .fvd-band.lg-G .fvd-logo{height:52px;width:52px}}
+@media print{
+ /* quebra de página inteligente: o cabeçalho da tabela repete, linha não parte ao meio, total e assinaturas não ficam sozinhos */
+ #printDoc .fvd-tb thead{display:table-header-group}
+ #printDoc .fvd-tb tr{break-inside:avoid;page-break-inside:avoid}
+ #printDoc .fvd-tb tr.tot{break-before:avoid;page-break-before:avoid}
+ #printDoc .fvd-quadro,#printDoc .fvd-ind,#printDoc .fvd-meta,#printDoc .fvd-ass,#printDoc .fvd-test,#printDoc .fvd-obsbox,#printDoc .fvd-band,#printDoc .fvd-band-tit{break-inside:avoid;page-break-inside:avoid}
+ #printDoc .fvd-h,#printDoc .fvd-rot,#printDoc .fvd-cl h4,#printDoc .fvd-local,#printDoc .fvd-fecho,#printDoc .fvd-band,#printDoc .fvd-band-tit{break-after:avoid;page-break-after:avoid}
+ #printDoc .fvd-ass,#printDoc .fvd-local{break-before:avoid;page-break-before:avoid}
+ /* no papel o rodapé é um bloco só, para não partir entre duas páginas */
+ #printDoc .fvd-rod{display:table;width:100%;box-sizing:border-box;margin-top:14px;padding:0;border-top:1px solid var(--fi);break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid}
+ #printDoc .fvd-rod:before{display:none}
+ #printDoc .fvd-rod-l,#printDoc .fvd-rod-r{display:table-cell;padding:6px 0 0;vertical-align:baseline}
+ #printDoc .fvd-rod-inst{display:table-caption;caption-side:bottom;padding:2px 6mm 0}
+ #printDoc .fvd-nota{break-before:avoid;page-break-before:avoid}
+ body.imprime-doc,html:has(body.imprime-doc){background:#fff!important}
+ /* só a folha de documento usa a página A4 com numeração; ticket térmico e etiquetas têm a página própria */
+ #printDoc.folha{page:jbdoc}
+ @page jbdoc{size:A4;margin:14mm 13mm 16mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font-family:Arial,Helvetica,sans-serif;font-size:7.5pt;color:#5B5B63}}
+ @page jbpaisagem{size:A4 landscape;margin:12mm 12mm 15mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font-family:Arial,Helvetica,sans-serif;font-size:7.5pt;color:#5B5B63}}
+}
+/* prévia nas Configurações › Identidade visual e documentos */
+.idd-prev{border:1px solid var(--linha);border-radius:10px;overflow:hidden;background:#fff;margin:12px 0 4px;max-width:760px}
+.idd-prev .fvd.fvd{box-shadow:none;border:0;margin:0;max-width:none}
+.idd-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px 22px;margin-top:6px}
+.idd-grade label.inline{font-size:13.5px}
+.idd-sub{margin:16px 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--suave)}
+/* cabeçalho e rodapé corporativos das telas que se imprimem direto (ex.: Resumo do dia): só aparecem no papel */
+.so-papel{display:none}
+@media print{.so-papel{display:block}.so-papel .fvd.fvd{box-shadow:none;border:0;margin:0 0 10px;max-width:none;padding:0}}
 @media print{#printDoc .fvd.fvd>*:not(.fvd-band):not(.fvd-rod){margin-left:6mm;margin-right:6mm}#printDoc .fvd .fvd-band-marca{padding-left:6mm}#printDoc .fvd .fvd-band-num{padding-right:6mm}#printDoc .fvd .fvd-rod{padding-left:6mm;padding-right:6mm}}
 @media (max-width:720px){
  .fvd.fvd{padding:0}
@@ -27681,30 +27845,94 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
    ficha de férias). Só aparência: nenhum dado, cálculo ou campo é mudado. */
 function logoDocSrc(){const l=imgMarca('doc')||imgMarca('menu');return l&&l.src?l.src:(window.LOGO_CC||'')}
 /* a linha da empresa sem repetir a razão social, que já está em destaque na faixa */
+/* texto do rodapé: nome do documento, sem repetir a data de emissão que o rodapé central já traz */
+const rodapeDoc=D=>{const t=String((D&&(D.rodape||D.tipo))||'');return idDocs().rodEmissao?t.replace(/\s*·\s*gerad[oa] em .*$/i,'').replace(new RegExp('\\s*·\\s*'+fData(hoje()).replace(/\//g,'\\/')+'$'),''):t};
+const linhaCabDoc=D=>D&&D.linhaPropria?String(D.empresaLinha||''):(linhaInstDoc()||String((D&&D.empresaLinha)||''));
+/* indicadores principais (relatórios e demonstrativos): cartões com rótulo e valor */
+const htmlIndDoc=b=>`<div class="fvd-ind n${Math.min(4,(b.itens||[]).length)}">${(b.itens||[]).map(([l,v])=>`<div><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>`;
 function linhaEmpDoc(marca,linha){const m=semAcento(marca||'');return String(linha||'').split(' · ').filter(p=>p&&semAcento(p)!==m).join(' · ')}
+/* ===== Identidade documental (V111) =====
+   Um só lugar decide logo, nome, dados institucionais, cabeçalho e rodapé de todos os documentos
+   (Configurações › Identidade visual e documentos · CFG.idDocs). Só aparência e identificação:
+   nenhum dado, cálculo ou campo dos documentos muda. */
+const ID_DOCS_PADRAO={logoTam:'M',logoPos:'esq',cabCnpj:true,cabEndereco:false,cabCidade:true,cabTelefone:false,mostrarSetor:true,mostrarHora:true,mostrarEmitente:true,rodInstitucional:true,rodEmissao:true,rodTexto:'',email:'',site:''};
+const SETOR_DOC_PADRAO={dp:'Departamento Pessoal',vendas:'Setor de Vendas',lenha:'Setor da Lenha',combustivel:'Setor de Combustível',producao:'Setor de Produção',financeiro:'Setor Financeiro',fiscal:'Setor Fiscal',barro:'Setor do Barro',almox:'Almoxarifado e Cozinha',control:'Controladoria e Análise',inventario:'Centro de Inventário',paletes:'Controle de Paletes',geral:'Administração'};
+const LOGO_TAM_DOC={P:{px:42,pt:36},M:{px:54,pt:46},G:{px:66,pt:56}};
+function idDocs(){const c=(cfgDocs().idDocs)||{};return {...ID_DOCS_PADRAO,...c,setores:{...(c.setores||{})}}}
+function nomeSetorDoc(id){const p=String(idDocs().setores[id]||'').trim();if(p)return p;if(SETOR_DOC_PADRAO[id])return SETOR_DOC_PADRAO[id];
+ const s=typeof SETORES!=='undefined'&&SETORES.find(x=>x.id===id);return s?String(s.nome||''):''}
+/* de que setor é a tela de onde o documento saiu */
+function setorDaTela(){let mod='';try{mod=lerRota().mod;if(mod==='documento'&&typeof DOC_VER!=='undefined'&&DOC_VER&&DOC_VER.origem)mod=DOC_VER.origem}catch(e){}
+ if(['config','usuarios','instalar','setores'].includes(mod))return 'geral';
+ const m=/^setor-(.+)$/.exec(mod||'');if(m&&nomeSetorDoc(m[1]))return m[1];
+ if(typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(mod)){const u=typeof setorUlt==='function'?setorUlt():'';return u&&nomeSetorDoc(u)?u:'geral'}
+ return 'dp'}
+/* setor responsável pelo documento: o que o documento informa (D.setor), o que o subtítulo já diz ou o setor da tela */
+function setorDoDoc(D){if(D&&D.setor)return String(D.setor);
+ const s=semAcento(String((D&&D.sub)||''));
+ const k=/^setor de vendas\b/.test(s)?'vendas':/^almoxarifado\b/.test(s)?'almox':/^ficha de epi\b/.test(s)?'dp':'';
+ return nomeSetorDoc(k||setorDaTela())}
+/* família do documento: cada uma tem a estrutura própria da sua finalidade */
+const CLASSES_DOC={relatorio:'Relatório',ficha:'Ficha cadastral',comprovante:'Comprovante',demonstrativo:'Demonstrativo',formal:'Documento formal'};
+function classeDoc(D){if(D&&D.classe&&CLASSES_DOC[D.classe])return D.classe;const t=semAcento(String((D&&D.tipo)||''));
+ if(/^(relatorio|relacao|demonstrativo)\b/.test(t))return /^demonstrativo/.test(t)?'demonstrativo':'relatorio';
+ if(/\b(recibo|comprovante|requisicao|registro de entrada|orcamento|pedido)\b/.test(t))return 'comprovante';
+ if(/\b(ficha|cadastro)\b/.test(t))return 'ficha';
+ if(/\b(folha|extrato|demonstrativo|fechamento|holerite|acerto|dre)\b/.test(t))return 'demonstrativo';
+ if(/\b(relatorio|relacao|conferencia|auditoria|diagnostico|espelho|posicao)\b/.test(t))return 'relatorio';
+ if(/\b(contrato|termo|aditivo|distrato|declaracao|autorizacao|advertencia|suspensao|aviso|acordo|solicitacao|notificacao|comunicado)\b/.test(t))return 'formal';
+ return (D&&D.clausulas)||((D&&D.blocos)||[]).some(b=>b.tipo==='clausula')?'formal':'relatorio'}
+/* carimbo de emissão: setor, data e hora e quem emitiu, fixados na primeira vez que o documento é desenhado */
+const CARIMBOS_DOC=new WeakMap();
+function carimboDoc(D){if(!D||typeof D!=='object')return {setor:'',em:new Date().toISOString(),por:'',classe:'relatorio'};
+ let c=CARIMBOS_DOC.get(D);if(!c){let por='';try{por=String(APP.nome||(typeof nomeUsuario==='function'?nomeUsuario(APP.uid):'')||'').trim()}catch(e){}
+  c={setor:setorDoDoc(D),em:new Date().toISOString(),por,classe:classeDoc(D)};CARIMBOS_DOC.set(D,c)}
+ return c}
+const emissaoTxt=c=>{const id=idDocs();return id.mostrarHora?fDataHora(c.em).replace(' ',' às '):fData(String(c.em).slice(0,10))};
+/* linha de cima do título: setor e família do documento */
+function sobreTituloDoc(D){const c=carimboDoc(D),id=idDocs();return [id.mostrarSetor?c.setor:'',CLASSES_DOC[c.classe]||''].filter(Boolean).join('  ·  ').toUpperCase()}
+/* faixa de identificação: setor, dados próprios do documento, emissão e responsável pela emissão */
+function metaDoc(D){const c=carimboDoc(D),id=idDocs();
+ const fora=/^(emitido em|por|emissao|emitido por|setor|setor responsavel|responsavel pela emissao)$/;
+ const m=((D&&D.meta)||[]).filter(x=>x&&!fora.test(semAcento(String(x[0]||'')).trim())&&!(semAcento(String(x[0]||''))==='situacao'&&semAcento(String(x[1]||''))==='relatorio'));
+ const o=[];if(id.mostrarSetor&&c.setor)o.push(['Setor responsável',c.setor]);o.push(...m);o.push(['Emissão',emissaoTxt(c)]);
+ if(id.mostrarEmitente&&c.por)o.push(['Responsável pela emissão',c.por]);return o}
+/* linha institucional do cabeçalho: só o que está cadastrado em Configurações › Empresa */
+function linhaInstDoc(){const e=cfgDocs().empresa||{},id=idDocs();
+ return [e.razao||e.fantasia||'',id.cabCnpj&&e.cnpj?'CNPJ '+e.cnpj:'',id.cabEndereco?e.endereco||'':'',id.cabCidade?e.cidade||'':'',id.cabTelefone&&e.telefone?'Tel. '+e.telefone:''].map(x=>String(x||'').trim()).filter(Boolean).join(' · ')}
+/* linha institucional do rodapé */
+function rodInstDoc(){const e=cfgDocs().empresa||{},id=idDocs();if(!id.rodInstitucional)return String(id.rodTexto||'').trim();
+ return [[e.endereco,e.cidade].filter(Boolean).join(', '),e.telefone?'Tel. '+e.telefone:'',id.email,id.site,id.rodTexto].map(x=>String(x||'').trim()).filter(Boolean).join('  ·  ')}
 /* o que vai no painel vermelho da faixa: número do documento, matrícula ou, na falta, a data de emissão */
 function identDoc(D){const limpo=v=>{const t=String(v==null?'':v).trim();return t&&t!=='—'&&!/\u0001/.test(t)?t:''};
  if(limpo(D.numero))return ['DOCUMENTO Nº',limpo(D.numero)];
  const c=(D.quadros||[]).flatMap(q=>q.campos||[]).find(x=>/^matr[íi]cula$/i.test(String(x[0]||'')));if(c&&limpo(c[1]))return ['MATRÍCULA',limpo(c[1])];
- const e=(D.meta||[]).find(x=>/^emitido/i.test(String(x[0]||'')));return ['EMITIDO EM',e&&limpo(e[1])||fData(hoje())]}
-function cabDocHtml(marca,linha,tituloHtml,ident){const lg=logoDocSrc();const id=ident||['EMITIDO EM',fData(hoje())];
- return `<header class="fvd-cab fvd-band"><div class="fvd-band-marca">${lg?`<img class="fvd-logo" src="${esc(lg)}" alt="">`:''}<div><div class="fvd-emp">${esc(marca)}</div>${linha?`<div class="fvd-id">${esc(linha)}</div>`:''}</div></div><div class="fvd-band-num"><span>${esc(id[0])}</span><b class="${String(id[1]).length>9?'lg':''}">${esc(id[1])}</b></div></header><div class="fvd-band-tit">${tituloHtml}</div>`}
-function rodDocHtml(marca,linha,dir){return `<footer class="fvd-rod"><b>${esc(marca)}</b><span>${esc([linha,dir].filter(Boolean).join(' · '))}</span></footer>`}
+ return ['EMITIDO EM',fData(String(carimboDoc(D).em).slice(0,10))]}
+/* cabeçalho corporativo (tela e impressão). sobre: linha de setor e família, em cima do título; classe: família do documento */
+function cabDocHtml(marca,linha,tituloHtml,ident,sobre,classe){const lg=logoDocSrc(),cf=idDocs();const id=ident||['EMITIDO EM',fData(hoje())];
+ const img=lg?`<img class="fvd-logo" src="${esc(lg)}" alt="">`:'';const dir=cf.logoPos==='dir';
+ return `<header class="fvd-cab fvd-band lg-${esc(LOGO_TAM_DOC[cf.logoTam]?cf.logoTam:'M')}${dir?' logo-dir':''}"><div class="fvd-band-marca">${dir?'':img}<div class="fvd-band-tx"><div class="fvd-emp">${esc(marca)}</div>${linha?`<div class="fvd-id">${esc(linha)}</div>`:''}</div>${dir?img:''}</div><div class="fvd-band-num"><span>${esc(id[0])}</span><b class="${String(id[1]).length>9?'lg':''}">${esc(id[1])}</b></div></header><div class="fvd-band-tit${classe?' k-'+esc(classe):''}">${sobre?`<div class="fvd-setor">${esc(sobre)}</div>`:''}${tituloHtml}</div>`}
+/* rodapé institucional. c (opcional): carimbo do documento {setor, em} */
+function rodDocHtml(marca,linha,dir,c){const cf=idDocs();const inst=rodInstDoc();c=c||{};
+ const d=[dir,cf.rodEmissao&&c.em?'Emitido em '+fDataHora(c.em):''].filter(Boolean).join(' · ');
+ return `<footer class="fvd-rod"><div class="fvd-rod-l"><b>${esc(marca)}</b>${c.setor?`<span>${esc(c.setor)}</span>`:''}</div><div class="fvd-rod-r">${esc(d)}</div>${inst||linha?`<div class="fvd-rod-inst">${esc(inst||linha)}</div>`:''}</footer>`}
 const PDF_CC={TC:[211,18,28],TX:[20,20,22],CZ:[91,91,99],FI:[227,227,232],BG:[245,245,247],BG2:[250,250,251],PT:[17,17,20]};
 /* faixa do topo do PDF; devolve a linha onde o conteúdo começa */
 function cabPdfCC(doc,W,o){
  const P=PDF_CC,c=(k,fn)=>doc[fn](P[k][0],P[k][1],P[k][2]);const M=o.M||52;
- const src=logoDocSrc(),tLogo=o.paisagem?42:46,wP=Math.round(W*(o.paisagem?.26:.31)),incl=36,xP=W-wP;
- const x=M+(src&&doc.addImage?tLogo+11:0),larg=xP-x-12,id=o.ident||['EMITIDO EM',fData(hoje())];
+ const cf=idDocs(),tam=(LOGO_TAM_DOC[cf.logoTam]||LOGO_TAM_DOC.M).pt;
+ const src=logoDocSrc(),tLogo=o.paisagem?Math.min(tam,46):tam,wP=Math.round(W*(o.paisagem?.26:.31)),incl=36,xP=W-wP;
+ const temLogo=!!(src&&doc.addImage),logoDir=temLogo&&cf.logoPos==='dir';
+ const x=M+(temLogo&&!logoDir?tLogo+11:0),larg=xP-x-12-(logoDir?tLogo+22:0),id=o.ident||['EMITIDO EM',fData(hoje())];
  /* nada é cortado: a faixa cresce para caber todas as linhas */
  doc.setFont('helvetica','bold');doc.setFontSize(10.8);const ms=doc.splitTextToSize(String(o.marca||''),larg);
  doc.setFont('helvetica','normal');doc.setFontSize(7.2);const lsE=o.linha?doc.splitTextToSize(String(o.linha),larg):[];
- const altE=ms.length*13+(lsE.length?4+lsE.length*9.5:0),h=Math.max(o.paisagem?58:62,altE+20);
+ const altE=ms.length*13+(lsE.length?4+lsE.length*9.5:0),h=Math.max(o.paisagem?58:62,altE+20,tLogo+16);
  if(doc.setFillColor&&doc.rect){
   c('PT','setFillColor');doc.rect(0,0,W,h,'F');
   c('TC','setFillColor');doc.rect(xP+incl-1,0,wP-incl+1,h,'F');if(doc.triangle)doc.triangle(xP+incl,0,xP+incl,h,xP,h,'F');
   doc.rect(0,h,W,3,'F')}
- if(src&&doc.addImage){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',M,(h-tLogo)/2,tLogo,tLogo)}catch(e){console.warn('logo no PDF',e)}}
+ if(temLogo){try{doc.addImage(src,/^data:image\/png/.test(src)?'PNG':'JPEG',logoDir?xP-tLogo-18:M,(h-tLogo)/2,tLogo,tLogo)}catch(e){console.warn('logo no PDF',e)}}
  let yy=(h-altE)/2+10;doc.setFont('helvetica','bold');doc.setFontSize(10.8);doc.setTextColor(255,255,255);
  ms.forEach(l=>{doc.text(l,x,yy,{charSpace:.7});yy+=13});
  if(lsE.length){doc.setFont('helvetica','normal');doc.setFontSize(7.2);doc.setTextColor(189,189,198);yy+=1;lsE.forEach(l=>{doc.text(l,x,yy);yy+=9.5})}
@@ -27713,10 +27941,14 @@ function cabPdfCC(doc,W,o){
  doc.setFont('helvetica','bold');doc.setFontSize(fv);const vs=doc.splitTextToSize(val,lV);const aV=vs.length*(fv+2),yR=(h-(aV+13))/2+8;
  doc.setFont('helvetica','normal');doc.setFontSize(6.8);doc.setTextColor(255,255,255);doc.text(String(id[0]||''),xr,yR,{align:'right',charSpace:.8});doc.setFont('helvetica','bold');
  doc.setFontSize(fv);vs.forEach((l,i)=>doc.text(l,xr,yR+10+(fv*.8)+i*(fv+2),{align:'right'}));
- /* título embaixo da faixa, grande e à esquerda */
+ /* embaixo da faixa: setor e família do documento, título grande e subtítulo; ao centro nos comprovantes e documentos formais */
+ const meio=!!o.centro,pos=(t,yy,cs)=>{if(!meio){doc.text(t,M,yy,{charSpace:cs});return}const w=doc.getTextWidth?doc.getTextWidth(t)+cs*Math.max(0,t.length-1):0;doc.text(t,(W-w)/2,yy,{charSpace:cs})};
+ let yt=h+3+(o.sobre?20:25);
+ if(o.sobre){doc.setFont('helvetica','bold');doc.setFontSize(6.8);c('TC','setTextColor');pos(String(o.sobre),yt,.9);yt+=16}
  doc.setFont('helvetica','bold');doc.setFontSize(o.paisagem?13:13.5);const ts=doc.splitTextToSize(String(o.titulo||'').toUpperCase(),W-2*M);
- c('PT','setTextColor');let yt=h+3+25;ts.forEach((l,i)=>{doc.text(l,M,yt,{charSpace:.5});if(i<ts.length-1)yt+=16});
- if(o.sub){doc.setFont('helvetica','normal');doc.setFontSize(7.4);const ss=doc.splitTextToSize(String(o.sub),W-2*M);c('CZ','setTextColor');yt+=12;ss.forEach((l,i)=>{doc.text(l,M,yt,{charSpace:.7});if(i<ss.length-1)yt+=10})}
+ c('PT','setTextColor');ts.forEach((l,i)=>{pos(l,yt,.5);if(i<ts.length-1)yt+=16});
+ if(o.sub){doc.setFont('helvetica','normal');doc.setFontSize(7.4);const ss=doc.splitTextToSize(String(o.sub),W-2*M);c('CZ','setTextColor');yt+=12;ss.forEach((l,i)=>{pos(l,yt,.7);if(i<ss.length-1)yt+=10})}
+ if(meio&&doc.setDrawColor&&doc.line){c('FI','setDrawColor');doc.setLineWidth(.7);doc.line(M,yt+9,W-M,yt+9);yt+=6}
  return yt+16;
 }
 /* título de seção com o quadrado vermelho */
@@ -27729,8 +27961,16 @@ function tracoPdfCC(doc,x1,x2,y){if(!doc.line||!doc.setDrawColor)return;doc.setD
 /* faixa do rodapé, em todas as páginas */
 function rodPdfCC(doc,W,H,M,esq,dir,k,tot){
  const P=PDF_CC;if(doc.setDrawColor&&doc.line){doc.setDrawColor(...P.FI);doc.setLineWidth(.7);doc.line(M,H-32,W-M,H-32)}
- doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...P.CZ);doc.text(String(esq||''),M,H-20);
- doc.text(String(dir||'')+'   ·   Página '+k+' de '+tot,W-M,H-20,{align:'right'});
+ const L=W-2*M,corta=(t,w)=>{t=String(t||'');if(!t||!doc.splitTextToSize)return t;const l=doc.splitTextToSize(t,Math.max(40,w));return l.length>1?String(l[0]).replace(/[\s·,]+$/,'')+'…':t};
+ const larg=t=>doc.getTextWidth?doc.getTextWidth(String(t||'')):String(t||'').length*4;
+ /* linha 1: empresa e setor · emissão e página; linha 2: dados institucionais · nome ou número do documento */
+ const pt=String(dir||'').split(/\s+·\s+(?=Emitido em )/),em=pt[1]||'',nomeDoc=pt[0]||'';
+ const pag=(em?em+'   ·   ':'')+'Página '+k+' de '+tot,inst=(()=>{try{return rodInstDoc()}catch(e){return ''}})();
+ doc.setFont('helvetica','bold');doc.setFontSize(7.6);doc.setTextColor(...P.TX);doc.text(pag,W-M,H-21,{align:'right'});
+ doc.text(corta(esq,L-larg(pag)-16),M,H-21);
+ doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...P.CZ);
+ const d=corta(nomeDoc,inst?L*.5:L);doc.text(d,W-M,H-11,{align:'right'});
+ if(inst)doc.text(corta(inst,L-larg(d)-16),M,H-11);
 }
 /* filete vermelho embaixo do cabeçalho preto das tabelas */
 function filetePdfCC(doc){return c=>{if(c.section==='head'&&doc.setFillColor&&doc.rect){doc.setFillColor(...PDF_CC.TC);doc.rect(c.cell.x,c.cell.y+c.cell.height-2,c.cell.width,2,'F')}}}
@@ -32229,8 +32469,9 @@ function telaConfig(el){
  const sec=(t,corpo,d='')=>`<fieldset class="sec"><legend>${esc(t)}</legend>${d?`<p style="margin:0 0 10px;color:var(--suave);font-size:13px">${d}</p>`:''}${corpo}</fieldset>`;
  el.innerHTML=`<div class="cab"><div><h1>Configurações</h1><p>Empresa, estrutura, regras de jornada, alertas, orçamento, usuários e backup.</p></div><div class="acoes"><button class="btn" id="cDesc" ${RASC_SUJO?'':'disabled'}>Descartar alterações</button><button class="btn pri" id="cSalvar" ${RASC_SUJO?'':'disabled'}>Salvar configurações</button></div></div>
  ${!APP.canEdit&&APP.modo==='nuvem'?'<div class="aviso at">Seu nível de compartilhamento não permite salvar configurações. Peça a permissão “Pode editar”.</div>':''}
- ${sec('Empresa',`<div class="campos">${inp('empresa.razao','Razão social')}${inp('empresa.fantasia','Nome fantasia')}${inp('empresa.cnpj','CNPJ')}${inp('empresa.telefone','Telefone')}${inp('empresa.endereco','Endereço')}${inp('empresa.cidade','Cidade e estado')}${inp('empresa.responsavel','Responsável que assina documentos')}${inp('marcaDocumentos','Nome no topo dos documentos','text','Sai no alto de contratos, comprovantes, advertências e relatórios. Em branco: a razão social da empresa.')}</div>`)}
- ${sec('Aparência',htmlAparencia(R),'Imagens da marca e a densidade das telas.')}
+ ${sec('Empresa',`<div class="campos">${inp('empresa.razao','Razão social')}${inp('empresa.fantasia','Nome fantasia')}${inp('empresa.cnpj','CNPJ')}${inp('empresa.telefone','Telefone')}${inp('empresa.endereco','Endereço')}${inp('empresa.cidade','Cidade e estado')}${inp('empresa.responsavel','Responsável que assina documentos')}</div>`)}
+ ${sec('Aparência',htmlAparencia(R),'Densidade das telas.')}
+ ${sec('Identidade visual e documentos',htmlIdDocs(R),'Um só lugar para a logo, a identificação da empresa, o cabeçalho e o rodapé de <b>todos</b> os documentos, de todos os setores: relatórios, fichas, recibos, comprovantes, demonstrativos, contratos e documentos do DP.').replace('<fieldset class="sec">','<fieldset class="sec" id="secIdDocs">')}
  ${sec('Estrutura da empresa',chips('departamentos','Departamentos','Novo departamento')+chips('setores','Setores','Novo setor')+chips('cargos','Cargos','Novo cargo'))}
  ${sec('Tipos adicionais',chips('tiposExtra','Tipos de contratação além dos padrões','Ex.: Contrato intermitente')+chips('ocorrenciasExtra','Tipos de ocorrência do diário além dos padrões','Ex.: Treinamento')+chips('unidadesProducao','Unidades de produção (pagamento por produção)','Ex.: Milheiro, forno, carrada'),'Os tipos padrão (CLT, experiência, prazo determinado, aprendiz, estagiário, temporário, PJ e autônomo) já existem.')}
  ${sec('Categorias de despesa',`<div class="tabwrap"><table class="tbl"><thead><tr><th>Categoria</th><th>Natureza</th><th></th></tr></thead><tbody>${(R.categorias||[]).map((c,i)=>`<tr><td><input data-cat="${i}" data-cf="n" value="${esc(c.n)}" ${PROTEGIDAS.includes(c.n)?'readonly title="Usada pelas integrações"':''} style="padding:5px 8px;border:1px solid var(--linha);border-radius:4px;background:var(--branco);width:100%"></td><td><select data-cat="${i}" data-cf="nat" style="padding:5px 8px;border:1px solid var(--linha);border-radius:4px;background:var(--branco)"><option value="custo" ${c.nat==='custo'?'selected':''}>Custo (soma no total)</option><option value="retencao" ${c.nat!=='custo'?'selected':''}>Retenção (informativo)</option></select></td><td>${PROTEGIDAS.includes(c.n)?'':`<button class="btn min" data-rmcat="${i}">Remover</button>`}</td></tr>`).join('')}</tbody></table></div><button class="btn min" id="addCat" style="margin-top:8px">Adicionar categoria</button>`,'Retenções (como INSS retido e IRRF) ficam registradas, mas não somam no custo, para evitar dupla contagem com o salário bruto.')}
@@ -32311,6 +32552,7 @@ function telaConfig(el){
  $('#bRestore').onchange=e=>{const f=e.target.files[0];if(f)restaurarBackup(f);e.target.value=''};
  $('#bMesclar').onchange=e=>{const f=e.target.files[0];if(f)mesclarBackup(f);e.target.value=''};
  ligarAparencia(el,R,sujo);
+ try{ligarIdDocs(el,R)}catch(e){console.warn('identidade dos documentos',e)}
  renderUsuarios();
 }
 async function renderUsuarios(){
@@ -32821,7 +33063,7 @@ window.V76={corrigir,podeCorrigir,correcoes};
 .rd-aviso{padding:8px 16px;font-size:12px;color:var(--at);background:var(--at-bg)}
 .rd-rod{color:var(--fraco);font-size:12px;margin:16px 0 0}
 @media (max-width:700px){.rd-grade{grid-template-columns:1fr}.rd-kpis{grid-template-columns:1fr 1fr}.rd-k b{font-size:17px}.rd-acoes{margin-left:0;width:100%}.rd-acoes .btn{flex:1}}
-@media print{.rd-nav,.rd-acoes,.spot-cab .btn,.rd-sec>header a{display:none!important}.rd-sec details{display:block}.rd-sec details>summary{display:none}.rd-grade{display:block}.rd-sec{break-inside:avoid;margin-bottom:10px;box-shadow:none}}
+@media print{.rd-nav,.rd-acoes,.spot-cab .btn,.rd-sec>header a,.spot:has(.so-papel) .spot-cab,.spot:has(.so-papel) .sec-cab{display:none!important}.rd-sec details{display:block}.rd-sec details>summary{display:none}.rd-grade{display:block}.rd-sec{break-inside:avoid;margin-bottom:10px;box-shadow:none}}
 </style>
 <script id="resumo-dia-v77">
 "use strict";
@@ -33058,7 +33300,10 @@ function telaResumoDia(el){
   <div class="rd-nav"><button class="btn" data-rd-d="-1" aria-label="Dia anterior">${ic('esquerda')}</button><input type="date" id="rdDia" value="${esc(d)}" max="${esc(hoje())}" aria-label="Dia do resumo"><button class="btn" data-rd-d="1" aria-label="Próximo dia" ${d>=hoje()?'disabled':''}>${ic('direita')}</button>
    ${d!==hoje()?`<button class="btn" data-rd-d="0">Hoje</button>`:`<button class="btn" data-rd-d="-1">Ontem</button>`}<span class="rd-dia">${esc(diaLongo(d))}${d===hoje()?' (hoje)':''}</span>
    <span class="rd-acoes"><a class="btn pri" id="rdWa" href="https://wa.me/?text=${encodeURIComponent(textoResumo(d,SS))}" target="_blank" rel="noopener">${ic('enviar')}Enviar no WhatsApp</a><button class="btn" id="rdCop">${ic('doc')}Copiar texto</button><button class="btn" id="rdImp">${ic('baixar')}Imprimir / PDF</button></span></div>
+  ${(()=>{try{const m=MARCA_DOCS();return `<div class="so-papel"><article class="fvd fvd-doc k-relatorio">${cabDocHtml(m.toUpperCase(),linhaEmpDoc(m,linhaInstDoc()),`<h2 class="fvd-tit">RESUMO DAS MOVIMENTAÇÕES DO DIA</h2><div class="fvd-sub">${esc(String(diaLongo(d)).toUpperCase())}</div>`,['REFERÊNCIA',fData(d)],[idDocs().mostrarSetor?nomeSetorDoc('geral'):'',CLASSES_DOC.relatorio].filter(Boolean).join('  ·  ').toUpperCase(),'relatorio')}
+   <div class="fvd-meta">${[['Data de referência',fData(d)],['Emissão',emissaoTxt({em:new Date().toISOString()})],...(idDocs().mostrarEmitente&&APP.nome?[['Responsável pela emissão',APP.nome]]:[])].map(([l,x])=>`<span><i>${esc(l)}</i><b>${esc(x)}</b></span>`).join('')}</div></article></div>`}catch(e){return ''}})()}
   ${corpo}
+  ${(()=>{try{return `<div class="so-papel"><article class="fvd fvd-doc">${rodDocHtml(MARCA_DOCS().toUpperCase(),'','Resumo das movimentações do dia · '+fData(d),{setor:nomeSetorDoc('geral'),em:new Date().toISOString()})}</article></div>`}catch(e){return ''}})()}
   <p class="rd-rod">Os números vêm dos lançamentos de cada setor. O que ainda não foi lançado não aparece. Pagamento conta no dia em que foi informado como pago; venda, no dia da venda.</p>
  </main></div>`;
  $('#rdDia',el).onchange=e=>{const v=e.target.value;if(okD(v))irPara(v>hoje()?hoje():v)};
@@ -36741,9 +36986,10 @@ async function fichaResp(c,id){
 const COR=()=>PDF_CC;
 const arqNome=t=>String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w-]+/g,'_').replace(/_+/g,'_').slice(0,90);
 function novoPdf(pais){const J=window.jspdf&&window.jspdf.jsPDF;if(!J||!J.API.autoTable){toast('A biblioteca de PDF não carregou. Tente de novo em alguns segundos.','erro');return null}const doc=new J({unit:'pt',format:'a4',orientation:pais?'landscape':'portrait'});return {doc,W:pais?842:595,H:pais?595:842,M:pais?34:48}}
-function faixaPdf(p,e,tit,sub){const {doc,W,M}=p,c=COR(),h=56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,3,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text(String(nomeEmp(e)).toUpperCase().slice(0,70),M,25);doc.setFont('helvetica','normal');doc.setFontSize(7.6);doc.setTextColor(189,189,198);doc.text([e.razao_social,e.cnpj?'CNPJ '+fCnpj(e.cnpj):'',[e.cidade,e.uf].filter(Boolean).join('/')].filter(Boolean).join(' · ').slice(0,110),M,39);doc.setFont('helvetica','bold');doc.setFontSize(13.5);doc.setTextColor(...c.PT);const ts=doc.splitTextToSize(tit.toUpperCase(),W-2*M);doc.text(ts,M,h+26);let y=h+26+(ts.length-1)*16;if(sub){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...c.CZ);doc.text(doc.splitTextToSize(sub,W-2*M),M,y+13);y+=13}return y+16}
-function rodapes(p,tit,capa){const {doc,W,H,M}=p;const tot=doc.internal.getNumberOfPages(),ini=capa?2:1;for(let k=ini;k<=tot;k++){doc.setPage(k);rodPdfCC(doc,W,H,M,'Centro de Inventário · JB ERP',tit,k-ini+1,tot-ini+1)}}
-function capaPdf(p,e,r){const {doc,W,H,M}=p,c=COR(),h=H*.56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,6,'F');doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(189,189,198);doc.text('CENTRO DE INVENTÁRIO',M,M+22,{charSpace:1.6});doc.setFont('helvetica','bold');doc.setFontSize(p.W>700?32:28);doc.setTextColor(255,255,255);const ts=doc.splitTextToSize(r.titulo,W-2*M);doc.text(ts,M,h-46-(ts.length-1)*32);doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(220,220,226);doc.text(String(r.todas?'Todas as empresas':nomeEmp(e)).slice(0,80),M,h-20);
+function faixaPdf(p,e,tit,sub){const {doc,W,M}=p;const em=fDataHora(new Date().toISOString());
+ return cabPdfCC(doc,W,{marca:String(nomeEmp(e)).toUpperCase().slice(0,70),linha:[e.razao_social,e.cnpj?'CNPJ '+fCnpj(e.cnpj):'',[e.cidade,e.uf].filter(Boolean).join('/')].filter(Boolean).join(' · ').slice(0,110),titulo:String(tit),sub:[sub,'Emissão '+em+(INV.nome?' · por '+INV.nome:'')].filter(Boolean).join(' · ').toUpperCase(),paisagem:W>700,M,ident:['EMITIDO EM',fData(hoje())],sobre:[idDocs().mostrarSetor?nomeSetorDoc('inventario'):'',/^termo/i.test(tit)?CLASSES_DOC.formal:/^ficha/i.test(tit)?CLASSES_DOC.ficha:CLASSES_DOC.relatorio].filter(Boolean).join('  ·  ').toUpperCase(),centro:/^termo/i.test(tit)})}
+function rodapes(p,tit,capa){const {doc,W,H,M}=p;const tot=doc.internal.getNumberOfPages(),ini=capa?2:1;for(let k=ini;k<=tot;k++){doc.setPage(k);rodPdfCC(doc,W,H,M,[MARCA_DOCS(),nomeSetorDoc('inventario')].filter(Boolean).join('  ·  '),tit+' · Emitido em '+fDataHora(new Date().toISOString()),k-ini+1,tot-ini+1)}}
+function capaPdf(p,e,r){const {doc,W,H,M}=p,c=COR(),h=H*.56;doc.setFillColor(...c.PT);doc.rect(0,0,W,h,'F');doc.setFillColor(...c.TC);doc.rect(0,h,W,6,'F');let xC=M;try{const lg=logoDocSrc();if(lg&&doc.addImage){const tl=(LOGO_TAM_DOC[idDocs().logoTam]||LOGO_TAM_DOC.M).pt;doc.addImage(lg,/^data:image\/png/.test(lg)?'PNG':'JPEG',M,M,tl,tl);xC=M+tl+12}}catch(er){}doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(189,189,198);doc.text(String(nomeSetorDoc('inventario')||'Centro de Inventário').toUpperCase(),xC,M+22,{charSpace:1.6});doc.setFont('helvetica','bold');doc.setFontSize(p.W>700?32:28);doc.setTextColor(255,255,255);const ts=doc.splitTextToSize(r.titulo,W-2*M);doc.text(ts,M,h-46-(ts.length-1)*32);doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(220,220,226);doc.text(String(r.todas?'Todas as empresas':nomeEmp(e)).slice(0,80),M,h-20);
  const L=[['Empresa',r.todas?'Todas as empresas':e.razao_social],['CNPJ',r.todas?'—':(e.cnpj?fCnpj(e.cnpj):'—')],['Período de referência',r.periodo||'Posição atual'],['Filtros',r.filtros||'Nenhum'],['Data de emissão',fDataHora(new Date().toISOString())],['Responsável pela emissão',INV.nome||'—']];let y=h+44;L.forEach(([a,b])=>{doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...c.CZ);doc.text(a,M,y);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...c.TX);const v=doc.splitTextToSize(String(b),W-2*M-160);doc.text(v,M+160,y);y+=Math.max(26,v.length*14+10)})}
 function tabelaPdf(p,y,cols,linhas,o){const {doc,M,H}=p,c=COR();o=o||{};doc.autoTable({theme:'plain',startY:y,margin:{left:M,right:M,top:40,bottom:48},head:[cols.map(x=>x.l)],body:linhas,foot:o.foot?[o.foot]:undefined,showFoot:'lastPage',styles:{font:'helvetica',fontSize:o.fs||7.8,cellPadding:3.4,textColor:c.TX,lineColor:c.FI,lineWidth:.4,overflow:'linebreak'},headStyles:{fillColor:c.PT,textColor:[255,255,255],fontStyle:'bold'},footStyles:{fillColor:c.FI,textColor:c.TX,fontStyle:'bold'},alternateRowStyles:{fillColor:c.BG},columnStyles:Object.fromEntries(cols.map((x,i)=>[i,{halign:x.t==='moeda'||x.t==='num'?'right':'left'}])),didDrawCell:filetePdfCC(doc)});return doc.lastAutoTable.finalY+14}
 const fmt=(c,v)=>v==null||v===''?'':c.t==='moeda'?fMoeda(v):c.t==='num'?qt(v):c.t==='data'?fData(v):String(v);

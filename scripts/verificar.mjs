@@ -544,6 +544,36 @@ teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela
   assert.ok(app.includes("JB_NUVEM_API.rpc('jb_inv'"), 'a nuvem chama jb_inv');
   assert.ok(!/localStorage\.setItem\([^)]*inv_(bens|dados)/.test(app), 'dados do inventário não ficam no navegador');
 });
+/* ---------- identidade documental (V111): um só lugar para logo, cabeçalho e rodapé de todos os documentos ---------- */
+teste('documentos', 'identidade central: configuração única, logo sem imagem fixa nos geradores e padrão em todos os formatos', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const f of ['function idDocs()', 'function carimboDoc(', 'function metaDoc(', 'function linhaInstDoc()', 'function rodInstDoc()', 'function htmlIdDocs(', 'function previaIdDocs(', 'function tituloFormalDoc(', 'function logoDocSrc()']) assert.ok(app.includes(f), 'falta ' + f);
+  assert.ok(app.includes("sec('Identidade visual e documentos'"), 'seção nas Configurações');
+  // a logo dos documentos vem só da configuração central (CFG.marcaImg) ou da logo oficial embutida; nenhum gerador traz imagem própria
+  const fora = app.replace(/var LOGO_CC='data:image[^']+'/, '').split('\n').filter((l) => /addImage\(\s*'data:image|<img[^>]+class="fvd-logo"[^>]+src="data:image/.test(l));
+  assert.equal(fora.length, 0, 'imagem fixa em gerador de documento');
+  // tela, PDF e Word usam as mesmas peças centrais
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); return app.slice(i, app.indexOf(fim, i + ini.length)); };
+  const html = trecho('function htmlDoc(D,opc){', '\n/* ---------- PDF, no mesmo desenho'), pdf = trecho('function pdfDoc(D){', '\nconst nomeArqDoc='), word = trecho('function wordDoc(D){', '\nasync function baixarWordDoc');
+  for (const [n, t] of [['tela', html], ['PDF', pdf], ['Word', word]]) for (const peca of ['carimboDoc(D)', 'metaDoc(D)', 'sobreTituloDoc(D)', 'rodapeDoc(D)', 'linhaCabDoc(D)']) assert.ok(t.includes(peca), n + ' sem ' + peca);
+  // documentos com desenho próprio também passam pelo cabeçalho e rodapé centrais
+  assert.ok(/function faixaPdf\(p,e,tit,sub\)\{[^\n]*\n return cabPdfCC\(/.test(app), 'inventário usa o cabeçalho central');
+  assert.ok(trecho('function fichaFeriasPDF(fid){', '\n}\n').includes('cabPdfCC(') && trecho('function fichaFeriasPDF(fid){', '\n}\n').includes('rodPdfCC('), 'ficha de férias usa as peças centrais');
+  // impressão: página A4 numerada só para a folha de documento; ticket térmico e etiquetas continuam com a página própria
+  assert.ok(app.includes('#printDoc.folha{page:jbdoc}') && !/#printDoc\{page:jbdoc\}/.test(app), 'página A4 só para a folha');
+  assert.ok(app.includes('counter(page) " de " counter(pages)'), 'numeração de páginas na impressão');
+});
+teste('documentos', 'nomenclatura: títulos formais sem mudar os dados', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('const TITULOS_FORMAIS=['), j = app.indexOf('const CAB_FORMAL=', i);
+  assert.ok(i > 0 && j > i);
+  const { tituloFormalDoc } = new Function(app.slice(i, j) + ';return {tituloFormalDoc};')();
+  assert.equal(tituloFormalDoc('Contas a pagar'), 'Relatório de Contas a Pagar');
+  assert.equal(tituloFormalDoc('Custo da lenha mês a mês'), 'Demonstrativo Mensal do Custo da Lenha');
+  assert.equal(tituloFormalDoc('1. Vendas por período · 01/11/2026 a 30/11/2026'), 'Relatório de vendas por período · 01/11/2026 a 30/11/2026');
+  assert.equal(tituloFormalDoc('Relatório de contratos'), 'Relatório de contratos', 'o que já é formal não muda');
+  assert.equal(tituloFormalDoc('Espelho de ponto (gerencial) · Fulano · 11/2026'), 'Espelho de Ponto (gerencial) · Fulano · 11/2026');
+});
 /* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
 if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
   const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
