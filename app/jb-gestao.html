@@ -31524,7 +31524,11 @@ function efeitoCB(r){
  return `Desconta de <b>${esc(nomeFornecedor(f))}</b>: <b>${esc(fMoeda(v))}</b> <span class="ajuda">(${esc(fQtd(+r.quantidade))} ${esc((PROD(r.produtoId)||{}).unidade||'L')} × ${esc(fMoeda(+r.combLenhaPreco))})</span>`+textoEfeito(nomeFornecedor(f),v,f.id)}
 {const iL=MC.fields.findIndex(f=>f.k==='localId');MC.fields.splice(iL<0?MC.fields.length:iL,0,
  {k:'combLenhaForn',l:'Fornecedor de lenha',t:'sel',req:1,sh:r=>ehCBL(r)&&!r.criadoEm,s:'Consumo',
-  op:()=>fornsDe('lenha').map(f=>{const ap=verFin()?aPagarAgora(f.id):0;return[f.id,nomeFornecedor(f)+(ap>0.004?' · a pagar '+fMoeda(ap):'')]}),
+  /* V118 (13/11/2026, pedido do Jeferson): só o nome do fornecedor, sem o valor a pagar; nome repetido aparece uma vez só
+     (fica o cadastro com mais compras de lenha; se o escolhido já estiver salvo no lançamento, ele continua na lista) */
+  op:r=>{const nComp=id=>(DATA.compras||[]).reduce((n,c)=>n+(ehCompraL(c)&&c.fornecedorId===id?1:0),0);const m=new Map();
+   fornsDe('lenha').forEach(f=>{const k=semAcento(nomeFornecedor(f)).replace(/\s+/g,' ').trim();const o=m.get(k);if(!o||(r&&r.combLenhaForn===f.id)||(!(r&&r.combLenhaForn===o.id)&&nComp(f.id)>nComp(o.id)))m.set(k,f)});
+   return [...m.values()].map(f=>[f.id,nomeFornecedor(f)])},
   aj:'Fornecedores do Setor da Lenha. O valor deste abastecimento é descontado sozinho do que a cerâmica deve a ele.'});}
 insAntesMC('_saldo',[
  {k:'combLenhaPreco',l:r=>{const p=PROD(r.produtoId);return 'Preço para o fornecedor (por '+((p&&p.unidade)||'L')+')'},t:'moeda',req:1,sh:r=>ehCBL(r)&&!r.criadoEm,s:'Consumo',
