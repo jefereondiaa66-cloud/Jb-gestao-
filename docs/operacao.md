@@ -200,3 +200,11 @@ update jbcore.whatsapp_config set ativo = true;
 ```
 
 Se as regras da tela do Resumo do dia (bloco V77 de `app/jb-gestao.html`) mudarem, mude também `nucleo.js`.
+
+## 10. Combustível e Lenha (V112, 13/11/2026)
+
+Menu de funções agrupado com pesquisa, central de lançamentos, saída e saldo negativo autorizado, programações,
+lançamento por foto (pelo motor do Lançamento Inteligente por Foto, com conferência), consumo de lenha ligado à
+fornada, descontos autorizados e acerto de lenha com abatimento nas compras. Coleção nova `clCtrl` (migração
+`20261113123600_cl_01_colecao_clctrl.sql`). Detalhes, permissões, testes e pendências:
+[`combustivel-lenha-2026-11-13.md`](combustivel-lenha-2026-11-13.md). Teste: `node scripts/testar-combustivel-lenha.mjs`.
