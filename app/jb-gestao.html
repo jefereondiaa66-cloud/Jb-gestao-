@@ -32211,7 +32211,9 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
 /* ===== V57 · janelas de lançamento, abas de trabalho, bandeja e sons =====
    Só aparência e organização da área de trabalho: nenhum cálculo ou regra muda aqui. */
 :root{--abas-h:0px}
-.top,.sv-topo{top:var(--abas-h)}
+.top,.sv-topo{top:var(--abas-h)!important}
+/* com uma janela de lançamento aberta, os avisos sobem para não cobrir o Salvar */
+@media (min-width:721px){body:has(#camada .veu.jan) .toasts{bottom:auto;top:calc(var(--abas-h) + 12px)}}
 .toast.at{background:var(--at-bg,#FEF3C7);color:var(--tinta,#221C18);border:1px solid var(--at,#D97706)}
 /* barra de trabalho: telas abertas (abas) + janelas minimizadas + preferências */
 .jb-barra{position:sticky;top:0;z-index:52;display:flex;align-items:stretch;gap:6px;min-height:38px;padding:0 8px 0 6px;background:var(--papel2,var(--papel));border-bottom:1px solid var(--linha)}
@@ -32297,7 +32299,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
 
 if(!IC.menos)IC.menos='<path d="M5 12h14"/>';
 if(!IC.expandir)IC.expandir='<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>';
-const JAN={min:[],restaurar:null,alvo:null};
+const JAN={min:[],restaurar:null,alvo:null,ativa:null};   /* ativa: a janela de lançamento na tela (não depende de GAV, que outras gavetas trocam antes de abrir) */
 const jLer=(k,pad)=>{try{const x=localStorage.getItem(k);return x?JSON.parse(x):pad}catch(e){return pad}};
 const jGravar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
 const chaveRasc=()=>'jb_rasc_v1:'+(APP.uid||'anon');
@@ -32326,7 +32328,7 @@ function janRascunhoPedido(mod,id){
 /* ---------- janelas ---------- */
 function janLigar(v,g,o){
  const M=MODS[o.mod]||{};
- g.v=v;g.titulo=o.titulo;g.st=o.st;g.ant=o.ant;g.ro=!!o.ro;g.chave=chaveJan(g);g.aba=abaChave(lerRota());
+ JAN.ativa=g;g.v=v;g.titulo=o.titulo;g.st=o.st;g.ant=o.ant;g.ro=!!o.ro;g.chave=chaveJan(g);g.aba=abaChave(lerRota());
  v.classList.add('jan');
  const gav=v.querySelector('.gaveta'),cab=v.querySelector('.gav-cab'),h2=cab&&cab.querySelector('h2');
  if(gav){gav.setAttribute('aria-label',o.titulo);if(jLer('jb_jan_max',false))gav.classList.add('max')}
@@ -32361,12 +32363,12 @@ function janLigar(v,g,o){
  atu();
 }
 /* tira a janela da tela sem perder nada (o DOM fica guardado: campos, seleções, arquivos escolhidos) */
-function janMinimizar(o){
- o=o||{};const g=GAV;if(!g||!g.jan||!g.v)return false;
+function janMinimizar(o,alvo){
+ o=o||{};const g=alvo||GAV;if(!g||!g.jan||!g.v)return false;
  janSalvarRascunho(g);
  const a=document.activeElement;if(a&&g.v.contains(a)){g.foco=a;a.blur()}
  g.v.remove();document.removeEventListener('keydown',escFecha);
- JAN.min=JAN.min.filter(x=>x!==g);JAN.min.push(g);GAV=null;
+ JAN.min=JAN.min.filter(x=>x!==g);JAN.min.push(g);if(GAV===g)GAV=null;if(JAN.ativa===g)JAN.ativa=null;
  if(o.aviso)toast('“'+g.titulo+'” foi minimizado com tudo o que você digitou. Para continuar, toque nele em “Janelas minimizadas”, no topo.');
  tocar('janela');
  if(o.rota){const r=lerRota();if(r.id&&r.mod===g.mod)location.hash='#/'+g.mod}
@@ -32376,7 +32378,7 @@ function janMinimizar(o){
 function janRestaurar(g){
  if(GAV&&GAV!==g){if(GAV.jan&&GAV.sujo)janMinimizar({aviso:false});else fecharGaveta()}
  JAN.min=JAN.min.filter(x=>x!==g);
- const cam=$('#camada');cam.innerHTML='';cam.appendChild(g.v);GAV=g;
+ const cam=$('#camada');cam.innerHTML='';cam.appendChild(g.v);GAV=g;JAN.ativa=g;
  document.addEventListener('keydown',escFecha);
  const f=g.foco&&g.v.contains(g.foco)?g.foco:g.v.querySelector('input:not([readonly]),select,textarea');
  if(f&&!matchMedia('(pointer:coarse)').matches)setTimeout(()=>{try{f.focus({preventScroll:false})}catch(e){}},30);
@@ -32393,8 +32395,8 @@ function janRestaurarRota(mod,id){
  return true;
 }
 /* antes de abrir outra gaveta por cima: a janela suja não é descartada, é minimizada */
-function janGuardarAtual(){const g=GAV;if(g&&g.jan&&g.v&&g.v.isConnected&&g.sujo&&!g.ro)janMinimizar({aviso:true})}
-function janAoFechar(g){janApagarRascunho(g);JAN.min=JAN.min.filter(x=>x!==g);setTimeout(renderBarraTrab,0)}
+function janGuardarAtual(){const g=GAV&&GAV.jan?GAV:JAN.ativa;if(g&&g.jan&&g.v&&g.v.isConnected&&g.sujo&&!g.ro)janMinimizar({aviso:true},g)}
+function janAoFechar(g){if(JAN.ativa===g)JAN.ativa=null;janApagarRascunho(g);JAN.min=JAN.min.filter(x=>x!==g);setTimeout(renderBarraTrab,0)}
 function janDescartar(g){janApagarRascunho(g);JAN.min=JAN.min.filter(x=>x!==g);renderBarraTrab()}
 /* fechar com alteração não salva: guardar para depois, descartar ou continuar */
 function dialogo3(titulo,texto,bts){
