@@ -580,9 +580,15 @@
      gravada na construção) e compara com o /versao.json de tempos em tempos e ao voltar para a aba.
      - Tela de entrada parada e vazia: recarrega sozinha (no máximo uma vez por versão a cada 10 min,
        para não entrar em laço se o servidor ainda entregar a página antiga).
-     - Com alguém usando: só avisa, com "Atualizar agora" e "Agora não" (30 min). Recarregar pede o login
+     - Com alguém usando: avisa, com "Atualizar agora" e "Agora não" (30 min). Recarregar pede o login
        de novo (a sessão fica só na memória da aba), então o botão pergunta antes se há algo digitado
-       e não salvo ou gravação em andamento. */
+       e não salvo ou gravação em andamento.
+     - 13/11/2026 (pedido do dono: "atualize tudo automaticamente"): com o aviso na tela, a página se
+       atualiza sozinha assim que fica 2 minutos sem ninguém mexer, desde que não haja nada digitado sem
+       salvar, nenhuma gravação em andamento e a tela não seja a do ponto (a tela travada do ponto facial
+       não pode cair no login no meio do dia; ela pega a versão nova na próxima vez que for aberta).
+     - Depois de entrar, a página registra no servidor a versão que está aberta (jb_versao_aberta), para
+       dar para conferir quem já está na versão nova. Servidor sem a função: segue sem registrar. */
   var metaVersao = document.querySelector('meta[name="jb-site"]');
   var versaoAberta = metaVersao ? metaVersao.getAttribute('content') : null;
   var campoVersao = metaVersao ? 'site' : 'versao';   // sem a meta (página antiga): usa a primeira leitura
@@ -615,9 +621,32 @@
       if (!versaoAberta) { versaoAberta = v; return; }
       if (v === versaoAberta) return;
       if (!eu) { if (entradaParada()) recarregarSozinho(v); return; }
+      versaoPublicada = v;
       if (Date.now() >= adiarVersaoAte) mostrarAvisoVersao();
     });
   }
+  var versaoPublicada = null;
+  function telaDoPonto() {
+    try { if (window.PONTO_FACIAL_V100 && window.PONTO_FACIAL_V100.travada()) return true; } catch (e) {}
+    return /^#\/(ponto|relogioPonto|cadastrarRosto)/i.test(location.hash) || !!document.querySelector('video');   // câmera aberta: ponto ou foto de lançamento
+  }
+  function atualizarSozinho() {
+    if (!versaoPublicada || !eu || document.hidden) return;
+    if (Date.now() < adiarVersaoAte) return;                          // a pessoa pediu "Agora não"
+    if (Date.now() - ultimaAtividade < 2 * 60 * 1000) return;         // alguém mexendo
+    if (gravando > 0 || telaDoPonto()) return;
+    var ns = naoSalvo(); if (ns.nativo || ns.outro) return;
+    recarregarSozinho(versaoPublicada);
+  }
+  setInterval(atualizarSozinho, 20 * 1000);
+  var versaoRegistrada = false;
+  function registrarVersao() {
+    if (versaoRegistrada || !sb || !eu || !versaoAberta) return;
+    versaoRegistrada = true;
+    try { sb.rpc('jb_versao_aberta', { p_site: versaoAberta }).then(function () {}, function () {}); } catch (e) {}
+  }
+  pronto.then(registrarVersao, function () {});
+  setInterval(registrarVersao, 30 * 1000);
   /* o programa informa o que ainda não foi salvo: nativo = já tem a pergunta do navegador ao sair
      (gaveta e Configurações); outro = algo digitado nesta tela que só existe na memória */
   function naoSalvo() {
@@ -629,7 +658,7 @@
   function mostrarAvisoVersao() {
     if (avisoVersao || !document.body) return;
     avisoVersao = el('<div id="jbversao" role="status" aria-live="polite"><span><b>Saiu uma versão nova do sistema.</b>' +
-      '<small>Para ver, atualize a página. Depois é só entrar de novo com seu usuário e senha.</small></span>' +
+      '<small>Ela entra sozinha quando a tela ficar parada. Depois é só entrar de novo com seu usuário e senha.</small></span>' +
       '<button type="button" class="sim">Atualizar agora</button><button type="button" class="nao">Agora não</button></div>');
     avisoVersao.querySelector('.sim').addEventListener('click', function () {
       if (gravando > 0) { window.alert('Ainda estou gravando o que você salvou. Espere alguns segundos e toque em "Atualizar agora" de novo.'); return; }
