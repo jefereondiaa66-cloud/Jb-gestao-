@@ -58,18 +58,25 @@ try {
 
     await page.evaluate(() => gravar('nfe', { id: 'n1', status: 'rejeitada', ambiente: 'homologacao', data: '2026-11-07', numero: 12, serie: 1, envio: { tentativas: [] }, itens: [], dest: { end: {} }, historico: [] }, null));
     await page.waitForFunction(() => DATA.nfe.some((n) => n.id === 'n1'), null, { timeout: 10000 }).catch(() => {});
+    // o botão PENDÊNCIAS que aparece na tela: no cabeçalho do setor, na barra do topo ou, na casca
+    // nova (casca2), o botão "Pendências" do topo (data-c2="alertas"), que abre a mesma lista
+    const marcarPd = () => page.evaluate(() => {
+      document.querySelectorAll('[data-teste-pd]').forEach((e) => e.removeAttribute('data-teste-pd'));
+      const b = ['.spot-cab .pd-bt', '#top .pd-bt', '[data-c2="alertas"]>button'].map((q) => document.querySelector(q)).find((e) => e && e.getBoundingClientRect().height > 0);
+      if (!b) return 0; b.setAttribute('data-teste-pd', '1'); return b.getBoundingClientRect().height;
+    });
     // 1 e 2: tela principal
     await ir(page, '#/setores');
     ok(await page.evaluate(() => document.documentElement.classList.contains('jb-sem-avisos')), 'avisos desligados por padrão');
-    ok(await page.evaluate(() => !!document.querySelector('.spot-cab .pd-bt')), 'botão PENDÊNCIAS no alto da tela principal');
-    const alt = await page.evaluate(() => { const b = document.querySelector('.spot-cab .pd-bt'); return b ? b.getBoundingClientRect().height : 0; });
-    ok(alt > 0 && alt <= 28, `botão pequeno (${alt}px de altura)`);
+    const alt = await marcarPd();
+    ok(alt > 0, 'botão PENDÊNCIAS visível no alto da tela principal');
+    ok(alt > 0 && alt <= 40, `botão discreto (${alt}px de altura)`);
     ok(await page.evaluate(() => !document.querySelector('.spot-card[data-pd], .pd-card') && ![...document.querySelectorAll('.spot-card h2')].some((h) => /pend/i.test(h.textContent))), 'nenhum setor ou cartão novo para as pendências');
     ok(await page.evaluate(() => ![...document.querySelectorAll('.spot-info')].some((s) => /pend[eê]n|alerta/i.test(s.textContent))), 'cartões dos setores sem contagem de pendências');
     ok(!(await visivel(page, '.v61-lemb')), 'sem a faixa "Lembretes de hoje"');
 
     // 3: abrir a lista
-    await page.click('.spot-cab .pd-bt');
+    await page.click('[data-teste-pd]');
     await page.waitForSelector('#pdPainel:not([hidden])', { timeout: 5000 }).catch(() => {});
     const itens = await page.evaluate(() => [...document.querySelectorAll('#pdPainel .pd-it b')].map((b) => b.textContent));
     ok(itens.some((t) => /Cadastro incompleto: Ana Teste Souza/.test(t)), 'lista traz o alerta do Setor Pessoal');
@@ -87,11 +94,12 @@ try {
 
     // 2: dentro de um setor e no Setor Pessoal
     await ir(page, '#/setor-lenha');
-    ok(await page.evaluate(() => !!document.querySelector('.spot-cab .pd-bt')), 'botão no alto do Setor da Lenha');
+    ok((await marcarPd()) > 0, 'botão visível no alto do Setor da Lenha');
     await ir(page, '#/painel');
-    ok(await page.evaluate(() => !!document.querySelector('#top .pd-bt')), 'botão no alto do Setor Pessoal');
+    ok((await marcarPd()) > 0, 'botão visível no alto do Setor Pessoal');
     ok(!(await visivel(page, '#qtSino')) && !(await visivel(page, '#bSino')), 'sino sem contador no Setor Pessoal');
-    await page.click('#top .pd-bt');
+    await page.click('[data-teste-pd]');
+    await page.waitForSelector('#pdPainel:not([hidden])', { timeout: 5000 }).catch(() => {});
     ok(await page.evaluate(() => !document.getElementById('pdPainel').hidden && document.querySelectorAll('#pdPainel .pd-it').length >= 1), 'a lista abre também no Setor Pessoal');
     await page.keyboard.press('Escape');
     ok(await page.evaluate(() => document.getElementById('pdPainel').hidden), 'Esc fecha a lista');

@@ -58,6 +58,9 @@ const semErros = (erros) => erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed 
   await p0.addScriptTag({ url: base + '/_fa/dist/face-api.js' });
   const quadros = await p0.evaluate(async (base) => {
     const m = base + '/_fa/model/';
+    /* o motor de cálculo da biblioteca liga de forma assíncrona: sem placa de vídeo (como no GitHub)
+       ele cai no wasm, que precisa terminar de carregar antes do primeiro uso (o programa já espera) */
+    await faceapi.tf.ready();
     await Promise.all([faceapi.nets.ssdMobilenetv1.loadFromUri(m)]);
     const out = [];
     for (const arq of ['sample3.jpg', 'sample6.jpg']) {
