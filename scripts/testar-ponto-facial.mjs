@@ -144,7 +144,14 @@ try {
   ok(await page.evaluate(() => PONTO_FOTO_V78.ladoCam() === 'environment' && /frente/.test(document.getElementById('fcCadCam').textContent)), 'aparelho com uma câmera só: avisa "só mostrou uma câmera" e continua na traseira');
   // botão "Tirar foto": a foto sai na hora
   await page.waitForFunction(() => PONTO_FACIAL_V100.pronta() && PONTO_FOTO_V78.camera().ligada, null, { timeout: 90000 });
-  ok(await page.evaluate(() => PONTO_FACIAL_V100.modo()) === 'operario', 'o reconhecimento roda fora da tela (operário), para não travar o celular');
+  /* o operário (reconhecimento fora da tela) só liga com placa de vídeo dentro dele; sem ela (ex.: computador do
+     GitHub) o programa roda o reconhecimento na própria tela, de propósito. O teste confere o caminho que vale aqui. */
+  const glOperario = await page.evaluate(() => new Promise((res) => {
+    try { const w = new Worker(URL.createObjectURL(new Blob(["try{const c=new OffscreenCanvas(1,1);postMessage(!!(c.getContext('webgl2')||c.getContext('webgl')))}catch(e){postMessage(false)}"], { type: 'text/javascript' })));
+      w.onmessage = (e) => { res(!!e.data); w.terminate(); }; setTimeout(() => res(false), 4000); } catch (e) { res(false); } }));
+  const modoIA = await page.evaluate(() => PONTO_FACIAL_V100.modo());
+  if (glOperario) ok(modoIA === 'operario', 'o reconhecimento roda fora da tela (operário), para não travar o celular');
+  else ok(modoIA === 'tela', `sem placa de vídeo no operário (este computador), o reconhecimento roda na própria tela (${modoIA})`);
   const n0 = await page.$$eval('#fcPontos i.fc-feito', (x) => x.length);
   await page.click('#fcTirar');
   await page.waitForFunction((n) => document.querySelectorAll('#fcPontos i.fc-feito').length > n || !!document.querySelector('.fc-cad.pf-res-ok'), n0, { timeout: 20000 });
@@ -303,7 +310,8 @@ try {
   ok(r9.h3 === '#/pontoFoto', `de outro endereço volta para o ponto (${r9.h3})`);
   // se o operário cair, o ponto continua, rodando na tela
   const rq = await page.evaluate(async (base) => { const P = PONTO_FACIAL_V100; const i = new Image(); i.src = base + '/saida/teste-facial/rosto0.jpg'; await i.decode(); await P.carregarIA(); const antes = P.modo(); P._derrubar(); const v = await P.ver(i); return { antes, depois: P.modo(), achou: !!(v && v.desc && v.desc.length === 128) }; }, base);
-  ok(rq.antes === 'operario' && rq.depois === 'tela' && rq.achou, `operário derrubado: o reconhecimento continua na própria tela (${rq.antes} → ${rq.depois})`);
+  if (glOperario) ok(rq.antes === 'operario' && rq.depois === 'tela' && rq.achou, `operário derrubado: o reconhecimento continua na própria tela (${rq.antes} → ${rq.depois})`);
+  else ok(rq.antes === 'tela' && rq.depois === 'tela' && rq.achou, `sem operário: o reconhecimento na própria tela acha o rosto (${rq.antes} → ${rq.depois})`);
   ok(semErros(erros).length === 0, `sem erros de JavaScript${semErros(erros).length ? ': ' + semErros(erros).slice(0, 3).join(' | ') : ''}`);
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'celular da parede (412 px): a tela cabe sem rolar para o lado');
   await ctx.close();
