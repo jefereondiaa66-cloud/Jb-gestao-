@@ -32,6 +32,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta: lançamentos, foto (IA simulada), programação, descontos e acerto (69 conferências) |
 | `node scripts/testar-custo-buscar.mjs` | V115: custo por litro do combustível = média das compras + custo de buscar |
 | `node scripts/testar-combustivel-fornecedor-lenha.mjs` | V117: combustível para fornecedor de lenha, descontado sozinho do que a cerâmica deve, painéis nos dois setores, lançamento à mão e acerto ([docs/combustivel-fornecedor-lenha-v117.md](docs/combustivel-fornecedor-lenha-v117.md)) (37 conferências) |
+| `node scripts/testar-comprovante-lancamento.mjs` | V120: botão "Comprovante" em todo lançamento fora do Setor Pessoal (cupom 80/58 mm e folha A4), ficha dos cadastros e comprovante do compromisso do Financeiro ([docs/comprovante-lancamento-v120.md](docs/comprovante-lancamento-v120.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
@@ -43,4 +44,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/evolucao-2026-11-13.md`](docs/evolucao-2026-11-13.md) (área de trabalho: janelas, abas, rascunhos) ·
 [`docs/combustivel-lenha-2026-11-13.md`](docs/combustivel-lenha-2026-11-13.md) (Combustível e Lenha, V112) ·
 [`docs/combustivel-fornecedor-lenha-v117.md`](docs/combustivel-fornecedor-lenha-v117.md) (combustível para fornecedor de lenha, V117) ·
+[`docs/comprovante-lancamento-v120.md`](docs/comprovante-lancamento-v120.md) (comprovante do lançamento, V120) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

@@ -8235,7 +8235,7 @@ function abrirRegistro(mod,id){
   <form id="frm" novalidate>${secoes.map(s=>`<fieldset class="sec"><legend>${esc(s)}</legend><div class="campos">${campos.filter(f=>f.s===s).map(f=>htmlCampo(f,st,ro)).join('')}</div></fieldset>`).join('')}</form></div>
   <div data-painel="1" hidden></div><div data-painel="2" hidden></div></div>
   <div class="gav-pe"><span class="esq">${!novo&&pode(mod,'e')&&!vinculado?((M.semExcluir&&!M.excluirLanc)?'':'<button class="btn perigo" data-acao="excluir">Excluir</button>'):''}${mod==='contratos'&&!novo&&st.situacao==='Ativo'&&pode(mod,'e')?'<button class="btn" data-acao="encerrar">Encerrar contrato</button>':''}${mod==='funcionarios'&&!novo?atalhosFunc(st):''}</span>
-  <button class="btn" data-fechar>${ro?'Fechar':'Cancelar'}</button>${ro?'':'<button class="btn pri" data-acao="salvar">Salvar</button>'}</div>`);
+  ${!novo&&typeof COMP_LANC!=='undefined'?COMP_LANC.botao(mod,st):''}<button class="btn" data-fechar>${ro?'Fechar':'Cancelar'}</button>${ro?'':'<button class="btn pri" data-acao="salvar">Salvar</button>'}</div>`);
  const frm=$('#frm',v);
  const refrescar=(mudou)=>{
   campos.forEach(f=>{const w=$(`[data-campo="${f.k}"]`,v);if(!w)return;const vis=!f.sh||f.sh(st);w.hidden=!vis;const r=$('.rot',w);if(r&&typeof f.l==='function')r.textContent=rotulo(f,st);
@@ -8279,6 +8279,7 @@ function abrirRegistro(mod,id){
    if(t.dataset.mod==='_extrato'){UIE.func=st.id;UIE.mes=mesAtual();fecharGaveta();location.hash='#/extrato';return}
    if(t.dataset.mod==='_lancar'){fecharGaveta();location.hash='#/lancar/'+st.id;return}
    PREFILL={mod:t.dataset.mod,dados:{funcionarioId:st.id}};fecharGaveta();location.hash='#/'+t.dataset.mod+'/novo';return}
+  if(a==='comprovante'){if(typeof COMP_LANC!=='undefined')COMP_LANC.emitir(mod,ant,!!(GAV&&GAV.sujo));return}
   if(a==='imprimirAdv'){imprimirAdvertencia(st);return}
   if(a==='aplicarAlt'){aplicarAlteracao(st,v);return}
   if(a==='salvar')salvarRegistro(mod,st,ant,novo,v,campos,t);
@@ -11139,7 +11140,7 @@ function telaDocumento(el){
    <button type="button" class="btn" id="dxWord" title="Baixar em Word (folha A4), para editar">${ic('baixar')}Baixar</button><button type="button" class="btn" id="dxShare">${ic('enviar')}Compartilhar</button></span></div>
   ${fluxoDoc(ETAPAS_VER,feitas,'')}
   ${D.cupom?`<div class="dx-fmt-l"><div class="dx-fmt" role="group" aria-label="Formato do documento">${[['c80','Cupom 80 mm'],['c58','Cupom 58 mm'],['a4','Folha A4']].map(([k,l])=>`<button type="button" data-fmt="${k}" class="${fmt===k?'on':''}" aria-pressed="${fmt===k}">${l}</button>`).join('')}</div>
-   <p class="ajuda">${cp?'Cupom para impressora térmica, para entregar '+({cliente:'ao cliente',fornecedor:'ao fornecedor',entregador:'a quem fez a entrega',motorista:'ao motorista'}[D.cupom.para]||'ao cliente')+'. Imprimir, PDF e Compartilhar saem neste formato.':'Folha A4 completa, para arquivo e conferência.'}</p></div>`:''}
+   <p class="ajuda">${cp?'Cupom para impressora térmica, para entregar '+({cliente:'ao cliente',fornecedor:'ao fornecedor',entregador:'a quem fez a entrega',motorista:'ao motorista',responsavel:'ao responsável pelo lançamento'}[D.cupom.para]||'ao cliente')+'. Imprimir, PDF e Compartilhar saem neste formato.':'Folha A4 completa, para arquivo e conferência.'}</p></div>`:''}
   ${D.estimativa?`<div class="aviso at"><span><b>${esc(D.estimativa===true?'Estimativa':D.estimativa)}.</b> Os valores são calculados na hora pelos dados cadastrados, para conferência. Visualizar, imprimir ou gerar o PDF não altera nenhum registro.</span></div>`:''}
   ${cp?`<div class="cp-fundo">${htmlCupom(D.cupom,fmt==='c58'?58:80)}</div>`:`<div class="fvd-fundo">${htmlDoc(D)}</div>`}
   <p class="ajuda" style="margin-top:10px">Documento montado em ${esc(fDataHora(X.em))}. Se os dados mudarem, volte e abra de novo para atualizar.</p>`;
@@ -17689,13 +17690,14 @@ function abrirObrig(ref){
   ${s.div.length&&!s.just&&ed?'<button class="btn" data-a="justificar">Conferir divergência</button>':''}
   ${ed&&abertaO(o)?'<button class="btn" data-a="programar">Programar</button>':''}
   ${o.podePagar&&abertaO(o)?'<button class="btn pri" data-a="pagar">Registrar pagamento</button>':''}
+  ${typeof COMP_LANC!=='undefined'?`<button class="btn" data-a="comprovante" data-tip="Emitir o comprovante deste compromisso (imprimir, PDF ou compartilhar)">${ic('doc')}Comprovante</button>`:''}
   <button class="btn" data-fechar>Fechar</button></div>`);
  v.addEventListener('click',e=>{const t=e.target.closest('[data-fechar],[data-a],[data-est],[data-anx],tr[data-lin],a[href^="#/"]');if(!t)return;
   if(t.matches('a[href^="#/"]')){fecharGaveta();return}
   if(t.dataset.fechar!==undefined){fecharGaveta();return}
   if(t.dataset.est){estornarPag(ref,t.dataset.est);return}if(t.dataset.anx){anexar(ref,t.dataset.anx);return}
   if(t.dataset.lin){fecharGaveta();UC2.foco=t.dataset.lin;UC2.sit='';location.hash='#/fconc';return}
-  ({cancelar:cancelarT,anexar,justificar,programar,pagar})[t.dataset.a](ref)});
+  ({cancelar:cancelarT,anexar,justificar,programar,pagar,comprovante:()=>COMP_LANC.obrigacao(o,s,nomeConta)})[t.dataset.a](ref)});
 }
 
 /* ---------- contas a pagar (todas as origens) ---------- */
@@ -28660,6 +28662,157 @@ function docRelLenhaDonoV(v){
  D.notaFinal='Relatório para a direção, montado a partir da compra registrada no '+SPOT_NOME+'. Nenhum valor foi recalculado: quantidades, preços, pagamentos e estoque são os gravados no sistema.';
  return D;
 }
+</script>
+<script id="comprovante-lanc-v120">
+/* ===== V120 · Comprovante do lançamento (pedido do Jeferson, 13/11/2026) =====
+   Todo lançamento aberto fora do Setor Pessoal ganha o botão "Comprovante" (cadastros ganham
+   "Imprimir ficha"): o documento é montado na hora, só com o que está gravado no registro, no
+   padrão dos documentos do sistema (cupom 80/58 mm ou folha A4), e pode ser impresso, exportado
+   em PDF, baixado ou compartilhado na tela "Visualizar documento".
+   Só leitura: nenhum registro, cálculo, regra ou permissão muda. O Setor Pessoal fica de fora. */
+const COMP_LANC=(()=>{
+ let DPS=null;
+ const telasDP=()=>{const s=new Set();try{MENU.forEach(g=>(g[2]||[]).forEach(it=>{if(it&&it.m)s.add(it.m)}))}catch(e){}return s};
+ /* vale para as telas de setor (ROTAS_SETOR) que não são do menu do Setor Pessoal e que abrem pelo formulário padrão */
+ const pode=mod=>{const M=mod&&MODS[mod];if(!M||!(M.fields||[]).length)return false;DPS=DPS||telasDP();
+  return !DPS.has(mod)&&typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(mod)};
+ /* lançamento tem data; cadastro (cliente, fornecedor, item, veículo…) não tem */
+ const ehLanc=(mod,st)=>!!(st&&st.data)||(MODS[mod].fields||[]).some(f=>f.k==='data'&&f.t==='data');
+ const rotBotao=(mod,st)=>ehLanc(mod,st)?'Comprovante':'Imprimir ficha';
+ const botao=(mod,st)=>pode(mod)?`<button type="button" class="btn" data-acao="comprovante" data-tip="${ehLanc(mod,st)?'Emitir o comprovante deste lançamento (imprimir, PDF ou compartilhar)':'Imprimir ou gerar o PDF desta ficha'}">${ic('doc')}${rotBotao(mod,st)}</button>`:'';
+ const limpo=s=>String(s==null?'':s).replace(/[ \s]+/g,' ').trim();
+ /* rótulo do campo sem a dica de preenchimento ("ex.: …") */
+ const rot=(f,st)=>limpo(rotulo(f,st)).replace(/\s*\((?:ex\.|por exemplo)[^)]*\)/i,'').trim();
+ const maiusc=s=>{s=String(s||'');return s.charAt(0).toUpperCase()+s.slice(1)};
+ /* campo calculado em HTML: vira texto; tabela vira tabela do documento */
+ function lerHtml(h){
+  let doc;try{doc=new DOMParser().parseFromString('<div>'+String(h||'')+'</div>','text/html')}catch(e){return {txt:'',tabs:[]}}
+  doc.querySelectorAll('button,input,select,textarea,svg,script,style,[hidden]').forEach(x=>x.remove());
+  const tabs=[];
+  doc.querySelectorAll('table').forEach(t=>{
+   const head=[...t.querySelectorAll('thead th')].map(x=>limpo(x.textContent));
+   const body=[...t.querySelectorAll('tbody tr')].map(tr=>[...tr.children].map(x=>limpo(x.textContent))).filter(r=>r.some(Boolean));
+   const n=Math.max(head.length,...body.map(r=>r.length),0);
+   if(n&&body.length&&body.every(r=>r.length===n)){tabs.push({head:head.length===n?head:Array.from({length:n},(_,i)=>head[i]||''),body})}
+   t.remove()});
+  return {txt:limpo(doc.body.textContent),tabs};
+ }
+ function valor(f,st){
+  const v=st[f.k];const vazio=v===''||v==null;
+  try{switch(f.t){
+   case 'html':return lerHtml(f.calc(st));
+   case 'calc':return {txt:limpo(f.calc(st))};
+   case 'sel':{const o=opcoesCampo(f,st).find(o=>o[0]===v);return {txt:limpo(o?o[1]:(vazio?'':(nomeF(v)||v)))}}
+   case 'usuario':return {txt:limpo(nomeUsuario(v))};
+   case 'chk':return {txt:Object.keys(v||{}).filter(k=>v[k]).join(', ')};
+   case 'arq':return {txt:v&&v.id?'Anexado: '+(v.nome||'arquivo'):''};
+   case 'linhas':return {txt:(Array.isArray(v)?v:[]).map(x=>[fData(x.data),x.descricao,x.valor!==''&&x.valor!=null?fMoeda(+x.valor):''].filter(Boolean).join(' · ')).join('; ')};
+   case 'data':return {txt:vazio?'':fData(v)};
+   case 'mes':return {txt:vazio?'':fMes(String(v))};
+   case 'moeda':return {txt:vazio?'':fMoeda(+v)};
+   case 'num':return {txt:vazio?'':(isNaN(+v)?String(v):fQtd(+v))};
+   case 'cpf':return {txt:vazio?'':mascCPF(v)};
+   default:return {txt:typeof v==='object'?'':limpo(v)};
+  }}catch(e){return {txt:''}}
+ }
+ /* seções do formulário, só com os campos que aparecem na tela e estão preenchidos */
+ function secoes(mod,st){
+  const M=MODS[mod];const campos=M.fields.filter(f=>!(f.sens&&!veSensivel())&&!(f.sh&&!f.sh(st))&&f.t!=='usuario'&&!(f.k==='data'&&f.t==='data')&&!(f.k==='hora'&&f.t==='hora'));
+  const out=[];
+  [...new Set(campos.map(f=>f.s))].forEach(s=>{const cs=[],tabs=[];
+   campos.filter(f=>f.s===s).forEach(f=>{const r=valor(f,st);const l=rot(f,st);
+    (r.tabs||[]).forEach(t=>tabs.push({rot:l,...t}));
+    if(r.txt)cs.push([l,r.txt,f.t==='area'||f.t==='html'||r.txt.length>44?1:0])});
+   if(cs.length||tabs.length)out.push({titulo:limpo(s)||'Dados',campos:cs,tabs})});
+  return out;
+ }
+ const quando=st=>st.data?fData(st.data)+(st.hora?' às '+st.hora:''):'';
+ function principal(mod,st){
+  const k=['total','valorTotal','custoTotal','valor'].find(k=>typeof st[k]!=='object'&&+st[k]>0);if(!k)return null;
+  const f=MODS[mod].fields.find(x=>x.k===k);const l=f?rot(f,st):(k==='custoTotal'?'Custo':'Valor');
+  return [l.length>26?(k==='custoTotal'?'Custo':'Valor'):l,fMoeda(+st[k])];
+ }
+ function registro(mod,st){
+  const quem=st.criadoPor||st.lancadoPor;const c=[];
+  if(quem)c.push(['Registrado por',nomeUsuario(quem)||'—']);
+  if(st.criadoEm)c.push(['Registrado em',fDataHora(st.criadoEm)]);
+  if(st.alteradoEm&&st.alteradoEm!==st.criadoEm)c.push(['Última alteração',fDataHora(st.alteradoEm)+(st.alteradoPor&&nomeUsuario(st.alteradoPor)?' · '+nomeUsuario(st.alteradoPor):'')]);
+  if(st.travado===true)c.push(['Situação','Lançamento travado']);
+  c.push(['Identificador no sistema',String(st.id||'').slice(-8).toUpperCase()]);
+  return c;
+ }
+ /* monta o documento a partir do registro gravado */
+ function doc(mod,st){
+  const M=MODS[mod];const lanc=ehLanc(mod,st);const sing=limpo(M.sing||'lançamento');const S=secoes(mod,st);const e=CFG.empresa||{};
+  const nome=limpo(st.nome||st.descricao||'');const pr=lanc?principal(mod,st):null;const quem=nomeUsuario(st.criadoPor||st.lancadoPor)||'';
+  const D=baseRel(lanc?'COMPROVANTE DE '+sing.toUpperCase():'FICHA DE CADASTRO',lanc?limpo(M.titulo):maiusc(sing)+(nome?' · '+nome:''),[]);
+  D.classe=lanc?'comprovante':'ficha';D.quadros=[];
+  if(st.numero&&typeof st.numero!=='object')D.numero='Nº '+st.numero;
+  D.meta=[...(quando(st)?[['Data do lançamento',quando(st)]]:[]),...(typeof st.situacao==='string'&&st.situacao?[['Situação',st.situacao]]:typeof st.status==='string'&&st.status?[['Situação',st.status]]:[])];
+  D.parteNome=nome;D.arquivo=(lanc?'Comprovante_':'Ficha_')+nomeArq(sing)+'_'+nomeArq(st.data||nome||'')+'_'+String(st.id||'').slice(-6);
+  D.rodape=(lanc?'Comprovante de ':'Ficha de cadastro · ')+sing+(quando(st)?' · '+quando(st):'');
+  if(lanc){const dest=[];S.forEach(s=>s.campos.forEach(c=>{if(dest.length<2&&!c[2]&&c[1].length<=30)dest.push([c[0],c[1]])}));
+   const ind=[...(quando(st)?[['Data',quando(st)]]:[]),...dest,...(pr?[pr]:[])].slice(0,4);if(ind.length>1)D.blocos.push({tipo:'indicadores',itens:ind})}
+  if(st.cancelado||st.cancelamento)D.blocos.push({tipo:'aviso',texto:'LANÇAMENTO CANCELADO.'+((st.cancelamento||{}).motivo?' Motivo: '+st.cancelamento.motivo+'.':'')});
+  let k=0;
+  S.forEach(s=>{D.blocos.push({tipo:'secao',n:String(++k),titulo:maiusc(s.titulo),campos:s.campos,vazio:s.campos.length||s.tabs.length?'':'Sem informações.'});
+   s.tabs.forEach(t=>D.blocos.push({tipo:'tabela',head:t.head,body:t.body}))});
+  D.blocos.push({tipo:'secao',n:String(++k),titulo:'Registro no sistema',campos:registro(mod,st)});
+  if(lanc){
+   D.notaFinal='Comprovante interno de lançamento, sem valor fiscal. Confere com o registro gravado no '+SPOT_NOME+' na data e hora da emissão.';
+   D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
+   D.assinaturas=[{nome:quem,sub:'Responsável pelo lançamento'},{nome:'',sub:'Conferido por (nome e assinatura)'}];
+   D.cupom={kind:'lancamento',para:'responsavel',tipo:'COMPROVANTE',titulo:maiusc(sing),numero:st.numero&&typeof st.numero!=='object'?String(st.numero):'',
+    id:[...(quando(st)?[['Data',quando(st)]]:[]),['Setor',nomeSetorDoc(setorDaTela())]].filter(x=>x[1]),
+    cancelado:st.cancelado||st.cancelamento?'Lançamento cancelado':'',
+    blocos:[...S.filter(s=>s.campos.length).map(s=>({rot:maiusc(s.titulo),linhas:s.campos.map(([l,v])=>[l,v])})),{rot:'Registro no sistema',linhas:registro(mod,st).map(([l,v])=>[l,v])}],
+    total:pr?[pr[0].toUpperCase(),pr[1]]:null,
+    assinaturas:[{rot:'Responsável pelo lançamento',nome:quem},{rot:'Conferido por',sub:'Nome e assinatura'}],
+    aviso:'Comprovante interno · não é documento fiscal',rodape:agoraCp()};
+  }else D.notaFinal='Ficha emitida a partir do cadastro gravado no '+SPOT_NOME+'.';
+  return D;
+ }
+ /* botão do lançamento: o comprovante sai do que está gravado (ant), nunca do que ainda não foi salvo */
+ function emitir(mod,ant,sujo){
+  if(!pode(mod)||!ant)return;
+  if(sujo){toast('Salve as alterações antes: o comprovante sai do que está gravado.');return}
+  let D;try{D=doc(mod,ant)}catch(err){console.error(err);toast('Não foi possível montar o comprovante deste lançamento.','erro');return}
+  verDoc(D);
+ }
+ /* compromisso do Financeiro (contas a pagar): valores, pagamentos informados e saldo */
+ function docObrig(o,s,contaNome){
+  const cn=c=>{try{return (contaNome&&contaNome(c))||''}catch(e){return ''}};const e=CFG.empresa||{};
+  const D=baseRel('COMPROVANTE DE COMPROMISSO FINANCEIRO',limpo(o.descricao),[]);D.classe='comprovante';D.quadros=[];D.setor=nomeSetorDoc('financeiro');
+  const num=limpo(o.num).replace(/^n[ºo°]\.?\s*/i,'');if(num)D.numero='Nº '+num;D.meta=[['Vencimento',o.venc?fData(o.venc):'não informado'],['Situação',o.cancelado?'Cancelado':String(s.st||'')]];
+  D.parteNome=limpo(o.benef);D.arquivo='Comprovante_compromisso_'+nomeArq(o.benef||o.descricao||'')+'_'+nomeArq(o.venc||'');D.rodape='Comprovante de compromisso financeiro · '+limpo(o.benef||o.descricao);
+  D.blocos.push({tipo:'indicadores',itens:[['Valor previsto',fMoeda(o.valor)],['Pago informado',fMoeda(s.P),'ok'],['Saldo',fMoeda(s.saldo),s.saldo>0.005?'at':'']]});
+  if(o.cancelado)D.blocos.push({tipo:'aviso',texto:'COMPROMISSO CANCELADO.'+(o.cancelado.motivo?' Motivo: '+o.cancelado.motivo+'.':'')});
+  const campos=[['Descrição',o.descricao,1],['Beneficiário',o.benef,1],['Categoria',o.categoria],['Centro de custo',o.centro],['Origem',o.origem],['Parcela',o.parcela],['Programado para',o.prog?fData(o.prog):''],['Forma prevista',o.forma],['Conta prevista',cn(o.conta)],['Documento de origem',o.docOrigem],['Lançamento',o.lanc?fData(o.lanc):'']].filter(x=>limpo(x[1])).map(([l,v,w])=>[l,limpo(v),w?1:0]);
+  D.blocos.push({tipo:'secao',n:'1',titulo:'Compromisso',campos});
+  const pg=o.pagamentos||[];
+  D.blocos.push({tipo:'secao',n:'2',titulo:'Pagamentos informados',vazio:pg.length?'':'Nenhum pagamento informado até a emissão.',
+   ...(pg.length?{tabela:{head:['Data','Forma','Conta','Tipo','Valor'],dir:[4],body:pg.map(p=>[fData(p.data),p.forma||'—',cn(p.conta)||'—',p.quitacao?'Quitação':'Parcial',fMoeda(r2c(p))]),foot:['Total pago','','','',fMoeda(s.P)]}}:{})});
+  D.notaFinal='Comprovante interno, sem valor fiscal. Não substitui o comprovante bancário nem o recibo do beneficiário.';
+  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
+  D.assinaturas=[{nome:e.responsavel||'',sub:'Pela empresa'},{nome:limpo(o.benef),sub:'Beneficiário · recebi o valor pago'}];
+  D.cupom={kind:'lancamento',para:'responsavel',tipo:'COMPROVANTE',titulo:'Compromisso financeiro',numero:num,
+   id:[['Vencimento',o.venc?fData(o.venc):'—'],['Situação',o.cancelado?'Cancelado':String(s.st||'')]],cancelado:o.cancelado?'Compromisso cancelado':'',
+   parte:{rot:'Beneficiário',nome:limpo(o.benef)||'—',linhas:[]},
+   blocos:[{rot:'Compromisso',linhas:campos.filter(c=>c[0]!=='Beneficiário').map(([l,v])=>[l,v])},
+    {rot:'Pagamentos informados',linhas:pg.length?pg.map(p=>[fData(p.data)+' · '+(p.forma||'—'),fMoeda(r2c(p))]):[['Nenhum pagamento informado.']]},
+    {rot:'Conta',linhas:[['Valor previsto',fMoeda(o.valor)],['Pago informado',fMoeda(s.P)],['Saldo',fMoeda(s.saldo),1]]}],
+   total:['VALOR PAGO',fMoeda(s.P)],assinaturas:[{rot:'Beneficiário',nome:limpo(o.benef),sub:'Recebi o valor pago'}],
+   aviso:'Comprovante interno · não é documento fiscal',rodape:agoraCp()};
+  return D;
+ }
+ const r2c=p=>Math.round(((+p.valor||0)+(+p.multa||0)+(+p.juros||0))*100)/100;
+ function obrigacao(o,s,contaNome){
+  let D;try{D=docObrig(o,s||{},contaNome)}catch(err){console.error(err);toast('Não foi possível montar o comprovante deste compromisso.','erro');return}
+  verDoc(D);
+ }
+ try{FMT_PAD_DOC.lancamento='c80'}catch(e){}
+ return {pode,ehLanc,botao,doc,emitir,docObrig,obrigacao};
+})();
 </script>
 <style id="menu-simplificado">
 /* ===== Menu simplificado do Departamento Pessoal (V41) · só organização e aparência ===== */

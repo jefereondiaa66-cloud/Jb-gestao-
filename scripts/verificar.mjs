@@ -574,6 +574,19 @@ teste('documentos', 'identidade central: configuração única, logo sem imagem 
   assert.ok(app.includes('#printDoc.folha{page:jbdoc}') && !/#printDoc\{page:jbdoc\}/.test(app), 'página A4 só para a folha');
   assert.ok(app.includes('counter(page) " de " counter(pages)'), 'numeração de páginas na impressão');
 });
+teste('documentos', 'comprovante do lançamento (V120): em todos os setores menos o Pessoal, só leitura', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('<script id="comprovante-lanc-v120">'), j = app.indexOf('</script>', i);
+  assert.ok(i > 0 && j > i, 'bloco do comprovante do lançamento');
+  const bloco = app.slice(i, j);
+  // fora do Setor Pessoal: telas de setor que não estão no menu do DP
+  assert.ok(bloco.includes('MENU.forEach') && bloco.includes('!DPS.has(mod)') && bloco.includes('ROTAS_SETOR.includes(mod)'), 'regra de setor');
+  // só leitura: o bloco não grava, não apaga e não registra nada
+  assert.ok(!/\b(gravar|apagar|registrarLog|salvarRegistro)\(|APP\.db\b|\.set\(|\.delete\(/.test(bloco), 'o comprovante não pode gravar nada');
+  // sai do que está gravado e usa o visualizador central de documentos
+  assert.ok(bloco.includes('Salve as alterações antes') && bloco.includes('verDoc(D)') && bloco.includes("baseRel("), 'usa o registro gravado e o padrão dos documentos');
+  assert.ok(app.includes("COMP_LANC.botao(mod,st)") && app.includes("if(a==='comprovante')") && app.includes('data-a="comprovante"'), 'botão no lançamento e no compromisso do Financeiro');
+});
 teste('documentos', 'nomenclatura: títulos formais sem mudar os dados', () => {
   const app = ler('app/jb-gestao.html');
   const i = app.indexOf('const TITULOS_FORMAIS=['), j = app.indexOf('const CAB_FORMAL=', i);
