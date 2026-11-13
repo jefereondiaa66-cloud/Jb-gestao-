@@ -27,8 +27,10 @@ Um programa, dois endereços, um banco só.
 | `node scripts/verificar.mjs` | 20 verificações: programa, construção, ponte (testes B–F) |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
+| `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta no navegador (63 conferências; OCR com `OCR_REDE=1` ou `OCR_DIR`) |
 | `node scripts/do-claude.mjs <pagina>` | traz para cá uma versão alterada dentro do Claude |
 
 Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como operar) ·
 [`docs/auditoria-2026-10-30.md`](docs/auditoria-2026-10-30.md) (estado encontrado e decisões) ·
+[`docs/combustivel-lenha-2026-11-13.md`](docs/combustivel-lenha-2026-11-13.md) (Combustível e Lenha, V57) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

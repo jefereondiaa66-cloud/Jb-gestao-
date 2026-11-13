@@ -92,3 +92,11 @@ detectado no contador de uso, gravado ao mesmo tempo pela nuvem e pelo Claude (e
 O motor no banco real também foi testado com uma coleção de teste (`jbcoreTeste`, já apagada):
 gravar, repetir (idempotente), atualizar, conflito, documento inexistente, caminho inválido,
 exclusão e exclusão repetida, e usuário não administrador recusado.
+
+## 7. Combustível e Lenha (V57, 13/11/2026)
+
+Menu de funções agrupado com pesquisa, central de lançamentos, saída e saldo negativo autorizado, programações,
+lançamento por foto (OCR com conferência), consumo de lenha ligado à fornada, descontos autorizados e acerto de
+lenha com abatimento nas compras. Coleção nova `clCtrl` (migração `20261113123600_cl_01_colecao_clctrl.sql`).
+Detalhes, permissões, testes e pendências: [`combustivel-lenha-2026-11-13.md`](combustivel-lenha-2026-11-13.md).
+Teste: `node scripts/testar-combustivel-lenha.mjs` (no GitHub Actions roda com `OCR_REDE=1`).
