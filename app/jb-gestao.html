@@ -38401,5 +38401,575 @@ try{const M=MODS.vendas;
 }catch(e){console.warn('V110 lista',e)}
 })();
 </script>
+<style id="lenha-v111-css">
+/* V111 · Setor da Lenha: lançar lenha, caminhões, tipos e estoque por local. Só cores do tema (variáveis). */
+.lx{max-width:680px;margin:0 auto}
+.lx-c{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:14px 16px;margin-bottom:12px}
+.lx-c>h3{margin:0 0 10px;font-size:14px;display:flex;gap:8px;align-items:center}
+.lx-c>h3 .lx-n{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--brasa);color:#fff;font-size:12px;align-items:center;justify-content:center;flex:none}
+.lx-chips{display:flex;flex-wrap:wrap;gap:8px}
+.lx-chip{min-height:44px;padding:9px 14px;border:1px solid var(--linha);border-radius:999px;background:var(--branco);color:var(--tinta);font:inherit;font-size:14px;cursor:pointer;text-align:left;line-height:1.25}
+.lx-chip small{display:block;color:var(--suave);font-size:11.5px}
+.lx-chip.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
+.lx-chip.on small{color:#fff;opacity:.9}
+.lx-chip.tr{border-style:dashed;color:var(--suave)}
+.lx-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.lx-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lx .cmp input:not([type=checkbox]),.lx .cmp select{min-height:44px;font-size:16px}
+.lx .cmp input[type=checkbox]{width:20px;height:20px;flex:none}
+.lx-m3{margin-top:10px;font-size:13.5px;color:var(--suave)}
+.lx-m3 b{color:var(--tinta);font-size:16px}
+.lx-tot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px}
+.lx-tot b{font-size:26px;letter-spacing:-.01em}
+.lx-av{list-style:none;margin:10px 0 0;padding:0;font-size:13px}
+.lx-av li{padding:7px 10px;border-radius:8px;margin-top:6px;border:1px solid var(--linha)}
+.lx-av li.pe{color:var(--pe);border-color:var(--pe)}
+.lx-ok{width:100%;min-height:52px;font-size:16px;justify-content:center;margin-top:12px}
+.lx-ult{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--linha);border-left:4px solid var(--brasa);background:var(--branco);border-radius:var(--r2);padding:10px 14px;margin-bottom:12px;font-size:13.5px}
+.lx-loc{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}
+.lx-loc>div{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
+.lx-loc span{display:block;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--suave);font-weight:700}
+.lx-loc b{display:block;font-size:21px;margin-top:4px}
+.lx-loc small{display:block;color:var(--suave);font-size:12px;margin-top:3px}
+.lx-loc .neg b{color:var(--pe)}
+.fx-l{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto auto;gap:6px;align-items:center;margin-bottom:6px}
+.fx-l input{min-width:0}
+.fx-l b{font-size:13px;white-space:nowrap}
+.fx-t{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;margin-bottom:6px}
+.fx-t label{display:flex;gap:8px;align-items:center;cursor:pointer}
+@media (max-width:560px){.lx-g{grid-template-columns:1fr 1fr 1fr}.lx-g2{grid-template-columns:1fr}.fx-l{grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--linha);padding-bottom:8px}.fx-l input[data-c=nome]{grid-column:1/-1}.fx-t{grid-template-columns:1fr 120px}}
+</style>
+<script id="lenha-v111">
+"use strict";
+/* ================= V111 · Setor da Lenha: caminhões, tipos por fornecedor, estoque em dois locais e "Lançar lenha" (13/11/2026) =================
+   Pedido do Jeferson ("MELHORIA DO SETOR DA LENHA"). Só acrescenta: nenhum registro antigo é alterado,
+   nenhuma conta antiga muda (estoque total, custo médio mês a mês, contas a pagar).
+   1) Caminhões do fornecedor (apelido/placa, comprimento × largura × altura = m³) e tipos de lenha que
+      ele entrega (grossa, fina…), com preço por m³. Ficam no próprio cadastro do fornecedor
+      (campos novos "caminhoes" e "lenhaClasses").
+   2) Tipos de lenha (grossa, fina e os cadastrados na coleção nova "lenhaClasses"). A aba "Tipos de
+      lenha" que já existia (itens do estoque) continua igual; a nova se chama "Grossa, fina…".
+   3) Estoque por local: "Chão da fábrica" e "Estoque de fora (outro lado da fábrica)", mais os locais
+      cadastrados em "lenhaDepositos". A compra guarda para onde a lenha foi ("lenhaLocal"). "Levar lenha
+      para a fábrica" (coleção "lenhaMov") tira de um local e põe no outro: não mexe no saldo total, no
+      Financeiro nem no custo médio. O chão da fábrica é o saldo total menos o que está nos outros
+      locais, por isso a queima (manual ou automática da enforna) já sai dele sem mudar nada no consumo.
+      O estoque antigo não tem local: o administrador informa em "Saldo inicial por local".
+   4) Tela "Lançar lenha" (celular): preenche o mesmo rascunho da Nova compra e confirma pela mesma
+      função, então a conta a pagar, o vencimento, a forma de pagamento, a multa e os juros nascem
+      exatamente como hoje, uma vez só. */
+(()=>{
+if(typeof SETORES_V==='undefined'||typeof OP==='undefined'||typeof MODS==='undefined')return;
+const LS='lenha',CL='lenhaClasses',DP='lenhaDepositos',MV='lenhaMov';
+const CHAO='chao',FORA='fora';
+const SEM_TIPO='Tipo não informado',SEM_LOCAL='Local não informado';
+const BASE_CL=['Grossa','Fina'];
+const r2=v=>round2(v),r3=v=>round3(v);
+const agoraIso=()=>new Date().toISOString();
+const eu=()=>APP.uid||'local';
+const norm=s=>semAcento(String(s||'')).replace(/\s+/g,' ').trim();
+const numC=x=>{if(x===''||x==null)return NaN;const t=String(x).trim().replace(/\s/g,'');return +(t.includes(',')?t.replace(/\./g,'').replace(',','.'):t)};
+const fM3=v=>fQtd(r3(v))+' m³';
+Object.assign(DATA,{[CL]:[],[DP]:[],[MV]:[]});
+
+/* ---------- permissões e rotas (as mesmas pessoas que já lançam compra e estoque na Lenha) ---------- */
+const PV=typeof PAP_C!=='undefined'?PAP_C:['admin','gerente','estoquista','financeiro'];
+const PE=['admin','gerente','estoquista'];
+Object.assign(PERM,{[CL]:{v:PV,e:PE},[DP]:{v:PV,e:['admin','gerente']},[MV]:{v:PV,e:PE},lenhaLancar:{v:PV,e:PE},lenhaLevar:{v:PV,e:PE},lenhaLocais:{v:PV,e:[]}});
+[CL,DP,'lenhaLancar','lenhaLevar','lenhaLocais'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+const ehAdmin=()=>APP.modo==='local'||APP.isOwner||APP.papel==='admin';
+
+/* ---------- tipos de lenha (grossa, fina…) ---------- */
+const clAtivas=()=>(DATA[CL]||[]).filter(x=>x.situacao!=='Inativo'&&String(x.nome||'').trim());
+function classes(atual){const L=[];const add=x=>{x=String(x||'').trim();if(x&&!L.some(y=>norm(y)===norm(x)))L.push(x)};
+ BASE_CL.forEach(add);clAtivas().slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).forEach(x=>add(x.nome));if(atual)add(atual);return L}
+const nomeCl=c=>String(c||'').trim()||SEM_TIPO;
+MODS[CL]={titulo:'Grossa, fina e outros tipos',sing:'tipo de lenha',ic:'folha',
+ desc:'Como a lenha é separada: grossa, fina, sarrafo e o que mais a cerâmica usar. “Grossa” e “Fina” já vêm prontas. Cada fornecedor tem os tipos que entrega e o preço por m³ de cada um.',
+ fields:[
+  {k:'nome',l:'Nome do tipo',t:'txt',req:1,s:'Tipo de lenha',aj:'Ex.: Sarrafo, Costaneira, Galhada. Trocar o nome depois não muda o que já foi lançado.'},
+  {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativo','Inativo'],s:'Tipo de lenha',aj:'Inativo: sai das listas. O que já foi lançado continua igual.'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Tipo de lenha'}],
+ cols:[{k:'nome',l:'Tipo',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},
+  {k:'_f',l:'Fornecedores que entregam',t:'num',v:r=>String(DATA.fornecedores.filter(f=>f.setor===LS&&(f.lenhaClasses||[]).some(x=>norm(x.classe)===norm(r.nome))).length),o:r=>DATA.fornecedores.filter(f=>(f.lenhaClasses||[]).some(x=>norm(x.classe)===norm(r.nome))).length},
+  {k:'_c',l:'Compras lançadas',t:'num',v:r=>String(DATA.compras.filter(c=>c.setor===LS&&!cancV(c)&&norm(c.lenhaClasse)===norm(r.nome)).length),o:r=>DATA.compras.filter(c=>c.setor===LS&&norm(c.lenhaClasse)===norm(r.nome)).length},
+  typeof statusCol!=='undefined'?statusCol:{k:'situacao',l:'Situação'}],
+ filtros:[{k:'situacao',l:'Situação',op:['Ativo','Inativo']}],
+ ordem:['nome','asc'],semExcluir:true,
+ padrao:()=>({situacao:'Ativo'}),
+ validar(st){const e={};const n=String(st.nome||'').trim();if(!n)return e;
+  if(BASE_CL.some(x=>norm(x)===norm(n)))e.nome='Este tipo já vem pronto na lista.';
+  else{const o=(DATA[CL]||[]).find(x=>x.id!==st.id&&norm(x.nome)===norm(n));if(o)e.nome='Já existe este tipo'+(o.situacao==='Inativo'?' (inativo: abra e mude para Ativo).':'.')}
+  return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim()}};
+function novaClasse(aoGravar){
+ if(!pode(CL,'e')){toast('Seu perfil não cadastra tipos de lenha. Peça ao gerente ou ao administrador.','erro');return}
+ modalV('Cadastrar tipo de lenha',`<div class="campos" style="grid-template-columns:1fr"><div class="cmp"><label for="cl111n">Nome do tipo<i> *</i></label><input id="cl111n" maxlength="40" placeholder="Ex.: Sarrafo"></div></div>`,'Cadastrar',async m=>{
+  const nome=String($('#cl111n',m).value||'').trim();if(!nome){toast('Informe o nome do tipo.','erro');return false}
+  const er=MODS[CL].validar({nome});if(er.nome){toast(er.nome,'erro');return false}
+  const rec={id:novoId(),nome,situacao:'Ativo',criadoEm:agoraIso(),criadoPor:eu(),alteradoEm:agoraIso(),alteradoPor:eu()};
+  await gravar(CL,rec,null);if(!(DATA[CL]||[]).some(x=>x.id===rec.id))DATA[CL]=[...(DATA[CL]||[]),rec];
+  await registrarLog(CL,rec.id,'criou',null,rec,{nome:'Nome',situacao:'Situação'});
+  toast('Tipo “'+nome+'” cadastrado.','ok');if(aoGravar)aoGravar(nome)});
+}
+
+/* ---------- locais de estoque ---------- */
+const FIXOS=[{id:CHAO,nome:'Chão da fábrica',fixo:true},{id:FORA,nome:'Estoque de fora (outro lado da fábrica)',curto:'Estoque de fora',fixo:true}];
+const depositos=(todos)=>[...FIXOS,...(DATA[DP]||[]).filter(d=>(todos||d.situacao!=='Inativo')&&String(d.nome||'').trim()).map(d=>({id:d.id,nome:d.nome,situacao:d.situacao||'Ativo'}))];
+const DEP=id=>depositos(true).find(d=>d.id===id);
+const nomeDep=id=>{const d=DEP(id);return d?d.nome:SEM_LOCAL};
+const curtoDep=id=>{const d=DEP(id);return d?(d.curto||d.nome):SEM_LOCAL};
+MODS[DP]={titulo:'Locais de estoque da lenha',sing:'local de estoque',ic:'mapa',
+ desc:'Onde a lenha fica guardada. “Chão da fábrica” e “Estoque de fora (outro lado da fábrica)” já vêm prontos. Cadastre aqui outro pátio ou depósito, se a cerâmica passar a usar.',
+ fields:[
+  {k:'nome',l:'Nome do local',t:'txt',req:1,s:'Local de estoque',aj:'Ex.: Pátio do fundo, Galpão 2.'},
+  {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativo','Inativo'],s:'Local de estoque',aj:'Inativo: sai das listas. O saldo que estiver nele continua aparecendo.'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Local de estoque'}],
+ cols:[{k:'nome',l:'Local',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},
+  {k:'_s',l:'Saldo',t:'num',v:r=>esc(fM3((saldosLocais().L[r.id]||{q:0}).q)),o:r=>(saldosLocais().L[r.id]||{q:0}).q},
+  typeof statusCol!=='undefined'?statusCol:{k:'situacao',l:'Situação'}],
+ filtros:[{k:'situacao',l:'Situação',op:['Ativo','Inativo']}],
+ ordem:['nome','asc'],semExcluir:true,
+ padrao:()=>({situacao:'Ativo'}),
+ validar(st){const e={};const n=String(st.nome||'').trim();if(!n)return e;
+  if(FIXOS.some(x=>norm(x.nome)===norm(n)||norm(x.curto)===norm(n)))e.nome='Este local já vem pronto.';
+  else if((DATA[DP]||[]).some(x=>x.id!==st.id&&norm(x.nome)===norm(n)))e.nome='Já existe um local com este nome.';
+  return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim()}};
+
+/* ---------- saldo por local ----------
+   Só a lenha contada em m³ (a mesma do custo médio mês a mês). O que entrou ou saiu de cada local
+   fora do chão é somado; o chão da fábrica é o que sobra do saldo total. */
+const idsM3=()=>new Set(DATA.produtos.filter(p=>p.setor===LS&&String(p.unidade||'').trim()==='m³').map(p=>p.id));
+const movAtivo=m=>!!m&&!m.cancelado;
+let MEMO={k:null,v:null};
+function saldosLocais(){
+ const k=[DATA.compras,DATA[MV],DATA.consumos,DATA.estoqueMov,DATA.produtos,DATA.vendas];
+ if(MEMO.k&&MEMO.k.every((x,i)=>x===k[i]))return MEMO.v;
+ const ids=idsM3();let total=0;ids.forEach(id=>{total+=saldoP(id)});total=r3(total);
+ const L={};const add=(dep,cl,q)=>{if(!dep||dep===CHAO||!q)return;const o=L[dep]||(L[dep]={q:0,cl:{}});o.q=r3(o.q+q);const c=String(cl||'').trim();o.cl[c]=r3((o.cl[c]||0)+q)};
+ DATA.compras.forEach(c=>{if(c.setor!==LS||cancV(c)||!c.lenhaLocal)return;(c.itens||[]).forEach(i=>{if(ids.has(i.produtoId)&&i.baixaEstoque!==false)add(c.lenhaLocal,c.lenhaClasse||i.lenhaClasse,+i.qtd||0)})});
+ let temIni=false;
+ (DATA[MV]||[]).forEach(m=>{if(!movAtivo(m))return;const q=+m.quantidade||0;
+  if(m.tipo==='saldoInicial'){temIni=true;add(m.deposito,m.classe,q)}
+  else if(m.tipo==='transferencia'){add(m.de,m.classe,-q);add(m.para,m.classe,q)}});
+ const fora=r3(Object.values(L).reduce((a,o)=>a+o.q,0));
+ const v={total,chao:r3(total-fora),fora,L,temIni};MEMO={k,v};return v;
+}
+const saldoDep=id=>{const S=saldosLocais();return id===CHAO?S.chao:(S.L[id]||{q:0}).q};
+
+/* ---------- fornecedor: caminhões e tipos com preço ---------- */
+const m3Cam=c=>r3((+c.comp||0)*(+c.larg||0)*(+c.alt||0));
+const camsDe=f=>((f&&f.caminhoes)||[]).filter(c=>c&&c.id);
+const tiposDe=f=>((f&&f.lenhaClasses)||[]).filter(t=>t&&t.classe);
+const txtCams=l=>(l||[]).length?(l||[]).map(c=>c.nome+' ('+fNum(c.comp,2)+' × '+fNum(c.larg,2)+' × '+fNum(c.alt,2)+' = '+fM3(m3Cam(c))+')').join('; '):'—';
+const txtTipos=l=>(l||[]).length?(l||[]).map(t=>t.classe+(t.preco!==''&&t.preco!=null?' '+fMoeda(t.preco)+'/m³':'')).join('; '):'—';
+function resumoFornHtml(f){const cs=camsDe(f),ts=tiposDe(f);
+ return `<div style="font-size:13px;line-height:1.5"><div><b>Caminhões:</b> ${cs.length?esc(txtCams(cs)):'nenhum cadastrado'}</div><div><b>Tipos e preço por m³:</b> ${ts.length?esc(txtTipos(ts)):'nenhum marcado'}</div></div>`}
+function editarForn(id,depois){
+ const f=FORN(id);if(!f){toast('Fornecedor não encontrado.','erro');return}
+ if(!pode('fornecedores','e')){toast('Seu perfil não altera o cadastro de fornecedores.','erro');return}
+ let cams=camsDe(f).map(c=>({...c}));if(!cams.length)cams.push({id:novoId(),nome:'',comp:'',larg:'',alt:''});
+ const marc={};tiposDe(f).forEach(t=>{marc[norm(t.classe)]={classe:t.classe,preco:t.preco}});
+ const linhaCam=(c,i)=>`<div class="fx-l" data-i="${i}"><input data-c="nome" maxlength="40" placeholder="Apelido ou placa" value="${esc(c.nome||'')}" aria-label="Apelido ou placa do caminhão ${i+1}">
+  <input data-c="comp" type="number" step="any" min="0" inputmode="decimal" placeholder="Compr. (m)" value="${esc(c.comp)}" aria-label="Comprimento em metros">
+  <input data-c="larg" type="number" step="any" min="0" inputmode="decimal" placeholder="Largura (m)" value="${esc(c.larg)}" aria-label="Largura em metros">
+  <input data-c="alt" type="number" step="any" min="0" inputmode="decimal" placeholder="Altura (m)" value="${esc(c.alt)}" aria-label="Altura da carga em metros">
+  <b data-m3>${m3Cam(c)>0?esc(fM3(m3Cam(c))):'— m³'}</b><button type="button" class="ib" data-rm="${i}" aria-label="Tirar este caminhão" data-tip="Tirar">${ic('fechar')}</button></div>`;
+ const linhaTipo=cl=>{const m=marc[norm(cl)];return `<div class="fx-t"><label><input type="checkbox" data-cl="${esc(cl)}" ${m?'checked':''}>${esc(cl)}</label><input data-pr="${esc(cl)}" data-masc="moeda" inputmode="decimal" placeholder="Preço por m³" value="${esc(m&&m.preco!==''&&m.preco!=null?fMoedaCampo(m.preco):'')}" aria-label="Preço por m³ de ${esc(cl)}"></div>`};
+ const corpo=()=>`<p class="ajuda" style="margin:0 0 10px">${esc(nomeFornecedor(f))}. As medidas são da carroceria carregada, em metros. Na hora de lançar, o m³ já vem calculado e dá para ajustar a altura da carga do dia.</p>
+  <h4 style="margin:10px 0 6px">Caminhões</h4><div id="fx111c">${cams.map(linhaCam).join('')}</div>
+  <button type="button" class="btn min" data-addc>${ic('mais')}Adicionar caminhão</button>
+  <h4 style="margin:16px 0 6px">Tipos de lenha que ele entrega e preço por m³</h4><div id="fx111t">${classes().concat(Object.values(marc).map(x=>x.classe).filter(x=>!classes().some(y=>norm(y)===norm(x)))).map(linhaTipo).join('')}</div>
+  ${pode(CL,'e')?`<button type="button" class="btn min" data-novot>${ic('mais')}Cadastrar tipo novo</button>`:''}`;
+ const lerTipos=m=>{$$('[data-cl]',m).forEach(cb=>{const cl=cb.dataset.cl;const pr=$(`[data-pr="${CSS.escape(cl)}"]`,m);const p=pr&&pr.value!==''?lerMoeda(pr.value):'';if(cb.checked)marc[norm(cl)]={classe:cl,preco:p};else delete marc[norm(cl)]})};
+ const v=modalV('Caminhões e tipos de lenha do fornecedor',`<div id="fx111">${corpo()}</div>`,'Salvar',async m=>{
+  lerTipos(m);const lim=cams.filter(c=>String(c.nome||'').trim()||c.comp!==''||c.larg!==''||c.alt!=='');
+  for(const c of lim){if(!String(c.nome||'').trim()){toast('Informe o apelido ou a placa de cada caminhão.','erro');return false}
+   if(!(+c.comp>0)||!(+c.larg>0)||!(+c.alt>0)){toast('Caminhão “'+c.nome+'”: informe comprimento, largura e altura maiores que zero.','erro');return false}
+   if(lim.some(o=>o!==c&&norm(o.nome)===norm(c.nome))){toast('Há dois caminhões com o nome “'+c.nome+'”.','erro');return false}}
+  const tipos=Object.values(marc);for(const t of tipos){if(t.preco!==''&&(isNaN(+t.preco)||+t.preco<0)){toast('Preço inválido em “'+t.classe+'”.','erro');return false}}
+  const at=FORN(id)||f;const caminhoes=lim.map(c=>({id:c.id||novoId(),nome:String(c.nome).trim(),comp:+c.comp,larg:+c.larg,alt:+c.alt}));
+  const novo={...at,caminhoes,lenhaClasses:tipos.map(t=>({classe:t.classe,preco:t.preco===''?'':+t.preco})),alteradoEm:agoraIso(),alteradoPor:eu()};
+  await gravar('fornecedores',novo,at);DATA.fornecedores=DATA.fornecedores.map(x=>x.id===id?novo:x);
+  await logV('fornecedores',id,'alterou caminhões e tipos de lenha',[{c:'Caminhões',de:txtCams(camsDe(at)),para:txtCams(caminhoes)},{c:'Tipos e preço por m³',de:txtTipos(tiposDe(at)),para:txtTipos(novo.lenhaClasses)}].filter(x=>x.de!==x.para));
+  toast('Caminhões e tipos de '+nomeFornecedor(novo)+' salvos.','ok');if(depois)depois(novo);else renderTela()});
+ const box=()=>$('#fx111',v);
+ v.addEventListener('input',e=>{const t=e.target;const li=t.closest('.fx-l');if(li&&t.dataset.c){const c=cams[+li.dataset.i];if(!c)return;c[t.dataset.c]=t.dataset.c==='nome'?t.value:(t.value===''?'':+t.value);const b=$('[data-m3]',li);if(b)b.textContent=m3Cam(c)>0?fM3(m3Cam(c)):'— m³';return}
+  if(t.dataset.pr&&t.value!==''){const cb=$(`[data-cl="${CSS.escape(t.dataset.pr)}"]`,v);if(cb&&!cb.checked)cb.checked=true}});
+ v.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.addc!=null){lerTipos(v);cams.push({id:novoId(),nome:'',comp:'',larg:'',alt:''});box().innerHTML=corpo();const ins=$$('.fx-l input[data-c=nome]',v);if(ins.length)ins[ins.length-1].focus();return}
+  if(b.dataset.rm!=null){lerTipos(v);cams.splice(+b.dataset.rm,1);if(!cams.length)cams.push({id:novoId(),nome:'',comp:'',larg:'',alt:''});box().innerHTML=corpo();return}
+  if(b.dataset.novot!=null){lerTipos(v);novaClasse(nome=>{marc[norm(nome)]={classe:nome,preco:''};const bx=box();if(bx)bx.innerHTML=corpo()})}});
+}
+/* no cadastro e na lista de fornecedores da lenha */
+{const MF=MODS.fornecedores;const i=MF.fields.findIndex(x=>x.k==='obs');
+ MF.fields.splice(i<0?MF.fields.length:i,0,{k:'_lenha111',l:'Caminhões e tipos de lenha',t:'html',w2:1,sh:r=>r.setor===LS,s:'Lenha',
+  calc:r=>r.id&&FORN(r.id)?resumoFornHtml(FORN(r.id))+(pode('fornecedores','e')?`<button type="button" class="btn min" style="margin-top:8px" onclick="LENHA_V111.editarFornDaFicha('${esc(r.id)}')">${ic('editar')}Editar caminhões e tipos</button> <span class="ajuda">Abre uma janela própria e fecha esta ficha: salve antes o que mudou aqui.</span>`:''):'<span class="ajuda">Salve o fornecedor primeiro. Depois dá para cadastrar os caminhões e os tipos de lenha dele.</span>'});
+ const g=Object.getOwnPropertyDescriptor(MF,'cols');const get0=g.get?g.get:()=>g.value;
+ Object.defineProperty(MF,'cols',{configurable:true,enumerable:true,get(){const c=get0.call(this);if(setorAtualV()!==LS)return c;const out=c.slice();const k=out.findIndex(x=>x.k==='_acoes');
+  out.splice(k<0?out.length:k,0,{k:'_cam111',l:'Caminhões e tipos',semExport:1,v:r=>{const cs=camsDe(r),ts=tiposDe(r);const t=[cs.length?cs.length+' caminhão(ões)':'',ts.map(x=>x.classe).join(', ')].filter(Boolean).join(' · ')||'—';
+   return esc(t)+(pode('fornecedores','e')?` <button type="button" class="ib" data-tip="Caminhões e tipos de lenha" aria-label="Caminhões e tipos de lenha de ${esc(r.nome||'')}" onclick="event.stopPropagation();LENHA_V111.editarForn('${esc(r.id)}')">${ic('editar')}</button>`:'')},o:r=>camsDe(r).length});
+  return out}});}
+
+/* ---------- o que a compra de lenha guarda a mais ---------- */
+const prodsL=()=>DATA.produtos.filter(p=>p.setor===LS&&p.situacao!=='Inativo'&&String(p.unidade||'').trim()==='m³');
+const prodPadrao=()=>{const ps=prodsL();return ps.find(p=>/lenha/i.test(String(p.nome||'')))||ps[0]||DATA.produtos.find(p=>p.setor===LS&&p.situacao!=='Inativo')||null};
+const comprasDe=fid=>DATA.compras.filter(c=>c.setor===LS&&c.tipoOp==='compra'&&!cancV(c)&&c.fornecedorId===fid).sort((a,b)=>String((b.data||'')+' '+(b.hora||'')+' '+(b.criadoEm||'')).localeCompare(String((a.data||'')+' '+(a.hora||'')+' '+(a.criadoEm||''))));
+function medicaoDe(d){const comp=+d.lenhaComp,larg=+d.lenhaLarg,alt=+d.lenhaAlt;if(!(comp>0&&larg>0&&alt>0))return null;
+ const f=FORN(d.parteId);const c=camsDe(f).find(x=>x.id===d.lenhaCam);return{caminhaoId:c?c.id:'',caminhao:c?c.nome:'',comp,larg,alt,m3:r3(comp*larg*alt)}}
+function precoDe(f,cl,pid){const t=tiposDe(f).find(x=>norm(x.classe)===norm(cl));if(t&&t.preco!==''&&t.preco!=null)return +t.preco;
+ const cs=f?comprasDe(f.id):[];const u=cs.find(c=>cl&&norm(c.lenhaClasse)===norm(cl))||(!cl||!tiposDe(f).length?cs[0]:null);
+ if(u){const it=(u.itens||[]).find(i=>!pid||i.produtoId===pid)||(u.itens||[])[0];if(it&&+it.preco>0)return +it.preco}return ''}
+/* a gravação é a de sempre (confirmarOpV); aqui só entram os campos novos, antes de gravar */
+{const g0=gravar;gravar=async function(col,rec,ant){
+ try{if(col==='compras'&&rec&&!ant&&rec.tipoOp==='compra'&&rec.setor===LS&&rec.lenhaLocal===undefined){const d=typeof RASC_V!=='undefined'?RASC_V.compra:null;
+  if(d&&d.setor===LS&&d.lenhaLocal){rec.lenhaLocal=d.lenhaLocal;const cl=String(d.lenhaClasse||'').trim();if(cl){rec.lenhaClasse=cl;(rec.itens||[]).forEach(i=>{i.lenhaClasse=cl})}
+   const md=medicaoDe(d);if(md)rec.lenhaMedicao=md;if(d.lenhaTela)rec.lenhaTela='lancar'}}}catch(e){console.warn('V111 compra',e)}
+ return g0.apply(this,arguments)}}
+{const c0=conferirOpV;conferirOpV=function(O,d){const r=c0(O,d);if(!O||O.K!=='compra'||!d||d.setor!==LS)return r;
+ if(!d.lenhaLocal)r.erros.push('Informe para onde foi a lenha: estoque de fora ou chão da fábrica.');
+ else if(!DEP(d.lenhaLocal))r.erros.push('O local escolhido para a lenha não foi encontrado.');
+ return r}}
+
+/* ---------- Nova compra (a tela de sempre): caminhão, tipo e destino ---------- */
+function optsCl(f,sel){const dele=tiposDe(f).map(t=>t.classe);const resto=classes(sel).filter(x=>!dele.some(y=>norm(y)===norm(x)));
+ const o=x=>`<option value="${esc(x)}" ${norm(sel)===norm(x)?'selected':''}>${esc(x)}</option>`;
+ return `<option value="">${esc(SEM_TIPO)}</option>`+(dele.length?`<optgroup label="Deste fornecedor">${dele.map(o).join('')}</optgroup><optgroup label="Outros">${resto.map(o).join('')}</optgroup>`:resto.map(o).join(''))}
+const optsDep=sel=>`<option value="">Selecione…</option>`+depositos().concat(sel&&!depositos().some(d=>d.id===sel)&&DEP(sel)?[DEP(sel)]:[]).map(d=>`<option value="${esc(d.id)}" ${sel===d.id?'selected':''}>${esc(d.nome)}</option>`).join('');
+{const f0=formOpV;formOpV=function(c,O,s){f0(c,O,s);if(O.K!=='compra'||s!==LS)return;
+ try{const d=RASC_V[O.K];const frm=$('#frmV',c);const fs=frm&&frm.querySelector('fieldset.sec');if(!d||!fs)return;
+  const html=()=>{const f=FORN(d.parteId);const cs=camsDe(f);const md=medicaoDe(d);
+   return `<legend>Lenha: caminhão, tipo e destino</legend><div class="campos">
+    <div class="cmp"><label for="lx111cam">Caminhão do fornecedor</label><select id="lx111cam"><option value="">${cs.length?'Sem caminhão (digitar o m³)':'Nenhum caminhão cadastrado'}</option>${cs.map(x=>`<option value="${esc(x.id)}" ${d.lenhaCam===x.id?'selected':''}>${esc(x.nome+' · '+fM3(m3Cam(x)))}</option>`).join('')}</select><span class="ajuda">${f&&pode('fornecedores','e')?`<a href="javascript:void 0" id="lx111edf">Cadastrar ou alterar caminhões e tipos deste fornecedor</a>`:'Os caminhões ficam no cadastro do fornecedor.'}</span></div>
+    <div class="cmp"><label for="lx111alt">Altura da carga hoje (m)</label><input id="lx111alt" type="number" step="any" min="0" inputmode="decimal" value="${esc(d.lenhaAlt??'')}" ${d.lenhaCam?'':'disabled'}><span class="ajuda" id="lx111m3">${md?esc(fNum(md.comp,2)+' × '+fNum(md.larg,2)+' × '+fNum(md.alt,2)+' = '+fM3(md.m3)+' (vai para a quantidade da 1ª linha)'):'Escolha o caminhão para o m³ vir calculado.'}</span></div>
+    <div class="cmp"><label for="lx111cl">Tipo da lenha (grossa, fina…)</label><select id="lx111cl">${optsCl(f,d.lenhaClasse)}</select><span class="ajuda">Com o tipo, o preço combinado com o fornecedor vem preenchido.${pode(CL,'e')?' <a href="javascript:void 0" id="lx111ncl">Cadastrar tipo novo</a>':''}</span></div>
+    <div class="cmp"><label for="lx111dep">Para onde foi a lenha?<i> *</i></label><select id="lx111dep">${optsDep(d.lenhaLocal)}</select><span class="ajuda">Estoque de fora: depois, quem levar para a fábrica lança em “Levar lenha para a fábrica”.</span></div></div>`};
+  const box=document.createElement('fieldset');box.className='sec';box.id='lx111';box.innerHTML=html();fs.insertAdjacentElement('afterend',box);
+  const linha0=(k,val)=>{const el=$(`#vdItens [data-li="0"] [data-vi="${k}"]`,c);if(!el)return;el.value=val;el.dispatchEvent(new Event(k==='produtoId'?'change':'input',{bubbles:true}))};
+  const garantirItem=()=>{const it=d.itens[0];if(it&&!it.produtoId){const p=prodPadrao();if(p)linha0('produtoId',p.id)}};
+  const aplicarM3=()=>{const md=medicaoDe(d);if(md){garantirItem();linha0('qtd',String(md.m3))}};
+  const aplicarPreco=()=>{if(!d.lenhaClasse)return;garantirItem();const p=precoDe(FORN(d.parteId),d.lenhaClasse,(d.itens[0]||{}).produtoId);if(p!=='')linha0('preco',fMoedaCampo(p))};
+  box.addEventListener('change',e=>{const t=e.target;e.stopPropagation();
+   if(t.id==='lx111cam'){const cm=camsDe(FORN(d.parteId)).find(x=>x.id===t.value);d.lenhaCam=cm?cm.id:'';if(cm){d.lenhaComp=cm.comp;d.lenhaLarg=cm.larg;d.lenhaAlt=cm.alt}else{d.lenhaComp=d.lenhaLarg=d.lenhaAlt=''}box.innerHTML=html();aplicarM3();return}
+   if(t.id==='lx111cl'){d.lenhaClasse=t.value;aplicarPreco();return}
+   if(t.id==='lx111dep'){d.lenhaLocal=t.value;const r=$('#vdResumo',c);if(r){r.innerHTML=resumoOpV(O,d);r._h=r.innerHTML}}});
+  box.addEventListener('input',e=>{const t=e.target;e.stopPropagation();if(t.id!=='lx111alt')return;d.lenhaAlt=t.value===''?'':+t.value;const md=medicaoDe(d);const sp=$('#lx111m3',box);
+   if(sp)sp.textContent=md?fNum(md.comp,2)+' × '+fNum(md.larg,2)+' × '+fNum(md.alt,2)+' = '+fM3(md.m3)+' (vai para a quantidade da 1ª linha)':'Informe a altura da carga.';aplicarM3()});
+  box.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;
+   if(a.id==='lx111edf'){editarForn(d.parteId,()=>{box.innerHTML=html()})}
+   if(a.id==='lx111ncl'){novaClasse(nome=>{d.lenhaClasse=nome;box.innerHTML=html()})}});
+  const cli=$('#vdCli',c);if(cli)cli.addEventListener('change',()=>setTimeout(()=>{if(!camsDe(FORN(d.parteId)).some(x=>x.id===d.lenhaCam)){d.lenhaCam='';d.lenhaComp=d.lenhaLarg=d.lenhaAlt=''}box.innerHTML=html()},0));
+ }catch(e){console.warn('V111 nova compra',e)}}}
+
+/* ---------- tela da compra e lista de compras: tipo, destino e medição ---------- */
+{const d0=detalheOpV;detalheOpV=function(c,O,v){d0(c,O,v);
+ try{if(!v||v.tipoOp!=='compra'||v.setor!==LS||$('#lx111det',c))return;const md=v.lenhaMedicao;
+  const kv=$('.vv-kv',c);const h=`<div class="painel" id="lx111det" style="padding:12px 14px;margin:12px 0"><b>Lenha</b><div style="font-size:13.5px;line-height:1.6;margin-top:4px">Tipo: <b>${esc(nomeCl(v.lenhaClasse))}</b> · Foi para: <b>${esc(v.lenhaLocal?nomeDep(v.lenhaLocal):SEM_LOCAL)}</b>${md?`<br>Medição: ${md.caminhao?esc(md.caminhao)+' · ':''}${esc(fNum(md.comp,2)+' × '+fNum(md.larg,2)+' × '+fNum(md.alt,2)+' m = '+fM3(md.m3))}`:''}</div></div>`;
+  if(kv)kv.insertAdjacentHTML('afterend',h);else c.insertAdjacentHTML('beforeend',h)}catch(e){console.warn('V111 detalhe',e)}}}
+{const MC=MODS.compras;const g=Object.getOwnPropertyDescriptor(MC,'cols');const get0=g.get?g.get:()=>g.value;
+ Object.defineProperty(MC,'cols',{configurable:true,enumerable:true,get(){const c=get0.call(this);if(setorAtualV()!==LS)return c;const out=c.slice();const k=out.findIndex(x=>x.k==='total');
+  out.splice(k<0?out.length:k,0,{k:'_cl111',l:'Tipo',v:r=>esc(nomeCl(r.lenhaClasse)),o:r=>nomeCl(r.lenhaClasse)},{k:'_dp111',l:'Foi para',v:r=>esc(r.lenhaLocal?curtoDep(r.lenhaLocal):SEM_LOCAL),o:r=>r.lenhaLocal?curtoDep(r.lenhaLocal):SEM_LOCAL});return out},
+  set(v){Object.defineProperty(MC,'cols',{configurable:true,enumerable:true,writable:true,value:v})}});
+ {const f0=MC.filtros||[];Object.defineProperty(MC,'filtros',{configurable:true,enumerable:true,get(){if(setorAtualV()!==LS)return f0;return [...f0,{k:'_cl111',l:'Tipo de lenha',op:()=>[...classes(),SEM_TIPO],fn:(r,v)=>norm(nomeCl(r.lenhaClasse))===norm(v)},{k:'_dp111',l:'Foi para',op:()=>[...depositos(true).map(d=>[d.id,d.curto||d.nome]),['_sem',SEM_LOCAL]],fn:(r,v)=>v==='_sem'?!r.lenhaLocal:r.lenhaLocal===v}]},set(v){Object.defineProperty(MC,'filtros',{configurable:true,enumerable:true,writable:true,value:v})}})}}
+
+/* ================= tela: Lançar lenha ================= */
+let ULT=null;
+function rascunho(){let d=RASC_V.compra;if(!d||d.setor!==LS){d=RASC_V.compra=novoRascunhoV(OP.compra,LS)}
+ if(!d.lx111){d.lx111=true;if(!d.forma||d.forma==='Boleto')d.forma='Dinheiro';if(d.lxPag===undefined)d.lxPag=''}
+ if(!d.itens||!d.itens.length)d.itens=[{produtoId:'',qtd:'',preco:''}];
+ const it=d.itens[0];if(!it.produtoId){const p=prodPadrao();if(p)it.produtoId=p.id}
+ return d}
+function aplicarPag(d){
+ if(d.forma===window.COMB_V62&&d.lxPag==='agora')d.lxPag='prazo';
+ if(d.lxPag==='agora'){d.condicao='À vista';d.recebido='sim';d.entrada='';d.semVenc=false}
+ else if(d.lxPag==='prazo'){d.condicao='A prazo';d.entrada=''}}
+function costume(d,f){ /* o que este fornecedor costuma usar */
+ const u=comprasDe(f.id)[0];const cs=camsDe(f),ts=tiposDe(f);const it=d.itens[0];
+ const cam=(u&&u.lenhaMedicao&&cs.find(x=>x.id===u.lenhaMedicao.caminhaoId))||(cs.length===1?cs[0]:null);
+ if(cam){d.lenhaCam=cam.id;d.lenhaComp=cam.comp;d.lenhaLarg=cam.larg;d.lenhaAlt=cam.alt;it.qtd=m3Cam(cam)}else{d.lenhaCam='';d.lenhaComp=d.lenhaLarg=d.lenhaAlt='';it.qtd=''}
+ d.lenhaClasse=(u&&u.lenhaClasse)||(ts.length===1?ts[0].classe:'')||'';
+ it.preco=precoDe(f,d.lenhaClasse,it.produtoId);
+ if(u){if(u.forma)d.forma=u.forma;const pg=(u.pagamentos||[]).find(p=>!p.estornado&&p.contaId);if(pg)d.contaId=pg.contaId;
+  d.lxPrazo=u.condicao==='A prazo'&&u.vencimento&&u.data?Math.max(0,diasEntre(u.data,u.vencimento)):null;d.lxSemVencCostume=u.condicao==='A prazo'&&!u.vencimento}
+ else{d.lxPrazo=null;d.lxSemVencCostume=false}
+ d.lxPag='';d.vencimento='';d.semVenc=false}
+function repetir(d,f){const u=comprasDe(f.id)[0];if(!u)return;costume(d,f);const it=d.itens[0];const i0=(u.itens||[])[0]||{};
+ if(i0.produtoId&&PROD(i0.produtoId)&&PROD(i0.produtoId).situacao!=='Inativo')it.produtoId=i0.produtoId;
+ const md=u.lenhaMedicao;if(md&&d.lenhaCam){d.lenhaComp=md.comp;d.lenhaLarg=md.larg;d.lenhaAlt=md.alt}
+ it.qtd=+i0.qtd||it.qtd;if(+i0.preco>0)it.preco=+i0.preco;
+ if(u.lenhaLocal&&DEP(u.lenhaLocal))d.lenhaLocal=u.lenhaLocal;
+ const pagoNoAto=u.condicao==='À vista'&&(u.pagamentos||[]).some(p=>!p.estornado);
+ d.lxPag=pagoNoAto?'agora':'prazo';
+ if(d.lxPag==='prazo'){if(d.lxSemVencCostume)d.semVenc=true;else if(d.lxPrazo!=null)d.vencimento=somaDias(d.data||hoje(),d.lxPrazo)}
+ aplicarPag(d)}
+const somaDias=(iso,n)=>{const [a,m,dd]=String(iso).split('-').map(Number);const x=new Date(a,m-1,dd+n);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+function telaLancar(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const O=OP.compra;const ed=pode('compra','e');const d=rascunho();aplicarPag(d);
+ const fs=DATA.fornecedores.filter(f=>f.setor===LS&&(f.situacao!=='Inativo'||f.id===d.parteId)).sort((a,b)=>nomeFornecedor(a).localeCompare(nomeFornecedor(b),'pt-BR'));
+ const f=FORN(d.parteId);const cs=camsDe(f);const it=d.itens[0];const ps=prodsL();const md=medicaoDe(d);
+ const formas=typeof window.FORMAS_LENHA_V62==='function'?window.FORMAS_LENHA_V62(d.forma):FORMAS_V;
+ const semDin=typeof window.formaSemDinheiroV62==='function'&&window.formaSemDinheiroV62(d.forma);const comb=d.forma===window.COMB_V62;
+ const contas=window.FINANCEIRO_SETOR&&FINANCEIRO_SETOR.h?FINANCEIRO_SETOR.h.optsContas():[];
+ const dele=tiposDe(f).map(t=>t.classe);const cls=[...dele,...classes(d.lenhaClasse).filter(x=>!dele.some(y=>norm(y)===norm(x)))];
+ const ult=f?comprasDe(f.id)[0]:null;const S=saldosLocais();
+ const chip=(attr,val,on,txt,sub,extra)=>`<button type="button" class="lx-chip${on?' on':''}${extra||''}" ${attr}="${esc(val)}" aria-pressed="${on?'true':'false'}">${esc(txt)}${sub?`<small>${esc(sub)}</small>`:''}</button>`;
+ c.innerHTML=`<div class="lx"><div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('chama')}</span><div><h1>Lançar lenha</h1><p>Chegou lenha? Escolha o fornecedor e confira o resto. Ao salvar, entra no estoque e na conta a pagar, igual à Nova compra.</p></div></div>
+   <div class="acoes"><button type="button" class="btn" id="lxLimpar">Limpar</button></div></div>
+  ${ULT&&COMPRA_(ULT)?(()=>{const u=COMPRA_(ULT);return `<div class="lx-ult"><span style="flex:1;min-width:180px">Lançado: <b>compra nº ${esc(fNumV(u.numero))}</b> · ${esc(parteSnap(u).nome||'')} · ${esc(resumoItensV(u))} · ${esc(fMoeda(u.total))}</span><a class="btn min" href="#/compra/${esc(u.id)}">Ver a compra</a></div>`})():''}
+  ${!ed?'<div class="aviso at"><span>Seu perfil vê esta tela, mas não lança compras de lenha.</span></div>':''}
+  ${!prodPadrao()?`<div class="aviso pe"><span><b>Falta o item de lenha.</b> Cadastre a lenha em m³ na aba Tipos de lenha (itens do estoque) antes de lançar.</span></div>`:''}
+  <div class="lx-c"><h3><span class="lx-n">1</span>Fornecedor</h3>
+   <div class="cmp"><select id="lxForn" aria-label="Fornecedor"><option value="">Selecione o fornecedor…</option>${fs.map(x=>`<option value="${esc(x.id)}" ${d.parteId===x.id?'selected':''}>${esc(nomeFornecedor(x))}</option>`).join('')}</select></div>
+   ${f?`<div class="inline" style="margin-top:10px;gap:8px;flex-wrap:wrap">${ult?`<button type="button" class="btn" id="lxRep">${ic('c2voltar')}Repetir último lançamento deste fornecedor</button>`:''}${pode('fornecedores','e')?`<button type="button" class="btn min" id="lxEdF">${ic('editar')}Caminhões e tipos dele</button>`:''}</div>
+    ${ult?`<p class="ajuda" style="margin:8px 0 0">Último: ${esc(fData(ult.data))} · ${esc(resumoItensV(ult))} · ${esc(fMoeda(ult.total))} · ${esc(nomeCl(ult.lenhaClasse))}${ult.lenhaLocal?' · '+esc(curtoDep(ult.lenhaLocal)):''}</p>`:'<p class="ajuda" style="margin:8px 0 0">Primeiro lançamento deste fornecedor.</p>'}`:`${pode('fornecedores','e')?`<p class="ajuda" style="margin:8px 0 0">Não está na lista? <a href="javascript:void 0" id="lxNovoF">Cadastrar fornecedor novo</a></p>`:''}`}</div>
+  <div class="lx-c"><h3><span class="lx-n">2</span>Caminhão e quantidade</h3>
+   ${cs.length?`<div class="lx-chips">${cs.map(x=>chip('data-cam',x.id,d.lenhaCam===x.id,x.nome,fNum(x.comp,2)+' × '+fNum(x.larg,2)+' × '+fNum(x.alt,2)+' = '+fM3(m3Cam(x)))).join('')}${chip('data-cam','',!d.lenhaCam,'Sem caminhão','digitar o m³',' tr')}</div>`:`<p class="ajuda" style="margin:0">${f?'Este fornecedor não tem caminhão cadastrado: digite o m³ medido.'+(pode('fornecedores','e')?' Para o m³ vir calculado, toque em “Caminhões e tipos dele”.':''):'Escolha o fornecedor para ver os caminhões dele.'}</p>`}
+   ${d.lenhaCam?`<div class="lx-g"><div class="cmp"><label for="lxComp">Compr. (m)</label><input id="lxComp" data-md="lenhaComp" type="number" step="any" min="0" inputmode="decimal" value="${esc(d.lenhaComp??'')}"></div><div class="cmp"><label for="lxLarg">Largura (m)</label><input id="lxLarg" data-md="lenhaLarg" type="number" step="any" min="0" inputmode="decimal" value="${esc(d.lenhaLarg??'')}"></div><div class="cmp"><label for="lxAlt">Altura hoje (m)</label><input id="lxAlt" data-md="lenhaAlt" type="number" step="any" min="0" inputmode="decimal" value="${esc(d.lenhaAlt??'')}"></div></div>
+    <div class="lx-m3" id="lxM3">${md?'Medição: <b>'+esc(fM3(md.m3))+'</b>':'Informe as três medidas.'}</div>`:''}
+   <div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="lxQtd">Quantidade (m³)<i> *</i></label><input id="lxQtd" type="number" step="any" min="0" inputmode="decimal" value="${esc(it.qtd??'')}"><span class="ajuda">${d.lenhaCam?'Vem da medição. Pode corrigir à mão.':'O m³ medido da carga.'}</span></div>
+    ${ps.length>1?`<div class="cmp"><label for="lxProd">Item do estoque</label><select id="lxProd">${ps.map(p=>`<option value="${esc(p.id)}" ${it.produtoId===p.id?'selected':''}>${esc(nomeProduto(p))}</option>`).join('')}</select></div>`:''}</div></div>
+  <div class="lx-c"><h3><span class="lx-n">3</span>Tipo da lenha e preço</h3>
+   <div class="lx-chips">${cls.map(x=>{const t=tiposDe(f).find(y=>norm(y.classe)===norm(x));return chip('data-cl',x,norm(d.lenhaClasse)===norm(x),x,t&&t.preco!==''&&t.preco!=null?fMoeda(t.preco)+'/m³':'')}).join('')}${pode(CL,'e')?`<button type="button" class="lx-chip tr" id="lxNovoCl">+ Tipo novo</button>`:''}</div>
+   <div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="lxPreco">Preço por m³<i> *</i></label><input id="lxPreco" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(it.preco===''||it.preco==null?'':fMoedaCampo(it.preco))}"><span class="ajuda">Vem do combinado com o fornecedor ou da última compra. Pode alterar.</span></div></div></div>
+  <div class="lx-c"><h3><span class="lx-n">4</span>Para onde foi a lenha?</h3>
+   <div class="lx-chips">${depositos().map(x=>chip('data-dep',x.id,d.lenhaLocal===x.id,x.curto||x.nome,'hoje: '+fM3(x.id===CHAO?S.chao:(S.L[x.id]||{q:0}).q))).join('')}</div></div>
+  <div class="lx-c"><h3><span class="lx-n">5</span>Pagamento</h3>
+   <div class="lx-g2"><div class="cmp"><label for="lxForma">Forma de pagamento<i> *</i></label><select id="lxForma">${formas.map(x=>`<option ${norm(d.forma)===norm(x)?'selected':''}>${esc(x)}</option>`).join('')}</select>${typeof window.novaFormaV62==='function'&&pode('formasPag','e')?`<span class="ajuda"><a href="javascript:void 0" id="lxNovaForma">Cadastrar forma nova</a></span>`:''}</div></div>
+   ${comb?`<p class="ajuda" style="margin:8px 0 0">Pagamento com combustível: a compra fica a pagar e é quitada quando o abastecimento for lançado no Setor de Combustível como “Pago com combustível”.</p>`:''}
+   <div class="lx-chips" style="margin-top:10px">${comb?'':chip('data-pag','agora',d.lxPag==='agora','Já foi pago','sai do Caixa ou do banco agora')}${chip('data-pag','prazo',d.lxPag==='prazo','Fica a pagar','entra em Contas a pagar')}</div>
+   ${d.lxPag==='agora'&&!semDin&&window.FINANCEIRO_SETOR?`<div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="lxConta">De onde saiu o dinheiro<i> *</i></label><select id="lxConta"><option value="">Selecione…</option>${contas.map(([a,b])=>`<option value="${esc(a)}" ${d.contaId===a?'selected':''}>${esc(b)}</option>`).join('')}</select></div></div>`:''}
+   ${d.lxPag==='prazo'?`<div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="lxVenc">Vencimento${d.semVenc?'':'<i> *</i>'}</label><input id="lxVenc" type="date" value="${esc(d.vencimento||'')}" ${d.semVenc?'disabled':''}>
+     <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="lxSemVenc" ${d.semVenc?'checked':''}>Não há data para vencimento</label>
+     ${d.lxPrazo!=null&&!d.semVenc?`<span class="ajuda">Este fornecedor costuma dar ${d.lxPrazo} dia(s). <a href="javascript:void 0" id="lxUsaPrazo">Usar ${esc(fData(somaDias(d.data||hoje(),d.lxPrazo)))}</a></span>`:''}</div></div>`:''}</div>
+  <details class="lx-c"${d.nf||d.obs||d.data!==hoje()||ARQ_NOTA_V?' open':''}><summary style="cursor:pointer;font-weight:700">Data, nota e observação</summary>
+   <div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="lxData">Data<i> *</i></label><input id="lxData" data-dx="data" type="date" max="${hoje()}" value="${esc(d.data)}"></div>
+    <div class="cmp"><label for="lxNf">Número da nota (se tiver)</label><input id="lxNf" data-dx="nf" inputmode="numeric" value="${esc(d.nf||'')}"></div>
+    <div class="cmp"><label for="lxArq">Foto ou arquivo da nota</label>${APP.assets?`<input id="lxArq" type="file" accept="application/pdf,image/*,.xml,text/xml,application/xml">`:''}<span class="ajuda" id="lxArqN">${APP.assets?(ARQ_NOTA_V?'Arquivo escolhido: '+esc(ARQ_NOTA_V.name)+'.':'Opcional. Fica guardado na compra.'):'Nesta sessão não é possível enviar arquivos.'}</span></div>
+    <div class="cmp"><label for="lxRecPor">Recebido por</label><input id="lxRecPor" data-dx="recebidoPor" value="${esc(d.recebidoPor||'')}"></div>
+    <div class="cmp" style="grid-column:1/-1"><label for="lxObs">Observações</label><textarea id="lxObs" data-dx="obs">${esc(d.obs||'')}</textarea></div></div>
+   <p class="ajuda" style="margin:8px 0 0">Precisa de entrada, frete, desconto ou mais de um item? Use a <a href="#/compra/nova">Nova compra completa</a>: o que você já preencheu aqui vai junto.</p></details>
+  <div class="lx-c" id="lxFim"></div></div>`;
+ const fim=()=>{const r=conferirOpV(O,d);const er=r.erros.slice();
+  if(!d.lxPag)er.push('Escolha se já foi pago ou se fica a pagar.');
+  const mostra=d.tentou?er:er.filter(x=>/insuficiente|inválido|não pode|futura/.test(x));
+  const q=numV(it.qtd),p=numV(it.preco);
+  const h=`<div class="lx-tot"><span>${q>0?esc(fM3(q))+' × '+esc(fMoeda(p)):'Total'}</span><b>${esc(fMoeda(r.c.total))}</b></div>
+   <div style="font-size:13px;color:var(--suave);margin-top:2px">${d.lxPag==='agora'?'Pago agora'+(d.forma?' · '+esc(d.forma):''):d.lxPag==='prazo'?'A pagar'+(d.semVenc?' · sem data de vencimento':d.vencimento?' em '+esc(fData(d.vencimento)):''):''}${d.lenhaLocal?' · vai para '+esc(curtoDep(d.lenhaLocal)):''}</div>
+   ${mostra.length||r.avisos.length?`<ul class="lx-av">${mostra.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+   <button type="button" class="btn pri lx-ok" id="lxOk" ${ed?'':'disabled'}>${ic('carrinho')}Salvar lançamento</button>`;
+  const b=$('#lxFim',c);if(b&&b._h!==h){b.innerHTML=h;b._h=h}return er};
+ fim();
+ const redes=()=>telaLancar(c);
+ const setQtd=()=>{const m=medicaoDe(d);if(m){it.qtd=m.m3;const q=$('#lxQtd',c);if(q)q.value=m.m3}const s=$('#lxM3',c);if(s)s.innerHTML=m?'Medição: <b>'+esc(fM3(m.m3))+'</b>':'Informe as três medidas.'};
+ c.onchange=e=>{const t=e.target;
+  if(t.id==='lxForn'){d.parteId=t.value;d.busca='';const nf=FORN(d.parteId);if(nf)costume(d,nf);else{d.lenhaCam='';d.lenhaComp=d.lenhaLarg=d.lenhaAlt='';d.lenhaClasse=''}redes();return}
+  if(t.id==='lxForma'){d.forma=t.value;redes();return}
+  if(t.id==='lxConta'){d.contaId=t.value;fim();return}
+  if(t.id==='lxProd'){it.produtoId=t.value;fim();return}
+  if(t.id==='lxSemVenc'){d.semVenc=t.checked;if(d.semVenc)d.vencimento='';redes();return}
+  if(t.id==='lxVenc'){d.vencimento=t.value;fim();return}
+  if(t.id==='lxArq'){const a=t.files[0]||null;if(a&&a.size>20*1024*1024){t.value='';toast('Arquivo maior que 20 MB.','erro');return}if(a||!ARQ_NOTA_V)ARQ_NOTA_V=a;const s=$('#lxArqN',c);if(s&&ARQ_NOTA_V)s.textContent='Arquivo escolhido: '+ARQ_NOTA_V.name+'.';return}
+  if(t.dataset.dx){d[t.dataset.dx]=t.value;fim()}};
+ c.oninput=e=>{const t=e.target;
+  if(t.dataset.md){d[t.dataset.md]=t.value===''?'':+t.value;setQtd();fim();return}
+  if(t.id==='lxQtd'){it.qtd=t.value===''?'':+t.value;fim();return}
+  if(t.id==='lxPreco'){it.preco=lerMoeda(t.value);fim();return}
+  if(t.dataset.dx&&t.type!=='date'){d[t.dataset.dx]=t.value}};
+ c.onclick=async e=>{const t=e.target.closest('button,a');if(!t||!c.contains(t))return;
+  if(t.dataset.cam!=null){const cm=cs.find(x=>x.id===t.dataset.cam);d.lenhaCam=cm?cm.id:'';if(cm){d.lenhaComp=cm.comp;d.lenhaLarg=cm.larg;d.lenhaAlt=cm.alt;it.qtd=m3Cam(cm)}else{d.lenhaComp=d.lenhaLarg=d.lenhaAlt=''}redes();return}
+  if(t.dataset.cl!=null){d.lenhaClasse=norm(d.lenhaClasse)===norm(t.dataset.cl)?'':t.dataset.cl;if(d.lenhaClasse){const p=precoDe(f,d.lenhaClasse,it.produtoId);if(p!=='')it.preco=p}redes();return}
+  if(t.dataset.dep!=null){d.lenhaLocal=t.dataset.dep;redes();return}
+  if(t.dataset.pag!=null){d.lxPag=t.dataset.pag;if(d.lxPag==='prazo'&&!d.vencimento&&!d.semVenc){if(d.lxSemVencCostume)d.semVenc=true;else if(d.lxPrazo!=null)d.vencimento=somaDias(d.data||hoje(),d.lxPrazo)}aplicarPag(d);redes();return}
+  if(t.id==='lxUsaPrazo'){d.vencimento=somaDias(d.data||hoje(),d.lxPrazo);redes();return}
+  if(t.id==='lxRep'&&f){repetir(d,f);redes();toast('Último lançamento copiado. Confira a quantidade antes de salvar.','ok');return}
+  if(t.id==='lxEdF'&&f){editarForn(f.id,()=>redes());return}
+  if(t.id==='lxNovoF'){d.aguardaParte=true;d.lxVolta=true;location.hash='#/fornecedores/novo';return}
+  if(t.id==='lxNovoCl'){novaClasse(nome=>{d.lenhaClasse=nome;redes()});return}
+  if(t.id==='lxNovaForma'){window.novaFormaV62(nome=>{d.forma=nome;redes()});return}
+  if(t.id==='lxLimpar'){if(!await confirmar('Limpar este lançamento?','Os dados preenchidos nesta tela se perdem. Nada foi gravado ainda.',{ok:'Limpar'}))return;ARQ_NOTA_V=null;RASC_V.compra=null;redes();return}
+  if(t.id==='lxOk'){d.tentou=true;const er=fim();if(!d.lxPag){toast('Escolha se já foi pago ou se fica a pagar.','erro');return}if(er.length){toast(er[0],'erro');return}
+   d.lenhaTela=true;const antes=new Set(DATA.compras.map(x=>x.id));const h0=location.hash;
+   await confirmarOpV(O,t);
+   if(RASC_V.compra===null){const m=/^#\/compra\/([^/]+)$/.exec(location.hash);ULT=m&&m[1]!=='nova'?m[1]:((DATA.compras.find(x=>!antes.has(x.id)&&x.setor===LS)||{}).id||null);
+    if(location.hash!==h0)location.hash='#/lenhaLancar';else redes()}
+   else{d.lenhaTela=false;if(lerRota().mod==='lenhaLancar')redes()}}};
+}
+/* fornecedor novo cadastrado a partir do Lançar lenha: volta para cá, não para a Nova compra */
+{const ps0=typeof posSalvarV==='function'?posSalvarV:null;posSalvarV=function(mod,rec,ant){
+ const d=typeof RASC_V!=='undefined'?RASC_V.compra:null;
+ if(mod==='fornecedores'&&!ant&&d&&d.aguardaParte&&d.lxVolta){d.aguardaParte=false;d.lxVolta=false;d.parteId=rec.id;d.busca='';setTimeout(()=>{location.hash='#/lenhaLancar'},0);return true}
+ return ps0?ps0(mod,rec,ant):false}}
+
+/* ================= tela: Levar lenha para a fábrica ================= */
+const UIT={de:FORA,para:CHAO,modo:'m3',q:'',viagens:'',m3v:'',classe:'',quem:'',data:'',obs:''};
+const transfs=()=>(DATA[MV]||[]).filter(m=>m.tipo==='transferencia').sort((a,b)=>String((b.data||'')+' '+(b.hora||'')+' '+(b.criadoEm||'')).localeCompare(String((a.data||'')+' '+(a.hora||'')+' '+(a.criadoEm||''))));
+function telaLevar(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const ed=pode(MV,'e');const S=saldosLocais();const deps=depositos();
+ if(!UIT.data)UIT.data=hoje();
+ const ultT=transfs().find(movAtivo);if(UIT.m3v===''&&ultT&&+ultT.m3Viagem>0)UIT.m3v=+ultT.m3Viagem;if(!UIT.quem&&ultT&&ultT.quem&&UIT._q===undefined){UIT.quem=ultT.quem;UIT._q=1}
+ const origens=deps.filter(x=>x.id!==CHAO);if(!origens.some(x=>x.id===UIT.de))UIT.de=FORA;if(UIT.para===UIT.de)UIT.para=CHAO;
+ const sd=saldoDep(UIT.de);const porCl=(S.L[UIT.de]||{cl:{}}).cl;
+ const qtd=()=>UIT.modo==='viagens'?r3((+UIT.viagens||0)*(+UIT.m3v||0)):r3(+UIT.q||0);
+ const quems=[...new Set(transfs().map(x=>x.quem).filter(Boolean))].slice(0,12);
+ const chip=(attr,val,on,txt,sub)=>`<button type="button" class="lx-chip${on?' on':''}" ${attr}="${esc(val)}" aria-pressed="${on?'true':'false'}">${esc(txt)}${sub?`<small>${esc(sub)}</small>`:''}</button>`;
+ const lista=transfs().slice(0,30);
+ c.innerHTML=`<div class="lx"><div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('saida')}</span><div><h1>Levar lenha para a fábrica</h1><p>Tirou lenha do estoque de fora e levou para a fábrica? Lance aqui. O sistema dá baixa no estoque de fora e entrada no chão da fábrica. Não mexe no Financeiro nem no custo: é só mudança de lugar.</p></div></div>
+   <div class="acoes"><a class="btn" href="#/lenhaLocais">${ic('caixa')}Estoque por local</a></div></div>
+  <div class="lx-loc">${deps.map(x=>{const q=x.id===CHAO?S.chao:(S.L[x.id]||{q:0}).q;return `<div class="${q<-1e-6?'neg':''}"><span>${esc(x.curto||x.nome)}</span><b>${esc(fM3(q))}</b></div>`}).join('')}</div>
+  ${!S.temIni&&ehAdmin()?`<div class="aviso in"><span><b>Falta informar o saldo inicial por local.</b> A lenha que já estava no estoque antes desta versão está contada toda no chão da fábrica. <a href="javascript:void 0" id="tvIni">Informar quanto está no estoque de fora</a></span></div>`:''}
+  ${!ed?'<div class="aviso at"><span>Seu perfil vê esta tela, mas não lança.</span></div>':''}
+  <div class="lx-c"><h3><span class="lx-n">1</span>De onde saiu e para onde foi</h3>
+   <div class="lx-g2"><div class="cmp"><label for="tvDe">Saiu de</label><select id="tvDe">${origens.map(x=>`<option value="${esc(x.id)}" ${UIT.de===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div>
+   <div class="cmp"><label for="tvPara">Foi para</label><select id="tvPara">${deps.filter(x=>x.id!==UIT.de).map(x=>`<option value="${esc(x.id)}" ${UIT.para===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div></div>
+   <p class="ajuda" style="margin:8px 0 0">Saldo em ${esc(curtoDep(UIT.de))}: <b>${esc(fM3(sd))}</b></p></div>
+  <div class="lx-c"><h3><span class="lx-n">2</span>Quanto levou</h3>
+   <div class="lx-chips">${chip('data-modo','m3',UIT.modo==='m3','Em m³','digitar o m³')}${chip('data-modo','viagens',UIT.modo==='viagens','Por viagens','viagens × m³ do veículo')}</div>
+   ${UIT.modo==='viagens'?`<div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="tvVia">Número de viagens<i> *</i></label><input id="tvVia" data-t="viagens" type="number" step="1" min="0" inputmode="numeric" value="${esc(UIT.viagens)}"></div>
+    <div class="cmp"><label for="tvM3v">m³ por viagem (medida do veículo)<i> *</i></label><input id="tvM3v" data-t="m3v" type="number" step="any" min="0" inputmode="decimal" value="${esc(UIT.m3v)}"><span class="ajuda">Fica guardado para a próxima vez.</span></div></div>`
+    :`<div class="lx-g2" style="margin-top:10px"><div class="cmp"><label for="tvQ">Quantidade (m³)<i> *</i></label><input id="tvQ" data-t="q" type="number" step="any" min="0" inputmode="decimal" value="${esc(UIT.q)}"></div></div>`}
+   <div class="lx-m3" id="tvRes"></div></div>
+  <div class="lx-c"><h3><span class="lx-n">3</span>Tipo da lenha</h3>
+   <div class="lx-chips">${classes(UIT.classe).map(x=>{const k=Object.keys(porCl).find(y=>norm(y)===norm(x));return chip('data-cl',x,norm(UIT.classe)===norm(x),x,k!=null?'no local: '+fM3(porCl[k]):'')}).join('')}${chip('data-cl','',!UIT.classe,'Não sei / misturada',porCl['']?'no local: '+fM3(porCl['']):'')}</div></div>
+  <div class="lx-c"><h3><span class="lx-n">4</span>Quem levou e quando</h3>
+   <div class="lx-g2"><div class="cmp"><label for="tvQuem">Quem levou<i> *</i></label><input id="tvQuem" data-t="quem" list="tvQuems" maxlength="60" value="${esc(UIT.quem)}" placeholder="Nome de quem levou"><datalist id="tvQuems">${quems.map(q=>`<option value="${esc(q)}">`).join('')}</datalist></div>
+   <div class="cmp"><label for="tvData">Data<i> *</i></label><input id="tvData" data-t="data" type="date" max="${hoje()}" value="${esc(UIT.data)}"></div>
+   <div class="cmp" style="grid-column:1/-1"><label for="tvObs">Observações</label><input id="tvObs" data-t="obs" maxlength="200" value="${esc(UIT.obs)}"></div></div>
+   <button type="button" class="btn pri lx-ok" id="tvOk" ${ed?'':'disabled'}>Salvar</button></div>
+  <h3 class="grupo-t">Últimas levadas</h3>
+  ${lista.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>De → para</th><th class="num">Quantidade</th><th>Tipo</th><th>Quem levou</th><th>Lançado por</th><th></th></tr></thead><tbody>${lista.map(m=>`<tr${m.cancelado?' style="opacity:.55"':''}><td data-l="Data">${esc(fData(m.data))}${m.hora?' <small style="color:var(--fraco)">'+esc(m.hora)+'</small>':''}</td><td data-l="De → para">${esc(curtoDep(m.de)+' → '+curtoDep(m.para))}</td><td data-l="Quantidade" class="num"><b>${esc(fM3(m.quantidade))}</b>${m.viagens?`<div style="font-size:11.5px;color:var(--suave)">${esc(fQtd(m.viagens)+' viagem(ns) × '+fM3(m.m3Viagem))}</div>`:''}</td><td data-l="Tipo">${esc(nomeCl(m.classe))}</td><td data-l="Quem levou">${esc(m.quem||'—')}</td><td data-l="Lançado por">${esc(nomeUsuario(m.criadoPor))}</td>
+    <td>${m.cancelado?tag('Cancelada','pe'):(ed?`<button type="button" class="btn min" data-canc="${esc(m.id)}">Cancelar</button>`:'')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="painel"><div class="vazio"><b>Nenhuma levada lançada</b>Quando alguém levar lenha do estoque de fora para a fábrica, lance aqui.</div></div>'}</div>`;
+ const res=()=>{const q=qtd();const el=$('#tvRes',c);if(!el)return;
+  el.innerHTML=q>0?`Vai levar <b>${esc(fM3(q))}</b>. ${esc(curtoDep(UIT.de))} fica com <b${q>sd+1e-9?' style="color:var(--pe)"':''}>${esc(fM3(sd-q))}</b>; ${esc(curtoDep(UIT.para))} fica com <b>${esc(fM3(saldoDep(UIT.para)+q))}</b>.`:'Informe a quantidade.'};
+ res();
+ c.onchange=e=>{const t=e.target;if(t.id==='tvDe'){UIT.de=t.value;telaLevar(c);return}if(t.id==='tvPara'){UIT.para=t.value;res();return}if(t.dataset.t==='data'){UIT.data=t.value}};
+ c.oninput=e=>{const t=e.target;const k=t.dataset.t;if(!k||k==='data')return;UIT[k]=['q','viagens','m3v'].includes(k)?(t.value===''?'':+t.value):t.value;if(k==='quem')UIT._q=1;res()};
+ c.onclick=async e=>{const t=e.target.closest('button,a');if(!t||!c.contains(t))return;
+  if(t.dataset.modo){UIT.modo=t.dataset.modo;telaLevar(c);return}
+  if(t.dataset.cl!=null){UIT.classe=t.dataset.cl;telaLevar(c);return}
+  if(t.id==='tvIni'){saldoInicial();return}
+  if(t.dataset.canc){const m=(DATA[MV]||[]).find(x=>x.id===t.dataset.canc);if(!m||m.cancelado)return;
+   if(saldoDep(m.para)-(+m.quantidade||0)<-1e-6&&m.para!==CHAO){toast('Não dá para cancelar: '+curtoDep(m.para)+' ficaria com saldo negativo.','erro');return}
+   if(!await confirmar('Cancelar esta levada?',fM3(m.quantidade)+' voltam para '+curtoDep(m.de)+'. O lançamento continua na lista, marcado como cancelado.',{ok:'Cancelar a levada',perigo:true}))return;
+   const novo={...m,cancelado:true,canceladoEm:agoraIso(),canceladoPor:eu(),alteradoEm:agoraIso(),alteradoPor:eu()};
+   try{await gravar(MV,novo,m);DATA[MV]=DATA[MV].map(x=>x.id===m.id?novo:x);await logV(MV,m.id,'cancelou a levada de lenha',[{c:'Quantidade',de:fM3(m.quantidade),para:'cancelada'}]);toast('Levada cancelada. A lenha voltou para '+curtoDep(m.de)+'.','ok');renderTela()}catch(err){toast(msgFalhaSalvar(err),'erro')}return}
+  if(t.id==='tvOk'){const q=qtd();
+   if(!DEP(UIT.de)||!DEP(UIT.para)||UIT.de===UIT.para){toast('Confira de onde saiu e para onde foi.','erro');return}
+   if(UIT.modo==='viagens'&&(!(+UIT.viagens>0)||!Number.isInteger(+UIT.viagens))){toast('Informe o número de viagens.','erro');return}
+   if(UIT.modo==='viagens'&&!(+UIT.m3v>0)){toast('Informe o m³ por viagem.','erro');return}
+   if(!(q>0)){toast('Informe a quantidade.','erro');return}
+   if(!String(UIT.quem||'').trim()){toast('Informe quem levou.','erro');return}
+   if(!UIT.data){toast('Informe a data.','erro');return}if(UIT.data>hoje()){toast('A data não pode ser futura.','erro');return}
+   const sdA=saldoDep(UIT.de);
+   if(q>sdA+1e-9){toast('Não dá para tirar '+fM3(q)+': em '+curtoDep(UIT.de)+' só há '+fM3(sdA)+'.'+(!saldosLocais().temIni?' Se há lenha antiga lá, o administrador precisa informar o saldo inicial por local.':''),'erro');return}
+   const k=Object.keys(porCl).find(y=>norm(y)===norm(UIT.classe));const sc=k!=null?porCl[k]:0;
+   const avisoCl=q>sc+1e-9?' Atenção: do tipo “'+nomeCl(UIT.classe)+'” constam '+fM3(sc)+' neste local; o saldo desse tipo vai ficar negativo (o total do local continua certo).':'';
+   if(!await confirmar('Confirmar a levada?',fM3(q)+' de '+curtoDep(UIT.de)+' para '+curtoDep(UIT.para)+', por '+String(UIT.quem).trim()+', em '+fData(UIT.data)+'.'+avisoCl,{ok:'Confirmar'}))return;
+   t.disabled=true;const S2=saldosLocais();
+   const rec={id:novoId(),tipo:'transferencia',setor:LS,data:UIT.data,hora:horaAgora(),de:UIT.de,para:UIT.para,quantidade:q,unidade:'m³',classe:String(UIT.classe||'').trim(),quem:String(UIT.quem).trim(),obs:String(UIT.obs||'').trim(),
+    ...(UIT.modo==='viagens'?{viagens:+UIT.viagens,m3Viagem:+UIT.m3v}:{}),anteriorDe:saldoDep(UIT.de),atualDe:r3(saldoDep(UIT.de)-q),anteriorPara:saldoDep(UIT.para),atualPara:r3(saldoDep(UIT.para)+q),totalGeral:S2.total,
+    criadoEm:agoraIso(),criadoPor:eu(),alteradoEm:agoraIso(),alteradoPor:eu()};
+   try{await gravar(MV,rec,null);if(!(DATA[MV]||[]).some(x=>x.id===rec.id))DATA[MV]=[...(DATA[MV]||[]),rec];
+    await logV(MV,rec.id,'levou lenha para a fábrica',[{c:'Quantidade',de:'',para:fM3(q)},{c:'De → para',de:curtoDep(rec.de),para:curtoDep(rec.para)},{c:'Quem levou',de:'',para:rec.quem}]);
+    toast(fM3(q)+' baixados de '+curtoDep(rec.de)+' e lançados em '+curtoDep(rec.para)+'.','ok');Object.assign(UIT,{q:'',viagens:'',obs:''});renderTela()}
+   catch(err){t.disabled=false;toast(msgFalhaSalvar(err),'erro')}}};
+ resolverNomes(lista.map(x=>x.criadoPor));
+}
+
+/* ---------- saldo inicial por local (só o administrador): não altera o total ---------- */
+function saldoInicial(){
+ if(!ehAdmin()){toast('Só o administrador informa o saldo inicial por local.','erro');return}
+ const S=saldosLocais();const deps=depositos(true).filter(x=>x.id!==CHAO);const cls=['',...classes()];
+ const atual=(dep,cl)=>{const m=(DATA[MV]||[]).find(x=>x.tipo==='saldoInicial'&&movAtivo(x)&&x.deposito===dep&&norm(x.classe)===norm(cl));return m?+m.quantidade||0:0};
+ const somaIni=()=>r3((DATA[MV]||[]).filter(x=>x.tipo==='saldoInicial'&&movAtivo(x)).reduce((a,x)=>a+(+x.quantidade||0),0));
+ const livre=r3(S.chao+somaIni()); /* o que pode ser repartido sem mexer no total */
+ const corpo=`<p class="ajuda" style="margin:0 0 10px">Da lenha que já estava no estoque antes de 13/11/2026 (sem local), informe quanto está hoje em cada lugar fora do chão da fábrica. O resto fica no chão da fábrica. O estoque total (<b>${esc(fM3(S.total))}</b>) não muda, nem o custo.</p>
+  ${deps.map(dp=>`<h4 style="margin:12px 0 6px">${esc(dp.nome)}</h4>${cls.map(cl=>`<div class="fx-t"><label for="si_${esc(dp.id)}_${esc(norm(cl)||'sem')}">${esc(cl?cl:'Sem separar por tipo')}</label><input id="si_${esc(dp.id)}_${esc(norm(cl)||'sem')}" data-si="${esc(dp.id)}" data-cl="${esc(cl)}" type="number" step="any" min="0" inputmode="decimal" placeholder="m³" value="${atual(dp.id,cl)||''}"></div>`).join('')}`).join('')}
+  <div class="lx-m3" id="siRes"></div>`;
+ const v=modalV('Saldo inicial por local',corpo,'Salvar',async m=>{
+  const novos=$$('[data-si]',m).map(i=>({dep:i.dataset.si,cl:i.dataset.cl,q:i.value===''?0:+i.value}));
+  if(novos.some(x=>isNaN(x.q)||x.q<0)){toast('Quantidade inválida.','erro');return false}
+  const tot=r3(novos.reduce((a,x)=>a+x.q,0));if(tot>livre+1e-6){toast('A soma ('+fM3(tot)+') passa do que há para repartir ('+fM3(livre)+'). O total do estoque não pode mudar.','erro');return false}
+  for(const dp of deps){const d0=r3((DATA[MV]||[]).filter(x=>x.tipo==='saldoInicial'&&movAtivo(x)&&x.deposito===dp.id).reduce((a,x)=>a+(+x.quantidade||0),0));const d1=r3(novos.filter(x=>x.dep===dp.id).reduce((a,x)=>a+x.q,0));
+   if(saldoDep(dp.id)-d0+d1<-1e-6){toast(dp.nome+' ficaria com saldo negativo: já saiu de lá mais do que isso.','erro');return false}}
+  const mud=[];
+  for(const n of novos){const ant=(DATA[MV]||[]).find(x=>x.tipo==='saldoInicial'&&movAtivo(x)&&x.deposito===n.dep&&norm(x.classe)===norm(n.cl));const a=ant?+ant.quantidade||0:0;if(r3(a-n.q)===0)continue;
+   const rec=ant?{...ant,quantidade:n.q,alteradoEm:agoraIso(),alteradoPor:eu()}:{id:novoId(),tipo:'saldoInicial',setor:LS,data:hoje(),hora:horaAgora(),deposito:n.dep,classe:n.cl,quantidade:n.q,unidade:'m³',criadoEm:agoraIso(),criadoPor:eu(),alteradoEm:agoraIso(),alteradoPor:eu()};
+   await gravar(MV,rec,ant||null);DATA[MV]=[...(DATA[MV]||[]).filter(x=>x.id!==rec.id),rec];mud.push({c:curtoDep(n.dep)+' · '+(n.cl||'sem separar por tipo'),de:fM3(a),para:fM3(n.q)})}
+  if(mud.length)await logV(MV,'saldoInicial','informou o saldo inicial por local',mud);
+  toast(mud.length?'Saldo inicial por local salvo. O total do estoque continua '+fM3(saldosLocais().total)+'.':'Nada mudou.','ok');renderTela()});
+ const res=()=>{const tot=r3($$('[data-si]',v).reduce((a,i)=>a+(+i.value||0),0));const el=$('#siRes',v);if(el)el.innerHTML=`Fora do chão: <b>${esc(fM3(tot))}</b> · fica no chão da fábrica: <b${tot>livre+1e-6?' style="color:var(--pe)"':''}>${esc(fM3(livre-tot))}</b>`};
+ v.addEventListener('input',res);res();
+}
+
+/* ================= tela: Estoque por local ================= */
+function movsLocais(){const ids=idsM3();const out=[];
+ DATA.compras.forEach(c=>{if(c.setor!==LS||cancV(c))return;const q=r3((c.itens||[]).reduce((a,i)=>a+(ids.has(i.produtoId)&&i.baixaEstoque!==false?+i.qtd||0:0),0));if(!q)return;
+  out.push({data:c.data,hora:c.hora||'',em:c.criadoEm||'',tipo:'Compra',local:c.lenhaLocal?curtoDep(c.lenhaLocal):SEM_LOCAL,classe:nomeCl(c.lenhaClasse),q,txt:'Compra nº '+fNumV(c.numero)+' · '+(parteSnap(c).nome||''),por:c.criadoPor,ref:'#/compra/'+c.id})});
+ (DATA[MV]||[]).forEach(m=>{if(!movAtivo(m))return;
+  if(m.tipo==='transferencia')out.push({data:m.data,hora:m.hora||'',em:m.criadoEm||'',tipo:'Levada',local:curtoDep(m.de)+' → '+curtoDep(m.para),classe:nomeCl(m.classe),q:+m.quantidade||0,txt:'Levou: '+(m.quem||'')+(m.viagens?' · '+fQtd(m.viagens)+' viagem(ns)':''),por:m.criadoPor,ref:'#/lenhaLevar'});
+  else if(m.tipo==='saldoInicial'&&+m.quantidade)out.push({data:m.data,hora:m.hora||'',em:m.criadoEm||'',tipo:'Saldo inicial',local:curtoDep(m.deposito),classe:nomeCl(m.classe),q:+m.quantidade||0,txt:'Informado pelo administrador',por:m.alteradoPor||m.criadoPor,ref:'#/lenhaLocais'})});
+ return out.sort((a,b)=>(b.data+' '+b.hora+' '+b.em).localeCompare(a.data+' '+a.hora+' '+a.em))}
+function cartoesLocais(S){return `<div class="lx-loc"><div><span>Estoque total de lenha</span><b>${esc(fM3(S.total))}</b><small>igual ao da aba Estoque</small></div>${depositos(true).filter(x=>x.fixo||x.situacao!=='Inativo'||Math.abs((S.L[x.id]||{q:0}).q)>1e-6).map(x=>{const q=x.id===CHAO?S.chao:(S.L[x.id]||{q:0}).q;const cl=x.id===CHAO?null:(S.L[x.id]||{cl:{}}).cl;const det=cl?Object.entries(cl).filter(([,v])=>Math.abs(v)>1e-6).map(([k,v])=>nomeCl(k)+': '+fM3(v)).join(' · '):(S.temIni?'o que sobra do total':'inclui a lenha antiga ainda sem local');return `<div class="${q<-1e-6?'neg':''}"><span>${esc(x.curto||x.nome)}</span><b>${esc(fM3(q))}</b><small>${esc(det||'—')}</small></div>`}).join('')}</div>`}
+function porTipoCompras(){const ids=idsM3();const T={};DATA.compras.forEach(c=>{if(c.setor!==LS||cancV(c))return;(c.itens||[]).forEach(i=>{if(!ids.has(i.produtoId))return;const k=nomeCl(c.lenhaClasse||i.lenhaClasse);const o=T[k]||(T[k]={tipo:k,n:0,q:0,v:0});o.n++;o.q+=+i.qtd||0;o.v+=+i.total||0})});
+ return Object.values(T).sort((a,b)=>(a.tipo===SEM_TIPO)-(b.tipo===SEM_TIPO)||b.q-a.q)}
+function tabelaPorTipo(){const L=porTipoCompras();if(!L.length)return '<div class="painel"><div class="vazio"><b>Nenhuma compra de lenha</b></div></div>';
+ return `<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Tipo de lenha</th><th class="num">Cargas</th><th class="num">m³</th><th class="num">Valor</th><th class="num">Preço médio por m³</th></tr></thead><tbody>${L.map(o=>`<tr><td data-l="Tipo de lenha"><b>${esc(o.tipo)}</b></td><td data-l="Cargas" class="num">${esc(String(o.n))}</td><td data-l="m³" class="num">${esc(fNum(o.q,2))}</td><td data-l="Valor" class="num">${esc(fMoeda(o.v))}</td><td data-l="Preço médio por m³" class="num">${o.q?esc(fMoeda(r2(o.v/o.q))):'—'}</td></tr>`).join('')}</tbody></table></div>`}
+function telaLocais(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const S=saldosLocais();const mv=movsLocais();
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('caixa')}</span><div><h1>Estoque de lenha por local</h1><p>Quanto há no chão da fábrica e no estoque de fora, por tipo. O total é o mesmo da aba Estoque: aqui só aparece onde a lenha está.</p></div></div>
+  <div class="acoes">${pode(MV,'e')?`<a class="btn pri" href="#/lenhaLevar">${ic('saida')}Levar lenha para a fábrica</a>`:''}${ehAdmin()?`<button type="button" class="btn" id="llIni">${ic('editar')}Saldo inicial por local</button>`:''}${pode(DP)?`<a class="btn" href="#/${DP}">${ic('mapa')}Locais de estoque</a>`:''}<button type="button" class="btn min" id="llExp">${ic('baixar')}Exportar ▾</button></div></div>
+  ${cartoesLocais(S)}
+  ${!S.temIni?`<div class="aviso in"><span><b>Saldo inicial por local ainda não informado.</b> A lenha que já estava no estoque antes desta versão está contada toda no chão da fábrica.${ehAdmin()?' Toque em “Saldo inicial por local” para dizer quanto está no estoque de fora.':' Peça ao administrador para informar quanto está no estoque de fora.'}</span></div>`:''}
+  ${S.chao<-1e-6?`<div class="aviso pe"><span><b>O chão da fábrica está negativo.</b> Foi queimada mais lenha do que consta lá: falta lançar alguma “Levar lenha para a fábrica” ou o saldo inicial por local está maior que o real.</span></div>`:''}
+  <h3 class="grupo-t">Compras por tipo de lenha</h3>${tabelaPorTipo()}
+  <h3 class="grupo-t">Entradas e levadas</h3>
+  ${mv.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>O quê</th><th>Local</th><th>Tipo</th><th class="num">Quantidade</th><th>Detalhe</th></tr></thead><tbody>${mv.slice(0,200).map(x=>`<tr class="clic" data-go="${esc(x.ref)}" tabindex="0"><td data-l="Data">${esc(fData(x.data))}</td><td data-l="O quê">${esc(x.tipo)}</td><td data-l="Local">${esc(x.local)}</td><td data-l="Tipo">${esc(x.classe)}</td><td data-l="Quantidade" class="num"><b>${esc(fM3(x.q))}</b></td><td data-l="Detalhe">${esc(x.txt)}</td></tr>`).join('')}</tbody></table></div><div class="pag"><span>${mv.length} lançamento(s)${mv.length>200?' · mostrando os 200 mais recentes (exporte para ver todos)':''}</span></div>`:'<div class="painel"><div class="vazio"><b>Nada lançado ainda</b></div></div>'}`;
+ $$('tr[data-go]',c).forEach(tr=>{tr.onclick=()=>location.hash=tr.dataset.go;tr.onkeydown=e=>{if(e.key==='Enter')tr.onclick()}});
+ const bi=$('#llIni',c);if(bi)bi.onclick=()=>saldoInicial();
+ $('#llExp',c).onclick=()=>{
+  const c1=[{k:'local',l:'Local'},{k:'tipo',l:'Tipo'},{k:'q',l:'m³',t:'num'}];
+  const d1=[];depositos(true).forEach(x=>{if(x.id===CHAO){d1.push({local:x.nome,tipo:'(todos)',q:S.chao});return}const o=S.L[x.id];if(!o){d1.push({local:x.nome,tipo:'(todos)',q:0});return}Object.entries(o.cl).forEach(([k,v])=>d1.push({local:x.nome,tipo:nomeCl(k),q:v}))});d1.push({local:'TOTAL',tipo:'',q:S.total});
+  const c2=[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'O quê'},{k:'local',l:'Local'},{k:'classe',l:'Tipo'},{k:'q',l:'m³',t:'num'},{k:'txt',l:'Detalhe'},{k:'usuario',l:'Usuário'}];
+  const c3=[{k:'tipo',l:'Tipo de lenha'},{k:'n',l:'Cargas',t:'num'},{k:'q',l:'m³',t:'num'},{k:'v',l:'Valor',t:'moeda'},{k:'pm',l:'Preço médio por m³',t:'moeda'}];
+  const menu=(nome,tit,cols,rows)=>[{l:tit+' · visualizar',fn:()=>exportar('ver',nome+'_'+hoje(),cols,rows,tit)},{l:tit+' · PDF',fn:()=>exportar('pdf',nome+'_'+hoje(),cols,rows,tit)},{l:tit+' · Excel',fn:()=>exportar('xlsx',nome+'_'+hoje(),cols,rows,tit)}];
+  abrirMenuMais($('#llExp',c),[...menu('Lenha_saldo_por_local','Lenha · saldo por local e tipo',c1,d1),...menu('Lenha_entradas_e_levadas','Lenha · entradas e levadas',c2,mv.map(x=>({...x,usuario:nomeUsuario(x.por)}))),...menu('Lenha_compras_por_tipo','Lenha · compras por tipo',c3,porTipoCompras().map(o=>({...o,q:r3(o.q),v:r2(o.v),pm:o.q?r2(o.v/o.q):0})))])};
+}
+
+/* ---------- aba Estoque, Diagnóstico das compras, consumo e início do setor: só acrescentam ---------- */
+const depois=(rota,fn)=>{const t0=TELAS_V[rota];if(typeof t0!=='function')return;TELAS_V[rota]=function(el){t0.apply(this,arguments);try{if(setorAtualV()===LS&&APP.carregado){const c=$('#svCorpo',el)||$('#svCorpo');if(c)fn(c)}}catch(e){console.warn('V111 '+rota,e)}}};
+['estoque','estoqueMov'].forEach(r=>depois(r,c=>{if(lerRota().id||$('#lx111est',c))return;const ref=$('.resumo',c);const h=`<div id="lx111est"><h3 class="grupo-t">Lenha por local</h3>${cartoesLocais(saldosLocais())}<div class="inline" style="gap:8px;flex-wrap:wrap;margin:-4px 0 14px">${pode(MV,'e')?`<a class="btn" href="#/lenhaLevar">Levar lenha para a fábrica</a>`:''}<a class="btn min" href="#/lenhaLocais">Ver por local e por tipo</a></div></div>`;
+ if(ref)ref.insertAdjacentHTML('afterend',h);else c.insertAdjacentHTML('afterbegin',h)}));
+depois('ldiag',c=>{if($('#lx111diag',c))return;c.insertAdjacentHTML('beforeend',`<div id="lx111diag"><h3 class="grupo-t">Compras por tipo de lenha</h3>${tabelaPorTipo()}<p class="ajuda" style="margin-top:8px">Compras lançadas antes de 13/11/2026 aparecem como “${SEM_TIPO}”.</p></div>`)});
+{const MC=MODS.consumos;const v0=MC.validar;MC.validar=function(st){const e=v0.call(this,st);
+ try{const p=PROD(st.produtoId);if(p&&p.setor===LS&&String(p.unidade||'').trim()==='m³'&&!e.quantidade&&!e._aviso&&+st.quantidade>0){const ch=saldosLocais().chao;
+  if(+st.quantidade>ch+1e-9)e._aviso='No chão da fábrica constam '+fM3(ch)+'. O resto da lenha está no estoque de fora: lance antes “Levar lenha para a fábrica”, para o saldo por local ficar certo.'}}catch(err){}
+ return e}}
+{const ini0=window.inicioConsumoV;if(typeof ini0==='function')window.inicioConsumoV=function(c,s){ini0.apply(this,arguments);
+ try{if(s!==LS||$('#lx111ini',c))return;const S=saldosLocais();
+  const h=`<div id="lx111ini" class="lx-c" style="margin-bottom:14px"><div class="inline" style="gap:8px;flex-wrap:wrap">${pode('compra','e')?`<a class="btn pri" href="#/lenhaLancar" style="min-height:44px">${ic('mais')}Lançar lenha</a>`:''}${pode(MV,'e')?`<a class="btn" href="#/lenhaLevar" style="min-height:44px">Levar lenha para a fábrica</a>`:''}<a class="btn min" href="#/lenhaLocais">Estoque por local</a>
+   <span style="flex:1"></span><span style="font-size:13px;color:var(--suave)">Chão da fábrica: <b style="color:var(--tinta)">${esc(fM3(S.chao))}</b> · Estoque de fora: <b style="color:var(--tinta)">${esc(fM3((S.L[FORA]||{q:0}).q))}</b></span></div></div>`;
+  const cab=$('.sec-cab',c);if(cab)cab.insertAdjacentHTML('afterend',h);else c.insertAdjacentHTML('afterbegin',h)}catch(e){console.warn('V111 início',e)}}}
+
+/* ---------- abas e rotas no Setor da Lenha ---------- */
+{const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s!==LS)return a;
+ const pos=(m,depoisDe)=>{const i=a.findIndex(x=>x.m===m);return i<0?a.length:i+(depoisDe?1:0)};
+ if(pode('compra','e'))a.splice(pos('setor-'+LS,true),0,{r:'#/lenhaLancar',m:'lenhaLancar',ic:'mais',l:'Lançar lenha',at:['lenhaLancar']});
+ if(pode(MV))a.splice(pos('lenhaLancar',true),0,{r:'#/lenhaLevar',m:'lenhaLevar',ic:'caixa',l:'Levar lenha para a fábrica',at:['lenhaLevar']});
+ if(pode('lenhaLocais'))a.splice(pos('estoque',true),0,{r:'#/lenhaLocais',m:'lenhaLocais',ic:'mapa',l:'Estoque por local',at:['lenhaLocais']});
+ if(pode(CL))a.splice(pos('produtos',true),0,{r:'#/'+CL,m:CL,ic:'folha',l:'Grossa, fina…',at:[CL]});
+ if(pode(DP))a.splice(pos('locais',true),0,{r:'#/'+DP,m:DP,ic:'mapa',l:'Locais de estoque',at:[DP]});
+ return a}}
+const noLenha=(ativa,corpo)=>el=>{if(typeof marcarSetor==='function')marcarSetor(LS);SV=LS;shellV(el,ativa,corpo,{setor:LS})};
+Object.assign(TELAS_V,{lenhaLancar:noLenha('lenhaLancar',c=>telaLancar(c)),lenhaLevar:noLenha('lenhaLevar',c=>telaLevar(c)),lenhaLocais:noLenha('lenhaLocais',c=>telaLocais(c)),
+ [CL]:noLenha(CL,c=>telaLista(c,CL)),[DP]:noLenha(DP,c=>telaLista(c,DP))});
+
+window.LENHA_V111={saldosLocais,depositos,classes,editarForn,saldoInicial,medicaoDe,precoDe,
+ editarFornDaFicha(id){try{if(typeof fecharGaveta==='function')fecharGaveta()}catch(e){}setTimeout(()=>editarForn(id),60)}};
+})();
+</script>
 </body>
 </html>
