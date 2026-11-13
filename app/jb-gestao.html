@@ -12654,16 +12654,17 @@ function inicioConsumoV(c,s){
   const e=Object.entries(g).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'));return e.length?e.map(([n,v])=>esc(n.replace(/^Diesel\s+/i,''))+' '+fMoeda(v)).join(' · '):'nenhum abastecimento'};
  /* Combustível para entrega: abastecimento fora (posto da cidade), lançado no Financeiro com motorista e valor.
     É despesa de entrega, separada do diesel da bomba e do custo da produção. */
- const ent=cb?(DATA.fTitulos||[]).filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega'):[];
+ const ent=cb?(DATA.fTitulos||[]).filter(t=>!t.cancelado&&/combust/i.test(String(t.categoria||''))):[];   /* V119: toda despesa com combustível do Financeiro, não só a de entrega */
+ const tipoEnt=t=>t.categoria==='Combustível para entrega'?'Entrega':(t.categoria||'Despesa');
  const entMes=ent.filter(t=>String(t.data||'').startsWith(m)),entDia=ent.filter(t=>t.data===h);
  const podeEnt=cb&&typeof pode==='function'&&pode('fTitulos','e');
- const blocoEnt=cb?`<div class="bloco"><h3>Combustível para entrega / Despesas<a href="#/combEntrega">Ver todos</a>${podeEnt?'<a href="javascript:void 0" class="jb-ent-novo">Lançar</a>':''}</h3>
-  <p class="ajuda" style="margin:0 0 8px;padding:0 18px">Abastecimento fora, no posto da cidade. Despesa de entrega, não entra no custo da produção.<br>Hoje <b>${fMoeda(soma(entDia,t=>t.valor))}</b> · em ${esc(fMes(m))} <b>${fMoeda(soma(entMes,t=>t.valor))}</b> (${entMes.length} lançamento(s))</p>
-  ${lstV(ent.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||(+b.numero||0)-(+a.numero||0)).slice(0,6).map(t=>({href:'#/fTitulos/'+t.id,ic:'bomba',t:t.motorista||t.beneficiarioNome||'—',s:fData(t.data)+(t.descricao?' · '+t.descricao:''),v:fMoeda(+t.valor||0)})),'Nenhum abastecimento de entrega lançado.')}</div>`:'';
+ const blocoEnt=cb?`<div class="bloco"><h3>Despesa com combustível<a href="#/combEntrega">Ver todos</a>${podeEnt?'<a href="javascript:void 0" class="jb-ent-novo">Lançar</a>':''}</h3>
+  <p class="ajuda" style="margin:0 0 8px;padding:0 18px">Tudo que é despesa com combustível: posto da cidade para as entregas e as outras. Separado do diesel da bomba.<br>Hoje <b>${fMoeda(soma(entDia,t=>t.valor))}</b> · em ${esc(fMes(m))} <b>${fMoeda(soma(entMes,t=>t.valor))}</b> (${entMes.length} lançamento(s))</p>
+  ${lstV(ent.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||(+b.numero||0)-(+a.numero||0)).slice(0,6).map(t=>({href:'#/fTitulos/'+t.id,ic:'bomba',t:t.motorista||t.beneficiarioNome||t.beneficiario||'—',s:fData(t.data)+' · '+tipoEnt(t)+(t.descricao?' · '+t.descricao:''),v:fMoeda(+t.valor||0)})),'Nenhuma despesa com combustível lançada.')}</div>`:'';
  /* Pedido do Jeferson (08/11/2026): o estoque real de cada bomba (S10, S500), um por linha, e não a soma dos dois */
  const estBomba=cb?N.prods.filter(p=>!p.tipoItem||p.tipoItem==='Combustível').map(p=>`<span style="display:block">${esc(String(p.nome||'').replace(/^Diesel\s+/i,''))} ${esc(fQtd(saldoP(p.id)))} ${esc(p.unidade||'L')}</span>`).join(''):'';
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
-  <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${cb&&pode('fTitulos','e')?`<a class="btn jb-ent-novo" href="javascript:void 0">${ic('mais')}Combustível para entrega</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
+  <div class="acoes">${pode('compra','e')?`<a class="btn" href="#/compra/nova">${ic('carrinho')}Nova compra</a>`:''}${cb&&pode('fTitulos','e')?`<a class="btn jb-ent-novo" href="javascript:void 0">${ic('mais')}Despesa com combustível</a>`:''}${pode('consumos','e')?`<a class="btn pri" href="#/consumos/novo">${ic('mais')}${cb?'Novo abastecimento':'Lançar consumo'}</a>`:''}</div></div>
   ${semProd||semLocal?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?`Cadastre ${cb?'os combustíveis (diesel, gasolina…)':'os tipos de lenha'}, ${cb?'os veículos e máquinas':'os fornos e locais de consumo'} e os fornecedores; depois registre a primeira compra e os ${cb?'abastecimentos':'consumos'}. `:'Peça ao gerente ou ao estoquista para fazer os cadastros. '}Nenhum número abaixo é inventado.</span></div>`:''}
   ${JB_MES.barra(s)}
   <div class="hero">
@@ -12674,7 +12675,7 @@ function inicioConsumoV(c,s){
    ${s==='lenha'?kpiV('c2','carrinho','Compras de hoje',fMoeda(soma(N.dia,v=>v.total)),N.dia.length+' compra(s)','#/compras'):''}
    ${escContas?kpiV('c5','moeda','Custo abastecido hoje',fMoeda(soma(csDia,x=>x.custoTotal)),custoPorComb(csDia),'#/consumos'):kpiV('c5','carteira','Contas a pagar',fMoeda(soma(N.aberto,x=>x.f.saldo)),N.aberto.length+' conta(s) em aberto','#/pagar')}
    ${escContas?kpiV('c6','moeda','Custo abastecido em '+fMes(m),fMoeda(soma(csMes,x=>x.custoTotal)),custoPorComb(csMes),'#/consumos'):kpiV('c6','aviso','Contas vencidas',fMoeda(soma(N.venc,x=>x.f.saldo)),N.venc.length?N.venc.length+' conta(s) vencida(s)':'nenhuma vencida','#/pagar')}
-   ${cb?kpiV('c1','bomba','Combustível para entrega',fMoeda(soma(entMes,t=>t.valor)),'em '+esc(fMes(m))+' · hoje '+fMoeda(soma(entDia,t=>t.valor)),'#/combEntrega'):''}
+   ${cb?kpiV('c1','bomba','Despesa com combustível',fMoeda(soma(entMes,t=>t.valor)),'em '+esc(fMes(m))+' · hoje '+fMoeda(soma(entDia,t=>t.valor)),'#/combEntrega'):''}
    ${window.CB_LENHA?window.CB_LENHA.kpi(s,m):''}
   </div>
   <div class="ex2">
@@ -18870,32 +18871,54 @@ posSalvarV=function(mod,rec,ant){
 /* aba Responsáveis e aviso dos números no Setor de Combustível */
 const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s==='combustivel'&&pode('responsaveis'))a.push({r:'#/responsaveis',m:'responsaveis',ic:'pessoas',l:'Responsáveis',at:['responsaveis']});return a};
 TELAS_V.responsaveis=el=>{if(typeof marcarSetor==='function')marcarSetor('combustivel');SV='combustivel';shellV(el,'responsaveis',c=>telaLista(c,'responsaveis'),{setor:'combustivel'})};
-/* Pedido do Jeferson (05/11/2026): aba "Combustível para entrega / Despesas" no Setor de Combustível, para lançar e ver
-   separadamente o abastecimento das entregas feito em posto fora (motorista + valor). Cada lançamento é um compromisso
-   do Financeiro na categoria "Combustível para entrega": despesa de entrega, fora do custo da produção. */
+/* Pedido do Jeferson (05/11/2026): aba no Setor de Combustível para lançar e ver separadamente o abastecimento das
+   entregas feito em posto fora (motorista + valor). Cada lançamento é um compromisso do Financeiro.
+   V119 (13/11/2026): passa a se chamar "Despesa com combustível" e recebe TODA despesa com combustível lançada no
+   Financeiro (categoria "Combustível para entrega" e as demais de combustível). Nenhum dado muda: a categoria de cada
+   lançamento continua a mesma (a de entrega segue como despesa de entrega nos índices) e vira o "Tipo" na lista.
+   A lista mostra todos os lançamentos salvos, com a situação e quem lançou; tocar abre o lançamento. */
+const ehDespComb=t=>!!t&&!t.cancelado&&/combust/i.test(String(t.categoria||''));
+const tipoDespComb=t=>t.categoria==='Combustível para entrega'?'Entrega (posto fora)':(t.categoria||'Outra despesa');
+let DC_TIPO='',DC_MES='';
 PERM.combEntrega={get v(){return [...new Set([...((PERM['setor-combustivel']||{}).v||[]),...((PERM.fTitulos||{}).v||[])])]},get e(){return ((PERM.fTitulos||{}).e||[]).slice()}};
 window.novoCombEntrega=()=>{PREFILL={mod:'fTitulos',dados:{categoria:'Combustível para entrega',setorOrigem:'Setor de Combustível',descricao:'Combustível para entrega (posto fora)',beneficiarioTipo:'Outro',beneficiario:'Posto (abastecimento da entrega)',vencimento:hoje(),formaPrevista:'Dinheiro',condicaoT:'À vista (já pago)'}};location.hash='#/fTitulos/novo'};
 if(!ROTAS_SETOR.includes('combEntrega'))ROTAS_SETOR.push('combEntrega');   /* tela do setor: sem o menu do Departamento Pessoal ao lado */
-const ab1=ABAS_V;ABAS_V=function(s){const a=ab1(s);if(s==='combustivel'&&pode('combEntrega')){const t={r:'#/combEntrega',m:'combEntrega',ic:'bomba',l:'Combustível para entrega / Despesas',at:['combEntrega']};const i=a.findIndex(x=>x&&x.r==='#/consumos');a.splice(i<0?a.length:i+1,0,t)}return a};
-TELAS_V.combEntrega=el=>{if(typeof marcarSetor==='function')marcarSetor('combustivel');SV='combustivel';shellV(el,'combEntrega',c=>{if(!APP.carregado){carregandoV(c);return}
- const h=hoje(),m=h.slice(0,7),a=h.slice(0,4);const L=(DATA.fTitulos||[]).filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega')
+const ab1=ABAS_V;ABAS_V=function(s){const a=ab1(s);if(s==='combustivel'&&pode('combEntrega')){const t={r:'#/combEntrega',m:'combEntrega',ic:'bomba',l:'Despesa com combustível',at:['combEntrega']};const i=a.findIndex(x=>x&&x.r==='#/consumos');a.splice(i<0?a.length:i+1,0,t)}return a};
+function telaDespComb(c){if(!APP.carregado){carregandoV(c);return}
+ const h=hoje(),m=h.slice(0,7),a=h.slice(0,4);const T=(DATA.fTitulos||[]).filter(ehDespComb)
   .sort((x,y)=>String(y.data||'').localeCompare(String(x.data||''))||(+y.numero||0)-(+x.numero||0));
- const dia=L.filter(t=>t.data===h),mes=L.filter(t=>String(t.data||'').startsWith(m)),ano=L.filter(t=>String(t.data||'').startsWith(a));
- const porMot={};mes.forEach(t=>{const k=(t.motorista||t.beneficiarioNome||'Sem motorista').toUpperCase();porMot[k]=(porMot[k]||0)+(+t.valor||0)});
+ const dia=T.filter(t=>t.data===h),mes=T.filter(t=>String(t.data||'').startsWith(m)),ano=T.filter(t=>String(t.data||'').startsWith(a));
+ const tipos=[...new Set(T.map(tipoDespComb))].sort((x,y)=>x.localeCompare(y,'pt-BR'));if(DC_TIPO&&!tipos.includes(DC_TIPO))DC_TIPO='';
+ const meses=[...new Set(T.map(t=>String(t.data||'').slice(0,7)).filter(Boolean))].sort().reverse();if(DC_MES&&!meses.includes(DC_MES))DC_MES='';
+ const L=T.filter(t=>(!DC_TIPO||tipoDespComb(t)===DC_TIPO)&&(!DC_MES||String(t.data||'').startsWith(DC_MES)));
+ const porTipo={};mes.forEach(t=>{const k=tipoDespComb(t);const o=porTipo[k]||(porTipo[k]={v:0,n:0});o.v+=(+t.valor||0);o.n++});
+ const porMot={};mes.forEach(t=>{const k=(t.motorista||t.beneficiarioNome||t.beneficiario||'Sem nome').toUpperCase();porMot[k]=(porMot[k]||0)+(+t.valor||0)});
  const sit=t=>{try{const o=OB('t:'+t.id);return o?tagSit(o.s.st):''}catch(e){return ''}};
- c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('bomba')}</span><div><h1>Combustível para entrega / Despesas</h1><p>Abastecimento das entregas feito em posto fora. É despesa de entrega: não entra no custo da produção nem no diesel da bomba.</p></div></div>
-  <div class="acoes">${pode('fTitulos','e')?`<a class="btn pri jb-ent-novo" href="javascript:void 0">${ic('mais')}Lançar combustível para entrega</a>`:''}</div></div>
+ const por=t=>(t.criadoPor&&nomeUsuario(t.criadoPor))||'—';
+ const bt=(cls,v,rot,at)=>`<a href="javascript:void 0" class="btn ${at?'pri':''} ${cls}" data-v="${esc(v)}" style="min-height:34px;padding:6px 12px;font-size:12.5px">${esc(rot)}</a>`;
+ c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('bomba')}</span><div><h1>Despesa com combustível</h1><p>Tudo que é despesa com combustível lançada no Financeiro: o posto da cidade para as entregas e as outras despesas com combustível. Separado do diesel da bomba.</p></div></div>
+  <div class="acoes">${pode('fTitulos','e')?`<a class="btn pri jb-ent-novo" href="javascript:void 0">${ic('mais')}Lançar despesa com combustível</a>`:''}</div></div>
   <div class="hero">
    ${kpiV('c1','bomba','Hoje',fMoeda(soma(dia,t=>t.valor)),dia.length+' lançamento(s)','#/combEntrega')}
    ${kpiV('c4','moeda','Em '+fMes(m),fMoeda(soma(mes,t=>t.valor)),mes.length+' lançamento(s)','#/combEntrega')}
    ${kpiV('c2','calendario','Em '+a,fMoeda(soma(ano,t=>t.valor)),ano.length+' lançamento(s)','#/combEntrega')}
   </div>
-  <div class="bloco" style="margin-bottom:14px"><h3>Por motorista em ${esc(fMes(m))}</h3>${lstV(Object.entries(porMot).sort((x,y)=>y[1]-x[1]).map(([n,v])=>({href:'#/combEntrega',ic:'pessoas',t:n,s:'',v:fMoeda(v)})),'Nenhum lançamento neste mês.')}</div>
-  <div class="painel"><div class="tabwrap"><table class="tbl"><thead><tr><th>Data</th><th>Motorista</th><th>Descrição</th><th class="num">Valor</th><th>Situação</th></tr></thead><tbody>
-  ${L.length?L.map(t=>`<tr class="clic" data-id="${esc(t.id)}"><td>${esc(fData(t.data))}</td><td>${esc(t.motorista||t.beneficiarioNome||'—')}</td><td>${esc(t.descricao||'')}</td><td class="num">${esc(fMoeda(+t.valor||0))}</td><td>${sit(t)}</td></tr>`).join(''):'<tr><td colspan="5" class="vazio">Nenhum abastecimento de entrega lançado ainda.</td></tr>'}
-  </tbody>${L.length?`<tfoot><tr><td colspan="3">Total</td><td class="num">${esc(fMoeda(soma(L,t=>t.valor)))}</td><td></td></tr></tfoot>`:''}</table></div></div>`;
+  <div class="ex2" style="margin-bottom:14px">
+   <div class="bloco"><h3>Por tipo em ${esc(fMes(m))}</h3>${lstV(Object.entries(porTipo).sort((x,y)=>y[1].v-x[1].v).map(([n,o])=>({href:'#/combEntrega',ic:'bomba',t:n,s:o.n+' lançamento(s)',v:fMoeda(o.v)})),'Nenhum lançamento neste mês.')}</div>
+   <div class="bloco"><h3>Por motorista ou quem recebeu em ${esc(fMes(m))}</h3>${lstV(Object.entries(porMot).sort((x,y)=>y[1]-x[1]).map(([n,v])=>({href:'#/combEntrega',ic:'pessoas',t:n,s:'',v:fMoeda(v)})),'Nenhum lançamento neste mês.')}</div>
+  </div>
+  <div class="bloco" style="margin-bottom:0"><h3>Todos os lançamentos<span class="n">${L.length}</span></h3>
+   <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 10px">${tipos.length>1?bt('dc-tipo','','Todos os tipos',!DC_TIPO)+tipos.map(t=>bt('dc-tipo',t,t,DC_TIPO===t)).join(''):''}
+    ${meses.length>1?`<select class="dc-mes" aria-label="Mês" style="min-height:34px;padding:4px 10px;border-radius:8px;border:1px solid var(--borda,#d9d9de);background:var(--cartao,#fff);color:inherit;font:inherit;font-size:12.5px"><option value="">Todos os meses</option>${meses.map(x=>`<option value="${esc(x)}"${DC_MES===x?' selected':''}>${esc(fMes(x))}</option>`).join('')}</select>`:''}</div></div>
+  <div class="painel"><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Tipo</th><th>Motorista / quem recebeu</th><th>Descrição</th><th class="num">Valor</th><th>Situação</th><th>Lançado por</th></tr></thead><tbody>
+  ${L.length?L.map(t=>`<tr class="clic" data-id="${esc(t.id)}"><td data-l="Data">${esc(fData(t.data))}${t.numero?' · nº '+esc(t.numero):''}</td><td data-l="Tipo">${esc(tipoDespComb(t))}</td><td data-l="Motorista / quem recebeu"><b>${esc(t.motorista||t.beneficiarioNome||t.beneficiario||'—')}</b></td><td data-l="Descrição">${esc(t.descricao||'')}</td><td data-l="Valor" class="num">${esc(fMoeda(+t.valor||0))}</td><td data-l="Situação">${sit(t)||'—'}</td><td data-l="Lançado por">${por(t)==='—'?'—':'por '+esc(por(t))}</td></tr>`).join(''):'<tr><td colspan="7" class="vazio">Nenhuma despesa com combustível lançada ainda.</td></tr>'}
+  </tbody>${L.length?`<tfoot><tr><td colspan="4">Total (${L.length} lançamento(s))</td><td class="num">${esc(fMoeda(soma(L,t=>t.valor)))}</td><td colspan="2"></td></tr></tfoot>`:''}</table></div></div>`;
  c.querySelectorAll('.jb-ent-novo').forEach(b=>b.onclick=novoCombEntrega);
- c.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{location.hash='#/fTitulos/'+tr.dataset.id})},{setor:'combustivel'})};
+ c.querySelectorAll('.dc-tipo').forEach(b=>b.onclick=()=>{DC_TIPO=b.dataset.v||'';telaDespComb(c)});
+ const sm=c.querySelector('.dc-mes');if(sm)sm.onchange=()=>{DC_MES=sm.value||'';telaDespComb(c)};
+ c.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{location.hash='#/fTitulos/'+tr.dataset.id});
+ try{resolverNomes(T.map(t=>t.criadoPor).filter(Boolean))}catch(e){}}
+TELAS_V.combEntrega=el=>{if(typeof marcarSetor==='function')marcarSetor('combustivel');SV='combustivel';shellV(el,'combEntrega',telaDespComb,{setor:'combustivel'})};
 const sv0=shellV;shellV=function(el,ativa,corpo,opc){const r=sv0.apply(this,arguments);
  return r};
 /* ---------- pagamento e recebimento de compra/venda: conta, permuta em milheiros e comprovante ---------- */
@@ -31340,7 +31363,7 @@ function gruposMenu(s){
  const G=cb?[
   {g:'Operações',it:[['#/setor-combustivel','painel','Início',['setor-combustivel'],'setor-combustivel'],['#/clLanc','mais','Central de lançamentos',['clLanc'],'clLanc'],['#/consumos/novo','bomba','Novo abastecimento',['consumo-novo'],'consumos',1],['#/compra/nova','entrada','Nova entrada (compra)',[],'compra',1],
    ['javascript:window.CL112.mov("Saída")','saida','Nova saída',[],'estoqueMov',1],['javascript:window.CL112.mov("Transferência")','transf','Transferência',[],'estoqueMov',1],['#/clFoto','camera','Fotografar comprovante',['clFoto'],'clFoto',1],['#/consLote','planilha','Lançar manualmente (vários)',['consLote'],'consumos',1],['javascript:window.CB_LENHA.novoAbast()','pessoas','Abastecer fornecedor de lenha',[],'consumos',1]]},
-  {g:'Controle',it:[['#/consumos','livro','Movimentações (abastecimentos)',['consumos'],'consumos'],['#/combLenha','bomba','Combustível para lenha',['combLenha'],'combLenha'],['#/estoque','caixa','Estoque',['estoque','estoqueMov'],'estoque'],['#/locais','mapa','Veículos e máquinas',['locais'],'locais'],['#/responsaveis','pessoas','Motoristas e responsáveis',['responsaveis'],'responsaveis'],
+  {g:'Controle',it:[['#/consumos','livro','Movimentações (abastecimentos)',['consumos'],'consumos'],['#/combLenha','bomba','Combustível para lenha',['combLenha'],'combLenha'],['#/combEntrega','moeda','Despesa com combustível',['combEntrega'],'combEntrega'],['#/estoque','caixa','Estoque',['estoque','estoqueMov'],'estoque'],['#/locais','mapa','Veículos e máquinas',['locais'],'locais'],['#/responsaveis','pessoas','Motoristas e responsáveis',['responsaveis'],'responsaveis'],
    ['#/cTerceiros','pessoas','Terceiros que abastecem',['cTerceiros'],'cTerceiros'],['#/clProg','calendario','Programações',['clProg'],'clProg'],['#/bombasConf','bomba','Conferência das bombas',['bombasConf'],'consumos'],['#/produtos','livro',S.prodTit,['produtos'],'produtos']]},
   {g:'Gestão',it:[['#/compras','carrinho','Compras',['compras','compra'],'compras'],['#/pagar','moeda','Contas a pagar',['pagar'],'pagar'],['#/fornecedores','predio','Fornecedores',['fornecedores'],'fornecedores'],['#/clRel','grafico','Relatórios',['clRel'],'clRel'],
    ['#/clConf','check','Conferência de lançamentos',['clConf'],'clConf',0,nP],['#/relvendas','grafico','Relatórios gerais',['relvendas'],'relvendas']]}]:[
@@ -34120,7 +34143,7 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
    depois=cab;
   }
   /* cada módulo com ícone próprio dentro do setor */
-  const ICO_UNICO={'Venda rápida':'carrinho','Tabelas de preço':'planilha','Metas':'ctlAlvo','Combustível para entrega / Despesas':'cacamba','Terceiros':'iPessoa','Formas de pagamento':'carteira','Custo da lenha':'ctlCalc','Tijolo pronto':'palete','Pagamentos do dia':'relogio','Fluxo de caixa':'iSetas','Auditoria':'escudo','Com clientes':'predio','Espelho de ponto':'planilha','Férias vencidas':'jcAviso','Exames e ASO':'cruz'};
+  const ICO_UNICO={'Venda rápida':'carrinho','Tabelas de preço':'planilha','Metas':'ctlAlvo','Combustível para entrega / Despesas':'cacamba','Despesa com combustível':'cacamba','Terceiros':'iPessoa','Formas de pagamento':'carteira','Custo da lenha':'ctlCalc','Tijolo pronto':'palete','Pagamentos do dia':'relogio','Fluxo de caixa':'iSetas','Auditoria':'escudo','Com clientes':'predio','Espelho de ponto':'planilha','Férias vencidas':'jcAviso','Exames e ASO':'cruz'};
   ts.forEach(t=>{const i=ICO_UNICO[t.titulo||t.l];if(i&&IC[i]){t.ico=i;if(t.svg)t.svg=ic(i)}});
   /* favoritos: os escolhidos pela pessoa, ou os quatro primeiros quadradinhos */
   const salvo=lerFav(sid);const novoLanc=t=>t.cls==='pri'||/^(nov[oa]|lançar|lançamentos?|venda rápida)\b/i.test(t.l||'');const fk=(salvo||ts.filter(t=>!novoLanc(t)).slice(0,4).map(t=>t.k)).filter(k=>ts.some(t=>t.k===k));
@@ -35621,13 +35644,13 @@ parte('combustivel',d=>{
  const abL=cs.map(c=>it(quem(c),juntar(nomeProd(c.produtoId),c.hora,c.responsavelNome||c.operador,fQtd(c.quantidade)+' '+(c.unidade||'L')),fM(c.custoTotal),'#/consumos/'+c.id,'bomba',c.terceiroId?'a-at':'a-ok'));
  const cp=L('compras').filter(v=>v.tipoOp==='compra'&&v.setor==='combustivel'&&!cancV(v)&&v.data===d);
  const cpL=cp.map(v=>it(parteSnap(v).nome||'Fornecedor',juntar('Compra nº '+fNumV(v.numero),(v.itens||[]).map(i=>fQtd(i.qtd)+' '+(i.unidade||'')+' '+(i.nome||'')).join(', ')),fM(v.total),'#/compra/'+v.id,'carrinho'));
- const ent=L('fTitulos').filter(t=>!t.cancelado&&t.categoria==='Combustível para entrega'&&t.data===d);
- const entL=ent.map(t=>it(t.motorista||t.beneficiarioNome||t.beneficiario||'Motorista',juntar('Combustível para entrega',t.descricao),fM(t.valor),'#/fTitulos/'+t.id,'bomba','a-at'));
+ const ent=L('fTitulos').filter(t=>!t.cancelado&&/combust/i.test(String(t.categoria||''))&&t.data===d);
+ const entL=ent.map(t=>it(t.motorista||t.beneficiarioNome||t.beneficiario||'Motorista',juntar(t.categoria==='Combustível para entrega'?'Entrega':t.categoria,t.descricao),fM(t.valor),'#/fTitulos/'+t.id,'bomba','a-at'));
  const litros=sm(cs,c=>c.quantidade),custo=sm(cs,c=>c.custoTotal);
  return{id:'combustivel',nome:'Combustível',ic:'bomba',href:'#/setor-combustivel',
-  res:[[fQtd(litros)+' L','abastecido'],[fM(custo),'custo'],...Object.entries(porComb).map(([k,p])=>[fQtd(p.l)+' L · '+fM(p.v),k]),...(ent.length?[[fM(sm(ent,t=>t.valor)),'para entrega']]:[]),...(cs.some(c=>c.combLenha)?[[fM(sm(cs.filter(c=>c.combLenha),c=>c.combLenha.valor)),'para fornecedores de lenha']]:[])],
+  res:[[fQtd(litros)+' L','abastecido'],[fM(custo),'custo'],...Object.entries(porComb).map(([k,p])=>[fQtd(p.l)+' L · '+fM(p.v),k]),...(ent.length?[[fM(sm(ent,t=>t.valor)),'despesa com combustível']]:[]),...(cs.some(c=>c.combLenha)?[[fM(sm(cs.filter(c=>c.combLenha),c=>c.combLenha.valor)),'para fornecedores de lenha']]:[])],
   grupos:[{t:'Abastecimentos ('+cs.length+')',itens:abL,vazio:'Nenhum abastecimento lançado neste dia.'},
-   ...(entL.length?[{t:'Combustível para entrega (posto da cidade)',itens:entL}]:[]),...(cpL.length?[{t:'Compras de combustível',itens:cpL}]:[])],
+   ...(entL.length?[{t:'Despesa com combustível',itens:entL}]:[]),...(cpL.length?[{t:'Compras de combustível',itens:cpL}]:[])],
   txt:['⛽ *Combustível*',cs.length?fQtd(litros)+' L abastecidos · '+fM(custo):'Nenhum abastecimento.',...cs.map(c=>'  · '+quem(c)+': '+fQtd(c.quantidade)+' L '+nomeProd(c.produtoId)+' · '+fM(c.custoTotal)),
    ...ent.map(t=>'  · Entrega '+(t.motorista||t.beneficiarioNome||'')+': '+fM(t.valor)),...cp.map(v=>'  · Compra '+(parteSnap(v).nome||'')+': '+fM(v.total))]};
 });
