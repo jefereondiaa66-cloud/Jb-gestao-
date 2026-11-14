@@ -22,6 +22,8 @@ const servidorFalso = readFileSync(join(RAIZ, 'scripts/lib/servidor-falso.mjs'),
 const D = '2026-11-13';
 const docs = [
   ['acesso', 'u_DONO', { id: 'u_DONO', nome: 'Dono', papel: 'admin', ativo: true }],
+  // cor escolhida pelo dono (azul): o cupom não pode pegar a cor
+  ['config', 'aparencia', { dono: 'u_DONO', tema: { p: 'azul', m: 'claro', v: 'cc', em: '2026-11-13T00:00:00.000Z' } }],
   ['config', 'empresa', { empresa: { razao: 'Empresa Exemplo LTDA', fantasia: 'Empresa Exemplo', cnpj: '11.222.333/0001-81', endereco: 'Rodovia Exemplo, km 1', cidade: 'Cidade Exemplo/MA', telefone: '(99) 99999-0000', responsavel: 'Responsável Exemplo' } }],
   ['funcionarios', 'f1', { id: 'f1', nome: 'Funcionário Exemplo Um', situacao: 'Ativo', setor: 'Queima', cargo: 'Forneiro', matricula: '0012', admissao: '2024-03-01', tipoContratacao: 'CLT' }],
   ['produtos', 'p_s10', { id: 'p_s10', setor: 'combustivel', nome: 'Diesel S10', unidade: 'L', controlaEstoque: 'Sim', situacao: 'Ativo', tipoItem: 'Combustível', tipoComb: 'Diesel' }],
@@ -87,10 +89,28 @@ try {
   ok((await page.textContent('#camada [data-acao="comprovante"]')).trim() === 'Comprovante', 'o lançamento aberto mostra o botão "Comprovante"');
   await page.click('#camada [data-acao="comprovante"]');
   await page.waitForSelector('#fvdDoc', { timeout: 8000 });
-  const cp = await page.evaluate(() => ({ hash: location.hash, cupom: !!document.querySelector('#fvdDoc.cupom'), t: document.querySelector('#fvdDoc').innerText, fmts: document.querySelectorAll('[data-fmt]').length }));
+  const cp = await page.evaluate(() => ({ hash: location.hash, cupom: !!document.querySelector('#fvdDoc.cupom'), t: document.querySelector('#fvdDoc').innerText.replace(/[\u00a0\u202f]/g, ' '), fmts: document.querySelectorAll('[data-fmt]').length }));
   ok(cp.hash === '#/documento' && cp.cupom && cp.fmts === 3, 'abre em "Visualizar documento", no cupom, com a escolha 80 mm, 58 mm e A4');
   ok(/COMPROVANTE/.test(cp.t) && /ABASTECIMENTO/i.test(cp.t) && cp.t.includes('Diesel S10') && cp.t.includes('Caminhão Teste') && cp.t.includes('R$ 546,77') && cp.t.includes('13/11/2026 às 19:40') && cp.t.includes('Motorista Exemplo'), 'cupom traz combustível, veículo, data e hora, motorista e o custo gravado');
   ok(/n[ãa]o [ée] documento fiscal/i.test(cp.t), 'cupom avisa que não é documento fiscal');
+  // pedido do Jeferson (13/11/2026): o cupom de todo setor no mesmo modelo do comprovante de entrega de lenha
+  const md = await page.evaluate(() => {
+    const art = document.querySelector('#fvdDoc.cupom'); const W = art.getBoundingClientRect().width;
+    // nenhum valor espremido numa coluna estreita (quebrando letra por letra)
+    const espremidos = [...art.querySelectorAll('.cp-ln')].filter((l) => { const v = l.lastElementChild; return v && v.textContent.length > 12 && v.getBoundingClientRect().width < W * 0.3; }).map((l) => l.textContent);
+    // a cor escolhida no sistema não pinta o cupom: a faixa continua preta
+    const cor = document.documentElement.getAttribute('data-jbtema') + ' · ' + getComputedStyle(art.querySelector('.cp-tipo')).backgroundColor;
+    // documento só em A4 com cara de comprovante ganha o cupom (fora do Setor Pessoal); ficha não
+    const P = baseRel('COMPROVANTE DE PAGAMENTO', 'Teste', []); P.classe = 'comprovante'; P.setor = nomeSetorDoc('financeiro'); P.meta = [['Pago em', '13/11/2026']];
+    P.blocos.push({ tipo: 'tabela', head: ['Valores', 'Valor'], body: [['Valor do pagamento', 'R$ 10,00']], foot: ['Total pago', 'R$ 10,00'] }); garantirCupom(P);
+    const Q = baseRel('RECIBO DE FÉRIAS', 'Teste', []); Q.classe = 'comprovante'; Q.setor = nomeSetorDoc('dp'); garantirCupom(Q);
+    const F = baseRel('FICHA DE CADASTRO', 'Teste', []); F.classe = 'ficha'; garantirCupom(F);
+    return { espremidos, cor, link: /Abrir a compra/.test(art.innerText), pag: !!P.cupom && P.cupom.total && P.cupom.total[1] === 'R$ 10,00', dp: !Q.cupom, ficha: !F.cupom };
+  });
+  ok(md.espremidos.length === 0, 'nenhum valor do cupom fica espremido numa coluna estreita' + (md.espremidos.length ? ': ' + md.espremidos.join(' | ') : ''));
+  ok(md.cor === 'azul · rgb(0, 0, 0)', 'com a cor azul escolhida, a faixa do cupom continua preta (' + md.cor + ')');
+  ok(!md.link, 'texto de link da tela ("Abrir a compra") não vai para o cupom');
+  ok(md.pag && md.dp && md.ficha, 'comprovante só em A4 ganha o cupom (com o total); Setor Pessoal e ficha de cadastro não');
   await page.click('[data-fmt="a4"]'); await espera(300);
   const a4 = await page.evaluate(() => ({ folha: !!document.querySelector('#fvdDoc.fvd-doc'), t: document.querySelector('#fvdDoc').innerText }));
   ok(a4.folha && /COMPROVANTE DE ABASTECIMENTO/.test(a4.t) && /Setor de Combustível/i.test(a4.t) && a4.t.includes('Saldo antes: 237 · depois: 164 L') && a4.t.includes('R$ 546,77 (73 L × R$ 7,49/L)') && a4.t.includes('Registrado por'), 'folha A4 traz setor, saldo antes e depois, conta do custo e quem registrou');

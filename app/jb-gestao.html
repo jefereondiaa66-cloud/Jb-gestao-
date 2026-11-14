@@ -11119,7 +11119,7 @@ const fonteTab=n=>n<=6?9:n<=9?8:n<=12?7.3:6.6;
 let DOC_VER=null;
 ROTULO_DE.documento='Visualizar documento';
 function verDoc(D,opc){
- if(!D)return;opc=opc||{};const r=lerRota();
+ if(!D)return;opc=opc||{};const r=lerRota();if(typeof garantirCupom==='function')garantirCupom(D);
  DOC_VER={D,formato:opc.formato||'',voltar:opc.voltar||(r.mod==='documento'?(DOC_VER&&DOC_VER.voltar)||'#/painel':location.hash||'#/painel'),aoPdf:opc.aoPdf||null,imprimir:!!opc.imprimir,origem:r.mod==='documento'?(DOC_VER&&DOC_VER.origem):r.mod,em:new Date().toISOString()};
  const it=MITENS[miAtual(r)];GRUPO_DE.documento=(it&&it.g)||GRUPO_DE[r.mod]||'';ROTULO_DE.documento='Visualizar documento';
  if(location.hash==='#/documento')renderTela();else location.hash='#/documento';
@@ -28275,9 +28275,10 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .cp-ln{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .cp-ln>span:first-child{min-width:0;overflow-wrap:anywhere}
 .cp-ln>span:last-child{text-align:right;white-space:nowrap;flex:none}
-.cp-ln.q>span:first-child{flex:none;white-space:nowrap}
-.cp-ln.q>span:last-child{white-space:normal;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
-.cp-ln.f{font-weight:700}
+.cp-ln.f,.cp-ln2.f{font-weight:700}
+/* valor comprido: rótulo numa linha e o valor embaixo, alinhado à direita (nunca letra por letra) */
+.cp-ln2>span{display:block;overflow-wrap:break-word}
+.cp-ln2>span:last-child{text-align:right;padding-left:10%}
 .cp-rot{font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1px}
 .cp-forte{font-weight:700;text-transform:uppercase}
 .cp-itcab{font-weight:700;font-size:.92em}
@@ -28288,7 +28289,7 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .cp-it-x{font-size:.92em}
 .cp-total{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:1.42em;margin:3px 0}
 .cp-canc{text-align:center;font-weight:700;border:2px solid #000;padding:4px 2px;margin:6px 0;text-transform:uppercase}
-.cp-txt{text-align:justify;margin:2px 0}
+.cp-txt{text-align:left;margin:2px 0}
 .cp-ass{text-align:center;margin-top:34px}
 .cp-ass+.cp-ass{margin-top:30px}
 .cp-ass i{display:block;border-top:1px solid #000;margin:0 4% 3px}
@@ -28481,7 +28482,12 @@ const MSG_CUPOM_PAD='Obrigado pela preferência!';
 function msgCupom(){let m='';try{m=typeof CFGV==='function'?String(CFGV().textoTicket||'').trim():''}catch(e){}return m||MSG_CUPOM_PAD}
 function htmlCupom(C,w,opc){
  const E=empCupom(),lg=logoDocSrc();w=w===58?58:80;opc=opc||{};
- const ln=(l,v,cls)=>`<div class="cp-ln${cls?' '+cls:''}"><span>${esc(l)}</span><span>${esc(v==null?'':v)}</span></div>`;
+ /* linha rótulo · valor, a mesma regra do PDF: cabe na linha → lado a lado; valor curto → o rótulo quebra
+    à esquerda; valor comprido → rótulo numa linha e o valor embaixo, à direita (letra mono: ~39 colunas no 80 mm) */
+ const cap=w===58?33:39;
+ const ln=(l,v,cls)=>{l=String(l==null?'':l);v=String(v==null?'':v).replace(/R\$ (?=[-\d])/g,'R$\u00a0');const f=cls==='f'?' f':'';
+  if(v&&l.length+1+v.length>cap&&v.length>Math.floor(cap*.45))return `<div class="cp-ln2${f}"><span>${esc(l)}</span><span>${esc(v)}</span></div>`;
+  return `<div class="cp-ln${f}"><span>${esc(l)}</span><span>${esc(v)}</span></div>`};
  const dados=[E.cnpj?'CNPJ '+E.cnpj:'',E.endereco,[E.cidade,E.telefone?'Tel. '+E.telefone:''].filter(Boolean).join(' · ')].filter(Boolean);
  return `<article class="cupom w${w}"${opc.semId?'':' id="fvdDoc"'} data-largura="${w}">
   <header class="cp-cab">${lg?`<img class="cp-logo" src="${esc(lg)}" alt="">`:''}<div class="cp-emp">${esc(E.razao)}</div>${E.fantasia?`<div class="cp-fant">${esc(E.fantasia)}</div>`:''}
@@ -28491,7 +28497,7 @@ function htmlCupom(C,w,opc){
   ${(C.id||[]).map(([l,v])=>ln(l,v,'q')).join('')}
   ${C.cancelado?`<div class="cp-canc">*** ${esc(C.cancelado)} ***</div>`:''}
   ${C.parte?`<div class="cp-sep"></div><div class="cp-rot">${esc(C.parte.rot)}</div><div class="cp-forte">${esc(C.parte.nome||'—')}</div>${(C.parte.linhas||[]).filter(Boolean).map(x=>`<div>${esc(x)}</div>`).join('')}`:''}
-  ${C.itens?`<div class="cp-sep"></div><div class="cp-itcab">${esc(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO')}</div><div class="cp-itcab cp-ln"><span>${esc(C.itensCab2||'QTD  UN  ×  VL. UNIT.')}</span><span>${C.semValor?'':'VL. TOTAL'}</span></div><div class="cp-sep"></div>
+  ${C.itens?`<div class="cp-sep"></div><div class="cp-itcab">${esc(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO')}</div><div class="cp-itcab cp-ln"><span>${esc(C.itensCab2||'QTD  UN  ×  VL. UNIT.')}</span><span>${C.semValor?'':esc(C.itensCabV||'VL. TOTAL')}</span></div><div class="cp-sep"></div>
    ${C.itens.length?C.itens.map((i,k)=>`<div class="cp-it"><div class="cp-it-d"><em>${String(k+1).padStart(3,'0')}</em>${i.cod?esc(i.cod)+' ':''}${esc(i.desc)}</div>${ln(i.linha,i.total)}${(i.x||[]).map(x=>`<div class="cp-it-x">${esc(x)}</div>`).join('')}</div>`).join(''):'<div>Nenhum item.</div>'}`:''}
   ${(C.resumo||[]).length||C.total?`<div class="cp-sep"></div>${(C.resumo||[]).map(([l,v])=>ln(l,v)).join('')}`:''}
   ${C.total?`<div class="cp-sep d"></div><div class="cp-total"><span>${esc(C.total[0])}</span><span>${esc(C.total[1])}</span></div><div class="cp-sep d"></div>`:''}
@@ -28514,8 +28520,9 @@ function pdfCupom(C,w){
   const pula=k=>{y+=lh*(k||1)};
   const centro=(t,{b,s}={})=>{F(b,s);const f=(s||fs)/fs;doc.splitTextToSize(txPdf(t),Lm).forEach(l=>{pula(f);T(l,w/2,{align:'center'})})};
   const texto=(t,{b}={})=>{F(b);doc.splitTextToSize(txPdf(t),Lm).forEach(l=>{pula();T(l,mg)})};
-  const lr=(l,v,{b,s,q}={})=>{F(b,s);const f=(s||fs)/fs;const vv=txPdf(v==null?'':v);const vw=doc.getTextWidth(vv);
-   if(q&&vw>Lm*.62){texto(l,{b});F(b,s);doc.splitTextToSize(vv,Lm).forEach(x=>{pula(f);T(x,w-mg,{align:'right'})});return}
+  /* mesma regra da tela: cabe → lado a lado; valor curto → rótulo quebra à esquerda; comprido → rótulo e, embaixo, o valor à direita */
+  const lr=(l,v,{b,s}={})=>{F(b,s);const f=(s||fs)/fs;const vv=txPdf(v==null?'':v);const vw=doc.getTextWidth(vv);
+   if(vv&&doc.getTextWidth(txPdf(l)+' ')+vw>Lm&&vw>Lm*.45){texto(l,{b});F(b,s);doc.splitTextToSize(vv,Lm*.9).forEach(x=>{pula(f);T(x,w-mg,{align:'right'})});return}
    const ls=doc.splitTextToSize(txPdf(l),Math.max(8,Lm-vw-2));ls.forEach((x,i)=>{pula(f);T(x,mg);if(i===0&&vv)T(vv,w-mg,{align:'right'})})};
   const sep=d=>{y+=lh*.55;if(draw&&doc.line){doc.setDrawColor(0,0,0);doc.setLineWidth(.2);
    if(d){doc.line(mg,y-.45,w-mg,y-.45);doc.line(mg,y+.45,w-mg,y+.45)}else{if(doc.setLineDashPattern)doc.setLineDashPattern([.9,.7],0);doc.line(mg,y,w-mg,y);if(doc.setLineDashPattern)doc.setLineDashPattern([],0)}}y+=lh*.35};
@@ -28532,7 +28539,7 @@ function pdfCupom(C,w){
   if(C.cancelado){y+=lh*.3;F(1);const t='*** '+txPdf(C.cancelado)+' ***';const ls=doc.splitTextToSize(t,Lm-4);const h=ls.length*lh+lh*.6;
    if(draw&&doc.rect){doc.setLineWidth(.5);doc.setDrawColor(0,0,0);doc.rect(mg,y,Lm,h,'S')}ls.forEach(l=>{pula();T(l,w/2,{align:'center'})});y+=lh*.6}
   if(C.parte){sep();texto(String(C.parte.rot).toUpperCase(),{b:1});texto(String(C.parte.nome||'—').toUpperCase(),{b:1});(C.parte.linhas||[]).filter(Boolean).forEach(l=>texto(l))}
-  if(C.itens){sep();texto(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO',{b:1});lr(C.itensCab2||'QTD  UN  x  VL. UNIT.',C.semValor?'':'VL. TOTAL',{b:1});sep();
+  if(C.itens){sep();texto(C.itensCab||'ITEM  CÓD.  DESCRIÇÃO',{b:1});lr(C.itensCab2||'QTD  UN  x  VL. UNIT.',C.semValor?'':(C.itensCabV||'VL. TOTAL'),{b:1});sep();
    if(!C.itens.length)texto('Nenhum item.');
    C.itens.forEach((i,k)=>{texto(String(k+1).padStart(3,'0')+' '+(i.cod?i.cod+' ':'')+String(i.desc||'').toUpperCase(),{b:1});lr(String(i.linha).replace(/×/g,'x'),i.total);(i.x||[]).forEach(x=>texto(x))})}
   if((C.resumo||[]).length||C.total){sep();(C.resumo||[]).forEach(([l,v])=>lr(l,v))}
@@ -28548,12 +28555,67 @@ function pdfCupom(C,w){
  const med=new window.jspdf.jsPDF({unit:'mm',format:[w,3000],orientation:'portrait'});const h=Math.max(w+2,Math.ceil(desenhar(med,false)));
  const doc=new window.jspdf.jsPDF({unit:'mm',format:[w,h],orientation:'portrait'});desenhar(doc,true);return doc;
 }
+/* ---------- todo comprovante do sistema também sai no cupom (pedido do Jeferson, 13/11/2026) ----------
+   Comprovante montado só em folha A4 (pagamento do Financeiro, entrada e requisição do almoxarifado, levadas,
+   documento de lançamento…) ganha a versão cupom no MESMO modelo do comprovante de entrega de lenha, montada do
+   próprio documento: nada é recalculado e nenhum registro muda. O Setor Pessoal fica de fora (documentos do DP). */
+function cupomDeDoc(D){
+ const lim=x=>String(x==null?'':x).replace(/\s+/g,' ').trim();const vz=x=>!lim(x)||lim(x)==='—';
+ const e=CFG.empresa||{};const emp=new Set([e.razao,e.fantasia,e.cnpj,e.cnpj?'CNPJ '+e.cnpj:''].filter(Boolean).map(x=>semAcento(lim(x)).toLowerCase()));
+ const daEmpresa=v=>emp.has(semAcento(lim(v)).toLowerCase());const moeda=v=>/^-?\s*R\$/.test(lim(v));
+ const t=lim(D.tipo).toUpperCase();const m=/^(COMPROVANTE|RECIBO)\s+D[EOA]S?\s+(.+)$/.exec(t);
+ const C={kind:'comprovante',para:'responsavel',tipo:m?m[1]:'COMPROVANTE',titulo:m?m[2]:t,numero:lim(D.numero).replace(/^n[º°o]\.?\s*/i,''),
+  id:[],blocos:[],assinaturas:[],aviso:'Comprovante interno · não é documento fiscal',rodape:agoraCp()};
+ (D.meta||[]).forEach(([l,v])=>{if(!vz(v)&&!/^(emitido em|por)$/i.test(lim(l)))C.id.push([lim(l),lim(v)])});
+ const sd=lim(setorDoDoc(D));if(sd&&!C.id.some(x=>/^setor$/i.test(x[0])))C.id.push(['Setor',sd]);
+ /* quem: a parte do documento (fornecedor, beneficiário…) vem logo no começo, como no cupom da lenha;
+    os outros quadros viram blocos, sem repetir a empresa, que já está no cabeçalho */
+ (D.quadros||[]).forEach(q=>{const rot=lim(q.rot);if(/^PAR[AÂ]METROS$/i.test(rot))return;const c0=(q.campos||[])[0];
+  const cs=(q.campos||[]).filter(c=>!vz(c[1])&&!daEmpresa(c[1]));if(!cs.length)return;
+  if(!C.parte&&c0&&!vz(c0[1])&&!daEmpresa(c0[1])&&cs[0]===c0){C.parte={rot,nome:lim(c0[1]),linhas:cs.slice(1).map(c=>lim(c[0])+': '+lim(c[1]))};return}
+  C.blocos.push({rot,linhas:cs.map(c=>[lim(c[0]),lim(c[1])])})});
+ /* o total: rodapé de tabela com "total", senão o valor do cabeçalho do documento */
+ const tabs=[];(D.blocos||[]).forEach(b=>{if(b.tipo==='tabela')tabs.push(b);else if(b.tipo==='secao'&&b.tabela)tabs.push(b.tabela)});
+ const tt=tabs.filter(b=>b.foot&&moeda(b.foot[b.foot.length-1])&&/total/i.test(lim(b.foot[0]))).pop();
+ if(tt)C.total=[lim(tt.foot[0]).toUpperCase(),lim(tt.foot[tt.foot.length-1])];
+ else{const mv=(D.meta||[]).find(([l,v])=>moeda(v)&&/valor|total|custo/i.test(lim(l)))||((D.blocos||[]).find(b=>b.tipo==='indicadores')||{itens:[]}).itens.find(([l,v])=>moeda(v)&&/valor|total|custo/i.test(lim(l)));
+  if(mv)C.total=[lim(mv[0]).toUpperCase(),lim(mv[1])]}
+ if(C.total)C.id=C.id.filter(x=>lim(x[1])!==C.total[1]);
+ const tab=(rot,b)=>{const h=(b.head||[]).map(lim);const body=(b.body||[]).map(r=>r.map(lim));const n=h.length||((body[0]||[]).length);
+  const foot=b.foot&&b.foot!==(tt&&tt.foot)?b.foot.map(lim):null;
+  if(n>=3&&!C.itens&&body.length){
+   /* cabeçalho curto do cupom (QTD  UN  ×  VL. UNIT. … VL. TOTAL) e a linha "10 un × R$ 7,50" */
+   const ab=x=>{const k=semAcento(lim(x)).toLowerCase();return /^quant/.test(k)?'QTD':/^unid/.test(k)?'UN':/^(preco|custo|valor) unit/.test(k)?'VL. UNIT.':/^(total|valor)$/.test(k)?'VL. TOTAL':lim(x).toUpperCase()};
+   const meio=h.slice(1,-1).map(ab);const xu=meio.length>1&&meio[meio.length-1]==='VL. UNIT.';
+   C.itensCab='ITEM  '+(/^(item|itens|descri)/i.test(semAcento(h[0]||''))||!h[0]?'DESCRIÇÃO':h[0].toUpperCase());C.itensCab2=xu?meio.slice(0,-1).join('  ')+'  ×  VL. UNIT.':meio.join('  ');C.itensCabV=ab(h[n-1]||'Valor');
+   C.itens=body.map(r=>{const md=r.slice(1,-1);const lt=xu?[md.slice(0,-1).filter(x=>!vz(x)).join(' '),md[md.length-1]].filter(x=>!vz(x)).join(' × '):md.filter(x=>!vz(x)).join(' ');
+    return{desc:r[0],linha:lt,total:r[n-1]||'',x:[]}});
+   if(foot)C.resumo=[...(C.resumo||[]),[foot[0],foot[n-1]||'']];return}
+  const L=body.map(r=>n<=2?[r[0],r[1]||'']:[[r[0],...r.slice(1,-1).filter(x=>!vz(x))].join(' · '),r[r.length-1]]);
+  if(foot)L.push([foot[0],foot[foot.length-1],1]);if(L.length)C.blocos.push({rot:rot||h[0]||'',linhas:L})};
+ const textos=[];let pend='';
+ (D.blocos||[]).forEach(b=>{
+  if(b.tipo==='secao'){const ti=lim(b.titulo);if(/^hist[oó]rico/i.test(ti)){pend='-';return}
+   const L=(b.campos||[]).filter(c=>!vz(c[1])).map(c=>[lim(c[0]),lim(c[1])]);if(L.length)C.blocos.push({rot:ti,linhas:L});
+   if(b.tabela)tab(ti,b.tabela);pend=!L.length&&!b.tabela?ti:'';if(!L.length&&!b.tabela&&b.vazio)C.blocos.push({rot:ti,linhas:[[lim(b.vazio)]]});return}
+  if(b.tipo==='tabela'){if(pend!=='-')tab(pend||(b.head||[])[0],b);pend='';return}
+  if(b.tipo==='p'&&lim(b.texto)){const x=lim(b.texto),o=/^observa[cç][oõ]es\s*:\s*/i.exec(x);if(o)C.obs=[C.obs,x.slice(o[0].length)].filter(Boolean).join(' ');else textos.push(x);return}
+  if(b.tipo==='aviso'&&lim(b.texto)){const x=lim(b.texto);if(/cancelad/i.test(x)&&!C.cancelado)C.cancelado=x.split(/[.:]/)[0];else textos.push(x)}});
+ if(textos.length)C.texto=textos.join(' ');
+ if(lim(D.observacoes))C.obs=[C.obs,lim(D.observacoes)].filter(Boolean).join(' ');
+ C.assinaturas=(D.assinaturas||[]).map(a=>{const r=lim(a.sub).replace(/\s*\(nome e assinatura\)/i,'').replace(/\s*·\s*.*$/,'');return{rot:r||'Assinatura',nome:lim(a.nome),sub:lim(a.nome)?'':'Nome e assinatura'}});
+ return C}
+function garantirCupom(D){
+ try{if(!D||D.cupom||D.semCupom||classeDoc(D)!=='comprovante')return D;
+  /* do Setor Pessoal, só o documento de lançamento; recibos e termos do DP continuam na folha A4 */
+  if(setorDoDoc(D)===nomeSetorDoc('dp')&&!(D.quadros||[]).some(q=>/^IDENTIFICA[CÇ][AÃ]O DO LAN[CÇ]AMENTO/i.test(String(q.rot||''))))return D;D.cupom=cupomDeDoc(D)}catch(e){console.warn('cupom do documento',e)}
+ return D}
 /* formato de saída dos documentos que também têm versão cupom (escolha guardada neste aparelho) */
 const FMT_PAD_DOC={venda:'c80',pedido:'c80',recibo:'c80',pagamento:'c80',lenha:'c80',orcamento:'a4',carga:'a4',entrega:'a4'};
 function formatoDoc(D){if(!D||!D.cupom)return 'a4';if(['a4','c80','c58'].includes(D.formatoTela))return D.formatoTela;let f='';try{f=localStorage.getItem('jb_fmt_doc_'+D.cupom.kind)||''}catch(e){}
  return ['c80','c58','a4'].includes(f)?f:(FMT_PAD_DOC[D.cupom.kind]||'c80')}
 function guardarFormatoDoc(D,f){try{localStorage.setItem('jb_fmt_doc_'+D.cupom.kind,f)}catch(e){}}
-function pdfDoDoc(D){const f=formatoDoc(D);return f==='a4'?pdfDoc(D):pdfCupom(D.cupom,f==='c58'?58:80)}
+function pdfDoDoc(D){garantirCupom(D);const f=formatoDoc(D);return f==='a4'?pdfDoc(D):pdfCupom(D.cupom,f==='c58'?58:80)}
 const nomeArqPdf=D=>nomeArqDoc(D)+(formatoDoc(D)==='a4'?'':'_cupom_'+(formatoDoc(D)==='c58'?'58':'80')+'mm')+'.pdf';
 const nMoedaCp=x=>fNum(+x||0,2);
 const agoraCp=()=>'Emitido em '+fDataHora(new Date().toISOString())+' · '+SPOT_NOME;
@@ -28746,6 +28808,8 @@ const COMP_LANC=(()=>{
  function lerHtml(h){
   let doc;try{doc=new DOMParser().parseFromString('<div>'+String(h||'')+'</div>','text/html')}catch(e){return {txt:'',tabs:[]}}
   doc.querySelectorAll('button,input,select,textarea,svg,script,style,[hidden]').forEach(x=>x.remove());
+  /* link de ação da tela ("Abrir a compra", "Ver…") não é dado: não vai para o papel */
+  doc.querySelectorAll('a').forEach(a=>{if(/^\s*(abrir|ver|editar|ir\b|mostrar|toque)/i.test(a.textContent||''))a.remove()});
   const tabs=[];
   doc.querySelectorAll('table').forEach(t=>{
    const head=[...t.querySelectorAll('thead th')].map(x=>limpo(x.textContent));
@@ -28780,7 +28844,7 @@ const COMP_LANC=(()=>{
   [...new Set(campos.map(f=>f.s))].forEach(s=>{const cs=[],tabs=[];
    campos.filter(f=>f.s===s).forEach(f=>{const r=valor(f,st);const l=rot(f,st);
     (r.tabs||[]).forEach(t=>tabs.push({rot:l,...t}));
-    if(r.txt)cs.push([l,r.txt,f.t==='area'||f.t==='html'||r.txt.length>44?1:0])});
+    if(r.txt){const c=[l,r.txt,f.t==='area'||f.t==='html'||r.txt.length>44?1:0];if(f.t==='area'&&/^obs/i.test(f.k))c.obs=true;cs.push(c)}});
    if(cs.length||tabs.length)out.push({titulo:limpo(s)||'Dados',campos:cs,tabs})});
   return out;
  }
@@ -28823,10 +28887,11 @@ const COMP_LANC=(()=>{
    D.cupom={kind:'lancamento',para:'responsavel',tipo:'COMPROVANTE',titulo:maiusc(sing),numero:st.numero&&typeof st.numero!=='object'?String(st.numero):'',
     id:[...(quando(st)?[['Data',quando(st)]]:[]),['Setor',nomeSetorDoc(setorDaTela())]].filter(x=>x[1]),
     cancelado:st.cancelado||st.cancelamento?'Lançamento cancelado':'',
-    blocos:[...S.filter(s=>s.campos.length).map(s=>({rot:maiusc(s.titulo),linhas:s.campos.map(([l,v])=>[l,v])})),{rot:'Registro no sistema',linhas:registro(mod,st).map(([l,v])=>[l,v])}],
+    blocos:[...S.map(s=>({rot:maiusc(s.titulo),linhas:s.campos.filter(c=>!c.obs).map(([l,v])=>semAcento(v).toLowerCase().startsWith(semAcento(l).toLowerCase()+' ')?[v]:[l,v])})).filter(b=>b.linhas.length),{rot:'Registro no sistema',linhas:registro(mod,st).map(([l,v])=>[l,v])}],
+    obs:S.flatMap(s=>s.campos.filter(c=>c.obs).map(c=>c[1])).join(' '),
     total:pr?[pr[0].toUpperCase(),pr[1]]:null,
     assinaturas:[{rot:'Responsável pelo lançamento',nome:quem},{rot:'Conferido por',sub:'Nome e assinatura'}],
-    aviso:'Comprovante interno · não é documento fiscal',rodape:agoraCp()};
+    mensagem:'Via do responsável pelo lançamento',aviso:'Comprovante interno · não é documento fiscal',rodape:agoraCp()};
   }else D.notaFinal='Ficha emitida a partir do cadastro gravado no '+SPOT_NOME+'.';
   return D;
  }
@@ -32579,7 +32644,7 @@ function cssDe(r){
 /* ---------- adaptador das cores escritas direto no CSS ---------- */
 const MARCA_CC=new Set(['#D3121C','#B00E17','#E8343C','#D4242B','#E0322B','#8F0B12','#F8C9CC','#FDE7E8','#FF5C63','#F07A80']);
 const PROPS=['color','background-color','background-image','box-shadow','border-top-color','border-right-color','border-bottom-color','border-left-color','outline-color','fill','stroke','text-decoration-color','caret-color'];
-const PULA=/\.fvd|\.jbt-|#jbt|\.doc-pag|\.doc-folha/;
+const PULA=/\.fvd|\.jbt-|#jbt|\.doc-pag|\.doc-folha|\.cupom|\.cp-/;/* cupom: papel térmico, sempre preto no branco (a cor escolhida não pinta a faixa) */
 function lerCor(s){
  s=String(s).trim().toLowerCase();
  if(s==='white')return{rgb:[255,255,255],a:1};if(s==='black')return{rgb:[0,0,0],a:1};

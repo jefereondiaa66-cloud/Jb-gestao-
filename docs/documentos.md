@@ -56,3 +56,21 @@ demonstrativo do compromisso e o comprovante de cada pagamento. Cada setor tem *
 própria área de Relatórios, e a tela padrão de relatórios ganhou pesquisa, filtros de situação e responsável,
 Imprimir e Compartilhar. Detalhes: [`relatorios-documentos-v120.md`](relatorios-documentos-v120.md).
 Teste: `node scripts/testar-relatorios-documentos.mjs`.
+
+## Cupom igual em todos os setores (V121 · 13/11/2026)
+
+Pedido do Jeferson: o cupom de todo setor no mesmo modelo do **comprovante de entrega de lenha**.
+
+- **Cor do cupom:** papel térmico é sempre preto no branco. O adaptador de cores dos temas (`PULA`) não mexe
+  em `.cupom` nem `.cp-*` (antes, com uma paleta escolhida, a faixa preta virava azul na tela).
+- **Valor comprido:** mesma regra na tela (`htmlCupom`) e no PDF (`pdfCupom`): cabe → lado a lado; valor curto →
+  o rótulo quebra à esquerda; valor comprido → rótulo numa linha e o valor embaixo, à direita (`.cp-ln2`).
+  Antes o valor ficava numa coluna estreita e quebrava letra por letra. `R$` não se separa do número.
+- **Comprovante do lançamento (COMP_LANC):** links de ação da tela ("Abrir a compra") não vão para o papel;
+  observações saem em "Observações" no fim; rótulo repetido no começo do valor sai uma vez; "Via do responsável".
+- **Comprovante só em A4** (pagamento do Financeiro, entrada e requisição do almoxarifado, documento de
+  lançamento, levadas…): `garantirCupom(D)` monta a versão cupom com `cupomDeDoc(D)` a partir do próprio
+  documento (parte, itens, total, blocos, texto, observações, assinaturas). Vale para `classeDoc(D)==='comprovante'`,
+  no Setor Pessoal só o documento de lançamento (recibos e termos do DP seguem em A4); `D.semCupom` desliga. Nada é recalculado nem gravado.
+
+Teste: `node scripts/testar-comprovante-lancamento.mjs` (21 conferências, inclui a cor azul escolhida).
