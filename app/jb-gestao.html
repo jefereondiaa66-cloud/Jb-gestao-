@@ -12634,7 +12634,7 @@ function inicioVendasV(c,s){
  const S=SETORES_V[s];const N=numerosOp(OP.venda,s);const ed=pode('venda','e');
  const semProd=!DATA.produtos.some(p=>p.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>${esc(S.desc)}</p></div></div>
-  <div class="acoes">${pode('estoqueMov','e')&&N.prods.length?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn pri" href="#/venda/nova" data-tip="Venda direta, à vista ou a prazo, que já entra como concluída">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
+  <div class="acoes">${pode('estoqueMov','e')&&N.prods.length?`<a class="btn" href="#/estoque">${ic('entrada')}Entrada no estoque</a>`:''}${ed?`<a class="btn pri" href="#/venda/nova" data-tip="Venda à vista ou a prazo, que já entra como concluída">${ic('recibo')}Nova venda</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> ${pode('produtos','e')?'Cadastre os tipos de tijolo e os produtos (milheiro, com preço), registre a entrada no estoque e faça a primeira venda. ':'Peça ao gerente para cadastrar os produtos. '}Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   <div class="hero">
    ${kpiV('c1','recibo','Vendas hoje',fMoeda(soma(N.dia,v=>v.total)),N.dia.length+' venda(s)','#/vendas')}
@@ -13948,6 +13948,8 @@ function detalheOrcV(c,o){
  if(ed&&['Em elaboração','Enviado ao cliente'].includes(st)&&(!precisaLib||podeAprovarExcV(exc)))bts.push(`<button type="button" class="btn" data-oa="aprovado">Cliente aprovou</button>`);
  if(ed&&['Em elaboração','Enviado ao cliente','Aguardando aprovação'].includes(st))bts.push(`<button type="button" class="btn" data-oa="recusado">Cliente recusou</button>`);
  if(pode('pedido','e')&&st==='Aprovado')bts.push(`<button type="button" class="btn pri" data-oa="converter">${ic('recibo')}Converter em pedido</button>`);
+ /* V123 (14/11/2026): sem "Novo pedido"; o orçamento aprovado vira uma Nova venda já preenchida */
+ if(!pode('pedido','e')&&pode('venda','e')&&st==='Aprovado'&&!o.vendaId&&!o.pedidoId)bts.push(`<button type="button" class="btn pri" data-oa="converterVenda">${ic('carrinho')}Converter em venda</button>`);
  if(ed)bts.push(`<button type="button" class="btn" data-oa="duplicar">Duplicar</button>`);
  const ped=o.pedidoId&&VEN(o.pedidoId);
  const wa=digitos(cx.whatsapp||cx.telefone||(o.prospect||{}).telefone);
@@ -13996,6 +13998,7 @@ async function acaoOrcV(o,a,btn){
  if(a==='aprovado')return pedirMotivoV('O cliente aprovou o orçamento?','Aprovar o orçamento não reserva estoque nem gera conta: o próximo passo é converter em pedido.','Registrar aprovação',false,async mot=>{await mudarOrcV(atual,'Aprovado',mot||'Aprovado pelo cliente');toast('Orçamento aprovado. Agora é só converter em pedido.','ok')});
  if(a==='recusado')return pedirMotivoV('O cliente recusou?','O orçamento continua guardado, com o motivo.','Registrar recusa',true,async mot=>{await mudarOrcV(atual,'Recusado',mot);toast('Recusa registrada.','ok')});
  if(a==='converter')return converterOrcV(atual);
+ if(a==='converterVenda'&&window.JB_V123)return window.JB_V123.orcParaVenda(atual);
 }
 /* conversão: confere de novo no banco se já virou pedido (impede duplicar com dois cliques ou duas pessoas) */
 async function converterOrcV(o){
@@ -14896,7 +14899,7 @@ inicioVendasV=function(c,s){
  const K=(cls,ico,rot,val,sub,fn)=>`<a class="kpi ${cls}" href="javascript:void 0" data-k="${fn}"><div class="ic">${ic(ico)}</div><div class="l">${esc(rot)}</div><div class="v">${val}</div>${sub?`<div class="delta neutro"><b>${sub}</b></div>`:''}</a>`;
  const semProd=!DATA.produtos.some(p=>p.setor===s);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(S.ic)}</span><div><h1>${esc(S.nome)}</h1><p>Situação comercial da cerâmica, com dados reais: clique em um indicador para ver os registros.</p></div></div>
-  <div class="acoes">${pode('venda','e')?`<a class="btn pri" href="#/venda/nova" data-tip="Venda direta, que já entra como concluída">${ic('recibo')}Venda rápida</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
+  <div class="acoes">${pode('venda','e')?`<a class="btn pri" href="#/venda/nova" data-tip="Venda que já entra como concluída (balcão, carregar ou entregar)">${ic('recibo')}Nova venda</a>`:''}${pode('orcamento','e')?`<a class="btn" href="#/orcamento/novo">${ic('doc')}Novo orçamento</a>`:''}${pode('pedido','e')?`<a class="btn" href="#/pedido/novo">${ic('mais')}Novo pedido</a>`:''}</div></div>
   ${semProd?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os produtos (milheiro, preço de referência e mínimo), as tabelas de preço e os clientes; registre a entrada no estoque e faça o primeiro orçamento ou pedido. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   <div class="painel filtros pv-filtros"><select id="pvPer" aria-label="Período">${[['hoje','Hoje'],['mes','Este mês'],['mesant','Mês anterior'],['mesx','Escolher o mês'],['ano','Este ano'],['pers','Período personalizado']].map(([k,l])=>`<option value="${k}" ${UIPV.per===k?'selected':''}>${l}</option>`).join('')}</select>
    ${UIPV.per==='mesx'?JB_MES.controles('vendas'):''}
@@ -40695,7 +40698,7 @@ formOpV=function(c,O,s){
  if(!O||O.K!=='venda')return;
  try{const d=RASC_V[O.K];
   const h1=c.querySelector('.sec-cab h1');if(h1)h1.textContent='Nova venda';
-  dicaTopo(c,'Balcão: o cliente leva na hora. Ao finalizar, a venda fica <b>concluída</b>, o estoque é baixado e o comprovante sai na hora. Para carregar ou entregar depois, use <a href="#/pedido/novo">Novo pedido</a>.');
+  dicaTopo(c,'Toda venda é lançada aqui, seja de balcão, para carregar ou para entregar. Ao finalizar, a venda fica <b>concluída</b> e o comprovante sai na hora.');
   const lp=c.querySelector('#vdLimpar');if(lp)lp.innerHTML=ic('fechar')+'Cancelar operação';
   ligarPick(c,()=>({cliente:d.parteId&&d.parteId!==SEM_CLIENTE?CLI(d.parteId):null,condicao:d.condicao,data:d.data}),()=>d.itens,'vi','vdAdd');
   botaoCadRapido(c,'vdNovoCli',cli=>{d.parteId=cli.id;d.busca='';
@@ -40714,14 +40717,13 @@ const finalizadaV=v=>ehPedido(v)?['Entregue','Concluído'].includes(v.status):!c
 const diaFinalV=v=>{if(!ehPedido(v))return v.data||'';const hs=(v.historico||[]).filter(x=>['Entregue','Concluído'].includes(x.para)&&x.em);const u=hs.length?hs[hs.length-1].em:'';try{return u?isoDe(new Date(u)):(v.data||'')}catch(e){return v.data||''}};
 const SIT_VS={'Pedidos em aberto':PED_ABERTO,'Rascunhos (não confirmados)':RASCUNHO,'Finalizados neste mês':v=>finalizadaV(v)&&diaFinalV(v).startsWith(hoje().slice(0,7)),'Feitos hoje':v=>v.data===hoje()&&!cancV(v)&&!RASCUNHO(v)};
 const ATALHOS=[
- ['#/pedido/novo','pedido','e','mais','Novo pedido','Para carregar ou entregar depois',1],
- ['#/venda/nova','venda','e','carrinho','Nova venda','Cliente leva na hora (balcão)',1],
+ ['#/venda/nova','venda','e','carrinho','Nova venda','Balcão, carregar ou entregar',1],
  ['#/clientes','clientes','v','pessoas','Clientes','Cadastrar, procurar, ver compras'],
  ['#/produtos','produtos','v','livro','Produtos','Tijolos, telhas e preços'],
  ['#/orcamentos','orcamentos','v','doc','Orçamentos','Fazer e consultar propostas'],
  ['#/simular','simular','v','ctlCalc','Simulação','Fazer as contas sem gravar'],
  ['#/relvendas','relvendas','v','grafico','Relatórios','Por dia, mês, cliente, produto'],
- ['#/vendas','vendas','v','lupa','Consultar pedidos','Achar, ver e reimprimir']];
+ ['#/vendas','vendas','v','lupa','Consultar vendas','Achar, ver e reimprimir']];
 inicioVendasV=function(c,s){
  try{
  const S=SETORES_V[s];const h=hoje();const m=h.slice(0,7);const ini=m+'-01';
@@ -40752,7 +40754,7 @@ inicioVendasV=function(c,s){
    ${K('c5','doc','Orçamentos no mês',String(orcs.length),orcEnv.length+' enviado(s), esperando o cliente','orc')}
   </div>
   <div class="ex2">
-   <div class="bloco"><h3>Últimas vendas e pedidos<a href="#/vendas">Ver todos</a></h3>${ult.length?`<ul class="lst vs-ult">${ult.map(linha).join('')}</ul>`:'<div class="ex-vazio">Nenhuma venda ainda. Toque em Novo pedido ou Nova venda.</div>'}</div>
+   <div class="bloco"><h3>Últimas vendas e pedidos<a href="#/vendas">Ver todos</a></h3>${ult.length?`<ul class="lst vs-ult">${ult.map(linha).join('')}</ul>`:'<div class="ex-vazio">Nenhuma venda ainda. Toque em Nova venda.</div>'}</div>
    <div class="bloco"><h3>Pedidos em aberto${abertos.length?`<span class="n">${abertos.length}</span>`:''}<a href="javascript:void 0" data-vk="abertos">Consultar</a></h3>${abertos.length?`<ul class="lst vs-ult">${abertos.slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,8).map(linha).join('')}</ul>`:'<div class="ex-vazio">Nenhum pedido em aberto.</div>'}</div>
   </div>
   <p class="ajuda" style="margin:14px 0 0">Gerente: os indicadores completos (descontos, fretes, custo, metas, alertas) estão no <a href="#/painelvendas">Painel completo</a>.</p>`;
@@ -40809,7 +40811,8 @@ function desenharSim(c){
    ${k.its.map(i=>{const p=PROD(i.produtoId)||{};return `<div class="ajuda" style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(fQtd(numV(i.qtd))+' '+(p.unidade||'')+' '+(p.nome||''))}</span><span>${esc(fMoeda(i.total))}</span></div>`}).join('')}
    ${pode('orcamento','e')?`<button type="button" class="btn pri vd-ok" data-s="orc" ${k.its.length?'':'disabled'}>${ic('doc')}Fazer orçamento com isto</button>`:''}
    ${pode('pedido','e')?`<button type="button" class="btn vd-ok" data-s="ped" style="margin-top:8px" ${k.its.length?'':'disabled'}>${ic('mais')}Fazer pedido com isto</button>`:''}
-   <p class="ajuda" style="margin:10px 0 0">Os botões só levam os itens para a tela do orçamento ou do pedido. Lá você confere e só então salva.</p>`};
+   ${!pode('pedido','e')&&pode('venda','e')?`<button type="button" class="btn vd-ok" data-s="vnd" style="margin-top:8px" ${k.its.length?'':'disabled'}>${ic('carrinho')}Fazer venda com isto</button>`:''}
+   <p class="ajuda" style="margin:10px 0 0">Os botões só levam os itens para a tela do orçamento ou da venda. Lá você confere e só então salva.</p>`};
  res();
  const atuLinha=tr=>{const k=+tr.dataset.sk;const i=SIM.itens[k];const td=tr.querySelector('[data-st]');if(td)td.textContent=fMoeda(round2(numV(i.qtd)*numV(i.preco)));res()};
  const redes=()=>desenharSim(c);
@@ -40832,6 +40835,10 @@ function desenharSim(c){
   if(a==='menos'&&i){qtdSim(i,round3(Math.max(0,numV(i.qtd)-1)));redes();return}
   if(a==='tirar'&&tr){SIM.itens.splice(+tr.dataset.sk,1);redes();return}
   if(a==='limpar'){if(SIM.itens.length&&!await confirmar('Limpar a simulação?','Os produtos e valores desta conta saem da tela. Nada foi gravado.',{ok:'Limpar'}))return;Object.assign(SIM,{clienteId:'',busca:'',buscaCli:'',itens:[],descTipo:'pct',descValor:'',frete:''});redes();return}
+  /* V123: a simulação vira uma Nova venda já preenchida (não grava nada aqui) */
+  if(a==='vnd'&&window.JB_V123){const k=calcSim();if(!k.its.length)return;
+   return window.JB_V123.abrirVenda({clienteId:CLI(SIM.clienteId)?SIM.clienteId:'',itens:SIM.itens.filter(x=>numV(x.qtd)>0).map(x=>({produtoId:x.produtoId,qtd:numV(x.qtd),preco:numV(x.preco)})),
+    descTipo:k.desc>0?SIM.descTipo:'valor',descValor:k.desc>0?numV(SIM.descValor):'',frete:k.fr>0?k.fr:''},'Itens levados para a Nova venda. Confira e finalize.')}
   if(a==='orc'||a==='ped'){const k=calcSim();if(!k.its.length)return;const tipo=a;
    const d=novoRascunhoC(tipo);d._chave='novo';d.clienteId=CLI(SIM.clienteId)?SIM.clienteId:'';if(d.clienteId)preencherEntregaV(d);
    /* preço de tabela recalculado com os dados do rascunho; preço digitado na simulação é mantido (e o formulário mostra a diferença) */
@@ -40848,7 +40855,7 @@ Object.assign(TELAS_V,{simular:telaSimular,painelvendas:telaPainelCompleto});
 const abasV0=ABAS_V;
 ABAS_V=function(s){const a=abasV0.apply(this,arguments);
  try{if(modoV(s)!=='venda')return a;
-  a.forEach(x=>{if(x.r==='#/venda/nova'){x.l='Nova venda';x.ic='carrinho'}if(x.r==='#/vendas')x.l='Consultar pedidos'});
+  a.forEach(x=>{if(x.r==='#/venda/nova'){x.l='Nova venda';x.ic='carrinho'}if(x.r==='#/vendas')x.l='Consultar vendas'});
   const iv=a.findIndex(x=>x.r==='#/venda/nova'),ip=a.findIndex(x=>x.r==='#/pedido/novo');if(iv>=0&&ip>iv){const [p]=a.splice(ip,1);a.splice(iv,0,p)}
   const io=a.findIndex(x=>x.m==='orcamentos');if(pode('simular'))a.splice(io>=0?io+1:a.length,0,{r:'#/simular',m:'simular',ic:'ctlCalc',l:'Simular venda',at:['simular']});
   const ic2=a.findIndex(x=>x.m==='cfgvendas');if(pode('painelvendas'))a.splice(ic2>=0?ic2:a.length,0,{r:'#/painelvendas',m:'painelvendas',ic:'grafico',l:'Painel completo',at:['painelvendas']});
@@ -40863,6 +40870,57 @@ try{const M=MODS.vendas;
  const ft=M.filtros.find(f=>f.k==='_tipo');if(ft&&Array.isArray(ft.op))ft.op=ft.op.map(x=>x==='Venda rápida'?'Nova venda (balcão)':x);
  const O2=MODS.orcamentos;if(O2&&!O2.cols.some(x=>x.k==='_vsac'))O2.cols.push({k:'_vsac',l:'Imprimir',semExport:1,v:r=>`<span class="acoes-li"><button type="button" class="ib" data-tip="Imprimir ou reimprimir" aria-label="Imprimir orçamento nº ${esc(fNumV(r.numero))}" data-vsid="${esc(r.id)}" onclick="event.stopPropagation();JB_VENDAS.imprimir(this.dataset.vsid)">${ic('recibo')}</button></span>`});
 }catch(e){console.warn('V110 lista',e)}
+})();
+</script>
+<script id="vendas-sem-pedido-v123">
+"use strict";
+/* ================= V123 · Setor de Vendas só com "Nova venda" (14/11/2026) =================
+   Pedido do Jeferson: tirar a opção "Novo pedido" e deixar só "Nova venda". Toda venda (balcão, carregar
+   ou entregar) é lançada pela Nova venda e já entra concluída. O que estava como pedido em aberto foi
+   passado para venda pelo agente, uma vez só, sem mexer no que já estava vendido ou faturado.
+   · Ninguém cria nem edita pedido (PERM.pedido.e vazio): somem o botão, o atalho, a aba, o
+     "Fazer pedido com isto" da simulação e o "Converter em pedido" do orçamento.
+   · #/pedido/novo abre a Nova venda. Os pedidos antigos (ex.: cancelados) continuam abrindo só para consulta.
+   · Simulação e orçamento aprovado levam os itens para a Nova venda; a venda guarda o orçamento de origem
+     (origemOrcamento) e o orçamento fica "Convertido em venda". */
+(()=>{
+if(typeof PERM==='undefined'||typeof RASC_V==='undefined'||typeof OP==='undefined')return;
+if(PERM.pedido)PERM.pedido.e=[];
+/* abas do setor: sem "Novo pedido" */
+if(typeof ABAS_V==='function'){const ab0=ABAS_V;ABAS_V=function(){const a=ab0.apply(this,arguments);return Array.isArray(a)?a.filter(x=>!x||x.r!=='#/pedido/novo'):a}}
+/* endereço antigo do novo pedido abre a Nova venda */
+if(typeof TELAS_V!=='undefined'&&TELAS_V.pedido){const tp0=TELAS_V.pedido;TELAS_V.pedido=function(el){const r=lerRota();if(r.id==='novo'&&!pode('pedido','e')){location.replace('#/venda/nova');return}return tp0.apply(this,arguments)}}
+try{const M=MODS.vendas;if(M){M.rotaNovo='#/venda/nova';M.titulo='Vendas';M.sing='venda'}}catch(e){}
+if(typeof ST_ORC!=='undefined'&&!ST_ORC.includes('Convertido em venda'))ST_ORC.push('Convertido em venda');
+if(typeof COR_V!=='undefined')COR_V['Convertido em venda']='ok';
+
+const setorVenda=()=>{const s=setorAtualV();return modoV(s)==='venda'?s:((typeof SETOR_IDS!=='undefined'&&SETOR_IDS.find(x=>modoV(x)==='venda'))||'vendas')};
+/* abre a Nova venda já preenchida (nada é gravado aqui) */
+async function abrirVenda(x,msg){
+ const s=setorVenda();const ant=RASC_V.venda;
+ if(ant&&(ant.itens||[]).some(i=>i.produtoId)&&!await confirmar('Substituir a venda que estava sendo preenchida?','Já existe uma venda começada (ainda não salva). Ela será trocada por esta.',{ok:'Substituir'}))return;
+ const d=novoRascunhoV(OP.venda,s);
+ if(x.clienteId&&CLI(x.clienteId))d.parteId=x.clienteId;
+ d.itens=(x.itens||[]).filter(i=>i.produtoId).map(i=>({produtoId:i.produtoId,qtd:i.qtd,preco:i.preco}));if(!d.itens.length)d.itens=[{produtoId:'',qtd:'',preco:''}];
+ ['descTipo','descValor','frete','outros','forma','condicao','obs'].forEach(k=>{if(x[k]!==undefined&&x[k]!==null)d[k]=x[k]});
+ if(x._orc)d._orc=x._orc;
+ RASC_V.venda=d;if(msg)toast(msg,'ok');location.hash='#/venda/nova'}
+/* orçamento aprovado → Nova venda com os mesmos produtos, preços negociados, desconto e frete */
+function orcParaVenda(o){
+ const ja=DATA.vendas.find(v=>v.origemOrcamento&&v.origemOrcamento.id===o.id&&!cancV(v));
+ if(ja){toast('Este orçamento já virou a venda nº '+fNumV(ja.numero)+'.');location.hash='#/venda/'+ja.id;return}
+ if(statusOrcV(o)!=='Aprovado'){toast('Só orçamento aprovado pelo cliente vira venda.','erro');return}
+ return abrirVenda({clienteId:o.clienteId||'',itens:(o.itens||[]).map(i=>({produtoId:i.produtoId,qtd:+i.qtd||0,preco:+i.preco||0})),descTipo:o.descTipo||'valor',descValor:o.descValor===undefined?'':o.descValor,
+  frete:+o.frete||'',outros:+o.outros||'',forma:o.forma||undefined,condicao:o.condicao==='A prazo'?'A prazo':'À vista',obs:'Referente ao orçamento nº '+fNumV(o.numero)+'.',_orc:{id:o.id,numero:o.numero}},
+  'Itens do orçamento levados para a Nova venda.'+(o.clienteId?'':' Escolha o cliente.')+' Confira e finalize.')}
+/* ao finalizar a venda que veio de um orçamento: a venda guarda o orçamento e o orçamento fica convertido */
+let CAPT=null;
+{const g0=gravar;gravar=async function(col,rec,ant){if(CAPT&&col==='vendas'&&!ant&&rec&&!rec.fluxo&&rec.tipoOp!=='compra'&&!CAPT.rec){rec.origemOrcamento={id:CAPT.id,numero:CAPT.numero};CAPT.rec=rec}return g0.apply(this,arguments)}}
+{const co0=confirmarOpV;confirmarOpV=async function(O,btn){const d=O&&O.K==='venda'?RASC_V.venda:null;const orc=d&&d._orc?{...d._orc}:null;
+ if(orc)CAPT=orc;let r;try{r=await co0.apply(this,arguments)}finally{CAPT=null}
+ if(orc&&orc.rec&&RASC_V.venda!==d){try{const o=ORC(orc.id);if(o&&!o.vendaId)await mudarOrcV(o,'Convertido em venda','Venda nº '+fNumV(orc.rec.numero),{vendaId:orc.rec.id,vendaNumero:orc.rec.numero})}catch(e){console.warn('V123 orçamento',e)}}
+ return r}}
+window.JB_V123={abrirVenda,orcParaVenda};
 })();
 </script>
 <style id="lenha-v111-css">

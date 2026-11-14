@@ -82,14 +82,23 @@ try {
       abas: ABAS_V('vendas').map((a) => a.l),
       ola: !!document.querySelector('.c2-home'),
     }));
-    ok(ini.atalhos.join('|') === 'Novo pedido|Nova venda|Clientes|Produtos|Orçamentos|Simulação|Relatórios|Consultar pedidos', `8 atalhos grandes: ${ini.atalhos.join(', ')}`);
+    ok(ini.atalhos.join('|') === 'Nova venda|Clientes|Produtos|Orçamentos|Simulação|Relatórios|Consultar vendas', `7 atalhos grandes, sem "Novo pedido" (V123): ${ini.atalhos.join(', ')}`);
     ok(ini.kpis.length === 6 && ini.kpis.includes('Vendas do dia') && ini.kpis.includes('Pedidos em aberto') && ini.kpis.includes('Orçamentos no mês'), `poucos números na tela inicial (${ini.kpis.length})`);
-    ok(ini.abas.includes('Nova venda') && ini.abas.includes('Consultar pedidos') && ini.abas.includes('Simular venda') && ini.abas.includes('Painel completo') && ini.abas.indexOf('Novo pedido') < ini.abas.indexOf('Nova venda'), 'abas com nomes simples, Simulação e Painel completo');
+    ok(ini.abas.includes('Nova venda') && ini.abas.includes('Consultar vendas') && ini.abas.includes('Simular venda') && ini.abas.includes('Painel completo') && !ini.abas.includes('Novo pedido'), 'abas com nomes simples, Simulação e Painel completo, sem "Novo pedido"');
     ok(ini.ola, 'a saudação e o cabeçalho de hoje continuam (casca nova)');
     ok(await semRolagemLado(page), 'início sem rolagem para o lado');
     await page.screenshot({ path: join(RAIZ, `saida/vendas-inicio-${vp.nome}.png`), fullPage: true });
 
-    /* ---------- 2. novo pedido: cadastro rápido, cartões, cálculo ---------- */
+    /* ---------- V123: sem "Novo pedido" ---------- */
+    ok(await page.evaluate(() => !pode('pedido', 'e') && !document.querySelector('a[href="#/pedido/novo"]')), 'V123: ninguém cria pedido e não há botão nem link de "Novo pedido"');
+    await ir(page, '#/pedido/novo');
+    await page.waitForFunction(() => location.hash === '#/venda/nova', null, { timeout: 8000 }).catch(() => {});
+    ok(await page.evaluate(() => location.hash === '#/venda/nova'), 'V123: o endereço antigo do novo pedido abre a Nova venda');
+    ok(await page.evaluate(() => { const t = document.getElementById('conteudo').textContent; return !/Novo pedido/.test(t); }), 'V123: a Nova venda não manda mais para "Novo pedido"');
+
+    /* ---------- 2. pedido antigo (o código continua para os pedidos já gravados): o teste liga a permissão só aqui ---------- */
+    await page.evaluate(() => { PERM.pedido.e = ['admin', 'gerente', 'vendedor']; });
+    await ir(page, '#/setor-vendas');
     await ir(page, '#/pedido/novo');
     await page.waitForSelector('[data-vscad]', { timeout: 10000 });
     ok(await page.evaluate(() => document.querySelectorAll('#frmV>fieldset.sec').length >= 4 && !document.querySelector('#frmV legend .vs-n') && /em aberto/.test(document.querySelector('.sec-cab .sec-id p').textContent)), 'etapas numeradas (uma vez só) e explicação de pedido x venda no subtítulo');
@@ -187,6 +196,8 @@ try {
     const histImp = await page.evaluate((id) => (typeof historicoHtml === 'function' ? historicoHtml('vendas', id) : ''), pedId);
     ok(!/imprimiu/.test(histImp), 'imprimir não grava nada no histórico');
 
+    await page.evaluate(() => { PERM.pedido.e = []; });
+
     /* ---------- cartão não ocupa a linha de um produto desativado ou apagado ---------- */
     await ir(page, '#/venda/nova');
     await page.evaluate(() => { RASC_V.venda.itens = [{ produtoId: 'produto-apagado', qtd: 10, preco: 500 }]; renderTela(); });
@@ -276,16 +287,25 @@ try {
     await page.evaluate(() => { const m = document.querySelector('.veu .modal [data-ok]'); if (m) m.click(); });
     await page.waitForFunction((id) => ORC(id) && ORC(id).status === 'Aprovado', oid, { timeout: 8000 }).catch(() => {});
     await ir(page, '#/orcamento/' + oid);
-    await page.click('[data-oa="converter"]').catch(() => {});
-    await page.waitForTimeout(400);
-    await page.evaluate(() => { const m = document.querySelector('.veu .modal [data-r="1"], .veu .modal [data-ok]'); if (m) m.click(); });
-    await page.waitForFunction(() => /#\/venda\/[^/]+$/.test(location.hash), null, { timeout: 10000 }).catch(() => {});
-    const pc = await page.evaluate(async () => { const id = (location.hash.match(/#\/venda\/(.+)$/) || [])[1]; for (let k = 0; k < 40 && !VEN(id); k++) await new Promise((r) => setTimeout(r, 150)); return VEN(id) || null; });
-    ok(pc && pc.fluxo === 'pedido' && pc.clienteId === 'c1' && (pc.itens || []).map((i) => i.produtoId).join(',') === 'p2' && pc.origemOrcamento && pc.origemOrcamento.id === oid,
-      `orçamento aprovado vira pedido sem redigitar (pedido nº ${pc && pc.numero}, ${pc && pc.status})`);
-    ok(!!pc && !!(await noBanco(page, 'vendas', pc.id)), 'pedido convertido gravado no banco central');
-    await page.waitForFunction((id) => ORC(id) && ORC(id).status === 'Convertido em pedido', oid, { timeout: 8000 }).catch(() => {});
-    ok(await page.evaluate((id) => ORC(id).status === 'Convertido em pedido', oid), 'orçamento marcado como "Convertido em pedido"');
+    await page.waitForSelector('[data-oa="converterVenda"]', { timeout: 8000 }).catch(() => {});
+    ok(await page.evaluate(() => !document.querySelector('[data-oa="converter"]') && !!document.querySelector('[data-oa="converterVenda"]')), 'V123: orçamento aprovado tem "Converter em venda" (e não "Converter em pedido")');
+    await page.click('[data-oa="converterVenda"]').catch(() => {});
+    await page.waitForSelector('#vdCli', { timeout: 8000 }).catch(() => {});
+    ok(await page.evaluate(() => location.hash === '#/venda/nova' && RASC_V.venda && RASC_V.venda.parteId === 'c1' && RASC_V.venda.itens.map((i) => i.produtoId).join(',') === 'p2'), 'V123: os itens e o cliente do orçamento vão para a Nova venda');
+    await page.evaluate(() => { const s = document.getElementById('vdConta'); const o = s && [...s.options].find((x) => x.value); if (o) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } }); await page.waitForTimeout(150);
+    await page.evaluate(() => { const v = document.getElementById('vdVenc'); if (v && !v.value) { v.value = addDias(hoje(), 10); v.dispatchEvent(new Event('input', { bubbles: true })); v.dispatchEvent(new Event('change', { bubbles: true })); } }); await page.waitForTimeout(150);
+    await page.click('#vdOk');
+    await confirmarDialogo(page).catch(() => {});
+    await page.waitForFunction(() => /#\/venda\/(?!nova)[^/]+$/.test(location.hash) || !!document.querySelector('.vs-imp'), null, { timeout: 12000 }).catch(() => {});
+    const pc = await page.evaluate(async (oid) => { for (let k = 0; k < 40 && !DATA.vendas.some((v) => v.origemOrcamento && v.origemOrcamento.id === oid); k++) await new Promise((r) => setTimeout(r, 150)); return DATA.vendas.find((v) => v.origemOrcamento && v.origemOrcamento.id === oid) || null; }, oid);
+    if (!pc) console.log('    (venda do orçamento: ' + await page.evaluate(() => location.hash + ' · ' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ')) + ')');
+    ok(pc && !pc.fluxo && pc.status === 'Concluída' && pc.clienteId === 'c1' && (pc.itens || []).map((i) => i.produtoId).join(',') === 'p2',
+      `V123: orçamento aprovado vira venda concluída sem redigitar (venda nº ${pc && pc.numero}, ${pc && pc.status})`);
+    ok(!!pc && !!(await noBanco(page, 'vendas', pc.id)), 'venda do orçamento gravada no banco central');
+    await page.waitForSelector('.vs-imp', { timeout: 6000 }).catch(() => {});
+    await page.evaluate(() => { const b = document.querySelector('.vs-imp [data-fechar]'); if (b) b.click(); document.querySelectorAll('.veu').forEach((v) => v.remove()); });
+    await page.waitForFunction((id) => ORC(id) && ORC(id).status === 'Convertido em venda', oid, { timeout: 8000 }).catch(() => {});
+    ok(await page.evaluate((id) => ORC(id).status === 'Convertido em venda' && !!ORC(id).vendaId, oid), 'orçamento marcado como "Convertido em venda"');
 
     /* ---------- 7. consulta de pedidos: filtros, ações e reimpressão ---------- */
     await ir(page, '#/vendas');
@@ -331,7 +351,7 @@ try {
     /* ---------- 9. permissões: o que cada perfil vê ---------- */
     const perm = await page.evaluate(() => { const p0 = APP.papel; const r = {}; for (const p of ['financeiro', 'vendedor']) { APP.papel = p; r[p] = { pedido: pode('pedido', 'e'), simular: pode('simular'), abas: ABAS_V('vendas').map((a) => a.l) }; } APP.papel = p0; return r; });
     ok(!perm.financeiro.pedido && perm.financeiro.simular && !perm.financeiro.abas.includes('Novo pedido'), 'financeiro: consulta e simula, mas não faz pedido (permissão de antes)');
-    ok(perm.vendedor.pedido && perm.vendedor.abas.includes('Nova venda'), 'vendedor: faz pedido e venda');
+    ok(!perm.vendedor.pedido && perm.vendedor.abas.includes('Nova venda') && !perm.vendedor.abas.includes('Novo pedido'), 'vendedor: faz venda; pedido não existe mais (V123)');
 
     const relevantes = erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
     ok(relevantes.length === 0, `sem erros de JavaScript${relevantes.length ? ': ' + relevantes.slice(0, 3).join(' | ') : ''}`);
