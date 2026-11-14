@@ -3633,6 +3633,9 @@ const tagAdv=t=>t?'<span class="tag '+(COR_ADV[t]||'')+'">'+esc(t)+'</span>':'';
 const GRAUS_INSAL={'Grau mínimo (10%)':10,'Grau médio (20%)':20,'Grau máximo (40%)':40};
 const OPS_INSAL=Object.keys(GRAUS_INSAL);
 const TIPOS_ADIC=['Adicional noturno','Insalubridade'];
+/* tipos de vale (13/11/2026, pedido do dono): "Dinheiro" e "PIX" no lugar de "Vale em dinheiro" e "Adiantamento de salário".
+   Lançamentos antigos guardam o tipo que já tinham (a gaveta mostra o valor gravado e o filtro continua achando). */
+const TIPOS_VALE=['Dinheiro','PIX','Compra em mercado ou posto','Empréstimo','Outro desconto'];
 const valorInsal=g=>GRAUS_INSAL[g]?round2((+LG().salarioMinimo||0)*GRAUS_INSAL[g]/100):0;
 const valorNoturnoDe=(fid,h)=>veSensivel()?round2((+h||0)*valorHoraF(fid)*(+CFG.ponto.pctNoturno||0)/100):0;
 const ehInformal=n=>grupoTipo(n)==='informal';
@@ -4200,7 +4203,7 @@ vales:{titulo:'Vales e adiantamentos',sing:'vale',ic:'recibo',desc:'Vales, adian
   {k:'data',l:'Data',t:'data',req:1,s:'Lançamento'},
   {k:'funcionarioId',l:'Funcionário',t:'sel',req:1,op:()=>optsFunc(),s:'Lançamento'},
   {k:'setor',l:'Setor',t:'txt',ro:1,s:'Lançamento'},
-  {k:'tipo',l:'Tipo',t:'sel',req:1,op:['Vale em dinheiro','Adiantamento de salário','Compra em mercado ou posto','Empréstimo','Outro desconto'],s:'Lançamento'},
+  {k:'tipo',l:'Tipo',t:'sel',req:1,op:TIPOS_VALE,s:'Lançamento'},
   {k:'valor',l:'Valor',t:'moeda',req:1,s:'Lançamento'},
   {k:'natureza',l:'Natureza',t:'sel',req:1,op:['Desconta do pagamento','Não desconta (por conta da empresa)'],aj:'Descontos em folha têm limites legais. Confirme com o contador antes de descontar compras e empréstimos.',s:'Lançamento'},
   {k:'competenciaDesconto',l:'Descontar na competência',t:'mes',sh:r=>r.natureza!=='Não desconta (por conta da empresa)',s:'Desconto'},
@@ -4211,11 +4214,12 @@ vales:{titulo:'Vales e adiantamentos',sing:'vale',ic:'recibo',desc:'Vales, adian
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Desconto'},
   {k:'lancadoPor',l:'Lançado por',t:'usuario',ro:1,s:'Desconto'}],
  cols:[{k:'data',l:'Data',t:'data'},colFunc,colSetorF,{k:'tipo',l:'Tipo'},{k:'valor',l:'Valor',t:'moeda'},{k:'natureza',l:'Natureza',v:r=>r.natureza==='Desconta do pagamento'?tag('Desconta','at'):tag('Empresa paga','in')},{k:'competenciaDesconto',l:'Competência',v:r=>esc(fMes(r.competenciaDesconto))},{k:'situacao',l:'Situação',v:r=>tag(r.situacao)}],
- filtros:[{k:'_periodo',l:'Período',t:'periodo',campo:'data'},{k:'funcionarioId',l:'Funcionário',op:()=>optsFunc()},{k:'setor',l:'Setor',op:()=>CFG.setores},{k:'tipo',l:'Tipo',op:['Vale em dinheiro','Adiantamento de salário','Compra em mercado ou posto','Empréstimo','Outro desconto']},{k:'situacao',l:'Situação',op:['A descontar','Descontado','Perdoado','Não se aplica']}],
+ filtros:[{k:'_periodo',l:'Período',t:'periodo',campo:'data'},{k:'funcionarioId',l:'Funcionário',op:()=>optsFunc()},{k:'setor',l:'Setor',op:()=>CFG.setores},{k:'tipo',l:'Tipo',op:()=>[...new Set([...TIPOS_VALE,...(DATA.vales||[]).map(r=>r.tipo).filter(Boolean)])]},{k:'situacao',l:'Situação',op:['A descontar','Descontado','Perdoado','Não se aplica']}],
  setorDe:fSetorFunc,ordem:['data','desc'],
- padrao:()=>({data:hoje(),tipo:'Vale em dinheiro',natureza:'Desconta do pagamento',situacao:'A descontar',competenciaDesconto:mesAtual(),formaPagamento:'Dinheiro'}),
+ padrao:()=>({data:hoje(),tipo:'Dinheiro',natureza:'Desconta do pagamento',situacao:'A descontar',competenciaDesconto:mesAtual(),formaPagamento:'Dinheiro'}),
  aoMudar(st,k){
   if(k==='funcionarioId')st.setor=setorF(st.funcionarioId);
+  if(k==='tipo'&&(st.tipo==='PIX'||st.tipo==='Dinheiro'))st.formaPagamento=st.tipo;
   if(k==='data'&&st.data&&!st._compTocada)st.competenciaDesconto=String(st.data).slice(0,7);
   if(k==='competenciaDesconto')st._compTocada=1;
   if(k==='natureza'){if(st.natureza==='Não desconta (por conta da empresa)'){st.situacao='Não se aplica';st.competenciaDesconto=''}else{st.situacao='A descontar';if(!st.competenciaDesconto)st.competenciaDesconto=String(st.data||hoje()).slice(0,7)}}},
