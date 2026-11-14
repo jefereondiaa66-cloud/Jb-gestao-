@@ -47,3 +47,12 @@ Dois padrões, que não se misturam:
 Lenha: na tela da compra de lenha, **Comprovante de entrega** (`docEntregaLenhaV`, para quem trouxe a lenha,
 com assinatura de quem entregou e de quem recebeu) e **Relatório para o dono** (`docRelLenhaDonoV`).
 Só leitura da compra registrada: tipo, destino, caminhão e medidas, itens, valores, pagamento e estoque.
+
+## Documento de cada lançamento e relatórios dos setores (V120)
+
+Todo lançamento aberto na janela padrão tem o botão **Documento** (Visualizar, Gerar PDF, Imprimir,
+Compartilhar), montado pelo registro gravado com `JB_DOCL.docRegistro` no padrão A acima; o Financeiro tem o
+demonstrativo do compromisso e o comprovante de cada pagamento. Cada setor tem **Lançamentos do setor** na
+própria área de Relatórios, e a tela padrão de relatórios ganhou pesquisa, filtros de situação e responsável,
+Imprimir e Compartilhar. Detalhes: [`relatorios-documentos-v120.md`](relatorios-documentos-v120.md).
+Teste: `node scripts/testar-relatorios-documentos.mjs`.

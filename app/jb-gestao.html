@@ -4311,7 +4311,7 @@ function exportar(formato,nome,cols,rows,titulo,opc){
     aoa=[[x.titulo],[],x.cols.map(c=>c.l),...x.rows.map(ln),...(T&&x.rows.length?[ln({...Object.fromEntries(x.cols.map((c,j)=>[c.k,j===0?'Total':''])),...T})]:[]),...(x.nota?[[],[x.nota]]:[])]}
    const w2=XLSX.utils.aoa_to_sheet(aoa);w2['!cols']=(x.cols||[1,2]).map((c,j)=>({wch:j===0?34:20}));XLSX.utils.book_append_sheet(wb,w2,String(x.titulo||'Extra '+(i+1)).replace(/[\\/?*\[\]:]/g,' ').slice(0,31))});
   const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});return salvarArquivo(base+'.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))}
- if(formato==='pdf'||formato==='ver'){
+ if(formato==='pdf'||formato==='ver'||formato==='imprimir'||formato==='compartilhar'){
   /* mesma lista, no modelo dos documentos (o da ficha de férias) */
   const D=docLista(titulo||nome,cols,cab,corpo,base,{filtros});
   /* V115: blocos extras do relatório (resumo e tabelas com título) entram depois da tabela principal */
@@ -4323,6 +4323,9 @@ function exportar(formato,nome,cols,rows,titulo,opc){
    if(x.nota)D.blocos.push({tipo:'p',texto:x.nota})});
   if((opc.extras||[]).some(x=>x.cols&&x.cols.length>6))D.paisagem=true;
   if(formato==='ver'){verDoc(D);return true}
+  /* V120: imprimir abre o documento e já chama a impressão; compartilhar manda o PDF (pede o responsável do relatório antes, como o PDF) */
+  if(formato==='imprimir'){verDoc(D,{imprimir:true});return true}
+  if(formato==='compartilhar')return (async()=>{const P=window.RESP_REL_V80;if(P&&P.preparar&&!(await P.preparar(D)))return false;return compartilharDoc(D)})();
   return emitirPdfDoc(D,'PDF gerado.')}
  /* CSV para o Excel em português: separador ";" e número com vírgula decimal, sem separador de milhar */
  const num=x=>typeof x==='number'?(x||0).toLocaleString('pt-BR',{useGrouping:false,maximumFractionDigits:10}):x;
@@ -11117,11 +11120,18 @@ let DOC_VER=null;
 ROTULO_DE.documento='Visualizar documento';
 function verDoc(D,opc){
  if(!D)return;opc=opc||{};const r=lerRota();
- DOC_VER={D,formato:opc.formato||'',voltar:opc.voltar||(r.mod==='documento'?(DOC_VER&&DOC_VER.voltar)||'#/painel':location.hash||'#/painel'),aoPdf:opc.aoPdf||null,origem:r.mod==='documento'?(DOC_VER&&DOC_VER.origem):r.mod,em:new Date().toISOString()};
+ DOC_VER={D,formato:opc.formato||'',voltar:opc.voltar||(r.mod==='documento'?(DOC_VER&&DOC_VER.voltar)||'#/painel':location.hash||'#/painel'),aoPdf:opc.aoPdf||null,imprimir:!!opc.imprimir,origem:r.mod==='documento'?(DOC_VER&&DOC_VER.origem):r.mod,em:new Date().toISOString()};
  const it=MITENS[miAtual(r)];GRUPO_DE.documento=(it&&it.g)||GRUPO_DE[r.mod]||'';ROTULO_DE.documento='Visualizar documento';
  if(location.hash==='#/documento')renderTela();else location.hash='#/documento';
 }
 /* gera e baixa o PDF; o toast só aparece depois que o arquivo saiu */
+/* V120 · as mesmas ações para qualquer documento montado na hora: Visualizar, Gerar PDF, Imprimir e Compartilhar.
+   fazer: função que monta o documento, chamada só quando a pessoa escolhe a ação (com os dados daquele momento). */
+function acaoDocumento(fazer,acao){let D=null;try{D=typeof fazer==='function'?fazer():fazer}catch(e){console.error(e)}
+ if(!D){toast('Não foi possível montar o documento: o registro não foi encontrado ou está fora do seu acesso.','erro');return}
+ if(acao==='pdf')return emitirPdfDoc(D,'PDF gerado.');if(acao==='imprimir')return verDoc(D,{imprimir:true});if(acao==='compartilhar')return compartilharDoc(D);return verDoc(D)}
+const itensAcaoDoc=(fazer,tit,aviso)=>[...(aviso?[{l:aviso,off:true}]:[]),{l:'Visualizar documento',sub:tit||'',fn:()=>acaoDocumento(fazer,'ver')},{l:'Gerar PDF',fn:()=>acaoDocumento(fazer,'pdf')},
+ {l:'Imprimir',fn:()=>acaoDocumento(fazer,'imprimir')},{l:'Compartilhar',sub:'WhatsApp, e-mail ou outro aplicativo',fn:()=>acaoDocumento(fazer,'compartilhar')}];
 async function emitirPdfDoc(D,msg){
  const doc=pdfDoDoc(D);if(!doc)return false;
  const ok=await salvarArquivo(nomeArqPdf(D),new Blob([doc.output('arraybuffer')],{type:'application/pdf'}));
@@ -11149,6 +11159,8 @@ function telaDocumento(el){
  $('#dxImp',el).onclick=imprimirDoc;$('#dxPdf',el).onclick=pdf;$('#dxWord',el).onclick=()=>baixarWordDoc(D);$('#dxShare',el).onclick=()=>compartilharDoc(D);
  $$('[data-fmt]',el).forEach(b=>b.onclick=()=>{guardarFormatoDoc(D,b.dataset.fmt);X.formato='';D.formatoTela='';telaDocumento(el)});
  $$('[data-passo]',el).forEach(b=>b.onclick=()=>{const p=b.dataset.passo;if(p==='imprimir')imprimirDoc();else if(p==='pdf')pdf();else if(p==='baixar')baixarWordDoc(D);else if(p==='abrir')location.hash=X.voltar});
+ /* V120: aberto pelo "Imprimir" de outra tela: a impressão sai uma vez, logo depois de desenhar */
+ if(X.imprimir){X.imprimir=false;setTimeout(()=>{if(document.getElementById('fvdDoc'))imprimirDoc()},200)}
 }
 
 /* ---------- nomenclatura empresarial dos documentos (só o texto que sai no documento; dados e telas não mudam) ---------- */
@@ -19326,7 +19338,7 @@ let agendado=false;
 function varrer(){agendado=false;
  try{const r=lerRota();if(PULA_ROTA.includes(r.mod))return}catch(e){}
  document.querySelectorAll('#conteudo table.tbl, .gaveta table.tbl').forEach(t=>{
-  if(PULA_CLASSE.some(c=>t.classList.contains(c)))return;
+  if(PULA_CLASSE.some(c=>t.classList.contains(c))||t.hasAttribute('data-sem-total'))return;   /* V120: relatório com tipos diferentes na mesma coluna não soma */
   try{totalizar(t)}catch(e){console.warn('total',e)}});
 }
 function agendar(){if(!agendado){agendado=true;requestAnimationFrame(varrer)}}
@@ -20382,14 +20394,15 @@ function dadosRelAlm(){
  if(id==='minimo')return{cols:[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'saldo',l:'Saldo',t:'num'},{k:'min',l:'Mínimo',t:'num'},{k:'un',l:'Unidade'},{k:'forn',l:'Fornecedor habitual'}],
   rows:abaixoMin().map(i=>({codigo:i.codigo,nome:i.nome,saldo:estI(i.id).saldo,min:+i.minimo,un:un(i.unidade),forn:i.fornecedorId?nomeFornA(i.fornecedorId):'—'}))};
  return{cols:[],rows:[]}}
+/* V120: a mesma tela de relatórios dos outros setores (lista, filtros, pesquisa, Visualizar, PDF, Imprimir, Compartilhar, Excel e CSV),
+   com os mesmos relatórios e os mesmos cálculos de antes (dadosRelAlm, sem período: tudo), mais os Lançamentos do setor */
+const URAL={id:'setor',rapido:'tudo',ini:'',fim:''};
 function telaRelAlm(c){
- const R=dadosRelAlm();const tit=(REL_A.find(x=>x[0]===URA.id)||[,''])[1];
- const fmt=(col,v)=>col.t==='moeda'?fMoeda(v):col.t==='num'?fQtd(v):col.t==='data'?fData(v):String(v??'');
- c.innerHTML=cab('grafico','Relatórios do almoxarifado','Consumo pelas requisições (menos as devoluções) e pelo custo médio; compras pelas entradas. Sem período: tudo.',`<button type="button" class="btn" id="arExp">${ic('baixar')}Exportar ▾</button>`)+
-  `<div class="fi-filtros"><select id="arId" aria-label="Relatório">${optH(REL_A,URA.id)}</select>${URA.id==='minimo'?'':`<input type="date" id="arDe" value="${esc(URA.de)}" aria-label="De" title="De"><input type="date" id="arAte" value="${esc(URA.ate)}" aria-label="Até" title="Até">`}</div>`+
-  (R.rows.length?tabela(R.cols.map(x=>[x.l,x.t==='moeda'||x.t==='num'?1:0]),R.rows.map(r=>`<tr>${R.cols.map(x=>td(x.l,esc(fmt(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`)):noNada('Nada para mostrar neste período',''));
- $('#arId',c).onchange=e=>{URA.id=e.target.value;renderTela()};if($('#arDe',c)){$('#arDe',c).onchange=e=>{URA.de=e.target.value;renderTela()};$('#arAte',c).onchange=e=>{URA.ate=e.target.value;renderTela()}}
- $('#arExp',c).onclick=()=>exportarMenu($('#arExp',c),'Almoxarifado_'+URA.id,tit+(URA.de||URA.ate?' · '+(URA.de?fData(URA.de):'início')+' a '+(URA.ate?fData(URA.ate):'hoje'):''),R.cols,R.rows);
+ const qtdCol=x=>x.t==='num'?{...x,v:r=>esc(r[x.k]==null||r[x.k]===''?'':fQtd(r[x.k]))}:x;
+ const rels=REL_A.map(([id,n])=>({id,n,m:'almRel',f:id==='minimo'?[]:['rapido','periodo'],
+  b(U){URA.id=id;URA.de=id==='minimo'?'':(U.ini||'');URA.ate=id==='minimo'?'':(U.fim||'');const R=dadosRelAlm();return {cols:R.cols.map(qtdCol),rows:R.rows}}}));
+ if(window.JB_DOCL)rels.push(JB_DOCL.relLanc('almox',URAL,{m:'almRel'}));
+ telaRelatorios(c,{rels,ui:URAL,h1:'Relatórios do almoxarifado',p:'Consumo pelas requisições (menos as devoluções) e pelo custo médio; compras pelas entradas; e todos os lançamentos do setor. Visualize, imprima ou exporte em PDF, Excel ou CSV.'});
 }
 
 /* ================= paletes: cadastro, regras e saldos ================= */
@@ -20729,7 +20742,8 @@ function modalPrazoPal(){
 }
 const REL_P=[['mov','Movimentações por tipo'],['cli','Paletes com clientes'],['compras','Compras e consertos'],['perdas','Quebras, descartes e cobranças']];
 const URP={id:'mov',de:'',ate:''};
-function telaRelPal(c){
+/* V120: os mesmos cálculos de antes, separados da tela */
+function dadosRelPal(){
  const de=URP.de||'0000',ate=URP.ate||'9999';const noP=d=>!!d&&d>=de&&d<=ate;let cols=[],rows=[];
  if(URP.id==='mov'){const m=new Map();DATA.paleteMov.filter(x=>noP(x.data)).forEach(x=>{const k=x.tipo+'|'+x.palTipo;const g=m.get(k)||{mov:ROT_MOV[x.tipo]||x.tipo,pt:nomePT(x.palTipo),n:0,q:0};g.n++;g.q+=+x.qtd||0;m.set(k,g)});
   cols=[{k:'mov',l:'Movimento'},{k:'pt',l:'Palete'},{k:'n',l:'Lançamentos',t:'num'},{k:'q',l:'Paletes',t:'num'}];rows=[...m.values()]}
@@ -20740,12 +20754,16 @@ function telaRelPal(c){
  if(URP.id==='perdas'){cols=[{k:'data',l:'Data',t:'data'},{k:'mov',l:'Movimento'},{k:'pt',l:'Palete'},{k:'q',l:'Paletes',t:'num'},{k:'det',l:'Detalhe'}];
   rows=DATA.paleteMov.filter(x=>noP(x.data)&&(['quebra','descarte','cobranca'].includes(x.tipo)||(x.tipo==='devolucao'&&+x.quebrado>0))).sort((a,b)=>String(a.data).localeCompare(String(b.data)))
    .map(x=>({data:x.data,mov:x.tipo==='devolucao'?'Devolvido quebrado':ROT_MOV[x.tipo],pt:nomePT(x.palTipo),q:x.tipo==='devolucao'?+x.quebrado:+x.qtd||0,det:x.tipo==='cobranca'?nomeCli(x.clienteId)+' · '+fMoeda(x.total):x.clienteId?nomeCli(x.clienteId):'de '+ROT_EST[x.origem||'livre']}))}
- const fmt=(col,v)=>col.t==='moeda'?fMoeda(v):col.t==='num'?fQtd(v):col.t==='data'?fData(v):String(v??'');
- c.innerHTML=cab('grafico','Relatórios de paletes','Movimentações, saldo com clientes, compras e consertos e perdas. Sem período: tudo.',`<button type="button" class="btn" id="prExp">${ic('baixar')}Exportar ▾</button>`)+
-  `<div class="fi-filtros"><select id="prId" aria-label="Relatório">${optH(REL_P,URP.id)}</select>${URP.id==='cli'?'':`<input type="date" id="prDe" value="${esc(URP.de)}" aria-label="De" title="De"><input type="date" id="prAte" value="${esc(URP.ate)}" aria-label="Até" title="Até">`}</div>`+
-  (rows.length?tabela(cols.map(x=>[x.l,x.t==='moeda'||x.t==='num'?1:0]),rows.map(r=>`<tr>${cols.map(x=>td(x.l,esc(fmt(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`)):noNada('Nada para mostrar',''));
- $('#prId',c).onchange=e=>{URP.id=e.target.value;renderTela()};if($('#prDe',c)){$('#prDe',c).onchange=e=>{URP.de=e.target.value;renderTela()};$('#prAte',c).onchange=e=>{URP.ate=e.target.value;renderTela()}}
- $('#prExp',c).onclick=()=>exportarMenu($('#prExp',c),'Paletes_'+URP.id,(REL_P.find(x=>x[0]===URP.id)||[,''])[1],cols,rows);
+ return {cols,rows};
+}
+/* V120: a mesma tela de relatórios dos outros setores, com os mesmos relatórios de paletes (sem período: tudo), mais os Lançamentos do setor */
+const URPL={id:'mov',rapido:'tudo',ini:'',fim:''};
+function telaRelPal(c){
+ const qtdCol=x=>x.t==='num'?{...x,v:r=>esc(r[x.k]==null||r[x.k]===''?'':fQtd(r[x.k]))}:x;
+ const rels=REL_P.map(([id,n])=>({id,n,m:'palRel',f:id==='cli'?[]:['rapido','periodo'],
+  b(U){URP.id=id;URP.de=id==='cli'?'':(U.ini||'');URP.ate=id==='cli'?'':(U.fim||'');const R=dadosRelPal();return {cols:R.cols.map(qtdCol),rows:R.rows}}}));
+ if(window.JB_DOCL)rels.push(JB_DOCL.relLanc('paletes',URPL,{m:'palRel'}));
+ telaRelatorios(c,{rels,ui:URPL,h1:'Relatórios de paletes',p:'Movimentações, saldo com clientes, compras e consertos, perdas e todos os lançamentos do setor. Visualize, imprima ou exporte em PDF, Excel ou CSV.'});
 }
 
 /* ================= rotas ================= */
@@ -25467,21 +25485,23 @@ function dadosRel(){
  return{cols,rows,tot:rows.length?{mes:'Período',ini:rows[0].ini,ext:r2(soma(rows,r=>r.ext)),cons:r2(soma(rows,r=>r.cons)),venda:r2(soma(rows,r=>r.venda)),aj:r2(soma(rows,r=>r.aj)),fim:rows[rows.length-1].fim}:null}}
 function fmtR(c,v){if(v===''||v==null)return '';if(c.t==='moeda')return fMoeda(v);if(c.t==='data')return fData(v);if(c.t==='num')return /^(ton|ini|ext|cons|venda|aj|fim|horas|litros|car|pc|pt|lh|var|fica|sai)$/.test(c.k)?fNum(v,2):fQtd(v);return String(v)}
 const RELS_V=()=>cfgB().mostrarExtracao?RELS:RELS.filter(r=>['consdia','consmes','resumo'].includes(r[0]));
+/* V120: a mesma tela de relatórios dos outros setores (lista, filtros, pesquisa, Visualizar, PDF, Imprimir, Compartilhar, Excel e CSV),
+   com os mesmos relatórios timbrados e os mesmos cálculos de antes (dadosRel, período padrão: o ano até hoje), mais os Lançamentos do setor.
+   UR continua sendo o estado lido por dadosRel; se outra tela mudar UR.id, a escolha é respeitada. */
+const URB={id:'consdia',rapido:'ano',ini:hoje().slice(0,4)+'-01-01',fim:hoje(),extra:'',_sinc:''};
 function telaRel(c){
- if(!UR.de&&!UR.ate){UR.de=hoje().slice(0,4)+'-01-01';UR.ate=hoje()}
- if(!RELS_V().some(r=>r[0]===UR.id))UR.id='consdia';
- const R=dadosRel();const tit=(RELS.find(x=>x[0]===UR.id)||[,''])[1];const comJaz=!['resumo','consdia','consmes'].includes(UR.id);
- c.innerHTML=cab('grafico','Relatórios do barro','Timbrados, com visualização, PDF e Excel. Escolha o relatório e o período.',`<button type="button" class="btn pri" id="rExp">${ic('baixar')}Visualizar / exportar ▾</button>`)+
-  `<div class="painel filtros" style="margin-bottom:12px"><select id="rId">${optH(RELS_V(),UR.id)}</select><label class="inline">De <input type="date" id="rDe" value="${esc(UR.de)}"></label><label class="inline">Até <input type="date" id="rAte" value="${esc(UR.ate)}"></label>
-   ${comJaz?`<select id="rJaz"><option value="">Jazida: todas</option>${optH(optsJaz(UR.jaz),UR.jaz)}</select>`:''}</div>
-  ${R.rows.length?tabela(R.cols.map(x=>[x.l,x.t==='moeda'||x.t==='num']),R.rows.map(r=>`<tr>${R.cols.map(x=>td(x.l,esc(fmtR(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`),R.tot?R.cols.map(x=>[esc(fmtR(x,R.tot[x.k])),x.t==='moeda'||x.t==='num']):null)
-   :noNada('Nada para mostrar','Ajuste o período ou lance a extração.')}
-  ${UR.id==='consdia'||UR.id==='consmes'?'<p class="ajuda">Calculado dos lançamentos confirmados da maromba a partir de '+esc(fData(parB().desde))+': tijolos × peso do tijolo cru ÷ 1.000; valor = toneladas × R$/t vigente no dia.</p>':''}
-  ${UR.id==='resumo'?'<p class="ajuda">Estoque inicial + extraído − consumido na produção − vendido ± ajustes = estoque final. O saldo inicial (contagem) entra na coluna de ajustes do mês em que foi lançado.</p>':''}`;
- $('#rId',c).onchange=e=>{UR.id=e.target.value;renderTela()};$('#rDe',c).onchange=e=>{UR.de=e.target.value;renderTela()};$('#rAte',c).onchange=e=>{UR.ate=e.target.value;renderTela()};
- if($('#rJaz',c))$('#rJaz',c).onchange=e=>{UR.jaz=e.target.value;renderTela()};
- $('#rExp',c).onclick=()=>{const rows=R.tot?[...R.rows,R.tot]:R.rows;
-  exportarMenu($('#rExp',c),'Barro_'+UR.id,'Barro · '+tit+' · '+fData(UR.de)+' a '+fData(UR.ate)+(UR.jaz&&comJaz?' · '+nomeJaz(UR.jaz):''),R.cols,rows)};
+ if(UR.id&&UR.id!==URB._sinc&&RELS_V().some(r=>r[0]===UR.id)){URB.id=UR.id;URB._sinc=UR.id}
+ const comJaz=id=>!['resumo','consdia','consmes'].includes(id);
+ const qtdCol=x=>x.t==='num'?{...x,v:r=>esc(fmtR(x,r[x.k]))}:x;
+ const NOTA={consdia:'Calculado dos lançamentos confirmados da maromba a partir de '+fData(parB().desde)+': tijolos × peso do tijolo cru ÷ 1.000; valor = toneladas × R$/t vigente no dia.',
+  consmes:'Calculado dos lançamentos confirmados da maromba a partir de '+fData(parB().desde)+': tijolos × peso do tijolo cru ÷ 1.000; valor = toneladas × R$/t vigente no dia.',
+  resumo:'Estoque inicial + extraído − consumido na produção − vendido ± ajustes = estoque final. O saldo inicial (contagem) entra na coluna de ajustes do mês em que foi lançado.'};
+ const rels=RELS_V().map(([id,n])=>({id,n,m:'barroRel',f:['rapido','periodo',...(comJaz(id)?['extra']:[])],
+  extra:comJaz(id)?{l:'Jazida',op:()=>optsJaz(UR.jaz).map(x=>x[1])}:undefined,
+  b(U){UR.id=id;URB._sinc=id;UR.de=U.ini||'';UR.ate=U.fim||'';UR.jaz=comJaz(id)&&U.extra?((optsJaz(UR.jaz).find(x=>x[1]===U.extra)||[''])[0]):'';
+   const R=dadosRel();return {cols:R.cols.map(qtdCol),rows:R.rows,total:R.tot||false,nota:NOTA[id]||''}}}));
+ if(window.JB_DOCL)rels.push(JB_DOCL.relLanc('barro',URB,{m:'barroRel'}));
+ telaRelatorios(c,{rels,ui:URB,h1:'Relatórios do barro',p:'Timbrados, com visualização, impressão, PDF e Excel. Escolha o relatório e o período.'});
 }
 
 /* ================= configurações do setor ================= */
@@ -26657,6 +26677,7 @@ function abasFis() {
     { r: '#/setor-fiscal', k: 'inicio', ic: 'painel', l: 'Início' },
     { r: '#/setor-fiscal/nova', k: 'nova', ic: 'mais', l: 'Nova NF-e', e: 'preparar' },
     { r: '#/setor-fiscal/notas', k: 'notas', ic: 'recibo', l: 'Notas fiscais' },
+    { r: '#/setor-fiscal/relatorios', k: 'relatorios', ic: 'grafico', l: 'Relatórios' },
     { r: '#/setor-fiscal/importar', k: 'importar', ic: 'planilha', l: 'Importar planilha', e: 'preparar' },
     { r: '#/setor-fiscal/config', k: 'config', ic: 'engrenagem', l: 'Configurações' },
     { r: '#/setor-fiscal/servico', k: 'servico', ic: 'escudo', l: 'Serviço e auditoria' },
@@ -26687,11 +26708,48 @@ function telaSetorFiscal(el) {
   const r = lerRota();
   const sub = r.id || 'inicio';
   const ctx = { base: BASE_FIS.setor };
-  const ativa = { inicio: 'inicio', notas: 'notas', nota: 'notas', nova: 'nova', editar: 'notas', importar: 'importar', config: 'config', servico: 'servico' }[sub] || 'inicio';
+  const ativa = { inicio: 'inicio', notas: 'notas', nota: 'notas', nova: 'nova', editar: 'notas', importar: 'importar', config: 'config', servico: 'servico', relatorios: 'relatorios' }[sub] || 'inicio';
   shellFis(el, ativa, (c) => {
     if (!APP.carregado) { carregandoV(c); return; }
-    ({ inicio: painelFis, notas: listaFis, nota: detalheFis, nova: formFis, editar: formFis, importar: importFis, config: configFis, servico: servicoFis }[sub] || painelFis)(c, r, ctx);
+    ({ inicio: painelFis, notas: listaFis, nota: detalheFis, nova: formFis, editar: formFis, importar: importFis, config: configFis, servico: servicoFis, relatorios: relatoriosFis }[sub] || painelFis)(c, r, ctx);
   });
+}
+/* ---------------- relatórios fiscais (V120) ----------------
+   A tela de relatórios padrão do sistema (filtros, pesquisa, Visualizar, PDF, Imprimir, Compartilhar, Excel e CSV), só com as
+   notas deste setor. Valores como estão na nota (emitidos, ou calculados para as que ainda não foram emitidas); nada é gravado.
+   Faturamento e tributos contam só as notas autorizadas, no ambiente de produção, a não ser que o filtro peça homologação. */
+const UIRFIS = { id: '', rapido: 'mes', ini: hoje().slice(0, 8) + '01', fim: hoje(), extra: '' };
+const AMB_REL = ['Produção (valor fiscal)', 'Homologação (teste)'];
+function relatoriosFis(c, r, ctx) {
+  const ambDe = (U) => (U.extra ? (/^Homolog/.test(U.extra) ? 'homologacao' : 'producao') : '');
+  const noPer = (n, U) => (!U.ini || String(n.data || '') >= U.ini) && (!U.fim || String(n.data || '') <= U.fim);
+  const todas = (U) => DATA.nfe.filter((n) => n.status !== 'descartada' && noPer(n, U) && (!ambDe(U) || n.ambiente === ambDe(U)));
+  const autorizadas = (U) => DATA.nfe.filter((n) => n.status === 'autorizada' && noPer(n, U) && n.ambiente === (ambDe(U) || 'producao'));
+  const tot = (n) => { try { return (n.emitido && n.emitido.totais) || calcularNota(n).tot; } catch (e) { return {}; } };
+  const cent = (x) => Math.round(+x || 0) / 100;
+  const doc = (d) => { d = d || {}; return d.cnpj ? fmtCNPJ(d.cnpj) : d.cpf ? mascCPF(d.cpf) : ''; };
+  const perTxt = (U) => (U.ini || U.fim ? (U.ini ? fData(U.ini) : 'início') + ' a ' + (U.fim ? fData(U.fim) : 'hoje') : 'todo o período');
+  const ambTxt = (U, aut) => (ambDe(U) === 'homologacao' ? 'Homologação (teste, sem valor fiscal)' : aut || ambDe(U) === 'producao' ? 'Produção (valor fiscal)' : 'produção e homologação');
+  const f = ['rapido', 'periodo', 'extra'], extra = { l: 'Ambiente', op: AMB_REL };
+  const rels = [
+    { id: 'fis_notas', n: 'Notas fiscais (todas as situações)', m: 'setor-fiscal', f, extra,
+      b: (U) => ({ cols: [{ k: 'nota', l: 'Nota' }, { k: 'data', l: 'Data', t: 'data' }, { k: 'dest', l: 'Destinatário' }, { k: 'doc', l: 'CPF/CNPJ' }, { k: 'valor', l: 'Valor', t: 'moeda', semTotal: 1 }, { k: 'sit', l: 'Situação' }, { k: 'amb', l: 'Ambiente' }, { k: 'chave', l: 'Chave de acesso' }],
+        rows: todas(U).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || (+b.numero || 0) - (+a.numero || 0)).map((n) => ({ nota: nomeNota(n), data: n.data, dest: (n.dest || {}).nome || '', doc: doc(n.dest), valor: cent(tot(n).vNF), sit: ST_NFE[n.status] || n.status, amb: n.ambiente === 'producao' ? 'Produção' : 'Homologação', chave: (n.sefaz || {}).chave || '', _go: BASE_FIS.setor + '/nota/' + n.id })),
+        semTotal: true, nota: 'Período: ' + perTxt(U) + ' · ambiente: ' + ambTxt(U) + '. Rascunhos, rejeitadas e canceladas aparecem com a situação; toque na linha para abrir a nota. Os valores não se somam aqui (use “Faturamento fiscal por destinatário”).' }) },
+    { id: 'fis_dest', n: 'Faturamento fiscal por destinatário', m: 'setor-fiscal', f, extra,
+      b: (U) => { const g = new Map(); autorizadas(U).forEach((n) => { const d = n.dest || {}; const k = (d.cnpj || d.cpf || d.nome || '—'); const x = g.get(k) || { dest: d.nome || '—', doc: doc(d), n: 0, valor: 0, ult: '' }; x.n++; x.valor = round2(x.valor + cent(tot(n).vNF)); if (String(n.data || '') > x.ult) x.ult = n.data; g.set(k, x); });
+        return { cols: [{ k: 'dest', l: 'Destinatário' }, { k: 'doc', l: 'CPF/CNPJ' }, { k: 'n', l: 'Notas', t: 'num' }, { k: 'valor', l: 'Valor das notas', t: 'moeda' }, { k: 'ult', l: 'Última nota', t: 'data' }], rows: [...g.values()].sort((a, b) => b.valor - a.valor), total: true,
+          nota: 'Só notas autorizadas · período: ' + perTxt(U) + ' · ' + ambTxt(U, true) + '.' }; } },
+    { id: 'fis_sit', n: 'Notas por situação', m: 'setor-fiscal', f, extra,
+      b: (U) => { const g = new Map(); todas(U).forEach((n) => { const k = n.status; const x = g.get(k) || { sit: ST_NFE[k] || k, n: 0, valor: 0 }; x.n++; x.valor = round2(x.valor + cent(tot(n).vNF)); g.set(k, x); });
+        return { cols: [{ k: 'sit', l: 'Situação' }, { k: 'n', l: 'Notas', t: 'num' }, { k: 'valor', l: 'Valor das notas', t: 'moeda' }], rows: [...g.values()].sort((a, b) => b.n - a.n), total: true,
+          nota: 'Período: ' + perTxt(U) + ' · ambiente: ' + ambTxt(U) + '. O total soma notas de todas as situações (inclusive as que não valem como faturamento).' }; } },
+    { id: 'fis_trib', n: 'Tributos destacados nas notas autorizadas', m: 'setor-fiscal', f, extra,
+      b: (U) => ({ cols: [{ k: 'nota', l: 'Nota' }, { k: 'data', l: 'Data', t: 'data' }, { k: 'dest', l: 'Destinatário' }, { k: 'prod', l: 'Produtos', t: 'moeda' }, { k: 'desc', l: 'Descontos', t: 'moeda' }, { k: 'frete', l: 'Frete', t: 'moeda' }, { k: 'icms', l: 'ICMS', t: 'moeda' }, { k: 'pis', l: 'PIS', t: 'moeda' }, { k: 'cofins', l: 'COFINS', t: 'moeda' }, { k: 'ipi', l: 'IPI', t: 'moeda' }, { k: 'vnf', l: 'Total da nota', t: 'moeda' }],
+        rows: autorizadas(U).sort((a, b) => String(a.data || '').localeCompare(String(b.data || ''))).map((n) => { const x = tot(n); return { nota: nomeNota(n), data: n.data, dest: (n.dest || {}).nome || '', prod: cent(x.vProd), desc: cent(x.vDesc), frete: cent(x.vFrete), icms: cent(x.vICMS), pis: cent(x.vPIS), cofins: cent(x.vCOFINS), ipi: cent(x.vIPI), vnf: cent(x.vNF), _go: BASE_FIS.setor + '/nota/' + n.id }; }),
+        total: true, nota: 'Só notas autorizadas · período: ' + perTxt(U) + ' · ' + ambTxt(U, true) + '. ICMS, PIS e COFINS destacados estão dentro do preço (não somam ao total da nota). Confira com a contabilidade antes de usar para apuração.' }) },
+  ];
+  telaRelatorios(c, { rels, ui: UIRFIS, h1: 'Relatórios fiscais', p: 'Notas fiscais do setor: todas as situações, faturamento por destinatário, situação e tributos destacados. Visualize, imprima ou exporte em PDF, Excel ou CSV.' });
 }
 /* dentro do Setor de Vendas: as mesmas telas, com as abas de Vendas */
 function telaVendasFiscal(el) {
@@ -31502,8 +31560,10 @@ function telaRel(c,s){
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Relatórios · ${esc(SETORES_V[s].curto)}</h1><p>Escolha o período e o relatório. Tudo é calculado na hora a partir dos lançamentos; nada aqui altera registros.</p></div></div>
   <div class="acoes">${R?`<button type="button" class="btn" id="crExp">${ic('baixar')}Exportar ▾</button>`:''}<a class="btn" href="#/relvendas">${ic('grafico')}Outros relatórios</a></div></div>
   ${barraPeriodo(c,'rel'+s)}
-  <nav class="cl-tabs" aria-label="Relatórios">${abas.map(([k,l])=>`<a href="#/clRel/${k}" class="${k===aba?'on':''}"${k===aba?' aria-current="page"':''}>${esc(l)}</a>`).join('')}</nav>${corpo}`;
+  <nav class="cl-tabs" aria-label="Relatórios">${abas.map(([k,l])=>`<a href="#/clRel/${k}" class="${k===aba?'on':''}"${k===aba?' aria-current="page"':''}>${esc(l)}</a>`).join('')}${typeof RELS_V!=='undefined'&&RELS_V.some(x=>x.id==='rx_lanc')?'<a href="#/relvendas" data-rel-lanc>Lançamentos do setor</a>':''}</nav>${corpo}`;
  ligarPeriodo(c,'rel'+s);$$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
+ /* V120: a aba leva aos Lançamentos do setor, na tela padrão de relatórios (com pesquisa, situação e responsável), no mesmo período */
+ $$('[data-rel-lanc]',c).forEach(a=>a.onclick=()=>{if(typeof UIRV!=='undefined'){UIRV.id='rx_lanc';UIRV.rapido='pers';UIRV.ini=P.de;UIRV.fim=P.ate}});
  const ex=$('#crExp',c);if(ex&&R)ex.onclick=()=>{const cols=R.cols.map(x=>({k:x.k,l:x.l,t:x.t}));const rows=R.rows.map(y=>{const o={};cols.forEach(x=>o[x.k]=y[x.k]);return o});
   const tot={};cols.forEach((x,i)=>{tot[x.k]=i===0?'Total':R.cols[i].sum?r3(soma(R.rows,y=>+y[x.k]||0)):''});if(R.cols.some(x=>x.sum))rows.push(tot);
   const fx=f=>exportar(f,SETORES_V[s].curto+'_'+aba+'_'+P.de+'_'+P.ate,cols,rows,SETORES_V[s].curto+' · '+titulo+' · '+fData(P.de)+' a '+fData(P.ate));
@@ -35037,6 +35097,7 @@ function filtrosTxtRel(el,R,U){
  $$('.filtros select[data-r]',el).forEach(s=>{if(s.dataset.r==='rapido'||!s.value)return;const o=s.options[s.selectedIndex];
   const rot=String(s.getAttribute('aria-label')||'').trim(),tx=String(o?o.text:s.value).trim();if(tx)p.push(rot&&!tx.startsWith(rot)?rot+': '+tx:tx)});
  if(f.includes('setor')&&APP.papel==='gestor'&&APP.setorGestor)p.push('Setor: '+APP.setorGestor);
+ if(String(U._q||'').trim())p.push('Pesquisa: “'+String(U._q).trim()+'”');
  return p.length?p.join(' · '):(f.length?'nenhum (todos os registros)':'');
 }
 /* tela estreita: a lista de relatórios fica acima do relatório. Ela fecha ao escolher e reabre pela barrinha */
@@ -35047,11 +35108,44 @@ function htmlExtraRel(x){
  if(x.tipo==='quadro')return `<div class="rel-extra"><h3>${esc(x.titulo)}</h3><div class="rel-quadro">${x.itens.map(([l,v,fim])=>`<div class="${fim?'fim':''}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>`;
  const num=c=>['moeda','num','hm'].includes(c.t);const T=totaisExtraRel(x);
  return `<div class="rel-extra"><h3>${esc(x.titulo)}</h3>${x.rows.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr>${x.cols.map(c=>`<th class="${num(c)?'num':''}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${x.rows.map(r=>`<tr>${x.cols.map(c=>`<td data-l="${esc(c.l)}" class="${num(c)?'num':''}">${celula(c,r)}</td>`).join('')}</tr>`).join('')}</tbody>${T?`<tfoot><tr>${x.cols.map((c,i)=>`<td class="${c.k in T?'num':''}">${c.k in T?celula(c,T):i===0?'Total':''}</td>`).join('')}</tr></tfoot>`:''}</table></div>`:`<p class="ajuda">${esc(x.vazio||'Sem dados.')}</p>`}${x.nota?`<span class="ajuda">${esc(x.nota)}</span>`:''}</div>`}
+/* ===== V120 · pesquisa e filtros comuns a todos os relatórios desta tela =====
+   Pesquisa nos resultados (qualquer coluna, sem diferença de acento), e filtros de Situação e de Responsável montados
+   pelos próprios resultados: só aparecem quando o relatório tem a coluna (Situação; Responsável, Lançado por, Registrado
+   por, Usuário) e ainda não tem um filtro próprio para ela. Linha com _go, _abrir ou _doc abre o lançamento ou o documento. */
+const REL_COL_SIT=/^situa[cç][aã]o$/i,REL_COL_RESP=/^(respons[aá]vel|lan[cç]ado por|registrado por|usu[aá]rio)$/i;
+function txtCelRel(c,r){const v=r[c.k];if(v==null||v==='')return '';if(c.t==='data')return fData(v);if(c.t==='moeda')return fMoeda(v);if(c.t==='num')return isFinite(+v)?fNum(+v,Number.isInteger(+v)?0:2):String(v);if(c.t==='hm')return fHm(v);return String(v)}
+function filtrosExtraRel(R,res,U){
+ const base=(res&&res.rows)||[];const cs=(res&&res.cols)||[];const out={rows:base,base:base.length,ativo:false,html:''};if(!R||!cs.length)return out;
+ const f=R.f||[];const ex=String((R.extra&&R.extra.l)||'');
+ const cSit=f.includes('stvenda')||/situa/i.test(ex)?null:cs.find(c=>REL_COL_SIT.test(String(c.l||'').trim()));
+ const cResp=f.includes('usuario')||/respons|usu[aá]rio/i.test(ex)?null:cs.find(c=>REL_COL_RESP.test(String(c.l||'').trim()));
+ let rows=base;const h=[];
+ const sel=(k,rot,c)=>{const vs=[...new Set(base.map(r=>txtCelRel(c,r)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));const at=String(U[k]||'');if(at&&!vs.includes(at))vs.push(at);
+  if(vs.length<2&&!at)return;
+  h.push(`<select data-r="${k}" aria-label="${esc(rot)}"><option value="">${esc(rot)}: todos</option>${vs.map(v=>`<option ${v===at?'selected':''}>${esc(v)}</option>`).join('')}</select>`);
+  if(at)rows=rows.filter(r=>txtCelRel(c,r)===at)};
+ if(cSit)sel('_sit','Situação',cSit);if(cResp)sel('_resp','Responsável',cResp);
+ const q=semAcento(String(U._q||'').trim());
+ if(q)rows=rows.filter(r=>semAcento(cs.map(c=>txtCelRel(c,r)).join(' ')).includes(q));
+ if(base.length||q)h.push(`<input type="search" class="rel-busca" data-rbusca placeholder="Pesquisar nos resultados" aria-label="Pesquisar nos resultados" value="${esc(U._q||'')}">`);
+ out.rows=rows;out.ativo=rows.length!==base.length;out.html=h.join('');return out}
+function ligarFiltrosExtraRel(el,U){const i=el.querySelector('[data-rbusca]');if(!i)return;let tm=null;
+ const aplicar=()=>{clearTimeout(tm);if(String(U._q||'')===i.value)return;U._q=i.value;const pos=i.selectionStart;renderTela();const n=document.querySelector('[data-rbusca]');if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}};
+ i.oninput=()=>{clearTimeout(tm);tm=setTimeout(aplicar,350)};
+ i.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();aplicar()}}}
+const linhaAbreRel=r=>!!(r&&(r._go||r._doc||typeof r._abrir==='function'));
+function acaoLinhaRel(el,r){if(!r)return;
+ const abrir=()=>{if(typeof r._abrir==='function')r._abrir();else if(r._go)location.hash=r._go};
+ if(!r._doc){abrir();return}
+ abrirMenuMais(el,[...(r._go||typeof r._abrir==='function'?[{l:'Abrir lançamento',sub:'a janela do registro, para consultar ou corrigir',fn:abrir},'-']:[]),...itensAcaoDoc(r._doc,r._docT||'Documento do lançamento')])}
 function telaRelatorios(el,cfg){
  cfg=cfg||{};const L=cfg.rels||RELS,U=cfg.ui||UIR;
  const chaveL=(cfg.h1||'')+'|'+location.hash;if(REL_LISTA.chave!==chaveL){REL_LISTA.chave=chaveL;REL_LISTA.fechada=false}
  const vis=L.filter(r=>pode(r.m)&&(!r.s||r.s(U)));if(!vis.find(r=>r.id===U.id))U.id=vis[0]&&vis[0].id;const R=vis.find(r=>r.id===U.id);
  let res={cols:[],rows:[]};try{res=R?R.b(U):res}catch(e){console.error(e)}
+ /* V120: pesquisa nos resultados e filtros de situação e de responsável (só quando o relatório tem a coluna e ainda não filtra por ela).
+    Com linhas tiradas pelo filtro, total já pronto (total:{...}) não vale mais: some, e o total comum é refeito pelas linhas que ficaram */
+ const fx=filtrosExtraRel(R,res,U);if(fx.ativo)res={...res,rows:fx.rows,total:res.total&&typeof res.total==='object'?null:res.total};
  const ext=R&&R.extra?(typeof R.extra.op==='function'?R.extra.op():R.extra.op):[];
  /* a linha de total só soma dinheiro, quantidades e horas: avos, dias, meses, percentuais, médias e valores unitários ficam em branco.
     total:{...} é a linha de total já pronta (ex.: taxa que não se soma) */
@@ -35067,16 +35161,19 @@ function telaRelatorios(el,cfg){
   ${R.f.includes('setor')&&!(APP.papel==='gestor'&&APP.setorGestor)?`<select data-r="setor" aria-label="Setor"><option value="">Todos os setores</option>${CFG.setores.map(s=>`<option ${U.setor===s?'selected':''}>${esc(s)}</option>`).join('')}</select>`:''}
   ${R.f.includes('func')?`<select data-r="func" aria-label="Funcionário"><option value="">Todos os funcionários</option>${optsFunc().map(([v,l])=>`<option value="${v}" ${U.func===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`:''}
   ${R.f.includes('extra')?`<select data-r="extra" aria-label="${esc(R.extra.l)}"><option value="">${esc(R.extra.l)}: todos</option>${ext.map(o=>`<option ${U.extra===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`:''}
-  ${typeof filtrosRelV==='function'?filtrosRelV(R,U):''}
-  <span style="flex:1"></span><button class="btn min" data-x="ver">${ic('doc')}Visualizar</button><button class="btn min" data-x="pdf">${ic('baixar')}Exportar PDF</button><button class="btn min" data-x="xlsx">${ic('baixar')}Exportar Excel</button><button class="btn min" data-x="csv">CSV</button></div>
-  <div class="tabwrap">${res.rows.length?`<table class="tbl cartao"><thead><tr>${res.cols.map(c=>`<th class="${['moeda','num','hm'].includes(c.t)?'num':''}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${res.rows.map(r=>`<tr>${res.cols.map(c=>`<td data-l="${esc(c.l)}" class="${['moeda','num','hm'].includes(c.t)?'num':''}">${celula(c,r)}</td>`).join('')}</tr>`).join('')}</tbody>${totais?`<tfoot><tr>${res.cols.map((c,i)=>`<td class="${c.k in totais?'num':''}">${c.k in totais?celula(c,totais):i===0?'Total':''}</td>`).join('')}</tr></tfoot>`:''}</table>`:'<div class="vazio"><b>Sem dados para estes filtros</b>Ajuste o período ou os filtros.</div>'}</div>
+  ${typeof filtrosRelV==='function'?filtrosRelV(R,U):''}${fx.html}
+  <span style="flex:1"></span><button class="btn min" data-x="ver">${ic('doc')}Visualizar</button><button class="btn min" data-x="pdf">${ic('baixar')}Exportar PDF</button><button class="btn min" data-x="imprimir">${ic('imprimir')}Imprimir</button><button class="btn min" data-x="compartilhar">${ic('enviar')}Compartilhar</button><button class="btn min" data-x="xlsx">${ic('baixar')}Exportar Excel</button><button class="btn min" data-x="csv">CSV</button></div>
+  <div class="tabwrap">${res.rows.length?`<table class="tbl cartao"${res.semTotal?' data-sem-total':''}><thead><tr>${res.cols.map(c=>`<th class="${['moeda','num','hm'].includes(c.t)?'num':''}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${res.rows.map((r,i)=>`<tr${linhaAbreRel(r)?` class="clic" data-ri="${i}" tabindex="0" title="Abrir o lançamento ou o documento dele"`:''}>${res.cols.map(c=>`<td data-l="${esc(c.l)}" class="${['moeda','num','hm'].includes(c.t)?'num':''}">${celula(c,r)}</td>`).join('')}</tr>`).join('')}</tbody>${totais?`<tfoot><tr>${res.cols.map((c,i)=>`<td class="${c.k in totais?'num':''}">${c.k in totais?celula(c,totais):i===0?'Total':''}</td>`).join('')}</tr></tfoot>`:''}</table>`:'<div class="vazio"><b>Sem dados para estes filtros</b>Ajuste o período ou os filtros.</div>'}</div>
   ${res.nota?`<p class="ajuda" style="margin:10px 2px 0">${esc(res.nota)}</p>`:''}
-  <div class="pag"><span>${res.rows.length} linha(s)</span></div>${(res.extras||[]).map(x=>htmlExtraRel(x)).join('')}`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
- $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';REL_LISTA.fechada=true;renderTela();
+  <div class="pag"><span>${res.rows.length} linha(s)${fx.ativo?' de '+fx.base:''}</span></div>${(res.extras||[]).map(x=>htmlExtraRel(x)).join('')}`:'<div class="vazio">Nenhum relatório disponível para o seu perfil.</div>'}</div></div>`;
+ $$('[data-rel]',el).forEach(a=>a.onclick=e=>{e.preventDefault();U.id=a.dataset.rel;U.extra='';U._q='';U._sit='';U._resp='';REL_LISTA.fechada=true;renderTela();
   if(matchMedia('(max-width:960px)').matches){const g=document.querySelector('.relgrid');if(g)window.scrollTo(0,Math.max(0,g.getBoundingClientRect().top+window.scrollY-84))}});
  {const tr=el.querySelector('.rel-trocar'),li=el.querySelector('.rel-lista');if(tr&&li)tr.onclick=()=>{REL_LISTA.fechada=!REL_LISTA.fechada;li.classList.toggle('fechada',REL_LISTA.fechada);tr.setAttribute('aria-expanded',String(!REL_LISTA.fechada));tr.querySelector('.ac').textContent=REL_LISTA.fechada?'Trocar':'Fechar'}}
  $$('[data-r]',el).forEach(i=>i.onchange=()=>{if(i.dataset.r==='mesrel'){const pr=typeof periodoDoMesV==='function'?periodoDoMesV(i.value):null;if(pr){U.mesrel=i.value;U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'&&i.value==='mesesc'&&typeof periodoDoMesV==='function'){U.rapido='mesesc';U.mesrel=U.mesrel||(U.ini?U.ini.slice(0,7):hoje().slice(0,7));const pr=periodoDoMesV(U.mesrel);if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(i.dataset.r==='rapido'){U.rapido=i.value;const pr=typeof periodoRapidoV==='function'?periodoRapidoV(i.value):null;if(pr){U.ini=pr[0];U.fim=pr[1]}renderTela();return}if(cfg.rels&&(i.dataset.r==='ini'||i.dataset.r==='fim'))U.rapido='pers';if(!cfg.rels&&i.dataset.r==='mes'&&/^\d{4}-\d{2}$/.test(i.value))return setComp(i.value);U[i.dataset.r]=i.value;if(U.fim<U.ini)U.fim=U.ini;renderTela()});
  $$('[data-x]',el).forEach(b=>b.onclick=()=>{if(!R)return;const rows=totais?[...res.rows,{...Object.fromEntries(res.cols.map((c,i)=>[c.k,i===0?'Total':''])),...totais}]:res.rows;REL_RESP=typeof cfg.resp==='function'?cfg.resp():null;const perTit=R.f.includes('periodo')&&typeof periodoTxtV==='function'?periodoTxtV(U):'';const mesArq=perTit&&typeof mesInteiroV==='function'?mesInteiroV(U):'';try{exportar(b.dataset.x,R.n+'_'+(mesArq||hoje()),res.cols,rows,R.n+(perTit?' · '+perTit:''),{filtros:filtrosTxtRel(el,R,U),extras:res.extras})}finally{REL_RESP=null}});
+ /* V120: pesquisa enquanto digita e linhas que abrem o lançamento ou o documento */
+ ligarFiltrosExtraRel(el,U);
+ $$('tr[data-ri]',el).forEach(tr=>{tr.onclick=e=>{if(e.target.closest('a,button,input,select'))return;acaoLinhaRel(tr,res.rows[+tr.dataset.ri])};tr.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();acaoLinhaRel(tr,res.rows[+tr.dataset.ri])}}});
  resolverNomes(DATA.diario.map(r=>r.lancadoPor));
 }
 
@@ -38176,7 +38273,7 @@ verDoc=function(D){const t=this,a=arguments;if(!precisa(D))return verDoc0.apply(
 const pdf0=emitirPdfDoc;
 emitirPdfDoc=async function(D){if(!(await preparar(D)))return false;return pdf0.apply(this,arguments)};
 if(typeof baixarPdfDoc==='function'){const b0=baixarPdfDoc;baixarPdfDoc=async function(D){if(!(await preparar(D)))return false;return b0.apply(this,arguments)}}
-window.RESP_REL_V80={ehRelatorio,doDP,opcoes,aplicar,precisa};
+window.RESP_REL_V80={ehRelatorio,doDP,opcoes,aplicar,precisa,preparar};
 })();
 </script>
 
@@ -41373,6 +41470,488 @@ const buscarDigitado=r=>{const v=r.custoBuscar;if(v===''||v==null)return BUSCAR_
   if(!ehCombustivelV(rec)){if('custoBuscar' in rec&&rec.custoBuscar==='')delete rec.custoBuscar;return}
   rec.custoBuscar=buscarDigitado(rec)};}
 
+})();
+</script>
+<style id="v120-relatorios-css">
+/* ================= V120 · relatórios e documentos dos lançamentos =================
+   Só aparência das peças novas: pesquisa nos relatórios, linhas que abrem o lançamento e o botão Documento. */
+/* relatório largo rola dentro do painel em vez de empurrar a tela (antes só valia no celular) */
+.relgrid>*{min-width:0}
+.filtros .rel-busca{flex:1 1 200px;min-width:170px;max-width:320px}
+.tbl tr.clic[data-ri]{cursor:pointer}
+.tbl tr.clic[data-ri]:hover td,.tbl tr.clic[data-ri]:focus-visible td{background:color-mix(in srgb,var(--brasa,#C4602D) 6%,var(--branco,#fff))}
+.tbl tr.clic[data-ri]:focus-visible{outline:2px solid var(--brasa,#C4602D);outline-offset:-2px}
+[data-v120-doc] svg{width:16px;height:16px}
+.cl-tabs [data-rel-lanc]{border-style:dashed}
+@media (max-width:720px){/* relatório largo rola dentro do painel em vez de empurrar a tela (antes só valia no celular) */
+.relgrid>*{min-width:0}
+.filtros .rel-busca{max-width:none;flex-basis:100%}}
+</style>
+<script id="v120-relatorios-documentos">
+"use strict";
+/* ================= V120 · Lançamentos do setor e documentos nos relatórios (13/11/2026) =================
+   Pedido do Jeferson: relatórios integrados a todos os setores e todo lançamento do JB ERP consultável e
+   documentável (abrir, visualizar, gerar PDF, imprimir e compartilhar), no padrão documental do sistema
+   (V111/V116), sem criar, mudar nem duplicar dado algum.
+
+   Organização escolhida depois de ler o programa (detalhes em docs/relatorios-documentos-v120.md):
+   1. DOCUMENTO DO LANÇAMENTO. O botão da janela é o "Comprovante" (COMP_LANC, mesma V120, outra sessão):
+      vale em todos os setores menos o Setor Pessoal, como o Jeferson pediu. Aqui nada é posto na janela;
+      os relatórios usam o MESMO documento do botão (COMP_LANC.doc e COMP_LANC.docObrig), e só onde ele não
+      chega (fora do DP) entra o documento montado aqui (docRegistro), pelo registro GRAVADO, com os rótulos
+      e seções do formulário, código, quem lançou, situação e histórico; campos sigilosos só para quem pode.
+      Telas que já tinham documento próprio continuam com ele (venda, pedido, orçamento, recibos, compra e
+      entrega de lenha, entrada e requisição do almoxarifado, acerto da lenha). Novos: comprovante de cada
+      pagamento do Financeiro e documento dos lançamentos do mês da Controladoria. O Setor Pessoal fica sem
+      documento por lançamento (tem os documentos próprios do DP).
+   2. LANÇAMENTOS DO SETOR. Dentro dos Relatórios de cada setor, o relatório "Lançamentos do setor": tudo
+      o que foi lançado só naquele setor, por todo mundo, com período, tipo, situação, responsável e
+      pesquisa. Cada linha abre o lançamento ou o documento dele (Visualizar, PDF, Imprimir, Compartilhar).
+   3. A tela padrão de relatórios (telaRelatorios) ganhou pesquisa nos resultados, filtros de situação e
+      de responsável quando o relatório tem essas colunas, e Imprimir e Compartilhar (feito nela mesma).
+   Tudo aqui é leitura: nada grava, altera, apaga ou duplica registro.
+   Para um módulo novo: o botão da janela segue a regra do COMP_LANC; para entrar nos Lançamentos do setor,
+   acrescente-o em FONTES_LANC (ou use JB_DOCL.registrarFonte). */
+(()=>{
+if(typeof MODS==='undefined'||typeof DATA==='undefined'||typeof baseRel!=='function'||typeof verDoc!=='function')return;
+
+/* ---------- 0. peças ---------- */
+if(typeof IC!=='undefined'&&!IC.imprimir)IC.imprimir='<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/>';
+const SETS_V=['vendas','lenha','combustivel'];
+const seguro=(f,pad)=>{try{const v=f();return v==null?pad:v}catch(e){return pad}};
+const vazio=v=>v==null||v===''||(Array.isArray(v)&&!v.length)||(typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length);
+const cap=s=>{s=String(s||'');return s.charAt(0).toLocaleUpperCase('pt-BR')+s.slice(1)};
+const maiusc=s=>String(s||'').toLocaleUpperCase('pt-BR');
+const dia=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||''))?String(v).slice(0,10):'';
+const horaDe=iso=>{const d=new Date(iso);return isNaN(d)?'':String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const diaLocal=iso=>{const d=new Date(iso);return isNaN(d)?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fDH=iso=>iso?fData(diaLocal(iso))+' às '+horaDe(iso):'';
+const quem=uid=>uid?nomeUsuario(uid):'';
+const codDeId=(sigla,id)=>{const s=String(id||'');const t=(s.length>8?s.slice(-6):s).toUpperCase().replace(/[^A-Z0-9]/g,'');return (sigla?sigla+'-':'')+(t||'—')};
+
+/* ---------- 1. catálogo: setor, família e título de cada tipo de lançamento ---------- */
+const SETOR_MOD={};
+[['dp',['funcionarios','contratos','diario','horasExtras','alimentacao','diarias','ferias','afastamentos','admissoes','desligamentos','documentos','despesas','advertencias','producao','adicionais','vales','dependentes','alteracoes','exames']],
+ ['producao',['pmaromba','pparadas','psecmov','pfornadas','pdesenf','pprontomov']],
+ ['financeiro',['fTitulos','fContas','fDocs','fResp','fMeis','fTransf','fAvulso','fConfSaldo']],
+ ['almox',['almItens','almFornecedores','almAjustes','almEpis','almEmprestimos','almEntradas','almSaidas','almPagamentos','almInventarios','almDevolucoes','almResp']],
+ ['paletes',['palResp','paleteTipos','paleteMov','paleteCompras']],
+ ['barro',['barroJaz','barroMot','barroCac','barroMov','barroResp']],
+ ['lenha',['maoLenha','clDesc','clComb','lenhaClasses','lenhaDepositos','formasPag']],
+ ['combustivel',['responsaveis','cTerceiros']],
+ ['vendas',['tiposProduto','precos','orcamentos','metas','clientes']]].forEach(([s,ms])=>ms.forEach(m=>{SETOR_MOD[m]=s}));
+/* cadastros: saem como ficha cadastral e não entram nos Lançamentos do setor */
+const CAD=new Set(['funcionarios','dependentes','clientes','fornecedores','tiposProduto','produtos','locais','precos','metas','fContas','fResp','responsaveis','fMeis','maoLenha',
+ 'almItens','almFornecedores','almResp','palResp','paleteTipos','cTerceiros','barroJaz','barroMot','barroCac','barroResp','formasPag','lenhaClasses','lenhaDepositos']);
+const TIT={funcionarios:'Ficha cadastral do funcionário',dependentes:'Ficha do dependente',contratos:'Ficha do contrato',diario:'Registro do diário do Departamento Pessoal',
+ horasExtras:'Registro de hora extra',alimentacao:'Comprovante de alimentação',diarias:'Comprovante de diária e deslocamento',ferias:'Registro de férias',afastamentos:'Registro de afastamento',
+ admissoes:'Registro de admissão',desligamentos:'Registro de desligamento',documentos:'Registro de documento do funcionário',despesas:'Comprovante de despesa com pessoal',
+ advertencias:'Registro de medida disciplinar',producao:'Comprovante de produção',adicionais:'Registro de adicional',vales:'Comprovante de vale',
+ alteracoes:'Registro de alteração salarial ou contratual',exames:'Registro de exame ocupacional',
+ clientes:'Ficha cadastral do cliente',fornecedores:'Ficha cadastral do fornecedor',tiposProduto:'Ficha do tipo de tijolo',precos:'Ficha da regra de preço',metas:'Ficha da meta comercial',
+ estoqueMov:'Registro de movimentação de estoque',pmaromba:'Registro de produção da maromba',pparadas:'Registro de parada da maromba',psecmov:'Registro de movimentação da secagem',
+ pfornadas:'Registro de fornada',pdesenf:'Registro de desenforna',pprontomov:'Registro de movimentação do tijolo pronto',
+ fTitulos:'Ficha do compromisso financeiro',fContas:'Ficha da conta bancária',fDocs:'Registro de comprovante ou documento',fResp:'Ficha do responsável',responsaveis:'Ficha do responsável',
+ fMeis:'Ficha do MEI',fTransf:'Comprovante de transferência entre contas',fAvulso:'Comprovante de lançamento avulso',fConfSaldo:'Registro de conferência de saldo',
+ maoLenha:'Ficha da mão de obra da lenha',almItens:'Ficha do item do almoxarifado',almFornecedores:'Ficha do fornecedor do almoxarifado',almResp:'Ficha do responsável',
+ almAjustes:'Registro de ajuste de estoque',almEpis:'Comprovante de entrega de EPI',almEmprestimos:'Comprovante de empréstimo de ferramenta',almPagamentos:'Comprovante de pagamento do controle antigo',
+ almInventarios:'Registro de inventário',almDevolucoes:'Comprovante de devolução ao almoxarifado',palResp:'Ficha do responsável',paleteTipos:'Ficha do tipo de palete',
+ paleteMov:'Comprovante de movimentação de paletes',paleteCompras:'Comprovante de compra ou conserto de paletes',cTerceiros:'Ficha do terceiro que abastece',
+ barroJaz:'Ficha da jazida',barroMot:'Ficha do motorista de caçamba',barroCac:'Ficha da caçamba',barroMov:'Registro de movimento do estoque de barro',barroResp:'Ficha do responsável',
+ formasPag:'Ficha da forma de pagamento',clProg:'Registro de programação',clRasc:'Registro de rascunho para conferir',clDesc:'Registro de desconto de lenha',
+ clComb:'Comprovante de combustível do fornecedor de lenha',lenhaClasses:'Ficha do tipo de lenha',lenhaDepositos:'Ficha do local de estoque da lenha'};
+/* sigla do código de cada lançamento (o resto do código vem do identificador gravado, que não muda) */
+const SIGLA={contratos:'CT',diario:'DI',horasExtras:'HE',alimentacao:'AL',diarias:'DD',ferias:'FE',afastamentos:'AF',admissoes:'AD',desligamentos:'DS',documentos:'DC',despesas:'DP',
+ advertencias:'MD',producao:'PR',adicionais:'AC',vales:'VL',alteracoes:'AT',exames:'EX',estoqueMov:'EM',consumos:'CS',pmaromba:'MA',pparadas:'PA',psecmov:'SC',pfornadas:'FN',pdesenf:'DF',
+ pprontomov:'TP',fTitulos:'CF',fDocs:'CP',fTransf:'TR',fAvulso:'LA',fConfSaldo:'CS',almAjustes:'AJ',almEpis:'EPI',almEmprestimos:'EF',almEntradas:'EN',almSaidas:'RQ',almPagamentos:'PG',
+ almInventarios:'IN',almDevolucoes:'DV',paleteMov:'MP',paleteCompras:'CC',barroMov:'MB',clProg:'PRG',clRasc:'RS',clDesc:'DL',clComb:'CBL'};
+
+function setorDoReg(mod,r){
+ if(r&&SETS_V.includes(r.setor))return r.setor;
+ if(SETOR_MOD[mod])return SETOR_MOD[mod];
+ const u=typeof setorUlt==='function'?setorUlt():'';return u||'geral'}
+function tituloDoc(mod,r){const s=setorDoReg(mod,r);
+ if(mod==='produtos')return s==='lenha'?'Ficha do tipo de lenha':s==='combustivel'?'Ficha do combustível':'Ficha do produto';
+ if(mod==='locais')return s==='combustivel'?'Ficha do veículo ou máquina':'Ficha do forno ou local de consumo';
+ if(mod==='consumos')return s==='combustivel'?'Comprovante de abastecimento':'Registro de consumo de lenha';
+ if(TIT[mod])return TIT[mod];
+ const M=MODS[mod]||{};const sing=seguro(()=>M.sing,'lançamento');return (CAD.has(mod)?'Ficha cadastral · ':'Registro de lançamento · ')+sing}
+function tipoLanc(mod,r){const s=setorDoReg(mod,r);
+ if(mod==='consumos')return s==='combustivel'?'Abastecimento':'Consumo de lenha';
+ if(mod==='estoqueMov')return r.tipo?'Estoque · '+r.tipo:'Movimentação de estoque';
+ if(mod==='psecmov')return 'Secagem'+(r.mov?' · '+r.mov:'');
+ if(mod==='pprontomov')return 'Tijolo pronto'+(r.mov?' · '+r.mov:'');
+ if(mod==='barroMov')return 'Estoque de barro'+(r.tipo?' · '+r.tipo:'');
+ if(mod==='fAvulso')return 'Lançamento avulso'+(r.tipoMov?' · '+r.tipoMov:'');
+ if(mod==='paleteMov')return 'Paletes'+(r.tipo?' · '+txtCampo(campo(mod,'tipo'),r):'');
+ const M=MODS[mod]||{};return cap(seguro(()=>M.sing,mod))}
+function codLanc(mod,r){
+ if(mod==='advertencias'&&r.numero)return 'Nº '+r.numero;
+ if(mod==='contratos'&&r.numero)return 'Nº '+r.numero;
+ if(mod==='fTitulos'&&r.numero)return 'Nº '+r.numero;
+ if(mod==='almSaidas'&&r.numero)return 'Requisição nº '+r.numero;
+ if(mod==='pfornadas'&&r.numero)return 'Fornada nº '+r.numero+' · '+codDeId('',r.id);
+ return codDeId(SIGLA[mod]||'',r.id)}
+
+/* ---------- 2. leitura dos campos (os mesmos rótulos, opções e regras de sigilo da janela) ---------- */
+const campo=(mod,k)=>((MODS[mod]||{}).fields||[]).find(f=>f.k===k)||{k,t:'txt',l:k};
+function rotuloCampo(f,r){return seguro(()=>typeof rotulo==='function'?rotulo(f,r):(typeof f.l==='function'?f.l(r):f.l),f.k)}
+function nomePorId(k,v){
+ if(!v)return '';
+ if(/^(funcionarioId|funcId|fid)$/.test(k))return nomeF(v);
+ if(k==='clienteId'&&typeof CLI==='function')return seguro(()=>nomeCliente(CLI(v)),'');
+ if(k==='fornecedorId'&&typeof FORN==='function'){const n=seguro(()=>nomeFornecedor(FORN(v)),'');if(n)return n;return seguro(()=>window.ALM_V56.nomeFornA(v),'')}
+ if(k==='produtoId'&&typeof PROD==='function')return seguro(()=>nomeProduto(PROD(v)),'');
+ if(k==='localId'&&typeof LOCAL==='function')return seguro(()=>nomeLocal(LOCAL(v)),'');
+ if(k==='itemId')return seguro(()=>window.ALM_V56.rotItem(window.ALM_V56.ITEM(v)),'');
+ if(/^conta(Id|De|Para)$/.test(k))return seguro(()=>window.FINANCEIRO_SETOR.h.nomeConta(v),'');
+ return ''}
+function txtCampo(f,r){
+ if(!f)return '';
+ if(f.t==='html')return '';
+ if(f.t==='calc'){const x=seguro(()=>f.calc(r),'');return x==null?'':String(x).replace(/<[^>]*>/g,'').trim()}
+ const v=r[f.k];if(vazio(v))return '';
+ switch(f.t){
+  case 'sel':case 'lista':{const o=seguro(()=>opcoesCampo(f,r),[]);const x=o.find(a=>String(a[0])===String(v));return x?String(x[1]):(nomePorId(f.k,v)||String(v))}
+  case 'data':return fData(v);
+  case 'mes':return mesLongo(v)||String(v);
+  case 'moeda':return fMoeda(+v||0);
+  case 'num':return isFinite(+v)?fNum(+v,Number.isInteger(+v)?0:(Math.abs(+v-Math.round(+v*100)/100)>1e-9?3:2)):String(v);
+  case 'chk':if(typeof v==='object')return Object.keys(v).filter(k=>v[k]).join(', ');return v?'Sim':'Não';
+  case 'cpf':return mascCPF(v);
+  case 'cnpj':return typeof fmtCNPJ==='function'?fmtCNPJ(v):String(v);
+  case 'usuario':return quem(v);
+  case 'arq':return v&&v.nome?String(v.nome):'arquivo anexado';
+  case 'linhas':return Array.isArray(v)?v.length+' item(ns)':'';
+  default:return typeof v==='object'?'':String(v)}}
+/* registro gravado, com a parte sigilosa só para quem pode ver (a mesma regra da janela) */
+function registroGravado(mod,idOuRec){
+ const id=typeof idOuRec==='object'&&idOuRec?idOuRec.id:idOuRec;
+ const r=(DATA[mod]||[]).find(x=>x.id===id)||(typeof idOuRec==='object'?idOuRec:null);if(!r)return null;
+ const out={...r};
+ if(typeof temSens==='function'&&temSens(mod)&&veSensivel()){const s={...seguro(()=>sensDe(mod,id),{})};delete s.id;Object.assign(out,s)}
+ return out}
+function camposVisiveis(mod,r){
+ const M=MODS[mod]||{};const sens=veSensivel();
+ return (M.fields||[]).filter(f=>!(f.sens&&!sens)&&!(f.sh&&!seguro(()=>f.sh(r),true)))}
+
+/* data, valor, quantidade, descrição e situação de cada lançamento (para a lista e para o documento) */
+const DATA_K={diarias:'dataSaida',ferias:'inicio',afastamentos:'inicio',contratos:'inicio',alteracoes:'vigencia',documentos:'emissao',advertencias:'data',dependentes:'nascimento'};
+function dataLanc(mod,r){
+ const k=DATA_K[mod];let d=k?dia(r[k]):'';
+ if(!d&&mod==='ferias')d=dia(r.dataPrevista)||dia(r.aquisitivoInicio);
+ if(!d&&mod==='despesas')d=dia(r.dataPagamento)||(/^\d{4}-\d{2}$/.test(r.competencia||'')?r.competencia+'-01':'');
+ if(!d&&mod==='metas'&&/^\d{4}-\d{2}$/.test(r.mes||''))d=r.mes+'-01';
+ if(!d)d=dia(r.data);
+ if(!d){const f=((MODS[mod]||{}).fields||[]).find(x=>x.t==='data'&&dia(r[x.k]));if(f)d=dia(r[f.k])}
+ if(!d)d=diaLocal(r.criadoEm)||'';
+ return d}
+const VALOR={alimentacao:r=>seguro(()=>totalAlim(r),''),diarias:r=>seguro(()=>totalDiaria(r),''),producao:r=>seguro(()=>totalProducao(r),''),
+ horasExtras:r=>+r.valorPago>0?+r.valorPago:seguro(()=>estimadoHE(r),''),consumos:r=>+r.custoTotal||(+r.pagLenhaPreco>0&&+r.quantidade>0?round2(+r.pagLenhaPreco*+r.quantidade):''),
+ despesas:r=>+r.valorRealizado||+r.valorPrevisto||'',ferias:r=>+r.valorPago||+r.valorEstimado||'',desligamentos:r=>+r.valorPago||+r.valorEstimado||'',
+ clComb:r=>+r.valor||'',paleteMov:r=>+r.total||'',barroMov:r=>+r.valorVenda||''};
+const VALOR_K=['total','valor','valorTotal','custoTotal','valorRealizado','valorPago','valorPrevisto','valorEstimado','custo','preco','saldoExtrato','valorVenda'];
+function valorLanc(mod,r){
+ if(VALOR[mod]){const v=VALOR[mod](r);return v===''||v==null||!isFinite(+v)?'':round2(+v)}
+ const fs=camposVisiveis(mod,r);
+ for(const k of VALOR_K){const f=fs.find(x=>x.k===k&&x.t==='moeda');if(f&&!vazio(r[k])&&isFinite(+r[k]))return round2(+r[k])}
+ return ''}
+const QTD={horasExtras:r=>vazio(r.horas)?'':fNum(+r.horas,2)+' h',adicionais:r=>vazio(r.horas)?'':fNum(+r.horas,2)+' h',
+ producao:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' '+String(r.unidade||'').toLowerCase(),
+ consumos:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' '+(r.unidade||seguro(()=>PROD(r.produtoId).unidade,'')||''),
+ estoqueMov:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' '+(seguro(()=>PROD(r.produtoId).unidade,'')||''),
+ diarias:r=>vazio(r.quantidade)?'':fNum(+r.quantidade,Number.isInteger(+r.quantidade)?0:1)+' diária(s)',
+ ferias:r=>vazio(r.dias)?'':r.dias+' dia(s)',
+ pmaromba:r=>{const c=seguro(()=>window.PRODUCAO_SETOR.calcMar(r),null);return c&&isFinite(c.liquida)?fQtd(c.liquida)+' tijolos':(vazio(r.grades)?'':r.grades+' grades')},
+ pfornadas:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' tijolos',pdesenf:r=>vazio(r.total)?'':fQtd(+r.total)+' tijolos',
+ psecmov:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' tijolos',pprontomov:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' tijolos',
+ paleteMov:r=>vazio(r.qtd)?'':fQtd(+r.qtd)+' palete(s)',paleteCompras:r=>vazio(r.qtd)?'':fQtd(+r.qtd)+' palete(s)',
+ barroMov:r=>vazio(r.ton)?'':fNum(+r.ton,2)+' t',clComb:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)+' L',clDesc:r=>vazio(r.quantidade)?'':fQtd(+r.quantidade)};
+const QTD_K=['quantidade','qtd','horas','ton','dias','grades'];
+function qtdLanc(mod,r){
+ if(QTD[mod])return seguro(()=>QTD[mod](r),'');
+ const fs=camposVisiveis(mod,r);
+ for(const k of QTD_K){const f=fs.find(x=>x.k===k&&x.t==='num');if(f&&!vazio(r[k]))return txtCampo(f,r)}
+ return ''}
+const DESC_K=['funcionarioId','funcId','clienteId','fornecedorId','combLenhaForn','produtoId','itemId','localId','fornoId','contaId','contaDe','palTipo','jazidaId','tipo','tipoDoc','tipoMov','mov','categoria','motivo','turno','destino','descricao','nome','finalidade','setor','solicitante','nota'];
+const DESC={
+ fTransf:r=>[txtCampo(campo('fTransf','contaDe'),r)+' → '+txtCampo(campo('fTransf','contaPara'),r)],
+ almEntradas:r=>[seguro(()=>window.ALM_V56.nomeFornA(r.fornecedorId),''),r.nota?'NF '+r.nota:''],
+ almSaidas:r=>[r.setor,r.finalidade,r.solicitante],
+ almDevolucoes:r=>{const s=(DATA.almSaidas||[]).find(x=>x.id===r.saidaId);return [s?'Requisição nº '+(s.numero||'—'):'',s&&s.setor]},
+ almPagamentos:r=>[r.forma,r.obs],almInventarios:r=>[r.categoria,r.responsavel,r.status]};
+function descLanc(mod,r,sem){
+ let p=[];
+ if(DESC[mod])p=seguro(()=>DESC[mod](r),[]);
+ else{const fs=camposVisiveis(mod,r);for(const k of DESC_K){if(p.length>=3)break;if(k===sem)continue;const f=fs.find(x=>x.k===k);if(!f||['area','html','arq'].includes(f.t))continue;
+  if(k==='setor'&&SETS_V.includes(r.setor))continue;const t=txtCampo(f,r);if(t&&!p.includes(t))p.push(t)}}
+ p=p.map(x=>String(x||'').trim()).filter(Boolean);
+ return p.join(' · ')||cap(seguro(()=>(MODS[mod]||{}).sing,''))}
+function sitLanc(mod,r){
+ if(r.cancelado)return 'Cancelado';
+ const s=r.situacao||r.status||r.statusAjuste||'';
+ if(s)return String(s);
+ if(r.travado===true)return 'Fechado';
+ return CAD.has(mod)?'Cadastrado':'Registrado'}
+const respUid=r=>r.lancadoPor||r.criadoPor||r.por||'';
+
+/* destaques do documento (cartões no topo): os números principais, sem recalcular nada */
+function destaques(mod,r){
+ const it=[];const v=valorLanc(mod,r),q=qtdLanc(mod,r);
+ if(mod==='pmaromba'){const c=seguro(()=>window.PRODUCAO_SETOR.calcMar(r),null);
+  if(c){if(isFinite(c.liquida))it.push(['Tijolos líquidos',fQtd(c.liquida)]);if(isFinite(c.bruta))it.push(['Tijolos moldados',fQtd(c.bruta)]);if(isFinite(c.perdas)&&c.perdas)it.push(['Perdas',fQtd(c.perdas),'at'])}
+  if(!vazio(r.grades))it.push(['Grades',fQtd(+r.grades)]);return it.slice(0,4)}
+ if(mod==='pdesenf'){if(!vazio(r.total))it.push(['Total desenfornado',fQtd(+r.total)]);['primeira','segunda','quebrados'].forEach(k=>{if(!vazio(r[k]))it.push([rotuloCampo(campo(mod,k),r),fQtd(+r[k]),k==='quebrados'?'at':''])});return it.slice(0,4)}
+ if(v!=='')it.push([CAD.has(mod)?'Valor':'Valor do lançamento',fMoeda(v)]);
+ if(q)it.push(['Quantidade',q]);
+ return it}
+
+/* ---------- 3. documento de um lançamento (qualquer módulo da janela padrão) ---------- */
+const ASSINA={vales:'Recebido por (funcionário)',almEpis:'Recebido por (funcionário)',almEmprestimos:'Retirado por (funcionário)',producao:'Funcionário',diarias:'Funcionário',
+ alimentacao:'Funcionário',adicionais:'Funcionário',horasExtras:'Funcionário',advertencias:'Funcionário (ciência)'};
+const PARTE_K=['funcionarioId','funcId','clienteId','fornecedorId'];
+function quadroParte(mod,r){
+ const fid=r.funcionarioId||r.funcId;
+ if(fid&&F(fid)&&typeof quadroFuncDoc==='function')return {k:r.funcionarioId?'funcionarioId':'funcId',q:quadroFuncDoc(F(fid),'FUNCIONÁRIO')};
+ if(r.clienteId&&typeof CLI==='function'&&CLI(r.clienteId)){const c=CLI(r.clienteId);
+  return {k:'clienteId',q:{rot:'CLIENTE',campos:[['Nome',nomeCliente(c)||'—',1],['CPF/CNPJ',c.cnpj?fmtCNPJ(c.cnpj):c.cpf?mascCPF(c.cpf):'—'],['Cidade',[c.cidade,c.uf].filter(Boolean).join(' – ')||'—'],...(c.whatsapp||c.telefone?[['Telefone',c.whatsapp||c.telefone]]:[])]}}}
+ if(r.fornecedorId&&typeof FORN==='function'&&FORN(r.fornecedorId)){const c=FORN(r.fornecedorId);
+  return {k:'fornecedorId',q:{rot:'FORNECEDOR',campos:[['Nome / razão social',nomeFornecedor(c)||'—',1],['CPF/CNPJ',c.cnpj?fmtCNPJ(c.cnpj):c.cpf?mascCPF(c.cpf):'—'],['Cidade',[c.cidade,c.uf].filter(Boolean).join(' – ')||'—'],...(c.whatsapp||c.telefone?[['Telefone',c.whatsapp||c.telefone]]:[])]}}}
+ return null}
+function historicoTab(mod,id){
+ const it=(DATA.log||[]).filter(l=>l.recId===id&&l.modulo===mod).sort((a,b)=>String(a.ts).localeCompare(String(b.ts)));
+ if(typeof resolverNomes==='function')resolverNomes(it.map(l=>l.uid));
+ return it.map(l=>[fDH(l.ts),quem(l.uid)||'—',cap(l.acao||''),(l.campos||[]).map(c=>c.c+': '+c.de+' → '+c.para).join('; ')||'—'])}
+function docRegistro(mod,idOuRec){
+ const M=MODS[mod];if(!M)return null;
+ const r=registroGravado(mod,idOuRec);if(!r)return null;
+ const cad=CAD.has(mod);const s=setorDoReg(mod,r);const tit=tituloDoc(mod,r);const cod=codLanc(mod,r);
+ const parte=quadroParte(mod,r);const desc=descLanc(mod,r,parte&&parte.k);const sit=sitLanc(mod,r);const d=dataLanc(mod,r);const resp=quem(respUid(r));
+ const D=baseRel(maiusc(tit),desc,[]);
+ D.setor=nomeSetorDoc(s==='geral'?'geral':s)||nomeSetorDoc('geral');D.classe=cad?'ficha':'comprovante';D.numero=cod;D.parteNome='';
+ D.meta=[[cad?'Cadastrado em':'Data do lançamento',cad?(fDH(r.criadoEm)||'—'):(d?fData(d):'—')+(r.hora?' às '+r.hora:'')],...(cad?[]:[['Registrado em',fDH(r.criadoEm)||'—']]),['Situação',sit]];
+ const ident={rot:cad?'IDENTIFICAÇÃO DO CADASTRO':'IDENTIFICAÇÃO DO LANÇAMENTO',campos:[['Tipo',cad?cap(seguro(()=>M.sing,'cadastro')):tipoLanc(mod,r)],['Módulo de origem',seguro(()=>M.titulo,mod),1],
+  ['Código',cod],['Lançado por',resp||'—'],...(r.alteradoEm&&r.alteradoEm!==r.criadoEm?[['Última alteração',fDH(r.alteradoEm)+(r.alteradoPor?' · '+quem(r.alteradoPor):''),1]]:[])]};
+ D.quadros=parte?[ident,parte.q]:[ident];
+ if(parte&&parte.q&&parte.q.campos&&parte.q.campos[0])D.parteNome=String(parte.q.campos[0][1]||'');
+ const ind=destaques(mod,r);if(ind.length)D.blocos.push({tipo:'indicadores',itens:ind});
+ if(r.cancelado)D.blocos.push({tipo:'aviso',texto:'LANÇAMENTO CANCELADO'+(r.canceladoEm?' em '+fDH(r.canceladoEm):'')+(r.canceladoPor?' por '+quem(r.canceladoPor):'')+(r.motivoCancelamento?'. Motivo: '+r.motivoCancelamento:'')+'.'});
+ /* seções do formulário, na mesma ordem e com os mesmos rótulos */
+ const fs=camposVisiveis(mod,r);const obs=[];const anexos=[];const tabelas=[];
+ const secoes=[...new Set(fs.map(f=>f.s||'Dados'))];let n=0;
+ secoes.forEach(sec=>{const campos=[];
+  fs.filter(f=>(f.s||'Dados')===sec).forEach(f=>{
+   if(parte&&f.k===parte.k)return;
+   if(f.t==='arq'){if(r[f.k]&&(r[f.k].id||r[f.k].nome))anexos.push([rotuloCampo(f,r),txtCampo(f,r)]);return}
+   if(f.t==='linhas'){const l=Array.isArray(r[f.k])?r[f.k]:[];if(l.length)tabelas.push({titulo:rotuloCampo(f,r),head:['Data','Descrição','Valor'],body:l.map(x=>[fData(x.data)||'—',x.descricao||'—',vazio(x.valor)?'—':fMoeda(+x.valor)]),dir:[2]});return}
+   if(f.t==='area'&&/^obs/i.test(f.k)){const t=String(r[f.k]||'').trim();if(t)obs.push(t);return}
+   const t=txtCampo(f,r);if(!t)return;
+   campos.push([rotuloCampo(f,r),t,f.w2||f.t==='area'||t.length>48?1:0])});
+  if(campos.length)D.blocos.push({tipo:'secao',n:String(++n),titulo:sec,campos})});
+ tabelas.forEach(t=>{D.blocos.push({tipo:'secao',n:String(++n),titulo:t.titulo});D.blocos.push({tipo:'tabela',head:t.head,body:t.body,dir:t.dir})});
+ if(anexos.length)D.blocos.push({tipo:'secao',n:String(++n),titulo:'Anexos',campos:anexos.map(([l,x])=>[l,x,1]),nota:'Os arquivos ficam guardados no sistema, junto do lançamento.'});
+ const H=historicoTab(mod,r.id);
+ D.blocos.push({tipo:'secao',n:String(++n),titulo:'Histórico de alterações',...(H.length?{tabela:{head:['Data e hora','Usuário','Ação','O que mudou'],body:H}}:{vazio:'Nenhuma alteração registrada no histórico deste lançamento.'})});
+ D.observacoes=obs.join('\n');
+ const ass=ASSINA[mod];
+ if(ass&&parte&&parte.k!=='clienteId'&&parte.k!=='fornecedorId'){D.local=((CFG.empresa||{}).cidade?(CFG.empresa||{}).cidade+', ':'')+dataExtenso(d||hoje())+'.';
+  D.assinaturas=[{nome:D.parteNome||'',sub:ass},{nome:resp||'',sub:'Responsável pelo lançamento'}]}
+ D.rodape=tit+' · '+cod;D.arquivo=nomeArq(tit)+'_'+nomeArq(cod)+(D.parteNome?'_'+nomeArq(D.parteNome):'');
+ D.notaFinal='Documento montado a partir do '+(cad?'cadastro':'lançamento')+' gravado no '+(typeof SPOT_NOME!=='undefined'?SPOT_NOME:'sistema')+' (identificador interno '+r.id+'). Emitir este documento não altera nenhum dado.';
+ return D}
+/* documentos que já existiam para alguns lançamentos: continuam sendo os usados */
+const DOC_ESP={almEntradas:r=>seguro(()=>window.ALMOX_V52.docEntrada(r),null),almSaidas:r=>seguro(()=>window.ALMOX_V52.docSaida(r),null)};
+/* Setor Pessoal: sem documento por lançamento (pedido do Jeferson); as telas do menu do DP, as mesmas do COMP_LANC */
+let TELAS_DP=null;
+const ehDP=mod=>{if(!TELAS_DP){TELAS_DP=new Set();try{MENU.forEach(g=>(g[2]||[]).forEach(it=>{if(it&&it.m)TELAS_DP.add(it.m)}))}catch(e){}}return SETOR_MOD[mod]==='dp'||TELAS_DP.has(mod)};
+const CL=()=>typeof COMP_LANC!=='undefined'?COMP_LANC:null;
+const temDoc=mod=>!ehDP(mod);
+/* o mesmo documento do botão "Comprovante" da janela; onde ele não chega, o documento montado aqui */
+const fazerDoc=(mod,id)=>()=>{if(!temDoc(mod))return null;const r=registroGravado(mod,id);if(!r)return null;
+ if(DOC_ESP[mod]){const d=DOC_ESP[mod](r);if(d)return d}
+ const C=CL();if(C&&seguro(()=>C.pode(mod),false)){const d=seguro(()=>C.doc(mod,r),null);if(d)return d}
+ return docRegistro(mod,id)};
+
+/* ---------- 4. Financeiro: comprovante de cada pagamento (o do compromisso é o do botão Comprovante) ---------- */
+const FS=()=>window.FINANCEIRO_SETOR||null;
+const OBf=ref=>seguro(()=>FS().obrigacoes().find(o=>o.ref===ref),null);
+/* código do pagamento: o do próprio pagamento; a despesa do DP paga de uma vez usa o da despesa */
+const codPag=(o,p)=>codDeId('PG',p.id==='dp'?String(o.ref).replace(/^\w:/,''):p.id);
+const nomeContaF=id=>id?seguro(()=>FS().h.nomeConta(id),'')||'—':'—';
+function docObrigF(ref){
+ const o=OBf(ref);if(!o)return null;const s=o.s||{};const e=CFG.empresa||{};
+ const cod=o.num||codDeId('CF',String(o.ref).replace(/^\w:/,''));
+ const D=baseRel('DEMONSTRATIVO DE COMPROMISSO A PAGAR',o.descricao||'',[]);
+ D.setor=nomeSetorDoc('financeiro');D.classe='demonstrativo';D.numero=cod;D.parteNome=o.benef||'';
+ D.meta=[['Vencimento',o.venc?fData(o.venc):'não informado'],['Programado para',o.prog?fData(o.prog):'—'],['Situação',s.st||'—']];
+ D.quadros=[{rot:'BENEFICIÁRIO',campos:[['Nome',o.benef||'—',1],['Categoria',o.categoria||'—'],['Centro de custo',o.centro||'—']]},
+  {rot:'IDENTIFICAÇÃO DO COMPROMISSO',campos:[['Origem',o.origem||'—'],['Lançado em',o.lanc?fData(o.lanc):'—'],['Código',cod],['Documento de origem',o.docOrigem||'—'],['Forma prevista',o.forma||'—'],['Conta prevista',nomeContaF(o.conta)],['Lançado por',quem(o.resp)||'—'],...(o.parcela?[['Parcela',o.parcela]]:[])]}];
+ D.blocos.push({tipo:'indicadores',itens:[['Valor previsto',fMoeda(o.valor)],['Pago informado',fMoeda(s.P||0),(s.P||0)>0.004?'ok':''],['Identificado no banco',fMoeda(s.Bt||0)],['Saldo',fMoeda(s.saldo||0),(s.saldo||0)>0.004?(s.vencido?'pe':'at'):'']]});
+ if(o.cancelado)D.blocos.push({tipo:'aviso',texto:'COMPROMISSO CANCELADO. '+String(o.cancelado.motivo||'')});
+ if(s.div&&s.div.length)D.blocos.push({tipo:'aviso',texto:(s.just?'Divergência conferida: ':'Divergência a conferir: ')+s.div.join(' ')});
+ let n=0;const sec=(t,o2)=>D.blocos.push({tipo:'secao',n:String(++n),titulo:t,...o2});
+ sec('Descrição',{campos:[['Descrição',o.descricao||'—',1],['Beneficiário',o.benef||'—'],['Categoria',o.categoria||'—']]});
+ const pg=o.pagamentos||[];
+ sec('Pagamentos informados',pg.length?{tabela:{head:['Data','Valor','Multa e juros','Total pago','Forma','Conta','Tipo'],dir:[1,2,3],
+  body:pg.map(p=>{const mj=round2((+p.multa||0)+(+p.juros||0));return [fData(p.data),fMoeda(p.valor),mj?fMoeda(mj):'—',fMoeda(round2((+p.valor||0)+mj)),p.forma||'—',nomeContaF(p.conta),p.quitacao?'Quitação':'Parcial']}),
+  foot:['Total',fMoeda(round2(soma(pg,p=>+p.valor||0))),'',fMoeda(round2(soma(pg,p=>(+p.valor||0)+(+p.multa||0)+(+p.juros||0)))),'','','']}}:{vazio:'Nenhum pagamento informado até a emissão.'});
+ if((o.estornados||[]).length)sec('Pagamentos estornados',{tabela:{head:['Data','Valor','Motivo do estorno'],dir:[1],body:o.estornados.map(p=>[fData(p.data),fMoeda(p.valor),String((p.estornado&&p.estornado.motivo)||'—')])}});
+ const B=s.banco||[];
+ if(B.length)sec('Movimentações bancárias vinculadas',{tabela:{head:['Data','Conta','Descrição no extrato','Valor','Situação'],dir:[3],body:B.map(b=>[fData(b.linha&&b.linha.data),nomeContaF(b.linha&&b.linha.conta),String((b.linha&&b.linha.descricao)||''),fMoeda(b.valor),b.conciliado?'Conciliado':'Identificado'])}});
+ const H=(o.hist||[]).flatMap(([m,id])=>historicoTab(m,id));
+ sec('Histórico de alterações',H.length?{tabela:{head:['Data e hora','Usuário','Ação','O que mudou'],body:H}}:{vazio:'Nenhuma alteração registrada no histórico deste compromisso.'});
+ D.rodape='Demonstrativo de compromisso a pagar · '+cod;D.arquivo='Compromisso_'+nomeArq(cod)+'_'+nomeArq(o.benef||'');
+ D.notaFinal='Montado a partir do compromisso registrado no Setor Financeiro'+(e.razao?' da '+e.razao:'')+'. Situação calculada na emissão; emitir este documento não altera nenhum dado.';
+ return D}
+function docPagF(ref,pid){
+ const o=OBf(ref);if(!o)return null;const p=(o.pagamentos||[]).find(x=>x.id===pid);if(!p)return null;const s=o.s||{};const e=CFG.empresa||{};
+ const mj=round2((+p.multa||0)+(+p.juros||0));const tot=round2((+p.valor||0)+mj);const cod=codPag(o,p);
+ const b=(s.banco||[]).find(x=>x.pagId===p.id);
+ const D=baseRel('COMPROVANTE DE PAGAMENTO',o.descricao||'',[]);
+ D.setor=nomeSetorDoc('financeiro');D.classe='comprovante';D.numero=cod;D.parteNome=o.benef||'';
+ D.meta=[['Pago em',fData(p.data)],['Valor pago',fMoeda(tot)],['Situação',p.quitacao?'Quitação':'Pagamento parcial']];
+ D.quadros=[{rot:'PAGADOR',campos:[['Razão social',e.razao||e.fantasia||'—',1],['CNPJ',e.cnpj||'—'],['Conta de saída',nomeContaF(p.conta)]]},
+  {rot:'BENEFICIÁRIO',campos:[['Nome',o.benef||'—',1],['Categoria',o.categoria||'—'],['Origem',o.origem||'—']]}];
+ D.blocos.push({tipo:'p',texto:(e.razao||e.fantasia||'A empresa')+' registrou em '+fData(p.data)+' o pagamento de '+fMoeda(tot)+(typeof extensoMoeda==='function'?' ('+extensoMoeda(tot)+')':'')+(o.benef?' a '+o.benef:'')+', referente a '+(o.descricao||'compromisso')+(o.num?' ('+o.num+')':'')+(p.forma?', pago por '+p.forma:'')+'.'});
+ D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[['Valor do pagamento',fMoeda(p.valor)],...((+p.multa||0)?[['(+) Multa',fMoeda(+p.multa)]]:[]),...((+p.juros||0)?[['(+) Juros',fMoeda(+p.juros)]]:[])],foot:['Total pago',fMoeda(tot)]});
+ D.blocos.push({tipo:'tabela',head:['Compromisso','Detalhe'],body:[['Código',o.num||codDeId('CF',String(o.ref).replace(/^\w:/,''))],['Vencimento',o.venc?fData(o.venc):'—'],['Valor previsto',fMoeda(o.valor)],['Saldo após os pagamentos',fMoeda(s.saldo||0)],['Forma',p.forma||'—'],['Registrado por',quem(p.por)||'—']]});
+ D.blocos.push({tipo:'aviso',texto:b?'Pagamento identificado no extrato bancário em '+fData(b.linha&&b.linha.data)+(b.conciliado?' (conciliado).':' (a conciliar).'):'Comprovante interno do pagamento informado no Financeiro. Não substitui o comprovante do banco.'});
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data||hoje())+'.';
+ D.assinaturas=[{nome:o.benef||'',sub:'Recebedor (nome e assinatura)'},{nome:quem(p.por)||'',sub:'Responsável pelo pagamento'}];
+ D.rodape='Comprovante de pagamento · '+cod;D.arquivo='Pagamento_'+nomeArq(o.benef||'')+'_'+String(p.data||'');
+ return D}
+/* ---------- 5. Controladoria: documento dos lançamentos do mês ---------- */
+function docMesCtl(m){
+ const C=window.CONTROLADORIA;if(!C||!/^\d{4}-\d{2}$/.test(m||''))return null;
+ const R=seguro(()=>C.calcMes(m),null);if(!R)return null;const d=seguro(()=>C.docMes(m),null);
+ const ORIG={manual:'lançado à mão',setores:'dos setores',anterior:'do mês anterior',aliquota:'pela alíquota do DAS',config:'da configuração',imob:'do imobilizado'};
+ const fmt=(cp,v)=>v==null||v===''?'—':cp.t==='r'?fMoeda(+v):fNum(+v,Number.isInteger(+v)?0:2);
+ const D=baseRel('DEMONSTRATIVO DOS LANÇAMENTOS DO MÊS','Controladoria · '+mesLongo(m),[]);
+ D.setor=nomeSetorDoc('control');D.classe='demonstrativo';D.numero=m.slice(5,7)+'/'+m.slice(0,4);
+ D.meta=[['Mês',mesLongo(m)],['Situação',d&&d.fech?'Fechado em '+fDH(d.fech):'Em aberto']];
+ let n=0;(C.GRUPOS||[]).forEach(([g,t])=>{const body=(C.CAMPOS||[]).filter(cp=>cp.g===g).map(cp=>{const v=R.v[cp.k];const o=R.orig&&R.orig[cp.k];return v==null&&!o?null:[cp.l+(cp.t==='r'?' (R$)':''),fmt(cp,v),o?(ORIG[o]||o):'—']}).filter(Boolean);
+  if(body.length){D.blocos.push({tipo:'secao',n:String(++n),titulo:t});D.blocos.push({tipo:'tabela',head:['Campo','Valor','Origem'],dir:[1],body})}});
+ if(!n)D.blocos.push({tipo:'aviso',texto:'Nenhum lançamento neste mês.'});
+ D.rodape='Lançamentos da controladoria · '+mesLongo(m);D.arquivo='Controladoria_lancamentos_'+m;
+ D.notaFinal='Valores como estão no Setor de Controladoria na emissão: o que foi lançado à mão e o que veio dos setores ou das configurações (coluna Origem).';
+ return D}
+if(typeof TELAS_V!=='undefined'&&TELAS_V.ctlLanc){const t0=TELAS_V.ctlLanc;TELAS_V.ctlLanc=function(el){const r=t0.apply(this,arguments);
+ try{const ac=el.querySelector('.sec-cab .acoes');const sm=el.querySelector('#ctlMes');
+  if(ac&&sm&&!ac.querySelector('[data-v120-doc]')){const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.v120Doc='1';b.innerHTML=ic('doc')+'Documento do mês';ac.prepend(b);
+   b.onclick=()=>acaoDocumento(()=>docMesCtl((el.querySelector('#ctlMes')||{}).value),'ver')}}catch(e){console.warn('V120 controladoria',e)}
+ return r}}
+
+/* ---------- 6. Lançamentos do setor ---------- */
+const podeVer=m=>typeof PERM!=='undefined'&&!!PERM[m]&&pode(m);
+const temMod=m=>!!MODS[m]&&podeVer(m);
+function linhaMod(mod,r){
+ const M=MODS[mod];const d=dataLanc(mod,r);const uid=respUid(r);const tit=tituloDoc(mod,r);
+ return {data:d,reg:r.criadoEm?fDH(r.criadoEm):'',_ord:(d||'')+'|'+(r.hora||'')+'|'+(r.criadoEm||''),tipo:tipoLanc(mod,r),cod:codLanc(mod,r),desc:descLanc(mod,r),qtd:qtdLanc(mod,r),valor:valorLanc(mod,r),sit:sitLanc(mod,r),resp:quem(uid),_uid:uid,
+  _go:(M.rotaItem||'#/'+mod+'/')+r.id,_doc:temDoc(mod)?fazerDoc(mod,r.id):null,_docT:tit}}
+function linhasMods(mods,setor){
+ const out=[];
+ mods.forEach(mod=>{if(!temMod(mod)||CAD.has(mod))return;const M=MODS[mod];
+  let rs=(DATA[mod]||[]).slice();
+  if(typeof filtroSetor==='function')rs=filtroSetor(rs,M.setorDe||(()=>''));
+  if(setor)rs=rs.filter(r=>!SETS_V.includes(r.setor)||r.setor===setor);
+  rs.forEach(r=>{try{out.push(linhaMod(mod,r))}catch(e){console.warn('V120 lançamento',mod,e)}})});
+ return out}
+function linhasOps(setor){
+ const out=[];if(typeof listaOp!=='function'||typeof OP==='undefined')return out;
+ if(typeof liberadoV==='function'&&!liberadoV(setor))return out;
+ const O=setor==='vendas'?OP.venda:OP.compra;const modP=setor==='vendas'?'vendas':'compras';if(!podeVer(modP))return out;
+ listaOp(O).filter(v=>v.setor===setor).forEach(v=>{
+  const ped=setor==='vendas'&&typeof ehPedido==='function'&&ehPedido(v);const f=seguro(()=>finVenda(v),{});const c=seguro(()=>parteSnap(v),{});const canc=seguro(()=>cancV(v),false);
+  const num=fNumV(v.numero);const itens=seguro(()=>resumoItensV(v),'');const uid=v.criadoPor||'';
+  const tipo=setor==='vendas'?(ped?'Pedido':'Venda'):setor==='lenha'?'Entrada de lenha (compra)':'Entrada de combustível (compra)';
+  const docV=()=>setor==='lenha'&&typeof docEntregaLenhaV==='function'?docEntregaLenhaV(v):ped&&typeof docPedidoV==='function'?docPedidoV(v):docOpV(v);
+  out.push({data:dia(v.data),reg:v.criadoEm?fDH(v.criadoEm):'',_ord:dia(v.data)+'|'+(v.hora||'')+'|'+(v.criadoEm||''),tipo,cod:(ped?'Pedido nº ':setor==='vendas'?'Venda nº ':'Compra nº ')+num,
+   desc:[c.nome,itens].filter(Boolean).join(' · ')||'—',qtd:'',valor:round2(+v.total||0),sit:canc?'Cancelada':ped?String(v.status||''):String(f.status||v.status||''),resp:v.responsavelNome||v.vendedorNome||quem(uid),_uid:uid,
+   _go:'#/'+(setor==='vendas'?'venda':'compra')+'/'+v.id,_doc:docV,_docT:setor==='lenha'?'Comprovante de entrega de lenha':ped?'Pedido':'Comprovante'});
+  (v.pagamentos||[]).filter(p=>!p.estornado).forEach(p=>{const pu=p.por||'';
+   out.push({data:dia(p.data),reg:p.em?fDH(p.em):'',_ord:dia(p.data)+'||'+(p.em||''),tipo:setor==='vendas'?'Recebimento':'Pagamento ao fornecedor',cod:(p.recibo?'Recibo nº '+fNumV(p.recibo):(setor==='vendas'?'Venda nº ':'Compra nº ')+num),
+    desc:[c.nome,p.forma].filter(Boolean).join(' · ')||'—',qtd:'',valor:round2(+p.valor||0),sit:setor==='vendas'?'Recebido':'Pago',resp:quem(pu),_uid:pu,
+    _go:'#/'+(setor==='vendas'?'venda':'compra')+'/'+v.id,_doc:()=>ped&&p.recibo&&typeof docReciboPedV==='function'?docReciboPedV(v,p):docRecebimentoV(v,p),_docT:setor==='vendas'?'Recibo de pagamento':'Comprovante de pagamento'})})});
+ if(setor==='vendas'&&temMod('orcamentos'))(DATA.orcamentos||[]).forEach(o=>{const uid=o.criadoPor||'';const c=seguro(()=>parteSnap(o),{});
+  out.push({data:dia(o.data)||diaLocal(o.criadoEm),reg:o.criadoEm?fDH(o.criadoEm):'',_ord:(dia(o.data)||'')+'||'+(o.criadoEm||''),tipo:'Orçamento',cod:'Orçamento nº '+fNumV(o.numero),
+   desc:c.nome||(o.cliente&&o.cliente.nome)||'—',qtd:'',valor:round2(+o.total||0),sit:String(o.status||''),resp:o.responsavelNome||quem(uid),_uid:uid,_go:'#/orcamento/'+o.id,_doc:()=>docOrcamentoV(o),_docT:'Orçamento'})});
+ return out}
+function linhasFin(){
+ const out=[];const X=FS();if(!X||!pode('setor-financeiro'))return out;
+ seguro(()=>X.obrigacoes(),[]).forEach(o=>{const s=o.s||{};const cod=o.num||codDeId('CF',String(o.ref).replace(/^\w:/,''));
+  const abrir=()=>seguro(()=>X.acoes.abrirObrig(o.ref),null);const dl=dia(o.lanc)||dia(o.venc);
+  out.push({data:dl,reg:o.rec&&o.rec.criadoEm?fDH(o.rec.criadoEm):'',_ord:dl+'||'+((o.rec&&o.rec.criadoEm)||''),tipo:'Compromisso a pagar'+(o.fonte==='compra'?' · compra':o.fonte==='despesa'?' · pessoal':''),cod,
+   desc:[o.benef,o.descricao].filter(Boolean).join(' · ')||'—',qtd:o.venc?'vence '+fData(o.venc):'',valor:round2(+o.valor||0),sit:s.st||'',resp:quem(o.resp),_uid:o.resp||'',_abrir:abrir,_doc:()=>{const C=CL();const x=OBf(o.ref);if(C&&x)return seguro(()=>C.docObrig(x,x.s||{},nomeContaF),null)||docObrigF(o.ref);return docObrigF(o.ref)},_docT:'Comprovante do compromisso'});
+  (o.pagamentos||[]).forEach(p=>{const pu=p.por||'';
+   const dp=dia(p.data)||dl;   /* despesa do DP paga sem a data do pagamento: fica na data do lançamento */
+   out.push({data:dp,reg:'',_ord:dp+'||',tipo:'Pagamento',cod:codPag(o,p),desc:[o.benef,o.descricao,p.forma].filter(Boolean).join(' · ')||'—',qtd:'',
+    valor:round2((+p.valor||0)+(+p.multa||0)+(+p.juros||0)),sit:p.quitacao?'Quitação':'Pagamento parcial',resp:quem(pu),_uid:pu,_abrir:abrir,_doc:()=>docPagF(o.ref,p.id),_docT:'Comprovante de pagamento'})})});
+ return out}
+function linhasAcertos(){
+ const out=[];if(!podeVer('clAcerto'))return out;
+ (DATA.clAcerto||[]).forEach(a=>{const uid=a.criadoPor||'';
+  out.push({data:dia(a.ate)||diaLocal(a.criadoEm),reg:a.criadoEm?fDH(a.criadoEm):'',_ord:(dia(a.ate)||'')+'||'+(a.criadoEm||''),tipo:'Acerto de lenha',cod:'Acerto nº '+fNumV(a.numero),
+   desc:[a.fornecedorNome,(a.de?fData(a.de):'início')+' a '+fData(a.ate)].filter(Boolean).join(' · '),qtd:'',valor:round2(+((a.totais||{}).saldo)||0),sit:String(a.situacao||''),resp:quem(uid),_uid:uid,
+   _go:'#/clAcerto',_doc:()=>window.CL112&&CL112.docAcerto?CL112.docAcerto(a):null,_docT:'Demonstrativo de acerto de lenha'})});
+ return out}
+function linhasLevadas(){
+ const out=[];if(!podeVer('lenhaMov'))return out;
+ const dep=id=>{const L=seguro(()=>window.LENHA_V111.depositos(),[]);const x=(Array.isArray(L)?L:[]).find(d=>d&&(d.id===id||d.k===id));return x?String(x.nome||x.rot||id):({chao:'Chão da fábrica',fora:'Estoque de fora'}[id]||String(id||'—'))};
+ (DATA.lenhaMov||[]).forEach(m=>{const uid=m.criadoPor||'';const ini=m.tipo==='saldoInicial';
+  out.push({data:dia(m.data)||diaLocal(m.criadoEm),reg:m.criadoEm?fDH(m.criadoEm):'',_ord:(dia(m.data)||'')+'|'+(m.hora||'')+'|'+(m.criadoEm||''),tipo:ini?'Saldo inicial por local':'Levada de lenha (transferência)',cod:codDeId(ini?'SI':'LV',m.id),
+   desc:ini?dep(m.deposito)+(m.classe?' · '+m.classe:''):dep(m.de)+' → '+dep(m.para)+(m.quem?' · por '+m.quem:'')+(m.classe?' · '+m.classe:''),qtd:vazio(m.quantidade)?'':fQtd(+m.quantidade)+' m³',valor:'',
+   sit:m.cancelado?'Cancelado':'Registrado',resp:quem(uid),_uid:uid,_go:'#/lenhaLevar',_doc:()=>docLinhaSimples(ini?'Registro de saldo inicial da lenha por local':'Registro de levada de lenha',m,[['De',ini?'—':dep(m.de)],['Para',ini?dep(m.deposito):dep(m.para)],['Tipo de lenha',m.classe||'—'],['Quantidade',vazio(m.quantidade)?'—':fQtd(+m.quantidade)+' m³'],...(m.viagens?[['Viagens',String(m.viagens)],['m³ por viagem',fQtd(+m.m3Viagem||0)]]:[]),['Quem levou',m.quem||'—'],['Observações',m.obs||'—',1]],'lenha'),_docT:'Registro de levada de lenha'})});
+ return out}
+function linhasNotas(){
+ const out=[];const J=window.JB_FISCAL;if(!J||!seguro(()=>J.podeF('ver'),false))return out;
+ const ST={rascunho:'Rascunho',pronta:'Pronta para emissão',processando:'Em processamento',aguardando:'Aguardando consulta',autorizada:'Autorizada',rejeitada:'Rejeitada',denegada:'Denegada',cancelada:'Cancelada',erro:'Erro técnico',descartada:'Descartada'};
+ (DATA.nfe||[]).filter(n=>n.status!=='descartada').forEach(n=>{const uid=n.criadoPor||'';
+  out.push({data:dia(n.data)||diaLocal(n.criadoEm),reg:n.criadoEm?fDH(n.criadoEm):'',_ord:(dia(n.data)||'')+'||'+(n.criadoEm||''),tipo:'Nota fiscal'+(n.ambiente==='homologacao'?' (teste)':''),cod:seguro(()=>J.nomeNota(n),'NF-e'),
+   desc:String((n.dest||{}).nome||'—'),qtd:'',valor:round2((+seguro(()=>n.emitido&&n.emitido.totais?n.emitido.totais.vNF:J.calcularNota(n).tot.vNF,0)||0)/100),sit:ST[n.status]||String(n.status||''),resp:quem(uid),_uid:uid,_go:'#/setor-fiscal/nota/'+n.id})});
+ return out}
+/* documento simples para lançamentos que não têm janela padrão (ex.: levada de lenha) */
+function docLinhaSimples(titulo,r,pares,setor){
+ const D=baseRel(maiusc(titulo),'',[]);D.setor=nomeSetorDoc(setor);D.classe='comprovante';D.numero=codDeId('',r.id);
+ D.meta=[['Data',r.data?fData(r.data)+(r.hora?' às '+r.hora:''):'—'],['Registrado em',fDH(r.criadoEm)||'—'],['Situação',r.cancelado?'Cancelado':'Registrado']];
+ D.quadros=[{rot:'IDENTIFICAÇÃO DO LANÇAMENTO',campos:[['Código',codDeId('',r.id)],['Lançado por',quem(r.criadoPor)||'—']]}];
+ D.blocos.push({tipo:'secao',n:'1',titulo:'Dados do lançamento',campos:pares.map(([l,v,w])=>[l,String(v==null||v===''?'—':v),w?1:0])});
+ D.rodape=titulo+' · '+codDeId('',r.id);D.arquivo=nomeArq(titulo)+'_'+r.id;return D}
+
+/* de onde vêm os lançamentos de cada setor (cadastros ficam de fora: são fichas, não lançamentos) */
+const FONTES_LANC={
+ dp:()=>linhasMods(['contratos','diario','horasExtras','alimentacao','diarias','ferias','afastamentos','admissoes','desligamentos','documentos','despesas','advertencias','producao','adicionais','vales','alteracoes','exames']),
+ producao:()=>linhasMods(['pmaromba','pparadas','psecmov','pfornadas','pdesenf','pprontomov']),
+ financeiro:()=>[...linhasFin(),...linhasMods(['fTransf','fAvulso','fConfSaldo','fDocs'])],
+ vendas:()=>linhasOps('vendas'),
+ lenha:()=>[...linhasOps('lenha'),...linhasMods(['consumos','estoqueMov','clComb','clDesc','clProg'],'lenha'),...linhasAcertos(),...linhasLevadas()],
+ combustivel:()=>[...linhasOps('combustivel'),...linhasMods(['consumos','estoqueMov','clProg'],'combustivel')],
+ almox:()=>linhasMods(['almEntradas','almSaidas','almAjustes','almEpis','almEmprestimos','almDevolucoes','almInventarios','almPagamentos']),
+ paletes:()=>linhasMods(['paleteMov','paleteCompras']),
+ barro:()=>linhasMods(['barroMov']),
+ fiscal:()=>linhasNotas()};
+/* a lista do setor é montada uma vez por desenho da tela (o filtro de tipo e o relatório usam a mesma) */
+let MEMO_L=null;
+function lancamentosSetor(s){const f=FONTES_LANC[s];if(!f)return [];if(MEMO_L&&MEMO_L.s===s)return MEMO_L.v;const v=seguro(f,[]);MEMO_L={s,v};setTimeout(()=>{MEMO_L=null},0);return v}
+const noPerL=(d,U)=>(!U.ini||String(d||'')>=U.ini)&&(!U.fim||String(d||'')<=U.fim);
+/* relatório "Lançamentos do setor", para a tela padrão de relatórios de cada setor */
+function relLanc(setor,U,opc){opc=opc||{};
+ const S=()=>typeof setor==='function'?setor():setor;
+ return {id:opc.id||'lanc',n:'Lançamentos do setor',m:opc.m||'relatorios',f:[...(opc.rapido===false?[]:['rapido']),'periodo','extra'],
+  extra:{l:'Tipo',op:()=>[...new Set(lancamentosSetor(S()).map(x=>x.tipo))].sort((a,b)=>a.localeCompare(b,'pt-BR'))},
+  b(U2){const u=U2||U;const s=S();
+   const rows=lancamentosSetor(s).filter(x=>noPerL(x.data,u)&&(!u.extra||x.tipo===u.extra)).sort((a,b)=>String(b._ord).localeCompare(String(a._ord)));
+   if(typeof resolverNomes==='function')resolverNomes(rows.map(x=>x._uid).filter(Boolean));
+   const per=u.ini||u.fim?(u.ini?fData(u.ini):'início')+' a '+(u.fim?fData(u.fim):'hoje'):'todo o período';
+   return {cols:[{k:'data',l:'Data',t:'data'},{k:'reg',l:'Registrado em'},{k:'tipo',l:'Tipo'},{k:'cod',l:'Código'},{k:'desc',l:'Descrição'},{k:'qtd',l:'Quantidade'},{k:'valor',l:'Valor',t:'moeda',semTotal:1},{k:'sit',l:'Situação'},{k:'resp',l:'Responsável'}],
+    rows,total:false,semTotal:true,nota:'Tudo o que foi lançado no '+(nomeSetorDoc(s)||'setor')+' no período ('+per+'), por todos os usuários, do mais recente para o mais antigo. Toque numa linha para abrir o lançamento ou o documento dele. Valores de tipos diferentes não se somam.'}}}}
+/* entra no fim da lista de relatórios de cada setor que já usa a tela padrão (a ordem dos que já existiam não muda) */
+try{if(typeof RELS!=='undefined'&&!RELS.some(r=>r.id==='lanc'))RELS.push(relLanc('dp',UIR,{m:'relatorios',rapido:false}))}catch(e){console.warn('V120 DP',e)}
+try{const P=window.PRODUCAO_SETOR;if(P&&P.RELS_P&&!P.RELS_P.some(r=>r.id==='lanc'))P.RELS_P.push(relLanc('producao',null,{m:'prel'}))}catch(e){console.warn('V120 produção',e)}
+try{const X=FS();if(X&&X.RELS_F&&!X.RELS_F.some(r=>r.id==='lanc'))X.RELS_F.push(relLanc('financeiro',null,{m:'frel'}))}catch(e){console.warn('V120 financeiro',e)}
+try{if(typeof RELS_V!=='undefined'&&!RELS_V.some(r=>r.id==='rx_lanc'))RELS_V.push({...relLanc(()=>UIRV.setor,UIRV,{m:'relvendas',id:'rx_lanc'}),modo:'todos'})}catch(e){console.warn('V120 vendas',e)}
+
+window.JB_DOCL=Object.freeze({docRegistro,tituloDoc,codLanc,lancamentosSetor,relLanc,docObrigF,docPagF,docMesCtl,fazerDoc,ehDP,
+ registrarFonte:(s,fn)=>{const f0=FONTES_LANC[s];FONTES_LANC[s]=f0?()=>[...f0(),...seguro(fn,[])]:fn}});
 })();
 </script>
 </body>

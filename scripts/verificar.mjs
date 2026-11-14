@@ -598,6 +598,44 @@ teste('documentos', 'nomenclatura: títulos formais sem mudar os dados', () => {
   assert.equal(tituloFormalDoc('Relatório de contratos'), 'Relatório de contratos', 'o que já é formal não muda');
   assert.equal(tituloFormalDoc('Espelho de ponto (gerencial) · Fulano · 11/2026'), 'Espelho de Ponto (gerencial) · Fulano · 11/2026');
 });
+/* ---------- V120: documento de cada lançamento, Lançamentos do setor e tela padrão de relatórios ---------- */
+teste('documentos', 'V120: Lançamentos do setor e documentos nos relatórios de todos os setores, só leitura, sem botão repetido', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  assert.equal(app.split('<script id="v120-relatorios-documentos">').length - 1, 1, 'bloco V120 uma vez só');
+  assert.ok(app.indexOf('<script id="v120-relatorios-documentos">') > app.indexOf('<script id="custo-buscar-v115">'), 'bloco V120 depois de todos os setores');
+  const bloco = trecho('<script id="v120-relatorios-documentos">', '</script>');
+  // só leitura: o bloco não grava, não apaga e não registra nada
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'gravarRegistro(', 'registrarLog(', '.set(', '.update(', '.delete(', 'salvarCfg(']) assert.ok(!bloco.includes(proibido), 'o bloco V120 não pode chamar ' + proibido);
+  for (const s of ['dp', 'producao', 'financeiro', 'vendas', 'lenha', 'combustivel', 'almox', 'paletes', 'barro', 'fiscal']) assert.ok(new RegExp('\\n ' + s + ':\\(\\)=>').test(trecho('const FONTES_LANC={', 'function lancamentosSetor(')), 'Lançamentos do setor sem o setor ' + s);
+  // a janela continua com um botão só (o Comprovante); os relatórios usam o mesmo documento e o Setor Pessoal fica sem documento por lançamento
+  assert.ok(!/abrirRegistro\s*=|abrirObrig\s*=|telaFicha\s*=/.test(bloco), 'o bloco V120 não põe outro botão na janela');
+  assert.ok(bloco.includes('C.doc(mod,r)') && bloco.includes('C.docObrig(') && bloco.includes('if(!temDoc(mod))return null'), 'relatórios com o documento do botão Comprovante e sem o DP');
+  assert.ok(bloco.includes('sensDe(mod,id)') && bloco.includes('veSensivel()'), 'documento respeita os campos sigilosos');
+  // tela padrão de relatórios: pesquisa, filtros, imprimir, compartilhar e linhas que abrem o lançamento
+  const rel = trecho('function telaRelatorios(el,cfg){', '\n/* ================= configurações');
+  for (const p of ['filtrosExtraRel(R,res,U)', 'data-x="imprimir"', 'data-x="compartilhar"', 'acaoLinhaRel(tr,', 'ligarFiltrosExtraRel(el,U)', "data-sem-total"]) assert.ok(rel.includes(p), 'telaRelatorios sem ' + p);
+  const exp = trecho('function exportar(formato,nome,cols,rows,titulo,opc){', '/* CSV para o Excel');
+  assert.ok(exp.includes("formato==='imprimir'") && exp.includes("formato==='compartilhar'"), 'exportar com Imprimir e Compartilhar');
+  // setores com tela própria de relatórios passam para a tela padrão, com os mesmos cálculos
+  assert.ok(trecho('function telaRelAlm(c){', '\n}\n').includes('dadosRelAlm()') && trecho('function telaRelAlm(c){', '\n}\n').includes('telaRelatorios(c,'), 'almoxarifado na tela padrão');
+  assert.ok(trecho('function telaRelPal(c){', '\n}\n').includes('dadosRelPal()') && app.includes('function dadosRelPal(){'), 'paletes na tela padrão');
+  assert.ok(trecho("function telaRel(c){\n if(UR.id&&UR.id!==URB._sinc", '\n}\n').includes('dadosRel()'), 'barro na tela padrão');
+  assert.ok(app.includes("{ r: '#/setor-fiscal/relatorios', k: 'relatorios'") && app.includes('relatorios: relatoriosFis'), 'Setor Fiscal com Relatórios');
+  // pesquisa e filtros de situação e responsável: mesma conta da tela, sem mexer nas linhas originais
+  const ajudas = trecho('const REL_COL_SIT=', '\nconst linhaAbreRel=');
+  const f = new Function('esc', 'semAcento', 'fData', 'fMoeda', 'fNum', 'fHm', ajudas + ';return {filtrosExtraRel};')(
+    (x) => String(x), (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), (x) => x, (x) => 'R$ ' + x, (x) => String(x), (x) => String(x)).filtrosExtraRel;
+  const res = { cols: [{ k: 'tipo', l: 'Tipo' }, { k: 'sit', l: 'Situação' }, { k: 'resp', l: 'Responsável' }], rows: [{ tipo: 'Vale', sit: 'Pago', resp: 'Ana' }, { tipo: 'Hora extra', sit: 'Pendente', resp: 'João' }, { tipo: 'Vale', sit: 'Pendente', resp: 'João' }] };
+  const R = { f: ['periodo'] };
+  let x = f(R, res, {});
+  assert.equal(x.rows.length, 3); assert.ok(!x.ativo && /data-r="_sit"/.test(x.html) && /data-r="_resp"/.test(x.html) && /data-rbusca/.test(x.html));
+  x = f(R, res, { _sit: 'Pendente' }); assert.equal(x.rows.length, 2); assert.ok(x.ativo);
+  x = f(R, res, { _sit: 'Pendente', _resp: 'Ana' }); assert.equal(x.rows.length, 0);
+  x = f(R, res, { _q: 'hóra' }); assert.deepEqual(x.rows.map((r) => r.tipo), ['Hora extra'], 'pesquisa sem diferença de acento');
+  x = f({ f: ['usuario', 'stvenda'] }, res, {}); assert.ok(!/data-r="_sit"/.test(x.html) && !/data-r="_resp"/.test(x.html), 'relatório que já filtra situação e usuário não ganha filtro repetido');
+  assert.equal(res.rows.length, 3, 'as linhas do relatório não mudam');
+});
 /* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
 if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
   const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
