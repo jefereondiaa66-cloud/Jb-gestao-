@@ -12916,7 +12916,7 @@ function detalheOpV(c,O,v){
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(O.ic)}</span><div><h1>${O.Sing} nº ${esc(fNumV(v.numero))}</h1>
    <p>${esc(S.nome||'')} · ${esc(fData(v.data))}${v.hora?' às '+esc(v.hora):''} · ${venda?'vendedor':'responsável'} ${esc(resp)}</p>
    <div class="inline" style="margin-top:6px">${tagV(v.status)}${tagV(f.status)}<span class="tag ${COR_V[fs.status]||''}">${venda?'Fiscal':'Nota'}: ${esc(fs.status||'Pendente')}</span></div></div></div>
-  <div class="acoes"><button type="button" class="btn pri" id="vvComp">${ic('doc')}${venda?'Comprovante':'Registro da compra'}</button>${podeRec?`<button type="button" class="btn" id="vvPag">${ic('moeda')}${venda?'Registrar recebimento':'Registrar pagamento'}</button>`:''}${podeCanc?`<button type="button" class="btn perigo" id="vvCanc">Cancelar ${O.sing}</button>`:''}</div></div>
+  <div class="acoes">${ehLenhaV(v)?`<button type="button" class="btn pri" id="vvLenhaEntTopo" title="Ticket para quem trouxe a lenha (cupom 80 mm, 58 mm ou A4)">${ic('recibo')}Comprovante de entrega</button>`:''}<button type="button" class="btn ${ehLenhaV(v)?'':'pri'}" id="vvComp">${ic('doc')}${venda?'Comprovante':'Registro da compra'}</button>${podeRec?`<button type="button" class="btn" id="vvPag">${ic('moeda')}${venda?'Registrar recebimento':'Registrar pagamento'}</button>`:''}${podeCanc?`<button type="button" class="btn perigo" id="vvCanc">Cancelar ${O.sing}</button>`:''}</div></div>
   ${canc?`<div class="aviso pe" style="margin-bottom:14px"><span><b>${O.Sing} cancelada</b> em ${esc(fDataHora(v.cancelamento.em))} por ${esc(nomeUsuario(v.cancelamento.por))}. Motivo: ${esc(v.cancelamento.motivo)}. O estoque foi estornado e a conta foi cancelada${f.devolver>0?`; há ${esc(fMoeda(f.devolver))} ${venda?'recebidos deste cliente: devolva':'pagos a este fornecedor: peça a devolução'} e registre o estorno de cada pagamento`:''}.${venda&&fs.status==='Autorizada'?' A nota fiscal desta venda está autorizada: faça o cancelamento no emissor, dentro do prazo e das regras do seu estado, e atualize a situação fiscal aqui.':''}</span></div>`:''}
   <div class="vv-grade">
    <section class="bloco"><h3>Dados da ${O.sing}</h3>${kvV([['Número',esc(fNumV(v.numero))],['Setor',esc(S.nome||v.setor)],['Data e hora',esc(fData(v.data)+(v.hora?' às '+v.hora:''))],['Responsável',esc(resp)],
@@ -12954,6 +12954,8 @@ function detalheOpV(c,O,v){
  $('#vvComp',c).onclick=abrirComp;$('#vvComp2',c).onclick=abrirComp;
  $('#vvPdf',c).onclick=()=>emitirPdfDoc(docOpV(v),'PDF gerado.');
  if($('#vvLenhaEnt',c))$('#vvLenhaEnt',c).onclick=()=>verDoc(docEntregaLenhaV(v),{voltar:O.rota+v.id});
+ /* 13/11/2026: o comprovante de entrega da lenha também no topo, logo ao abrir a compra (pedido do Jeferson) */
+ if($('#vvLenhaEntTopo',c))$('#vvLenhaEntTopo',c).onclick=()=>verDoc(docEntregaLenhaV(v),{voltar:O.rota+v.id});
  if($('#vvLenhaRel',c))$('#vvLenhaRel',c).onclick=()=>verDoc(docRelLenhaDonoV(v),{voltar:O.rota+v.id});
  if($('#vvPag',c))$('#vvPag',c).onclick=()=>modalPagamentoV(v);
  if($('#vvCanc',c))$('#vvCanc',c).onclick=()=>modalCancelarV(v);
@@ -41175,7 +41177,7 @@ function telaLancar(c){
  const chip=(attr,val,on,txt,sub,extra)=>`<button type="button" class="lx-chip${on?' on':''}${extra||''}" ${attr}="${esc(val)}" aria-pressed="${on?'true':'false'}">${esc(txt)}${sub?`<small>${esc(sub)}</small>`:''}</button>`;
  c.innerHTML=`<div class="lx"><div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('chama')}</span><div><h1>Lançar lenha</h1><p>Chegou lenha? Escolha o fornecedor e confira o resto. Ao salvar, entra no estoque e na conta a pagar, igual à Nova compra.</p></div></div>
    <div class="acoes"><button type="button" class="btn" id="lxLimpar">Limpar</button></div></div>
-  ${ULT&&COMPRA_(ULT)?(()=>{const u=COMPRA_(ULT);return `<div class="lx-ult"><span style="flex:1;min-width:180px">Lançado: <b>compra nº ${esc(fNumV(u.numero))}</b> · ${esc(parteSnap(u).nome||'')} · ${esc(resumoItensV(u))} · ${esc(fMoeda(u.total))}</span><a class="btn min" href="#/compra/${esc(u.id)}">Ver a compra</a></div>`})():''}
+  ${ULT&&COMPRA_(ULT)?(()=>{const u=COMPRA_(ULT);return `<div class="lx-ult"><span style="flex:1;min-width:180px">Lançado: <b>compra nº ${esc(fNumV(u.numero))}</b> · ${esc(parteSnap(u).nome||'')} · ${esc(resumoItensV(u))} · ${esc(fMoeda(u.total))}</span><button type="button" class="btn min pri" id="lxCompEnt" data-id="${esc(u.id)}">${ic('recibo')}Comprovante de entrega</button><a class="btn min" href="#/compra/${esc(u.id)}">Ver a compra</a></div>`})():''}
   ${!ed?'<div class="aviso at"><span>Seu perfil vê esta tela, mas não lança compras de lenha.</span></div>':''}
   ${!prodPadrao()?`<div class="aviso pe"><span><b>Falta o item de lenha.</b> Cadastre a lenha em m³ na aba Tipos de lenha (itens do estoque) antes de lançar.</span></div>`:''}
   <div class="lx-c"><h3><span class="lx-n">1</span>Fornecedor</h3>
@@ -41241,6 +41243,7 @@ function telaLancar(c){
   if(t.dataset.dep!=null){d.lenhaLocal=t.dataset.dep;redes();return}
   if(t.dataset.pag!=null){d.lxPag=t.dataset.pag;if(d.lxPag==='prazo'&&!d.vencimento&&!d.semVenc){if(d.lxSemVencCostume)d.semVenc=true;else if(d.lxPrazo!=null)d.vencimento=somaDias(d.data||hoje(),d.lxPrazo)}aplicarPag(d);redes();return}
   if(t.id==='lxUsaPrazo'){d.vencimento=somaDias(d.data||hoje(),d.lxPrazo);redes();return}
+  if(t.id==='lxCompEnt'){const u=COMPRA_(t.dataset.id);if(u&&typeof docEntregaLenhaV==='function')verDoc(docEntregaLenhaV(u),{voltar:'#/lenhaLancar'});return}   /* 13/11/2026: ticket do entregador logo depois de lançar */
   if(t.id==='lxRep'&&f){repetir(d,f);redes();toast('Último lançamento copiado. Confira a quantidade antes de salvar.','ok');return}
   if(t.id==='lxEdF'&&f){editarForn(f.id,()=>redes());return}
   if(t.id==='lxNovoF'){d.aguardaParte=true;d.lxVolta=true;location.hash='#/fornecedores/novo';return}
