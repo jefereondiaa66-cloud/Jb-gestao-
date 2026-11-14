@@ -7,7 +7,7 @@ dado gravado muda e os lançamentos antigos guardam o custo com que foram gravad
 
 - O que vem na nota não é o custo todo: a cerâmica gasta para ir buscar o combustível.
 - `custoMedioNota(id)` é a média das compras (como era). `custoBuscar(id)` é o acréscimo por litro, que mora no
-  cadastro do combustível (`produtos.custoBuscar`); em branco vale **R$ 0,40**. `custoPartes(id)` devolve
+  cadastro do combustível (`produtos.custoBuscar`); em branco vale **R$ 0,30** (era R$ 0,40 até a V122, 14/11/2026). `custoPartes(id)` devolve
   `{media, buscar, custo}` e `custoMedio(id)` passou a devolver o custo com o acréscimo.
 - Só vale para itens do tipo **Combustível** do Setor de Combustível. Óleo, graxa, lenha, almoxarifado e produtos
   de venda não mudam.

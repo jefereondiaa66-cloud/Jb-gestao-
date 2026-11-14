@@ -116,7 +116,7 @@ try {
       banco: T.banco('consumos').some((x) => x.id === c.id && x.combLenha && x.combLenha.valor === 500) };
   });
   ok(ab1.ocultos.length === 0, `ao escolher “Fornecedor de lenha” somem máquina, km, origem e terceiro${ab1.ocultos.length ? ' (ainda aparecem: ' + ab1.ocultos.join(', ') + ')' : ''}`);
-  ok(/5,90/.test(ab1.precoSugerido), `o preço vem sozinho com o custo por litro do diesel: média 5,50 + custo de buscar 0,40 (${ab1.precoSugerido})`);
+  ok(/5,80/.test(ab1.precoSugerido), `o preço vem sozinho com o custo por litro do diesel: média 5,50 + custo de buscar 0,30 (${ab1.precoSugerido})`);
   ok(/1\.600,00/.test(ab1.previa) && /1\.100,00/.test(ab1.previa), `antes de salvar mostra quanto fica a pagar: ${ab1.previa.replace(/\s+/g, ' ').slice(0, 140)}`);
   ok(ab1.comb && ab1.comb.valor === 500 && ab1.comb.fornecedorId === 'f_a' && ab1.comb.precoUnit === 5, 'abastecimento gravado com o fornecedor, o preço e o valor (100 L × R$ 5,00 = R$ 500,00)');
   ok(ab1.diesel === 900 && !ab1.local && ab1.origem === 'Estoque da fábrica', `o diesel saiu da bomba (saldo ${ab1.diesel} L)`);

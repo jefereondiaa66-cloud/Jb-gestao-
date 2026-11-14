@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Teste de ponta a ponta da V115, no navegador, com o programa REAL (saida/claude.html) e o banco
 // central simulado (scripts/lib/servidor-falso.mjs). Dados de teste, só em memória.
-//  Custo por litro do combustível = média das compras + custo de buscar (R$ 0,40, editável).
+//  Custo por litro do combustível = média das compras + custo de buscar (R$ 0,30 desde a V122, editável).
 //  (Os itens 2 e 3 da V115, lenha paga pelo saldo geral e posição no relatório de compras, foram trocados
 //  pela V117: o combustível do fornecedor de lenha é testado em scripts/testar-combustivel-fornecedor-lenha.mjs.)
 // Uso: node scripts/construir.mjs && node scripts/testar-custo-buscar.mjs
@@ -95,7 +95,7 @@ try {
     const ob = window.FINANCEIRO_SETOR ? window.FINANCEIRO_SETOR.obrigacoes().find((o) => o.ref === 'c:' + c.id) : null;
     return { nota: custoMedioNota('p_s10'), partes: custoPartes('p_s10'), cm: custoMedio('p_s10'), total: c.total, fin: ob ? ob.s.saldo : null, oleo: custoPartes('p_oleo'), lenha: custoBuscar('p_lenha'), txt: txtCustoV('p_s10', 'L') }; });
   ok(a.nota === 7.6, `a média das compras continua pelo valor da nota (${a.nota})`);
-  ok(a.partes.buscar === 0.4 && a.cm === 8, `custo por litro = 7,60 + 0,40 = ${a.cm}`);
+  ok(a.partes.buscar === 0.3 && a.cm === 7.9, `custo por litro = 7,60 + 0,30 = ${a.cm}`);
   ok(a.total === 7600 && a.fin === 7600, `a compra e a conta a pagar ao posto continuam pelo valor da nota (${a.total} / ${a.fin})`);
   ok(a.oleo.buscar === 0 && a.oleo.custo === 30 && a.lenha === 0, 'óleo lubrificante e lenha não ganham custo de buscar');
   ok(/média das compras/.test(a.txt) && /custo de buscar/.test(a.txt), 'o texto do custo mostra as duas parcelas');
@@ -105,19 +105,19 @@ try {
     const c = DATA.consumos.find((x) => x.id !== 'c_antigo'); const ant = DATA.consumos.find((x) => x.id === 'c_antigo'); const bc = T.banco('consumos').find((x) => x.id === c.id);
     return { tela: /custo de buscar/.test(tela) && /média das compras/.test(tela), cu: c.custoUnit, md: c.custoMediaNota, bs: c.custoBuscar, ct: c.custoTotal, banco: bc && bc.custoBuscar, ant: [ant.custoUnit, ant.custoTotal, ant.custoBuscar], id: c.id }; });
   ok(b.tela, 'o formulário do abastecimento mostra média das compras, custo de buscar e custo por litro');
-  ok(b.cu === 8 && b.ct === 800, `abastecimento de 100 L saiu a R$ 8,00 o litro (total ${b.ct})`);
-  ok(b.md === 7.6 && b.bs === 0.4 && b.banco === 0.4, 'o abastecimento guarda a média e o custo de buscar usados (também no banco)');
+  ok(b.cu === 7.9 && b.ct === 790, `abastecimento de 100 L saiu a R$ 7,90 o litro (total ${b.ct})`);
+  ok(b.md === 7.6 && b.bs === 0.3 && b.banco === 0.3, 'o abastecimento guarda a média e o custo de buscar usados (também no banco)');
   ok(b.ant[0] === 7.6 && b.ant[1] === 76 && b.ant[2] === undefined, 'abastecimento antigo continua com o custo com que foi gravado');
 
   const cad = await page.evaluate(async () => { SV = 'combustivel'; location.hash = '#/produtos/p_s10'; await T.esperar(() => document.querySelector('#camada [data-k="custoBuscar"]'));
     const tem = /Custo por litro usado no sistema/.test(document.querySelector('#camada').textContent); const novoPad = MODS.produtos.padrao().custoBuscar;
     T.escolher('custoBuscar', '0,50'); await T.dorme(200); const vivo = /8,10/.test(document.querySelector('#camada').textContent); await T.salvarGaveta(); await T.esperar(() => +PROD('p_s10').custoBuscar === 0.5); await T.sincronizado();
-    return { tem, novoPad, vivo, cm: custoMedio('p_s10'), nota: custoMedioNota('p_s10'), banco: (T.banco('produtos').find((x) => x.id === 'p_s10') || {}).custoBuscar, antes: DATA.consumos.find((x) => x.custoBuscar === 0.4).custoUnit }; });
+    return { tem, novoPad, vivo, cm: custoMedio('p_s10'), nota: custoMedioNota('p_s10'), banco: (T.banco('produtos').find((x) => x.id === 'p_s10') || {}).custoBuscar, antes: DATA.consumos.find((x) => x.custoBuscar === 0.3).custoUnit }; });
   ok(cad.tem, 'o cadastro do combustível tem o campo “Custo de buscar por litro” e a conta do custo');
-  ok(cad.novoPad === 0.4, 'combustível novo já nasce com R$ 0,40 de custo de buscar');
+  ok(cad.novoPad === 0.3, 'combustível novo já nasce com R$ 0,30 de custo de buscar');
   ok(cad.vivo, 'mudar o custo de buscar atualiza a conta na hora (8,10)');
   ok(cad.cm === 8.1 && cad.nota === 7.6 && cad.banco === 0.5, `custo de buscar editado para 0,50: custo por litro ${cad.cm}`);
-  ok(cad.antes === 8, 'mudar o custo de buscar não mexe no abastecimento já gravado');
+  ok(cad.antes === 7.9, 'mudar o custo de buscar não mexe no abastecimento já gravado');
 
   { const rel = erros.filter((e) => !/Chart|XLSX|jspdf|fonts|Failed to fetch|NetworkError/i.test(e)); ok(rel.length === 0, rel.length ? 'erros de JavaScript: ' + rel.slice(0, 3).join(' | ') : 'sem erros de JavaScript'); }
 } catch (e) { falhas++; console.log('  ✘ o teste parou: ' + (e && e.message ? e.message : e)); }

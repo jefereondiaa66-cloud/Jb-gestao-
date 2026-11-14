@@ -12117,15 +12117,15 @@ function custoMedioNota(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))re
  if(q>0)return Math.round(t/q*10000)/10000;const p=PROD(pid);return p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:0}
 /* V115 (13/11/2026): o litro do combustível custa mais do que vem na nota, porque a cerâmica gasta para ir buscar.
    Custo por litro = média das compras + custo de buscar. O custo de buscar mora no cadastro do combustível
-   (custoBuscar); em branco vale R$ 0,40. Só vale para combustível (óleo, graxa, lenha e produtos de venda não mudam).
+   (custoBuscar); em branco vale R$ 0,30 (era R$ 0,40 até 14/11/2026, quando o Jeferson baixou para R$ 0,30). Só vale para combustível (óleo, graxa, lenha e produtos de venda não mudam).
    A compra, a conta a pagar ao posto e o Financeiro continuam pelo valor da nota: o acréscimo é só custo interno.
    Lançamento já gravado guarda o custo com que foi gravado. */
-const BUSCAR_PADRAO_V=0.40;
+const BUSCAR_PADRAO_V=0.30; /* V122 (14/11/2026): R$ 0,30 por litro, a pedido do Jeferson (antes R$ 0,40) */
 const ehCombustivelV=p=>!!p&&p.setor==='combustivel'&&(!p.tipoItem||p.tipoItem==='Combustível');
 function custoBuscar(pid){const p=PROD(pid);if(!ehCombustivelV(p))return 0;const v=p.custoBuscar;return v===''||v==null||!isFinite(+v)||+v<0?BUSCAR_PADRAO_V:Math.round(+v*10000)/10000}
 function custoPartes(pid){const media=custoMedioNota(pid);const buscar=media>0?custoBuscar(pid):0;return{media,buscar,custo:Math.round((media+buscar)*10000)/10000}}
 function custoMedio(pid){return custoPartes(pid).custo}
-/* texto do custo com as duas parcelas: "custo por litro R$ 8,03 (média das compras R$ 7,63 + custo de buscar R$ 0,40)" */
+/* texto do custo com as duas parcelas: "custo por litro R$ 7,93 (média das compras R$ 7,63 + custo de buscar R$ 0,30)" */
 const rotCustoV=pid=>custoBuscar(pid)>0?'custo por litro':'custo médio';
 function txtCustoV(pid,un){const c=custoPartes(pid);const u=un?'/'+un:'';return c.buscar>0?'custo por litro '+fMoeda(c.custo)+u+' (média das compras '+fMoeda(c.media)+' + custo de buscar '+fMoeda(c.buscar)+')':'custo médio '+fMoeda(c.custo)+u}
 const valorEstoqueP=p=>round2(Math.max(0,saldoP(p.id))*(modoV(p.setor)==='consumo'?custoMedio(p.id):(+p.precoCompra||0)));
@@ -41514,7 +41514,7 @@ window.LENHA_V111={saldosLocais,depositos,classes,editarForn,saldoInicial,medica
 /* ================= V115 · custo de buscar o combustível e posição do fornecedor de lenha (13/11/2026) =================
    Pedido do Jeferson:
    1. O litro do combustível custa mais do que vem na nota: custo por litro = média das compras + custo de buscar
-      (R$ 0,40 por litro, editável em cada combustível). O cálculo mora em custoPartes()/custoMedio(), junto do estoque.
+      (R$ 0,30 por litro desde a V122, 14/11/2026; antes R$ 0,40; editável em cada combustível). O cálculo mora em custoPartes()/custoMedio(), junto do estoque.
       Aqui ficam o campo no cadastro do combustível e a conta mostrada na tela.
    2 e 3 (lenha paga com combustível pelo saldo geral e posição do fornecedor no relatório de compras) foram
       trocados pela V117 a pedido do Jeferson (13/11/2026): o combustível dado ao fornecedor de lenha passa a ser
@@ -41530,7 +41530,7 @@ const buscarDigitado=r=>{const v=r.custoBuscar;if(v===''||v==null)return BUSCAR_
 {const iB=MP.fields.findIndex(f=>f.k==='bombaNome');const iO=MP.fields.findIndex(f=>f.k==='obs');const pos=iB>=0?iB:iO>=0?iO:MP.fields.length;
  MP.fields.splice(pos,0,
   {k:'custoBuscar',l:'Custo de buscar por litro (R$)',t:'moeda',sh:r=>ehCombustivelV(r),s:'Custo por litro',
-   aj:'Quanto a cerâmica gasta para ir buscar cada litro. Soma na média das compras para formar o custo por litro. Em branco vale R$ 0,40; para não somar nada, informe 0.'},
+   aj:'Quanto a cerâmica gasta para ir buscar cada litro. Soma na média das compras para formar o custo por litro. Em branco vale R$ 0,30; para não somar nada, informe 0.'},
   {k:'_custo115',l:'Custo por litro usado no sistema',t:'html',vivo:1,w2:1,sh:r=>ehCombustivelV(r),s:'Custo por litro',calc:r=>{
    const media=r.id&&PROD(r.id)?custoMedioNota(r.id):(r.precoCompra!==''&&r.precoCompra!=null?+lerNum(r.precoCompra)||0:0);const b=buscarDigitado(r);const un=esc(r.unidade||'L');
    if(!(media>0))return `<span class="ajuda">Ainda sem compra registrada. Quando houver, o custo por ${un} será a média das compras + ${esc(fMoeda(b))} de custo de buscar.</span>`;
