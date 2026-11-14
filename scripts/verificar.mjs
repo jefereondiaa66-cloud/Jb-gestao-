@@ -162,6 +162,23 @@ teste('programa', 'ponto facial: bloco presente, depois do ponto com foto, com a
   // o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório
   if (existsSync(join(RAIZ, 'supabase/migrations'))) assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
 });
+teste('programa', 'Setor do Barro (V124): o valor do barro entra junto da tonelada, também com a parte de extração ligada', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  assert.match(app, /const PRECO_PAD=\[\{desde:'2026-11-01',valorT:6\.1663,origem:'Índices jan–set\/2026 – taxa fixa'\}\]/, 'valor de referência do barro: R$ 6,1663/t desde 01/11/2026');
+  const cust = trecho('function custoTonB(k,de,ate){', '\n/* ritmo:');
+  assert.ok(/if\(k\.ton>0&&k\.total>0\)return\{real:true/.test(cust), 'com extração com custo, vale o custo real');
+  assert.ok(cust.includes("txt:fRt(r.v),sub:'valor de referência"), 'sem extração com custo, o custo por tonelada é o R$/t vigente (nunca R$ 0,00)');
+  const ini = trecho('function inicioB(c){', '\n}\n');
+  for (const p of ["'Valor do barro consumido · '", 'custoTonB(km,', 'custoCarB(km,', 'valorEstB(est.ton)']) assert.ok(ini.includes(p), 'Início com a extração ligada sem ' + p);
+  assert.ok(!ini.includes('esc(fMoeda(km.porTon))'), 'o Início não pode voltar a mostrar só o custo das extrações (R$ 0,00 sem extração)');
+  assert.ok(trecho('function telaCusto(c){', '\n}\n').includes('custoTonB(k,UC.de,UC.ate)'), 'Custo do barro: custo por tonelada com o valor de referência');
+  assert.ok(trecho('function telaEstoque(c){\n const e=estoqueB()', '\n}\n').includes('valorEstB(e.ton)'), 'Estoque de barro com o valor');
+  assert.ok(trecho('function resumoMes(mes){', '\n}\n').includes('r.consV='), 'resumo do mês com o valor do barro consumido');
+  // V124 só mostra: nada é gravado pelas funções novas
+  const novo = trecho('/* ---------- V124 (14/11/2026)', '\n/* ritmo:');
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(']) assert.ok(!novo.includes(proibido), 'a V124 não grava nada: achou ' + proibido);
+});
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));
   try {
