@@ -574,13 +574,13 @@ teste('documentos', 'identidade central: configuração única, logo sem imagem 
   assert.ok(app.includes('#printDoc.folha{page:jbdoc}') && !/#printDoc\{page:jbdoc\}/.test(app), 'página A4 só para a folha');
   assert.ok(app.includes('counter(page) " de " counter(pages)'), 'numeração de páginas na impressão');
 });
-teste('documentos', 'comprovante do lançamento (V120): em todos os setores menos o Pessoal, só leitura', () => {
+teste('documentos', 'comprovante do lançamento (V120): em todos os setores, inclusive o Pessoal, só leitura', () => {
   const app = ler('app/jb-gestao.html');
   const i = app.indexOf('<script id="comprovante-lanc-v120">'), j = app.indexOf('</script>', i);
   assert.ok(i > 0 && j > i, 'bloco do comprovante do lançamento');
   const bloco = app.slice(i, j);
-  // fora do Setor Pessoal: telas de setor que não estão no menu do DP
-  assert.ok(bloco.includes('MENU.forEach') && bloco.includes('!DPS.has(mod)') && bloco.includes('ROTAS_SETOR.includes(mod)'), 'regra de setor');
+  // telas do menu do DP e telas dos outros setores
+  assert.ok(bloco.includes('MENU.forEach') && bloco.includes('return DPS.has(mod)||') && bloco.includes('ROTAS_SETOR.includes(mod)'), 'regra de setor');
   // só leitura: o bloco não grava, não apaga e não registra nada
   assert.ok(!/\b(gravar|apagar|registrarLog|salvarRegistro)\(|APP\.db\b|\.set\(|\.delete\(/.test(bloco), 'o comprovante não pode gravar nada');
   // sai do que está gravado e usa o visualizador central de documentos
@@ -608,9 +608,9 @@ teste('documentos', 'V120: Lançamentos do setor e documentos nos relatórios de
   // só leitura: o bloco não grava, não apaga e não registra nada
   for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'gravarRegistro(', 'registrarLog(', '.set(', '.update(', '.delete(', 'salvarCfg(']) assert.ok(!bloco.includes(proibido), 'o bloco V120 não pode chamar ' + proibido);
   for (const s of ['dp', 'producao', 'financeiro', 'vendas', 'lenha', 'combustivel', 'almox', 'paletes', 'barro', 'fiscal']) assert.ok(new RegExp('\\n ' + s + ':\\(\\)=>').test(trecho('const FONTES_LANC={', 'function lancamentosSetor(')), 'Lançamentos do setor sem o setor ' + s);
-  // a janela continua com um botão só (o Comprovante); os relatórios usam o mesmo documento e o Setor Pessoal fica sem documento por lançamento
+  // a janela continua com um botão só (o Comprovante); os relatórios usam o mesmo documento
   assert.ok(!/abrirRegistro\s*=|abrirObrig\s*=|telaFicha\s*=/.test(bloco), 'o bloco V120 não põe outro botão na janela');
-  assert.ok(bloco.includes('C.doc(mod,r)') && bloco.includes('C.docObrig(') && bloco.includes('if(!temDoc(mod))return null'), 'relatórios com o documento do botão Comprovante e sem o DP');
+  assert.ok(bloco.includes('C.doc(mod,r)') && bloco.includes('C.docObrig(') && bloco.includes('const temDoc=mod=>!!MODS[mod]'), 'relatórios com o documento do botão Comprovante, em todos os setores');
   assert.ok(bloco.includes('sensDe(mod,id)') && bloco.includes('veSensivel()'), 'documento respeita os campos sigilosos');
   // tela padrão de relatórios: pesquisa, filtros, imprimir, compartilhar e linhas que abrem o lançamento
   const rel = trecho('function telaRelatorios(el,cfg){', '\n/* ================= configurações');

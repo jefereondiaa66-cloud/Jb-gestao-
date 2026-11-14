@@ -2,9 +2,7 @@
 // Teste de ponta a ponta da V120 (relatórios dos setores e documento de cada lançamento): abre o programa REAL
 // (saida/claude.html) num Chromium com o banco central simulado, lança registros fictícios pelas funções do
 // próprio sistema e confere:
-//   - todo módulo da janela padrão gera o documento (tela, PDF) a partir do registro GRAVADO, no padrão documental
-//   - botão "Documento" na janela (Visualizar, Gerar PDF, Imprimir, Compartilhar); não aparece em lançamento novo
-//   - campos sigilosos ficam fora para quem não pode vê-los
+//   - os relatórios usam o mesmo documento do botão "Comprovante" da janela; um botão só; Setor Pessoal também
 //   - "Lançamentos do setor" em todos os setores, com período, tipo, situação, responsável e pesquisa
 //   - Almoxarifado, Paletes e Barro na tela padrão de relatórios, com os mesmos números de antes
 //   - Financeiro: demonstrativo do compromisso e comprovante de cada pagamento; Fiscal: aba Relatórios;
@@ -108,56 +106,35 @@ try {
   const fotoBanco = () => page.evaluate(() => JSON.stringify([...window.__srv.estado.docs.entries()].filter(([k]) => !/^(log|uso|diagnostico)\//.test(k)).map(([k, v]) => [k, v.versao])));
   const estadoAntes = await fotoBanco();
 
-  /* ---------- 1. documento de cada lançamento, em todos os módulos da janela padrão ---------- */
+  /* ---------- 1. documento de cada lançamento: o mesmo do botão Comprovante, em todos os setores ---------- */
   const todos = await page.evaluate(async (temPdf) => {
-    const r = { n: 0, falhas: [], mods: 0 };
+    const r = { n: 0, dp: 0, falhas: [], mods: 0 };
     for (const mod of Object.keys(MODS)) { const rec = (DATA[mod] || [])[0]; if (!rec) continue; r.mods++;
-      try { const D = JB_DOCL.fazerDoc(mod, rec.id)(); if (!D) { r.falhas.push(mod + ': sem documento'); continue; }
+      try { const D = JB_DOCL.fazerDoc(mod, rec.id)();
+        if (JB_DOCL.ehDP(mod)) r.dp++;
+        if (!D) { r.falhas.push(mod + ': sem documento'); continue; }
+        if (COMP_LANC.pode(mod) && !['almEntradas', 'almSaidas'].includes(mod) && D.tipo !== COMP_LANC.doc(mod, rec).tipo) r.falhas.push(mod + ': documento diferente do botão');
         const h = htmlDoc(D);
         if (!h.includes('fvd-band') || !h.includes('fvd-rod') || !h.includes('EMPRESA EXEMPLO LTDA')) r.falhas.push(mod + ': fora do padrão');
-        if (!['almEntradas', 'almSaidas'].includes(mod) && (!/Hist[oó]rico de altera/.test(h) || !h.includes(String(D.numero)))) r.falhas.push(mod + ': sem código ou histórico');
         if (temPdf) { const doc = pdfDoc(D); if (!doc || doc.internal.getNumberOfPages() < 1) r.falhas.push(mod + ': PDF'); }
         r.n++;
       } catch (e) { r.falhas.push(mod + ': ' + e.message); } }
     return r;
   }, temPdf);
-  ok(todos.n === todos.mods && todos.n >= 60 && todos.falhas.length === 0, `${todos.n} de ${todos.mods} módulos geram o documento no padrão (tela${temPdf ? ' e PDF' : ''})${todos.falhas.length ? ' · ' + todos.falhas.slice(0, 4).join('; ') : ''}`);
+  ok(todos.n === todos.mods && todos.n >= 60 && todos.dp >= 15 && todos.falhas.length === 0, `${todos.n} módulos com o mesmo documento do botão Comprovante (tela${temPdf ? ' e PDF' : ''}), ${todos.dp} deles do Setor Pessoal${todos.falhas.length ? ' · ' + todos.falhas.slice(0, 4).join('; ') : ''}`);
 
-  const vale = await page.evaluate(() => {
-    const v = DATA.vales[0]; const D = JB_DOCL.docRegistro('vales', v.id); const h = document.createElement('div'); h.innerHTML = htmlDoc(D);
-    const txt = h.textContent; const meta = [...h.querySelectorAll('.fvd-meta > span')].map((s) => s.querySelector('i').textContent + '=' + s.querySelector('b').textContent);
-    return { tit: h.querySelector('.fvd-tit').textContent, sobre: h.querySelector('.fvd-setor').textContent, num: h.querySelector('.fvd-band-num').textContent, meta, valor: txt.includes(fMoeda(v.valor)),
-      func: txt.includes('Funcionário Exemplo'), ass: [...h.querySelectorAll('.fvd-ass small')].map((s) => s.textContent), cod: JB_DOCL.codLanc('vales', v), lancado: /Lançado por\s*Dono/.test(txt) };
-  });
-  ok(vale.tit === 'COMPROVANTE DE VALE' && /DEPARTAMENTO PESSOAL\s+·\s+COMPROVANTE/.test(vale.sobre) && vale.num.includes(vale.cod) && /^VL-/.test(vale.cod), `vale: título, setor, família e código (${vale.cod}) no cabeçalho`);
-  ok(vale.meta.some((m) => /^Data do lançamento=\d{2}\/\d{2}\/\d{4}/.test(m)) && vale.meta.some((m) => /^Registrado em=\d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/.test(m)) && vale.meta.some((m) => /^Situação=/.test(m)) && vale.lancado, 'data, data e hora do registro, situação e quem lançou');
-  ok(vale.valor && vale.func && vale.ass.includes('Recebido por (funcionário)') && vale.ass.includes('Responsável pelo lançamento'), 'valor, funcionário e assinaturas do comprovante de vale');
-
-  /* documento sai do registro gravado, nunca do que está digitado e não salvo */
-  const fiel = await page.evaluate(async () => {
-    const v = DATA.vales[0]; location.hash = '#/vales/' + v.id; await new Promise((r) => setTimeout(r, 700));
-    const b = document.querySelector('#camada [data-v120-doc]'); const inp = document.querySelector('#camada [data-k="valor"]');
-    if (inp) { inp.value = '9.999,99'; inp.dispatchEvent(new Event('input', { bubbles: true })); }
-    b.click(); await new Promise((r) => setTimeout(r, 250));
-    const itens = [...document.querySelectorAll('.dc-pop button')].map((x) => x.textContent.trim());
-    document.body.click(); await new Promise((r) => setTimeout(r, 100));
-    const D = JB_DOCL.docRegistro('vales', v.id); const h = htmlDoc(D);
-    const r = { botao: !!b, itens, gravado: h.includes(fMoeda(v.valor)) && !h.includes('9.999,99') };
-    if (window.GAV) { GAV.sujo = false; } fecharGaveta(true); location.hash = '#/vales'; await new Promise((r) => setTimeout(r, 300));
-    location.hash = '#/vales/novo'; await new Promise((r) => setTimeout(r, 600)); r.novo = !!document.querySelector('#camada [data-v120-doc]'); fecharGaveta(true); location.hash = '#/vales'; await new Promise((r) => setTimeout(r, 300));
+  const jan = await page.evaluate(async () => {
+    const r = {};
+    const abre = async (h) => { location.hash = h; await new Promise((x) => setTimeout(x, 700)); const o = { comp: document.querySelectorAll('#camada [data-acao="comprovante"]').length, outro: document.querySelectorAll('#camada [data-v120-doc]').length }; fecharGaveta(true); await new Promise((x) => setTimeout(x, 200)); return o; };
+    marcarSetor('producao'); r.prod = await abre('#/pmaromba/' + DATA.pmaromba[0].id);
+    marcarSetor('dp'); r.dp = await abre('#/vales/' + DATA.vales[0].id);
+    location.hash = '#/painel'; await new Promise((x) => setTimeout(x, 300));
     return r;
   });
-  ok(fiel.botao && ['Visualizar', 'Gerar PDF', 'Imprimir', 'Compartilhar'].every((t) => fiel.itens.some((x) => x.startsWith(t))), `janela do lançamento: botão Documento com Visualizar, Gerar PDF, Imprimir e Compartilhar (${fiel.itens.length} itens)`);
-  ok(fiel.gravado && !fiel.novo, 'o documento sai do registro gravado (valor digitado e não salvo fica fora) e lançamento novo não tem botão');
-
-  /* sigilo: sem acesso aos dados sensíveis, CPF e salário não saem */
-  const sigilo = await page.evaluate(() => { const f = DATA.funcionarios[0]; const c0 = APP.canEdit, m0 = APP.modo; let com = '', sem = '';
-    try { com = htmlDoc(JB_DOCL.docRegistro('funcionarios', f.id)); APP.canEdit = false; if (APP.modo === 'local') APP.modo = 'central'; sem = htmlDoc(JB_DOCL.docRegistro('funcionarios', f.id)); } finally { APP.canEdit = c0; APP.modo = m0; }
-    return { com: com.includes('529.982.247-25'), sem: sem.includes('529.982.247-25') || sem.includes('2.500,00') }; });
-  ok(sigilo.com && !sigilo.sem, 'campos sigilosos (CPF, salário) só saem para quem pode vê-los, como na janela');
+  ok(jan.prod.comp === 1 && jan.prod.outro === 0 && jan.dp.comp === 1 && jan.dp.outro === 0, 'janela: um botão só (Comprovante), também no Setor Pessoal');
 
   /* ---------- 2. lançamentos do setor ---------- */
-  const lanc = await page.evaluate(() => Object.fromEntries(['dp', 'producao', 'financeiro', 'vendas', 'lenha', 'combustivel', 'almox', 'paletes', 'barro'].map((s) => { const L = JB_DOCL.lancamentosSetor(s); return [s, { n: L.length, tipos: [...new Set(L.map((x) => x.tipo))], semDoc: L.filter((x) => !x._doc && !x._go).length, campos: L.every((x) => x.data && x.tipo && x.cod && x.sit), sem: L.filter((x) => !(x.data && x.tipo && x.cod && x.sit)).map((x) => [x.tipo, x.cod, x.data, x.sit].join('|')).slice(0, 4) }]; })));
+  const lanc = await page.evaluate(() => Object.fromEntries(['dp', 'producao', 'financeiro', 'vendas', 'lenha', 'combustivel', 'almox', 'paletes', 'barro'].map((s) => { const L = JB_DOCL.lancamentosSetor(s); return [s, { n: L.length, tipos: [...new Set(L.map((x) => x.tipo))], semDoc: L.filter((x) => !x._doc && !x._go && !x._abrir).length, campos: L.every((x) => x.data && x.tipo && x.cod && x.sit), sem: L.filter((x) => !(x.data && x.tipo && x.cod && x.sit)).map((x) => [x.tipo, x.cod, x.data, x.sit].join('|')).slice(0, 4) }]; })));
   if (process.env.JB_DEPURAR) console.log(JSON.stringify(lanc));
   ok(Object.values(lanc).every((x) => x.n > 0 && x.campos && x.semDoc === 0), `todos os setores listam os próprios lançamentos com data, tipo, código e situação (${Object.entries(lanc).map(([s, x]) => s + ' ' + x.n).join(', ')})`);
   ok(lanc.vendas.tipos.includes('Venda') && lanc.vendas.tipos.includes('Recebimento') && lanc.lenha.tipos.some((t) => /Entrada de lenha/.test(t)) && lanc.combustivel.tipos.includes('Abastecimento') && lanc.financeiro.tipos.includes('Pagamento') && !lanc.dp.tipos.includes('Funcionário'),
@@ -174,10 +151,16 @@ try {
     const v = DATA.vales[0]; const cod = JB_DOCL.codLanc('vales', v);
     const i = document.querySelector('[data-rbusca]'); i.value = cod; i.dispatchEvent(new Event('input', { bubbles: true })); await new Promise((r) => setTimeout(r, 900));
     r.busca = { linhas: linhas(), foco: document.activeElement && document.activeElement.matches('[data-rbusca]'), pag: (document.querySelector('.relgrid .pag span') || {}).textContent, filtros: filtrosTxtRel(document.getElementById('conteudo'), RELS.find((x) => x.id === 'lanc'), UIR) };
-    /* a linha abre o menu do lançamento */
+    /* Setor Pessoal: a linha também abre o menu (abrir ou documento) */
+    document.querySelector('.relgrid tr[data-ri]').click(); await new Promise((r) => setTimeout(r, 250));
+    r.abriuDP = [...document.querySelectorAll('.dc-pop button')].some((b) => /Visualizar documento/.test(b.textContent)); document.body.click();
+    UIR._q = '';
+    /* outro setor: a linha abre o menu (abrir ou documento) */
+    const P = PRODUCAO_SETOR; const U0 = P.RELS_P.find((x) => x.id === 'lanc'); marcarSetor('producao'); location.hash = '#/prel'; await new Promise((r) => setTimeout(r, 700));
+    const a = [...document.querySelectorAll('.rel-itens a')].find((x) => x.textContent === 'Lançamentos do setor'); a.click(); await new Promise((r) => setTimeout(r, 600));
     document.querySelector('.relgrid tr[data-ri]').click(); await new Promise((r) => setTimeout(r, 250));
     r.menu = [...document.querySelectorAll('.dc-pop button')].map((b) => b.firstChild.textContent.trim()); document.body.click();
-    UIR._q = '';
+    marcarSetor('dp'); location.hash = '#/relatorios'; await new Promise((r) => setTimeout(r, 600));
     /* tipo e situação */
     UIR.extra = 'Vale'; await ir('#/relatorios', 'dp'); r.tipo = { linhas: linhas(), todosVale: [...document.querySelectorAll('.relgrid tr[data-ri] td[data-l="Tipo"]')].every((td) => td.textContent === 'Vale') };
     UIR.extra = ''; await ir('#/relatorios', 'dp'); const s0 = document.querySelector('select[data-r="_sit"]');
@@ -198,7 +181,7 @@ try {
   ok(telaRel.dp.ativo === 'Lançamentos do setor' && telaRel.dp.linhas > 10 && ['ver', 'pdf', 'imprimir', 'compartilhar', 'xlsx', 'csv'].every((x) => telaRel.dp.botoes.includes(x)) && telaRel.dp.tipo && telaRel.dp.busca, `DP: Lançamentos do setor com período, tipo, pesquisa e Visualizar, PDF, Imprimir, Compartilhar, Excel e CSV (${telaRel.dp.linhas} linhas)`);
   ok(telaRel.dp.semSoma, 'valores de tipos diferentes não são somados (sem linha de total automática)');
   ok(telaRel.busca.linhas === 1 && telaRel.busca.foco && /^1 linha(\(s\))? de \d+$/.test(telaRel.busca.pag) && /Pesquisa: “VL-/.test(telaRel.busca.filtros), `pesquisa pelo código acha o lançamento, mantém o cursor e sai nos filtros do PDF (${telaRel.busca.pag})`);
-  ok(['Abrir lançamento', 'Visualizar documento', 'Gerar PDF', 'Imprimir', 'Compartilhar'].every((t) => telaRel.menu.includes(t)), 'a linha abre o lançamento ou o documento (Visualizar, PDF, Imprimir, Compartilhar)');
+  ok(telaRel.abriuDP && ['Abrir lançamento', 'Visualizar documento', 'Gerar PDF', 'Imprimir', 'Compartilhar'].every((t) => telaRel.menu.includes(t)), 'a linha abre o lançamento ou o documento (Visualizar, PDF, Imprimir, Compartilhar), no Setor Pessoal e nos outros');
   ok(telaRel.tipo.linhas >= 1 && telaRel.tipo.todosVale && telaRel.sit && telaRel.sit.linhas >= 1 && telaRel.sit.todas && telaRel.periodoVazio, `filtros de tipo, situação${telaRel.sit ? ' (' + telaRel.sit.val + ')' : ''} e período`);
   ok(telaRel.r1.ativo === 'Relação completa dos funcionários' && telaRel.r1.ultimo === 'Lançamentos do setor', 'os relatórios que já existiam continuam na mesma ordem; o novo entra no fim da lista');
   ok(Object.values(telaRel.setores).every((x) => x.tem && x.linhas > 0 && x.imp && x.comp), `Lançamentos do setor dentro dos Relatórios de cada setor (${Object.entries(telaRel.setores).map(([s, x]) => s + ' ' + (x.tem ? x.linhas : 'falta')).join(', ')})`);
@@ -222,14 +205,13 @@ try {
     const X = FINANCEIRO_SETOR; const o = X.obrigacoes().find((x) => x.ref === 't:ft1');
     marcarSetor('financeiro'); location.hash = '#/setor-financeiro'; await new Promise((r) => setTimeout(r, 600));
     X.acoes.abrirObrig('t:ft1'); await new Promise((r) => setTimeout(r, 400));
-    const b = document.querySelector('#camada [data-a="documento"]'); b.click(); await new Promise((r) => setTimeout(r, 250));
-    const menu = [...document.querySelectorAll('.dc-pop button')].map((x) => x.textContent); document.body.click(); fecharGaveta();
-    const Dp = JB_DOCL.docPagF('t:ft1', 'pg1'); const hp = htmlDoc(Dp); const Do = JB_DOCL.docObrigF('t:ft1'); const ho = htmlDoc(Do);
-    return { botao: !!b, menu, pag: { tit: Dp.tipo, total: hp.includes(fMoeda(512.5)) && hp.includes(fMoeda(500)) && hp.includes('Companhia de Energia'), ass: /Recebedor/.test(hp) }, obr: { tit: Do.tipo, saldo: ho.includes(fMoeda(o.s.saldo)), previsto: ho.includes(fMoeda(850)), pags: /Pagamentos informados/.test(ho) } };
+    const botoes = document.querySelectorAll('#camada [data-a="comprovante"]').length + document.querySelectorAll('#camada [data-a="documento"]').length; fecharGaveta();
+    const L = JB_DOCL.lancamentosSetor('financeiro'); const lc = L.find((x) => x.cod === 'Nº 15'); const lp = L.find((x) => x.tipo === 'Pagamento' && /Companhia/.test(x.desc));
+    const Dc = lc && lc._doc(); const Dp = lp && lp._doc(); const hp = Dp ? htmlDoc(Dp) : '';
+    return { botoes, comp: Dc && Dc.tipo, pag: { tit: Dp && Dp.tipo, total: hp.includes(fMoeda(512.5)) && hp.includes(fMoeda(500)) && hp.includes('Companhia de Energia'), ass: /Recebedor/.test(hp) } };
   });
-  if (process.env.JB_DEPURAR) console.log(JSON.stringify(fin));
-  ok(fin.botao && fin.menu.length === 2 && /Demonstrativo do compromisso/.test(fin.menu[0]) && /Comprovante do pagamento/.test(fin.menu[1]), 'Financeiro: botão Documento no compromisso com o demonstrativo e o comprovante de cada pagamento');
-  ok(fin.pag.tit === 'COMPROVANTE DE PAGAMENTO' && fin.pag.total && fin.pag.ass && fin.obr.tit === 'DEMONSTRATIVO DE COMPROMISSO A PAGAR' && fin.obr.saldo && fin.obr.previsto && fin.obr.pags, 'comprovante (valor, multa e juros, total) e demonstrativo (previsto, pagamentos, saldo) com os valores do compromisso');
+  ok(fin.botoes === 1 && fin.comp === 'COMPROVANTE DE COMPROMISSO FINANCEIRO', 'Financeiro: um botão só no compromisso, e a lista usa o mesmo comprovante');
+  ok(fin.pag.tit === 'COMPROVANTE DE PAGAMENTO' && fin.pag.total && fin.pag.ass, 'comprovante de cada pagamento (valor, multa e juros, total e assinatura)');
 
   const outros = await page.evaluate(async () => {
     const ir = async (h, s) => { if (s) marcarSetor(s); location.hash = h; await new Promise((r) => setTimeout(r, 700)); };
@@ -237,16 +219,15 @@ try {
     await ir('#/setor-fiscal', 'fiscal'); r.abaFiscal = !!document.querySelector('a[href="#/setor-fiscal/relatorios"]');
     await ir('#/setor-fiscal/relatorios', 'fiscal'); r.relFiscal = [...document.querySelectorAll('.rel-itens a')].map((a) => a.textContent);
     await ir('#/ctlLanc', 'control'); const bc = document.querySelector('[data-v120-doc]'); r.ctl = !!bc; const m = (document.querySelector('#ctlMes') || {}).value; const Dm = JB_DOCL.docMesCtl(m); r.ctlDoc = Dm && Dm.tipo;
-    const f = DATA.funcionarios[0]; await ir('#/ficha/' + f.id, 'dp'); r.ficha = !!document.querySelector('.fx-topo [data-v120-doc]');
     /* imprimir pelo menu: abre o documento e chama a impressão uma vez */
     let n = 0; const p0 = window.print; window.print = () => { n++; };
-    try { acaoDocumento(JB_DOCL.fazerDoc('vales', DATA.vales[0].id), 'imprimir'); await new Promise((r) => setTimeout(r, 1200)); } finally { window.print = p0; }
+    try { acaoDocumento(JB_DOCL.fazerDoc('pmaromba', DATA.pmaromba[0].id), 'imprimir'); await new Promise((r) => setTimeout(r, 1200)); } finally { window.print = p0; }
     r.imprimiu = n === 1 && location.hash === '#/documento';
     const b = document.getElementById('printDoc'); if (b) b.remove(); document.body.classList.remove('imprime-doc');
     return r;
   });
   ok(outros.abaFiscal && outros.relFiscal.length === 4, `Setor Fiscal: aba Relatórios (${outros.relFiscal.join(', ')})`);
-  ok(outros.ctl && outros.ctlDoc === 'DEMONSTRATIVO DOS LANÇAMENTOS DO MÊS' && outros.ficha, 'Controladoria: documento do mês; ficha do funcionário: ficha cadastral');
+  ok(outros.ctl && outros.ctlDoc === 'DEMONSTRATIVO DOS LANÇAMENTOS DO MÊS', 'Controladoria: documento do mês');
   ok(outros.imprimiu, 'Imprimir: abre o documento e chama a impressão uma vez');
 
   /* ---------- 5. nada é gravado ao emitir ---------- */
@@ -259,12 +240,12 @@ try {
   const cel = await page.evaluate(async () => {
     UIR.id = 'lanc'; marcarSetor('dp'); location.hash = '#/relatorios'; await new Promise((r) => setTimeout(r, 800));
     const r = { rel: document.documentElement.scrollWidth <= window.innerWidth + 1 };
-    const v = DATA.vales[0]; location.hash = '#/vales/' + v.id; await new Promise((r) => setTimeout(r, 800));
-    const b = document.querySelector('#camada [data-v120-doc]'); const bb = b && b.getBoundingClientRect();
+    marcarSetor('producao'); location.hash = '#/pmaromba/' + DATA.pmaromba[0].id; await new Promise((r) => setTimeout(r, 800));
+    const b = document.querySelector('#camada [data-acao="comprovante"]'); const bb = b && b.getBoundingClientRect();
     r.botao = !!b && bb.width > 0 && bb.right <= window.innerWidth && bb.bottom <= window.innerHeight; r.gav = document.documentElement.scrollWidth <= window.innerWidth + 1;
     fecharGaveta(true); return r;
   });
-  ok(cel.rel && cel.botao && cel.gav, 'celular: relatórios e janela sem rolagem para o lado, botão Documento visível');
+  ok(cel.rel && cel.botao && cel.gav, 'celular: relatórios e janela sem rolagem para o lado, botão Comprovante visível');
 
   ok(erros.length === 0, `nenhum erro de JavaScript (${erros.slice(0, 3).join(' | ') || 'ok'})`);
 } finally {

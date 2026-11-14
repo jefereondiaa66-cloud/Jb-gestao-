@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Teste de ponta a ponta da V120 (comprovante do lançamento), no navegador, com o programa REAL
 // (saida/claude.html) e o banco central simulado (scripts/lib/servidor-falso.mjs). Dados fictícios.
-//  - todo lançamento aberto fora do Setor Pessoal tem o botão "Comprovante"; cadastro tem "Imprimir ficha"
-//  - o Setor Pessoal fica de fora (nenhuma tela do menu do DP ganha o botão)
+//  - todo lançamento aberto, em todos os setores, tem o botão "Comprovante"; cadastro tem "Imprimir ficha"
+//  - o Setor Pessoal também (13/11/2026)
 //  - o comprovante sai só do que está gravado: cupom 80/58 mm e folha A4, com os valores do registro
 //  - alteração não salva não vira comprovante; emitir não grava nada no banco
 //  - compromisso do Financeiro (contas a pagar) também tem o comprovante
@@ -75,9 +75,9 @@ try {
   const mapa = await page.evaluate(() => {
     const dp = new Set(); MENU.forEach((g) => (g[2] || []).forEach((it) => it && it.m && dp.add(it.m)));
     const ks = Object.keys(MODS);
-    return { noDP: ks.filter((k) => dp.has(k) && COMP_LANC.pode(k)), fora: ks.filter((k) => !dp.has(k) && (MODS[k].fields || []).length && !COMP_LANC.pode(k)), com: ks.filter((k) => COMP_LANC.pode(k)).length };
+    return { noDP: ks.filter((k) => dp.has(k) && (MODS[k].fields || []).length && !COMP_LANC.pode(k)), fora: ks.filter((k) => !dp.has(k) && (MODS[k].fields || []).length && !COMP_LANC.pode(k)), com: ks.filter((k) => COMP_LANC.pode(k)).length };
   });
-  ok(mapa.noDP.length === 0, 'nenhuma tela do Setor Pessoal tem o comprovante' + (mapa.noDP.length ? ' (' + mapa.noDP.join(', ') + ')' : ''));
+  ok(mapa.noDP.length === 0, 'todas as telas do Setor Pessoal têm o comprovante' + (mapa.noDP.length ? ' · faltam: ' + mapa.noDP.join(', ') : ''));
   ok(mapa.fora.length === 0 && mapa.com > 20, `todas as telas dos outros setores têm (${mapa.com} módulos)` + (mapa.fora.length ? ' · faltam: ' + mapa.fora.join(', ') : ''));
 
   console.log('Abastecimento (Setor de Combustível)');
@@ -111,7 +111,7 @@ try {
   ok(/FICHA DE CADASTRO/.test(fc.t) && fc.t.includes('Caminhão Teste') && fc.fmts === 0 && !/\(ex\.:/.test(fc.t), 'ficha de cadastro sai em folha A4, sem a dica "ex.:" dos campos');
   await page.evaluate(() => { location.hash = '#/funcionarios/f1'; });
   await page.waitForSelector('#camada .gaveta', { timeout: 8000 }); await espera(300);
-  ok(await page.evaluate(() => !document.querySelector('#camada [data-acao="comprovante"]')), 'ficha do funcionário (Setor Pessoal) não tem o botão');
+  ok(await page.evaluate(() => (document.querySelector('#camada [data-acao="comprovante"]') || {}).textContent === 'Imprimir ficha'), 'ficha do funcionário (Setor Pessoal) tem "Imprimir ficha"');
 
   console.log('Financeiro');
   await page.evaluate(() => { if (GAV) fecharGaveta(true); location.hash = '#/fTitulos/t1'; });

@@ -28733,7 +28733,7 @@ const COMP_LANC=(()=>{
  const telasDP=()=>{const s=new Set();try{MENU.forEach(g=>(g[2]||[]).forEach(it=>{if(it&&it.m)s.add(it.m)}))}catch(e){}return s};
  /* vale para as telas de setor (ROTAS_SETOR) que não são do menu do Setor Pessoal e que abrem pelo formulário padrão */
  const pode=mod=>{const M=mod&&MODS[mod];if(!M||!(M.fields||[]).length)return false;DPS=DPS||telasDP();
-  return !DPS.has(mod)&&typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(mod)};
+  return DPS.has(mod)||(typeof ROTAS_SETOR!=='undefined'&&ROTAS_SETOR.includes(mod))};   /* 13/11/2026: o Setor Pessoal também (pedido do Jeferson) */
  /* lançamento tem data; cadastro (cliente, fornecedor, item, veículo…) não tem */
  const ehLanc=(mod,st)=>!!(st&&st.data)||(MODS[mod].fields||[]).some(f=>f.k==='data'&&f.t==='data');
  const rotBotao=(mod,st)=>ehLanc(mod,st)?'Comprovante':'Imprimir ficha';
@@ -41496,14 +41496,13 @@ const buscarDigitado=r=>{const v=r.custoBuscar;if(v===''||v==null)return BUSCAR_
 
    Organização escolhida depois de ler o programa (detalhes em docs/relatorios-documentos-v120.md):
    1. DOCUMENTO DO LANÇAMENTO. O botão da janela é o "Comprovante" (COMP_LANC, mesma V120, outra sessão):
-      vale em todos os setores menos o Setor Pessoal, como o Jeferson pediu. Aqui nada é posto na janela;
+      vale em todos os setores, inclusive o Setor Pessoal (pedido do Jeferson, 13/11/2026). Aqui nada é posto na janela;
       os relatórios usam o MESMO documento do botão (COMP_LANC.doc e COMP_LANC.docObrig), e só onde ele não
       chega (fora do DP) entra o documento montado aqui (docRegistro), pelo registro GRAVADO, com os rótulos
       e seções do formulário, código, quem lançou, situação e histórico; campos sigilosos só para quem pode.
       Telas que já tinham documento próprio continuam com ele (venda, pedido, orçamento, recibos, compra e
       entrega de lenha, entrada e requisição do almoxarifado, acerto da lenha). Novos: comprovante de cada
-      pagamento do Financeiro e documento dos lançamentos do mês da Controladoria. O Setor Pessoal fica sem
-      documento por lançamento (tem os documentos próprios do DP).
+      pagamento do Financeiro e documento dos lançamentos do mês da Controladoria.
    2. LANÇAMENTOS DO SETOR. Dentro dos Relatórios de cada setor, o relatório "Lançamentos do setor": tudo
       o que foi lançado só naquele setor, por todo mundo, com período, tipo, situação, responsável e
       pesquisa. Cada linha abre o lançamento ou o documento dele (Visualizar, PDF, Imprimir, Compartilhar).
@@ -41761,11 +41760,11 @@ function docRegistro(mod,idOuRec){
  return D}
 /* documentos que já existiam para alguns lançamentos: continuam sendo os usados */
 const DOC_ESP={almEntradas:r=>seguro(()=>window.ALMOX_V52.docEntrada(r),null),almSaidas:r=>seguro(()=>window.ALMOX_V52.docSaida(r),null)};
-/* Setor Pessoal: sem documento por lançamento (pedido do Jeferson); as telas do menu do DP, as mesmas do COMP_LANC */
+/* telas do Setor Pessoal (as do menu do DP, as mesmas do COMP_LANC) */
 let TELAS_DP=null;
 const ehDP=mod=>{if(!TELAS_DP){TELAS_DP=new Set();try{MENU.forEach(g=>(g[2]||[]).forEach(it=>{if(it&&it.m)TELAS_DP.add(it.m)}))}catch(e){}}return SETOR_MOD[mod]==='dp'||TELAS_DP.has(mod)};
 const CL=()=>typeof COMP_LANC!=='undefined'?COMP_LANC:null;
-const temDoc=mod=>!ehDP(mod);
+const temDoc=mod=>!!MODS[mod];   /* 13/11/2026: o Setor Pessoal também tem documento (pedido do Jeferson) */
 /* o mesmo documento do botão "Comprovante" da janela; onde ele não chega, o documento montado aqui */
 const fazerDoc=(mod,id)=>()=>{if(!temDoc(mod))return null;const r=registroGravado(mod,id);if(!r)return null;
  if(DOC_ESP[mod]){const d=DOC_ESP[mod](r);if(d)return d}
