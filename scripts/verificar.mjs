@@ -143,24 +143,35 @@ teste('programa', 'leitura por foto aos poucos (V109): programa, adaptador da nu
   assert.ok(!/de 20 segundos a alguns minutos/.test(app), 'texto antigo de espera da leitura');
   assert.equal(app.split('em UMA linha só').length - 1, 2, 'os dois pedidos de leitura (documentos e combustível) pedem a resposta enxuta');
 });
-teste('programa', 'ponto com foto: câmera liberada só para o próprio site e perfil "Celular do ponto" no painel', () => {
+teste('programa', 'ponto facial (V125): câmera liberada só para o próprio site, perfis do ponto no painel e um bloco só', () => {
   const h = ler('nuvem/_headers');
-  assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o celular do ponto precisa da câmera: nuvem/_headers deve ter camera=(self)');
+  assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o ponto facial precisa da câmera: nuvem/_headers deve ter camera=(self)');
   assert.match(h, /Permissions-Policy:[^\n]*microphone=\(\)/, 'o microfone continua bloqueado');
   const app = ler('app/jb-gestao.html');
-  assert.equal(app.split('<script id="ponto-foto-v78">').length - 1, 1, 'bloco do ponto com foto ausente ou repetido');
-  assert.match(ler('nuvem/admin.html'), /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
-  assert.match(ler('nuvem/jb-nuvem.js'), /createSignedUrls\(/, 'a nuvem precisa trocar as imagens "/_blob/" por endereço temporário');
+  assert.equal(app.split('<script id="ponto-facial-v125">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
+  for (const velho of ['ponto-foto-v78', 'ponto-facial-v100', 'relogio-ponto-v79']) assert.ok(!app.includes('id="' + velho + '"'), 'bloco antigo do ponto ainda presente: ' + velho);
+  const adm = ler('nuvem/admin.html');
+  assert.match(adm, /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
+  assert.match(adm, /\['respPonto', 'Responsável pelo ponto/, 'o painel de usuários precisa oferecer o perfil "Responsável pelo ponto"');
+  assert.match(ler('nuvem/jb-nuvem.js'), /JB_PONTO/, 'a nuvem não pode recarregar a página com a câmera do ponto aberta');
 });
-teste('programa', 'ponto facial: bloco presente, depois do ponto com foto, com a coleção "rostos" registrada no banco', () => {
+teste('programa', 'ponto facial (V125): reconhecimento com versão fixa, nenhuma foto guardada e marcações que só entram', () => {
   const app = ler('app/jb-gestao.html');
-  assert.equal(app.split('<script id="ponto-facial-v100">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
-  assert.ok(app.indexOf('<script id="ponto-foto-v78">') < app.indexOf('<script id="ponto-facial-v100">'), 'o ponto facial usa o ponto com foto: precisa vir depois dele');
   assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
-  const fc = /<script id="ponto-facial-v100">([\s\S]*?)<\/script>/.exec(app)[1];
-  assert.ok(!/toDataURL|assets\.upload/.test(fc.slice(fc.indexOf('cadastro do rosto ='), fc.indexOf('as telas: início'))), 'o cadastro do rosto não pode guardar foto, só os códigos');
-  // o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório
-  if (existsSync(join(RAIZ, 'supabase/migrations'))) assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
+  const pz = /<script id="ponto-facial-v125">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(!/toDataURL|assets\.upload|toBlob/.test(pz), 'o ponto facial não pode guardar foto: nem no cadastro, nem na marcação');
+  assert.match(pz, /CONFIRMAR MARCAÇÃO/, 'a marcação só é gravada com o toque em CONFIRMAR MARCAÇÃO');
+  assert.match(pz, /CFG_PF=\{fase:'teste'/, 'o ponto facial começa na fase de testes');
+  assert.match(pz, /lado:'environment'/, 'a câmera traseira é o padrão');
+  // o pacote que vai para o Netlify não leva a pasta supabase/: as migrações são conferidas só no repositório
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
+    const m = ler('supabase/migrations/20261115200000_seg_ponto_marcacoes.sql');
+    assert.match(m, /\('pontoMarcacoes', 'dp', true, 'dados', true\)/, 'a coleção "pontoMarcacoes" precisa estar em seg.colecoes');
+    assert.match(m, /\('pontoEventos', 'dp', true, 'dados', true\)/, 'a coleção "pontoEventos" precisa estar em seg.colecoes');
+    assert.match(m, /before insert or update on public\.docs[\s\S]*before delete on public\.docs/, 'as marcações precisam do gatilho que impede alterar e apagar');
+    assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261115200000_seg_ponto_marcacoes.down.sql')), 'a migração do ponto precisa do arquivo de reversão');
+  }
 });
 teste('programa', 'Setor do Barro (V124): o valor do barro entra junto da tonelada, também com a parte de extração ligada', () => {
   const app = ler('app/jb-gestao.html');
