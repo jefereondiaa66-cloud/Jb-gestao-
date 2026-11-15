@@ -327,10 +327,13 @@ try {
   await page.click('[data-ca="base"]'); await page.click('#ctBaseAdd'); await page.waitForSelector('.ct-dlg');
   await page.fill('.ct-dlg input[name=lei]', 'Convenção Coletiva 2026/2027'); await page.fill('.ct-dlg textarea[name=nota]', 'Piso salarial de R$ 1.800,00.');
   await page.waitForTimeout(750); await page.click('.ct-dlg button[type=submit]');
-  await page.waitForFunction(() => (CFG.ctBase || []).length === 1, null, { timeout: 10000 });
+  await page.waitForFunction(() => (CFG.ctBase || []).length === 1 && !document.querySelector('.ct-dlg') && /acrescentada pela empresa/.test((document.querySelector('.painel') || {}).textContent || ''), null, { timeout: 10000 });
   const bs = await page.evaluate(() => ({ n: ctBase().length - CT_BASE.length, noPedido: /Convenção Coletiva 2026\/2027/.test(ctRegras({ empresaId: 'matriz' })), tela: /acrescentada pela empresa/.test(document.querySelector('.painel').textContent) }));
   ok(bs.n === 1 && bs.noPedido && bs.tela, 'base jurídica atualizável: a referência acrescentada passa a valer para a IA');
   await page.click('[data-ca="docs"]');
+
+  const cont = await page.evaluate(async () => { const orig = APP.sample; let n = 0; const vistos = []; APP.sample = async (input, o) => { n++; vistos.push(input.length); const t = n === 1 ? 'parte um ' : 'parte dois'; if (o.onText) o.onText({ text: t }); return { text: t, truncated: n === 1 }; }; let parcial = ''; let r; try { r = await ctChamarIA([{ role: 'user', content: 'x' }], { onText: (t) => { parcial = t; } }); } finally { APP.sample = orig; } return { r, n, vistos: vistos.join(), parcial }; });
+  ok(cont.r === 'parte um parte dois' && cont.n === 2 && cont.vistos === '1,3' && cont.parcial === 'parte um parte dois', 'resposta cortada no limite da IA continua de onde parou, sem perder o que já veio');
 
   console.log('Lista, filtros e celular');
   await ir('#/central');
