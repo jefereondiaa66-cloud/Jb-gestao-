@@ -198,16 +198,15 @@
      sessão e a permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave */
   var LEITOR = SB_URL + '/functions/v1/jb-ler-documento';
   var aquecido = 0;
-  var leitor = Object.freeze({
-    /* V109: com aoAndar a leitura vem aos poucos (o programa mostra o andamento de verdade); sem ele, como antes */
-    ler: async function (corpo, sinal, aoAndar) {
+  /* pedido a uma função de IA do servidor, com a resposta chegando aos poucos (leitura de documentos e redator de contratos) */
+  async function pedirFluxo(URL_IA, corpo, sinal, aoAndar) {
       await pronto; atividade();
       var aosPoucos = typeof aoAndar === 'function';
       var envio = Object.assign({}, corpo || {}); if (aosPoucos) envio.fluxo = true;
       var cancelou = function () { return !!(sinal && sinal.aborted); };
       var r;
       try {
-        r = await fetch(LEITOR, { method: 'POST', signal: sinal,
+        r = await fetch(URL_IA, { method: 'POST', signal: sinal,
           headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
           body: JSON.stringify(envio) });
       } catch (e) {
@@ -239,12 +238,16 @@
         if (cancelou()) throw erro('cancelado', '');
         if (!fim) throw erro('rede', 'A leitura foi interrompida antes de terminar. Tente de novo.');
         if (fim.t === 'erro') throw erro(fim.erro || 'erro', fim.mensagem || 'A leitura não deu certo. Tente de novo.');
-        return { ok: true, texto: fim.texto, modelo: fim.modelo };
+        return { ok: true, texto: fim.texto, modelo: fim.modelo, cortado: !!fim.cortado };
       }
       var j = {}; try { j = await r.json(); } catch (e) {}
       if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || ('O servidor de leitura respondeu com erro (' + r.status + ').'));
       return j;
-    },
+    }
+
+  var leitor = Object.freeze({
+    /* V109: com aoAndar a leitura vem aos poucos (o programa mostra o andamento de verdade); sem ele, como antes */
+    ler: function (corpo, sinal, aoAndar) { return pedirFluxo(LEITOR, corpo, sinal, aoAndar); },
     /* acorda a função do servidor quando a pessoa abre a tela da foto, para a leitura não esperar a partida */
     aquecer: function () {
       if (Date.now() - aquecido < 240000) return; aquecido = Date.now();
@@ -252,6 +255,14 @@
         return fetch(LEITOR, { method: 'GET', headers: { apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token } });
       }).catch(function () {});
     }
+  });
+
+  /* redator de contratos por IA (Setor Pessoal › Contratos, V125): a função jb-contratos-ia confere a sessão e a
+     permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave. Dados pessoais do
+     cadastro não vão no pedido: o programa manda marcadores e troca pelo dado na tela. */
+  var REDATOR = SB_URL + '/functions/v1/jb-contratos-ia';
+  var redator = Object.freeze({
+    escrever: function (corpo, sinal, aoAndar) { return pedirFluxo(REDATOR, corpo, sinal, aoAndar); }
   });
 
   /* serviço fiscal (Setor Fiscal · NF-e pela Focus NFe): a função jb-fiscal do servidor confere a sessão e o
@@ -283,6 +294,7 @@
       if (nome === 'user') { await pronto; return user; }
       if (nome === 'assets') { await pronto; return assets; }
       if (nome === 'leitor') { await pronto; return leitor; }
+      if (nome === 'redator') { await pronto; return redator; }
       return null; // assistente, editor por IA e versões do Claude não existem fora dele (o serviço fiscal vem por JB_NUVEM_API.fiscal)
     }
   });

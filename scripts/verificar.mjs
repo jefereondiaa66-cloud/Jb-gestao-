@@ -653,6 +653,70 @@ teste('documentos', 'V120: Lançamentos do setor e documentos nos relatórios de
   x = f({ f: ['usuario', 'stvenda'] }, res, {}); assert.ok(!/data-r="_sit"/.test(x.html) && !/data-r="_resp"/.test(x.html), 'relatório que já filtra situação e usuário não ganha filtro repetido');
   assert.equal(res.rows.length, 3, 'as linhas do relatório não mudam');
 });
+/* =====================================================================
+   Contratos com inteligência artificial (V125)
+   ===================================================================== */
+teste('contratos', 'aba Contratos: criação por pedido livre, biblioteca, base jurídica e documento assinado travado', () => {
+  const app = ler('app/jb-gestao.html');
+  assert.equal(app.split('function telaCentral(el){').length - 1, 1, 'uma só tela de Contratos no Setor Pessoal (a nova substitui a antiga)');
+  for (const f of ['function telaCtIA(', 'function ctVerificar(', 'function ctRefs(', 'function ctAplicarOps(', 'async function ctRegistrarAssinatura(', 'function ctDerivar(', 'function ctDuplicar(', 'async function ctSalvarModelo(']) assert.ok(app.includes(f), f);
+  assert.ok(app.includes('Criar contrato com inteligência artificial') && app.includes('Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir.'), 'campo de pedido livre com a orientação');
+  assert.ok(app.includes("if(rec&&rec.modelo==='ia')return telaCtIA(el,rec);") && app.includes("if(r.id==='ia')return telaCtIA(el,null);"), 'o documento da IA abre pela mesma rota dos documentos');
+  // regras que a IA recebe sempre
+  const regras = app.slice(app.indexOf('function ctRegras(S){'), app.indexOf('function ctCtxPedido(S){'));
+  for (const r of [/Não invente artigo, lei, decisão judicial nem obrigação/, /só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA/, /Nunca escreva cláusula genérica para afastar direitos trabalhistas/, /\[PREENCHER: o que falta\]/, /Nunca diga que o documento substitui advogado/, /\{\{empresa\.rep_cpf\}\}/]) assert.match(regras, r);
+  assert.ok(!/s\.cpf|s\.rg|s\.endereco|s\.salario/.test(app.slice(app.indexOf('function ctCtxPedido(S){'), app.indexOf('function ctPromptInterpretar('))), 'dado pessoal do cadastro não entra no pedido à IA (só marcadores)');
+  // base jurídica: toda referência com endereço oficial
+  const base = app.slice(app.indexOf('const CT_BASE=['), app.indexOf('const ctBase=()=>'));
+  const urls = base.match(/url:(CT_URL_C(C|LT)|'[^']+')/g) || [];
+  assert.ok(urls.length >= 25, 'base jurídica encolheu: ' + urls.length);
+  urls.forEach((u) => assert.match(u, /CT_URL_|'https:\/\/www\.(planalto\.gov\.br|gov\.br|tst\.jus\.br)/, 'endereço fora das fontes oficiais: ' + u));
+  // assinatura só com comprovação; assinado não é alterado
+  assert.match(app, /if\(s==='Assinado'\|\|s==='Vigente'\)return ctRegistrarAssinatura\(rec\);/);
+  assert.match(app, /!o\.comprovante\?'Informe a comprovação da assinatura\.'/);
+  assert.match(app, /if\(!novo&&CT_TRAVADO\(base\.status\)&&!opc\.forcar\)throw \{code:'travado'\};/);
+  assert.ok(app.includes("if(r.x==='editar'&&podeDoc(m,'e')&&!CT_TRAVADO(rec.status))return telaEditorDoc(el,m,rec);"), 'documento antigo assinado também não abre para edição');
+});
+teste('contratos', 'formato do documento e operações de edição: o que a IA não citou fica letra por letra', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('const ctLinhas=t=>'), app.indexOf('/* ---------- marcadores: dado pessoal do cadastro não vai para a IA ---------- */'));
+  const { ctLerDoc, ctEscreverDoc, ctAplicarOps } = new Function('clone', cod + ';return {ctLerDoc,ctEscreverDoc,ctAplicarOps};')((o) => (o == null ? o : JSON.parse(JSON.stringify(o))));
+  const texto = 'Segue.\n@@TITULO: contrato de locação\n@@SUBTITULO: Código Civil, arts. 565 a 578\n@@CATEGORIA: civil\n@@VISUAL: contrato\n@@VINCULO: nao_se_aplica\n@@OUTRA-PARTE: Locadora X\n@@INICIO: 2026-12-01\n@@TERMINO: 31/12/2027\n@@PARTE: locatária\nRazão social: Empresa\nCNPJ: 11.222.333/0001-81\n@@PARTE: LOCADORA\nRazão social: Locadora X\n@@ABERTURA\nAs partes ajustam.\n@@CLAUSULA: Do objeto\nLocação de uma pá carregadeira.\na) com operador;\n@@CLAUSULA: Do preço\nR$ 1,00.\n@@CLAUSULA: Do foro\nForo local.\n@@FECHO\nAssinam.\n@@LOCAL-DATA: Cidade/UF, 1 de dezembro de 2026.\n@@ASSINATURA: Empresa | LOCATÁRIA\n@@ASSINATURA: Locadora X | LOCADORA\n@@TESTEMUNHAS: sim\n@@ANALISE-ATENCAO\n- Conferir o seguro.\n@@ALERTA-VINCULO\nnenhum\n@@FIM';
+  const L = ctLerDoc(texto, { mapa: { '{{pessoa.cpf}}': '1' } });
+  assert.equal(L.doc.titulo, 'CONTRATO DE LOCAÇÃO'); assert.equal(L.doc.clausulas.length, 3); assert.equal(L.doc.partes[0].papel, 'LOCATÁRIA');
+  assert.deepEqual(L.doc.partes[0].campos[1], ['CNPJ', '11.222.333/0001-81'], 'o valor pode ter dois-pontos e barras');
+  assert.equal(L.doc.inicio, '2026-12-01'); assert.equal(L.doc.termino, '', 'data fora do formato não vira vigência');
+  assert.equal(L.doc.assinaturas.length, 2); assert.equal(L.doc.testemunhas, true); assert.deepEqual(L.analise.atencao, ['Conferir o seguro.']); assert.equal(L.analise.alertaVinculo, '');
+  assert.deepEqual(L.doc.mapa, { '{{pessoa.cpf}}': '1' }, 'os marcadores acompanham o documento');
+  assert.equal(ctLerDoc(texto.slice(0, texto.indexOf('@@CLAUSULA: Do preço'))).doc.clausulas.length, 1, 'texto ainda chegando também é lido');
+  assert.deepEqual(ctLerDoc(ctEscreverDoc(L.doc)).doc.clausulas, L.doc.clausulas, 'ida e volta sem perda');
+  const antes = JSON.stringify(L.doc);
+  const r = ctAplicarOps(L.doc, '@@RESPOSTA\nFeito.\n@@ALTERAR-CLAUSULA: [2] | Do preço e do reajuste\nR$ 2,00.\n@@NOVA-CLAUSULA-APOS: 1 | Do seguro\nO bem terá seguro.\n@@REMOVER-CLAUSULA: 9\n@@ALTERAR-DATAS: termino=2027-12-31\n@@FIM');
+  assert.equal(JSON.stringify(L.doc), antes, 'o documento original não é mexido');
+  assert.deepEqual(r.doc.clausulas.map((c) => c.t), ['Do objeto', 'Do seguro', 'Do preço e do reajuste', 'Do foro']);
+  assert.deepEqual(r.doc.clausulas[0], L.doc.clausulas[0]); assert.deepEqual(r.doc.clausulas[3], L.doc.clausulas[2]); assert.equal(r.doc.clausulas[2].x, 'R$ 2,00.');
+  assert.equal(r.doc.termino, '2027-12-31'); assert.equal(r.resposta, 'Feito.'); assert.equal(r.mudancas.length, 3, 'número de cláusula que não existe é ignorado');
+  assert.deepEqual(r.doc.partes, L.doc.partes); assert.equal(r.doc.abertura, L.doc.abertura); assert.equal(r.doc.fecho, L.doc.fecho);
+  const e = ctAplicarOps(L.doc, 'A cláusula do foro diz onde uma ação seria julgada.');
+  assert.equal(e.mexeu, false); assert.equal(e.resposta, 'A cláusula do foro diz onde uma ação seria julgada.'); assert.deepEqual(e.doc.clausulas, L.doc.clausulas);
+  const rem = ctAplicarOps(L.doc, '@@REMOVER-CLAUSULA: 2\n@@FIM');
+  assert.deepEqual(rem.doc.clausulas.map((c) => c.t), ['Do objeto', 'Do foro']);
+});
+teste('contratos', 'redator da nuvem: adaptador e função do servidor conferem a sessão e a permissão; a chave nunca vai para o navegador', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /functions\/v1\/jb-contratos-ia/); assert.match(nv, /if \(nome === 'redator'\) \{ await pronto; return redator; \}/);
+  assert.match(nv, /ler: function \(corpo, sinal, aoAndar\) \{ return pedirFluxo\(LEITOR, corpo, sinal, aoAndar\); \}/, 'a leitura por foto continua pelo mesmo caminho');
+  assert.match(app, /if\(w&&typeof w\.use==='function'&&window\.JB_NUVEM\)\{try\{APP\.redator=await w\.use\('redator'\)/);
+  assert.match(app, /APP\.redator\.escrever\(\{mensagens:input,rapido:!!o\.rapido\}/);
+  if (existsSync(join(RAIZ, 'supabase/functions/jb-contratos-ia/index.ts'))) {
+    const fn = ler('supabase/functions/jb-contratos-ia/index.ts');
+    assert.match(fn, /rpc\/jb_eu/, 'a sessão é conferida pela mesma regra do sistema');
+    assert.match(fn, /!!eu\.admin \|\| \(!!\(p\.dp && p\.dp\.criar\) && !!\(p\.dp_sensivel && p\.dp_sensivel\.ler\)\)/, 'só quem cria no Setor Pessoal e vê dados pessoais');
+    assert.match(fn, /Deno\.env\.get\("ANTHROPIC_API_KEY"\)/); assert.ok(!/sk-ant-[A-Za-z0-9]/.test(fn), 'nenhuma chave escrita na função');
+    assert.match(fn, /includes\(MARCA\)/, 'só atende o pedido montado pelo programa'); assert.match(fn, /MAX_LETRAS/);
+    assert.match(fn, /application\/x-ndjson/); assert.match(fn, /cortado: msg\.stop_reason === "max_tokens"/); assert.match(fn, /cancel\(\) \{ parar\(\); \}/);
+  }
+});
 /* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
 if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
   const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');

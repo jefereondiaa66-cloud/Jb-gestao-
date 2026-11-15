@@ -208,3 +208,15 @@ lançamento por foto (pelo motor do Lançamento Inteligente por Foto, com confer
 fornada, descontos autorizados e acerto de lenha com abatimento nas compras. Coleção nova `clCtrl` (migração
 `20261113123600_cl_01_colecao_clctrl.sql`). Detalhes, permissões, testes e pendências:
 [`combustivel-lenha-2026-11-13.md`](combustivel-lenha-2026-11-13.md). Teste: `node scripts/testar-combustivel-lenha.mjs`.
+
+## Contratos com inteligência artificial (V125, 15/11/2026)
+
+A aba Contratos do Setor Pessoal cria, analisa e administra contratos com IA; os modelos prontos continuam.
+Detalhes, onde ficam os dados e testes: [`contratos-ia-v125.md`](contratos-ia-v125.md).
+
+| Onde | Quem responde |
+|---|---|
+| No Claude | O Claude da conta de quem está usando (capacidade `sample`, a mesma do JB Inteligência). |
+| Na nuvem | A função `jb-contratos-ia` do Supabase: confere a sessão e a permissão (`dp` com "criar" e `dp_sensivel` com "ler", ou administrador) e usa a mesma chave `ANTHROPIC_API_KEY` da leitura por foto. Sem a chave, a tela avisa e os modelos prontos continuam. |
+
+Dados pessoais do cadastro não vão para a IA (marcadores). Teste: `node scripts/testar-contratos.mjs`.

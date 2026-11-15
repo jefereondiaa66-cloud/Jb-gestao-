@@ -33,6 +33,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-custo-buscar.mjs` | V115: custo por litro do combustível = média das compras + custo de buscar |
 | `node scripts/testar-combustivel-fornecedor-lenha.mjs` | V117: combustível para fornecedor de lenha, descontado sozinho do que a cerâmica deve, painéis nos dois setores, lançamento à mão e acerto ([docs/combustivel-fornecedor-lenha-v117.md](docs/combustivel-fornecedor-lenha-v117.md)) (37 conferências) |
 | `node scripts/testar-comprovante-lancamento.mjs` | V120: botão "Comprovante" em todo lançamento fora do Setor Pessoal (cupom 80/58 mm e folha A4), ficha dos cadastros e comprovante do compromisso do Financeiro ([docs/comprovante-lancamento-v120.md](docs/comprovante-lancamento-v120.md)) |
+| `node scripts/testar-contratos.mjs` | V125: Contratos com IA de ponta a ponta (IA simulada): pedido livre, perguntas, civil e trabalhista, edição, análise jurídica, PDF, assinatura, versões, renovar, aditivo, distrato e modelos ([docs/contratos-ia-v125.md](docs/contratos-ia-v125.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
