@@ -201,11 +201,12 @@ try {
   await foto('06-edicao');
 
   console.log('Preencher campo, edição à mão, versões');
-  await page.click('[data-pre]');
-  await page.fill('.ct-dlg input[name=v]', 'Rua B, 20, Cidade Exemplo/MA');
-  await page.click('.ct-dlg button[type=submit]');
+  await page.click('[data-pretudo]'); await page.waitForSelector('.ct-dlg');
+  ok(await page.evaluate(() => document.querySelectorAll('.ct-dlg input[name^=p_]').length === 2), '“Preencher tudo” abre um formulário só com os campos que faltam');
+  await page.fill('.ct-dlg input[name=p_0]', 'Rua B, 20, Cidade Exemplo/MA');
+  await page.waitForTimeout(750); await page.click('.ct-dlg button[type=submit]');
   await page.waitForFunction(() => ctPendencias(CTI.doc).length === 1 && !document.querySelector('.ct-dlg'), null, { timeout: 10000 }); await pronto();
-  ok(await page.evaluate(() => /Rua B, 20/.test(JSON.stringify(CTI.doc.partes[1]))), 'campo em branco preenchido pelo toque no trecho destacado');
+  ok(await page.evaluate(() => /Rua B, 20/.test(JSON.stringify(CTI.doc.partes[1]))), 'campo preenchido entra no documento; o que ficou em branco continua marcado');
   await page.click('[data-cab="editar"]');
   await page.evaluate(() => { const t = document.querySelector('[data-ecx="6"]'); t.value = t.value + ' Texto acrescentado à mão.'; t.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.click('#ctiEdSalvar');
@@ -255,6 +256,10 @@ try {
   await page.waitForFunction((id) => CTI && CTI.rec && CTI.rec.id !== id, d1.id, { timeout: 10000 }); await pronto();
   const dup = await page.evaluate(() => ({ numero: CTI.rec.numero, status: CTI.rec.status, n: CTI.doc.clausulas.length, ass: !!CTI.rec.assinatura }));
   ok(dup.numero !== d1.numero && dup.status === 'Rascunho' && dup.n === 11 && !dup.ass, `duplicado como rascunho novo (${dup.numero}), sem a assinatura`);
+  await page.click('[data-pre]'); await page.waitForSelector('.ct-dlg');
+  await page.fill('.ct-dlg input[name=v]', 'Representante Exemplo'); await page.waitForTimeout(750); await page.click('.ct-dlg button[type=submit]');
+  await page.waitForFunction(() => ctPendencias(CTI.doc).length === 0 && !document.querySelector('.ct-dlg'), null, { timeout: 10000 }); await pronto();
+  ok(await page.evaluate(() => !document.querySelector('.ct-falta') && /Representante Exemplo/.test(document.querySelector('#fvdDoc').textContent)), 'campo em branco preenchido pelo toque no trecho destacado');
   for (const [tipo, fala, re] of [['renovacao', 'Renovar até 30/11/2028, com o mesmo valor.', /RENOVAÇÃO/], ['aditivo', 'Muda o valor mensal para R$ 5.500,00 a partir de janeiro. É um aditivo.', /ADITIVO/], ['distrato', 'Encerrar em 31/12/2026 com quitação total. É um distrato.', /DISTRATO/]]) {
     await page.evaluate(([id, t]) => ctDerivar(DATA.docsEmitidos.find((x) => x.id === id), t), [d1.id, tipo]);
     await page.waitForFunction(() => CTI && !CTI.rec && CTI.origem && document.querySelector('#ctiTxt'), null, { timeout: 10000 });

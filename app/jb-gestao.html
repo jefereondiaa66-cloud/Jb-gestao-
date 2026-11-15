@@ -1797,6 +1797,7 @@ a.btn{text-decoration:none}
 .ct-faixas{position:sticky;top:-12px;z-index:3;background:var(--branco);margin:-12px -12px 0;padding:12px 12px 0}.ct-faixas:empty{display:none}
 .ct-faixa{border-radius:10px;font-size:13.2px;line-height:1.5;padding:10px 13px;margin:0 0 10px;border:1px solid var(--linha);background:var(--papel,#fafafb);color:var(--tinta)}
 .ct-faixa.at{background:var(--at-bg);border-color:var(--at-li,#E8D29B)}.ct-faixa.in{background:var(--in-bg);border-color:var(--in-li,#B8D0E3)}.ct-faixa .dc-vzb{margin:2px 3px 2px 0}
+.ct-falta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}.ct-falta .dc-vzb{margin:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ct-falta-m{font-size:12.4px;color:var(--suave)}.ct-falta .btn{margin-left:auto}
 .fv-n.at{background:var(--at);color:#fff}
 .ct-vazio{padding:46px 26px;text-align:center;color:var(--suave)}.ct-vazio b{display:block;font-size:15.5px;color:var(--tinta);margin-bottom:6px}.ct-vazio p{margin:0 auto;max-width:52ch;font-size:13.4px;line-height:1.5}
 .ct-vazio-ic{display:grid;place-items:center;width:52px;height:52px;margin:0 auto 14px;border-radius:14px;background:var(--brasa-bg,var(--linha2));color:var(--brasa)}.ct-vazio-ic svg{width:24px;height:24px}
@@ -10203,7 +10204,7 @@ function pdfDoc(D){
  /* rodapé em todas as páginas; da segunda em diante, uma linha de continuação no topo */
  try{const tot=doc.internal&&doc.internal.getNumberOfPages?doc.internal.getNumberOfPages():1;
   const kc=D.capa?1:0;for(let k=1;k<=tot;k++){if(doc.setPage)doc.setPage(k);if(kc&&k===1)continue;
-   if(k>1+kc){fonte('bold',6.6,PT);doc.text(tx(D.marca).toUpperCase(),M,36,{charSpace:.4});fonte('normal',7,CZ);doc.text(tx(D.tipo+(D.numero?'  ·  Nº '+D.numero:'')),W-M,36,{align:'right'});cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M,43,W-M,43)}
+   if(k>1+kc){fonte('bold',6.6,PT);doc.text(tx(D.marca).toUpperCase(),M,36,{charSpace:.4});fonte('normal',7,CZ);{let rt=tx(D.tipo+(D.numero?'  ·  Nº '+D.numero:''));if(doc.splitTextToSize){const lr=doc.splitTextToSize(rt,W-2*M-190);if(lr.length>1)rt=String(lr[0]).replace(/[\s·]+$/,'')+'…'+(D.numero?'  ·  Nº '+tx(D.numero):'')}doc.text(rt,W-M,36,{align:'right'})}cor(FI,'setDrawColor');doc.setLineWidth(.5);doc.line(M,43,W-M,43)}
    rodPdfCC(doc,W,H,M,tx([MARCA_DOCS(),cb.setor].filter(Boolean).join('  ·  ')),tx([rodapeDoc(D),idDocs().rodEmissao?'Emitido em '+fDataHora(cb.em):''].filter(Boolean).join('  ·  ')),k-kc,tot-kc)}}catch(e){}
  return doc;
 }
@@ -10837,11 +10838,15 @@ function ctRefs(d){
 function ctVerificar(d,an){
  const it=[];const add=(n,t,ok,det)=>it.push({n,t,ok,det:det||''});const sa=semAcento(d.clausulas.map(c=>c.t+' '+c.x).join(' ')+' '+d.texto+' '+d.abertura);
  const tem=re=>re.test(sa);const notif=d.visual==='notificacao';const trab=d.categoria==='trabalhista';
+ /* sinais de vínculo: frase a frase, sem contar as negadas ("sem subordinação") nem as que falam dos empregados da própria contratada */
+ const frases=semAcento(d.clausulas.map(c=>c.t+'. '+c.x).join('\n')+'\n'+d.texto+'\n'+d.abertura).replace(/([.;:])\s+/g,'$1\n').split('\n');
+ const negada=/\b(sem|nao|nem|vedad[oa]s?|proibid[oa]s?|inexist\w*|nenhuma?|jamais)\b/;const deTerceiros=/\b(trabalhadores|empregados|funcionarios|tecnicos|profissionais|equipe|prepostos|socios)\b/;
+ const afirma=(re,fora)=>frases.some(f=>re.test(f)&&!negada.test(f)&&!(fora&&fora.test(f)));const outraPJ=/cnpj/i.test((d.partes[1]||{campos:[]}).campos.map(c=>c[0]).join(' '));
  /* 1 coerência objeto × modalidade */
  const tit=semAcento(d.titulo);const inc=[];
  if(trab&&/\b(contratante|contratad[ao])\b/.test(semAcento(d.partes.map(p=>p.papel).join(' ')))&&/contrato de trabalho/.test(tit))inc.push('contrato de trabalho com as partes chamadas de contratante e contratada');
  if(!trab&&/\b(empregad[oa]|empregador)\b/.test(semAcento(d.partes.map(p=>p.papel).join(' '))))inc.push('documento civil com as partes chamadas de empregador e empregado');
- if(!trab&&d.vinculo==='sem'&&tem(/\b(salario|ferias|13o|decimo terceiro|fgts|horas extras|cartao de ponto)\b/))inc.push('contrato sem vínculo que fala em salário, férias, 13º, FGTS, horas extras ou ponto');
+ if(!trab&&d.vinculo==='sem'&&afirma(/\b(salarios?|ferias|13[oº]|decimo terceiro|fgts|horas extras|cartao de ponto)(?![a-z])/,deTerceiros))inc.push('contrato sem vínculo que fala em salário, férias, 13º, FGTS, horas extras ou ponto');
  add(1,'Coerência entre o objeto e o tipo de contrato',!inc.length&&!!d.titulo,inc.join('; ')||(d.titulo?'':'o documento está sem título'));
  /* 2 partes */
  const pf=[];if(!d.partes.length)pf.push('nenhuma parte identificada');
@@ -10862,7 +10867,7 @@ function ctVerificar(d,an){
  add(6,'Obrigações genéricas demais',!rv.concat(at).some(x=>/gen[eé]ric|vag[ao]|imprecis|indefinid/i.test(x)),rv.concat(at).filter(x=>/gen[eé]ric|vag[ao]|imprecis|indefinid/i.test(x)).join(' '));
  /* 7 risco trabalhista: a declaração de "sem vínculo" não afasta o vínculo */
  const risc=[];if(an&&an.alertaVinculo)risc.push(an.alertaVinculo);
- if(d.vinculo==='sem'&&tem(/\b(subordina|horario fixo|jornada de trabalho|controle de (ponto|jornada|horario)|exclusividade|ordens diretas|pessoalmente e sem substitui)/))risc.push('O texto fala em horário, subordinação, exclusividade ou controle de jornada: são sinais de vínculo de emprego (arts. 3º e 9º da CLT), mesmo num contrato que se declare sem vínculo.');
+ if(d.vinculo==='sem'&&(afirma(/\b(subordina\w*|horario fixo|jornada de trabalho|controle de (ponto|jornada|horario)|cartao de ponto|ordens diretas)/,deTerceiros)||(!outraPJ&&afirma(/\bexclusividade\b/))))risc.push('O texto fala em horário, subordinação, exclusividade ou controle de jornada: são sinais de vínculo de emprego (arts. 3º e 9º da CLT), mesmo num contrato que se declare sem vínculo.');
  if(tem(/(nao gera|nao ha|inexiste|sem qualquer|afasta[^.]{0,30}) vinculo (empregaticio|de emprego|trabalhista)/))risc.push('A cláusula que declara não haver vínculo não protege a empresa se, na prática, houver pessoalidade, habitualidade, subordinação e salário (art. 9º da CLT).');
  add(7,'Riscos jurídicos identificados',!risc.length&&!at.length,[...risc,...at].join(' '));
  add(8,'Revisão por profissional',false,'Documento elaborado com apoio de inteligência artificial. Ela não substitui advogado nem garante proteção jurídica. Antes de assinar, peça a revisão de um profissional, principalmente em contratos de valor alto ou de longa duração.');
@@ -10874,7 +10879,7 @@ function ctD(d,meta){
  meta=meta||{};const emp=ctEmpresa(meta.empresaId);const R=t=>ctResolver(t,d.mapa);let np=0;const rots=[];
  const P=t=>R(t).replace(CT_RE_PEND,(tudo,r)=>{rots.push((r||'dado').trim()||'dado');return VZ+'p'+(np++)+VZF});
  const D={marca:MARCA_DOCS().toUpperCase(),empresaLinha:[emp.razao,emp.cnpj?'CNPJ '+emp.cnpj:'',emp.cidade].filter(Boolean).join(' · '),classe:'formal',
-  tipo:d.titulo||'DOCUMENTO',sub:d.sub||'',numero:meta.numero||'',parteNome:R(d.outraParte||''),
+  tipo:d.titulo||'DOCUMENTO',sub:d.sub||'',numero:meta.numero||'',parteNome:R(d.outraParte||'').replace(CT_RE_PEND,'').trim(),
   meta:[['Nº',meta.numero||'definido ao salvar'],['Data',fData(meta.dataDoc||hoje())],['Situação',CT_ROT_ST[meta.status]||meta.status||'Rascunho'],...(meta.versao?[['Versão',String(meta.versao)]]:[])],
   quadros:d.partes.map(p=>({rot:d.visual==='notificacao'?(p.papel==='NOTIFICANTE'||p.papel==='NOTIFICADA'||p.papel==='NOTIFICADO'?p.papel:p.papel):p.papel,campos:p.campos.map(([l,v])=>[l,P(v),/endere|raz[aã]o|nome|objeto/i.test(l)||String(v).length>44?1:0])})),
   blocos:[],fecho:'',local:'',assinaturas:[],testemunhas:null,observacoes:'',vazios:[],vaziosRot:[]};
@@ -10887,7 +10892,7 @@ function ctD(d,meta){
  D.rodape=(d.tipo||String(D.tipo).charAt(0)+String(D.tipo).slice(1).toLowerCase())+(meta.numero?' · Nº '+meta.numero:'');
  D.vazios=rots.map((_,i)=>'p'+i);D.vaziosRot=[...new Set(rots)];
  /* contratos civis e comerciais saem com folha de rosto; contrato de trabalho, termos e notificações, não */
- if(d.visual==='contrato'&&d.categoria!=='trabalhista'&&d.clausulas.length>=6)D.capa={titulo:D.tipo,sub:D.sub,partes:d.partes.map(p=>[p.papel,R((p.campos.find(c=>/raz[aã]o|nome/i.test(c[0]))||p.campos[0]||['',''])[1])]),numero:meta.numero||'',local:D.local,empresa:emp.razao};
+ if(d.visual==='contrato'&&d.categoria!=='trabalhista'&&d.clausulas.length>=6)D.capa={titulo:D.tipo,sub:D.sub,partes:d.partes.map(p=>[p.papel,R((p.campos.find(c=>/raz[aã]o|nome/i.test(c[0]))||p.campos[0]||['',''])[1]).replace(CT_RE_PEND,'__________')]),numero:meta.numero||'',local:String(D.local).replace(/\u0001\w+\u0002/g,'__________'),empresa:emp.razao};
  return D;
 }
 function ctCapaHtml(D){const c=D.capa;return `<section class="fvd-capa"><div class="fvd-capa-m">${esc(D.marca)}</div><div class="fvd-capa-c"><span>Instrumento particular</span><h1>${esc(c.titulo)}</h1>${c.sub?`<p>${esc(c.sub)}</p>`:''}</div>
@@ -10916,7 +10921,7 @@ REGRAS QUE VALEM SEMPRE
 1. Só elabore documentos lícitos. Se o pedido for para fraudar lei, esconder vínculo de emprego, sonegar ou prejudicar terceiros, recuse e explique em uma frase.
 2. Vínculo de emprego: analise a realidade descrita, não o nome que a pessoa deu ao contrato. Se há pessoalidade, habitualidade, subordinação e salário, o instrumento certo é o contrato de trabalho da CLT. Nunca escreva cláusula genérica para afastar direitos trabalhistas, e nunca trate a simples declaração de "sem vínculo" como proteção. Se o que foi descrito indicar risco de vínculo diferente do pretendido, avise.
 3. Referências: só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA abaixo, e só quando tiver relação com o caso. Não invente artigo, lei, decisão judicial nem obrigação. Se achar que outra norma se aplica e ela não está na base, NÃO a cite no documento: registre na análise, em "confirmar".
-4. Não invente dados: nomes, CNPJ, CPF, endereços, valores, datas, prazos. O que não foi informado entra como [PREENCHER: o que falta], por exemplo [PREENCHER: CNPJ da contratada].
+4. Não invente fatos: nomes, CNPJ, CPF, endereços, contatos, preço combinado e datas. O fato que não foi informado entra como [PREENCHER: o que falta], por exemplo [PREENCHER: CNPJ da contratada]. Já as condições de praxe que o usuário não definiu (aviso prévio, multa e juros por atraso, prazo de garantia, prazo para corrigir descumprimento, prazo de sigilo, índice de reajuste, dia de vencimento) você propõe com o valor usual e dentro do limite legal, em vez de deixar em branco, e lista cada uma na análise, em "confirmar", como condição proposta por você, para o usuário confirmar ou mudar.
 5. Marcadores entre chaves duplas, como {{pessoa.cpf}}, representam dados pessoais guardados no sistema. Copie o marcador exatamente como está; o sistema troca pelo dado. Nunca peça nem escreva o dado no lugar do marcador.
 6. Português do Brasil, redação jurídica clara e direta, sem palavras vazias. Cláusulas adaptadas ao caso concreto, não genéricas.
 7. Nunca diga que o documento substitui advogado ou garante proteção jurídica.
@@ -11127,7 +11132,7 @@ async function ctElaborar(){
   S.andamento='Conferindo o documento…';ctPintar();
   S.doc=L.doc;S.analise=L.analise||ctAnVazia();if(S.interp&&S.interp.alerta&&!S.analise.alertaVinculo)S.analise.alertaVinculo=S.interp.alerta;
   const V=ctVerificar(S.doc,S.analise);const n=S.doc.clausulas.length;const at=V.itens.filter(i=>!i.ok&&i.n<8).length;
-  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque nos trechos destacados do documento ou me diga os dados.':'')+(at?'\n\nA **análise jurídica** aponta '+at+' ponto(s) de atenção.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
+  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque em **Preencher tudo**, acima do documento, ou me diga os dados aqui na conversa.':'')+(at?'\n\nA **análise jurídica** aponta '+at+' ponto(s) de atenção.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
   S.parcial=null;S.sujo=true;S.topo=true;await ctSalvarSeguro('Documento elaborado com IA');
   if(S.rec&&lerRota().id==='ia'){try{history.replaceState(null,'','#/doc/'+S.rec.id)}catch(e){}}
  }catch(e){if(CTI===S){ctErroMsg(S,e)}}
@@ -11307,7 +11312,7 @@ function ctHtmlPaneDoc(S){
  const D=ctD(d,ver?{...ctMetaDe(S),status:ver.status,versao:ver.n}:ctMetaDe(S));const an=S.analise||ctAnVazia();const trav=S.rec&&CT_TRAVADO(S.rec.status);
  return `<div class="ct-faixas">${ver?`<div class="ct-faixa in">Você está vendo a <b>versão ${ver.n}</b>, de ${esc(fDataHora(ver.em))}. <button type="button" class="ct-lk" data-vsai>Voltar à versão atual</button>${trav||S.vendo===S.versoes[S.versoes.length-1].n?'':' · <button type="button" class="ct-lk" data-vrest="'+ver.n+'">Restaurar esta versão</button>'}</div>`:''}
   ${!ver&&!S.parcial&&an.alertaVinculo?`<div class="ct-faixa at"><b>Risco trabalhista.</b> ${esc(an.alertaVinculo)}</div>`:''}
-  ${!ver&&!S.parcial&&D.vaziosRot.length?`<div class="ct-faixa at"><b>Falta preencher:</b> ${D.vaziosRot.map(r=>`<button type="button" class="dc-vzb" data-pre="${esc(r)}">${esc(r)}</button>`).join('')}</div>`:''}</div>
+  ${!ver&&!S.parcial&&D.vaziosRot.length?`<div class="ct-faixa at ct-falta"><b>${D.vaziosRot.length===1?'Falta preencher:':'Faltam '+D.vaziosRot.length+' campos:'}</b> ${D.vaziosRot.slice(0,4).map(r=>`<button type="button" class="dc-vzb" data-pre="${esc(r)}">${esc(r)}</button>`).join('')}${D.vaziosRot.length>4?`<span class="ct-falta-m">e mais ${D.vaziosRot.length-4}</span>`:''}${D.vaziosRot.length>1?`<button type="button" class="btn min pri" data-pretudo>Preencher tudo</button>`:''}</div>`:''}</div>
   <div class="fvd-fundo">${htmlDoc(D,{editor:true})}</div>`;
 }
 function ctHtmlAnalise(S){
@@ -11417,6 +11422,9 @@ function telaCtIA(host,rec,repinta){
   const pre=e.target.closest('[data-pre]');
   if(pre){if(trav||!edita)return;const rot=pre.dataset.pre;const r2=await ctDialogo('Preencher: '+rot,`<div class="campos"><div class="cmp w2"><label>${esc(rot)}</label><input name="v" autocomplete="off"></div></div>`,{ok:'Preencher',valida:o=>o.v?'':'Digite o dado.'});
    if(!r2||CTI!==S)return;const n=ctPreencher(S.doc,rot,r2.v);if(!n){toast('Não achei esse campo no texto. Use “Editar à mão”.');return}S.sujo=true;await ctSalvarSeguro('Preenchido: '+rot);ctPintar();return}
+  if(e.target.closest('[data-pretudo]')){if(trav||!edita)return;const rots=[...new Set(ctPendencias(S.doc))];
+   const r2=await ctDialogo('Preencher os campos do documento',`<p class="ct-dlg-p">Preencha o que você já sabe. O que ficar em branco continua marcado no documento para preencher depois.</p><div class="campos">${rots.map((r,i)=>`<div class="cmp"><label>${esc(r.charAt(0).toUpperCase()+r.slice(1))}</label><input name="p_${i}" autocomplete="off"></div>`).join('')}</div>`,{ok:'Preencher'});
+   if(!r2||CTI!==S)return;let n=0;rots.forEach((r,i)=>{if(r2['p_'+i])n+=ctPreencher(S.doc,r,r2['p_'+i])?1:0});if(!n){toast('Nenhum campo foi preenchido.');return}S.sujo=true;await ctSalvarSeguro(n===1?'Preenchido 1 campo':'Preenchidos '+n+' campos');ctPintar();toast(n+' campo(s) preenchido(s).','ok');return}
   if(e.target.closest('[data-vsai]')){S.vendo=0;ctPintar();return}
   const vr=e.target.closest('[data-vrest]');if(vr){const v=S.versoes.find(x=>x.n===+vr.dataset.vrest);if(!v||trav)return;if(!await confirmar('Restaurar a versão '+v.n+'?','O texto volta a ser o da versão '+v.n+'. Isso cria uma versão nova; as outras continuam no histórico.',{ok:'Restaurar'}))return;S.doc=clone(v.doc);S.vendo=0;S.sujo=true;await ctSalvarSeguro('Restaurada a versão '+v.n);ctPintar();return}
   const vv=e.target.closest('[data-vver]');if(vv){S.vendo=+vv.dataset.vver;S.aba='doc';ctPintar();return}
