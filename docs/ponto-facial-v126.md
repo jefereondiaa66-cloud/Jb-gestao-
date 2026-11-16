@@ -80,7 +80,8 @@ marcação confirmada é lançada no Diário do DP (campo vazio só; o que o DP 
 | `pontoEventos` (nova) | Falhas de identificação, testes, tratamentos, atos administrativos e senha errada. |
 | `diario` (já existia) | O registro tratado pelo DP. No registro definitivo recebe as marcações, com a ligação `pontoIds`. |
 
-Proteção no banco (migração `20261115200000_seg_ponto_marcacoes.sql`):
+Proteção no banco (migrações `20261115200000_seg_ponto_marcacoes.sql` e `20261115200100_seg_ponto_privilegios.sql`,
+aplicadas em 16/11/2026 e testadas no banco real, sem deixar registro):
 - item que entrou em `pontoMarcacoes` ou `pontoEventos` **não pode ser alterado nem apagado por ninguém**, nem
   por administrador nem pela ponte do Claude;
 - cada marcação recebe do servidor o **NSR** (número sequencial), a **hora do servidor** e um **código encadeado**
