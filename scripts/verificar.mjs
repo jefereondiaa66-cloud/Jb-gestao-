@@ -770,21 +770,48 @@ teste('contratos', 'comandos simples na hora, sem IA: só o trecho pedido muda; 
   assert.equal(ctComandoLocal(doc, 'Mude o título para contrato de experiência').doc.titulo, 'CONTRATO DE EXPERIÊNCIA');
   // na dúvida, não adivinha: segue para a IA
   const dois = { titulo: 'X', clausulas: [{ t: 'Do preço', x: 'Valor de R$ 100,00 e multa de R$ 50,00.' }] };
+  const nasPartes = { titulo: 'X', partes: [{ papel: 'EMPREGADO(A)', campos: [['Salário', 'R$ 1.850,00']] }], clausulas: [{ t: 'Do salário', x: 'O salário é de R$ 1.850,00 (um mil oitocentos e cinquenta reais).' }] };
+  const extensoSolto = { titulo: 'X', clausulas: [{ t: 'Do salário', x: 'O salário é de R$ 1.850,00 por mês (um mil oitocentos e cinquenta reais).' }] };
+  const cargoComSetor = { titulo: 'X', clausulas: [{ t: 'Da função', x: 'Exercerá a função de Forneiro no setor de Queima, com zelo.' }] };
+  for (const [d, p] of [[nasPartes, 'Altere o salário para 2800'], [extensoSolto, 'Altere o salário para 2800'], [cargoComSetor, 'Mude o cargo para Operador'], [doc, 'Mude o cargo para Operador a partir de 01/12'], [doc, 'Adicione uma cláusula de confidencialidade por 5 anos']])
+    assert.equal(ctComandoLocal(d, p), null, 'alvo incerto ou pedido com condição própria vai para a IA: ' + p);
   for (const [d, p] of [[dois, 'Altere o valor para 200'], [doc, 'Adicione uma cláusula sobre uso do celular no trabalho'], [doc, 'Altere o salário para 2800 e inclua uma cláusula de sigilo'], [doc, 'Explique a cláusula 2?'], [doc, 'Melhore este contrato'], [doc, 'retire a cláusula das obrigações'], [doc, 'Mude a jornada para 40 horas']])
     assert.equal(ctComandoLocal(d, p), null, 'deveria ir para a IA: ' + p);
+});
+teste('contratos', 'pessoa do cadastro: só liga quando o nome é inconfundível (dado pessoal nunca vai para o contrato da pessoa errada)', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('function ctAcharPessoa(texto){'), app.indexOf('async function ctEnviar(txt){'));
+  const semAcento = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const DATA = { funcionarios: [
+    { id: 'a', nome: 'João Pedro Barbosa', situacao: 'Ativo' }, { id: 'b', nome: 'Maria de Jesus Silva', situacao: 'Ativo' }, { id: 'c', nome: 'Maria de Jesus Costa', situacao: 'Ativo' },
+    { id: 'd', nome: 'Ana Paula Souza', situacao: 'Ativo' }, { id: 'e', nome: 'Carlos Alberto Lima', situacao: 'Desligado' }, { id: 'f', nome: 'Raimundo', situacao: 'Ativo' }] };
+  const { ctAcharPessoa } = new Function('DATA', 'filtroSetor', 'semAcento', cod + ';return {ctAcharPessoa};')(DATA, (l) => l, semAcento);
+  const id = (t) => { const f = ctAcharPessoa(t); return f ? f.id : null; };
+  assert.equal(id('Contrato de experiência de 45 dias para João Pedro Barbosa'), 'a', 'nome completo');
+  assert.equal(id('contrato de experiência para o joão pedro, auxiliar de produção'), 'a', 'dois primeiros nomes, sem diferença de maiúscula ou acento');
+  assert.equal(id('Contrato para João Pedro, Auxiliar de Produção'), 'a', 'vírgula depois do nome separa o cargo');
+  assert.equal(id('Contrato para a Ana Paula com salário de R$ 2.000'), 'd');
+  assert.equal(id('Contrato para João Pedro Almeida'), null, 'outro sobrenome: é outra pessoa');
+  assert.equal(id('Contrato para João Pedro da Silva'), null, 'outro sobrenome depois de "da"');
+  assert.equal(id('Contrato para Maria de Fátima'), null); assert.equal(id('Contrato para Maria de Jesus'), null, 'duas pessoas com o mesmo começo de nome: não escolhe');
+  assert.equal(id('Contrato para Maria de Jesus Costa'), 'c');
+  assert.equal(id('Contrato para o João'), null, 'só o primeiro nome não liga ninguém'); assert.equal(id('Contrato para o Raimundo'), null);
+  assert.equal(id('Contrato para Carlos Alberto Lima'), null, 'desligado não entra'); assert.equal(id('Contrato de manutenção para uma empresa'), null);
 });
 teste('contratos', 'redator da nuvem: adaptador e função do servidor conferem a sessão e a permissão; a chave nunca vai para o navegador', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
   assert.match(nv, /functions\/v1\/jb-contratos-ia/); assert.match(nv, /if \(nome === 'redator'\) \{ await pronto; return redator; \}/);
   assert.match(nv, /ler: function \(corpo, sinal, aoAndar\) \{ return pedirFluxo\(LEITOR, corpo, sinal, aoAndar\); \}/, 'a leitura por foto continua pelo mesmo caminho');
   assert.match(app, /if\(w&&typeof w\.use==='function'&&window\.JB_NUVEM\)\{try\{APP\.redator=await w\.use\('redator'\)/);
-  assert.match(app, /APP\.redator\.escrever\(\{mensagens:input,rapido:!!o\.rapido\}/);
+  assert.match(app, /APP\.redator\.escrever\(\{mensagens:input,rapido:!!o\.rapido,longo:!!o\.longo\}/);
+  assert.match(app, /ctPromptElaborar\(S\)\}\],\{signal:S\.ctl\.signal,rapido:true,longo:true,tier:'complex'/, 'a redação pede resposta ligeira e comprida (o texto começa a chegar antes)');
   if (existsSync(join(RAIZ, 'supabase/functions/jb-contratos-ia/index.ts'))) {
     const fn = ler('supabase/functions/jb-contratos-ia/index.ts');
     assert.match(fn, /rpc\/jb_eu/, 'a sessão é conferida pela mesma regra do sistema');
     assert.match(fn, /!!eu\.admin \|\| \(!!\(p\.dp && p\.dp\.criar\) && !!\(p\.dp_sensivel && p\.dp_sensivel\.ler\)\)/, 'só quem cria no Setor Pessoal e vê dados pessoais');
     assert.match(fn, /Deno\.env\.get\("ANTHROPIC_API_KEY"\)/); assert.ok(!/sk-ant-[A-Za-z0-9]/.test(fn), 'nenhuma chave escrita na função');
     assert.match(fn, /includes\(MARCA\)/, 'só atende o pedido montado pelo programa'); assert.match(fn, /MAX_LETRAS/);
+    assert.match(fn, /max_tokens: corpo\.rapido === true && corpo\.longo !== true \? 4000 : 32000,/, 'pedido rápido e comprido (redação) não é cortado em 4000');
     assert.match(fn, /application\/x-ndjson/); assert.match(fn, /cortado: msg\.stop_reason === "max_tokens"/); assert.match(fn, /cancel\(\) \{ parar\(\); \}/);
   }
 });

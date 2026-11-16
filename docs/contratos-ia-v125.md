@@ -113,7 +113,8 @@ travamento. Nada foi recriado: é a mesma aba Contratos, com estas mudanças.
 - **Sem rodada de perguntas.** O pedido vai direto para a redação (`ctEnviar` → `ctElaborar`): uma chamada à IA
   em vez de duas. O que faltar fica marcado como `[PREENCHER]`; nada é inventado.
 - **Pessoa do cadastro entra sozinha.** `ctAcharPessoa` reconhece o nome citado no pedido e liga o documento ao
-  cadastro; os dados pessoais continuam indo só por marcador.
+  cadastro; os dados pessoais continuam indo só por marcador. Só liga com nome inconfundível (nome completo, ou os
+  dois primeiros nomes de uma única pessoa sem outro sobrenome em seguida) e a resposta diz de quem usou o cadastro.
 - **Sem etapa jurídica obrigatória.** A IA faz o que o dono pedir e registra o cuidado com a lei em uma linha
   (`ANALISE-ATENCAO`). A aba passou a se chamar **Pontos de atenção**: são avisos, nada trava, e a tela diz que o
   sistema não faz validação nem parecer jurídico. A conferência das leis citadas contra a base continua (é ela que
@@ -125,13 +126,22 @@ travamento. Nada foi recriado: é a mesma aba Contratos, com estas mudanças.
   **assinado** continua protegido (aditivo, distrato, renovação ou cópia).
 - **Comandos simples na hora, sem IA** (`ctComandoLocal`): tirar cláusula (número ou assunto), incluir cláusula de
   confidencialidade ou de proteção de dados, mudar salário/valor, cargo/função e título. Só age quando o alvo é
-  único; na dúvida o pedido segue para a IA. O resto do texto fica letra por letra.
+  único e o pedido não traz condição própria (valor repetido em outro trecho, extenso solto, cargo junto de outro
+  texto ou “confidencialidade por 5 anos” seguem para a IA). O resto do texto fica letra por letra.
 - **IA leve nas mudanças pequenas** (`ctPedidoLeve`): pedidos curtos usam o modo rápido; reescritas e revisões, o completo.
 - **Tela fixa.** Dados de outros setores chegando não refazem a conversa, o documento nem o editor dos modelos
   (`data-ch` em `telaCtIA`, `data-edt` em `telaEditorDoc`): o que está sendo digitado não se perde.
 - **Documento remendado por partes** (`fvdRemendar`): enquanto a IA escreve, só a cláusula nova entra na tela; as
   anteriores não são redesenhadas.
 
+- **Texto começa a chegar antes, na nuvem.** A redação e as mudanças pequenas pedem à IA a resposta ligeira (`rapido`),
+  e a função `jb-contratos-ia` aceita `longo` para a resposta ligeira não ser cortada em 4000. Os registros da função
+  mostravam, antes: cada rodada de perguntas 7 a 17 s, redação de um contrato de 20 mil letras 115 a 131 s (quase
+  metade disso sem nada na tela) e uma alteração simples 30 s. Dentro do Claude a redação continua no modelo completo.
+  Pedidos de melhorar, revisar, reescrever ou adaptar continuam no modo completo.
+- **Para este funcionário.** A aba Contratos ganhou a escolha "Pessoa do cadastro (opcional)" e a ficha do
+  funcionário ganhou o botão **Contrato com IA**: os dados do cadastro entram sem digitar o nome.
+
 Medição no teste (30 cláusulas, 5 mudanças de outro setor com o contrato aberto): antes a tela inteira era
 refeita a cada mudança (77 ms de redesenho, conversa e documento recriados); agora nada é refeito (4 ms, 0 elementos
-trocados). Testes: `verificar.mjs` (grupo `contratos`, 5 itens) e `testar-contratos.mjs`.
+trocados). Testes: `verificar.mjs` (grupo `contratos`, 6 itens) e `testar-contratos.mjs`.

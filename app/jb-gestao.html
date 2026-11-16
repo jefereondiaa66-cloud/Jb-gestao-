@@ -1760,6 +1760,7 @@ a.btn{text-decoration:none}
 .ct-heroi-b{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px}
 .ct-emp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.8px;color:var(--suave);min-width:0}
 .ct-emp>span:first-child{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--linha2);color:var(--suave)}.ct-emp>span:first-child svg{width:14px;height:14px}
+.ct-pes{display:inline-flex;align-items:center;gap:6px;min-width:0}.ct-pes svg{width:15px;height:15px;color:var(--brasa)}.ct-pes select{max-width:min(320px,78vw)}
 .ct-emp b{color:var(--tinta);font-weight:600}.ct-emp select{padding:5px 8px;border:1px solid var(--linha);border-radius:var(--r1);background:var(--branco);font:inherit;font-size:13px}
 .ct-lk{background:none;border:none;padding:0;color:var(--brasa);font:inherit;font-size:12.6px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .ct-ir{padding:11px 20px;font-size:14.5px;border-radius:12px}.ct-ir svg{width:16px;height:16px}
@@ -7489,6 +7490,7 @@ function telaFicha(el,mod){
    ${pode('holerite')?`<button type="button" class="btn" id="fxHol">Holerite</button>`:''}
    ${f.situacao!=='Desligado'&&pode('lancar')?`<a class="btn" href="#/lancar/${esc(f.id)}">${ic('mais')}Lançamentos</a>`:''}
    ${pode('feriasvenc')&&!ehPrestador(f.tipoContratacao)?`<a class="btn" href="#/feriasvenc/${esc(f.id)}">${ic('sol')}Ficha de férias</a>`:''}
+   ${f.situacao!=='Desligado'&&typeof ctPodeCriar==='function'&&ctPodeCriar()?`<button type="button" class="btn" id="fxCt">${ic('contrato')}Contrato com IA</button>`:''}
    ${atalhos.length?`<span class="fx-menu"><button type="button" class="btn" id="fxMais">Lançar…</button><div class="fx-pop" id="fxPop" hidden>${atalhos.map(([m,l])=>`<button type="button" data-fxa="${m}">${esc(l)}</button>`).join('')}</div></span>`:''}</div></div>
  <div class="abas fx-abas">${ABAS_FICHA.map(([k,l])=>`<button type="button" class="${k===aba?'on':''}" data-fxab="${k}">${esc(l)}</button>`).join('')}</div>
  <div id="fxCorpo"></div>`;
@@ -7507,6 +7509,8 @@ function telaFicha(el,mod){
  $$('tr[data-go]',el).forEach(tr=>tr.onclick=()=>JBNAV.ir(tr.dataset.go));
  el.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{if(typeof DIR!=='undefined'){DIR.fid=f.id;DIR.aba=b.dataset.ir}JBNAV.ir('#/direitos')});
  if($('#fxDir',el))$('#fxDir',el).onclick=()=>{if(typeof DIR!=='undefined'){DIR.fid=f.id;DIR.aba='resumo'}JBNAV.ir('#/direitos')};
+ /* contrato para esta pessoa: abre a aba Contratos já com ela escolhida; os dados do cadastro entram sozinhos */
+ if($('#fxCt',el))$('#fxCt',el).onclick=()=>{UICT.fid=f.id;UICT.aba='docs';JBNAV.ir('#/central')};
  if($('#fxExt',el))$('#fxExt',el).onclick=()=>{UIE.func=f.id;UIE.mes=COMP.mes;JBNAV.ir('#/extrato')};
  if($('#fxHol',el))$('#fxHol',el).onclick=()=>{UIH.func=f.id;JBNAV.ir('#/holerite')};
  if($('#fxMais',el)){const pop=$('#fxPop',el);
@@ -10525,7 +10529,7 @@ function fluxoDoc(etapas,feitas,atual){
 }
 
 /* ================= central de contratos e comprovantes (telas) ================= */
-const UICT={aba:'docs',filtro:'todos',q:'',sit:'',bib:'A',pedido:'',empresaId:'matriz'};
+const UICT={aba:'docs',filtro:'todos',q:'',sit:'',bib:'A',pedido:'',empresaId:'matriz',fid:''};
 const UIT={aba:'modelos'};
 const DOC_PRE={fid:''};
 const ETAPAS_DOC=[['abrir','Abrir'],['preencher','Preencher'],['visualizar','Visualizar'],['salvar','Salvar'],['imprimir','Imprimir'],['pdf','Gerar PDF'],['baixar','Baixar'],['mais','Mais']];
@@ -10922,13 +10926,15 @@ function ctEmpresas(){const e=CFG.empresa||{};const s=veSensivel()?sensDe('confi
  return [m,...(CFG.estabelecimentos||[]).filter(x=>x&&x.id).map(x=>({...x,apelido:x.apelido||x.fantasia||x.razao||'Estabelecimento',endereco:[x.endereco,x.cidade].filter(Boolean).join(', '),repCpf:(s.estab||{})[x.id]||''}))]}
 const ctEmpresa=id=>{const l=ctEmpresas();return l.find(x=>x.id===id)||l[0]};
 
-/* ---------- chamada à IA: dentro do Claude (sample) ou pelo servidor da nuvem (redator) ---------- */
+/* ---------- chamada à IA: dentro do Claude (sample) ou pelo servidor da nuvem (redator) ----------
+   rapido: resposta mais ligeira (na nuvem, a IA pensa menos antes de começar a escrever; no Claude, modelo padrão).
+   longo: resposta pode ser comprida (documento inteiro). tier: força o modelo usado dentro do Claude. */
 async function ctChamarIA(msgs,o){
  o=o||{};let total='';let input=msgs;
  for(let volta=0;volta<4;volta++){
   let r;
-  if(APP.sample)r=await APP.sample(input,{signal:o.signal,cache:false,modelTier:o.rapido?'default':'complex',onText:({text})=>{if(o.onText)o.onText(total+(text||''))}});
-  else if(APP.redator){const x=await APP.redator.escrever({mensagens:input,rapido:!!o.rapido},o.signal,p=>{if(o.onText)o.onText(total+(p.texto||''))});r={text:x.texto,truncated:!!x.cortado}}
+  if(APP.sample)r=await APP.sample(input,{signal:o.signal,cache:false,modelTier:o.tier||(o.rapido?'default':'complex'),onText:({text})=>{if(o.onText)o.onText(total+(text||''))}});
+  else if(APP.redator){const x=await APP.redator.escrever({mensagens:input,rapido:!!o.rapido,longo:!!o.longo},o.signal,p=>{if(o.onText)o.onText(total+(p.texto||''))});r={text:x.texto,truncated:!!x.cortado}}
   else throw {code:'sem_ia'};
   total+=r.text||'';
   if(!r.truncated)break;
@@ -11351,14 +11357,14 @@ async function ctElaborar(){
  S.pensando=true;S.andamento='Redigindo o documento…';S.perguntas=[];S.parcial=ctDocVazio();S.painel='documento';S.aba='doc';S.ctl=new AbortController();ctPintar();
  const f=S.fid?F(S.fid):null;const mapa={...(S.mapaBase||{}),...ctMapaDe(f,ctEmpresa(S.empresaId))};let ult=0;
  try{
-  const t=await ctChamarIA([{role:'user',content:ctPromptElaborar(S)}],{signal:S.ctl.signal,onText:x=>{if(CTI!==S)return;const ag=Date.now();if(ag-ult<220)return;ult=ag;
+  const t=await ctChamarIA([{role:'user',content:ctPromptElaborar(S)}],{signal:S.ctl.signal,rapido:true,longo:true,tier:'complex',onText:x=>{if(CTI!==S)return;const ag=Date.now();if(ag-ult<220)return;ult=ag;
    const L=ctLerDoc(x,{mapa});S.parcial=L.doc;S.andamento=L.doc.clausulas.length?'Redigindo: '+L.doc.clausulas.length+'ª cláusula…':'Redigindo o documento…';ctPintarDoc()}});
   if(CTI!==S)return;const L=ctLerDoc(t,{mapa});
   if(!L.doc.titulo||!(L.doc.clausulas.length||L.doc.texto)){S.msgs.push({q:'ia',t:(String(t).split(/^\s*@@/m)[0].trim().slice(0,600))||'A resposta veio fora do formato. Toque em “Tentar de novo”.',k:'erro'});return}
   S.andamento='Conferindo o documento…';ctPintar();
   S.doc=L.doc;S.analise=L.analise||ctAnVazia();if(S.interp&&S.interp.alerta&&!S.analise.alertaVinculo)S.analise.alertaVinculo=S.interp.alerta;
   const V=ctVerificar(S.doc,S.analise);const n=S.doc.clausulas.length;const at=V.itens.filter(i=>!i.ok&&i.n<8).length;
-  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque em **Preencher tudo**, acima do documento, ou me diga os dados aqui na conversa.':'')+(at?'\n\nHá **'+at+' ponto(s) de atenção** na aba ao lado, só para você saber: nada fica travado.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
+  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa'+(f?' e com o cadastro de **'+f.nome+'**':'')+'.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque em **Preencher tudo**, acima do documento, ou me diga os dados aqui na conversa.':'')+(at?'\n\nHá **'+at+' ponto(s) de atenção** na aba ao lado, só para você saber: nada fica travado.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
   S.parcial=null;S.sujo=true;S.topo=true;await ctSalvarSeguro('Documento elaborado com IA');
   if(S.rec&&lerRota().id==='ia'){try{history.replaceState(null,'','#/doc/'+S.rec.id)}catch(e){}}
  }catch(e){if(CTI===S){ctErroMsg(S,e)}}
@@ -11368,8 +11374,8 @@ async function ctElaborar(){
    pronta, mudar salário/valor, cargo e título. Só mexe quando o alvo é único e certo; na dúvida devolve null e o
    pedido segue para a IA. O que não foi citado fica letra por letra. */
 const CT_CL_PRONTAS=[
- {re:/confidencial|sigilo/,t:'Da confidencialidade',x:'As partes manterão em sigilo as informações técnicas, comerciais, financeiras e operacionais a que tiverem acesso em razão deste instrumento, não podendo divulgá-las nem usá-las para outro fim sem autorização por escrito da outra parte.\nParágrafo único. A obrigação de sigilo continua valendo depois do encerramento deste instrumento.'},
- {re:/protecao de dados|lgpd|dados pessoais/,t:'Da proteção de dados',x:'As partes tratarão os dados pessoais a que tiverem acesso apenas para a execução deste instrumento e o cumprimento de obrigações legais, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais).'}];
+ {re:/confidencial|sigilo/,nomes:['confidencialidade','sigilo','confidencialidade e sigilo','sigilo e confidencialidade'],t:'Da confidencialidade',x:'As partes manterão em sigilo as informações técnicas, comerciais, financeiras e operacionais a que tiverem acesso em razão deste instrumento, não podendo divulgá-las nem usá-las para outro fim sem autorização por escrito da outra parte.\nParágrafo único. A obrigação de sigilo continua valendo depois do encerramento deste instrumento.'},
+ {re:/protecao de dados|lgpd|dados pessoais/,nomes:['protecao de dados','protecao de dados pessoais','lgpd','protecao de dados (lgpd)'],t:'Da proteção de dados',x:'As partes tratarão os dados pessoais a que tiverem acesso apenas para a execução deste instrumento e o cumprimento de obrigações legais, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais).'}];
 const CT_ORD={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
 const CT_VERBO_MUDA='(?:altere|alterar|mude|mudar|troque|trocar|ajuste|ajustar|passe|coloque|defina|atualize|corrija)';
 function ctComandoLocal(doc,pedido){
@@ -11388,7 +11394,8 @@ function ctComandoLocal(doc,pedido){
   const t=cs[i].t;cs.splice(i,1);return fim(['cláusula '+(i+1)+' ('+t+') removida'],'Tirei a cláusula '+(i+1)+' ('+t+').')}
  /* incluir cláusula pronta (confidencialidade, proteção de dados) */
  if((m=/^(?:adicione|adicionar|inclua|incluir|acrescente|acrescentar|coloque|colocar|insira|inserir|ponha)\s+(?:uma\s+)?clausula\s+(?:de|sobre|da|do)\s+(.+)$/.exec(p))){
-  const resto=m[1].trim();const pr=resto.length<=42?CT_CL_PRONTAS.find(x=>x.re.test(resto)):null;if(!pr)return null;
+  /* só o assunto puro: “de confidencialidade por 5 anos” tem condição própria e vai para a IA */
+  const resto=m[1].trim();const pr=CT_CL_PRONTAS.find(x=>x.nomes.includes(resto));if(!pr)return null;
   const ja=cs.findIndex(c=>pr.re.test(semAcento(c.t)));if(ja>=0)return fim([],'O documento já tem essa cláusula: é a cláusula '+(ja+1)+' ('+cs[ja].t+'). Se quiser mudar o texto dela, me diga como.');
   let pos=cs.findIndex(c=>/\bforo\b|disposicoes (gerais|finais)/.test(semAcento(c.t)));if(pos<0)pos=cs.length;cs.splice(pos,0,{t:pr.t,x:pr.x});
   return fim(['cláusula “'+pr.t+'” acrescentada'],'Acrescentei a cláusula “'+pr.t+'” como cláusula '+(pos+1)+'.')}
@@ -11398,14 +11405,21 @@ function ctComandoLocal(doc,pedido){
   const filtro=/salario/.test(m[1])?/salario|remuneracao/:/preco|pagamento|valor|remuneracao|salario/;
   const RE=/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s*\([^)]*\))?|\{\{\s*pessoa\.(?:salario|diaria)\s*\}\}/g;
   const cand=cs.filter(c=>filtro.test(sa(c)));const total=cand.reduce((n,c)=>n+((c.x.match(RE)||[]).length),0);if(total!==1)return null;
-  const c=cand.find(x=>(x.x.match(RE)||[]).length===1);const novo=sMoeda(v)+' ('+extensoMoeda(v)+')';c.x=c.x.replace(RE,novo);
+  const c=cand.find(x=>(x.x.match(RE)||[]).length===1);const velho=c.x.match(RE)[0];const chave=velho.replace(/\s*\([^)]*\)$/,'');
+  /* o mesmo valor em outro trecho (partes, abertura, outra cláusula) ou um extenso solto: a IA acerta todos os lugares */
+  if(JSON.stringify([d.abertura,d.texto,d.fecho,d.partes,cs.map(x=>x.x)]).split(JSON.stringify(chave).slice(1,-1)).length!==2)return null;
+  if((c.x.match(/\([^)]*\b(?:reais|real|centavos?)\b[^)]*\)/gi)||[]).length!==(/\(/.test(velho)?1:0))return null;
+  const novo=sMoeda(v)+' ('+extensoMoeda(v)+')';c.x=c.x.replace(RE,()=>novo);
   const i=cs.indexOf(c);return fim(['cláusula '+(i+1)+' ('+c.t+') alterada'],'Pronto: o valor passou para '+novo+', na cláusula '+(i+1)+' ('+c.t+').')}
  /* cargo ou função */
  if(new RegExp('^'+CT_VERBO_MUDA+'\\s+(?:o|a)\\s+(?:cargo|funcao)\\s+(?:para|pra)\\s+.+$').test(p)){
-  const nv=(/(?:\bpara|\bpra)\s+(.+?)[.!]*$/i.exec(bruto)||[])[1];if(!nv||nv.length>80)return null;
+  const nv=(/(?:\bpara|\bpra)\s+(.+?)[.!]*$/i.exec(bruto)||[])[1];if(!nv||nv.length>60||/\d|\b(a partir|desde|ate|quando|porque|pois|com o|com a)\b/.test(semAcento(nv)))return null;
   const RE=/((?:função|cargo) de )([^,.;\n(]+)/gi;
   const total=cs.reduce((n,c)=>n+((c.x.match(RE)||[]).length),0);if(total!==1)return null;
-  const c=cs.find(x=>(x.x.match(RE)||[]).length===1);c.x=c.x.replace(RE,(tudo,a)=>a+nv.trim());const i=cs.indexOf(c);
+  const c=cs.find(x=>(x.x.match(RE)||[]).length===1);
+  /* o trecho depois de “função de” precisa ser só o nome do cargo; se vier mais texto junto (setor, local), a IA cuida */
+  const atual=(RE.exec(c.x)||[])[2]||'';RE.lastIndex=0;if(!atual.trim()||atual.trim().split(/\s+/).length>5||/\b(no|na|nos|nas|em|junto|com|para|setor|conforme|sob|cujas?|que|e)\b/.test(semAcento(atual)))return null;
+  c.x=c.x.replace(RE,(tudo,a)=>a+nv.trim());const i=cs.indexOf(c);
   return fim(['cláusula '+(i+1)+' ('+c.t+') alterada'],'Pronto: a função passou para '+nv.trim()+', na cláusula '+(i+1)+' ('+c.t+').')}
  /* título do documento */
  if(new RegExp('^'+CT_VERBO_MUDA+'\\s+o\\s+titulo\\s+(?:do (?:contrato|documento)\\s+)?(?:para|pra)\\s+.+$').test(p)){
@@ -11429,7 +11443,7 @@ async function ctEditar(pedido){
  if(!ctTemIA()){S.msgs.push({q:'ia',t:ctSemIaTxt(),k:'erro'});ctPintar();return}
  S.pensando=true;S.andamento='Lendo o documento…';S.ctl=new AbortController();ctPintar();
  try{
-  const t=await ctChamarIA([{role:'user',content:ctPromptEditar(S,pedido)}],{signal:S.ctl.signal,rapido:ctPedidoLeve(pedido),onText:()=>{if(CTI===S&&S.andamento!=='Escrevendo a alteração…'){S.andamento='Escrevendo a alteração…';ctPintarAnd()}}});
+  const t=await ctChamarIA([{role:'user',content:ctPromptEditar(S,pedido)}],{signal:S.ctl.signal,rapido:ctPedidoLeve(pedido),longo:true,onText:()=>{if(CTI===S&&S.andamento!=='Escrevendo a alteração…'){S.andamento='Escrevendo a alteração…';ctPintarAnd()}}});
   if(CTI!==S)return;const r=ctAplicarOps(S.doc,t);
   if(!r.mexeu&&!r.analise){S.msgs.push({q:'ia',t:(r.resposta||'Não entendi o que mudar. Explique de outro jeito.')+aviso});return}
   const antes=S.doc;if(r.mexeu){await liberar();S.doc=r.doc}if(r.analise)S.analise=r.analise;
@@ -11440,11 +11454,24 @@ async function ctEditar(pedido){
  finally{if(CTI===S){S.pensando=false;S.andamento='';S.ctl=null;ctPintar()}}
 }
 const ctSemIaTxt=()=>window.JB_NUVEM?'A inteligência artificial não respondeu nesta sessão. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.':'A inteligência artificial funciona com o sistema aberto pelo Claude ou pela versão da nuvem. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.';
-/* a pessoa citada no pedido, se estiver no cadastro: os dados dela entram sozinhos (por marcador) */
-function ctAcharPessoa(texto){const t=' '+semAcento(texto).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ')+' ';
- const ps=filtroSetor(DATA.funcionarios,f=>f.setor).filter(f=>f.situacao!=='Desligado'&&f.nome).map(f=>({f,n:semAcento(f.nome).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}));
- const inteiro=ps.filter(p=>p.n.split(' ').length>1&&t.includes(' '+p.n+' ')).sort((a,b)=>b.n.length-a.n.length);if(inteiro.length)return inteiro[0].f;
- const dois=ps.filter(p=>{const k=p.n.split(' ');return k.length>2&&t.includes(' '+k[0]+' '+k[1]+' ')});return dois.length===1?dois[0].f:null}
+/* a pessoa citada no pedido, se estiver no cadastro: os dados dela entram sozinhos (por marcador).
+   Só liga quando o nome é inconfundível: o nome completo, ou os dois primeiros nomes de uma única pessoa sem outro
+   sobrenome escrito em seguida. Na dúvida não liga ninguém, e o documento sai com os campos da pessoa a preencher. */
+function ctAcharPessoa(texto){
+ const lim=x=>semAcento(x).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();const LIG=['de','da','do','dos','das','e'];
+ const partes=String(texto||'').split(/([^0-9A-Za-zÀ-ÖØ-öø-ÿ]+)/);const orig=[],sep=[];
+ for(let i=0;i<partes.length;i+=2){if(partes[i]){orig.push(partes[i]);sep.push(partes[i+1]||'')}}
+ const tn=orig.map(lim);const t=' '+tn.join(' ')+' ';const colado=i=>/^\s+$/.test(sep[i]||'');const maiusc=x=>/^[A-ZÀ-ÖØ-Þ]/.test(x||'');
+ const ps=filtroSetor(DATA.funcionarios,f=>f.setor).filter(f=>f.situacao!=='Desligado'&&f.nome).map(f=>({f,k:lim(f.nome).split(' ').filter(Boolean)})).filter(p=>p.k.filter(x=>!LIG.includes(x)).length>1);
+ const inteiro=ps.filter(p=>t.includes(' '+p.k.join(' ')+' ')).sort((a,b)=>b.k.length-a.k.length);if(inteiro.length)return inteiro[0].f;
+ const ach=[];
+ ps.forEach(p=>{let n=0,sig=0;while(n<p.k.length&&sig<2){if(!LIG.includes(p.k[n]))sig++;n++}const pre=p.k.slice(0,n);const resto=p.k.slice(n).filter(x=>!LIG.includes(x));
+  for(let i=0;i+pre.length<=tn.length;i++){if(!pre.every((x,j)=>tn[i+j]===x))continue;
+   /* outro sobrenome escrito logo em seguida (sem vírgula nem ponto), que não é o desta pessoa: é outra pessoa */
+   let q=i+pre.length,junto=colado(q-1);while(junto&&q<tn.length&&LIG.includes(tn[q])){junto=colado(q);q++}
+   if(junto&&q<orig.length&&maiusc(orig[q])&&tn[q]!==resto[0])continue;
+   ach.push(p.f);break}});
+ return ach.length===1?ach[0]:null}
 async function ctEnviar(txt){
  const S=CTI;txt=String(txt||'').trim();if(!S||!txt||S.pensando)return;S.rasc='';ctMicParar();
  S.msgs.push({q:'u',t:txt});
@@ -11550,7 +11577,7 @@ function ctDocBranco(){const e=ctEmpresa(UICT.empresaId);const d=ctDocVazio();
  d.fecho='E, por estarem de acordo, as partes assinam o presente instrumento em 2 (duas) vias de igual teor.';d.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
  d.assinaturas=[{nome:e.razao||'',sub:'CONTRATANTE'},{nome:'[PREENCHER: nome da outra parte]',sub:'CONTRATADO(A)'}];d.testemunhas=true;d.mapa={};return d}
 function ctComecar(pedido,extra){if(!ctPodeCriar()){toast(pode('central','e')?'Criar contratos exige acesso aos dados pessoais (permissão “Pode editar”).':'Seu perfil consulta os contratos, mas não cria.','erro');return}
- CT_SEM={pedido:String(pedido||'').trim(),empresaId:UICT.empresaId||'matriz',...(extra||{})};ctLargar();if(lerRota().mod==='doc'&&lerRota().id==='ia')renderTela();else JBNAV.ir('#/doc/ia')}
+ CT_SEM={pedido:String(pedido||'').trim(),empresaId:UICT.empresaId||'matriz',...(UICT.fid&&F(UICT.fid)?{fid:UICT.fid}:{}),...(extra||{})};UICT.fid='';ctLargar();if(lerRota().mod==='doc'&&lerRota().id==='ia')renderTela();else JBNAV.ir('#/doc/ia')}
 function telaCentral(el){
  if(!['docs','livre','biblioteca','controle','base'].includes(UICT.aba))UICT.aba='docs';
  const docs=ordDocs(docsVisiveis('CT'));const sit=d=>situacaoDoc(d)[0];const mods=modelosCT();const meus=DATA.docsEmitidos.filter(d=>d.serie==='MD');
@@ -11581,7 +11608,8 @@ function telaCentral(el){
   <div class="ct-heroi-t"><span class="ct-heroi-ic">${ic('faisca')}</span><div><h2 id="ctHt">Criar contrato com inteligência artificial</h2><p>Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir. A inteligência artificial redige na hora, sem perguntas: usa o que já está cadastrado e marca o que faltar.</p></div></div>
   <div class="ct-voz"><textarea id="ctPedido" rows="4" ${cria?'':'disabled'} placeholder="Ex.: Preciso de um contrato para uma empresa que ficará responsável pela manutenção dos equipamentos da cerâmica. Quero estabelecer as responsabilidades, os pagamentos, os prazos, as garantias e as condições de encerramento." aria-label="Descreva o contrato ou documento que você precisa">${esc(UICT.pedido||'')}</textarea><button type="button" class="ct-mic" data-mic="ctPedido" ${cria?'':'disabled'} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button></div>
   <div class="ct-heroi-b"><div class="ct-emp"><span>${ic('predio')}</span>${emps.length>1?`<select id="ctEmp" aria-label="Empresa que assina">${emps.map(x=>`<option value="${esc(x.id)}" ${x.id===emp.id?'selected':''}>${esc(x.apelido)}</option>`).join('')}</select>`:`<b>${esc(emp.razao||'Empresa não cadastrada')}</b>`}
-    <small>${esc([emp.cnpj?'CNPJ '+emp.cnpj:'',emp.responsavel?'representada por '+emp.responsavel:''].filter(Boolean).join(' · ')||'Cadastre os dados da empresa para entrarem sozinhos no contrato.')}</small>${pode('config','e')?`<button type="button" class="ct-lk" id="ctEmpEd">Dados da empresa e filiais</button>`:''}</div>
+    <small>${esc([emp.cnpj?'CNPJ '+emp.cnpj:'',emp.responsavel?'representada por '+emp.responsavel:''].filter(Boolean).join(' · ')||'Cadastre os dados da empresa para entrarem sozinhos no contrato.')}</small>${pode('config','e')?`<button type="button" class="ct-lk" id="ctEmpEd">Dados da empresa e filiais</button>`:''}
+    ${cria?`<span class="ct-pes"><span>${ic('pessoas')}</span><select id="ctPessoa" aria-label="Pessoa do cadastro que entra no contrato"><option value="">Pessoa do cadastro (opcional)</option>${filtroSetor(DATA.funcionarios,f=>f.setor).filter(f=>f.situacao!=='Desligado'&&f.nome).sort((a,b)=>String(a.nome).localeCompare(String(b.nome))).map(f=>`<option value="${esc(f.id)}" ${UICT.fid===f.id?'selected':''}>${esc(f.nome)}${f.cargo?' · '+esc(f.cargo):''}</option>`).join('')}</select></span>`:''}</div>
    <button type="button" class="btn pri ct-ir" id="ctIr" ${cria?'':'disabled'}>${ic('faisca')}Elaborar com IA</button></div>
   ${!cria?`<div class="ct-faixa at" style="margin:12px 0 0">${pode('central','e')?'Criar contratos exige acesso aos dados pessoais (permissão “Pode editar”).':'Seu perfil consulta os contratos, mas não cria.'}</div>`:!ctTemIA()?`<div class="ct-faixa in" style="margin:12px 0 0">${esc(ctSemIaTxt())}</div>`:''}
   <div class="ct-ex" role="group" aria-label="Exemplos de pedido"><span>Exemplos:</span>${CT_EXEMPLOS.map((x,i)=>`<button type="button" data-ex="${i}">${esc(x)}</button>`).join('')}</div>
@@ -11611,7 +11639,8 @@ function telaCentral(el){
  const li=$('#ctLivreIr',el);if(li)li.onclick=()=>{const t=String(UICT.livre||'').trim();if(t.length<8){toast('Fale ou escreva o contrato que você quer.');if(tl)tl.focus();return}UICT.livre='';ctComecar(t,{livre:true})};
  const bb=$('#ctBranco',el);if(bb)bb.onclick=()=>{if(!ctPodeCriar()){toast('Seu acesso não permite criar contratos.','erro');return}CT_SEM={doc:ctDocBranco(),livre:true,branco:true,empresaId:UICT.empresaId||'matriz'};ctLargar();JBNAV.ir('#/doc/ia')};
  ctLigarMics(el);
- const se=$('#ctEmp',el);if(se)se.onchange=()=>{UICT.empresaId=se.value;renderTela()};const ee=$('#ctEmpEd',el);if(ee)ee.onclick=ctEmpresaDialogo;
+ const se=$('#ctEmp',el);if(se)se.onchange=()=>{UICT.empresaId=se.value;renderTela()};
+ const sp=$('#ctPessoa',el);if(sp)sp.onchange=()=>{UICT.fid=sp.value;if(sp.value&&ta&&!ta.value.trim()){ta.placeholder='Ex.: Contrato de experiência de 45 dias para esta pessoa, com a função e o salário do cadastro.';ta.focus()}};const ee=$('#ctEmpEd',el);if(ee)ee.onclick=ctEmpresaDialogo;
  $$('[data-ca]',el).forEach(b=>b.onclick=()=>{UICT.aba=b.dataset.ca;UICT.q='';renderTela()});
  $$('[data-csit]',el).forEach(b=>b.onclick=()=>{UICT.aba='docs';UICT.sit=b.dataset.csit==='todos'?'':b.dataset.csit;renderTela()});
  $$('[data-bib]',el).forEach(b=>b.onclick=()=>{UICT.bib=b.dataset.bib;UICT.q='';renderTela()});
@@ -11713,7 +11742,7 @@ function telaCtIA(host,rec,repinta){
  const volta='<a class="btn" href="#/central">'+ic('esquerda')+'Contratos</a>';
  if(!veSensivel()){host.innerHTML=`<div class="fv-topo">${volta}</div><div class="vazio"><b>Documento protegido</b>O texto dos contratos elaborados com IA fica guardado junto dos dados pessoais. Seu acesso mostra a lista, mas não abre o conteúdo. Peça a permissão “Pode editar” ao administrador.</div>`;return}
  /* tela fixa: redesenho pedido pela chegada de dados (de qualquer setor) não refaz a conversa nem o documento abertos */
- if(!repinta&&CTI&&!CT_SEM){const ja=$('.cti',host);if(ja&&ja.dataset.ch===String(CTI.chave)&&(rec?!!CTI.rec&&rec.id===CTI.rec.id&&String(rec.alteradoEm||'')<=String(CTI.rec.alteradoEm||''):!CTI.rec))return}
+ if(!repinta&&CTI&&!CT_SEM){const ja=$('.cti',host);if(ja&&ja.dataset.ch===String(CTI.chave)&&ja.dataset.rv===String((rec&&rec.alteradoEm)||'')&&(rec?!!CTI.rec&&rec.id===CTI.rec.id:!CTI.rec))return}
  if(rec){
   if(!CTI||CTI.chave!==rec.id){const s=ctSessaoDe(rec);if(!s){host.innerHTML=`<div class="fv-topo">${volta}</div>`+(APP.carregado?'<div class="vazio"><b>O texto deste documento ainda não chegou</b>Se você acabou de salvar, espere alguns segundos e abra de novo.</div>':'<div class="carrega">Carregando o documento…</div>');return}CTI=s}
   else if(!CTI.pensando&&String(rec.alteradoEm||'')>String((CTI.rec||{}).alteradoEm||''))CTI.rec=rec;
@@ -11734,7 +11763,7 @@ function telaCtIA(host,rec,repinta){
  const S=CTI;const r=S.rec;const st=r?r.status:'Rascunho';const [sitT,sitC]=r?situacaoDoc(r):['Rascunho',''];const trav=CT_TRAVADO(st);const edita=ctPodeCriar();const modelo=S.serie==='MD';
  const V=S.doc?ctVerificar(S.doc,S.analise):null;const nAt=V?V.itens.filter(i=>!i.ok&&i.n<8).length:0;
  const scAnt=repinta&&$('#ctiPane',host)?$('#ctiPane',host).scrollTop:0;
- host.innerHTML=`<div class="cti" data-painel="${S.painel}" data-ch="${esc(String(S.chave))}">
+ host.innerHTML=`<div class="cti" data-painel="${S.painel}" data-ch="${esc(String(S.chave))}" data-rv="${esc(String((r&&r.alteradoEm)||''))}">
   <div class="fv-topo">${volta}
    <span class="dc-tt"><b>${r?esc(r.numero)+' · ':''}${esc(S.doc?(modelo?r&&r.nomeModelo||S.doc.tipo:S.doc.tipo||S.doc.titulo):S.origem?'Novo documento a partir do Nº '+S.origem.numero:S.livre?'Contrato do meu jeito':'Novo documento com IA')}</b>
     <small>${r?(modelo?'Modelo da empresa':esc(r.parte||'sem parte informada')+' · '+tag(CT_ROT_ST[sitT]||sitT,sitC)+(r.versao>1?' · versão '+r.versao:'')+(r.assinatura?' · assinatura registrada em '+esc(fData(r.assinatura.data)):'')):'A IA entende o pedido, busca os dados e redige'}</small></span>

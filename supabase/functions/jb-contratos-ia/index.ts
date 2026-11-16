@@ -18,7 +18,9 @@
 // · Os dados pessoais do cadastro (CPF, RG, endereço, salário) não chegam aqui:
 //   o programa manda marcadores ({{pessoa.cpf}}) e troca pelo dado na tela.
 //
-// Corpo: {mensagens: [{role: "user"|"assistant", content: string}], rapido?: true, fluxo?: true}
+// Corpo: {mensagens: [{role: "user"|"assistant", content: string}], rapido?: true, longo?: true, fluxo?: true}
+//   rapido: a IA pensa menos antes de escrever (o texto começa a chegar antes). longo: a resposta pode ser um
+//   documento inteiro. Sem "longo", o pedido rápido continua limitado a respostas curtas, como antes.
 // Resposta: {ok: true, texto, cortado, modelo} ou {erro, mensagem}
 // Com "fluxo": true a resposta vem aos poucos (uma linha JSON por vez): {t:"inicio"}, {t:"texto", d},
 // {t:"pulso"} e, no fim, {t:"fim", ok, texto, cortado, modelo} ou {t:"erro", erro, mensagem}.
@@ -82,7 +84,7 @@ Deno.serve(async (req: Request) => {
     return falha(503, "sem_chave", "A IA ainda não foi ativada no servidor: falta guardar a chave da API do Claude (ANTHROPIC_API_KEY) nos segredos das funções do Supabase. Avise o administrador.");
   }
 
-  const corpo: { mensagens?: unknown; rapido?: unknown; fluxo?: unknown } = await req.json().catch(() => ({}));
+  const corpo: { mensagens?: unknown; rapido?: unknown; longo?: unknown; fluxo?: unknown } = await req.json().catch(() => ({}));
   const bruto = Array.isArray(corpo.mensagens) ? corpo.mensagens : [];
   if (!bruto.length || bruto.length > MAX_MENSAGENS) return falha(400, "pedido", "Pedido inválido.");
   const mensagens: Anthropic.MessageParam[] = [];
@@ -108,7 +110,7 @@ Deno.serve(async (req: Request) => {
     try {
       const fl = cliente.beta.messages.stream({
         model: MODELO,
-        max_tokens: corpo.rapido === true ? 4000 : 32000,
+        max_tokens: corpo.rapido === true && corpo.longo !== true ? 4000 : 32000,
         betas: ["server-side-fallback-2026-07-01"],
         // deno-lint-ignore no-explicit-any
         ...({ fallbacks: "default" } as any),

@@ -115,7 +115,9 @@ try {
     const vazio = { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }), onSnapshot: () => () => {} }), collection: () => { const q = { where: () => q, get: async () => ({ docs: [] }), onSnapshot: () => () => {} }; return q; } };
     const user = { me: async () => ({ id: 'u_DONO', name: 'Dono', avatarUrl: '', isOwner: true, canEdit: true }), id: async () => 'u_DONO', isOwner: () => true, canEdit: () => true, profiles: async (ids) => Object.fromEntries(ids.map((i) => [i, { name: '' }])) };
     // a IA simulada: mesma assinatura do window.claude.use('sample') usado pelo programa
+    window.__tiers = [];
     const sample = async (input, opc) => {
+      window.__tiers.push(opc && opc.modelTier);
       const r = await window.__iaNode(input.map((m) => m.content).join('\n\n=====\n\n'));
       if (r.erro) { const e = new Error(r.erro); e.code = 'empty_completion'; throw e; }
       const t = r.texto; const n = Math.ceil(t.length / 3);
@@ -192,6 +194,8 @@ try {
   await page.click('[data-cmd="8"]');
   await page.waitForFunction(() => /genérica/.test((CTI.analise.revisar || []).join(' ')) && !CTI.pensando, null, { timeout: 15000 }); await pronto();
   ok(await page.evaluate(() => { const V = ctVerificar(CTI.doc, CTI.analise); return CTI.doc.clausulas.length === 11 && V.itens[5].ok === false; }), '“Revisar inconsistências” atualiza a análise sem mexer no texto');
+  const tiers = await page.evaluate(() => window.__tiers.join());
+  ok(tiers === 'complex,default,default,default,complex', `redação no modelo completo; mudanças pequenas no modo leve; revisão no completo (${tiers})`);
   await foto('06-edicao');
 
   console.log('Preencher campo, edição à mão, versões');
@@ -295,6 +299,17 @@ try {
   ok(!pedidos.some((p) => p.includes(CPF) || p.includes('529.982.247-25') || p.includes('1234567') || p.includes('Rua das Olarias')), 'nenhum pedido enviado à IA contém CPF, RG ou endereço do cadastro');
   ok(tr.v4.ok === false && /999/.test(tr.v4.det), 'artigo que não está na base jurídica (art. 999 da CLT) foi apontado para confirmar');
   await foto('09-trabalhista');
+
+  console.log('Para este funcionário: pessoa escolhida no pedido e botão na ficha');
+  await ir('#/ficha/f2'); await page.waitForSelector('#fxCt', { timeout: 10000 }); await page.click('#fxCt');
+  await page.waitForFunction(() => location.hash === '#/central' && document.querySelector('#ctPessoa') && document.querySelector('#ctPessoa').value === 'f2', null, { timeout: 10000 });
+  ok(true, 'ficha do funcionário › “Contrato com IA” abre a aba Contratos com a pessoa já escolhida');
+  const nPes = pedidos.length;
+  await page.fill('#ctPedido', 'Contrato de experiência de 45 dias, com carteira assinada.');
+  await page.click('#ctIr');
+  await page.waitForFunction(() => CTI && CTI.doc && CTI.rec && !CTI.pensando, null, { timeout: 20000 }); await pronto();
+  const pes = await page.evaluate(() => ({ fid: CTI.fid, rec: CTI.rec.funcionarioId, msg: CTI.msgs[CTI.msgs.length - 1].t, sobra: UICT.fid }));
+  ok(pes.fid === 'f2' && pes.rec === 'f2' && /com o cadastro de \*\*Funcionário Exemplo Dois\*\*/.test(pes.msg) && pes.sobra === '' && pedidos.length === nPes + 1 && /Nome: Funcionário Exemplo Dois/.test(pedidos[nPes]), 'a pessoa escolhida entra no pedido pelo cadastro (sem digitar o nome) e o sistema diz de quem usou os dados');
 
   console.log('Autonomia: o pedido é atendido sem recusa e o cuidado com a lei vai como ponto de atenção');
   await ir('#/central');
