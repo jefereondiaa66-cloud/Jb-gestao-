@@ -34,6 +34,10 @@ Como os dados circulam:
 2. Antes de qualquer migração: `select seg.fazer_copia();` e confirme a cópia em `seg.copias`.
 3. Migrações só acrescentam; toda migração nova vai para `supabase/migrations/` com cabeçalho
    explicando o que faz e como reverter. Aplique com a ferramenta de migração do Supabase.
+   O conector do Supabase pede confirmação na tela quando a migração tem comando de apagar (`drop ...`, mesmo
+   `drop ... if exists`). Pelo celular essa pergunta não aparece e a chamada expira em 60 s. Escreva a migração
+   só com acréscimos (`create`, `create or replace`, `insert ... on conflict do nothing`); se precisar apagar algo,
+   avise o dono que a confirmação só aparece no computador.
 4. Para gravar dados como agente, use `jbcore.aplicar` com `origem = 'agente'` (fica auditado e
    idempotente). Nunca `insert/update/delete` direto em `public.docs`.
 5. Não invente credenciais. Se faltar acesso (token, conector, permissão), diga exatamente qual e onde o dono libera.

@@ -639,8 +639,8 @@
   }
   var versaoPublicada = null;
   function telaDoPonto() {
-    try { if (window.PONTO_FACIAL_V100 && window.PONTO_FACIAL_V100.travada()) return true; } catch (e) {}
-    return /^#\/(ponto|relogioPonto|cadastrarRosto)/i.test(location.hash) || !!document.querySelector('video');   // câmera aberta: ponto ou foto de lançamento
+    try { if (window.JB_PONTO && window.JB_PONTO.aberto()) return true; } catch (e) {}
+    return /^#\/ponto/i.test(location.hash) || !!document.querySelector('video');   // câmera aberta: ponto ou foto de lançamento
   }
   function atualizarSozinho() {
     if (!versaoPublicada || !eu || document.hidden) return;
