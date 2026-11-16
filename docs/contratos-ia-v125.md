@@ -71,3 +71,21 @@ o conteúdo nem cria contratos.
   `jspdf@2.5.1` e `jspdf-autotable@3.8.2`.
 - `JB_IA_GRAVADA=<pasta>` faz o teste usar respostas reais gravadas (`1.txt`, `2.txt`…) e grava em
   `pedido-N.txt` o pedido que ficou sem resposta: serve para conferir os pedidos com a IA de verdade.
+
+## Teste com a IA de verdade (15/11/2026)
+
+Além da IA simulada, os pedidos montados pelo programa foram respondidos pelo Claude de verdade e as
+respostas passaram pelo programa (`JB_IA_GRAVADA`), com o pedido do dono: "Preciso elaborar um contrato para
+uma empresa que ficará responsável pela manutenção dos equipamentos da Cerâmica…".
+
+| Etapa | O que a IA devolveu | O que o programa fez |
+|---|---|---|
+| Interpretar | Tipo certo (prestação de serviços de manutenção, civil, sem vínculo) e 4 perguntas curtas com sugestões | Mostrou as perguntas; nenhuma sobre dados da empresa |
+| Interpretar de novo | Nenhuma pergunta a mais | Seguiu para a redação |
+| Redigir (1ª rodada) | Contrato completo com 23 cláusulas, dados da empresa preenchidos, mas 24 campos em branco (deixou em branco até prazos de praxe) | Leu o formato sem erro, conferiu 15 referências (todas na base), salvou a versão 1 |
+| Editar ("acrescente a cláusula dos materiais") | 1 cláusula nova e 1 alterada para não contradizer, com a explicação | Aplicou só as duas; as outras 22 ficaram letra por letra; versão 2; PDF de 11 páginas |
+| Redigir (2ª rodada, com a regra das condições de praxe) | 27 cláusulas, só 7 campos em branco (fatos que o dono não informou), condições de praxe propostas e listadas em "confirmar", normas fora da base não citadas no texto | Leu sem erro, conferiu 13 referências (todas na base) |
+
+Ajustes que saíram desse teste: sinais de vínculo conferidos frase a frase (sem contar negações nem os
+empregados da própria contratada), a regra de propor condições de praxe em vez de deixar em branco,
+o botão "Preencher tudo" e dois acertos no PDF (folha de rosto e cabeçalho com título comprido).
