@@ -142,6 +142,15 @@ try {
     await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado && DATA.funcionarios.length >= 5, null, { timeout: 30000 });
   };
   await abrir();
+  await page.waitForTimeout(1200);
+  ok(await page.evaluate(() => window.__cam.pedidos.length === 0 && !document.querySelector('.pz') && lerRota().mod !== 'pontoFacial'), 'entrar no sistema não abre a câmera nem leva para o ponto');
+  /* a câmera só abre com um toque: no botão "Abrir a câmera" ou num atalho que leva ao ponto facial */
+  const abrirPonto = async (hash = '#/pontoFacial') => {
+    await page.evaluate((h) => { location.hash = h; }, hash);
+    await page.waitForSelector('#pzReabrir', { timeout: 10000 });
+    await page.click('#pzReabrir');
+    await page.waitForSelector('.pz video', { timeout: 8000 });
+  };
   /* relógio do teste: "hoje às 07:02" (a hora do ponto é a do sistema; o teste só a desloca para conferir a jornada) */
   const relogio = (hm) => page.evaluate((hm) => { const [h, m] = hm.split(':').map(Number), d = new Date(); d.setHours(h, m, 5, 0); JB_PONTO.relogio.dif = d.getTime() - Date.now(); }, hm);
   await relogio('07:02');
@@ -200,6 +209,10 @@ try {
   /* ---------- 3. a tela do funcionário: câmera direto, em tela cheia, traseira ---------- */
   await rosto('vazio');
   await page.evaluate(() => { window.__cam.pedidos.length = 0; location.hash = '#/pontoFacial'; });
+  await page.waitForSelector('#pzReabrir', { timeout: 8000 });
+  await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => !document.querySelector('.pz') && window.__cam.pedidos.length === 0 && /Abrir a câmera/.test(document.getElementById('pzVolta').textContent)), 'chegar na tela do ponto pelo endereço não abre a câmera: aparece o botão "Abrir a câmera"');
+  await page.click('#pzReabrir');
   await page.waitForSelector('.pz video', { timeout: 8000 });
   await page.waitForFunction(() => JB_PONTO.camera().ligada && document.querySelector('.pz video').videoWidth > 0, null, { timeout: 20000 });
   const r3 = await page.evaluate(() => { const v = document.querySelector('.pz video').getBoundingClientRect(); return { cobre: v.width >= innerWidth && v.height >= innerHeight, lado: JB_PONTO.camera().lado, ped: window.__cam.pedidos[0], dlg: !!document.querySelector('.pz-dlg'), esp: document.querySelector('.pz').classList.contains('pz-frente'), fase: document.getElementById('pzFase').textContent, graf: document.querySelectorAll('.pz table,.pz canvas').length, marca: document.querySelector('.pz-marca').textContent }; });
@@ -285,6 +298,7 @@ try {
   await page.selectOption('.pz-lista select', 'camera');
   await page.click('.pz-lista [data-f="f1"]');
   await cartao('Ana Teste Souza', 8000);
+  ok(await page.evaluate(() => { const r = JB_PONTO.estado().pronto.resta; return r > 30000 && r <= 45000; }), 'o cartão do registro sem reconhecimento some sozinho em 45 s sem toque (ninguém confirma por engano depois)');
   ok(/Registro sem reconhecimento/.test(await page.textContent('#pzCard')) && (await page.textContent('#pzTipo')) === 'Retorno do intervalo', 'AUDITORIA 7 · em seguida sugere "Retorno do intervalo"; o registro manual também pede a confirmação');
   await page.click('#pzConf');
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && /responsável vai conferir/.test(document.getElementById('pzRes').textContent), null, { timeout: 20000 });
@@ -383,8 +397,7 @@ try {
   await page.waitForFunction(() => JB_PONTO.senha() && window.__srv.estado.docs.has('rostos/_senha'), null, { timeout: 8000 });
   const r14 = await page.evaluate(() => window.__srv.estado.docs.get('rostos/_senha').dados);
   ok(r14.hash.length === 64 && !JSON.stringify(r14).includes('4321'), 'a senha do ponto vai para o banco embaralhada, nunca em texto');
-  await page.evaluate(() => { location.hash = '#/pontoFacial'; });
-  await page.waitForSelector('.pz video');
+  await abrirPonto();
   await page.click('#pzMenu'); await page.click('.pz-folha [data-m="travar"]');
   await page.waitForSelector('.pz-dlg input'); await page.fill('.pz-dlg input', '4321'); await page.click('.pz-dlg .pz-okb');
   await page.waitForFunction(() => JB_PONTO.travada(), null, { timeout: 8000 });
@@ -400,15 +413,19 @@ try {
   /* ---------- 15. recarregar: os dados continuam e a trava também ---------- */
   await page.waitForTimeout(500);
   await abrir();
-  await page.waitForSelector('.pz video', { timeout: 15000 });
-  ok(await page.evaluate(() => JB_PONTO.travada() && lerRota().mod === 'pontoFacial'), 'AUDITORIA 13 · recarregar a página não destrava a tela');
+  await page.waitForSelector('#pzReabrir', { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => JB_PONTO.travada() && lerRota().mod === 'pontoFacial' && !document.querySelector('.pz') && window.__cam.pedidos.length === 0 && /travada/.test(document.getElementById('pzVolta').textContent)), 'AUDITORIA 13 · recarregar a página não destrava a tela, e a câmera fica fechada até alguém tocar em "Abrir a câmera"');
+  await page.evaluate(() => { location.hash = '#/funcionarios'; }); await page.waitForTimeout(700);
+  ok(await page.evaluate(() => lerRota().mod === 'pontoFacial'), 'travada e com a câmera fechada, continua sem sair da tela do ponto');
   await relogio('17:40');
   const r15 = await page.evaluate((H) => new Promise((res) => { const t = setInterval(() => { if (DATA.pontoMarcacoes.length >= 4 && JB_PONTO.estado().rostos) { clearInterval(t); const s = JB_PONTO.estadoDia('f1', H); res({ n: DATA.pontoMarcacoes.length, s: [s.entrada, s.saidaIntervalo, s.retornoIntervalo, s.saida], rostos: JB_PONTO.rostos().length, ev: DATA.pontoEventos.length }); } }, 200); }), H);
   ok(r15.n === 4 && r15.s.join() === '07:02,12:01,13:00,' && r15.rostos === 2 && r15.ev >= 5, `AUDITORIA 13 · depois de reiniciar, marcações (${r15.n}), tratamentos, cadastros faciais (${r15.rostos}) e eventos continuam lá`);
+  await page.click('#pzReabrir'); await page.waitForSelector('.pz video');
   await page.click('#pzMenu'); await page.click('.pz-folha [data-m="destravar"]');
   await page.waitForSelector('.pz-dlg input'); await page.fill('.pz-dlg input', '4321'); await page.click('.pz-dlg .pz-okb');
   await page.waitForFunction(() => !JB_PONTO.travada(), null, { timeout: 8000 });
-  ok(await page.evaluate(() => localStorage.getItem('jb-ponto-facial-travada') === null), 'a senha certa destrava');
+  ok(await page.evaluate(() => localStorage.getItem('jb-ponto-travada-v126') === null), 'a senha certa destrava');
 
   /* ---------- 16. registro definitivo: a marcação entra no Diário do DP, sem duplicar ---------- */
   await page.evaluate(() => { location.hash = '#/pontoGestao/implantacao'; });
@@ -417,8 +434,7 @@ try {
   await page.waitForSelector('.modal [data-r="1"]'); await page.click('.modal [data-r="1"]');
   await page.waitForFunction(() => JB_PONTO.oficial(), null, { timeout: 8000 });
   await relogio('08:10'); await rosto(1);
-  await page.evaluate(() => { location.hash = '#/pontoFacial'; });
-  await page.waitForSelector('.pz video');
+  await abrirPonto();
   ok(await page.evaluate(() => document.getElementById('pzFase').hidden), 'registro definitivo: some o aviso de fase de testes da tela do funcionário');
   await cartao('Bruna Teste Lima');
   await page.click('#pzConf');
@@ -478,8 +494,8 @@ try {
   ok(await page.evaluate(async (q) => { const i = new Image(); i.src = q; await i.decode(); const b = await JB_PONTO.ver(i); return JB_PONTO.comparar(b.desc).fid === null; }, quadros[1]), 'reconhecimento desativado: a pessoa deixa de ser identificada, sem apagar o cadastro');
 
   /* ---------- 19. aparelho com uma câmera só e câmera negada ---------- */
-  await page.evaluate(() => { window.__cam.uma = true; location.hash = '#/pontoFacial'; });
-  await page.waitForSelector('.pz video');
+  await page.evaluate(() => { window.__cam.uma = true; });
+  await abrirPonto();
   await page.waitForFunction(() => JB_PONTO.camera().ligada && JB_PONTO.camera().cameras === 1 && document.getElementById('pzCam').hidden, null, { timeout: 15000 });
   ok(true, 'aparelho com uma câmera só: usa a que existe e esconde o botão de alternar');
   await page.evaluate(() => { window.__cam.negar = true; });
@@ -499,8 +515,7 @@ try {
   for (const [nome, w, h] of [['computador', 1366, 768], ['tablet-deitado', 1024, 600], ['celular-deitado', 780, 360]]) {
     await page.setViewportSize({ width: w, height: h });
     await relogio('09:00'); await rosto(0);
-    await page.evaluate(() => { location.hash = '#/pontoFacial/teste'; });
-    await page.waitForSelector('.pz video');
+    await abrirPonto('#/pontoFacial/teste');
     await cartao('Ana Teste Souza');
     const g = await page.evaluate(() => { const c = document.querySelector('#pzCard .pz-conf').getBoundingClientRect(), n = document.querySelector('#pzCard .pz-nome').getBoundingClientRect(), v = document.querySelector('.pz video').getBoundingClientRect(), t = document.querySelector('.pz-topo').getBoundingClientRect(); return { cabe: c.top >= t.bottom - 4 && c.bottom <= innerHeight && c.right <= innerWidth && n.top >= 0, cobre: v.width >= innerWidth && v.height >= innerHeight, rola: document.documentElement.scrollWidth > innerWidth }; });
     ok(g.cabe && g.cobre && !g.rola, `AUDITORIA 14 · ${nome} (${w} × ${h}): câmera na tela inteira e o cartão com o botão cabem sem rolar`);
@@ -510,6 +525,35 @@ try {
     if (nome === 'computador') await page.screenshot({ path: join(TELAS, 'gestao-2-controle-computador.png') });
   }
   ok(await page.evaluate(() => window.__cam.vivas.size === 0), 'no fim, nenhuma câmera ficou ligada');
+
+  /* ---------- 21. regras da jornada em casos incomuns (sem gravar nada) e trava da versão antiga ---------- */
+  const r21 = await page.evaluate(async (H) => {
+    const P = JB_PONTO, f = F('f3'), jd = f.jornadaId, cj = CFG.jornadas.slice(), d = (iso, hm) => { const x = new Date(iso + 'T00:00:00'); const [h, m] = hm.split(':').map(Number); x.setHours(h, m, 0, 0); return x; };
+    const am = isoDe(new Date(d(H, '12:00').getTime() + 864e5)), dia = (e, s) => ({ e, s, i: 60 }), todos = (x) => ({ 0: x, 1: x, 2: x, 3: x, 4: x, 5: x, 6: x });
+    CFG.jornadas = cj.concat([{ id: 'jn', nome: 'Noite', dias: todos(dia('22:00', '06:00')) }, { id: 'jt', nome: 'Tarde', dias: todos(dia('13:00', '22:00')) }]);
+    const o = { feriado: !esperadoDia(F('f1'), H) || !esperadoDia(F('f1'), am) };
+    /* esqueceu o dia todo e só marcou às 17:00 (vira "Entrada"); no outro dia às 07:00 tem de ser a entrada do dia novo */
+    await P.registrarMarcacao('f3', 'entrada', { data: H }, d(H, '17:00'), { origem: 'manual', motivo: 'camera' });
+    await new Promise((r) => setTimeout(r, 700));
+    f.jornadaId = 'j1'; const a1 = P.alvo('f3', d(am, '07:00')); o.diurno = a1.data === am && a1.op.join() === 'entrada';
+    f.jornadaId = undefined; const a2 = P.conferir('f3', d(am, '07:00')); o.semJornada = a2.ok && a2.data === H && a2.escolhas.some((e) => e.k === 'entrada' && e.data === am);
+    /* turno da noite (22:00 às 06:00): às 02:30 ainda é a jornada de ontem; no intervalo sugere intervalo, perto do fim sugere saída */
+    f.jornadaId = 'jn'; const st = { funcionarioId: 'f3', data: H, entrada: '22:05', saidaIntervalo: '', retornoIntervalo: '', saida: '', em: {}, m: {} };
+    o.noiteIntervalo = P.opcoes(st, 'f3', d(am, '02:31'))[0] === 'saidaIntervalo'; o.noiteSaida = P.opcoes(st, 'f3', d(am, '05:40'))[0] === 'saida';
+    /* turno da tarde (13:00 às 22:00): pausa às 18:01 é intervalo, não saída */
+    f.jornadaId = 'jt'; o.tarde = P.opcoes({ ...st, entrada: '13:00' }, 'f3', d(H, '18:01'))[0] === 'saidaIntervalo';
+    f.jornadaId = jd; CFG.jornadas = cj; return o; }, H);
+  if (r21.feriado) console.log('    (feriado no cadastro: conferências de jornada puladas)');
+  else {
+    ok(r21.diurno, 'quem só marcou no fim do dia não fica preso na jornada de ontem: na manhã seguinte o sistema oferece a Entrada do dia novo');
+    ok(r21.semJornada, 'sem jornada na ficha, a jornada de ontem ainda aberta continua, mas "Entrada (hoje)" aparece como alternativa no cartão');
+    ok(r21.noiteIntervalo && r21.noiteSaida && r21.tarde, 'turno da noite e da tarde: no meio da jornada sugere o intervalo; perto do fim, a saída');
+  }
+  await page.evaluate(() => { localStorage.setItem('jb-ponto-facial-travada', JSON.stringify({ em: '2026-11-12T10:00:00Z', sal: 'a', hash: 'b' })); });
+  await page.waitForTimeout(500);
+  await abrir();
+  await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => lerRota().mod !== 'pontoFacial' && !document.querySelector('.pz') && window.__cam.pedidos.length === 0 && localStorage.getItem('jb-ponto-facial-travada') === null && !JB_PONTO.travada()), 'aparelho que ficou travado na versão ANTIGA entra normalmente: sem câmera aberta e sem ficar preso na tela do ponto');
 
   const med = await page.evaluate(() => JB_PONTO.medidas());
   const media = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);

@@ -37219,6 +37219,16 @@ window.RESUMO_DIA_V77={calcular,dinheiro,textoResumo,vis};
 .pz-cadb button{flex:1;min-height:48px;padding:10px 14px;border:1px solid #d9cdc3;border-radius:12px;background:#fff;color:#2A211C;font:600 14.5px/1 Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
 .pz-cadb button.pz-pri{border-color:#2E9E5B;background:#2E9E5B;color:#fff}
 body.pz-aberto{overflow:hidden}
+/* a tela de entrada do ponto facial: a câmera só abre com o toque no botão */
+.pz-entrada{max-width:520px;margin:5vh auto 0;padding:28px 22px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);box-shadow:var(--s1);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.pz-entrada-ic{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:var(--brasa-bg);color:var(--brasa)}
+.pz-entrada-ic svg{width:36px;height:36px}
+.pz-entrada h1{margin:0;font-size:22px;line-height:1.2}
+.pz-entrada p{margin:0;font-size:14.5px;line-height:1.5;color:var(--suave)}
+.btn.pz-entrada-bt{justify-content:center;min-height:58px;padding:14px 28px;font-size:17px;font-weight:700}
+.btn.pz-entrada-bt svg{width:22px;height:22px}
+.pz-entrada-trava{display:flex;align-items:flex-start;gap:8px;text-align:left}
+.pz-entrada-trava svg{width:18px;height:18px;flex:none;margin-top:2px}
 body.pz-celular #jbsair,body.pz-celular #jbversao{display:none!important}
 /* --- área administrativa: Gestão do ponto --- */
 .pg-abas{display:flex;gap:4px;margin:0 0 16px;padding:4px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--papel2,var(--papel));overflow-x:auto}
@@ -37276,7 +37286,9 @@ body.pz-celular #jbsair,body.pz-celular #jbversao{display:none!important}
    Não é um REP-P homologado (Portaria MTP 671/2021): ver docs/ponto-facial-v126.md. */
 (()=>{
 const ROTA='pontoFacial',ROTA_G='pontoGestao',ROTA_CAD='cadastrarRosto',PAPEL='celularPonto',PAPEL_R='respPonto';
-const COL='rostos',DOC_SENHA='_senha',COL_M='pontoMarcacoes',COL_E='pontoEventos',CH_TRAVA='jb-ponto-facial-travada';
+const COL='rostos',DOC_SENHA='_senha',COL_M='pontoMarcacoes',COL_E='pontoEventos',CH_TRAVA='jb-ponto-travada-v126';
+/* a trava guardada pela versão antiga não vale na nova: o aparelho que ficou travado lá entra normalmente aqui */
+try{localStorage.removeItem('jb-ponto-facial-travada')}catch(e){}
 const FONTE={lib:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js',modelos:'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/',versao:'face-api 1.7.15'};
 const ORDEM=['entrada','saidaIntervalo','retornoIntervalo','saida'];
 const CURTO={entrada:'Entrada',saidaIntervalo:'Intervalo',retornoIntervalo:'Volta',saida:'Saída'};
@@ -37372,13 +37384,20 @@ function msDe(st,k){
 }
 const semIntervalo=(fid,data)=>{const e=esperadoDia(F(fid),data);return !!(e&&!e.i)};
 /* só com a entrada: está mais perto da saída do fim do dia ou da saída para o intervalo? Usa a jornada da própria pessoa */
+/* a jornada prevista de um dia, em instantes: começo, fim (no dia seguinte, se atravessa a meia-noite) e duração */
+function fimPrevisto(fid,data){
+ const e=esperadoDia(F(fid),data);if(!e)return null;
+ const d=dt(data);d.setHours(0,0,0,0);const span=((e.s-e.e)%1440+1440)%1440||1440;
+ return{ini:d.getTime()+e.e*60000,fim:d.getTime()+(e.e+span)*60000,span,noite:e.s<=e.e};
+}
+/* só com a entrada: já é hora da saída ou ainda é o intervalo? Com jornada na ficha, vale o relógio: no último quarto
+   da jornada (ou depois do fim dela) sugere a saída; antes disso, o intervalo. Sem jornada, conta 9 h a partir da
+   entrada. É só a sugestão: a pessoa troca no cartão. */
 function pareceSaida(st,fid,ag){
  const t=msDe(st,'entrada');if(!ag||!Number.isFinite(t))return false;
- const passou=(ag.getTime()-t)/60000;let oi=240,os=540;                 // sem jornada na ficha: 4 h até o intervalo, 9 h até a saída
- const hj=horariosJornada(F(fid),st.data),me=hj&&minutos(hj.entrada);
- const dist=h=>{const m=minutos(h);return me==null||m==null?null:((m-me)%1440+1440)%1440};
- if(hj&&hj.saidaIntervalo){const a=dist(hj.saidaIntervalo),b=dist(hj.saida);if(a!=null)oi=a;if(b!=null)os=b}
- return Math.abs(passou-os)<Math.abs(passou-oi);
+ const j=fimPrevisto(fid,st.data);
+ if(j)return (j.fim-ag.getTime())/60000<=j.span*.25;
+ return (ag.getTime()-t)/60000>=540*.75;
 }
 /* o que pode ser marcado agora; a primeira opção é a sugerida, a pessoa pode trocar pelas outras */
 function opcoes(st,fid,ag){
@@ -37388,12 +37407,21 @@ function opcoes(st,fid,ag){
  if(st.saidaIntervalo)return['retornoIntervalo','saida'];
  return semIntervalo(fid,st.data)||pareceSaida(st,fid,ag)?['saida','saidaIntervalo']:['saidaIntervalo','saida'];
 }
-/* a jornada de hoje ou, no turno da noite, a de ontem que ainda está aberta */
+/* a jornada de hoje ou a de ontem que ainda vale. Continua a de ontem quando ela está aberta e:
+   · pela ficha, ela não acabou há muito tempo (fim previsto + 6 h: cobre o turno da noite e a hora extra), ou
+   · sem jornada na ficha, a entrada foi há menos de 16 h.
+   Turno da noite sem nenhuma marcação (esqueceu a entrada) também cai na jornada de ontem, enquanto ela não acaba.
+   Sempre que o alvo é ontem, a entrada de hoje fica como alternativa no cartão ("Não é isso? Trocar"). */
+const FOLGA_FIM=6*3600*1000;
 function alvo(fid,ag){
- const H=isoDe(ag),O=isoDe(new Date(ag.getTime()-864e5)),sh=estadoDia(fid,H),so=estadoDia(fid,O);
- if(!sh.entrada&&so.entrada&&!so.saida){const d=ag.getTime()-msDe(so,'entrada');
-  if(d>=0&&d<NOITE_MS){const op=opcoes(so,fid,ag);if(op.length)return{data:O,st:so,op}}}
- return{data:H,st:sh,op:opcoes(sh,fid,ag)};
+ const H=isoDe(ag),O=isoDe(new Date(ag.getTime()-864e5)),sh=estadoDia(fid,H),so=estadoDia(fid,O),t=ag.getTime();
+ const hoje={data:H,st:sh,op:opcoes(sh,fid,ag)};
+ if(sh.entrada)return hoje;
+ const jo=fimPrevisto(fid,O);
+ if(so.entrada&&!so.saida){const d=t-msDe(so,'entrada');
+  if(d>=0&&(jo?t<=jo.fim+FOLGA_FIM:d<NOITE_MS)){const op=opcoes(so,fid,ag);if(op.length)return{data:O,st:so,op,alt:hoje}}}
+ if(!so.entrada&&jo&&jo.noite&&t>=jo.ini&&t<=jo.fim+2*3600*1000)return{data:O,st:so,op:['entrada'],alt:hoje};
+ return hoje;
 }
 const ULT=new Map();   // última marcação feita neste aparelho (a lista local leva um instante para atualizar)
 function conferir(fid,ag){
@@ -37405,7 +37433,8 @@ function conferir(fid,ag){
   return{ok:false,cod:'duplicada',msg:'Já existe uma marcação neste horário.',det:k?NOME_K(k)+' às '+a.st[k]+'. Não precisa marcar de novo.':'Espere alguns minutos para marcar de novo.'}}
  if(ts.some(x=>x-t>=min)){REL.quando=0;medirRelogio();return{ok:false,cod:'relogio',msg:'Não foi possível registrar. Tente novamente.',det:'O relógio deste aparelho mudou. Se continuar, avise a responsável pelo ponto.'}}
  if(!a.op.length)return{ok:false,cod:'completa',msg:'As marcações de '+(a.data===isoDe(ag)?'hoje':fData(a.data))+' já estão completas.',det:'Se precisar corrigir, procure a responsável pelo ponto.'};
- return{ok:true,...a};
+ /* as escolhas do cartão: cada uma com o tipo e o dia da jornada a que pertence */
+ return{ok:true,...a,escolhas:[...a.op.map(k=>({k,data:a.data})),...(a.alt?a.alt.op.map(k=>({k,data:a.alt.data})):[])]};
 }
 
 /* ---------- gravação ---------- */
@@ -37427,13 +37456,15 @@ async function registrarMarcacao(fid,k,c,ag,extra){
  await gravar(COL_M,m,null);
  ULT.set(fid,ag.getTime());
  let noDiario=null;
- if(lancaDiario()){try{noDiario=await lancarNoDiario(fid,c.data,[m])}catch(e){noDiario=false;console.warn('ponto: marcação gravada, mas o Diário não recebeu',e&&e.code)}}
+ if(lancaDiario()){try{noDiario=await lancarNoDiario(fid,c.data,[m],true)}catch(e){noDiario=false;console.warn('ponto: marcação gravada, mas o Diário não recebeu',e&&e.code)}}
  return{...m,noDiario};
 }
 /* leva para o Diário do DP as marcações do dia que ainda não foram lançadas lá. Só preenche campo vazio:
    o que o DP já escreveu ou corrigiu fica como está. Pode ser chamada de novo sem duplicar nada. */
-async function lancarNoDiario(fid,data,extras){
- const ja=marcsDia(fid,data),ms=ja.concat((extras||[]).filter(x=>!ja.some(y=>y.id===x.id))).filter(m=>!anulada(m));
+async function lancarNoDiario(fid,data,extras,soEstas){
+ /* soEstas: na confirmação entra só a marcação que acabou de ser feita; as antigas do dia que estiverem fora do
+    Diário (falha de rede, registro apagado pelo DP) ficam para o "Lançar agora" da gestão, que mostra antes o que vai entrar */
+ const ja=marcsDia(fid,data),ms=(soEstas?(extras||[]):ja.concat((extras||[]).filter(x=>!ja.some(y=>y.id===x.id)))).filter(m=>!anulada(m));
  const ant=regDiario(fid,data),uid=APP.uid||'local',em=new Date().toISOString(),campos={},ids={};
  for(const k of ORDEM){const m=ms.filter(x=>x.k===k).pop();if(!m)continue;
   if(ant&&ant.pontoIds&&ant.pontoIds[k]===m.id)continue;
@@ -37802,7 +37833,10 @@ async function criarSenha(troca){
 }
 
 /* ================= ÁREA DO FUNCIONÁRIO: a câmera em tela cheia ================= */
-const ESPERA=8000;
+const ESPERA=8000,ESPERA_MANUAL=45000;
+/* o tipo da marcação como aparece no cartão; quando não é da jornada de hoje, diz de qual dia é */
+function rotuloEsc(p,i){const e=p.op[i],H=isoDe(agora()),misto=p.op.some(x=>x.data!==p.op[0].data);
+ return NOME_K(e.k)+(e.data!==H?' · jornada de '+fData(e.data).slice(0,5):misto?' · hoje':'')}
 const K={v:null,vivo:false,modo:'ponto',travada:false,tm:null,tp:null,rel:null,cand:null,n:0,sem:0,semDesde:0,falhas:0,ate:0,msgAte:0,t0:0,ultimo:new Map(),avisado:new Map(),
  erroCam:0,acesa:0,ocupado:false,ger:0,rodando:0,denovo:false,direto:false,pronto:null,ign:null,olhos:null,painel:0,pedindo:false,ultFalha:0,fixo:false};
 /* as esperas usam o relógio interno, que só anda para a frente: acertar a hora do aparelho não para o reconhecimento */
@@ -37899,7 +37933,7 @@ function alternarCamera(){
 function mostrarCard(fid,inf){
  const f=F(fid),c=el('#pzCard');if(!f||!c)return;
  const teste=K.modo==='teste',k=teste?null:conferir(fid,agora());
- K.pronto={fid,d:inf.d,segundo:inf.segundo,vivo:inf.vivo||null,manual:inf.manual||null,ate:seg()+ESPERA,outro:0,op:k&&k.ok?k.op:[],ki:0,ms:inf.ms||null};
+ K.pronto={fid,d:inf.d,segundo:inf.segundo,vivo:inf.vivo||null,manual:inf.manual||null,ate:seg()+(inf.manual?ESPERA_MANUAL:ESPERA),outro:0,op:k&&k.ok?k.escolhas:[],ki:0,ms:inf.ms||null};
  const det=[f.matricula?'Matrícula '+f.matricula:'',f.setor||'',f.cargo||''].filter(Boolean).join(' · ');
  c.className='pz-card'+(inf.manual?' pz-man':'');
  if(teste)c.innerHTML=`<div class="pz-ok">${CHECK}<span>Teste: rosto identificado</span></div><div class="pz-nome">${esc(f.nome)}</div><div class="pz-det">${esc(det)}</div>
@@ -37907,7 +37941,7 @@ function mostrarCard(fid,inf){
    <button type="button" class="pz-conf" data-c="acerto">${CHECK}<span>RECONHECEU CERTO</span></button>
    <div class="pz-card2"><button type="button" class="pz-nao" data-c="erro">Reconheceu a pessoa errada</button></div>`;
  else c.innerHTML=`<div class="pz-ok">${inf.manual?EXCL:CHECK}<span>${inf.manual?'Registro sem reconhecimento':'Funcionário identificado!'}</span></div><div class="pz-nome">${esc(f.nome)}</div><div class="pz-det">${esc(det)}</div>
-   <div class="pz-linha"><div><small>Horário</small><b id="pzAgora">${hhmm(agora())}</b></div><div><small>Tipo de marcação</small><b id="pzTipo">${esc(NOME_K(K.pronto.op[0]))}</b>${K.pronto.op.length>1?`<button type="button" class="pz-troca" data-c="tipo">Não é isso? Trocar</button>`:''}</div></div>
+   <div class="pz-linha"><div><small>Horário</small><b id="pzAgora">${hhmm(agora())}</b></div><div><small>Tipo de marcação</small><b id="pzTipo">${esc(rotuloEsc(K.pronto,0))}</b>${K.pronto.op.length>1?`<button type="button" class="pz-troca" data-c="tipo">Não é isso? Trocar</button>`:''}</div></div>
    <button type="button" class="pz-conf" id="pzConf" data-c="confirmar">${CHECK}<span>CONFIRMAR MARCAÇÃO</span></button>
    <div class="pz-card2"><button type="button" class="pz-nao" data-c="nao">${inf.manual?'Cancelar':'Não sou eu'}</button></div>`;
  c.hidden=false;destacar(false);K.v.classList.add('pz-com-card');
@@ -37918,7 +37952,7 @@ function esconderCard(){K.pronto=null;const c=el('#pzCard');if(c){c.hidden=true;
 function clicarCard(e){
  const b=e.target.closest('[data-c]'),p=K.pronto;if(!b||!p)return;const a=b.dataset.c;
  if(a==='confirmar'){confirmarMarcacao();return}
- if(a==='tipo'){p.ki=(p.ki+1)%p.op.length;const t=el('#pzTipo');if(t)t.textContent=NOME_K(p.op[p.ki]);p.ate=seg()+ESPERA;return}
+ if(a==='tipo'){p.ki=(p.ki+1)%p.op.length;const t=el('#pzTipo');if(t)t.textContent=rotuloEsc(p,p.ki);p.ate=seg()+(p.manual?ESPERA_MANUAL:ESPERA);return}
  if(a==='nao'){if(!p.manual)K.ign={fid:p.fid,ate:seg()+6000};esconderCard();K.cand=null;K.n=0;status('Procurando rosto…','Posicione seu rosto diante da câmera para identificação.');acordar(150);return}
  if(a==='acerto'||a==='erro'){evento('teste',{resultado:a,funcionarioId:p.fid,d:arred(p.d),pct:confianca(p.d),ms:p.ms,camera:CAM.lado==='user'?'frente':'traseira'});
   K.ign={fid:p.fid,ate:seg()+6000};esconderCard();som(a==='acerto');
@@ -37934,9 +37968,9 @@ async function confirmarMarcacao(){
  try{
   const c=conferir(p.fid,ag);
   if(!c.ok){esconderCard();som(false);avisoMarc(f,c);return}
-  const k=c.op.includes(p.op[p.ki])?p.op[p.ki]:c.op[0];
-  id='pm'+c.data.replace(/-/g,'')+idLimpo(p.fid)+'-'+k;
-  const m=await comPrazo(registrarMarcacao(p.fid,k,c,ag,{origem:p.manual?'manual':'facial',motivo:p.manual?p.manual.motivo:null,vivo:p.vivo,
+  const quer=p.op[p.ki],esc0=c.escolhas.find(x=>x.k===quer.k&&x.data===quer.data)||c.escolhas[0],k=esc0.k;
+  id='pm'+esc0.data.replace(/-/g,'')+idLimpo(p.fid)+'-'+k;
+  const m=await comPrazo(registrarMarcacao(p.fid,k,{data:esc0.data},ag,{origem:p.manual?'manual':'facial',motivo:p.manual?p.manual.motivo:null,vivo:p.vivo,
    conf:p.manual?null:{d:arred(p.d),segundo:arred(p.segundo),pct:confianca(p.d)}}),20000);
   K.ultimo.set(p.fid,seg());K.avisado.set(p.fid,seg());esconderCard();som(true);
   painel('ok',{titulo:'Marcação registrada com sucesso!',nome:f.nome+' · '+NOME_K(m.k),hora:m.hora,
@@ -38033,7 +38067,9 @@ async function passo(){
   /* a sessão caiu: solta a câmera e deixa a tela de entrada aparecer (se estava travada, volta travada ao entrar) */
   if(!acessoOk()||!pode(ROTA)){const t=lerTrava();fecharQuiosque();if(t)guardarTrava(t);return}
   if(!K.acesa||seg()-K.acesa>20000){K.acesa=seg();manterAcesa()}
-  if(K.pronto&&!K.pronto.manual&&seg()>K.pronto.ate){esconderCard();status('Procurando rosto…','')}
+  /* o cartão não fica esquecido na tela: o do reconhecimento some em 8 s sem a pessoa na frente; o do registro
+     sem reconhecimento, em 45 s sem toque (ninguém confirma depois, por engano, a marcação de quem foi escolhido antes) */
+  if(K.pronto&&seg()>K.pronto.ate){esconderCard();status('Procurando rosto…','')}
   if(document.visibilityState!=='visible'||K.painel||K.pedindo||K.ocupado||seg()<K.ate){prox=350;return}
   if(TROCANDO){prox=100;return}
   if(!liberado()){status('Ponto indisponível.',motivoBloqueio());prox=5000;return}
@@ -38114,17 +38150,34 @@ document.addEventListener('keydown',e=>{if(!K.vivo||e.key!=='Escape'||document.q
  if(!el('#pzRes').hidden&&!K.fixo){fecharPainel();return}if(!K.painel)abrirMenu()},true);
 window.addEventListener('pagehide',()=>{pararStream(CAM.st)});
 
+/* A câmera só abre por um toque da pessoa: num atalho que leva ao ponto facial (menu, botão, pesquisa) ou no botão
+   "Abrir a câmera" desta tela. Entrar no sistema, recarregar a página ou voltar por uma aba guardada nunca abre a câmera. */
+let PEDIDO=0;
+document.addEventListener('click',e=>{const a=e.target&&e.target.closest&&e.target.closest('a[href]');
+ if(!a||!/^#\/pontoFacial(\/|$)/.test(a.getAttribute('href')||''))return;
+ PEDIDO=Date.now();
+ /* já estava nesta tela (o endereço não muda): abre do mesmo jeito */
+ setTimeout(()=>{try{if(lerRota().mod===ROTA&&!K.vivo&&Date.now()-PEDIDO<3000&&APP.pronto)renderTela()}catch(x){}},60)},true);
 function telaFacial(el0){
  ouvirRostos();
- const r=lerRota();
+ const r=lerRota(),modo=r.id==='teste'&&podeGerir()?'teste':'ponto';
  if(!liberado()||!pode(ROTA,'e')){fecharQuiosque();el0.innerHTML=`<div class="vazio"><b>Ponto facial indisponível</b>${esc(motivoBloqueio())}</div>`;return}
- if(!el0.querySelector('#pzVolta'))el0.innerHTML=`<div class="vazio" id="pzVolta"><b>Ponto facial</b>A câmera do ponto abre em tela cheia.<div class="vazio-acoes" style="margin-top:14px"><button type="button" class="btn pri" id="pzReabrir">${ic('camera')}Abrir a câmera</button></div></div>`;
- const b=el0.querySelector('#pzReabrir');if(b)b.onclick=()=>abrirQuiosque(r.id==='teste'&&podeGerir()?'teste':'ponto');
- abrirQuiosque(r.id==='teste'&&podeGerir()?'teste':'ponto');
+ const trav=!!lerTrava(),chave=modo+'|'+(trav?1:0)+'|'+APP.papel,rz=el0.querySelector('#pzVolta');
+ if(!rz||rz.dataset.chave!==chave){
+  el0.innerHTML=`<div class="pz-entrada" id="pzVolta" data-chave="${esc(chave)}"><span class="pz-entrada-ic">${ic('camera')}</span><h1>Ponto facial${modo==='teste'?' · teste de reconhecimento':''}</h1>
+   <p>${modo==='teste'?'A câmera identifica a pessoa e você diz se acertou. Nenhuma marcação é registrada.':'A câmera abre em tela cheia. O funcionário olha para a câmera, confere o nome e toca em CONFIRMAR MARCAÇÃO.'}</p>
+   <button type="button" class="btn pri pz-entrada-bt" id="pzReabrir">${ic('camera')}Abrir a câmera</button>
+   ${trav?`<p class="pz-entrada-trava">${CADEADO}<span>Este aparelho está com a tela do ponto travada: só sai daqui com a senha do ponto.</span></p><button type="button" class="btn" id="pzDestravarFora">Destravar com a senha</button>`:podeGerir()?`<a class="btn" href="#/${ROTA_G}">${ic('relogio')}Gestão do ponto</a>`:''}</div>`;
+  el0.querySelector('#pzReabrir').onclick=()=>abrirQuiosque(modo);
+  const d=el0.querySelector('#pzDestravarFora');
+  if(d)d.onclick=async()=>{if(await pedirSenha('Destravar a tela','Só a responsável destrava. Digite a senha do ponto.',25000)){guardarTrava(null);toast('Tela destravada.','ok');renderTela()}};
+ }
+ if(K.vivo){abrirQuiosque(modo);return}
+ if(Date.now()-PEDIDO<3000){PEDIDO=0;abrirQuiosque(modo)}
 }
 TELAS_V[ROTA]=telaFacial;
 /* perfis restritos: o celular do ponto só vê a câmera; a responsável vê a câmera e a gestão (com os relatórios e o espelho individual).
-   Aparelho que estava travado volta travado ao abrir o sistema. */
+   Aparelho travado (pela versão nova) volta para a tela do ponto, travada, mas a câmera só abre com o toque. */
 const _renderCascaPZ=renderCasca;
 renderCasca=function(){const r=_renderCascaPZ.apply(this,arguments);
  try{const ok=acessoOk();document.body.classList.toggle('pz-celular',ok&&ehCelular());
@@ -38302,7 +38355,9 @@ function diaCalc(f,data){
  const c=tem?calcDia({funcionarioId:f.id,data,entrada:st.entrada,saidaIntervalo:st.saidaIntervalo,retornoIntervalo:st.retornoIntervalo,saida:st.saida,tipo:(st.reg&&st.reg.tipo)||'Presença normal'}):null;
  const oc=DATA.diario.filter(x=>x.funcionarioId===f.id&&x.data===data&&x.tipo!=='Presença normal').map(x=>x.tipo);
  const og=[...new Set(ORDEM.filter(k=>st[k]).map(k=>st.m[k]?ORIGEM[st.m[k].origem]||'Facial':'Lançado pelo DP'))].join(' + ');
- return{st,esp,c,tem,oc,og};
+ /* presença com horário lançada à mão no Diário, num dia sem marcação do ponto facial (comum na fase de testes): não é ausência */
+ const rd=tem?null:regDiario(f.id,data),presDiario=!!(rd&&(rd.entrada||rd.saida));
+ return{st,esp,c,tem,oc,og,presDiario};
 }
 function situacaoDia(st,f,ehHoje){
  if(st.saida)return['Jornada encerrada','ok'];
@@ -38378,7 +38433,7 @@ function abaHistorico(){
   <div class="tabwrap"><table class="tbl cartao" id="pgTabDias"><thead><tr><th>Data</th><th>Entrada</th><th>Saída intervalo</th><th>Retorno</th><th>Saída</th><th class="num">Trabalhado</th><th class="num">Atraso</th><th class="num">Além da jornada</th><th>Situação</th></tr></thead><tbody>
   ${dias.map(d=>{const x=diaCalc(f,d);if(!x.tem&&!x.esp&&!x.oc.length)return '';const s=situacaoDia(x.st,f,d===H);
    return `<tr><td data-l="Data">${fData(d)} <small style="color:var(--suave)">${DIAS[dt(d).getDay()].slice(0,3)}</small></td>${ORDEM.map(k=>`<td data-l="${esc(NOME_K(k))}">${hora(x.st[k])}</td>`).join('')}
-    <td class="num" data-l="Trabalhado">${x.c?fHm(x.c.trab):''}</td><td class="num" data-l="Atraso">${x.c&&x.c.atraso?fHm(x.c.atraso):''}</td><td class="num" data-l="Além da jornada">${x.c&&x.c.extra?fHm(x.c.extra):''}</td><td data-l="Situação">${x.oc.length?esc(x.oc.join(', ')):tag(s[0],s[1])}</td></tr>`}).join('')||'<tr><td colspan="9">Nenhum dia com jornada ou marcação no período.</td></tr>'}</tbody></table></div>
+    <td class="num" data-l="Trabalhado">${x.c?fHm(x.c.trab):''}</td><td class="num" data-l="Atraso">${x.c&&x.c.atraso?fHm(x.c.atraso):''}</td><td class="num" data-l="Além da jornada">${x.c&&x.c.extra?fHm(x.c.extra):''}</td><td data-l="Situação">${x.oc.length?esc(x.oc.join(', ')):x.presDiario?'Presença lançada no Diário do DP':tag(s[0],s[1])}</td></tr>`}).join('')||'<tr><td colspan="9">Nenhum dia com jornada ou marcação no período.</td></tr>'}</tbody></table></div>
   <div class="filtros" style="border-top:1px solid var(--linha)"><b style="font-size:13.5px">Marcações originais do período</b></div>`:''}
  ${ms.length?`<div class="tabwrap"><table class="tbl cartao" id="pgTabMarc"><thead><tr><th>Data</th><th>Hora</th>${f?'':'<th>Funcionário</th>'}<th>Tipo</th><th>Origem</th><th>Confiança</th><th>NSR</th><th>Situação</th><th></th></tr></thead><tbody>
   ${ms.slice(0,400).map(m=>{const s=sitMarc(m);return `<tr data-marc="${esc(m.id)}"><td data-l="Data">${fData(m.data)}</td><td data-l="Hora"><span class="pg-hora">${esc(hms(m.em)||m.hora)}</span></td>${f?'':`<td data-l="Funcionário">${esc(nomeF(m.funcionarioId))}</td>`}<td data-l="Tipo">${esc(NOME_K(m.k))}</td>
@@ -38431,12 +38486,12 @@ const RELS={
    rows:fs.map(f=>{const o={nome:f.nome,matricula:f.matricula||'',setor:f.setor||'',dias:0,trab:0,previsto:0,atraso:0,antecipada:0,extra:0,noturno:0,aus:0,inc:0};
     for(const d of diasDoMes(mes)){if(d>H)break;const x=diaCalc(f,d);if(x.esp)o.previsto+=x.esp.min;
      if(x.c){o.dias++;o.trab+=x.c.trab;o.atraso+=x.c.atraso;o.antecipada+=x.c.antecipada;o.extra+=x.c.extra;o.noturno+=x.c.noturno;if(x.c.incompleto&&d<H)o.inc++}
-     else if(x.esp&&d<H&&!x.oc.length)o.aus++}
+     else if(x.esp&&d<H&&!x.presDiario)o.aus++}
     return o})}}},
  espelho:{n:'Espelho de ponto individual',d:'Dia a dia de um funcionário no mês, com as marcações e as horas calculadas pela jornada da ficha.',um:1,
   b(mes,fs,H){const f=fs[0];return{cols:[{k:'data',l:'Data',t:'data'},{k:'dia',l:'Dia'},{k:'entrada',l:'Entrada'},{k:'saidaIntervalo',l:'Saída int.'},{k:'retornoIntervalo',l:'Retorno'},{k:'saida',l:'Saída'},hmC('trab'),hmC('previsto'),hmC('atraso'),hmC('antecipada'),hmC('extra'),hmC('noturno'),{k:'og',l:'Origem'},{k:'obs',l:'Ocorrência'}],
    rows:!f?[]:diasDoMes(mes).map(d=>{const x=diaCalc(f,d),c=x.c||{};return{data:d,dia:DIAS_SEM[dt(d).getDay()]+(feriado(d)?' (feriado)':''),entrada:x.st.entrada,saidaIntervalo:x.st.saidaIntervalo,retornoIntervalo:x.st.retornoIntervalo,saida:x.st.saida,
-    trab:c.trab||0,previsto:x.esp?x.esp.min:0,atraso:c.atraso||0,antecipada:c.antecipada||0,extra:c.extra||0,noturno:c.noturno||0,og:x.og,obs:x.oc.join(', ')||(!x.tem&&x.esp&&d<H?'Sem marcação':'')+(c.incompleto&&d<H?'Incompleto':'')}})}}},
+    trab:c.trab||0,previsto:x.esp?x.esp.min:0,atraso:c.atraso||0,antecipada:c.antecipada||0,extra:c.extra||0,noturno:c.noturno||0,og:x.og,obs:x.oc.join(', ')||(x.presDiario?'Presença lançada no Diário do DP':!x.tem&&x.esp&&d<H?'Sem marcação':'')+(c.incompleto&&d<H?'Incompleto':'')}})}}},
  entsai:{n:'Entradas e saídas',d:'Todas as marcações do mês, uma por linha, na ordem em que aconteceram.',
   b(mes,fs){const ids=new Set(fs.map(f=>f.id));return{cols:COLS_MARC,rows:DATA[COL_M].filter(m=>String(m.data).startsWith(mes)&&ids.has(m.funcionarioId)).sort((a,b)=>String(a.em).localeCompare(String(b.em))).map(linhaMarc)}}},
  atrasos:{n:'Atrasos',d:'Dias em que a entrada passou do horário da jornada, além da tolerância configurada.',
@@ -38444,7 +38499,7 @@ const RELS={
  extras:{n:'Horas extras (além da jornada)',d:'Dias com horas trabalhadas além da jornada. O lançamento e a aprovação continuam em Horas extras.',
   b(mes,fs,H){return porDia(mes,fs,H,x=>x.c&&x.c.extra>0,[{k:'entrada',l:'Entrada'},{k:'saida',l:'Saída'},hmC('trab'),hmC('previsto'),hmC('extra'),{k:'tipoDia',l:'Tipo de dia'}],(x)=>({trab:x.c.trab,previsto:x.esp?x.esp.min:0,extra:x.c.extra,tipoDia:x.c.tipoDia}))}},
  ausencias:{n:'Ausências',d:'Dias com jornada prevista na ficha e nenhuma marcação. Mostra a ocorrência do Diário do DP, quando houver.',
-  b(mes,fs,H){return porDia(mes,fs,H,(x,d)=>!x.tem&&!!x.esp&&d<H,[{k:'previstoE',l:'Jornada prevista'},{k:'obs',l:'Ocorrência no Diário do DP'}],(x)=>({previstoE:fHm(x.esp.e)+' às '+fHm(x.esp.s),obs:x.oc.join(', ')||'Sem justificativa lançada'}))}},
+  b(mes,fs,H){return porDia(mes,fs,H,(x,d)=>!x.tem&&!!x.esp&&d<H&&!x.presDiario,[{k:'previstoE',l:'Jornada prevista'},{k:'obs',l:'Ocorrência no Diário do DP'}],(x)=>({previstoE:fHm(x.esp.e)+' às '+fHm(x.esp.s),obs:x.oc.join(', ')||'Sem justificativa lançada'}))}},
  pendentes:{n:'Marcações pendentes de tratamento',d:'Registros sem reconhecimento ainda não conferidos, dias com marcação faltando e ajustes aguardando aprovação.',
   b(mes,fs,H){const ids=new Set(fs.map(f=>f.id)),rows=[];
    DATA[COL_M].filter(m=>String(m.data).startsWith(mes)&&ids.has(m.funcionarioId)&&pendente(m)).forEach(m=>rows.push({data:m.data,nome:nomeF(m.funcionarioId),setor:m.setor||'',pend:'Registro sem reconhecimento a conferir',det:NOME_K(m.k)+' às '+m.hora+' · '+((MOTIVOS.find(x=>x[0]===m.motivo)||[])[1]||'')}));
@@ -38626,7 +38681,10 @@ async function acaoG(a,id,x){
  if(a==='tratar'){tratar(id);return}
  if(a==='senha'){await criarSenha(!!R.senha);renderTela();return}
  if(a==='integridade'){conferirIntegridade();return}
- if(a==='lancarDiario'){let n=0;try{for(const d of foraDoDiario()){if(await lancarNoDiario(d.fid,d.data))n++}toast(n+' dia(s) lançados no Diário do DP.','ok')}catch(e){toast((n?n+' lançados antes do erro. ':'')+(typeof msgErro==='function'?msgErro(e):'Erro ao lançar.'),'erro')}renderTela();return}
+ if(a==='lancarDiario'){const fd=foraDoDiario();if(!fd.length){renderTela();return}
+  const lista=fd.slice(0,8).map(d=>nomeF(d.fid)+', '+fData(d.data)+' ('+marcsDia(d.fid,d.data).filter(m=>!anulada(m)).map(m=>CURTO[m.k]+' '+m.hora).join(', ')+')').join(' · ')+(fd.length>8?' · e mais '+(fd.length-8)+' dia(s)':'');
+  if(!await confirmar('Lançar no Diário do DP?','Entram no Diário só os horários que ainda não estão lá: '+lista+'. Se algum destes dias foi apagado do Diário de propósito, não lance: anule a marcação em Histórico › Tratar.',{ok:'Lançar no Diário'}))return;
+  let n=0;try{for(const d of fd){if(await lancarNoDiario(d.fid,d.data))n++}toast(n+' dia(s) lançados no Diário do DP.','ok')}catch(e){toast((n?n+' lançados antes do erro. ':'')+(typeof msgErro==='function'?msgErro(e):'Erro ao lançar.'),'erro')}renderTela();return}
  if(a==='fase'){if(!podeTec())return;const ir=!oficial();
   if(!await confirmar(ir?'Passar para o registro definitivo?':'Voltar para a fase de testes?',ir?'A partir de agora, cada marcação confirmada entra no Diário do DP e alimenta o espelho, as horas extras e a folha. As marcações feitas nos testes continuam guardadas como testes. Confira antes os itens da lista "O que falta" e a situação legal em Configurações.'
    :'As próximas marcações voltam a ser de acompanhamento e deixam de entrar no Diário do DP (a não ser que essa opção esteja ligada em Configurações). O que já foi registrado não muda.',{ok:ir?'Passar para o definitivo':'Voltar para os testes'}))return;
@@ -38680,7 +38738,7 @@ function porNoMenu(rota,rotulo,depois,icone,sinon,desc){
 porNoMenu(ROTA,'Ponto facial','','camera','facial rosto reconhecimento face biometria camera celular quiosque bater ponto marcar marcacao entrada saida camera traseira','Câmera em tela cheia: o sistema identifica o funcionário pelo rosto e ele confirma a marcação.');
 porNoMenu(ROTA_G,'Gestão do ponto',ROTA,'relogio','controle de ponto marcacoes historico cadastro facial rosto biometria relatorio espelho atraso ausencia hora extra falhas implantacao teste auditoria configuracao','Controle do dia, cadastro facial, histórico, relatórios, implantação, configurações e auditoria do ponto.');
 
-window.JB_PONTO={aberto:()=>K.vivo||!!CAD,travada:()=>K.vivo&&K.travada,modo:()=>K.modo,estado:()=>({vivo:K.vivo,cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:K.pronto?{fid:K.pronto.fid,op:K.pronto.op.slice(),ki:K.pronto.ki,manual:!!K.pronto.manual}:null,ocupado:K.ocupado,travada:K.travada,rostos:R.pronto}),
+window.JB_PONTO={aberto:()=>K.vivo||!!CAD,travada:()=>K.vivo?K.travada:!!lerTrava(),modo:()=>K.modo,estado:()=>({vivo:K.vivo,cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:K.pronto?{fid:K.pronto.fid,resta:Math.round(K.pronto.ate-seg()),op:K.pronto.op.map(x=>x.k),ki:K.pronto.ki,manual:!!K.pronto.manual}:null,ocupado:K.ocupado,travada:K.travada,rostos:R.pronto}),
  cfg:cfgP,oficial,estadoDia,conferir,alvo,opcoes,registrarMarcacao,lancarNoDiario,foraDoDiario,agora,relogio:REL,
  comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modoIA:()=>MODO,limites:()=>({LIMITE:limite(),FIRME,MARGEM,PARECIDO,TAM_MIN}),
  camera:()=>({ligada:camViva(),abrindo:!!CAM.p,lado:CAM.lado,cameras:CAM.n,medidas:CAM.med.slice()}),medidas:()=>({modo:MODO,achar:MED.achar.slice(),ver:MED.ver.slice(),identificar:MED.identificar.slice(),quedasOperario:MED.quedas}),

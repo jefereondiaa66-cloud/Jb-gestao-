@@ -18,7 +18,9 @@ reconhecimento). O Espelho de ponto, o Diário do DP, as horas extras e a folha 
 
 ## Área do funcionário · `#/pontoFacial`
 
-1. A câmera abre sozinha, na tela inteira, na **traseira**. O botão de setas, no alto, alterna para a da frente.
+1. A câmera **só abre com um toque**: no atalho "Ponto facial" (menu, botão ou pesquisa) ou no botão "Abrir a câmera"
+   da tela de entrada. Entrar no sistema ou recarregar a página nunca abre a câmera. Aberta, ela ocupa a tela inteira,
+   na **traseira**; o botão de setas, no alto, alterna para a da frente.
 2. O sistema procura o rosto, calcula o código dele e compara com os funcionários do DP que têm cadastro facial.
 3. Identificou: aparece **"Funcionário identificado!"**, o nome, a matrícula, o horário e o tipo da marcação.
 4. A pessoa toca em **CONFIRMAR MARCAÇÃO**. Só aí a marcação é gravada.
