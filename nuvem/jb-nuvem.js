@@ -80,14 +80,74 @@
     if (dados === null || dados === undefined) cache.delete(colecao + '/' + id);
     else cache.set(colecao + '/' + id, { colecao: colecao, id: id, dados: dados });
   }
+
+  /* ---------------- cadastros de um setor guardados na coleção de outro módulo (16/11/2026) ----------------
+     A leitura no servidor é por módulo, e alguns cadastros que um setor usa moram na coleção de outro
+     módulo: terceiros que abastecem, responsáveis e contas ficam no Financeiro ("fin"), a configuração do
+     barro no Barro, os nomes dos funcionários no DP. Quem não tinha o módulo dono via a lista vazia (ex.:
+     veículos de terceiros no Combustível). O servidor (jb_compartilhados) entrega só os itens e campos que o
+     setor da pessoa usa; aqui eles entram no mesmo "banco" do programa. "parciais" são as coleções que a
+     pessoa só enxerga em parte: elas não chegam pelo tempo real, então são conferidas a cada minuto. */
+  var parciais = new Set();
+  var raizDe = function (colecao) { return String(colecao || '').split('/')[0]; };
+  async function lerCompartilhados() {
+    var r = await sb.rpc('jb_compartilhados');
+    if (r.error) {
+      if (r.error.code === 'PGRST202' || r.error.code === '42883') return null;   // servidor ainda sem a função: segue como antes
+      throw traduzErro(r.error);
+    }
+    var d = r.data || {};
+    return { parciais: Array.isArray(d.parciais) ? d.parciais : [], docs: Array.isArray(d.docs) ? d.docs : [] };
+  }
+  var conferindoComp = null, compAgendado = null;
+  function atualizarCompartilhados() {
+    if (!sb || !eu || eu.admin) return Promise.resolve();
+    if (conferindoComp) return conferindoComp;
+    conferindoComp = (async function () {
+      var res; try { res = await lerCompartilhados(); } catch (e) { return; }
+      if (!res) return;
+      var np = new Set(res.parciais), vistos = new Set(), mud = new Set();
+      res.docs.forEach(function (x) {
+        if (!x || !x.colecao || !x.id || !np.has(raizDe(x.colecao))) return;
+        var k = x.colecao + '/' + x.id, a = cache.get(k); vistos.add(k);
+        if (!a || JSON.stringify(a.dados) !== JSON.stringify(x.dados)) { cache.set(k, { colecao: x.colecao, id: x.id, dados: x.dados }); mud.add(x.colecao); }
+      });
+      cache.forEach(function (r, k) { if (np.has(raizDe(r.colecao)) && !vistos.has(k)) { cache.delete(k); mud.add(r.colecao); } });
+      parciais = np;
+      mud.forEach(function (c) { avisar(c); });
+    })().finally(function () { conferindoComp = null; });
+    return conferindoComp;
+  }
+  /* depois de gravar numa coleção parcial, o servidor pode completar o registro (ex.: o número do
+     compromisso): confere logo em seguida */
+  function agendarCompartilhados(colecao) {
+    if (!parciais.has(raizDe(colecao))) return;
+    clearTimeout(compAgendado);
+    compAgendado = setTimeout(function () { atualizarCompartilhados(); }, 1500);
+  }
+
   async function carregarTudo() {
     var novo = new Map(), de = 0, passo = 1000;
+    var comp = lerCompartilhados().catch(function () { return null; });
     for (;;) {
       var r = await sb.from('docs').select('colecao,id,dados').order('colecao').order('id').range(de, de + passo - 1);
       if (r.error) throw traduzErro(r.error);
       r.data.forEach(function (x) { novo.set(x.colecao + '/' + x.id, x); });
       if (r.data.length < passo) break;
       de += passo;
+    }
+    var res = await comp;
+    if (res) {
+      var np = new Set(res.parciais);
+      res.docs.forEach(function (x) {
+        if (!x || !x.colecao || !x.id || !np.has(raizDe(x.colecao))) return;
+        var k = x.colecao + '/' + x.id;
+        if (!novo.has(k)) novo.set(k, { colecao: x.colecao, id: x.id, dados: x.dados });
+      });
+      parciais = np;
+    } else {
+      // não deu para conferir agora: mantém o que já tinha dessas coleções até a próxima conferência
+      cache.forEach(function (r, k) { if (parciais.has(raizDe(r.colecao)) && !novo.has(k)) novo.set(k, r); });
     }
     /* devolve as coleções que mudaram, para redesenhar só elas */
     var mudaram = new Set(), velho = cache;
@@ -115,20 +175,20 @@
         await pronto; atividade();
         var r = await rpcGravar('jb_gravar', { p_colecao: p.colecao, p_id: p.id, p_dados: clone(d) });
         if (r.error) throw traduzErro(r.error);
-        guardar(p.colecao, p.id, clone(d)); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, clone(d)); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       update: async function (d) {
         await pronto; atividade();
         var r = await rpcGravar('jb_atualizar', { p_colecao: p.colecao, p_id: p.id, p_campos: clone(d) });
         if (r.error) throw traduzErro(r.error);
         var ant = cache.get(p.colecao + '/' + p.id);
-        guardar(p.colecao, p.id, mesclar(ant ? ant.dados : {}, clone(d))); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, mesclar(ant ? ant.dados : {}, clone(d))); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       delete: async function () {
         await pronto; atividade();
         var r = await rpcGravar('jb_apagar', { p_colecao: p.colecao, p_id: p.id });
         if (r.error) throw traduzErro(r.error);
-        guardar(p.colecao, p.id, null); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, null); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       onSnapshot: function (cb, aoErro) {
         var o = { tipo: 'doc', colecao: p.colecao, id: p.id, filtros: [], cb: cb, erro: aoErro };
@@ -312,6 +372,25 @@
     if (!sb || !eu || document.hidden) return;
     try { (await carregarTudo()).forEach(function (c) { avisar(c); }); } catch (e) { /* tratado em traduzErro */ }   // antes: a tela inteira era redesenhada mesmo sem mudança
   }, 10 * 60 * 1000);
+  /* coleções que a pessoa só enxerga em parte (sem tempo real): conferidas a cada minuto com a tela em uso
+     e na hora em que a pessoa volta para a aba */
+  setInterval(function () {
+    if (!sb || !eu || document.hidden || !parciais.size) return;
+    if (Date.now() - ultimaAtividade > 5 * 60 * 1000) return;
+    atualizarCompartilhados();
+  }, 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && sb && eu && parciais.size) atualizarCompartilhados(); });
+
+  /* setores que aparecem na tela de setores e no trilho: além das regras do perfil (no programa), só os que o
+     servidor libera para a pessoa (antes aparecia o setor e as telas ficavam vazias). Administrador vê todos. */
+  var MODULOS_DO_SETOR = { dp: ['dp', 'folha'], vendas: ['vendas'], lenha: ['compras'], combustivel: ['compras'], producao: ['producao'],
+    financeiro: ['financeiro'], barro: ['barro'], almox: ['almox'], paletes: ['paletes'], fiscal: ['fiscal'], control: ['controladoria'] };
+  window.JB_SETOR_SRV = function (id) {
+    if (!eu || eu.admin) return true;
+    var ms = MODULOS_DO_SETOR[id];
+    if (!ms) return true;   // setores sem módulo próprio (Controle Central, Inventário): valem as regras do programa
+    return ms.some(function (m) { var p = eu.permissoes && eu.permissoes[m]; return !!(p && p.ler); });
+  };
   function ligarTempoReal() {
     sb.channel('jb-docs').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, function (p) {
       var r = p.new && p.new.colecao ? p.new : p.old;

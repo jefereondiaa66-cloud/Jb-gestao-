@@ -819,6 +819,33 @@ teste('contratos', 'redator da nuvem: adaptador e função do servidor conferem 
     assert.match(fn, /application\/x-ndjson/); assert.match(fn, /cortado: msg\.stop_reason === "max_tokens"/); assert.match(fn, /cancel\(\) \{ parar\(\); \}/);
   }
 });
+teste('nuvem', 'acesso por setor (16/11/2026): cadastros de um setor guardados no módulo de outro chegam a quem trabalha no setor', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /sb\.rpc\('jb_compartilhados'\)/, 'o adaptador pede ao servidor os cadastros compartilhados');
+  assert.match(nv, /r\.error\.code === 'PGRST202' \|\| r\.error\.code === '42883'/, 'servidor sem a função: segue como antes (não trava a entrada)');
+  assert.match(nv, /var comp = lerCompartilhados\(\)\.catch/, 'a carga completa já traz os compartilhados junto');
+  assert.match(nv, /if \(!novo\.has\(k\)\) novo\.set\(k,/, 'documento que a pessoa lê inteiro nunca é trocado pela parte compartilhada');
+  assert.match(nv, /parciais\.size\) atualizarCompartilhados\(\)/, 'coleção parcial (sem tempo real) é conferida ao voltar para a aba');
+  assert.match(nv, /agendarCompartilhados\(p\.colecao\)/, 'depois de gravar, confere o que o servidor completou (ex.: número do compromisso)');
+  assert.match(nv, /window\.JB_SETOR_SRV = function \(id\)/, 'setores sem acesso no servidor não aparecem na nuvem');
+  assert.match(app, /const setorVisivel=s=>\(!s\.v\|\|s\.v\(\)\)&&\(typeof window\.JB_SETOR_SRV!=='function'\|\|window\.JB_SETOR_SRV\(s\.id\)!==false\);/, 'fora da nuvem a regra dos setores não muda');
+  assert.match(app, /const ult=setorUlt\(\);const vis=SETORES\.filter\(setorVisivel\);/, 'tela de setores usa a mesma regra');
+  assert.match(app, /const vis=SETORES\.filter\(typeof setorVisivel==='function'\?setorVisivel:/, 'trilho dos setores usa a mesma regra');
+  if (existsSync(join(RAIZ, 'supabase/migrations/20261116150000_seg_compartilhar_setores.sql'))) {
+    const m = ler('supabase/migrations/20261116150000_seg_compartilhar_setores.sql');
+    assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261116150000_seg_compartilhar_setores.down.sql')), 'reversão descrita');
+    assert.ok(!/\bdrop\b/i.test(m.replace(/--.*$/gm, '')), 'a migração só acrescenta (sem drop: pelo celular a confirmação não aparece)');
+    assert.match(m, /revoke all on function public\.jb_compartilhados\(\) from public, anon;/);
+    assert.match(m, /grant execute on function public\.jb_compartilhados\(\) to authenticated;/);
+    const li = /function seg\.leitura_item[\s\S]*?\$function\$;/.exec(m)[0];
+    assert.ok(!/'mei'|Mão de obra|Funcionários/.test(li), 'MEI e pagamento de pessoal nunca são compartilhados');
+    assert.match(m, /v := v - 'saldoInicial' - 'dataSaldoInicial' - 'obs';/, 'conta compartilhada vai sem o saldo inicial');
+    const fu = /'dados', jsonb_strip_nulls\(jsonb_build_object\(([\s\S]*?)\)\)\)\);/.exec(m)[1];
+    assert.ok(!/sensivel|cpf|salario|obs|formaRemuneracao|telefone|email/i.test(fu), 'do funcionário só vão nome e função');
+    assert.match(m, /\(ea and m_a is null\) or \(eb and m_b is null\) or \(ea and eb and m_a is distinct from m_b\)/, 'gravar item compartilhado: antes e depois do mesmo setor');
+    assert.match(m, /pg_advisory_xact_lock\(hashtext\('jb-fin-numero'\)\)/, 'número do compromisso sem repetição');
+  }
+});
 /* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
 if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
   const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');

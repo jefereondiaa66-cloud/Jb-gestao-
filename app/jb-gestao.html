@@ -13235,8 +13235,11 @@ function resumoSetorConsumo(id){
  const est=txtUnid(porUnidade(ps,p=>saldoP(p.id),p=>p.unidade));const ab=round2(soma(DATA.compras.filter(v=>v.setor===id&&v.status!=='Cancelada'),v=>finVenda(v).saldo));
  return 'Estoque: '+est+' · '+fMoeda(ab)+' a pagar';
 }
+/* setor visível: as regras do perfil e, na nuvem, o acesso que o servidor dá à pessoa (16/11/2026: o setor
+   aparecia mesmo sem acesso aos dados dele, e as telas ficavam vazias). Fora da nuvem não muda nada. */
+const setorVisivel=s=>(!s.v||s.v())&&(typeof window.JB_SETOR_SRV!=='function'||window.JB_SETOR_SRV(s.id)!==false);
 function telaSetores(el){
- const ult=setorUlt();const vis=SETORES.filter(s=>!s.v||s.v());
+ const ult=setorUlt();const vis=SETORES.filter(setorVisivel);
  el.innerHTML=`<div class="spot">${cabSpot(razaoMostra(),'CNPJ '+cnpjMostra()+' · '+SPOT_NOME)}
   <main class="spot-corpo">
    <p class="spot-boas">${typeof saudacaoNome==='function'?`<b>${esc(saudacaoNome())}</b> `:''}Bem-vindo ao ${esc(SPOT_NOME)}. Selecione o setor em que deseja trabalhar.</p>
@@ -16515,7 +16518,7 @@ function trilhoAtivo(){
  return setorUlt()||'';
 }
 function trilhoHtml(){
- const vis=SETORES.filter(s=>!s.v||s.v());const usados=new Set();
+ const vis=SETORES.filter(typeof setorVisivel==='function'?setorVisivel:(s=>!s.v||s.v()));const usados=new Set();
  const it=s=>{usados.add(s.id);const nome=TRILHO_CURTO[s.id]||s.nome;return `<a class="tr-it${s.breve||s.prep?' breve':''}" href="${esc(s.rota)}" data-trilho="${esc(s.id)}" data-tip="${esc(nome)}" aria-label="${esc(nome)}">${ic(s.ic)}</a>`};
  const grupos=TRILHO_GRUPOS.map(g=>g.map(id=>vis.find(s=>s.id===id)).filter(Boolean));
  const resto=vis.filter(s=>!TRILHO_GRUPOS.flat().includes(s.id));
