@@ -44,6 +44,7 @@ begin
   end if;
   a := coalesce(case when tg_op = 'UPDATE' then old.dados->'items' end, '{}'::jsonb);
   b := coalesce(new.dados->'items', '{}'::jsonb);
+  if jsonb_typeof(a) <> 'object' then a := '{}'::jsonb; end if;
   if jsonb_typeof(b) <> 'object' then
     raise exception 'dados inválidos' using errcode = '22023';
   end if;
