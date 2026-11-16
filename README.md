@@ -27,6 +27,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/verificar.mjs` | verificações do programa, da construção, da ponte (testes B–F) e do JB Fiscal |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
+| `node scripts/testar-navegacao.mjs` | navegação central (JBNAV): Voltar linear, limite, janelas, abas, cliques repetidos, F5 e celular, em todas as telas de todos os setores (135 itens) |
 | `node scripts/testar-janelas.mjs` | testa janelas, abas, rascunhos, clique duplo e gravação sem conexão (21 itens) |
 | `node scripts/testar-vendas.mjs` | Setor de Vendas: pedido, venda, ticket 58/80 mm, orçamento, simulação ([docs/vendas-v110.md](docs/vendas-v110.md)) |
 | `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta: lançamentos, foto (IA simulada), programação, descontos e acerto (69 conferências) |

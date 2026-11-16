@@ -17,5 +17,8 @@ recuperação, siga `.claude/agents/jb-core.md` (JB CORE AGENT). Resumo:
 - **Autorização do dono (30/10/2026):** alterações de código pedidas por ele podem ir direto para a
   `main` (publicação automática na nuvem) e para o artifact do Claude, desde que `verificar.mjs`
   passe inteiro. Isso não vale para dados: apagar ou sobrescrever registros continua exigindo pedido explícito.
+- Navegação: toda troca de tela passa pelo `JBNAV` (bloco `jb-navegacao`): use `JBNAV.ir('#/tela')`, `JBNAV.subst(...)` e
+  `JBNAV.voltar()`; nunca `location.hash = ...`, `location.replace(...)` nem `history.back()` direto. Mexeu em telas ou botões
+  de retorno: `node scripts/testar-navegacao.mjs`.
 - Repositório PÚBLICO: nunca colocar dados de pessoas, cópias do banco ou chaves secretas.
 - Textos para o usuário em português do Brasil, linguagem simples.

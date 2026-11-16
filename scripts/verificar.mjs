@@ -59,6 +59,19 @@ teste('programa', 'estrutura básica intacta', () => {
     assert.equal(c, n, `"${marca}" aparece ${c} vez(es), esperado ${n}`);
   }
 });
+teste('programa', 'navegação centralizada: só o JBNAV muda de tela', () => {
+  // Toda troca de tela passa por JBNAV.ir / JBNAV.subst / JBNAV.voltar (um histórico só, linear).
+  // Atribuir location.hash direto ou chamar history.back() em outro lugar recria o vai e volta entre telas.
+  const app = ler('app/jb-gestao.html');
+  const m = /<script id="jb-navegacao">([\s\S]*?)<\/script>/.exec(app);
+  assert.ok(m, 'bloco jb-navegacao não encontrado');
+  assert.ok(app.includes('JBNAV.ligar(()=>navegar());'), 'o roteador precisa ser ligado pelo JBNAV');
+  const fora = app.replace(m[0], '');
+  const diretos = (fora.match(/location\.hash\s*=(?!=)/g) || []).length;
+  assert.equal(diretos, 0, `há ${diretos} atribuições diretas a location.hash fora do JBNAV. Use JBNAV.ir(...)`);
+  assert.equal((fora.match(/location\.replace\(/g) || []).length, 0, 'use JBNAV.subst(...) no lugar de location.replace(...)');
+  assert.equal((fora.match(/history\.back\(\)/g) || []).length, 1, 'history.back() só na gaveta do painel; nas telas use JBNAV.voltar()');
+});
 teste('programa', 'todo o JavaScript do programa compila', () => {
   const app = ler('app/jb-gestao.html');
   const ss = scriptsEmbutidos(app, 'app/jb-gestao.html');
