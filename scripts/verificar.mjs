@@ -168,11 +168,15 @@ teste('programa', 'ponto facial (V126): câmera liberada só para o próprio sit
   assert.match(adm, /\['respPonto', 'Responsável pelo ponto/, 'o painel de usuários precisa oferecer o perfil "Responsável pelo ponto"');
   assert.match(ler('nuvem/jb-nuvem.js'), /JB_PONTO/, 'a nuvem não pode recarregar a página com a câmera do ponto aberta');
 });
-teste('programa', 'ponto facial (V126): reconhecimento com versão fixa, nenhuma foto guardada e marcações que só entram', () => {
+teste('programa', 'ponto facial (V126/V127): reconhecimento com versão fixa, cadastro sem foto, foto só da marcação confirmada e marcações que só entram', () => {
   const app = ler('app/jb-gestao.html');
   assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
   const pz = /<script id="ponto-facial-v126">([\s\S]*?)<\/script>/.exec(app)[1];
-  assert.ok(!/toDataURL|assets\.upload|toBlob/.test(pz), 'o ponto facial não pode guardar foto: nem no cadastro, nem na marcação');
+  assert.ok(!/toDataURL/.test(pz), 'o ponto facial não guarda imagem dentro do banco');
+  assert.equal(pz.split('assets.upload(').length - 1, 1, 'a única foto enviada é a da marcação (guardarFoto); o cadastro facial continua sem foto');
+  assert.match(pz, /if\(querFoto\(\)\)guardarFoto\(m,/, 'a foto só é guardada depois que a marcação foi gravada (a marcação nunca espera pela foto)');
+  assert.match(pz, /\['pontos','Pontos do funcionário','pessoas'\]/, 'a gestão do ponto tem a aba "Pontos do funcionário"');
+  assert.match(pz, /foto:true\}/, 'a foto da marcação vem ligada e pode ser desligada em Configurações');
   assert.match(pz, /CONFIRMAR MARCAÇÃO/, 'a marcação só é gravada com o toque em CONFIRMAR MARCAÇÃO');
   assert.match(pz, /CFG_PF=\{fase:'teste'/, 'o ponto facial começa na fase de testes');
   assert.match(pz, /lado:'environment'/, 'a câmera traseira é o padrão');

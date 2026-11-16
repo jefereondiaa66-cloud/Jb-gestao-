@@ -10,7 +10,7 @@
 //    5. pessoa sem cadastro é rejeitada                                   12. as permissões por perfil funcionam
 //    6. só a confirmação grava a marcação                                 13. os dados continuam depois de recarregar
 //    7. a sequência entrada → intervalo → retorno → saída funciona        14. funciona em celular e em computador
-// e ainda: nenhuma foto guardada, termo de ciência, registro sem reconhecimento, tratamento (conferir e anular),
+// e ainda: cadastro sem foto, foto do momento em cada marcação (V127), aba Pontos do funcionário, termo de ciência, registro sem reconhecimento, tratamento (conferir e anular),
 // fase de testes x registro definitivo (Diário do DP), teste de reconhecimento, senha, tela travada e câmera solta ao sair.
 // Uso: npm install --no-save playwright @vladmandic/face-api@1.7.15 && node scripts/construir.mjs && node scripts/testar-ponto-facial.mjs
 import { readFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
@@ -250,7 +250,9 @@ try {
   ok(ms[0].hora === '07:02' && ms[0].data === H && Math.abs(Date.parse(ms[0].em) - (await page.evaluate(() => JB_PONTO.agora().getTime()))) < 60000, `AUDITORIA 9 · o horário gravado é o do toque (${ms[0].hora}, ${ms[0].data})`);
   ok(ms[0].conf && ms[0].conf.d < 0.48 && ms[0].conf.pct > 20 && ms[0].fase === 'teste' && ms[0].camera === 'traseira' && !('foto' in ms[0]) && !JSON.stringify(ms[0]).includes('data:image'), `a marcação guarda a confiança (${ms[0].conf && ms[0].conf.pct}%), a fase e a câmera, e nenhuma foto`);
   ok((await diario()).length === 0, 'fase de testes: a marcação não entra no Diário do DP (não se confunde com o registro oficial)');
-  ok(await page.evaluate(() => window.__arquivos.length === 0), 'nenhum arquivo de imagem foi enviado ao armazenamento');
+  await page.waitForFunction(() => Array.from(window.__srv.estado.docs.values()).some((d) => d.colecao === 'pontoEventos' && Object.values(d.dados.items || {}).some((e) => e.tipo === 'foto')), null, { timeout: 10000 });
+  const fo = (await eventos('foto'))[0], arq = await page.evaluate(() => window.__arquivos.slice());
+  ok(arq.length === 1 && arq[0] === 'ponto-' + ms[0].id + '.jpg' && fo.marcacaoId === ms[0].id && fo.funcionarioId === 'f1' && fo.foto.id === 'x1' && fo.foto.tam > 800, `V127 · a foto do momento vai para o armazenamento depois da marcação, ligada a ela e ao funcionário (${fo.foto.tam} bytes)`);
   await semPainel();
   // a mesma pessoa continua na frente: não grava de novo e, passada a espera, avisa
   await page.waitForFunction(() => /Já existe uma marcação neste horário/.test(document.getElementById('pzRes').textContent) && !document.getElementById('pzRes').hidden, null, { timeout: 60000 });
@@ -332,6 +334,21 @@ try {
   ok(!!r10.bruna && r10.bruna[6] === '0' && /Ainda não marcou|Sem jornada/.test(r10.bruna[8]) && /Fase de testes/.test(r10.fase), 'quem não marcou aparece sem horário; a tela avisa que é fase de testes');
   await page.screenshot({ path: join(TELAS, 'gestao-1-controle-celular.png'), fullPage: true });
   await page.click('#pgTabHoje tr[data-id="f1"] td:nth-child(3)');
+  await page.waitForSelector('#pgPontos .pg-dia', { timeout: 8000 });
+  const rp = await page.evaluate((H) => { const d = document.querySelector('#pgPontos .pg-dia[data-dia="' + H + '"]'), mk = Array.from(d.querySelectorAll('.pg-mk')); return { aba: document.getElementById('pgCorpo').dataset.aba, txt: mk.map((x) => x.textContent.replace(/\s+/g, ' ').trim()), fotos: mk.map((x) => (x.querySelector('img.pg-ft') || { getAttribute: () => '' }).getAttribute('src')), cab: d.querySelector('.pg-dia-c').textContent, resumo: document.querySelector('#pgCorpo .resumo').textContent, nome: document.querySelector('#pgCorpo .pg-pessoa').textContent }; }, H);
+  ok(rp.aba === 'pontos' && /Ana Teste Souza/.test(rp.nome) && /^Entrada ?07:02:\d\d/.test(rp.txt[0]) && /^Intervalo ?12:01:\d\d/.test(rp.txt[1]) && /^Volta ?13:00:\d\d.*manual/.test(rp.txt[2]) && /^Saída ?17:05:\d\d/.test(rp.txt[3]) && /09:04/.test(rp.cab), `V127 · Pontos do funcionário: tocar na pessoa abre os pontos dela, dia a dia, com a hora de cada marcação (${rp.txt.join(' | ')})`);
+  ok(rp.fotos.filter((x) => /^\/_blob\/x\d+$/.test(x)).length === 4 && new Set(rp.fotos).size === 4 && (await page.evaluate(() => window.__arquivos.length)) === 4, 'V127 · cada marcação aparece com a própria foto, inclusive a registrada sem reconhecimento');
+  await page.screenshot({ path: join(TELAS, 'gestao-3-pontos-do-funcionario.png'), fullPage: true });
+  await page.click('#pgPontos .pg-dia .pg-mk');
+  await page.waitForSelector('.modal .pg-fotoG');
+  ok(/Foto do momento/.test(await page.textContent('.pg-comp')) && /Guardada/.test(await page.textContent('.pg-comp')), 'V127 · tocar na marcação abre o comprovante com a foto maior');
+  await page.click('.modal [data-r="0"]');
+  await page.click('[data-a="trocarFunc"]');
+  await page.waitForSelector('#pgListaPontos .pg-fc[data-id="f2"]');
+  ok((await page.$$eval('#pgListaPontos .pg-fc', (b) => b.map((x) => x.dataset.id))).join() === 'f1,f2,f3' && /Marcações no mês4/.test(await page.textContent('#pgListaPontos .pg-fc[data-id="f1"]')), 'V127 · a aba lista os funcionários em cartões, com a entrada e a saída de hoje e as marcações do mês');
+  await page.click('#pgListaPontos .pg-fc[data-id="f1"]');
+  await page.waitForSelector('#pgPontos .pg-dia');
+  await page.evaluate(() => { location.hash = '#/pontoGestao/historico'; });
   await page.waitForSelector('#pgTabMarc', { timeout: 8000 });
   const r10b = await page.evaluate(() => ({ dias: document.querySelector('#pgTabDias tbody tr').textContent.replace(/\s+/g, ' '), linhas: document.querySelectorAll('#pgTabMarc tbody tr').length, pend: document.querySelector('#pgTabMarc').textContent.includes('Pendente de tratamento') }));
   ok(r10b.linhas === 4 && /07:02.*12:01.*13:00.*17:05.*09:04/.test(r10b.dias) && r10b.pend, `AUDITORIA 8 · histórico individual: o dia calculado (trabalhado 09:04) e as 4 marcações originais; a manual está "Pendente de tratamento"`);

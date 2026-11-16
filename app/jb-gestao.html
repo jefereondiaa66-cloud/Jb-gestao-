@@ -37633,6 +37633,29 @@ body.pz-celular #jbsair,body.pz-celular #jbversao{display:none!important}
 .pg-mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;font-weight:400!important}
 @media (max-width:720px){.pz-rel b{font-size:28px}.pz-status b{font-size:21px}.pz-res .pz-rh{font-size:58px}.pz-res .pz-rt{font-size:23px}.pz-marca b{font-size:13px}.pz-marca span{font-size:10px;letter-spacing:.16em}.pg-op{flex-direction:column}}
 @media (orientation:landscape) and (max-height:560px){.pz-guia{top:54%;left:30%;width:min(32vw,60vh)}.pz-rel{position:absolute;left:30%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%)}.pz-rel b{font-size:24px}.pz-rel span{display:none}.pz-fase{left:30%;top:auto;bottom:10px}.pz-baixo{left:auto;right:0;width:min(46vw,520px);top:66px;justify-content:center;padding-right:max(16px,env(safe-area-inset-right,0px))}.pz-nome{font-size:20px}.pz-conf{min-height:54px}.pz-linha{margin:8px 0}}
+/* V127 · Pontos do funcionário: lista de pessoas, dias em cartões e a foto de cada marcação */
+.pg-fl{display:grid;gap:8px;padding:12px 14px}
+.pg-fc{display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;padding:12px 14px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco);color:var(--tinta);font:inherit;text-align:left;cursor:pointer}
+.pg-fc:hover{border-color:var(--tinta)}
+.pg-fc .pg-pessoa{flex:1 1 220px}
+.pg-fc-h{display:flex;gap:14px;font-size:12.5px;color:var(--suave)}
+.pg-fc-h b{display:block;font-size:14px;color:var(--tinta);font-variant-numeric:tabular-nums}
+.pg-dia{margin:0 14px 10px;padding:12px;border:1px solid var(--linha);border-radius:var(--r2);background:var(--branco)}
+.pg-dia-c{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pg-mks{margin-top:10px}
+.pg-dia-c b{font-size:14.5px}.pg-dia-c small{color:var(--suave);font-size:12.5px}
+.pg-dia-c .pg-tot{margin-left:auto;font-size:12.5px;color:var(--suave)}
+.pg-mks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.pg-mk{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px;border:1px solid var(--linha2,var(--linha));border-radius:10px;background:var(--papel2,var(--papel));color:var(--tinta);font:inherit;text-align:center;min-width:0}
+button.pg-mk{cursor:pointer}button.pg-mk:hover{border-color:var(--tinta)}
+.pg-mk.pg-mk-v{border-style:dashed;background:none;color:var(--fraco)}
+.pg-mk small{font-size:11.5px;color:var(--suave)}
+.pg-mk b{font-size:15px;font-variant-numeric:tabular-nums}
+.pg-ft{display:block;width:64px;height:80px;border-radius:8px;object-fit:cover;background:var(--linha)}
+.pg-ft-v,.pg-ft-x{display:grid;place-items:center;color:var(--fraco)}
+.pg-ft-v svg{width:22px;height:22px}
+img.pg-ft-x{opacity:.15}
+.pg-fotoG{display:block;width:180px;height:225px;margin:0 auto 12px;border-radius:12px;object-fit:cover;background:var(--linha)}
+@media (max-width:560px){.pg-mks{grid-template-columns:repeat(2,minmax(0,1fr))}.pg-dia{margin:0 8px 10px}.pg-fl{padding:10px 8px}}
 </style>
 <script id="ponto-facial-v126">
 "use strict";
@@ -37645,8 +37668,9 @@ body.pz-celular #jbsair,body.pz-celular #jbversao{display:none!important}
    · ÁREA ADMINISTRATIVA (#/pontoGestao): controle do dia, cadastro facial, histórico, relatórios, implantação
      (fase de testes), configurações e auditoria.
    Dados:
-   · rostos (já existia): um documento por funcionário com os códigos numéricos do rosto. Nenhuma foto é guardada,
-     nem no cadastro nem na marcação. Os 36 cadastros feitos antes continuam valendo (mesmo modelo, face-api 1.7.15).
+   · rostos (já existia): um documento por funcionário com os códigos numéricos do rosto. No cadastro nenhuma foto é
+     guardada. Na marcação (V127, pedido do dono em 16/11/2026) fica uma foto pequena do momento, no armazenamento
+     privado, ligada à marcação por um evento "foto" (dá para desligar em Configurações). Os 36 cadastros feitos antes continuam valendo (mesmo modelo, face-api 1.7.15).
    · pontoMarcacoes (novo): cada marcação é um registro próprio, que só entra. O banco não deixa alterar nem apagar,
      e carimba o número sequencial (NSR), a hora do servidor e o encadeamento (hash).
    · pontoEventos (novo): falhas de identificação, testes, tratamentos (conferir ou anular, com justificativa) e
@@ -37699,7 +37723,7 @@ const motivoBloqueio=()=>!pode(ROTA,'e')?'Seu perfil não registra ponto.':polit
  :'O acesso ao Setor Pessoal foi bloqueado para este usuário no Controle Central. Fale com o dono.';
 
 /* ---------- configurações do ponto facial (config/empresa → pontoFacial) ---------- */
-const CFG_PF={fase:'teste',lancarDiario:false,provaVida:false,rigor:'padrao',minIntervalo:2,exigirTermo:true,camera:'environment'};
+const CFG_PF={fase:'teste',lancarDiario:false,provaVida:false,rigor:'padrao',minIntervalo:2,exigirTermo:true,camera:'environment',foto:true};
 const cfgP=()=>({...CFG_PF,...((CFG&&CFG.pontoFacial)||{})});
 const oficial=()=>cfgP().fase==='oficial';
 const lancaDiario=()=>oficial()||!!cfgP().lancarDiario;
@@ -37723,16 +37747,34 @@ const agora=()=>new Date(Date.now()+REL.dif);
 let IX=null;
 function ix(){
  const b=DATA[COL_M],e=DATA[COL_E],di=DATA.diario;if(IX&&IX.b===b&&IX.e===e&&IX.di===di)return IX;
- const anul=new Map(),conf=new Map();for(const x of e){if(x.tipo==='tratamento'&&x.marcacaoId)(x.acao==='anulada'?anul:conf).set(x.marcacaoId,x)}
+ const anul=new Map(),conf=new Map(),fotos=new Map();for(const x of e){if(x.tipo==='tratamento'&&x.marcacaoId)(x.acao==='anulada'?anul:conf).set(x.marcacaoId,x);else if(x.tipo==='foto'&&x.marcacaoId&&x.foto&&x.foto.id)fotos.set(x.marcacaoId,x.foto.id)}
  const dia=new Map();for(const m of b){const k=m.funcionarioId+'|'+m.data;let a=dia.get(k);if(!a)dia.set(k,a=[]);a.push(m)}
  dia.forEach(a=>a.sort((x,y)=>String(x.em).localeCompare(String(y.em))));
  const reg=new Map();for(const r of di){if(!TIPOS_PRESENCA.includes(r.tipo))continue;const k=r.funcionarioId+'|'+r.data,a=reg.get(k);if(!a||(!(a.entrada||a.saida)&&(r.entrada||r.saida)))reg.set(k,r)}
- return IX={b,e,di,anul,conf,dia,reg};
+ return IX={b,e,di,anul,conf,fotos,dia,reg};
 }
 const marcsDia=(fid,data)=>ix().dia.get(fid+'|'+data)||[];
 const regDiario=(fid,data)=>ix().reg.get(fid+'|'+data)||null;
 const anulada=m=>ix().anul.has(m.id);
 const conferida=m=>ix().conf.has(m.id);
+/* V127 · a foto do momento da marcação: um recorte pequeno do quadro da câmera (240 × 300), guardado no armazenamento
+   privado depois que a marcação já foi gravada. A marcação nunca espera pela foto nem deixa de valer sem ela. */
+const fotoDe=m=>ix().fotos.get(m.id)||'';
+const querFoto=()=>cfgP().foto!==false&&!!(APP.assets&&APP.assets.upload);
+function fotografar(vid,cx){
+ return new Promise(ok=>{try{
+  const vw=vid&&vid.videoWidth,vh=vid&&vid.videoHeight;if(!vw||!vh){ok(null);return}
+  let h=cx?Math.max(cx.h*vh,cx.w*vw)*2.1:vh,w=h*.8;if(h>vh){h=vh;w=h*.8}if(w>vw){w=vw;h=w/.8}
+  const mx=cx?(cx.x+cx.w/2)*vw:vw/2,my=cx?(cx.y+cx.h/2)*vh:vh/2,x=Math.max(0,Math.min(vw-w,mx-w/2)),y=Math.max(0,Math.min(vh-h,my-h*.52));
+  const c=document.createElement('canvas');c.width=240;c.height=300;c.getContext('2d').drawImage(vid,x,y,w,h,0,0,240,300);
+  c.toBlob(b=>ok(b||null),'image/jpeg',.72)}catch(e){ok(null)}});
+}
+async function guardarFoto(m,pf){
+ try{const b=await pf;if(!b||!querFoto())return;let up=null;
+  for(let i=0;i<3&&!up;i++){try{up=await APP.assets.upload(new File([b],'ponto-'+m.id+'.jpg',{type:'image/jpeg'}))}catch(e){if(i===2)throw e;await new Promise(r=>setTimeout(r,1500*(i+1)))}}
+  await evento('foto',{marcacaoId:m.id,funcionarioId:m.funcionarioId,data:m.data,foto:{id:up.id,tam:up.sizeBytes||b.size}});
+ }catch(e){console.warn('ponto: foto da marcação não guardada',e&&e.code)}
+}
 /* pendente de tratamento: registro manual (sem reconhecimento) que o DP ainda não conferiu nem anulou */
 const pendente=m=>m.origem==='manual'&&!anulada(m)&&!conferida(m);
 /* a situação do dia de uma pessoa: o registro tratado do Diário (quando o ponto lança lá) e, no que faltar,
@@ -38303,7 +38345,7 @@ function alternarCamera(){
 function mostrarCard(fid,inf){
  const f=F(fid),c=el('#pzCard');if(!f||!c)return;
  const teste=K.modo==='teste',k=teste?null:conferir(fid,agora());
- K.pronto={fid,d:inf.d,segundo:inf.segundo,vivo:inf.vivo||null,manual:inf.manual||null,ate:seg()+(inf.manual?ESPERA_MANUAL:ESPERA),outro:0,op:k&&k.ok?k.escolhas:[],ki:0,ms:inf.ms||null};
+ K.pronto={fid,foto:inf.foto||null,d:inf.d,segundo:inf.segundo,vivo:inf.vivo||null,manual:inf.manual||null,ate:seg()+(inf.manual?ESPERA_MANUAL:ESPERA),outro:0,op:k&&k.ok?k.escolhas:[],ki:0,ms:inf.ms||null};
  const det=[f.matricula?'Matrícula '+f.matricula:'',f.setor||'',f.cargo||''].filter(Boolean).join(' · ');
  c.className='pz-card'+(inf.manual?' pz-man':'');
  if(teste)c.innerHTML=`<div class="pz-ok">${CHECK}<span>Teste: rosto identificado</span></div><div class="pz-nome">${esc(f.nome)}</div><div class="pz-det">${esc(det)}</div>
@@ -38342,6 +38384,7 @@ async function confirmarMarcacao(){
   id='pm'+esc0.data.replace(/-/g,'')+idLimpo(p.fid)+'-'+k;
   const m=await comPrazo(registrarMarcacao(p.fid,k,{data:esc0.data},ag,{origem:p.manual?'manual':'facial',motivo:p.manual?p.manual.motivo:null,vivo:p.vivo,
    conf:p.manual?null:{d:arred(p.d),segundo:arred(p.segundo),pct:confianca(p.d)}}),20000);
+  if(querFoto())guardarFoto(m,p.foto||(camViva()?fotografar(el('video'),null):null));
   K.ultimo.set(p.fid,seg());K.avisado.set(p.fid,seg());esconderCard();som(true);
   painel('ok',{titulo:'Marcação registrada com sucesso!',nome:f.nome+' · '+NOME_K(m.k),hora:m.hora,
    msg:[m.data!==isoDe(agora())?'Da jornada que começou em '+fData(m.data)+'.':'',p.manual?'Registro sem reconhecimento: a responsável vai conferir.':'',oficial()?'':'Fase de testes: registro de acompanhamento.']},3500);
@@ -38494,7 +38537,7 @@ async function passo(){
    const fid=r.fid,ms=K.t0?Math.round(performance.now()-K.t0):null;K.cand=null;K.n=0;K.falhas=0;K.olhos=null;K.t0=0;if(ms!=null){MED.identificar.push(ms);if(MED.identificar.length>20)MED.identificar.shift()}
    if(K.modo!=='teste'){const c=conferir(fid,agora());
     if(!c.ok){esconderCard();if(desde(K.avisado,fid)>60000){K.avisado.set(fid,seg());som(false);avisoMarc(F(fid),c)}else{status(c.msg,primeiro(F(fid))+': '+(c.det||''),'achou');K.msgAte=seg()+3000}prox=400;return}}
-   mostrarCard(fid,{d:r.d,segundo:r.segundo,vivo:vv,ms});prox=300;return}
+   mostrarCard(fid,{d:r.d,segundo:r.segundo,vivo:vv,ms,foto:K.modo!=='teste'&&querFoto()?fotografar(vid,v.cx):null});prox=300;return}
   /* rosto que não bate com ninguém: nunca é associado ao cadastro "mais parecido" */
   if(K.pronto){if(++K.pronto.outro>=2)esconderCard();else{prox=folga(t0,250);return}}
   K.cand=null;K.n=0;K.olhos=null;if(!K.sem)K.semDesde=seg();K.sem++;
@@ -38565,7 +38608,7 @@ function fecharCad(){
  try{if(lerRota().mod===ROTA_G)renderTela()}catch(e){}
 }
 function textoTermo(f){const e=(CFG&&CFG.empresa)||{};
- return `Eu, ${f.nome}${f.matricula?', matrícula '+f.matricula:''}, declaro que fui informado(a) por ${e.razao||e.fantasia||'meu empregador'}${e.cnpj?' (CNPJ '+e.cnpj+')':''} de que:\n\n1. Meu rosto será usado para criar um código numérico (modelo biométrico), com a única finalidade de me identificar no registro de ponto.\n2. Nenhuma fotografia do meu rosto é guardada pelo sistema: fica apenas o código numérico, que não permite reconstruir a imagem.\n3. O acesso a esse código é restrito às pessoas autorizadas do Departamento Pessoal e ao aparelho do ponto.\n4. O código é apagado quando eu deixar a empresa ou quando o reconhecimento facial deixar de ser usado. Posso pedir informações, correção ou a exclusão a qualquer momento ao Departamento Pessoal.\n5. Se eu não quiser ou não puder usar o reconhecimento facial, existe o registro alternativo, feito pela pessoa responsável pelo ponto.\n\nBase legal: Lei 13.709/2018 (LGPD), art. 11.\n\nLocal e data: ____________________________\n\nAssinatura do(a) trabalhador(a): ____________________________`}
+ return `Eu, ${f.nome}${f.matricula?', matrícula '+f.matricula:''}, declaro que fui informado(a) por ${e.razao||e.fantasia||'meu empregador'}${e.cnpj?' (CNPJ '+e.cnpj+')':''} de que:\n\n1. Meu rosto será usado para criar um código numérico (modelo biométrico), com a única finalidade de me identificar no registro de ponto.\n2. No cadastro, nenhuma fotografia do meu rosto é guardada: fica apenas o código numérico, que não permite reconstruir a imagem. A cada marcação de ponto, o sistema guarda uma foto pequena do momento, como comprovante de que fui eu que marquei.\n3. O acesso a esse código e a essas fotos é restrito às pessoas autorizadas do Departamento Pessoal e ao aparelho do ponto.\n4. O código é apagado quando eu deixar a empresa ou quando o reconhecimento facial deixar de ser usado. Posso pedir informações, correção ou a exclusão a qualquer momento ao Departamento Pessoal.\n5. Se eu não quiser ou não puder usar o reconhecimento facial, existe o registro alternativo, feito pela pessoa responsável pelo ponto.\n\nBase legal: Lei 13.709/2018 (LGPD), art. 11.\n\nLocal e data: ____________________________\n\nAssinatura do(a) trabalhador(a): ____________________________`}
 function imprimirTexto(titulo,texto){
  try{const fr=document.createElement('iframe');fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(fr);
   const d=fr.contentWindow.document;d.open();d.write(`<!doctype html><meta charset="utf-8"><title>${esc(titulo)}</title><style>body{font:14px/1.6 Georgia,serif;margin:28mm 22mm;color:#000}h1{font-size:18px;margin:0 0 18px}pre{white-space:pre-wrap;font:inherit;margin:0}</style><h1>${esc(titulo)}</h1><pre>${esc(texto)}</pre>`);d.close();
@@ -38700,8 +38743,8 @@ async function apagarRosto(fid){
 }
 
 /* ================= ÁREA ADMINISTRATIVA: Gestão do ponto ================= */
-const ABAS=[['hoje','Controle do dia','relogio'],['funcionarios','Cadastro facial','pessoas'],['historico','Histórico','livro'],['relatorios','Relatórios','grafico'],['implantacao','Implantação','escudo'],['config','Configurações','engrenagem'],['auditoria','Auditoria','lupa']];
-const UIG={dia:'',setor:'',busca:'',sit:'',func:'',ini:'',fim:'',origem:'',rel:'mensal',mes:'',aberto:'',integ:null};
+const ABAS=[['hoje','Controle do dia','relogio'],['pontos','Pontos do funcionário','pessoas'],['funcionarios','Cadastro facial','pessoas'],['historico','Histórico','livro'],['relatorios','Relatórios','grafico'],['implantacao','Implantação','escudo'],['config','Configurações','engrenagem'],['auditoria','Auditoria','lupa']];
+const UIG={dia:'',setor:'',busca:'',sit:'',func:'',ini:'',fim:'',origem:'',rel:'mensal',mes:'',pmes:'',aberto:'',integ:null};
 const ORIGEM={facial:'Facial',manual:'Sem reconhecimento'};
 const MOTIVO_F={nao_identificado:'Rosto não identificado',camera:'Câmera não abriu',reconhecimento:'Reconhecimento não carregou'};
 const RES_T={acerto:'Acertou',erro:'Reconheceu a pessoa errada',nao_reconheceu:'Não reconheceu quem tem cadastro',rejeicao_certa:'Rejeitou quem não tem cadastro (certo)'};
@@ -38755,6 +38798,46 @@ function abaHoje(){
    ${ORDEM.map(k=>`<td data-l="${esc(NOME_K(k))}">${hora(st[k])}${st.m[k]&&st.m[k].origem==='manual'?' '+tag('manual','at'):''}</td>`).join('')}
    <td class="num" data-l="Marcações">${st.n}</td><td data-l="Última marcação">${ult?esc(CURTO[ult]+' '+st[ult]):'—'}</td><td data-l="Situação">${tag(sit[0],sit[1])}</td></tr>`).join('')}</tbody></table></div>`
   :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui os empregados ativos do cadastro do Departamento Pessoal (prestadores não registram ponto).</div>'}</div>`;
+}
+
+/* ---------- V127 · Pontos do funcionário: tudo de uma pessoa num lugar só (dias, horários, fotos e totais) ---------- */
+const fotoUrl=id=>(window.JB_BLOB_URL&&window.JB_BLOB_URL(id))||'/_blob/'+id;
+const semFoto=()=>`<span class="pg-ft pg-ft-v" aria-hidden="true">${ic('camera')}</span>`;
+const imgFoto=(m,cls)=>{const id=m?fotoDe(m):'';return id?`<img class="${cls||'pg-ft'}" src="${esc(fotoUrl(id))}" alt="Foto da marcação" loading="lazy">`:cls?'':semFoto()};
+function totaisMes(f,mes,H){
+ const o={dias:0,trab:0,atraso:0,extra:0,aus:0,inc:0};
+ for(const d of diasDoMes(mes)){if(d>H)break;const x=diaCalc(f,d);
+  if(x.c){o.dias++;o.trab+=x.c.trab;o.atraso+=x.c.atraso;o.extra+=x.c.extra;if(x.c.incompleto&&d<H)o.inc++}else if(x.esp&&d<H&&!x.presDiario)o.aus++}
+ return o;
+}
+function abaPontos(){
+ const H=isoDe(agora()),fs=funcsG(),f=UIG.func?fs.find(x=>x.id===UIG.func):null;
+ if(!f){
+  const mesH=H.slice(0,7),conta=new Map();for(const m of DATA[COL_M]){if(String(m.data).startsWith(mesH)&&!anulada(m))conta.set(m.funcionarioId,(conta.get(m.funcionarioId)||0)+1)}
+  const ls=filtraG(fs);
+  return `${faixaFase()}<div class="painel"><div class="filtros pg-filtros"><select data-f="setor" aria-label="Setor">${optSet()}</select>
+   <input type="search" id="pgBusca" data-f="busca" value="${esc(UIG.busca)}" placeholder="Procurar funcionário ou matrícula" aria-label="Procurar funcionário ou matrícula"></div>
+  ${ls.length?`<div class="pg-fl" id="pgListaPontos">${ls.map(x=>{const st=estadoDia(x.id,H),sit=situacaoDia(st,x,true);
+   return `<button type="button" class="pg-fc" data-a="verFunc" data-id="${esc(x.id)}">${pessoa(x)}<span class="pg-fc-h"><span>Entrada hoje<b>${esc(st.entrada||'—')}</b></span><span>Saída hoje<b>${esc(st.saida||'—')}</b></span><span>Marcações no mês<b>${conta.get(x.id)||0}</b></span></span>${tag(sit[0],sit[1])}</button>`}).join('')}</div>`
+   :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui os empregados ativos do cadastro do Departamento Pessoal.</div>'}</div>
+  <p class="ajuda" style="margin-top:10px">Toque no funcionário para ver os pontos dele: cada dia, a hora de cada marcação e a foto do momento.</p>`;
+ }
+ const mes=/^\d{4}-\d{2}$/.test(UIG.pmes)&&UIG.pmes<=H.slice(0,7)?UIG.pmes:H.slice(0,7),t=totaisMes(f,mes,H),e=esperadoDia(f,H);
+ const pend=DATA[COL_M].filter(m=>m.funcionarioId===f.id&&String(m.data).startsWith(mes)&&pendente(m)).length;
+ const dias=diasDoMes(mes).filter(d=>d<=H).reverse().map(d=>{const x=diaCalc(f,d);if(!x.tem&&!x.esp&&!x.oc.length)return '';const s=situacaoDia(x.st,f,d===H);
+  return `<div class="pg-dia" data-dia="${d}"><div class="pg-dia-c"><b>${fData(d)}</b><small>${DIAS[dt(d).getDay()]}</small>${x.oc.length?tag(x.oc.join(', '),'in'):x.presDiario?tag('Presença lançada no Diário do DP','in'):tag(s[0],s[1])}
+    <span class="pg-tot">${x.c?'Trabalhado '+fHm(x.c.trab)+(x.c.atraso?' · atraso '+fHm(x.c.atraso):'')+(x.c.extra?' · além da jornada '+fHm(x.c.extra):''):''}</span></div>
+   ${!x.tem?'':`<div class="pg-mks">${ORDEM.map(k=>{const m=x.st.m[k],v=x.st[k];
+    if(m)return `<button type="button" class="pg-mk" data-a="comprovante" data-id="${esc(m.id)}" aria-label="${esc(NOME_K(k)+' às '+v+': ver a marcação')}">${imgFoto(m)}<small>${esc(CURTO[k])}</small><b>${esc(hms(m.em)||v)}</b>${m.origem==='manual'?tag(pendente(m)?'manual · conferir':'manual','at'):''}</button>`;
+    if(v)return `<div class="pg-mk">${semFoto()}<small>${esc(CURTO[k])}</small><b>${esc(v)}</b>${tag('lançado pelo DP','in')}</div>`;
+    return `<div class="pg-mk pg-mk-v"><small>${esc(CURTO[k])}</small><b>—</b></div>`}).join('')}</div>`}</div>`}).join('');
+ return `${faixaFase()}<div class="painel"><div class="filtros pg-filtros"><button type="button" class="btn min" data-a="trocarFunc">${ic('esquerda')}Todos os funcionários</button><select data-f="func" aria-label="Funcionário">${optFunc('Escolher outro funcionário')}</select>
+   <input type="month" data-f="pmes" value="${esc(mes)}" max="${H.slice(0,7)}" aria-label="Mês"><span style="flex:1"></span>
+   <button type="button" class="btn min" data-a="expPontos" data-x="ver">${ic('doc')}Espelho do mês</button><button type="button" class="btn min" data-a="expPontos" data-x="pdf">${ic('baixar')}PDF</button><button type="button" class="btn min" data-a="expPontos" data-x="xlsx">${ic('baixar')}Excel</button></div>
+  <div style="padding:12px 14px;border-bottom:1px solid var(--linha);display:flex;gap:10px;flex-wrap:wrap;align-items:center">${pessoa(f)}${tagRosto(rostoDe(f.id))}<small style="color:var(--suave)">${e?'Jornada de hoje: '+fHm(e.e)+' às '+fHm(e.s):'Sem jornada prevista para hoje'}</small></div></div>
+  <div class="resumo">${[[t.dias,'Dias com marcação'],[fHm(t.trab),'Horas trabalhadas'],[t.atraso?fHm(t.atraso):'—','Atrasos'],[t.extra?fHm(t.extra):'—','Além da jornada'],[t.aus,'Ausências'],[pend+t.inc,'A conferir (manual ou dia incompleto)']].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  <div class="painel" id="pgPontos" style="padding-top:12px">${dias||'<div class="vazio"><b>Nenhum ponto neste mês</b>As marcações confirmadas no ponto facial aparecem aqui, na hora.</div>'}</div>
+  <p class="ajuda" style="margin-top:10px">Toque numa marcação para ver a foto maior, o comprovante e os detalhes. ${window.JB_NUVEM?'':'As fotos aparecem na versão da nuvem. '}${cfgP().foto===false?'A foto da marcação está desligada em Configurações.':'Marcações anteriores a 16/11/2026 não têm foto.'}</p>`;
 }
 
 /* ---------- Cadastro facial ---------- */
@@ -38815,12 +38898,13 @@ function abaHistorico(){
 function comprovante(id){
  const m=DATA[COL_M].find(x=>x.id===id);if(!m)return;const f=F(m.funcionarioId)||{},e=(CFG&&CFG.empresa)||{},s=sitMarc(m);
  const linhas=[['Empregador',(e.razao||e.fantasia||'—')+(e.cnpj?' · CNPJ '+e.cnpj:'')],['Trabalhador',(f.nome||'(removido)')+(f.matricula?' · matrícula '+f.matricula:'')],['Data',fData(m.data)],['Hora da marcação',hms(m.em)||m.hora],['Tipo',NOME_K(m.k)],
-  ['Origem',(ORIGEM[m.origem]||m.origem)+(m.conf&&m.conf.pct!=null?' · confiança '+m.conf.pct+'%':'')],['Número sequencial (NSR)',m.nsr!=null?String(m.nsr):'aguardando o servidor'],['Hora do servidor',m.srv?fDataHora(m.srv)+':'+pad(new Date(m.srv).getSeconds()):'—'],['Código de verificação',m.hash?String(m.hash).slice(0,32):'—'],['Situação',s[0]+(m.fase!=='oficial'?' · fase de testes':'')]];
+  ['Origem',(ORIGEM[m.origem]||m.origem)+(m.conf&&m.conf.pct!=null?' · confiança '+m.conf.pct+'%':'')],['Número sequencial (NSR)',m.nsr!=null?String(m.nsr):'aguardando o servidor'],['Hora do servidor',m.srv?fDataHora(m.srv)+':'+pad(new Date(m.srv).getSeconds()):'—'],['Código de verificação',m.hash?String(m.hash).slice(0,32):'—'],['Foto do momento',fotoDe(m)?'Guardada':'Sem foto'],['Situação',s[0]+(m.fase!=='oficial'?' · fase de testes':'')]];
  const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
- v.innerHTML=`<div class="modal" role="dialog" aria-modal="true" style="max-width:520px"><h3>Comprovante de marcação de ponto</h3><dl class="pg-comp">${linhas.map(([a,b])=>`<dt>${esc(a)}</dt><dd${a==='Código de verificação'?' class="pg-mono"':''}>${esc(b)}</dd>`).join('')}</dl>
+ v.innerHTML=`<div class="modal" role="dialog" aria-modal="true" style="max-width:520px"><h3>Comprovante de marcação de ponto</h3>${imgFoto(m,'pg-ft pg-fotoG')}<dl class="pg-comp">${linhas.map(([a,b])=>`<dt>${esc(a)}</dt><dd${a==='Código de verificação'?' class="pg-mono"':''}>${esc(b)}</dd>`).join('')}</dl>
   <p class="ajuda" style="clear:both;margin-top:12px">Comprovante de controle interno. Não é o Comprovante de Registro de Ponto do Trabalhador da Portaria MTP 671/2021 (que exige programa registrado e assinatura eletrônica).</p>
-  <div class="acoes"><button type="button" class="btn" data-r="p">${ic('doc')}Imprimir</button><button type="button" class="btn pri" data-r="0">Fechar</button></div></div>`;
+  <div class="acoes">${podeGerir()&&!anulada(m)?`<button type="button" class="btn" data-r="t">Tratar</button>`:''}<button type="button" class="btn" data-r="p">${ic('doc')}Imprimir</button><button type="button" class="btn pri" data-r="0">Fechar</button></div></div>`;
  v.addEventListener('click',ev=>{const b=ev.target.closest('[data-r]');if(ev.target===v||(b&&b.dataset.r==='0')){v.remove();return}
+  if(b&&b.dataset.r==='t'){v.remove();tratar(id);return}
   if(b)imprimirTexto('Comprovante de marcação de ponto (controle interno)',linhas.map(([a,x])=>a+': '+x).join('\n'))});
  document.body.appendChild(v);
 }
@@ -38953,7 +39037,7 @@ async function salvarCfgPonto(patch,txt){
  const ant=cfgP(),novo={...ant,...patch};
  await salvarCfg({...clone(CFG),pontoFacial:novo});CFG.pontoFacial=novo;
  evento('admin',{acao:'config',txt});
- Promise.resolve().then(()=>registrarLog('config','pontoFacial','alterou',ant,novo,{fase:'Fase do ponto facial',lancarDiario:'Lançar no Diário nos testes',provaVida:'Prova de vida',rigor:'Rigor do reconhecimento',minIntervalo:'Intervalo mínimo (min)',exigirTermo:'Exigir termo de ciência',camera:'Câmera padrão'})).catch(()=>{});
+ Promise.resolve().then(()=>registrarLog('config','pontoFacial','alterou',ant,novo,{fase:'Fase do ponto facial',lancarDiario:'Lançar no Diário nos testes',provaVida:'Prova de vida',rigor:'Rigor do reconhecimento',minIntervalo:'Intervalo mínimo (min)',exigirTermo:'Exigir termo de ciência',camera:'Câmera padrão',foto:'Foto no momento da marcação'})).catch(()=>{});
 }
 function abaConfig(){
  if(!podeTec())return '<div class="vazio"><b>Configurações técnicas</b>Só o administrador, o RH e o Departamento Pessoal alteram as configurações do ponto.</div>';
@@ -38970,6 +39054,7 @@ function abaConfig(){
   ${op('Rigor do reconhecimento','Padrão: equilíbrio entre aceitar a pessoa certa e recusar a errada. Alto: recusa mais, e pode pedir mais tentativas.',sel('rigor',[['padrao','Padrão'],['alto','Alto']]))}
   ${op('Prova de vida (piscar os olhos)','Antes de mostrar o nome, pede para a pessoa piscar. Dificulta o uso de uma fotografia, mas não é infalível e deixa a marcação um pouco mais lenta. Em aparelho sem suporte, a marcação segue e fica anotado.',sel('provaVida',[['false','Desligada'],['true','Ligada']]))}
   ${op('Exigir o termo de ciência antes do cadastro facial','Rosto é dado pessoal sensível (LGPD). Com isso ligado, o cadastro só começa depois de registrar que o funcionário assinou o termo.',sel('exigirTermo',[['true','Exigir'],['false','Não exigir']]))}
+  ${op('Foto no momento da marcação','Guarda uma foto pequena de quem marcou, ligada à marcação. Aparece em Pontos do funcionário e no comprovante, só para quem tem acesso ao Departamento Pessoal. O termo de ciência precisa falar dessa foto: quem assinou o termo antigo deve assinar o novo.',sel('foto',[['true','Guardar a foto'],['false','Não guardar']]))}
   ${op('Senha do ponto','Trava a tela do ponto e autoriza o registro sem reconhecimento. Fica guardada embaralhada, nunca em texto.',`<button type="button" class="btn min" data-a="senha">${R.senha?'Trocar a senha':'Criar a senha'}</button>`)}</div>
  <div class="pg-sec"><h2>Jornadas</h2><p>Cada funcionário segue a jornada da própria ficha. O ponto usa essa jornada para sugerir o tipo da marcação e para calcular atraso, ausência e hora extra. ${semJ?'<b>'+semJ+' funcionário(s) estão sem jornada na ficha.</b>':'Todos os funcionários têm jornada na ficha.'}</p>
   <div class="acoes"><a class="btn min" href="#/config">Jornadas e horários</a><a class="btn min" href="#/funcionarios">Fichas dos funcionários</a></div>
@@ -38996,12 +39081,12 @@ function abaAuditoria(){
   ${window.JB_NUVEM_API?'':'<p class="ajuda" style="margin-top:8px">A conferência roda na versão da nuvem.</p>'}
   ${i?`<div class="aviso ${i.erro||i.falhas.length?'pe':'ok'}" style="margin:12px 0 0"><span>${i.erro?esc(i.erro):i.falhas.length?'<b>Atenção:</b> '+i.falhas.length+' marcação(ões) não conferem com a sequência. Avise o administrador.':'<b>Tudo certo.</b> '+i.total+' marcação(ões) conferidas, última com NSR '+(i.ultimo_nsr||0)+'.'}</span></div>`:''}</div>
  <div class="pg-sec"><h2>Proteção dos dados</h2><ul class="pg-lista">
-  <li>${tag('Ativo','ok')}<span>Nenhuma fotografia é guardada. Do rosto fica só um código numérico, usado apenas para o ponto.</span></li>
+  <li>${tag('Ativo','ok')}<span>No cadastro facial nenhuma fotografia é guardada: fica só um código numérico. ${cfgP().foto===false?'A foto da marcação está desligada.':'Cada marcação guarda uma foto pequena do momento, em armazenamento privado.'}</span></li>
   <li>${tag('Ativo','ok')}<span>Acesso por perfil: o banco só entrega os dados do ponto a quem tem permissão no Departamento Pessoal.</span></li>
   <li>${tag('Ativo','ok')}<span>Dados cifrados no caminho (HTTPS) e no armazenamento do banco.</span></li>
   <li>${tag('Ativo','ok')}<span>Toda alteração fica na auditoria do banco, com usuário, data e o antes e depois.</span></li>
   <li>${tag('Ativo','ok')}<span>Cópia de segurança diária do banco, além das cópias manuais do administrador.</span></li>
-  <li>${tag('Ativo','ok')}<span>O reconhecimento roda no próprio aparelho: nenhuma imagem da câmera é enviada para fora.</span></li></ul></div></div>
+  <li>${tag('Ativo','ok')}<span>O reconhecimento roda no próprio aparelho. A única imagem que sai dele é a foto da marcação confirmada, que vai para o armazenamento do próprio sistema.</span></li></ul></div></div>
  <div class="painel"><div class="filtros"><b style="font-size:13.5px">Registro de atividades do ponto</b><span style="flex:1"></span><button type="button" class="btn min" data-a="expAtiv" data-x="xlsx">${ic('baixar')}Excel</button></div>
  ${as.length?`<div class="tabwrap"><table class="tbl cartao" id="pgTabAtiv"><thead><tr><th>Data e hora</th><th>Quem</th><th>O que</th><th>Detalhe</th></tr></thead><tbody>${as.map(a=>`<tr><td data-l="Data e hora">${esc(fDataHora(a.ts))}</td><td data-l="Quem">${esc(nomeUsuario(a.uid))}</td><td data-l="O que">${a.tipo==='acesso'?tag(a.oque,'pe'):esc(a.oque)}</td><td data-l="Detalhe">${esc(a.det)}</td></tr>`).join('')}</tbody></table></div>`
   :'<div class="vazio"><b>Nenhuma atividade registrada ainda</b>Cadastros faciais, tratamentos, trocas de configuração e tentativas de senha errada aparecem aqui.</div>'}</div>`;
@@ -39014,8 +39099,8 @@ async function conferirIntegridade(){
 }
 
 /* ---------- a tela ---------- */
-const CORPO={hoje:abaHoje,funcionarios:abaFuncionarios,historico:abaHistorico,relatorios:abaRelatorios,implantacao:abaImplantacao,config:abaConfig,auditoria:abaAuditoria};
-const SUB={hoje:'Quem marcou, quando e a situação da jornada de cada funcionário.',funcionarios:'Cadastro e situação do reconhecimento facial de cada funcionário.',historico:'Todas as marcações, por funcionário, setor e período.',relatorios:'Espelho, atrasos, horas extras, ausências e pendências.',implantacao:'Fase de testes, acompanhamento e o que falta para o registro definitivo.',config:'Regras do ponto facial.',auditoria:'Integridade, proteção dos dados e registro de atividades.'};
+const CORPO={hoje:abaHoje,pontos:abaPontos,funcionarios:abaFuncionarios,historico:abaHistorico,relatorios:abaRelatorios,implantacao:abaImplantacao,config:abaConfig,auditoria:abaAuditoria};
+const SUB={hoje:'Quem marcou, quando e a situação da jornada de cada funcionário.',pontos:'Os pontos de cada funcionário: dias, horários, fotos e totais do mês.',funcionarios:'Cadastro e situação do reconhecimento facial de cada funcionário.',historico:'Todas as marcações, por funcionário, setor e período.',relatorios:'Espelho, atrasos, horas extras, ausências e pendências.',implantacao:'Fase de testes, acompanhamento e o que falta para o registro definitivo.',config:'Regras do ponto facial.',auditoria:'Integridade, proteção dos dados e registro de atividades.'};
 function telaGestao(el0){
  ouvirRostos();
  const r=lerRota();let aba=CORPO[r.id]?r.id:'hoje';if(aba==='config'&&!podeTec())aba='hoje';
@@ -39036,13 +39121,16 @@ function telaGestao(el0){
  if(aba==='funcionarios'||aba==='implantacao')preparar();
 }
 async function mudarCfg(t){
- const k=t.dataset.cfg,v=t.value==='true'?true:t.value==='false'?false:/^\d+$/.test(t.value)?+t.value:t.value,rot={lancarDiario:'Lançar no Diário nos testes',camera:'Câmera padrão',minIntervalo:'Intervalo mínimo',rigor:'Rigor do reconhecimento',provaVida:'Prova de vida',exigirTermo:'Exigir termo de ciência'};
+ const k=t.dataset.cfg,v=t.value==='true'?true:t.value==='false'?false:/^\d+$/.test(t.value)?+t.value:t.value,rot={lancarDiario:'Lançar no Diário nos testes',camera:'Câmera padrão',minIntervalo:'Intervalo mínimo',rigor:'Rigor do reconhecimento',provaVida:'Prova de vida',exigirTermo:'Exigir termo de ciência',foto:'Foto no momento da marcação'};
  try{await salvarCfgPonto({[k]:v},'Configuração alterada: '+(rot[k]||k)+' = '+t.options[t.selectedIndex].text);toast('Configuração salva.','ok');if(k==='camera'){try{localStorage.removeItem(CH_CAM)}catch(e){}}}
  catch(e){toast(typeof msgErro==='function'?msgErro(e):'Não foi possível salvar.','erro')}
  renderTela();
 }
 async function acaoG(a,id,x){
- if(a==='verFunc'){UIG.func=id;UIG.origem='';JBNAV.ir('#/'+ROTA_G+'/historico');return}
+ if(a==='verFunc'){UIG.func=id;UIG.origem='';if(lerRota().id==='pontos')renderTela();else JBNAV.ir('#/'+ROTA_G+'/pontos');return}
+ if(a==='trocarFunc'){UIG.func='';renderTela();return}
+ if(a==='expPontos'){const g={rel:UIG.rel,mes:UIG.mes};Object.assign(UIG,{rel:'espelho',mes:UIG.pmes||''});let r;try{r=relAtual()}finally{Object.assign(UIG,g)}
+  exportar(x,'Pontos_'+nomeArq(nomeF(id||UIG.func))+'_'+r.mes,r.cols,r.rows,r.titulo);return}
  if(a==='cadastrar'){abrirCadastro(id);return}
  if(a==='desativar'||a==='reativar'){mudarAtivo(id,a==='reativar');return}
  if(a==='apagarRosto'){apagarRosto(id);return}
@@ -39069,6 +39157,9 @@ async function acaoG(a,id,x){
   exportar(x,'Atividades_ponto',[{k:'quando',l:'Data e hora'},{k:'quem',l:'Quem'},{k:'oque',l:'O que'},{k:'det',l:'Detalhe'}],as.map(a=>({quando:fDataHora(a.ts),quem:nomeUsuario(a.uid),oque:a.oque,det:a.det})),'Registro de atividades do ponto');return}
 }
 TELAS_V[ROTA_G]=telaGestao;
+/* foto que ainda não carregou (ou que só existe na nuvem) não deixa imagem quebrada na tela */
+document.addEventListener('error',e=>{const t=e.target;if(t&&t.tagName==='IMG'&&t.classList.contains('pg-ft'))t.classList.add('pg-ft-x')},true);
+document.addEventListener('load',e=>{const t=e.target;if(t&&t.tagName==='IMG'&&t.classList.contains('pg-ft'))t.classList.remove('pg-ft-x')},true);
 /* endereço antigo do cadastro de rosto: leva para a aba nova */
 TELAS_V[ROTA_CAD]=function(el0){const r=lerRota();el0.innerHTML='';JBNAV.subst('#/'+ROTA_G+'/funcionarios'+(r.id?'/'+r.id:''))};
 /* o reconhecimento começa a carregar quando a gestão abre o cadastro ou a implantação: ao tocar em "Cadastrar" já está pronto */
@@ -39106,7 +39197,7 @@ function porNoMenu(rota,rotulo,depois,icone,sinon,desc){
  try{if(typeof descItem==='function'){const d0=descItem;descItem=function(it){if(it&&it.m===rota)return desc;return d0.apply(this,arguments)}}}catch(e){}
 }
 porNoMenu(ROTA,'Ponto facial','','camera','facial rosto reconhecimento face biometria camera celular quiosque bater ponto marcar marcacao entrada saida camera traseira','Câmera em tela cheia: o sistema identifica o funcionário pelo rosto e ele confirma a marcação.');
-porNoMenu(ROTA_G,'Gestão do ponto',ROTA,'relogio','controle de ponto marcacoes historico cadastro facial rosto biometria relatorio espelho atraso ausencia hora extra falhas implantacao teste auditoria configuracao','Controle do dia, cadastro facial, histórico, relatórios, implantação, configurações e auditoria do ponto.');
+porNoMenu(ROTA_G,'Gestão do ponto',ROTA,'relogio','controle de ponto pontos do funcionario fotos marcacoes historico cadastro facial rosto biometria relatorio espelho atraso ausencia hora extra falhas implantacao teste auditoria configuracao','Controle do dia, cadastro facial, histórico, relatórios, implantação, configurações e auditoria do ponto.');
 
 window.JB_PONTO={aberto:()=>K.vivo||!!CAD,travada:()=>K.vivo?K.travada:!!lerTrava(),modo:()=>K.modo,estado:()=>({vivo:K.vivo,cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:K.pronto?{fid:K.pronto.fid,resta:Math.round(K.pronto.ate-seg()),op:K.pronto.op.map(x=>x.k),ki:K.pronto.ki,manual:!!K.pronto.manual}:null,ocupado:K.ocupado,travada:K.travada,rostos:R.pronto}),
  cfg:cfgP,oficial,estadoDia,conferir,alvo,opcoes,registrarMarcacao,lancarNoDiario,foraDoDiario,agora,relogio:REL,

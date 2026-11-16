@@ -150,3 +150,22 @@ individual, horário, duplicidade, relatórios, permissões, persistência e apa
 
 O que o teste automático **não** substitui: um teste com o celular de verdade e os funcionários de verdade. É
 para isso que existe a fase de testes.
+
+## V127 (16/11/2026) · Pontos do funcionário e foto da marcação
+
+Pedido do dono: ver, por funcionário, as fotos e a hora de cada marcação.
+
+- **Aba "Pontos do funcionário"** (`#/pontoGestao/pontos`): lista dos funcionários em cartões (entrada e saída de hoje,
+  marcações do mês, situação). Tocar na pessoa abre os pontos dela: totais do mês (dias, horas, atrasos, além da jornada,
+  ausências, a conferir) e cada dia num cartão, com a hora (com segundos) e a foto de cada marcação. Tocar na marcação abre
+  o comprovante com a foto maior e o botão Tratar. Espelho do mês em tela, PDF e Excel. A linha do Controle do dia abre essa aba.
+- **Foto do momento**: quando o rosto é identificado, o sistema recorta o quadro da câmera (240 × 300, cerca de 10 KB).
+  Só depois de a marcação ser gravada a foto vai para o armazenamento privado (`anexos`) e entra um evento `foto` em
+  `pontoEventos` (que não pode ser alterado nem apagado) ligando a foto à marcação. A marcação nunca espera pela foto. No
+  registro sem reconhecimento, a foto é o quadro da câmera na hora da confirmação. O teste de reconhecimento não guarda foto.
+- **O que muda no que estava escrito acima**: o cadastro facial continua sem foto, mas a marcação agora guarda uma. O termo
+  de ciência foi atualizado; quem assinou o termo antigo (que dizia que nenhuma foto era guardada) precisa assinar o novo.
+  Dá para desligar em Configurações › "Foto no momento da marcação".
+- **Limites**: as fotos aparecem na versão da nuvem (no Claude o armazenamento é outro); marcações anteriores não têm foto;
+  40 funcionários com 4 marcações por dia ocupam cerca de 40 MB por mês no armazenamento.
+- Nenhuma migração de banco: usa a coleção `pontoEventos` e o armazenamento que já existiam.
