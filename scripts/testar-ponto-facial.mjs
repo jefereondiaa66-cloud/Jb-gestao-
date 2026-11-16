@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Teste de ponta a ponta do Ponto facial profissional (V125), no programa REAL (saida/claude.html) num Chromium
+// Teste de ponta a ponta do Ponto facial profissional (V126), no programa REAL (saida/claude.html) num Chromium
 // com banco central simulado. A câmera é simulada (duas câmeras: traseira e da frente) e mostra rostos de verdade
 // (fotos de exemplo que vêm com a biblioteca face-api). O reconhecimento roda de verdade; nada sai para a internet.
 // Confere a auditoria pedida para o módulo:

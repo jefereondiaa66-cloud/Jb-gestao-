@@ -1,4 +1,4 @@
-# Ponto facial profissional (V125 · 15/11/2026)
+# Ponto facial profissional (V126 · 15/11/2026)
 
 Reformulação completa do Ponto do Departamento Pessoal. O que eram três telas soltas (Ponto com foto,
 Ponto facial com tela travada e Relógio de digital) virou um módulo só, com duas áreas separadas.

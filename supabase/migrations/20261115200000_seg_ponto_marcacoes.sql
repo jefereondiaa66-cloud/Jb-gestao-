@@ -1,4 +1,4 @@
--- Ponto facial profissional (V125, 15/11/2026)
+-- Ponto facial profissional (V126, 15/11/2026)
 -- O que faz:
 --   1. Registra duas coleções novas no módulo do DP, agrupadas por mês como os outros lançamentos:
 --        pontoMarcacoes  cada marcação de ponto confirmada (o registro original)
@@ -10,7 +10,8 @@
 --          e um código (hash) que depende da marcação anterior: alteração por fora quebra a sequência.
 --   3. Cria public.jb_ponto_integridade(): confere a sequência inteira e devolve o que não bate.
 -- Não altera nenhum dado existente. A tabela seg.ponto_cadeia guarda só o último número e o último código.
--- Antes de aplicar: select seg.fazer_copia();
+-- Aplicada em 16/11/2026 (cópia de segurança nº 46 feita antes; teste da trava no banco real: 8 de 8).
+-- Antes de aplicar em outro banco: select seg.fazer_copia();
 -- Reverter: rodar 20261115200000_seg_ponto_marcacoes.down.sql (as marcações já gravadas ficam em public.docs).
 
 insert into seg.colecoes (raiz, modulo, agrupada, tipo, auditar) values
@@ -70,9 +71,7 @@ begin
   return new;
 end $$;
 
--- o gatilho só age nas duas coleções do ponto
-drop trigger if exists docs_ponto_proteger_iu on public.docs;
-drop trigger if exists docs_ponto_proteger_d on public.docs;
+-- o gatilho só age nas duas coleções do ponto (a migração só acrescenta: não apaga nem troca nada)
 create trigger docs_ponto_proteger_iu
   before insert or update on public.docs
   for each row when (split_part(new.colecao, '/', 1) in ('pontoMarcacoes', 'pontoEventos'))
@@ -107,6 +106,4 @@ begin
   return jsonb_build_object('total', n, 'falhas', ruins,
     'ultimo_nsr', (select c.nsr from seg.ponto_cadeia c where c.id = 1), 'conferido_em', now());
 end $$;
-revoke all on function public.jb_ponto_integridade() from public, anon;
 grant execute on function public.jb_ponto_integridade() to authenticated;
-revoke all on function seg.ponto_proteger() from public, anon, authenticated;

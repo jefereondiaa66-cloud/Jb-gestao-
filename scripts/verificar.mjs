@@ -143,22 +143,22 @@ teste('programa', 'leitura por foto aos poucos (V109): programa, adaptador da nu
   assert.ok(!/de 20 segundos a alguns minutos/.test(app), 'texto antigo de espera da leitura');
   assert.equal(app.split('em UMA linha só').length - 1, 2, 'os dois pedidos de leitura (documentos e combustível) pedem a resposta enxuta');
 });
-teste('programa', 'ponto facial (V125): câmera liberada só para o próprio site, perfis do ponto no painel e um bloco só', () => {
+teste('programa', 'ponto facial (V126): câmera liberada só para o próprio site, perfis do ponto no painel e um bloco só', () => {
   const h = ler('nuvem/_headers');
   assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o ponto facial precisa da câmera: nuvem/_headers deve ter camera=(self)');
   assert.match(h, /Permissions-Policy:[^\n]*microphone=\(\)/, 'o microfone continua bloqueado');
   const app = ler('app/jb-gestao.html');
-  assert.equal(app.split('<script id="ponto-facial-v125">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
+  assert.equal(app.split('<script id="ponto-facial-v126">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
   for (const velho of ['ponto-foto-v78', 'ponto-facial-v100', 'relogio-ponto-v79']) assert.ok(!app.includes('id="' + velho + '"'), 'bloco antigo do ponto ainda presente: ' + velho);
   const adm = ler('nuvem/admin.html');
   assert.match(adm, /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
   assert.match(adm, /\['respPonto', 'Responsável pelo ponto/, 'o painel de usuários precisa oferecer o perfil "Responsável pelo ponto"');
   assert.match(ler('nuvem/jb-nuvem.js'), /JB_PONTO/, 'a nuvem não pode recarregar a página com a câmera do ponto aberta');
 });
-teste('programa', 'ponto facial (V125): reconhecimento com versão fixa, nenhuma foto guardada e marcações que só entram', () => {
+teste('programa', 'ponto facial (V126): reconhecimento com versão fixa, nenhuma foto guardada e marcações que só entram', () => {
   const app = ler('app/jb-gestao.html');
   assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
-  const pz = /<script id="ponto-facial-v125">([\s\S]*?)<\/script>/.exec(app)[1];
+  const pz = /<script id="ponto-facial-v126">([\s\S]*?)<\/script>/.exec(app)[1];
   assert.ok(!/toDataURL|assets\.upload|toBlob/.test(pz), 'o ponto facial não pode guardar foto: nem no cadastro, nem na marcação');
   assert.match(pz, /CONFIRMAR MARCAÇÃO/, 'a marcação só é gravada com o toque em CONFIRMAR MARCAÇÃO');
   assert.match(pz, /CFG_PF=\{fase:'teste'/, 'o ponto facial começa na fase de testes');
