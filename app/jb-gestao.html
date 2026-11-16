@@ -9928,7 +9928,7 @@ function mCLT(id,n,o){return{id,n,grupo:'Contratos de trabalho',tags:['trabalho'
  titulo:o.titulo,sub:o.sub,base:o.base,papeis:o.papeis||['EMPREGADOR','EMPREGADO(A)'],alerta:o.alerta||'',testemunhas:1,intro:o.intro||CT_.partes,
  campos:[...(o.parte==='empregadorPF'?[...P_EMPREG_PF]:[]),...P_EMP,...(o.camposProprios||F_CLT(o)),...F_ASS,...F_TEST,...F_OBS],valida:o.valida,
  clausulas:o.clausulas}}
-const vExp=v=>{const a=+v.experiencia_dias||0,b=+v.prorrogacao_dias||0;const e={};if(a<1)e.experiencia_dias='Informe o prazo.';else if(a+b>90)e.prorrogacao_dias='A soma dos dois períodos passa de 90 dias (art. 445, parágrafo único, da CLT).';return e};
+const vExp=v=>{const a=+v.experiencia_dias||0,b=+v.prorrogacao_dias||0;const e={};if(a<1)e.experiencia_dias='Prazo da experiência não informado.';else if(a+b>90)e.prorrogacao_dias='A soma dos dois períodos passa de 90 dias (art. 445, parágrafo único, da CLT).';return e};
 const vDet=v=>{const e={};if(v.inicio&&v.termino){if(v.termino<v.inicio)e.termino='Término antes do início.';else if(diasEntre(v.inicio,v.termino)>730)e.termino='O prazo determinado não pode passar de 2 anos (art. 445 da CLT).'}return e};
 const vPrazoCivil=v=>{const e={};if(v.inicio&&v.termino){if(v.termino<v.inicio)e.termino='Término antes do início.';else if(diasEntre(v.inicio,v.termino)>1461)e.termino='A prestação de serviços não pode ser contratada por mais de 4 anos (art. 598 do Código Civil).'}return e};
 
@@ -10659,8 +10659,10 @@ function telaDocRota(el){
 }
 function telaEditorDoc(host,m,rec){
  /* os ouvintes ficam num invólucro novo a cada desenho: o #conteudo é o mesmo em todas as telas */
- host.innerHTML='<div class="dc-wrap"></div>';const el=host.firstElementChild;
  const chave=m.id+'|'+(rec?rec.id:'novo');
+ /* tela fixa: com o formulário aberto, a chegada de dados de outros setores não refaz o editor (nada digitado se perde) */
+ if(EDT&&EDT.chave===chave&&!DOC_PRE.fid&&!DOC_PRE.dup&&$$('.dc-wrap',host).some(x=>x.dataset.edt===chave))return;
+ host.innerHTML='<div class="dc-wrap"></div>';const el=host.firstElementChild;el.dataset.edt=chave;
  if(!EDT||EDT.chave!==chave){const v=rec?valoresDocRec(rec):padraoDoc(m);
   EDT={chave,m,rec,v,cls:clone((rec&&rec.clausulas)||m.clausulas||[]),intro:rec&&rec.intro!=null?rec.intro:(m.intro||null),status:rec?rec.status:'Rascunho',sujo:false,aba:'preencher'};
   if(!rec&&DOC_PRE.fid){const f=F(DOC_PRE.fid);if(f)Object.assign(EDT.v,dadosDoCadastro(m,f));DOC_PRE.fid=''}
@@ -10735,12 +10737,13 @@ function htmlClausulasEd(){
 }
 async function salvarEditorDoc(el,botao,depois){
  const E=EDT;if(!E)return;const {m,v}=E;const erros={};
+ /* só dado digitado errado segura o salvamento. Campo em branco e limite da lei viram aviso: quem decide é o dono */
+ const avisos=[];
  m.campos.forEach(f=>{if(f.sh&&!f.sh(v))return;if(f.sens&&!veSensivel())return;const x=v[f.k];
-  if(f.req&&(x===undefined||x===null||String(x).trim()===''))erros[f.k]='Campo obrigatório.';
-  else if(f.t==='cpf'&&x&&!cpfValido(x))erros[f.k]='CPF inválido.';else if(f.t==='cnpj'&&x&&!cnpjValido(x))erros[f.k]='CNPJ inválido.';
+  if(f.t==='cpf'&&x&&!cpfValido(x))erros[f.k]='CPF inválido.';else if(f.t==='cnpj'&&x&&!cnpjValido(x))erros[f.k]='CNPJ inválido.';
   else if((f.t==='moeda'||f.t==='num')&&typeof x==='number'&&isNaN(x))erros[f.k]='Valor inválido. Use só números, por exemplo 1.250,00.'});
- if(v.inicio&&v.termino&&v.termino<v.inicio&&!erros.termino)erros.termino='Término antes do início.';
- Object.entries(m.valida?m.valida(v):{}).forEach(([k,x])=>{if(!erros[k])erros[k]=x});
+ if(v.inicio&&v.termino&&v.termino<v.inicio)avisos.push('término antes do início');
+ Object.values(m.valida?m.valida(v):{}).forEach(x=>{const t=String(x).replace(/\.$/,'');if(!avisos.some(a=>a.toLowerCase()===t.toLowerCase()))avisos.push(t.charAt(0).toLowerCase()+t.slice(1))});
  $$('.cmp.erro',el).forEach(w=>{w.classList.remove('erro');const s=$('.msg',w);if(s)s.textContent=''});
  const ks=Object.keys(erros);
  if(ks.length){ks.forEach(k=>{const w=$(`[data-dcampo="${k}"]`,el);if(w){w.classList.add('erro');$('.msg',w).textContent=erros[k]}});
@@ -10748,9 +10751,9 @@ async function salvarEditorDoc(el,botao,depois){
   const f0=m.campos.find(f=>f.k===ks[0]);toast((f0?f0.l+': ':'')+erros[ks[0]],'erro');return}
  if(m.serie==='CT'&&(E.status==='Assinado'||E.status==='Vigente')&&!(E.rec&&E.rec.assinatura)){toast('Para marcar como assinado, salve o documento e use Mais › Registrar assinatura: o sistema pede a comprovação.','erro');return}
  const D=montarDoc(m,v,{status:E.status,clausulas:E.cls,intro:E.intro});
- if(D.vaziosRot.length&&E.status!=='Rascunho'&&!await confirmar('Há campos em branco no documento','Faltam: '+D.vaziosRot.join(', ')+'. Salvar com a situação “'+E.status+'” assim mesmo?',{ok:'Salvar assim mesmo'}))return;
+ if(D.vaziosRot.length)avisos.unshift('falta preencher '+D.vaziosRot.slice(0,4).join(', ')+(D.vaziosRot.length>4?' e mais '+(D.vaziosRot.length-4):''));
  if(botao){botao.disabled=true;botao.classList.add('aguarde')}
- try{const rec=await salvarDocCentral(m,v,E.cls,E.intro,E.rec,E.status);EDT=null;toast('Documento salvo · Nº '+rec.numero,'ok');
+ try{const rec=await salvarDocCentral(m,v,E.cls,E.intro,E.rec,E.status);EDT=null;toast('Documento salvo · Nº '+rec.numero+(avisos.length?'. Atenção: '+avisos.join('; ')+'.':''),avisos.length?'':'ok');
   DOC_APOS={id:rec.id,passo:depois||''};JBNAV.ir('#/doc/'+rec.id)}
  catch(err){console.error(err);toast(msgErro(err),'erro')}
  finally{if(botao){botao.disabled=false;botao.classList.remove('aguarde')}}
@@ -10905,7 +10908,7 @@ const CT_EXEMPLOS=['Preciso de um contrato para uma empresa que fará a manuten�
  'Quero um contrato de fornecimento de matéria-prima.','Preciso de um contrato de empreitada para uma obra.','Quero um termo de confidencialidade.','Preciso de um distrato para encerrar um contrato.','Preciso de um contrato de locação de equipamentos.'];
 const CT_COMANDOS=[['Melhorar este contrato','Melhore este contrato: redação mais clara e completa, sem mudar o que foi combinado.'],['Redação mais formal','Torne a redação mais formal.'],['Acrescentar cláusula','Acrescente uma cláusula sobre '],
  ['Remover cláusula','Remova a cláusula '],['Reforçar obrigações','Reforce as obrigações da outra parte, dentro do que a lei permite.'],['Alterar pagamento','Altere as condições de pagamento para '],['Modificar o prazo','Modifique o prazo para '],
- ['Incluir garantias','Inclua garantias sobre o serviço ou o produto.'],['Revisar inconsistências','Revise o documento inteiro: aponte contradições, obrigações genéricas e riscos, e atualize a análise jurídica.'],
+ ['Incluir garantias','Inclua garantias sobre o serviço ou o produto.'],['Revisar inconsistências','Revise o documento inteiro: aponte contradições, obrigações genéricas e riscos, e atualize os pontos de atenção.'],
  ['Explicar cláusula','Explique em linguagem simples a cláusula '],['Adaptar para outra situação','Adapte este contrato para a seguinte situação: ']];
 const CT_CAT={trabalhista:'Relação trabalhista',civil:'Contrato civil ou comercial',complementar:'Documento complementar'};
 const CT_ROT_ST={Rascunho:'Rascunho',Gerado:'Gerado','Pronto para assinar':'Aguardando assinatura',Assinado:'Assinado',Vigente:'Vigente',Encerrado:'Encerrado',Cancelado:'Cancelado'};
@@ -11092,7 +11095,7 @@ function ctVerificar(d,an){
  if(d.vinculo==='sem'&&(afirma(/\b(subordina\w*|horario fixo|jornada de trabalho|controle de (ponto|jornada|horario)|cartao de ponto|ordens diretas)/,deTerceiros)||(!outraPJ&&afirma(/\bexclusividade\b/))))risc.push('O texto fala em horário, subordinação, exclusividade ou controle de jornada: são sinais de vínculo de emprego (arts. 3º e 9º da CLT), mesmo num contrato que se declare sem vínculo.');
  if(tem(/(nao gera|nao ha|inexiste|sem qualquer|afasta[^.]{0,30}) vinculo (empregaticio|de emprego|trabalhista)/))risc.push('A cláusula que declara não haver vínculo não protege a empresa se, na prática, houver pessoalidade, habitualidade, subordinação e salário (art. 9º da CLT).');
  add(7,'Riscos jurídicos identificados',!risc.length&&!at.length,[...risc,...at].join(' '));
- add(8,'Revisão por profissional',false,'Documento elaborado com apoio de inteligência artificial. Ela não substitui advogado nem garante proteção jurídica. Antes de assinar, peça a revisão de um profissional, principalmente em contratos de valor alto ou de longa duração.');
+
  return {itens:it,refs,riscos:risc,pend};
 }
 
@@ -11139,17 +11142,14 @@ const ctBaseTxt=()=>ctBase().map(b=>'- '+b.lei+(b.arts?', '+b.arts:'')+' — '+b
 function ctRegras(S){const e=ctEmpresa(S.empresaId);
  return `Você é o redator de contratos do JB Gestão, o sistema de gestão da ${e.razao||'empresa'}${e.fantasia&&e.fantasia!==e.razao?' ('+e.fantasia+')':''}, uma indústria cerâmica. Trabalhe como um profissional experiente em contratos no Brasil. Hoje é ${fData(hoje())} (${dataExtenso(hoje())}).
 
-${S.livre?`MODO LIVRE: o dono da empresa está escrevendo o contrato do jeito dele
-1. Faça exatamente o que ele pedir: use as condições, as cláusulas e as palavras dele, inclusive condições incomuns ou mais favoráveis a uma das partes. Não questione, não recuse por discordar, não troque o que ele disse por outra coisa e não ponha ressalvas ou avisos dentro do texto do contrato. Seu papel é organizar o que ele disse em forma de contrato, com português correto.
-2. Se alguma condição puder não valer na Justiça (por exemplo, por contrariar a CLT), escreva assim mesmo como ele pediu e registre isso só na análise, em ANALISE-ATENCAO, em uma linha simples. Nunca bloqueie por isso.
-`:`REGRAS QUE VALEM SEMPRE
-1. Só elabore documentos lícitos. Se o pedido for para fraudar lei, esconder vínculo de emprego, sonegar ou prejudicar terceiros, recuse e explique em uma frase.
-2. Vínculo de emprego: analise a realidade descrita, não o nome que a pessoa deu ao contrato. Se há pessoalidade, habitualidade, subordinação e salário, o instrumento certo é o contrato de trabalho da CLT. Nunca escreva cláusula genérica para afastar direitos trabalhistas, e nunca trate a simples declaração de "sem vínculo" como proteção. Se o que foi descrito indicar risco de vínculo diferente do pretendido, avise.
-`}3. Referências: só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA abaixo, e só quando tiver relação com o caso. Não invente artigo, lei, decisão judicial nem obrigação. Se achar que outra norma se aplica e ela não está na base, NÃO a cite no documento: registre na análise, em "confirmar".
+COMO TRABALHAR
+1. Quem decide o contrato é o dono da empresa. Faça exatamente o que ele pedir, com as condições, as cláusulas e as palavras dele, inclusive condições incomuns ou mais favoráveis a uma das partes. Não peça confirmação, não faça perguntas, não recuse por discordar e não ponha ressalvas ou avisos dentro do texto do contrato.
+2. Cuidado com a lei sem travar o trabalho: se alguma condição puder não valer na Justiça ou trouxer risco (por exemplo, sinais de vínculo de emprego num contrato de autônomo, ou algo contrário à CLT), escreva como ele pediu e registre o alerta só na análise, em ANALISE-ATENCAO, em uma linha simples. Por conta própria, nunca escreva cláusula genérica para afastar direitos trabalhistas.
+3. Referências: só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA abaixo, e só quando tiver relação com o caso. Não invente artigo, lei, decisão judicial nem obrigação. Se achar que outra norma se aplica e ela não está na base, NÃO a cite no documento: registre na análise, em "confirmar".
 4. Não invente fatos: nomes, CNPJ, CPF, endereços, contatos, preço combinado e datas. O fato que não foi informado entra como [PREENCHER: o que falta], por exemplo [PREENCHER: CNPJ da contratada]. Já as condições de praxe que o usuário não definiu (aviso prévio, multa e juros por atraso, prazo de garantia, prazo para corrigir descumprimento, prazo de sigilo, índice de reajuste, dia de vencimento) você propõe com o valor usual e dentro do limite legal, em vez de deixar em branco, e lista cada uma na análise, em "confirmar", como condição proposta por você, para o usuário confirmar ou mudar.
 5. Marcadores entre chaves duplas, como {{pessoa.cpf}}, representam dados pessoais guardados no sistema. Copie o marcador exatamente como está; o sistema troca pelo dado. Nunca peça nem escreva o dado no lugar do marcador.
 6. Português do Brasil, redação jurídica clara e direta, sem palavras vazias. Cláusulas adaptadas ao caso concreto, não genéricas.
-7. Nunca diga que o documento substitui advogado ou garante proteção jurídica.
+7. Nunca diga que o documento substitui advogado, garante proteção jurídica, foi validado ou passou por análise, parecer ou aprovação jurídica: você não faz validação jurídica, só aponta pontos de atenção.
 
 BASE JURÍDICA (única fonte para citações)
 ${ctBaseTxt()}
@@ -11208,7 +11208,7 @@ frase final antes das assinaturas
 @@ANALISE-ATENCAO
 - riscos e pontos que o usuário precisa saber
 @@ANALISE-REVISAR
-- cláusulas que merecem revisão de um profissional, e por quê
+- cláusulas que merecem uma segunda leitura, e por quê
 @@ANALISE-CONFIRMAR
 - informações que ainda precisam ser confirmadas ou preenchidas
 @@ALERTA-VINCULO
@@ -11220,7 +11220,7 @@ function ctPromptElaborar(S){const I=S.interp||{};
 TAREFA: REDIGIR O DOCUMENTO COMPLETO
 ${S.livre?`O usuário ditou ou escreveu o contrato do jeito que quer. Monte o documento com o que ele disse: as cláusulas e condições dele, na ordem dele, com as palavras dele (corrija só o português e dê forma de contrato). Inclua sempre a identificação das partes, o fecho e as assinaturas. Não acrescente cláusulas que ele não pediu, a menos que ele peça para completar; se pedir, complete com cláusulas de praxe.
 `:''}Documento identificado: ${I.tipo||'defina o mais adequado'}${I.categoria?' · '+I.categoria:''}${I.vinculo?' · vínculo: '+I.vinculo:''}.
-Redija o documento inteiro, pronto para uso, não um esqueleto. Conforme o caso: identificação completa das partes; objeto; descrição detalhada do que será feito; obrigações de cada parte; responsabilidades; valores, reajuste e condições de pagamento; prazos; condições de execução; garantias; confidencialidade; proteção de dados; penalidades dentro do limite legal; rescisão; disposições gerais; foro (nunca em contrato de trabalho); assinaturas e testemunhas. Inclua só o que faz sentido para este documento, na ordem lógica, com cláusulas próprias para o caso (por exemplo, numa manutenção: escopo, preventiva e corretiva, prazos de atendimento, peças e materiais, segurança do trabalho, garantia do serviço).
+Não faça perguntas: o que não foi informado entra como [PREENCHER: o que falta] e as condições de praxe você propõe. Redija o documento inteiro, pronto para uso, não um esqueleto. Conforme o caso: identificação completa das partes; objeto; descrição detalhada do que será feito; obrigações de cada parte; responsabilidades; valores, reajuste e condições de pagamento; prazos; condições de execução; garantias; confidencialidade; proteção de dados; penalidades dentro do limite legal; rescisão; disposições gerais; foro (nunca em contrato de trabalho); assinaturas e testemunhas. Inclua só o que faz sentido para este documento, na ordem lógica, com cláusulas próprias para o caso (por exemplo, numa manutenção: escopo, preventiva e corretiva, prazos de atendimento, peças e materiais, segurança do trabalho, garantia do serviço).
 Estrutura por tipo: "contrato" tem partes, abertura, cláusulas, fecho, assinaturas e testemunhas. "trabalho" é o contrato da CLT: partes EMPREGADOR e EMPREGADO(A), sem foro, com registro pelo eSocial. "termo" é curto e direto (aditivo, distrato, renovação, entrega, responsabilidade): poucas cláusulas, citando o contrato de origem quando houver. "notificacao" não tem cláusulas: partes NOTIFICANTE e NOTIFICADA(O), o conteúdo vai em @@TEXTO (no lugar de @@CLAUSULA), com os fatos, o que se exige e o prazo, e só o notificante assina.
 Valores em reais com o extenso entre parênteses. Datas por extenso no fecho.
 
@@ -11233,7 +11233,7 @@ function ctPromptEditar(S,pedido){
 
 TAREFA: ATENDER AO PEDIDO SOBRE O DOCUMENTO ABAIXO
 Altere SOMENTE o que foi pedido. As cláusulas que você não citar continuam exatamente como estão: não as reescreva. Se o pedido for só uma dúvida ou explicação, responda sem alterar nada.
-${S.livre?'Modo livre: faça o que foi pedido do jeito pedido; se houver risco jurídico, aponte só na análise (ANALISE-ATENCAO), sem deixar de fazer.':'Se o pedido tornar o documento ilícito ou criar risco trabalhista, não faça e explique.'}
+Faça o que foi pedido do jeito pedido, sem pedir confirmação; se houver risco jurídico, aponte só na análise (ANALISE-ATENCAO), sem deixar de fazer.
 
 DOCUMENTO ATUAL (as cláusulas estão numeradas entre colchetes só para você se referir a elas)
 ${ctEscreverDoc(S.doc,true)}
@@ -11348,49 +11348,111 @@ function ctJuntarRespostas(S){const r=S.perguntas.filter(x=>String(x.r||'').trim
 async function ctElaborar(){
  const S=CTI;if(!S||S.pensando)return;
  if(!ctTemIA()){S.msgs.push({q:'ia',t:ctSemIaTxt(),k:'erro'});ctPintar();return}
- S.pensando=true;S.andamento='Consultando a base jurídica…';S.perguntas=[];S.parcial=ctDocVazio();S.painel='documento';S.aba='doc';S.ctl=new AbortController();ctPintar();
+ S.pensando=true;S.andamento='Redigindo o documento…';S.perguntas=[];S.parcial=ctDocVazio();S.painel='documento';S.aba='doc';S.ctl=new AbortController();ctPintar();
  const f=S.fid?F(S.fid):null;const mapa={...(S.mapaBase||{}),...ctMapaDe(f,ctEmpresa(S.empresaId))};let ult=0;
  try{
-  const t=await ctChamarIA([{role:'user',content:ctPromptElaborar(S)}],{signal:S.ctl.signal,onText:x=>{if(CTI!==S)return;const ag=Date.now();if(ag-ult<450)return;ult=ag;
+  const t=await ctChamarIA([{role:'user',content:ctPromptElaborar(S)}],{signal:S.ctl.signal,onText:x=>{if(CTI!==S)return;const ag=Date.now();if(ag-ult<220)return;ult=ag;
    const L=ctLerDoc(x,{mapa});S.parcial=L.doc;S.andamento=L.doc.clausulas.length?'Redigindo: '+L.doc.clausulas.length+'ª cláusula…':'Redigindo o documento…';ctPintarDoc()}});
   if(CTI!==S)return;const L=ctLerDoc(t,{mapa});
   if(!L.doc.titulo||!(L.doc.clausulas.length||L.doc.texto)){S.msgs.push({q:'ia',t:(String(t).split(/^\s*@@/m)[0].trim().slice(0,600))||'A resposta veio fora do formato. Toque em “Tentar de novo”.',k:'erro'});return}
   S.andamento='Conferindo o documento…';ctPintar();
   S.doc=L.doc;S.analise=L.analise||ctAnVazia();if(S.interp&&S.interp.alerta&&!S.analise.alertaVinculo)S.analise.alertaVinculo=S.interp.alerta;
   const V=ctVerificar(S.doc,S.analise);const n=S.doc.clausulas.length;const at=V.itens.filter(i=>!i.ok&&i.n<8).length;
-  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque em **Preencher tudo**, acima do documento, ou me diga os dados aqui na conversa.':'')+(at?'\n\nA **análise jurídica** aponta '+at+' ponto(s) de atenção.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
+  S.msgs.push({q:'ia',t:'Pronto. Elaborei **'+(S.doc.tipo||S.doc.titulo)+'**'+(n?' com '+n+' cláusulas':'')+', já com os dados da empresa.'+(V.pend.length?'\n\nFicaram **'+V.pend.length+' campo(s) para preencher**: toque em **Preencher tudo**, acima do documento, ou me diga os dados aqui na conversa.':'')+(at?'\n\nHá **'+at+' ponto(s) de atenção** na aba ao lado, só para você saber: nada fica travado.':'')+'\n\nSe quiser mudar algo, é só pedir: acrescentar ou tirar cláusula, mudar prazo, pagamento, garantias, redação.'});
   S.parcial=null;S.sujo=true;S.topo=true;await ctSalvarSeguro('Documento elaborado com IA');
   if(S.rec&&lerRota().id==='ia'){try{history.replaceState(null,'','#/doc/'+S.rec.id)}catch(e){}}
  }catch(e){if(CTI===S){ctErroMsg(S,e)}}
  finally{if(CTI===S){S.pensando=false;S.andamento='';S.parcial=null;S.ctl=null;ctPintar()}}
 }
+/* comandos simples são aplicados na hora pelo próprio programa, sem chamar a IA: tirar cláusula, incluir cláusula
+   pronta, mudar salário/valor, cargo e título. Só mexe quando o alvo é único e certo; na dúvida devolve null e o
+   pedido segue para a IA. O que não foi citado fica letra por letra. */
+const CT_CL_PRONTAS=[
+ {re:/confidencial|sigilo/,t:'Da confidencialidade',x:'As partes manterão em sigilo as informações técnicas, comerciais, financeiras e operacionais a que tiverem acesso em razão deste instrumento, não podendo divulgá-las nem usá-las para outro fim sem autorização por escrito da outra parte.\nParágrafo único. A obrigação de sigilo continua valendo depois do encerramento deste instrumento.'},
+ {re:/protecao de dados|lgpd|dados pessoais/,t:'Da proteção de dados',x:'As partes tratarão os dados pessoais a que tiverem acesso apenas para a execução deste instrumento e o cumprimento de obrigações legais, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais).'}];
+const CT_ORD={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
+const CT_VERBO_MUDA='(?:altere|alterar|mude|mudar|troque|trocar|ajuste|ajustar|passe|coloque|defina|atualize|corrija)';
+function ctComandoLocal(doc,pedido){
+ const bruto=String(pedido||'').replace(/\s+/g,' ').trim();const p=semAcento(bruto).replace(/[.!]+$/,'');
+ if(!p||p.length>170||/[?;:\n]/.test(bruto)||!doc||!Array.isArray(doc.clausulas))return null;
+ if(/ e (?:tambem )?(?:adicione|inclua|acrescente|mude|altere|retire|remova|tire|troque|coloque|ajuste)\b|\bna clausula\b/.test(p))return null;
+ const d=clone(doc);const cs=d.clausulas;const sa=c=>semAcento(c.t+' '+c.x);const fim=(mud,resp)=>({doc:d,mudancas:mud,resposta:resp,mexeu:mud.length>0});
+ let m;
+ /* tirar cláusula: pelo número ou pelo assunto do título */
+ if((m=/^(?:por favor,? )?(?:retire|retirar|remova|remover|tire|tirar|exclua|excluir|apague|apagar|elimine|eliminar)\s+(?:a\s+)?(.+)$/.exec(p))&&/clausula/.test(p)){
+  const alvo=m[1].replace(/\bclausula\b/g,' ').replace(/\s+/g,' ').trim();let i=-1;const num=/^(?:numero |n[ºo°]? ?)?(\d{1,2})[ªa]?$/.exec(alvo);
+  if(num)i=+num[1]-1;else if(CT_ORD[alvo])i=CT_ORD[alvo]-1;else if(alvo==='ultima')i=cs.length-1;
+  else{const ks=alvo.replace(/^(?:de|do|da|dos|das|sobre|que fala (?:de|do|da|sobre))\s+/,'').split(' ').filter(k=>k.length>2&&!['dos','das','que','sobre'].includes(k));
+   if(!ks.length)return null;const ach=cs.map((c,j)=>ks.every(k=>semAcento(c.t).includes(k))?j:-1).filter(j=>j>=0);if(ach.length!==1)return null;i=ach[0]}
+  if(i<0||i>=cs.length)return fim([],'Este documento tem '+cs.length+' cláusula(s); não existe a cláusula '+(i+1)+'.');
+  const t=cs[i].t;cs.splice(i,1);return fim(['cláusula '+(i+1)+' ('+t+') removida'],'Tirei a cláusula '+(i+1)+' ('+t+').')}
+ /* incluir cláusula pronta (confidencialidade, proteção de dados) */
+ if((m=/^(?:adicione|adicionar|inclua|incluir|acrescente|acrescentar|coloque|colocar|insira|inserir|ponha)\s+(?:uma\s+)?clausula\s+(?:de|sobre|da|do)\s+(.+)$/.exec(p))){
+  const resto=m[1].trim();const pr=resto.length<=42?CT_CL_PRONTAS.find(x=>x.re.test(resto)):null;if(!pr)return null;
+  const ja=cs.findIndex(c=>pr.re.test(semAcento(c.t)));if(ja>=0)return fim([],'O documento já tem essa cláusula: é a cláusula '+(ja+1)+' ('+cs[ja].t+'). Se quiser mudar o texto dela, me diga como.');
+  let pos=cs.findIndex(c=>/\bforo\b|disposicoes (gerais|finais)/.test(semAcento(c.t)));if(pos<0)pos=cs.length;cs.splice(pos,0,{t:pr.t,x:pr.x});
+  return fim(['cláusula “'+pr.t+'” acrescentada'],'Acrescentei a cláusula “'+pr.t+'” como cláusula '+(pos+1)+'.')}
+ /* salário, valor ou preço: só quando há um único valor no trecho certo */
+ if((m=new RegExp('^'+CT_VERBO_MUDA+'\\s+o\\s+(salario|valor do salario|valor|preco|valor mensal|salario mensal)\\s+(?:para|pra|por)\\s+(?:r\\$\\s*)?(\\d[\\d.,]*)\\s*(mil)?(?:\\s*reais)?$').exec(p))){
+  let v=parseFloat(m[2].replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));if(m[3])v*=1000;if(!isFinite(v)||v<=0)return null;v=Math.round(v*100)/100;
+  const filtro=/salario/.test(m[1])?/salario|remuneracao/:/preco|pagamento|valor|remuneracao|salario/;
+  const RE=/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s*\([^)]*\))?|\{\{\s*pessoa\.(?:salario|diaria)\s*\}\}/g;
+  const cand=cs.filter(c=>filtro.test(sa(c)));const total=cand.reduce((n,c)=>n+((c.x.match(RE)||[]).length),0);if(total!==1)return null;
+  const c=cand.find(x=>(x.x.match(RE)||[]).length===1);const novo=sMoeda(v)+' ('+extensoMoeda(v)+')';c.x=c.x.replace(RE,novo);
+  const i=cs.indexOf(c);return fim(['cláusula '+(i+1)+' ('+c.t+') alterada'],'Pronto: o valor passou para '+novo+', na cláusula '+(i+1)+' ('+c.t+').')}
+ /* cargo ou função */
+ if(new RegExp('^'+CT_VERBO_MUDA+'\\s+(?:o|a)\\s+(?:cargo|funcao)\\s+(?:para|pra)\\s+.+$').test(p)){
+  const nv=(/(?:\bpara|\bpra)\s+(.+?)[.!]*$/i.exec(bruto)||[])[1];if(!nv||nv.length>80)return null;
+  const RE=/((?:função|cargo) de )([^,.;\n(]+)/gi;
+  const total=cs.reduce((n,c)=>n+((c.x.match(RE)||[]).length),0);if(total!==1)return null;
+  const c=cs.find(x=>(x.x.match(RE)||[]).length===1);c.x=c.x.replace(RE,(tudo,a)=>a+nv.trim());const i=cs.indexOf(c);
+  return fim(['cláusula '+(i+1)+' ('+c.t+') alterada'],'Pronto: a função passou para '+nv.trim()+', na cláusula '+(i+1)+' ('+c.t+').')}
+ /* título do documento */
+ if(new RegExp('^'+CT_VERBO_MUDA+'\\s+o\\s+titulo\\s+(?:do (?:contrato|documento)\\s+)?(?:para|pra)\\s+.+$').test(p)){
+  const nv=(/(?:\bpara|\bpra)\s+(.+?)[.!]*$/i.exec(bruto)||[])[1];if(!nv)return null;d.titulo=nv.trim().toUpperCase();return fim(['título alterado'],'Pronto: o título agora é '+d.titulo+'.')}
+ return null;
+}
+/* pedidos pequenos vão para a IA no modo leve (resposta mais rápida); reescritas e revisões, no modo completo */
+const ctPedidoLeve=p=>String(p||'').length<=260&&!/melhor|reescrev|revis|adapt|formal|complet|reforc|todas? as? cl|inteir/i.test(semAcento(p));
 async function ctEditar(pedido){
  const S=CTI;if(!S||S.pensando||!S.doc)return;
- const st=S.rec?S.rec.status:'Rascunho';
+ let st=S.rec?S.rec.status:'Rascunho';
  if(CT_TRAVADO(st)){S.msgs.push({q:'ia',t:'Este documento está **'+(CT_ROT_ST[st]||st).toLowerCase()+'** e não é alterado: a versão que vale fica guardada como está. Para mudar o que foi combinado, use **Mais › Criar aditivo**, **Criar distrato** ou **Renovar**. Para começar outro a partir deste, use **Duplicar**.'});ctPintar();return}
- if(st==='Pronto para assinar'){S.msgs.push({q:'ia',t:'Este documento está **aguardando assinatura**. Para alterar, volte a situação para rascunho em **Mais › Voltar para rascunho**, para ninguém assinar uma versão diferente da que foi enviada.'});ctPintar();return}
+ let aviso='';
+ /* aguardando assinatura: a alteração é feita na hora e o documento volta para rascunho (a versão enviada fica no histórico) */
+ const liberar=async()=>{if(st==='Pronto para assinar'){S.rec=await mudarStatusDoc(S.rec,'Rascunho');st='Rascunho';aviso='\n\nO documento estava aguardando assinatura e **voltou para rascunho**, para ninguém assinar a versão antiga.'}};
+ const loc=ctComandoLocal(S.doc,pedido);
+ if(loc){
+  if(loc.mexeu){try{await liberar()}catch(e){S.msgs.push({q:'ia',t:'Não consegui voltar o documento para rascunho: '+msgErro(e),k:'erro'});ctPintar();return}S.doc=loc.doc;S.sujo=true;S.msgs.push({q:'ia',t:loc.resposta+' O resto do documento ficou como estava.'+aviso});ctPintar();await ctSalvarSeguro(pedido);ctPintar()}
+  else{S.msgs.push({q:'ia',t:loc.resposta+aviso});ctPintar()}
+  return}
  if(!ctTemIA()){S.msgs.push({q:'ia',t:ctSemIaTxt(),k:'erro'});ctPintar();return}
  S.pensando=true;S.andamento='Lendo o documento…';S.ctl=new AbortController();ctPintar();
  try{
-  const t=await ctChamarIA([{role:'user',content:ctPromptEditar(S,pedido)}],{signal:S.ctl.signal,onText:()=>{if(CTI===S&&S.andamento!=='Escrevendo a alteração…'){S.andamento='Escrevendo a alteração…';ctPintarAnd()}}});
+  const t=await ctChamarIA([{role:'user',content:ctPromptEditar(S,pedido)}],{signal:S.ctl.signal,rapido:ctPedidoLeve(pedido),onText:()=>{if(CTI===S&&S.andamento!=='Escrevendo a alteração…'){S.andamento='Escrevendo a alteração…';ctPintarAnd()}}});
   if(CTI!==S)return;const r=ctAplicarOps(S.doc,t);
-  if(!r.mexeu&&!r.analise){S.msgs.push({q:'ia',t:r.resposta||'Não entendi o que mudar. Explique de outro jeito.'});return}
-  const antes=S.doc;if(r.mexeu)S.doc=r.doc;if(r.analise)S.analise=r.analise;
+  if(!r.mexeu&&!r.analise){S.msgs.push({q:'ia',t:(r.resposta||'Não entendi o que mudar. Explique de outro jeito.')+aviso});return}
+  const antes=S.doc;if(r.mexeu){await liberar();S.doc=r.doc}if(r.analise)S.analise=r.analise;
   const iguais=r.mexeu?S.doc.clausulas.filter(c=>antes.clausulas.some(a=>a.t===c.t&&a.x===c.x)).length:antes.clausulas.length;
-  S.msgs.push({q:'ia',t:(r.resposta||'Feito.')+(r.mudancas.length?'\n\n**O que mudou:** '+r.mudancas.join('; ')+'.'+(r.mudancas[0]!=='documento reescrito por inteiro'?' As outras '+iguais+' cláusulas ficaram como estavam.':''):'')+(r.analise&&!r.mexeu?'\n\nAtualizei a **análise jurídica**.':'')});
-  S.sujo=true;await ctSalvarSeguro(r.mexeu?pedido:'Análise jurídica revisada');
+  S.msgs.push({q:'ia',t:(r.resposta||'Feito.')+(r.mudancas.length?'\n\n**O que mudou:** '+r.mudancas.join('; ')+'.'+(r.mudancas[0]!=='documento reescrito por inteiro'?' As outras '+iguais+' cláusulas ficaram como estavam.':''):'')+(r.analise&&!r.mexeu?'\n\nAtualizei os **pontos de atenção**.':'')+aviso});
+  S.sujo=true;await ctSalvarSeguro(r.mexeu?pedido:'Pontos de atenção revisados');
  }catch(e){if(CTI===S)ctErroMsg(S,e)}
  finally{if(CTI===S){S.pensando=false;S.andamento='';S.ctl=null;ctPintar()}}
 }
 const ctSemIaTxt=()=>window.JB_NUVEM?'A inteligência artificial não respondeu nesta sessão. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.':'A inteligência artificial funciona com o sistema aberto pelo Claude ou pela versão da nuvem. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.';
+/* a pessoa citada no pedido, se estiver no cadastro: os dados dela entram sozinhos (por marcador) */
+function ctAcharPessoa(texto){const t=' '+semAcento(texto).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ')+' ';
+ const ps=filtroSetor(DATA.funcionarios,f=>f.setor).filter(f=>f.situacao!=='Desligado'&&f.nome).map(f=>({f,n:semAcento(f.nome).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}));
+ const inteiro=ps.filter(p=>p.n.split(' ').length>1&&t.includes(' '+p.n+' ')).sort((a,b)=>b.n.length-a.n.length);if(inteiro.length)return inteiro[0].f;
+ const dois=ps.filter(p=>{const k=p.n.split(' ');return k.length>2&&t.includes(' '+k[0]+' '+k[1]+' ')});return dois.length===1?dois[0].f:null}
 async function ctEnviar(txt){
  const S=CTI;txt=String(txt||'').trim();if(!S||!txt||S.pensando)return;S.rasc='';ctMicParar();
- if(S.doc){S.msgs.push({q:'u',t:txt});return ctEditar(txt)}
- if(S.livre){S.msgs.push({q:'u',t:txt});if(!S.pedido)S.pedido=txt;else S.fatos.push({p:'Mais instruções',r:txt});return ctElaborar()}
- if(S.perguntas.length)ctJuntarRespostas(S);
  S.msgs.push({q:'u',t:txt});
- if(!S.pedido)S.pedido=S.origem?'Elaborar '+CT_DERIV[S.origem.tipo][0]+' do documento Nº '+S.origem.numero+' ('+S.origem.titulo+'). '+txt:txt;else S.fatos.push({p:'Informação complementar',r:txt});
- return ctInterpretar();
+ if(S.doc)return ctEditar(txt);
+ /* sem rodada de perguntas: o pedido vai direto para a redação; o que faltar fica marcado para preencher */
+ if(!S.pedido)S.pedido=S.origem?'Elaborar '+CT_DERIV[S.origem.tipo][0]+' do documento Nº '+S.origem.numero+' ('+S.origem.titulo+'). '+txt:txt;else S.fatos.push({p:'Mais instruções',r:txt});
+ if(!S.fid){const f=ctAcharPessoa(S.pedido+' '+S.fatos.map(x=>x.r).join(' '));if(f)S.fid=f.id}
+ return ctElaborar();
 }
 
 /* ---------- ditado por voz: no Claude, a capacidade "dictation"; na nuvem, o reconhecimento de voz do navegador ---------- */
@@ -11516,7 +11578,7 @@ function telaCentral(el){
    <div><h1>Contratos</h1><p>Descreva o que precisa e a inteligência artificial elabora o documento. Aqui também ficam a biblioteca de modelos e todos os contratos da empresa.</p></div></div>
    <div class="acoes"><a class="btn" href="#/termos">${ic('recibo')}Comprovantes</a><a class="btn" href="#/disciplinar">${ic('aviso')}Advertências</a><a class="btn" href="#/relatdocs">${ic('grafico')}Relatórios</a></div></div>
  <section class="ct-heroi" aria-labelledby="ctHt">
-  <div class="ct-heroi-t"><span class="ct-heroi-ic">${ic('faisca')}</span><div><h2 id="ctHt">Criar contrato com inteligência artificial</h2><p>Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir. A inteligência artificial irá analisar sua solicitação e elaborar o documento.</p></div></div>
+  <div class="ct-heroi-t"><span class="ct-heroi-ic">${ic('faisca')}</span><div><h2 id="ctHt">Criar contrato com inteligência artificial</h2><p>Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir. A inteligência artificial redige na hora, sem perguntas: usa o que já está cadastrado e marca o que faltar.</p></div></div>
   <div class="ct-voz"><textarea id="ctPedido" rows="4" ${cria?'':'disabled'} placeholder="Ex.: Preciso de um contrato para uma empresa que ficará responsável pela manutenção dos equipamentos da cerâmica. Quero estabelecer as responsabilidades, os pagamentos, os prazos, as garantias e as condições de encerramento." aria-label="Descreva o contrato ou documento que você precisa">${esc(UICT.pedido||'')}</textarea><button type="button" class="ct-mic" data-mic="ctPedido" ${cria?'':'disabled'} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button></div>
   <div class="ct-heroi-b"><div class="ct-emp"><span>${ic('predio')}</span>${emps.length>1?`<select id="ctEmp" aria-label="Empresa que assina">${emps.map(x=>`<option value="${esc(x.id)}" ${x.id===emp.id?'selected':''}>${esc(x.apelido)}</option>`).join('')}</select>`:`<b>${esc(emp.razao||'Empresa não cadastrada')}</b>`}
     <small>${esc([emp.cnpj?'CNPJ '+emp.cnpj:'',emp.responsavel?'representada por '+emp.responsavel:''].filter(Boolean).join(' · ')||'Cadastre os dados da empresa para entrarem sozinhos no contrato.')}</small>${pode('config','e')?`<button type="button" class="ct-lk" id="ctEmpEd">Dados da empresa e filiais</button>`:''}</div>
@@ -11576,12 +11638,23 @@ function ctTabelaDocs(docs,filtrado){
 function ctNaTela(){const r=lerRota();return r.mod==='doc'&&!!$('#conteudo .cti')}
 function ctPintar(){if(!CTI||!ctNaTela())return;const c=$('#conteudo');const foco=document.activeElement&&document.activeElement.id==='ctiTxt';const tri=$('#conteudo>.pg-trilha');telaCtIA(c,CTI.rec,true);if(tri&&!$('#conteudo>.pg-trilha'))c.prepend(tri);if(foco){const t=$('#ctiTxt');if(t&&!t.disabled){t.focus();t.setSelectionRange(t.value.length,t.value.length)}}}
 function ctPintarAnd(){const a=$('#ctiAnd');if(a&&CTI)a.textContent=CTI.andamento||''}
-function ctPintarDoc(){if(!CTI||!ctNaTela())return;ctPintarAnd();const p=$('#ctiPane');if(p&&CTI.aba==='doc'){const sc=p.scrollTop;p.innerHTML=ctHtmlPaneDoc(CTI);p.scrollTop=CTI.parcial?p.scrollHeight:sc}}
+/* troca só os pedaços do documento que mudaram (cláusula nova ou alterada); o que está igual continua na tela, sem piscar */
+function fvdRemendar(art,novoArt){
+ const pool=new Map();[...art.children].forEach(v=>{if(v.__h==null)return;let q=pool.get(v.__h);if(!q)pool.set(v.__h,q=[]);q.push(v)});
+ const lista=[...novoArt.children].map(n=>{const h=n.outerHTML;const q=pool.get(h);const v=(q&&q.shift())||n;v.__h=h;return v});
+ const fica=new Set(lista);[...art.children].forEach(v=>{if(!fica.has(v))v.remove()});
+ let ant=null;lista.forEach(v=>{const lugar=ant?ant.nextElementSibling:art.firstElementChild;if(lugar!==v)art.insertBefore(v,lugar);ant=v});
+ if(art.className!==novoArt.className)art.className=novoArt.className;
+}
+function ctPintarDoc(){if(!CTI||!ctNaTela())return;ctPintarAnd();const p=$('#ctiPane');if(p&&CTI.aba==='doc'){const sc=p.scrollTop;const html=ctHtmlPaneDoc(CTI);
+ const t=document.createElement('template');t.innerHTML=html;const art=p.querySelector('#fvdDoc'),na=t.content.querySelector('#fvdDoc'),fx=p.querySelector('.ct-faixas'),nf=t.content.querySelector('.ct-faixas');
+ if(art&&na&&fx&&nf){if(fx.innerHTML!==nf.innerHTML)fx.innerHTML=nf.innerHTML;fvdRemendar(art,na)}else p.innerHTML=html;
+ p.scrollTop=CTI.parcial?p.scrollHeight:sc}}
 const ctMetaDe=S=>({numero:S.rec?S.rec.numero:'',status:S.rec?S.rec.status:'Rascunho',dataDoc:S.rec?S.rec.dataDoc:hoje(),versao:S.rec&&S.rec.versao>1?S.rec.versao:0,empresaId:S.empresaId});
 function ctHtmlPaneDoc(S){
  const ver=S.vendo?S.versoes.find(v=>v.n===S.vendo):null;const d=ver?ver.doc:(S.parcial||S.doc);
- if(!d)return `<div class="ct-vazio"><span class="ct-vazio-ic">${ic('contrato')}</span><b>O documento aparece aqui</b><p>${S.pensando?esc(S.andamento||'Trabalhando…'):'Conte o que você precisa na conversa ao lado. A IA identifica o documento certo, pergunta só o que falta e redige o texto completo.'}</p>
-  <ol class="ct-passos">${['Entender o pedido','Perguntar o que falta','Consultar a base jurídica','Redigir o documento','Conferir leis, partes e riscos'].map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>`;
+ if(!d)return `<div class="ct-vazio"><span class="ct-vazio-ic">${ic('contrato')}</span><b>O documento aparece aqui</b><p>${S.pensando?esc(S.andamento||'Trabalhando…'):'Conte o que você precisa na conversa ao lado. A IA redige o texto completo na hora; o que faltar fica marcado para preencher.'}</p>
+  <ol class="ct-passos">${['Entender o pedido','Buscar os dados do cadastro','Redigir o documento','Mostrar o que falta preencher'].map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>`;
  const D=ctD(d,ver?{...ctMetaDe(S),status:ver.status,versao:ver.n}:ctMetaDe(S));const an=S.analise||ctAnVazia();const trav=S.rec&&CT_TRAVADO(S.rec.status);
  return `<div class="ct-faixas">${ver?`<div class="ct-faixa in">Você está vendo a <b>versão ${ver.n}</b>, de ${esc(fDataHora(ver.em))}. <button type="button" class="ct-lk" data-vsai>Voltar à versão atual</button>${trav||S.vendo===S.versoes[S.versoes.length-1].n?'':' · <button type="button" class="ct-lk" data-vrest="'+ver.n+'">Restaurar esta versão</button>'}</div>`:''}
   ${!ver&&!S.parcial&&!S.livre&&an.alertaVinculo?`<div class="ct-faixa at"><b>Risco trabalhista.</b> ${esc(an.alertaVinculo)}</div>`:''}
@@ -11589,17 +11662,17 @@ function ctHtmlPaneDoc(S){
   <div class="fvd-fundo">${htmlDoc(D,{editor:true})}</div>`;
 }
 function ctHtmlAnalise(S){
- if(!S.doc)return '<div class="ct-vazio"><b>A análise aparece depois que o documento é elaborado.</b></div>';
+ if(!S.doc)return '<div class="ct-vazio"><b>Os pontos de atenção aparecem depois que o documento é elaborado.</b></div>';
  const V=ctVerificar(S.doc,S.analise);const an=S.analise||ctAnVazia();const B=ctBase();
  const lis=(t,l,vazio)=>`<section class="ct-an-s"><h4>${esc(t)}</h4>${l.length?`<ul>${l.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:`<p class="ct-an-v">${esc(vazio)}</p>`}</section>`;
- return `<div class="ct-an"><div class="ct-faixa in" style="margin:0 0 12px">A análise ajuda a revisar, mas <b>não substitui advogado</b> nem garante proteção jurídica. Antes de assinar, peça a revisão de um profissional.</div>
+ return `<div class="ct-an"><div class="ct-faixa in" style="margin:0 0 12px">Estes pontos são só avisos: <b>nada aqui trava o contrato</b> e a decisão é sua. O sistema não faz validação nem parecer jurídico.</div>
   <section class="ct-an-s"><h4>Verificações do documento</h4><ul class="ct-ver">${V.itens.map(i=>`<li class="${i.ok?'ok':i.n===8?'in':'at'}"><span>${i.ok?ic('check'):ic('aviso')}</span><div><b>${esc(i.t)}</b>${i.det?`<small>${esc(i.det)}</small>`:''}</div></li>`).join('')}</ul></section>
   <section class="ct-an-s"><h4>Legislação consultada</h4>${V.refs.length?`<ul class="ct-refs">${V.refs.map(r=>`<li>${r.ok&&!r.fora.length?'<span class="tag ok">na base</span>':'<span class="tag at">confirmar</span>'} <b>${esc(r.nome)}</b>${r.fora.length?` <small>art. ${esc(r.fora.join(', '))} não está na base</small>`:''}${r.url?` <a href="${esc(r.url)}" target="_blank" rel="noopener">texto oficial</a>`:''}</li>`).join('')}</ul>`:'<p class="ct-an-v">O documento não cita lei.</p>'}</section>
   ${lis('Referências utilizadas pela IA',an.legislacao,'A IA não listou referências.')}
   ${lis('Pontos de atenção',[...V.riscos.filter(x=>x!==an.alertaVinculo),...(an.alertaVinculo?[an.alertaVinculo]:[]),...an.atencao],'Nenhum ponto de atenção apontado.')}
-  ${lis('Cláusulas que merecem revisão',an.revisar,'Nenhuma cláusula apontada.')}
+  ${lis('Cláusulas que merecem uma segunda leitura',an.revisar,'Nenhuma cláusula apontada.')}
   ${lis('Informações que ainda precisam ser confirmadas',[...V.pend.map(x=>'Preencher: '+x),...an.confirmar],'Nada pendente.')}
-  ${ctTemIA()&&!(S.rec&&CT_TRAVADO(S.rec.status))?`<button type="button" class="btn" id="ctiRever">${ic('faisca')}Pedir nova revisão à IA</button>`:''}</div>`;
+  ${ctTemIA()&&!(S.rec&&CT_TRAVADO(S.rec.status))?`<button type="button" class="btn" id="ctiRever">${ic('faisca')}Pedir nova leitura à IA</button>`:''}</div>`;
 }
 function ctHtmlEditar(S){
  const d=S.doc;if(!d)return '<div class="ct-vazio"><b>Nada para editar ainda.</b></div>';
@@ -11639,6 +11712,8 @@ function ctHtmlMsgs(S){
 function telaCtIA(host,rec,repinta){
  const volta='<a class="btn" href="#/central">'+ic('esquerda')+'Contratos</a>';
  if(!veSensivel()){host.innerHTML=`<div class="fv-topo">${volta}</div><div class="vazio"><b>Documento protegido</b>O texto dos contratos elaborados com IA fica guardado junto dos dados pessoais. Seu acesso mostra a lista, mas não abre o conteúdo. Peça a permissão “Pode editar” ao administrador.</div>`;return}
+ /* tela fixa: redesenho pedido pela chegada de dados (de qualquer setor) não refaz a conversa nem o documento abertos */
+ if(!repinta&&CTI&&!CT_SEM){const ja=$('.cti',host);if(ja&&ja.dataset.ch===String(CTI.chave)&&(rec?!!CTI.rec&&rec.id===CTI.rec.id&&String(rec.alteradoEm||'')<=String(CTI.rec.alteradoEm||''):!CTI.rec))return}
  if(rec){
   if(!CTI||CTI.chave!==rec.id){const s=ctSessaoDe(rec);if(!s){host.innerHTML=`<div class="fv-topo">${volta}</div>`+(APP.carregado?'<div class="vazio"><b>O texto deste documento ainda não chegou</b>Se você acabou de salvar, espere alguns segundos e abra de novo.</div>':'<div class="carrega">Carregando o documento…</div>');return}CTI=s}
   else if(!CTI.pensando&&String(rec.alteradoEm||'')>String((CTI.rec||{}).alteradoEm||''))CTI.rec=rec;
@@ -11653,16 +11728,16 @@ function telaCtIA(host,rec,repinta){
     setTimeout(async()=>{if(CTI!==S0)return;await ctSalvarSeguro(sem.usarModelo?'Criado a partir do modelo '+sem.usarModelo:'Cópia do documento Nº '+sem.copiaDe);if(S0.rec&&CTI===S0){try{history.replaceState(null,'','#/doc/'+S0.rec.id)}catch(e){}ctPintar()}},30)}
    else if(sem.pedido)setTimeout(()=>{if(CTI===S0)ctEnviar(sem.pedido)},30);
    else if(sem.livre)S0.msgs.push({q:'ia',t:'Modo livre: fale ou escreva o contrato do jeito que você quer, com as cláusulas e condições que quiser. Eu monto exatamente assim.'});
-   else S0.msgs.push({q:'ia',t:'Descreva o contrato ou documento que você precisa: para que serve, quem são as partes e as condições que quer incluir. Eu identifico o documento adequado, pergunto só o que faltar e redijo o texto completo.'});
+   else S0.msgs.push({q:'ia',t:'Descreva o contrato ou documento que você precisa: para que serve, quem são as partes e as condições que quer incluir. Eu redijo o texto completo na hora; o que faltar fica marcado para preencher.'});
   }
  }
  const S=CTI;const r=S.rec;const st=r?r.status:'Rascunho';const [sitT,sitC]=r?situacaoDoc(r):['Rascunho',''];const trav=CT_TRAVADO(st);const edita=ctPodeCriar();const modelo=S.serie==='MD';
  const V=S.doc?ctVerificar(S.doc,S.analise):null;const nAt=V?V.itens.filter(i=>!i.ok&&i.n<8).length:0;
  const scAnt=repinta&&$('#ctiPane',host)?$('#ctiPane',host).scrollTop:0;
- host.innerHTML=`<div class="cti" data-painel="${S.painel}">
+ host.innerHTML=`<div class="cti" data-painel="${S.painel}" data-ch="${esc(String(S.chave))}">
   <div class="fv-topo">${volta}
    <span class="dc-tt"><b>${r?esc(r.numero)+' · ':''}${esc(S.doc?(modelo?r&&r.nomeModelo||S.doc.tipo:S.doc.tipo||S.doc.titulo):S.origem?'Novo documento a partir do Nº '+S.origem.numero:S.livre?'Contrato do meu jeito':'Novo documento com IA')}</b>
-    <small>${r?(modelo?'Modelo da empresa':esc(r.parte||'sem parte informada')+' · '+tag(CT_ROT_ST[sitT]||sitT,sitC)+(r.versao>1?' · versão '+r.versao:'')+(r.assinatura?' · assinatura registrada em '+esc(fData(r.assinatura.data)):'')):'A IA entende o pedido, pergunta o que falta e redige'}</small></span>
+    <small>${r?(modelo?'Modelo da empresa':esc(r.parte||'sem parte informada')+' · '+tag(CT_ROT_ST[sitT]||sitT,sitC)+(r.versao>1?' · versão '+r.versao:'')+(r.assinatura?' · assinatura registrada em '+esc(fData(r.assinatura.data)):'')):'A IA entende o pedido, busca os dados e redige'}</small></span>
    <span class="fv-acoes dc-acoes">${S.doc?`${modelo&&edita?`<button type="button" class="btn pri" id="ctiUsar">Usar este modelo</button>`:''}<button type="button" class="btn" id="ctiImp">${ic('doc')}Imprimir</button><button type="button" class="btn ${modelo?'':'pri'}" id="ctiPdf">${ic('baixar')}Gerar PDF</button><button type="button" class="btn" id="ctiMais" aria-haspopup="menu">Mais ▾</button>`:''}</span></div>
   <div class="dc-abas-mob cti-mob" role="tablist"><button type="button" data-cpn="conversa" class="${S.painel==='conversa'?'on':''}">Conversa</button><button type="button" data-cpn="documento" class="${S.painel==='documento'?'on':''}">Documento</button></div>
   <div class="cti-g">
@@ -11671,10 +11746,10 @@ function telaCtIA(host,rec,repinta){
     ${S.doc&&!trav&&!modelo&&edita?`<div class="cti-cmds" role="group" aria-label="Comandos rápidos">${CT_COMANDOS.map(([l],i)=>`<button type="button" data-cmd="${i}">${esc(l)}</button>`).join('')}</div>`:''}
     <form class="cti-in" id="ctiForm"><textarea id="ctiTxt" rows="2" ${S.pensando||!edita||modelo?'disabled':''} placeholder="${S.doc?(trav?'Documento travado: peça um aditivo, distrato ou renovação no menu Mais':'Peça uma alteração ou tire uma dúvida sobre o documento'):S.perguntas.length?'Ou escreva aqui tudo de uma vez':'Descreva o contrato ou documento que você precisa'}" aria-label="Mensagem para a IA">${esc(S.rasc||'')}</textarea>
      <button type="button" class="ct-mic" data-mic="ctiTxt" ${S.pensando||!edita||modelo?'disabled':''} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button><button type="submit" class="btn pri" ${S.pensando||!edita||modelo?'disabled':''} aria-label="Enviar">${ic('enviar')}</button></form>
-    <p class="cti-nota">${S.livre?'<b>Modo livre:</b> a IA escreve do jeito que você pedir. ':''}Dados pessoais do cadastro (CPF, RG, endereço, salário) não são enviados à IA. A IA apoia a redação; não substitui advogado.</p>
+    <p class="cti-nota">${S.livre?'<b>Modo livre:</b> a IA escreve do jeito que você pedir. ':''}Dados pessoais do cadastro (CPF, RG, endereço, salário) não são enviados à IA. Mudanças simples (tirar cláusula, valor, cargo, título) são feitas na hora, sem esperar a IA.</p>
    </section>
    <section class="cti-doc" aria-label="Documento">
-    <div class="abas cti-abas" role="tablist">${[['doc','Documento'],['analise','Análise jurídica'+(nAt?' <span class="fv-n at">'+nAt+'</span>':'')],['editar','Editar à mão'],['hist','Histórico'+(S.versoes.length?' <span class="fv-n">'+S.versoes.length+'</span>':'')]].map(([a,l])=>`<button type="button" role="tab" data-cab="${a}" class="${S.aba===a?'on':''}">${l}</button>`).join('')}</div>
+    <div class="abas cti-abas" role="tablist">${[['doc','Documento'],['analise','Pontos de atenção'+(nAt?' <span class="fv-n at">'+nAt+'</span>':'')],['editar','Editar à mão'],['hist','Histórico'+(S.versoes.length?' <span class="fv-n">'+S.versoes.length+'</span>':'')]].map(([a,l])=>`<button type="button" role="tab" data-cab="${a}" class="${S.aba===a?'on':''}">${l}</button>`).join('')}</div>
     <div class="cti-pane" id="ctiPane">${S.aba==='analise'?ctHtmlAnalise(S):S.aba==='editar'?ctHtmlEditar(S):S.aba==='hist'?ctHtmlHist(S):ctHtmlPaneDoc(S)}</div>
    </section>
   </div></div>`;
@@ -11690,7 +11765,7 @@ function telaCtIA(host,rec,repinta){
  $$('[data-ps]',el).forEach(b=>b.onclick=()=>{const j=+b.dataset.ps;S.perguntas[j].r=b.dataset.v;const i=$(`[data-pr="${j}"]`,el);if(i)i.value=b.dataset.v});
  const bR=$('#ctiResp',el);if(bR)bR.onclick=()=>{const x=ctJuntarRespostas(S);if(!x.dadas){toast('Responda pelo menos uma pergunta, ou toque em “Elaborar com o que já informei”.');S.perguntas=S.perguntas.length?S.perguntas:[];ctPintar();return}ctInterpretar()};
  const bJ=$('#ctiJa',el);if(bJ)bJ.onclick=()=>{ctJuntarRespostas(S);ctElaborar()};
- const bN=$('#ctiDeNovo',el);if(bN)bN.onclick=()=>{S.msgs.pop();if(S.interp)ctElaborar();else ctInterpretar()};
+ const bN=$('#ctiDeNovo',el);if(bN)bN.onclick=()=>{S.msgs.pop();ctElaborar()};
  const bP=$('#ctiParar',el);if(bP)bP.onclick=()=>{try{S.ctl&&S.ctl.abort()}catch(e){}};
  /* painel do documento */
  const pane=$('#ctiPane',el);
@@ -11732,12 +11807,12 @@ function ctMenu(btn,S,D){
  const r=S.rec;const st=r?r.status:'';const edita=ctPodeCriar();const modelo=S.serie==='MD';const trav=CT_TRAVADO(st);
  const muda=s=>async()=>{try{const n=await ctMudarStatus(S.rec,s);if(n){S.rec=n;ctPintar()}}catch(e){toast(msgErro(e),'erro')}};
  const pend=S.doc?ctPendencias(S.doc).length:0;
- const concluir=async()=>{if(pend&&!await confirmar('Há campos a preencher','O documento ainda tem '+pend+' campo(s) em branco. Marcar como gerado assim mesmo?',{ok:'Marcar como gerado'}))return;muda('Gerado')()};
+ const concluir=async()=>{if(pend)toast('Documento concluído. Ainda há '+pend+' campo(s) a preencher.');muda('Gerado')()};
  abrirMenuMais(btn,[
   {l:'Baixar em Word',sub:'arquivo editável',fn:()=>baixarWordDoc(D())},{l:'Compartilhar',fn:()=>compartilharDoc(D())},
   ...(r&&edita&&!modelo?['-',
    st==='Rascunho'?{l:'Concluir documento',sub:'passa para Gerado',fn:concluir}:null,
-   st==='Rascunho'||st==='Gerado'?{l:'Enviar para assinatura',sub:'passa para Aguardando assinatura',fn:async()=>{if(pend){toast('Preencha os '+pend+' campo(s) em branco antes de enviar para assinatura.','erro');return}muda('Pronto para assinar')()}}:null,
+   st==='Rascunho'||st==='Gerado'?{l:'Enviar para assinatura',sub:'passa para Aguardando assinatura',fn:async()=>{if(pend)toast('Enviado para assinatura com '+pend+' campo(s) ainda em branco: complete antes de imprimir.');muda('Pronto para assinar')()}}:null,
    !trav?{l:'Registrar assinatura',sub:'exige a comprovação',fn:()=>{if(pend){toast('Preencha os '+pend+' campo(s) em branco antes de registrar a assinatura: o texto guardado precisa ser igual ao que foi assinado.','erro');return}muda('Assinado')()}}:null,
    st==='Gerado'||st==='Pronto para assinar'?{l:'Voltar para rascunho',sub:'libera a edição',fn:muda('Rascunho')}:null,
    st==='Assinado'||st==='Vigente'?{l:'Marcar como encerrado',fn:muda('Encerrado')}:null,

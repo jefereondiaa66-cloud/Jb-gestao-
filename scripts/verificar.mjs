@@ -688,7 +688,7 @@ teste('contratos', 'aba Contratos: criação por pedido livre, biblioteca, base 
   assert.ok(app.includes("if(rec&&rec.modelo==='ia')return telaCtIA(el,rec);") && app.includes("if(r.id==='ia')return telaCtIA(el,null);"), 'o documento da IA abre pela mesma rota dos documentos');
   // regras que a IA recebe sempre
   const regras = app.slice(app.indexOf('function ctRegras(S){'), app.indexOf('function ctCtxPedido(S){'));
-  for (const r of [/Não invente artigo, lei, decisão judicial nem obrigação/, /só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA/, /Nunca escreva cláusula genérica para afastar direitos trabalhistas/, /\[PREENCHER: o que falta\]/, /Nunca diga que o documento substitui advogado/, /\{\{empresa\.rep_cpf\}\}/]) assert.match(regras, r);
+  for (const r of [/Não invente artigo, lei, decisão judicial nem obrigação/, /só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA/, /nunca escreva cláusula genérica para afastar direitos trabalhistas/, /\[PREENCHER: o que falta\]/, /Nunca diga que o documento substitui advogado/, /Não peça confirmação, não faça perguntas, não recuse por discordar/, /você não faz validação jurídica, só aponta pontos de atenção/, /\{\{empresa\.rep_cpf\}\}/]) assert.match(regras, r);
   assert.ok(!/s\.cpf|s\.rg|s\.endereco|s\.salario/.test(app.slice(app.indexOf('function ctCtxPedido(S){'), app.indexOf('function ctPromptInterpretar('))), 'dado pessoal do cadastro não entra no pedido à IA (só marcadores)');
   // base jurídica: toda referência com endereço oficial
   const base = app.slice(app.indexOf('const CT_BASE=['), app.indexOf('const ctBase=()=>'));
@@ -725,6 +725,53 @@ teste('contratos', 'formato do documento e operações de edição: o que a IA n
   assert.equal(e.mexeu, false); assert.equal(e.resposta, 'A cláusula do foro diz onde uma ação seria julgada.'); assert.deepEqual(e.doc.clausulas, L.doc.clausulas);
   const rem = ctAplicarOps(L.doc, '@@REMOVER-CLAUSULA: 2\n@@FIM');
   assert.deepEqual(rem.doc.clausulas.map((c) => c.t), ['Do objeto', 'Do foro']);
+});
+teste('contratos', 'autonomia (V127): sem rodada de perguntas, sem etapa jurídica obrigatória e sem travas por limite legal', () => {
+  const app = ler('app/jb-gestao.html');
+  const enviar = app.slice(app.indexOf('async function ctEnviar(txt){'), app.indexOf('/* ---------- ditado por voz'));
+  assert.ok(!enviar.includes('ctInterpretar(') && enviar.includes('return ctElaborar();') && enviar.includes('ctAcharPessoa('), 'o pedido vai direto para a redação, com a pessoa do cadastro');
+  assert.ok(!app.includes("add(8,'Revisão por profissional'") && !app.includes('Consultando a base jurídica') && !app.includes("'Análise jurídica'"), 'nada de etapa ou aba de análise jurídica obrigatória');
+  assert.ok(app.includes('O sistema não faz validação nem parecer jurídico'), 'a tela não afirma validação jurídica');
+  const salvar = app.slice(app.indexOf('async function salvarEditorDoc('), app.indexOf('let DOC_APOS=null;'));
+  assert.ok(!salvar.includes("'Campo obrigatório.'") && !salvar.includes('await confirmar(') && salvar.includes('avisos.push('), 'campo em branco e limite legal viram aviso, não trava');
+  assert.ok(app.includes("if(st==='Pronto para assinar'){S.rec=await mudarStatusDoc(S.rec,'Rascunho')"), 'aguardando assinatura: altera e volta para rascunho');
+  assert.match(app, /if\(!novo&&CT_TRAVADO\(base\.status\)&&!opc\.forcar\)throw \{code:'travado'\};/, 'documento assinado continua protegido');
+  assert.ok(app.includes("data-ch=\"${esc(String(S.chave))}\"") && app.includes('function fvdRemendar(art,novoArt){'), 'tela fixa e documento remendado por partes');
+});
+teste('contratos', 'comandos simples na hora, sem IA: só o trecho pedido muda; na dúvida, o pedido segue para a IA', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('const CT_CL_PRONTAS=['), app.indexOf('/* pedidos pequenos vão para a IA no modo leve'));
+  const semAcento = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const { ctComandoLocal } = new Function('clone', 'semAcento', 'sMoeda', 'extensoMoeda', cod + ';return {ctComandoLocal};')(
+    (o) => JSON.parse(JSON.stringify(o)), semAcento, (v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), (v) => 'por extenso ' + v);
+  const doc = { titulo: 'CONTRATO DE TRABALHO', clausulas: [
+    { t: 'Da função', x: 'O(A) EMPREGADO(A) exercerá a função de Forneiro, no setor Queima.' },
+    { t: 'Do salário', x: 'O salário mensal é de R$ 1.850,00 (um mil oitocentos e cinquenta reais), pago até o 5º dia útil.' },
+    { t: 'Da jornada', x: 'A jornada é de 44 horas semanais.' },
+    { t: 'Das disposições gerais', x: 'Aplica-se a CLT.' }] };
+  const antes = JSON.stringify(doc);
+  let r = ctComandoLocal(doc, 'Altere o salário para R$ 2.800.');
+  assert.ok(r && r.mexeu); assert.equal(JSON.stringify(doc), antes, 'o original não é mexido');
+  assert.equal(r.doc.clausulas[1].x, 'O salário mensal é de R$ 2.800,00 (por extenso 2800), pago até o 5º dia útil.');
+  [0, 2, 3].forEach((i) => assert.deepEqual(r.doc.clausulas[i], doc.clausulas[i], 'as outras cláusulas ficam letra por letra'));
+  assert.equal(ctComandoLocal(doc, 'mude o salário para 2,8 mil').doc.clausulas[1].x.includes('R$ 2.800,00'), true);
+  const marc = { titulo: 'X', clausulas: [{ t: 'Do salário', x: 'O salário é de {{pessoa.salario}}.' }] };
+  assert.equal(ctComandoLocal(marc, 'Altere o salário para 3000').doc.clausulas[0].x, 'O salário é de R$ 3.000,00 (por extenso 3000).', 'troca também o marcador do cadastro');
+  r = ctComandoLocal(doc, 'Mude o cargo para Auxiliar de Produção');
+  assert.equal(r.doc.clausulas[0].x, 'O(A) EMPREGADO(A) exercerá a função de Auxiliar de Produção, no setor Queima.');
+  r = ctComandoLocal(doc, 'Adicione uma cláusula de confidencialidade');
+  assert.deepEqual(r.doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Da jornada', 'Da confidencialidade', 'Das disposições gerais'], 'entra antes das disposições gerais');
+  const de = ctComandoLocal(r.doc, 'Adicione uma cláusula de confidencialidade');
+  assert.ok(de && !de.mexeu && /já tem/.test(de.resposta), 'não duplica cláusula');
+  assert.deepEqual(ctComandoLocal(doc, 'Retire a cláusula 3').doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Das disposições gerais']);
+  assert.deepEqual(ctComandoLocal(doc, 'remova a cláusula da jornada').doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Das disposições gerais']);
+  assert.deepEqual(ctComandoLocal(doc, 'tire a terceira cláusula').doc.clausulas.length, 3);
+  assert.equal(ctComandoLocal(doc, 'Retire a cláusula 9').mexeu, false, 'cláusula que não existe: avisa e não mexe');
+  assert.equal(ctComandoLocal(doc, 'Mude o título para contrato de experiência').doc.titulo, 'CONTRATO DE EXPERIÊNCIA');
+  // na dúvida, não adivinha: segue para a IA
+  const dois = { titulo: 'X', clausulas: [{ t: 'Do preço', x: 'Valor de R$ 100,00 e multa de R$ 50,00.' }] };
+  for (const [d, p] of [[dois, 'Altere o valor para 200'], [doc, 'Adicione uma cláusula sobre uso do celular no trabalho'], [doc, 'Altere o salário para 2800 e inclua uma cláusula de sigilo'], [doc, 'Explique a cláusula 2?'], [doc, 'Melhore este contrato'], [doc, 'retire a cláusula das obrigações'], [doc, 'Mude a jornada para 40 horas']])
+    assert.equal(ctComandoLocal(d, p), null, 'deveria ir para a IA: ' + p);
 });
 teste('contratos', 'redator da nuvem: adaptador e função do servidor conferem a sessão e a permissão; a chave nunca vai para o navegador', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');

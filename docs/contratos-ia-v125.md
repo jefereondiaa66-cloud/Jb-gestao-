@@ -104,3 +104,34 @@ Pedido do dono: liberdade total para fazer o contrato do jeito dele, falando ou 
   `dictation` do artifact; na nuvem, o reconhecimento de voz do navegador (`nuvem/_headers`: `microphone=(self)`).
   Onde não houver, o aviso indica o microfone do teclado do celular.
 - Continua igual: dado pessoal do cadastro não vai para a IA; documento assinado não é alterado.
+
+## Autonomia e velocidade (V127 · 16/11/2026)
+
+Pedido do dono: dar a ordem e receber o contrato pronto, sem burocracia, sem análise jurídica obrigatória e sem
+travamento. Nada foi recriado: é a mesma aba Contratos, com estas mudanças.
+
+- **Sem rodada de perguntas.** O pedido vai direto para a redação (`ctEnviar` → `ctElaborar`): uma chamada à IA
+  em vez de duas. O que faltar fica marcado como `[PREENCHER]`; nada é inventado.
+- **Pessoa do cadastro entra sozinha.** `ctAcharPessoa` reconhece o nome citado no pedido e liga o documento ao
+  cadastro; os dados pessoais continuam indo só por marcador.
+- **Sem etapa jurídica obrigatória.** A IA faz o que o dono pedir e registra o cuidado com a lei em uma linha
+  (`ANALISE-ATENCAO`). A aba passou a se chamar **Pontos de atenção**: são avisos, nada trava, e a tela diz que o
+  sistema não faz validação nem parecer jurídico. A conferência das leis citadas contra a base continua (é ela que
+  evita artigo inventado). A verificação fixa "Revisão por profissional" saiu.
+- **Sem travas por limite legal no editor dos modelos prontos.** Campo em branco, experiência acima de 90 dias,
+  prazo acima do limite e término antes do início viram aviso no salvamento. Só dado digitado errado (CPF, CNPJ,
+  número) segura o salvamento.
+- **Aguardando assinatura:** pedir uma alteração aplica a mudança e volta o documento para rascunho. Documento
+  **assinado** continua protegido (aditivo, distrato, renovação ou cópia).
+- **Comandos simples na hora, sem IA** (`ctComandoLocal`): tirar cláusula (número ou assunto), incluir cláusula de
+  confidencialidade ou de proteção de dados, mudar salário/valor, cargo/função e título. Só age quando o alvo é
+  único; na dúvida o pedido segue para a IA. O resto do texto fica letra por letra.
+- **IA leve nas mudanças pequenas** (`ctPedidoLeve`): pedidos curtos usam o modo rápido; reescritas e revisões, o completo.
+- **Tela fixa.** Dados de outros setores chegando não refazem a conversa, o documento nem o editor dos modelos
+  (`data-ch` em `telaCtIA`, `data-edt` em `telaEditorDoc`): o que está sendo digitado não se perde.
+- **Documento remendado por partes** (`fvdRemendar`): enquanto a IA escreve, só a cláusula nova entra na tela; as
+  anteriores não são redesenhadas.
+
+Medição no teste (30 cláusulas, 5 mudanças de outro setor com o contrato aberto): antes a tela inteira era
+refeita a cada mudança (77 ms de redesenho, conversa e documento recriados); agora nada é refeito (4 ms, 0 elementos
+trocados). Testes: `verificar.mjs` (grupo `contratos`, 5 itens) e `testar-contratos.mjs`.

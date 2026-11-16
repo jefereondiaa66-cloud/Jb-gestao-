@@ -2,9 +2,10 @@
 // Teste de ponta a ponta do módulo de CONTRATOS COM IA (Setor Pessoal › Contratos, V125): abre o programa
 // REAL (saida/claude.html) num Chromium com o banco central simulado e uma IA simulada (responde no mesmo
 // formato que o programa pede ao Claude) e confere, pelas telas e funções do próprio sistema:
-//   - pedido livre → perguntas (informação incompleta) → complemento → documento completo, salvo e numerado
+//   - pedido livre → documento completo direto (sem rodada de perguntas, V127), salvo e numerado
 //   - dados da empresa entram sozinhos; dado pessoal do cadastro não vai para a IA (marcadores)
-//   - contrato civil e contrato trabalhista; pedido ilícito é recusado
+//   - contrato civil e contrato trabalhista; o cuidado com a lei vai como ponto de atenção, sem travar
+//   - comandos simples aplicados na hora, sem IA; tela fixa quando chegam dados de outros setores
 //   - edição com IA: inclui cláusula, altera cláusula, explica sem alterar; o resto fica letra por letra
 //   - conferência das leis citadas contra a base jurídica; análise jurídica
 //   - preencher campo, edição à mão, versões, restaurar, PDF (com capa), Word
@@ -147,19 +148,12 @@ try {
   ok(await page.evaluate(() => document.querySelectorAll('.painel table tbody tr').length >= 25 && document.querySelectorAll('.painel table a[href^="https://www.planalto.gov.br"]').length >= 15), 'base jurídica listada com o endereço do texto oficial');
   await page.click('[data-ca="docs"]');
 
-  console.log('Pedido livre com informação incompleta → perguntas → complemento → documento');
+  console.log('Pedido livre → documento direto, sem perguntas');
   await page.fill('#ctPedido', 'Preciso elaborar um contrato para uma empresa que ficará responsável pela manutenção dos equipamentos da Cerâmica. Quero estabelecer as responsabilidades, os pagamentos, as obrigações, os prazos, as garantias e as condições de encerramento.');
   await page.click('#ctIr');
-  await page.waitForSelector('.ct-pergs', { timeout: 15000 });
-  const pg = await page.evaluate(() => ({ n: document.querySelectorAll('.ct-perg').length, tipo: CTI.interp.tipo, doc: !!CTI.doc, msg: document.querySelector('.cti-msgs').textContent }));
-  ok(pg.n >= 1 && pg.n <= 4 && !pg.doc, `a IA identificou “${pg.tipo}” e fez ${pg.n} pergunta(s) (no máximo 4), sem redigir ainda`);
-  ok(!/razão social da cerâmica|CNPJ da cerâmica/i.test(pg.msg), 'não pergunta os dados da empresa');
-  await foto('03-perguntas');
-  await page.fill('[data-pr="0"]', 'Manutenção Exemplo LTDA, CNPJ 22.333.444/0001-81');
-  await page.click('[data-ps="1"]');
-  await page.fill('[data-pr="2"]', '12 meses');
-  await page.click('#ctiResp');
   await page.waitForFunction(() => CTI && CTI.doc && CTI.rec && !CTI.pensando, null, { timeout: 20000 }); await pronto();
+  ok(pedidos.length === 1 && /TAREFA: REDIGIR O DOCUMENTO COMPLETO/.test(pedidos[0]) && /Não faça perguntas/.test(pedidos[0]) && await page.evaluate(() => !document.querySelector('.ct-pergs')), 'um pedido só à IA: foi direto para a redação, sem rodada de perguntas');
+  await foto('03-direto');
   const d1 = await page.evaluate(() => { const d = CTI.doc, r = CTI.rec; return { id: r.id, numero: r.numero, status: r.status, titulo: d.titulo, n: d.clausulas.length, cat: d.categoria, p0: d.partes[0].campos.map((c) => c.join(': ')).join(' | '), parte: r.parte, termino: r.termino, hash: location.hash, capa: !!document.querySelector('.fvd-capa'), html: document.querySelector('#fvdDoc').textContent, vers: CTI.versoes.length, lista: DATA.docsEmitidos.some((x) => x.id === r.id) }; });
   ok(/^CT-\d{4}-\d{4}$/.test(d1.numero) && d1.status === 'Rascunho' && d1.lista, `documento salvo sozinho como rascunho, com número ${d1.numero}`);
   ok(/MANUTENÇÃO/.test(d1.titulo) && d1.n === 10 && d1.cat === 'civil', `o documento corresponde ao pedido: ${d1.titulo}, ${d1.n} cláusulas`);
@@ -173,8 +167,8 @@ try {
   console.log('Análise jurídica e conferência das leis');
   await page.click('[data-cab="analise"]');
   const an = await page.evaluate(() => { const V = ctVerificar(CTI.doc, CTI.analise); return { n: V.itens.length, refs: V.refs.map((r) => r.nome + ':' + (r.ok && !r.fora.length)), pend: V.pend.length, txt: document.querySelector('.ct-an').textContent }; });
-  ok(an.n === 8 && an.refs.length >= 3 && an.refs.every((r) => /:true$/.test(r)), `8 verificações; ${an.refs.length} referências citadas, todas conferidas na base`);
-  ok(/não substitui advogado/.test(an.txt) && /Legislação consultada/.test(an.txt) && /Pontos de atenção/.test(an.txt) && /merecem revisão/.test(an.txt) && /precisam ser confirmadas/.test(an.txt), 'área “Análise jurídica” com legislação, pontos de atenção, cláusulas a revisar e o que confirmar');
+  ok(an.n === 7 && an.refs.length >= 3 && an.refs.every((r) => /:true$/.test(r)), `7 verificações (sem “revisão obrigatória”); ${an.refs.length} referências citadas, todas conferidas na base`);
+  ok(/não faz validação nem parecer jurídico/.test(an.txt) && /nada aqui trava/.test(an.txt) && /Legislação consultada/.test(an.txt) && /Pontos de atenção/.test(an.txt) && /segunda leitura/.test(an.txt) && /precisam ser confirmadas/.test(an.txt), 'aba “Pontos de atenção”: só avisos, sem travar e sem afirmar validação jurídica');
   ok(an.pend === 2, 'campos sem informação ficaram marcados para preencher (não inventou dados)');
   await foto('05-analise');
   await page.click('[data-cab="doc"]');
@@ -230,7 +224,9 @@ try {
   await page.evaluate(async () => { CTI.rec = await ctMudarStatus(CTI.rec, 'Gerado'); CTI.rec = await ctMudarStatus(CTI.rec, 'Pronto para assinar'); ctPintar(); });
   await page.fill('#ctiTxt', 'Altere as condições de pagamento para R$ 9.000,00.');
   await page.click('#ctiForm button[type=submit]'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => /aguardando assinatura/.test(CTI.msgs[CTI.msgs.length - 1].t) && !/9\.000/.test(JSON.stringify(CTI.doc))), 'aguardando assinatura: a IA não altera o texto enviado para assinar');
+  await page.waitForFunction(() => !CTI.pensando && CTI.rec.versao === 7, null, { timeout: 15000 }); await pronto();
+  ok(await page.evaluate(() => /voltou para rascunho/.test(CTI.msgs[CTI.msgs.length - 1].t) && CTI.rec.status === 'Rascunho'), 'aguardando assinatura: a alteração é feita na hora e o documento volta para rascunho (sem travar)');
+  await page.evaluate(async () => { CTI.rec = await ctMudarStatus(CTI.rec, 'Pronto para assinar'); ctPintar(); });
   const nPed = pedidos.length;
   page.evaluate(() => ctMudarStatus(CTI.rec, 'Assinado').then((n) => { window.__ass = n; })).catch(() => {});
   await page.waitForSelector('.ct-dlg');
@@ -243,10 +239,10 @@ try {
   await page.click('.ct-dlg button[type=submit]');
   await page.waitForFunction(() => window.__ass && window.__ass.status === 'Assinado'); await page.evaluate(() => { CTI.rec = window.__ass; ctPintar(); }); await pronto();
   const as = await noBanco('docsEmitidos/' + d1.id);
-  ok(as.status === 'Assinado' && as.assinatura && as.assinatura.comprovante && as.assinatura.registradoPor === 'u_DONO' && as.assinatura.versao === 6, 'assinatura registrada com data, forma, comprovação, responsável e versão');
+  ok(as.status === 'Assinado' && as.assinatura && as.assinatura.comprovante && as.assinatura.registradoPor === 'u_DONO' && as.assinatura.versao === 7, 'assinatura registrada com data, forma, comprovação, responsável e versão');
   await page.fill('#ctiTxt', 'Remova a cláusula 2').catch(() => {});
   const trav = await page.evaluate(async () => { let erro = ''; try { await ctSalvar('tentativa'); } catch (e) { erro = e.code; } await ctEditar('Remova a cláusula 2'); return { erro, msg: CTI.msgs[CTI.msgs.length - 1].t, n: CTI.doc.clausulas.length, ver: CTI.rec.versao }; });
-  ok(trav.erro === 'travado' && /não é alterado/.test(trav.msg) && trav.n === 11 && trav.ver === 6 && pedidos.length === nPed, 'documento assinado travado: nem a IA nem o salvamento substituem a versão assinada');
+  ok(trav.erro === 'travado' && /não é alterado/.test(trav.msg) && trav.n === 11 && trav.ver === 7 && pedidos.length === nPed, 'documento assinado travado: nem a IA nem o salvamento substituem a versão assinada');
   await page.click('[data-cab="editar"]');
   ok(await page.evaluate(() => /travado/.test(document.querySelector('#ctiPane').textContent)), '“Editar à mão” fechado no documento assinado');
   await foto('08-assinado');
@@ -256,6 +252,23 @@ try {
   await page.waitForFunction((id) => CTI && CTI.rec && CTI.rec.id !== id, d1.id, { timeout: 10000 }); await pronto();
   const dup = await page.evaluate(() => ({ numero: CTI.rec.numero, status: CTI.rec.status, n: CTI.doc.clausulas.length, ass: !!CTI.rec.assinatura }));
   ok(dup.numero !== d1.numero && dup.status === 'Rascunho' && dup.n === 11 && !dup.ass, `duplicado como rascunho novo (${dup.numero}), sem a assinatura`);
+  console.log('Comandos simples na hora, sem chamar a IA');
+  const nLoc = pedidos.length; const cAntes = await page.evaluate(() => JSON.stringify(CTI.doc.clausulas));
+  await page.fill('#ctiTxt', 'Adicione uma cláusula de confidencialidade'); await page.click('#ctiForm button[type=submit]');
+  await page.waitForFunction(() => CTI.doc.clausulas.length === 12 && !CTI.sujo, null, { timeout: 10000 }); await pronto();
+  await page.fill('#ctiTxt', 'Altere o valor para R$ 6.000'); await page.click('#ctiForm button[type=submit]');
+  await page.waitForFunction(() => /6\.000,00 \(seis mil reais\)/.test(JSON.stringify(CTI.doc.clausulas)) && !CTI.sujo, null, { timeout: 10000 }); await pronto();
+  const lc = await page.evaluate((a) => { const A = JSON.parse(a), c = CTI.doc.clausulas; return { iguais: A.filter((x) => c.some((y) => y.t === x.t && y.x === x.x)).length, conf: c.findIndex((x) => x.t === 'Da confidencialidade'), foro: c.findIndex((x) => /foro/i.test(x.t)), ver: CTI.rec.versao, msg: CTI.msgs[CTI.msgs.length - 1].t }; }, cAntes);
+  ok(pedidos.length === nLoc && lc.iguais === 10 && lc.conf >= 0 && lc.conf === lc.foro - 1 && lc.ver === 3 && /ficou como estava/.test(lc.msg), 'cláusula de confidencialidade e valor novo aplicados na hora, sem IA; as outras 10 cláusulas ficaram letra por letra');
+  await page.fill('#ctiTxt', 'Retire a cláusula de confidencialidade'); await page.click('#ctiForm button[type=submit]');
+  await page.waitForFunction(() => CTI.doc.clausulas.length === 11 && !CTI.sujo, null, { timeout: 10000 }); await pronto();
+  ok(pedidos.length === nLoc, 'tirar cláusula também é na hora');
+  console.log('Tela fixa: dados de outro setor chegando não refazem a conversa nem o documento');
+  const fixa = await page.evaluate(async () => { const raiz = document.querySelector('#conteudo .cti'), cl = document.querySelector('#ctiPane .fvd-cl'); const tx = document.querySelector('#ctiTxt'); tx.value = 'texto em digitação'; tx.dispatchEvent(new Event('input', { bubbles: true })); document.activeElement && document.activeElement.blur();
+    window.__srv.estado.gravarDireto('funcionarios', 'f9', { id: 'f9', nome: 'Outra Pessoa', situacao: 'Ativo' }); await APP.central.sincronizar().catch(() => {}); await new Promise((r) => setTimeout(r, 900));
+    return { raiz: document.querySelector('#conteudo .cti') === raiz, cl: document.querySelector('#ctiPane .fvd-cl') === cl, tx: document.querySelector('#ctiTxt').value, chegou: DATA.funcionarios.some((f) => f.id === 'f9'), trilhas: document.querySelectorAll('#conteudo>.pg-trilha').length }; });
+  ok(fixa.chegou && fixa.raiz && fixa.cl && fixa.tx === 'texto em digitação' && fixa.trilhas <= 1, 'o dado novo chegou e a tela do contrato continuou a mesma (nada digitado se perdeu)');
+  await page.evaluate(() => { CTI.rasc = ''; ctPintar(); });
   await page.click('[data-pre]'); await page.waitForSelector('.ct-dlg');
   await page.fill('.ct-dlg input[name=v]', 'Representante Exemplo'); await page.waitForTimeout(750); await page.click('.ct-dlg button[type=submit]');
   await page.waitForFunction(() => ctPendencias(CTI.doc).length === 0 && !document.querySelector('.ct-dlg'), null, { timeout: 10000 }); await pronto();
@@ -269,7 +282,7 @@ try {
     ok(re.test(dv.titulo) && dv.origem === d1.numero && dv.tipo === tipo && !dv.capa && dv.txt.includes(d1.numero), `${tipo}: ${dv.titulo} ligado ao ${d1.numero}, sem folha de rosto (formato de termo)`);
   }
   const orig = await noBanco('docsEmitidos/' + d1.id), origV = await page.evaluate((id) => ctVersoesDe(id).length, d1.id);
-  ok(orig.status === 'Assinado' && orig.versao === 6 && origV === 6, 'o contrato original assinado continua igual depois dos derivados');
+  ok(orig.status === 'Assinado' && orig.versao === 7 && origV === 7, 'o contrato original assinado continua igual depois dos derivados');
 
   console.log('Contrato trabalhista, dado pessoal fora da IA e conferência de artigo');
   await ir('#/central');
@@ -283,17 +296,17 @@ try {
   ok(tr.v4.ok === false && /999/.test(tr.v4.det), 'artigo que não está na base jurídica (art. 999 da CLT) foi apontado para confirmar');
   await foto('09-trabalhista');
 
-  console.log('Pedido ilícito');
+  console.log('Autonomia: o pedido é atendido sem recusa e o cuidado com a lei vai como ponto de atenção');
   await ir('#/central');
-  await page.fill('#ctPedido', 'Quero um contrato de autônomo para esconder o vínculo de um empregado sem registrar.');
+  const nAut = pedidos.length;
+  await page.fill('#ctPedido', 'Quero um contrato de autônomo com horário fixo e exclusividade para o prestador.');
   await page.click('#ctIr');
-  await page.waitForFunction(() => CTI && !CTI.pensando && CTI.msgs.some((m) => m.k === 'erro'), null, { timeout: 15000 });
-  ok(await page.evaluate(() => !CTI.doc && !CTI.rec && /vínculo/.test(CTI.msgs[CTI.msgs.length - 1].t)), 'pedido para esconder vínculo de emprego é recusado, sem gerar documento');
-
+  await page.waitForFunction(() => CTI && CTI.doc && CTI.rec && !CTI.pensando, null, { timeout: 20000 }); await pronto();
+  ok(pedidos.length === nAut + 1 && /registre o alerta só na análise/.test(pedidos[nAut]) && !/recuse e explique/.test(pedidos[nAut]) && await page.evaluate(() => !CTI.msgs.some((m) => m.k === 'erro')), 'documento elaborado como pedido, com a regra de alertar sem travar');
   console.log('Modelo da empresa e recuperação');
   await page.evaluate(async (id) => { CTI = null; location.hash = '#/doc/' + id; }, d1.id); await page.waitForFunction((id) => CTI && CTI.rec && CTI.rec.id === id, d1.id);
   const rec = await page.evaluate(() => ({ n: CTI.doc.clausulas.length, vers: CTI.versoes.length, conv: CTI.msgs.length, ass: !!CTI.rec.assinatura }));
-  ok(rec.n === 11 && rec.vers === 6 && rec.conv >= 6 && rec.ass, 'documento reaberto do banco com texto, versões, conversa e assinatura');
+  ok(rec.n === 11 && rec.vers === 7 && rec.conv >= 6 && rec.ass, 'documento reaberto do banco com texto, versões, conversa e assinatura');
   page.evaluate(() => ctSalvarModelo(CTI)).catch(() => {});
   await page.waitForSelector('.ct-dlg'); await page.fill('.ct-dlg input[name=nome]', 'Manutenção de equipamentos (modelo da casa)'); await page.click('.ct-dlg button[type=submit]');
   await page.waitForFunction(() => DATA.docsEmitidos.some((d) => d.serie === 'MD'), null, { timeout: 10000 });
@@ -344,11 +357,11 @@ try {
   await page.waitForFunction(() => CTI && CTI.livre && CTI.doc && CTI.rec && !CTI.pensando, null, { timeout: 20000 }); await pronto();
   const lv = await page.evaluate(() => ({ livre: CTI.rec.livre, nota: /Modo livre/.test(document.querySelector('.cti-nota').textContent), banner: !!document.querySelector('.ct-faixa.at b') && /Risco trabalhista/.test(document.querySelector('.ct-faixas').textContent) }));
   const pl = pedidos.slice(n0);
-  ok(pl.length === 1 && /MODO LIVRE/.test(pl[0]) && !/REGRAS QUE VALEM SEMPRE/.test(pl[0]) && /Faça exatamente o que ele pedir/.test(pl[0]), 'modo livre: vai direto para a redação (sem perguntas) com a regra de fazer do jeito pedido');
+  ok(pl.length === 1 && /Não acrescente cláusulas que ele não pediu/.test(pl[0]) && /Faça exatamente o que ele pedir/.test(pl[0]), 'modo livre: vai direto para a redação (sem perguntas) com a regra de fazer do jeito pedido');
   ok(lv.livre && lv.nota && !lv.banner, 'documento do modo livre salvo, marcado como livre e sem faixa de alerta por cima');
   await page.fill('#ctiTxt', 'Altere as condições de pagamento para R$ 5.000,00.'); await page.click('#ctiForm button[type=submit]');
   await page.waitForFunction(() => !CTI.pensando && CTI.rec.versao === 2, null, { timeout: 15000 }); await pronto();
-  ok(/Modo livre: faça o que foi pedido/.test(pedidos[pedidos.length - 1]), 'conversa no modo livre também segue o pedido sem barrar');
+  ok(/Faça o que foi pedido do jeito pedido, sem pedir confirmação/.test(pedidos[pedidos.length - 1]), 'conversa no modo livre também segue o pedido sem barrar');
   await ir('#/central'); await page.click('[data-ca="livre"]'); await page.click('#ctBranco');
   await page.waitForFunction(() => CTI && CTI.livre && CTI.rec && CTI.aba === 'editar' && document.querySelector('[data-ect="0"]'), null, { timeout: 10000 }); await pronto();
   const nb = pedidos.length;
