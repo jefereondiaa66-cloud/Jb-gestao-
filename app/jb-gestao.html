@@ -7974,7 +7974,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 74 · novembro de 2026';
+const VERSAO='Versão 75 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
@@ -39614,9 +39614,11 @@ function coletar(){
  const os=s=>{const i=ORD_SETOR.indexOf(s);return i<0?99:i};
  return L.sort((a,b)=>os(a.setor)-os(b.setor)||String(a.setor).localeCompare(String(b.setor))||(ORD[a.prio]??3)-(ORD[b.prio]??3));
 }
+/* ação da lista: falha assíncrona não some em silêncio (ciclo de 16/11/2026) */
+function acaoPend(fn){const avisa=e=>{console.warn('pendências',e);toast('Não foi possível concluir essa ação agora.','erro')};try{Promise.resolve(fn()).catch(avisa)}catch(e){avisa(e)}}
 async function semAtividade(s,d,S){
  if(!await confirmar('Marcar que não houve atividade?','O dia '+fData(d)+' fica registrado sem '+S.nome+' e a pendência some. Fica no histórico com o seu nome.',{ok:'Não houve atividade'}))return;
- const rec={id:novoId(),tipo:'semAtiv',setorMarca:s,data:d,criadoEm:agoraIso(),criadoPor:eu(),obs:'Não houve atividade de '+S.nome};
+ const rec={id:novoId(),tipo:'semAtiv',setorMarca:s,data:d,criadoEm:new Date().toISOString(),criadoPor:(typeof APP!=='undefined'&&APP.uid)||'local',obs:'Não houve atividade de '+S.nome};
  try{await gravar('prodFab',rec,null);await logV('prodFab',rec.id,'marcou o dia sem atividade',[{c:'Dia',de:'',para:fData(d)+' · '+S.nome}]);toast('Dia '+fData(d)+' marcado sem atividade.','ok');desenhar()}
  catch(err){toast(typeof msgFalhaSalvar==='function'?msgFalhaSalvar(err):'Não foi possível salvar.','erro')}
 }
@@ -39655,8 +39657,8 @@ function desenhar(){
  p.querySelector('[data-pf]').onclick=fechar;
  p.querySelectorAll('[data-ps]').forEach(b=>b.onclick=()=>{UI.setor=b.dataset.ps;desenhar()});
  p.querySelectorAll('[data-pi]').forEach(b=>b.onclick=()=>{const x=V[+b.dataset.pi];if(!x)return;fechar();
-  if(x.fn){try{x.fn()}catch(e){console.warn(e)}}else if(x.href)JBNAV.ir(x.href)});
- p.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const x=V[+b.dataset.px];if(x&&x.extra)x.extra.fn()});
+  if(x.fn)acaoPend(x.fn);else if(x.href)JBNAV.ir(x.href)});
+ p.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const x=V[+b.dataset.px];if(x&&x.extra)acaoPend(x.extra.fn)});
  const c=p.querySelector('[data-pcfg]');if(c)c.onclick=()=>fechar();
 }
 function abrir(){UI.aberto=true;desenhar();document.querySelectorAll('.pd-bt').forEach(b=>b.setAttribute('aria-expanded','true'));const f=painel().querySelector('.pd-it,[data-pf]');if(f)f.focus()}
