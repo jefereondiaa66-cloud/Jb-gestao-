@@ -89,3 +89,18 @@ uma empresa que ficará responsável pela manutenção dos equipamentos da Cerâ
 Ajustes que saíram desse teste: sinais de vínculo conferidos frase a frase (sem contar negações nem os
 empregados da própria contratada), a regra de propor condições de praxe em vez de deixar em branco,
 o botão "Preencher tudo" e dois acertos no PDF (folha de rosto e cabeçalho com título comprido).
+
+## Criar do meu jeito (V125.1 · 16/11/2026)
+
+Pedido do dono: liberdade total para fazer o contrato do jeito dele, falando ou escrevendo.
+
+- Aba **Criar do meu jeito** na tela de Contratos: campo grande com microfone. "Montar do jeito que eu falei"
+  abre o **modo livre**: a IA vai direto para a redação (sem perguntas), usa as cláusulas, condições e palavras
+  do dono, não questiona nem põe ressalvas no texto. Se algo puder não valer na Justiça, aparece só em uma linha
+  na Análise jurídica, sem bloquear. A conversa sobre o documento segue a mesma regra (`S.livre`, gravado em
+  `docsEmitidos.livre` e no corpo protegido).
+- "Abrir em branco e escrever eu mesmo": contrato vazio já com a empresa, aberto em **Editar à mão**; não passa pela IA.
+- **Microfone** no campo do pedido, na aba do meu jeito e na conversa (`ctMic`): no Claude usa a capacidade
+  `dictation` do artifact; na nuvem, o reconhecimento de voz do navegador (`nuvem/_headers`: `microphone=(self)`).
+  Onde não houver, o aviso indica o microfone do teclado do celular.
+- Continua igual: dado pessoal do cadastro não vai para a IA; documento assinado não é alterado.

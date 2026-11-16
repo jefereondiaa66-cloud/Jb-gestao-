@@ -1797,6 +1797,16 @@ a.btn{text-decoration:none}
 .ct-faixas{position:sticky;top:-12px;z-index:3;background:var(--branco);margin:-12px -12px 0;padding:12px 12px 0}.ct-faixas:empty{display:none}
 .ct-faixa{border-radius:10px;font-size:13.2px;line-height:1.5;padding:10px 13px;margin:0 0 10px;border:1px solid var(--linha);background:var(--papel,#fafafb);color:var(--tinta)}
 .ct-faixa.at{background:var(--at-bg);border-color:var(--at-li,#E8D29B)}.ct-faixa.in{background:var(--in-bg);border-color:var(--in-li,#B8D0E3)}.ct-faixa .dc-vzb{margin:2px 3px 2px 0}
+.ct-voz{position:relative}.ct-voz textarea{padding-right:58px!important}
+.ct-mic{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1.5px solid var(--linha);background:var(--branco);color:var(--brasa);cursor:pointer;flex:none;transition:var(--t1)}
+.ct-voz .ct-mic{position:absolute;right:10px;bottom:10px}.ct-mic svg{width:20px;height:20px}.ct-mic:hover{border-color:var(--brasa)}
+.ct-mic.on{background:var(--brasa);border-color:var(--brasa);color:#fff;animation:ctOuvir 1.2s ease-in-out infinite}.ct-mic:disabled{opacity:.45;cursor:default}
+@keyframes ctOuvir{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--brasa) 45%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--brasa) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.ct-mic.on{animation:none}}
+.cti-in .ct-mic{height:42px;width:42px}
+.ct-livre{padding:14px 16px 18px}.ct-livre textarea{width:100%;box-sizing:border-box;min-height:150px;resize:vertical;font:inherit;font-size:15px;line-height:1.5;padding:14px 16px;border:1.5px solid var(--linha);border-radius:14px;background:var(--branco);color:var(--tinta)}
+.ct-livre textarea:focus{outline:none;border-color:var(--brasa);box-shadow:0 0 0 4px color-mix(in srgb,var(--brasa) 15%,transparent)}
+.ct-livre-b{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .ct-falta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}.ct-falta .dc-vzb{margin:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ct-falta-m{font-size:12.4px;color:var(--suave)}.ct-falta .btn{margin-left:auto}
 .fv-n.at{background:var(--at);color:#fff}
 .ct-vazio{padding:46px 26px;text-align:center;color:var(--suave)}.ct-vazio b{display:block;font-size:15.5px;color:var(--tinta);margin-bottom:6px}.ct-vazio p{margin:0 auto;max-width:52ch;font-size:13.4px;line-height:1.5}
@@ -10917,10 +10927,13 @@ const ctBaseTxt=()=>ctBase().map(b=>'- '+b.lei+(b.arts?', '+b.arts:'')+' — '+b
 function ctRegras(S){const e=ctEmpresa(S.empresaId);
  return `Você é o redator de contratos do JB Gestão, o sistema de gestão da ${e.razao||'empresa'}${e.fantasia&&e.fantasia!==e.razao?' ('+e.fantasia+')':''}, uma indústria cerâmica. Trabalhe como um profissional experiente em contratos no Brasil. Hoje é ${fData(hoje())} (${dataExtenso(hoje())}).
 
-REGRAS QUE VALEM SEMPRE
+${S.livre?`MODO LIVRE: o dono da empresa está escrevendo o contrato do jeito dele
+1. Faça exatamente o que ele pedir: use as condições, as cláusulas e as palavras dele, inclusive condições incomuns ou mais favoráveis a uma das partes. Não questione, não recuse por discordar, não troque o que ele disse por outra coisa e não ponha ressalvas ou avisos dentro do texto do contrato. Seu papel é organizar o que ele disse em forma de contrato, com português correto.
+2. Se alguma condição puder não valer na Justiça (por exemplo, por contrariar a CLT), escreva assim mesmo como ele pediu e registre isso só na análise, em ANALISE-ATENCAO, em uma linha simples. Nunca bloqueie por isso.
+`:`REGRAS QUE VALEM SEMPRE
 1. Só elabore documentos lícitos. Se o pedido for para fraudar lei, esconder vínculo de emprego, sonegar ou prejudicar terceiros, recuse e explique em uma frase.
 2. Vínculo de emprego: analise a realidade descrita, não o nome que a pessoa deu ao contrato. Se há pessoalidade, habitualidade, subordinação e salário, o instrumento certo é o contrato de trabalho da CLT. Nunca escreva cláusula genérica para afastar direitos trabalhistas, e nunca trate a simples declaração de "sem vínculo" como proteção. Se o que foi descrito indicar risco de vínculo diferente do pretendido, avise.
-3. Referências: só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA abaixo, e só quando tiver relação com o caso. Não invente artigo, lei, decisão judicial nem obrigação. Se achar que outra norma se aplica e ela não está na base, NÃO a cite no documento: registre na análise, em "confirmar".
+`}3. Referências: só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA abaixo, e só quando tiver relação com o caso. Não invente artigo, lei, decisão judicial nem obrigação. Se achar que outra norma se aplica e ela não está na base, NÃO a cite no documento: registre na análise, em "confirmar".
 4. Não invente fatos: nomes, CNPJ, CPF, endereços, contatos, preço combinado e datas. O fato que não foi informado entra como [PREENCHER: o que falta], por exemplo [PREENCHER: CNPJ da contratada]. Já as condições de praxe que o usuário não definiu (aviso prévio, multa e juros por atraso, prazo de garantia, prazo para corrigir descumprimento, prazo de sigilo, índice de reajuste, dia de vencimento) você propõe com o valor usual e dentro do limite legal, em vez de deixar em branco, e lista cada uma na análise, em "confirmar", como condição proposta por você, para o usuário confirmar ou mudar.
 5. Marcadores entre chaves duplas, como {{pessoa.cpf}}, representam dados pessoais guardados no sistema. Copie o marcador exatamente como está; o sistema troca pelo dado. Nunca peça nem escreva o dado no lugar do marcador.
 6. Português do Brasil, redação jurídica clara e direta, sem palavras vazias. Cláusulas adaptadas ao caso concreto, não genéricas.
@@ -10993,7 +11006,8 @@ function ctPromptElaborar(S){const I=S.interp||{};
  return `${ctRegras(S)}
 
 TAREFA: REDIGIR O DOCUMENTO COMPLETO
-Documento identificado: ${I.tipo||'defina o mais adequado'}${I.categoria?' · '+I.categoria:''}${I.vinculo?' · vínculo: '+I.vinculo:''}.
+${S.livre?`O usuário ditou ou escreveu o contrato do jeito que quer. Monte o documento com o que ele disse: as cláusulas e condições dele, na ordem dele, com as palavras dele (corrija só o português e dê forma de contrato). Inclua sempre a identificação das partes, o fecho e as assinaturas. Não acrescente cláusulas que ele não pediu, a menos que ele peça para completar; se pedir, complete com cláusulas de praxe.
+`:''}Documento identificado: ${I.tipo||'defina o mais adequado'}${I.categoria?' · '+I.categoria:''}${I.vinculo?' · vínculo: '+I.vinculo:''}.
 Redija o documento inteiro, pronto para uso, não um esqueleto. Conforme o caso: identificação completa das partes; objeto; descrição detalhada do que será feito; obrigações de cada parte; responsabilidades; valores, reajuste e condições de pagamento; prazos; condições de execução; garantias; confidencialidade; proteção de dados; penalidades dentro do limite legal; rescisão; disposições gerais; foro (nunca em contrato de trabalho); assinaturas e testemunhas. Inclua só o que faz sentido para este documento, na ordem lógica, com cláusulas próprias para o caso (por exemplo, numa manutenção: escopo, preventiva e corretiva, prazos de atendimento, peças e materiais, segurança do trabalho, garantia do serviço).
 Estrutura por tipo: "contrato" tem partes, abertura, cláusulas, fecho, assinaturas e testemunhas. "trabalho" é o contrato da CLT: partes EMPREGADOR e EMPREGADO(A), sem foro, com registro pelo eSocial. "termo" é curto e direto (aditivo, distrato, renovação, entrega, responsabilidade): poucas cláusulas, citando o contrato de origem quando houver. "notificacao" não tem cláusulas: partes NOTIFICANTE e NOTIFICADA(O), o conteúdo vai em @@TEXTO (no lugar de @@CLAUSULA), com os fatos, o que se exige e o prazo, e só o notificante assina.
 Valores em reais com o extenso entre parênteses. Datas por extenso no fecho.
@@ -11007,7 +11021,7 @@ function ctPromptEditar(S,pedido){
 
 TAREFA: ATENDER AO PEDIDO SOBRE O DOCUMENTO ABAIXO
 Altere SOMENTE o que foi pedido. As cláusulas que você não citar continuam exatamente como estão: não as reescreva. Se o pedido for só uma dúvida ou explicação, responda sem alterar nada.
-Se o pedido tornar o documento ilícito ou criar risco trabalhista, não faça e explique.
+${S.livre?'Modo livre: faça o que foi pedido do jeito pedido; se houver risco jurídico, aponte só na análise (ANALISE-ATENCAO), sem deixar de fazer.':'Se o pedido tornar o documento ilícito ou criar risco trabalhista, não faça e explique.'}
 
 DOCUMENTO ATUAL (as cláusulas estão numeradas entre colchetes só para você se referir a elas)
 ${ctEscreverDoc(S.doc,true)}
@@ -11052,10 +11066,10 @@ const ctSid=id=>idSens('docsEmitidos',id);
 const ctCorpo=rec=>{const s=sensDe('docsEmitidos',rec.id);return s&&s.ia?s.ia:null};
 const ctVersoesDe=id=>{const p=ctSid(id)+':v';return DATA.sensivel.filter(x=>String(x.id).startsWith(p)&&x.v).map(x=>x.v).sort((a,b)=>a.n-b.n)};
 function ctSessaoNova(sem){sem=sem||{};
- return {chave:'novo:'+novoId(),rec:null,serie:'CT',pedido:sem.doc?sem.pedido||'':'',empresaId:sem.empresaId||UICT.empresaId||'matriz',fid:sem.fid||'',origem:sem.origem||null,msgs:[],fatos:[],perguntas:[],rodada:0,interp:null,
+ return {chave:'novo:'+novoId(),rec:null,serie:'CT',pedido:sem.doc?sem.pedido||'':'',livre:!!sem.livre,empresaId:sem.empresaId||UICT.empresaId||'matriz',fid:sem.fid||'',origem:sem.origem||null,msgs:[],fatos:[],perguntas:[],rodada:0,interp:null,
   doc:sem.doc||null,analise:sem.analise||null,versoes:[],sujo:!!sem.doc,pensando:false,andamento:'',aba:'doc',painel:'conversa',rasc:'',parcial:null,vendo:0,ctl:null,mapaBase:sem.mapa||null}}
 function ctSessaoDe(rec){const c=ctCorpo(rec);if(!c||!c.doc)return null;const vs=ctVersoesDe(rec.id);
- return {chave:rec.id,rec,serie:rec.serie||'CT',pedido:c.pedido||'',empresaId:rec.empresaId||'matriz',fid:rec.funcionarioId||'',origem:null,msgs:clone(c.conversa||[]),fatos:clone(c.fatos||[]),perguntas:[],rodada:3,interp:c.interp||null,
+ return {chave:rec.id,rec,serie:rec.serie||'CT',pedido:c.pedido||'',livre:!!(c.livre||rec.livre),empresaId:rec.empresaId||'matriz',fid:rec.funcionarioId||'',origem:null,msgs:clone(c.conversa||[]),fatos:clone(c.fatos||[]),perguntas:[],rodada:3,interp:c.interp||null,
   doc:clone(c.doc),analise:c.analise||ctAnVazia(),versoes:vs,sujo:false,pensando:false,andamento:'',aba:'doc',painel:'documento',rasc:'',parcial:null,vendo:0,ctl:null,mapaBase:null}}
 const ctTags=d=>{const t=semAcento(d.titulo);if(d.categoria==='trabalhista')return ['trabalho','ia'];
  if(/aditiv|renova|prorrog|altera/.test(t))return ['aditivo','ia'];if(/distrat|encerr|rescis/.test(t))return ['distrato','ia'];
@@ -11066,13 +11080,13 @@ async function ctSalvar(motivo,opc,sessao){
  if(!novo&&CT_TRAVADO(base.status)&&!opc.forcar)throw {code:'travado'};
  const st=opc.status||base.status;const nv=(S.versoes.length?S.versoes[S.versoes.length-1].n:0)+1;
  const ver={n:nv,em:ag,por:quem,motivo:String(motivo||'Alteração').slice(0,180),status:st,doc:clone(d)};
- Object.assign(base,{titulo:d.titulo,nomeModelo:opc.nome||(S.serie==='MD'?base.nomeModelo:'')||d.tipo||d.titulo,grupo:CT_CAT[d.categoria]||'Contrato',tags:ctTags(d),funcionarioId:S.fid||'',
+ Object.assign(base,{livre:!!S.livre,titulo:d.titulo,nomeModelo:opc.nome||(S.serie==='MD'?base.nomeModelo:'')||d.tipo||d.titulo,grupo:CT_CAT[d.categoria]||'Contrato',tags:ctTags(d),funcionarioId:S.fid||'',
   parte:S.serie==='MD'?'':ctResolver(d.outraParte,d.mapa).replace(CT_RE_PEND,'').trim(),status:st,inicio:d.inicio||'',termino:d.termino||'',versao:nv,empresaId:S.empresaId||'matriz',categoria:d.categoria,vinculo:d.vinculo,
   pendencias:ctPendencias(d).length,alteradoEm:ag,alteradoPor:quem});
  if(novo&&S.origem){base.origemId=S.origem.id;base.origemNumero=S.origem.numero;base.origemTipo=S.origem.tipo}
  if(novo||st!==S.rec.status)base.historico=[...(base.historico||[]),{s:st,em:ag,por:quem}];
  const sid=ctSid(base.id);
- const corpo={id:sid,ia:{pedido:S.pedido,interp:S.interp,fatos:S.fatos,doc:d,analise:S.analise||ctAnVazia(),conversa:S.msgs.filter(m=>m.t).slice(-40).map(m=>({q:m.q,t:String(m.t).slice(0,2500)}))}};
+ const corpo={id:sid,ia:{pedido:S.pedido,livre:!!S.livre,interp:S.interp,fatos:S.fatos,doc:d,analise:S.analise||ctAnVazia(),conversa:S.msgs.filter(m=>m.t).slice(-40).map(m=>({q:m.q,t:String(m.t).slice(0,2500)}))}};
  await contarEscrita(()=>tentar(()=>APP.db.doc('sensivel/'+sid+':v'+nv).set(clone({id:sid+':v'+nv,v:ver}))));
  await contarEscrita(()=>tentar(()=>APP.db.doc('sensivel/'+sid).set(clone(corpo))));
  await gravar('docsEmitidos',base,novo?null:S.rec);
@@ -11158,13 +11172,45 @@ async function ctEditar(pedido){
 }
 const ctSemIaTxt=()=>window.JB_NUVEM?'A inteligência artificial não respondeu nesta sessão. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.':'A inteligência artificial funciona com o sistema aberto pelo Claude ou pela versão da nuvem. Os modelos prontos da biblioteca e a edição à mão continuam funcionando.';
 async function ctEnviar(txt){
- const S=CTI;txt=String(txt||'').trim();if(!S||!txt||S.pensando)return;S.rasc='';
+ const S=CTI;txt=String(txt||'').trim();if(!S||!txt||S.pensando)return;S.rasc='';ctMicParar();
  if(S.doc){S.msgs.push({q:'u',t:txt});return ctEditar(txt)}
+ if(S.livre){S.msgs.push({q:'u',t:txt});if(!S.pedido)S.pedido=txt;else S.fatos.push({p:'Mais instruções',r:txt});return ctElaborar()}
  if(S.perguntas.length)ctJuntarRespostas(S);
  S.msgs.push({q:'u',t:txt});
  if(!S.pedido)S.pedido=S.origem?'Elaborar '+CT_DERIV[S.origem.tipo][0]+' do documento Nº '+S.origem.numero+' ('+S.origem.titulo+'). '+txt:txt;else S.fatos.push({p:'Informação complementar',r:txt});
  return ctInterpretar();
 }
+
+/* ---------- ditado por voz: no Claude, a capacidade "dictation"; na nuvem, o reconhecimento de voz do navegador ---------- */
+const CT_IC_MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>';
+let CT_DIT=null,CT_VOZ=null;
+try{if(window.claude&&typeof window.claude.use==='function'&&!window.JB_NUVEM)window.claude.use('dictation').then(d=>{CT_DIT=d||null},()=>{})}catch(e){}
+function ctMicParar(){try{if(CT_VOZ&&CT_VOZ.parar)CT_VOZ.parar()}catch(e){}}
+function ctLigarMics(el){$$('[data-mic]',el).forEach(b=>{b.onclick=()=>ctMic(b,b.dataset.mic)})}
+function ctMic(btn,alvo){
+ if(CT_VOZ){const era=CT_VOZ.alvo;ctMicParar();if(era===alvo)return}
+ const ta=document.getElementById(alvo);if(!ta||ta.disabled)return;
+ const base=ta.value&&!/\s$/.test(ta.value)?ta.value+' ':ta.value;let fixo=base;
+ const mostra=t=>{ta.value=fixo+(t||'');ta.dispatchEvent(new Event('input',{bubbles:true}))};
+ const liga=on=>{const b=document.querySelector(`[data-mic="${alvo}"]`);if(b){b.classList.toggle('on',on);b.setAttribute('aria-label',on?'Parar de ouvir':'Falar pelo microfone')}};
+ const semVoz=()=>toast('O ditado não está disponível nesta janela. Use o microfone do teclado do celular: ele escreve no campo do mesmo jeito.');
+ if(CT_DIT){const d=CT_DIT;let p;
+  try{p=d.start()}catch(e){semVoz();return}
+  CT_VOZ={alvo,parar:()=>{CT_VOZ=null;liga(false);try{d.stop()}catch(e){}}};liga(true);
+  d.onPartial(({text})=>{if(CT_VOZ&&CT_VOZ.alvo===alvo)mostra(text)});
+  d.onFinal(({text})=>{if(!text)return;fixo=fixo+text+' ';mostra('')});
+  d.onState(({state})=>{if(state==='idle'&&CT_VOZ&&CT_VOZ.alvo===alvo){CT_VOZ=null;liga(false)}});
+  Promise.resolve(p).catch(e=>{CT_VOZ=null;liga(false);if(e&&e.code==='not_granted')toast('O microfone não foi liberado. Você pode usar o microfone do teclado do celular.');else if(!(e&&e.code==='dismissed'))semVoz()});return}
+ const R=window.SpeechRecognition||window.webkitSpeechRecognition;if(!R){semVoz();return}
+ let r;try{r=new R()}catch(e){semVoz();return}
+ r.lang='pt-BR';r.continuous=true;r.interimResults=true;
+ r.onresult=ev=>{let parc='';for(let i=ev.resultIndex;i<ev.results.length;i++){const t=ev.results[i][0].transcript;if(ev.results[i].isFinal)fixo=fixo+t.trim()+' ';else parc+=t}mostra(parc)};
+ r.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')toast('O microfone não foi liberado. Você pode usar o microfone do teclado do celular.');else if(ev.error!=='no-speech'&&ev.error!=='aborted')semVoz()};
+ r.onend=()=>{if(CT_VOZ&&CT_VOZ.alvo===alvo){CT_VOZ=null;liga(false)}};
+ CT_VOZ={alvo,parar:()=>{CT_VOZ=null;liga(false);try{r.stop()}catch(e){}}};liga(true);
+ try{r.start()}catch(e){CT_VOZ=null;liga(false);semVoz()}
+}
+window.addEventListener('hashchange',ctMicParar);
 
 /* ---------- janelas pequenas do módulo ---------- */
 function ctDialogo(titulo,corpo,opc){opc=opc||{};return new Promise(res=>{const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
@@ -11222,10 +11268,17 @@ async function ctBaseDialogo(){
 const CT_FILTROS=[['todos','Todos',()=>true],['rascunhos','Rascunhos',(d,s)=>d.status==='Rascunho'],['gerados','Gerados',d=>d.status==='Gerado'],['aguardando','Aguardando assinatura',d=>d.status==='Pronto para assinar'],
  ['assinados','Assinados',d=>d.status==='Assinado'||d.status==='Vigente'],['vigentes','Vigentes',(d,s)=>s==='Vigente'||/^Vence em/.test(s)],['vencendo','Próximos do vencimento',(d,s)=>/^Venc/.test(s)],
  ['encerrados','Encerrados',d=>d.status==='Encerrado'],['cancelados','Cancelados',d=>d.status==='Cancelado']];
+function ctDocBranco(){const e=ctEmpresa(UICT.empresaId);const d=ctDocVazio();
+ d.titulo='CONTRATO';d.tipo='Contrato';d.visual='contrato';d.vinculo='nao_se_aplica';
+ d.partes=[{papel:'CONTRATANTE',campos:[['Razão social',e.razao||'[PREENCHER: razão social]'],['CNPJ',e.cnpj||'[PREENCHER: CNPJ]'],['Endereço',e.endereco||'[PREENCHER: endereço]'],['Representante',e.responsavel||'[PREENCHER: representante]']]},
+  {papel:'CONTRATADO(A)',campos:[['Nome ou razão social','[PREENCHER: nome da outra parte]'],['CPF ou CNPJ','[PREENCHER: CPF ou CNPJ]'],['Endereço','[PREENCHER: endereço da outra parte]']]}];
+ d.abertura='As partes acima identificadas celebram o presente contrato, nas condições seguintes.';d.clausulas=[{t:'Do objeto',x:''}];
+ d.fecho='E, por estarem de acordo, as partes assinam o presente instrumento em 2 (duas) vias de igual teor.';d.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
+ d.assinaturas=[{nome:e.razao||'',sub:'CONTRATANTE'},{nome:'[PREENCHER: nome da outra parte]',sub:'CONTRATADO(A)'}];d.testemunhas=true;d.mapa={};return d}
 function ctComecar(pedido,extra){if(!ctPodeCriar()){toast(pode('central','e')?'Criar contratos exige acesso aos dados pessoais (permissão “Pode editar”).':'Seu perfil consulta os contratos, mas não cria.','erro');return}
  CT_SEM={pedido:String(pedido||'').trim(),empresaId:UICT.empresaId||'matriz',...(extra||{})};ctLargar();if(lerRota().mod==='doc'&&lerRota().id==='ia')renderTela();else location.hash='#/doc/ia'}
 function telaCentral(el){
- if(!['docs','biblioteca','controle','base'].includes(UICT.aba))UICT.aba='docs';
+ if(!['docs','livre','biblioteca','controle','base'].includes(UICT.aba))UICT.aba='docs';
  const docs=ordDocs(docsVisiveis('CT'));const sit=d=>situacaoDoc(d)[0];const mods=modelosCT();const meus=DATA.docsEmitidos.filter(d=>d.serie==='MD');
  const regs=filtroSetor(DATA.contratos,c=>setorF(c.funcionarioId));const emps=ctEmpresas();const emp=ctEmpresa(UICT.empresaId);const cria=ctPodeCriar();
  const q=String(UICT.q||'').toLowerCase().trim();const casa=x=>!q||[x.n,x.nomeModelo,x.titulo,x.grupo,x.parte,x.numero,x.sub].some(s=>String(s||'').toLowerCase().includes(q));
@@ -11252,7 +11305,7 @@ function telaCentral(el){
    <div class="acoes"><a class="btn" href="#/termos">${ic('recibo')}Comprovantes</a><a class="btn" href="#/disciplinar">${ic('aviso')}Advertências</a><a class="btn" href="#/relatdocs">${ic('grafico')}Relatórios</a></div></div>
  <section class="ct-heroi" aria-labelledby="ctHt">
   <div class="ct-heroi-t"><span class="ct-heroi-ic">${ic('faisca')}</span><div><h2 id="ctHt">Criar contrato com inteligência artificial</h2><p>Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir. A inteligência artificial irá analisar sua solicitação e elaborar o documento.</p></div></div>
-  <textarea id="ctPedido" rows="4" ${cria?'':'disabled'} placeholder="Ex.: Preciso de um contrato para uma empresa que ficará responsável pela manutenção dos equipamentos da cerâmica. Quero estabelecer as responsabilidades, os pagamentos, os prazos, as garantias e as condições de encerramento." aria-label="Descreva o contrato ou documento que você precisa">${esc(UICT.pedido||'')}</textarea>
+  <div class="ct-voz"><textarea id="ctPedido" rows="4" ${cria?'':'disabled'} placeholder="Ex.: Preciso de um contrato para uma empresa que ficará responsável pela manutenção dos equipamentos da cerâmica. Quero estabelecer as responsabilidades, os pagamentos, os prazos, as garantias e as condições de encerramento." aria-label="Descreva o contrato ou documento que você precisa">${esc(UICT.pedido||'')}</textarea><button type="button" class="ct-mic" data-mic="ctPedido" ${cria?'':'disabled'} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button></div>
   <div class="ct-heroi-b"><div class="ct-emp"><span>${ic('predio')}</span>${emps.length>1?`<select id="ctEmp" aria-label="Empresa que assina">${emps.map(x=>`<option value="${esc(x.id)}" ${x.id===emp.id?'selected':''}>${esc(x.apelido)}</option>`).join('')}</select>`:`<b>${esc(emp.razao||'Empresa não cadastrada')}</b>`}
     <small>${esc([emp.cnpj?'CNPJ '+emp.cnpj:'',emp.responsavel?'representada por '+emp.responsavel:''].filter(Boolean).join(' · ')||'Cadastre os dados da empresa para entrarem sozinhos no contrato.')}</small>${pode('config','e')?`<button type="button" class="ct-lk" id="ctEmpEd">Dados da empresa e filiais</button>`:''}</div>
    <button type="button" class="btn pri ct-ir" id="ctIr" ${cria?'':'disabled'}>${ic('faisca')}Elaborar com IA</button></div>
@@ -11261,8 +11314,12 @@ function telaCentral(el){
  </section>
  <div class="fv-cards">${cartao('rascunhos','editar','','Rascunhos',nRas,'em elaboração')}${cartao('aguardando','relogio','in','Aguardando assinatura',nAg,'enviados para assinar')}${cartao('vigentes','sol','ok','Vigentes',nVig,'assinados e no prazo')}${cartao('vencendo','aviso','at','Próximos do vencimento',nVenc,'até '+(+CFG.alertas.diasContrato||30)+' dias, ou vencidos')}</div>
  <div class="painel">
-  <div class="abas fv-abas" role="tablist">${[['docs','Documentos',docs.length],['biblioteca','Biblioteca de modelos',CT_BIB.reduce((s,c)=>s+c.itens.length,0)+meus.length],['controle','Controle de vencimentos',regs.length],['base','Base jurídica',ctBase().length]].map(([a,l,n])=>`<button type="button" role="tab" data-ca="${a}" class="${UICT.aba===a?'on':''}">${esc(l)} <span class="fv-n">${n}</span></button>`).join('')}</div>
-  ${UICT.aba==='docs'?`<div class="dc-chips" role="group" aria-label="Situação">${CT_FILTROS.map(([k,l,fn])=>`<button type="button" class="dc-chip ${(UICT.sit||'todos')===k?'on':''}" data-csit="${k}">${esc(l)} <span>${docs.filter(d=>fn(d,sit(d))).length}</span></button>`).join('')}</div>
+  <div class="abas fv-abas" role="tablist">${[['docs','Documentos',docs.length],['livre','Criar do meu jeito',''],['biblioteca','Biblioteca de modelos',CT_BIB.reduce((s,c)=>s+c.itens.length,0)+meus.length],['controle','Controle de vencimentos',regs.length],['base','Base jurídica',ctBase().length]].map(([a,l,n])=>`<button type="button" role="tab" data-ca="${a}" class="${UICT.aba===a?'on':''}">${esc(l)}${n!==''?` <span class="fv-n">${n}</span>`:''}</button>`).join('')}</div>
+  ${UICT.aba==='livre'?`<div class="ct-livre"><p class="dc-nota" style="margin:4px 0 12px">Aqui o contrato é do seu jeito. Fale pelo microfone ou escreva tudo o que quer: as partes, as cláusulas, os valores, as condições. A IA monta exatamente como você disser, sem mudar nada e sem questionar. Ou abra em branco e escreva você mesmo.</p>
+    <div class="ct-voz"><textarea id="ctLivre" rows="6" ${cria?'':'disabled'} placeholder="Ex.: Contrato entre a cerâmica e o João da Silva para descarregar lenha. Ele recebe R$ 80,00 por carrada, paga toda sexta. Se faltar 3 vezes no mês, o contrato acaba. Quero uma cláusula dizendo que…" aria-label="Fale ou escreva o contrato do seu jeito">${esc(UICT.livre||'')}</textarea>
+     <button type="button" class="ct-mic" data-mic="ctLivre" ${cria?'':'disabled'} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button></div>
+    <div class="ct-livre-b"><button type="button" class="btn pri ct-ir" id="ctLivreIr" ${cria?'':'disabled'}>${ic('faisca')}Montar do jeito que eu falei</button><button type="button" class="btn" id="ctBranco" ${cria?'':'disabled'}>${ic('editar')}Abrir em branco e escrever eu mesmo</button></div></div>`
+  :UICT.aba==='docs'?`<div class="dc-chips" role="group" aria-label="Situação">${CT_FILTROS.map(([k,l,fn])=>`<button type="button" class="dc-chip ${(UICT.sit||'todos')===k?'on':''}" data-csit="${k}">${esc(l)} <span>${docs.filter(d=>fn(d,sit(d))).length}</span></button>`).join('')}</div>
     <div class="filtros"><input type="search" id="ccQ" placeholder="Buscar por número, parte ou documento" value="${esc(UICT.q)}" aria-label="Buscar" style="flex:1;min-width:200px"></div>
     ${ctTabelaDocs(lista,q||filtro[0]!=='todos')}`
   :UICT.aba==='biblioteca'?bib()
@@ -11276,6 +11333,10 @@ function telaCentral(el){
  const ta=$('#ctPedido',el);if(ta){ta.oninput=()=>{UICT.pedido=ta.value};ta.onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();$('#ctIr',el).click()}}}
  const ir=$('#ctIr',el);if(ir)ir.onclick=()=>{const t=String(UICT.pedido||'').trim();if(t.length<8){toast('Descreva em poucas palavras o contrato ou documento que você precisa.');if(ta)ta.focus();return}UICT.pedido='';ctComecar(t)};
  $$('[data-ex]',el).forEach(b=>b.onclick=()=>{UICT.pedido=CT_EXEMPLOS[+b.dataset.ex];if(ta){ta.value=UICT.pedido;ta.focus()}});
+ const tl=$('#ctLivre',el);if(tl)tl.oninput=()=>{UICT.livre=tl.value};
+ const li=$('#ctLivreIr',el);if(li)li.onclick=()=>{const t=String(UICT.livre||'').trim();if(t.length<8){toast('Fale ou escreva o contrato que você quer.');if(tl)tl.focus();return}UICT.livre='';ctComecar(t,{livre:true})};
+ const bb=$('#ctBranco',el);if(bb)bb.onclick=()=>{if(!ctPodeCriar()){toast('Seu acesso não permite criar contratos.','erro');return}CT_SEM={doc:ctDocBranco(),livre:true,branco:true,empresaId:UICT.empresaId||'matriz'};ctLargar();location.hash='#/doc/ia'};
+ ctLigarMics(el);
  const se=$('#ctEmp',el);if(se)se.onchange=()=>{UICT.empresaId=se.value;renderTela()};const ee=$('#ctEmpEd',el);if(ee)ee.onclick=ctEmpresaDialogo;
  $$('[data-ca]',el).forEach(b=>b.onclick=()=>{UICT.aba=b.dataset.ca;UICT.q='';renderTela()});
  $$('[data-csit]',el).forEach(b=>b.onclick=()=>{UICT.aba='docs';UICT.sit=b.dataset.csit==='todos'?'':b.dataset.csit;renderTela()});
@@ -11311,7 +11372,7 @@ function ctHtmlPaneDoc(S){
   <ol class="ct-passos">${['Entender o pedido','Perguntar o que falta','Consultar a base jurídica','Redigir o documento','Conferir leis, partes e riscos'].map(x=>`<li>${esc(x)}</li>`).join('')}</ol></div>`;
  const D=ctD(d,ver?{...ctMetaDe(S),status:ver.status,versao:ver.n}:ctMetaDe(S));const an=S.analise||ctAnVazia();const trav=S.rec&&CT_TRAVADO(S.rec.status);
  return `<div class="ct-faixas">${ver?`<div class="ct-faixa in">Você está vendo a <b>versão ${ver.n}</b>, de ${esc(fDataHora(ver.em))}. <button type="button" class="ct-lk" data-vsai>Voltar à versão atual</button>${trav||S.vendo===S.versoes[S.versoes.length-1].n?'':' · <button type="button" class="ct-lk" data-vrest="'+ver.n+'">Restaurar esta versão</button>'}</div>`:''}
-  ${!ver&&!S.parcial&&an.alertaVinculo?`<div class="ct-faixa at"><b>Risco trabalhista.</b> ${esc(an.alertaVinculo)}</div>`:''}
+  ${!ver&&!S.parcial&&!S.livre&&an.alertaVinculo?`<div class="ct-faixa at"><b>Risco trabalhista.</b> ${esc(an.alertaVinculo)}</div>`:''}
   ${!ver&&!S.parcial&&D.vaziosRot.length?`<div class="ct-faixa at ct-falta"><b>${D.vaziosRot.length===1?'Falta preencher:':'Faltam '+D.vaziosRot.length+' campos:'}</b> ${D.vaziosRot.slice(0,4).map(r=>`<button type="button" class="dc-vzb" data-pre="${esc(r)}">${esc(r)}</button>`).join('')}${D.vaziosRot.length>4?`<span class="ct-falta-m">e mais ${D.vaziosRot.length-4}</span>`:''}${D.vaziosRot.length>1?`<button type="button" class="btn min pri" data-pretudo>Preencher tudo</button>`:''}</div>`:''}</div>
   <div class="fvd-fundo">${htmlDoc(D,{editor:true})}</div>`;
 }
@@ -11374,9 +11435,12 @@ function telaCtIA(host,rec,repinta){
   if(!CTI||CT_SEM){if(!ctPodeCriar()){host.innerHTML=`<div class="fv-topo">${volta}</div><div class="vazio"><b>Sem permissão</b>Seu perfil consulta os contratos, mas não cria.</div>`;return}
    const sem=CT_SEM||{};CT_SEM=null;const S0=CTI=ctSessaoNova(sem);
    if(sem.origem)S0.msgs.push({q:'ia',t:'Vou preparar **'+CT_DERIV[sem.origem.tipo][0]+'** do documento **Nº '+sem.origem.numero+'** ('+sem.origem.titulo+'), mantendo as mesmas partes.\n\n'+CT_DERIV[sem.origem.tipo][1]});
+   else if(sem.doc&&sem.branco){S0.painel='documento';S0.aba='editar';S0.rodada=3;S0.msgs.push({q:'ia',t:'Abri um contrato em branco. Escreva do seu jeito em **Editar à mão**: título, partes e cada cláusula. Se quiser, me peça aqui (escrevendo ou pelo microfone) que eu escrevo do jeito que você disser.'});
+    setTimeout(async()=>{if(CTI!==S0)return;await ctSalvarSeguro('Contrato em branco, escrito pelo usuário');if(S0.rec&&CTI===S0){try{history.replaceState(null,'','#/doc/'+S0.rec.id)}catch(e){}ctPintar()}},30)}
    else if(sem.doc){S0.painel='documento';S0.rodada=3;S0.msgs.push({q:'ia',t:sem.usarModelo?'Abri o modelo **'+sem.usarModelo+'** num documento novo. Diga o que muda (outra parte, valores, prazos) que eu adapto, ou preencha os campos destacados.':'Fiz uma cópia do documento **Nº '+sem.copiaDe+'** num rascunho novo. Diga o que muda que eu adapto.'});
     setTimeout(async()=>{if(CTI!==S0)return;await ctSalvarSeguro(sem.usarModelo?'Criado a partir do modelo '+sem.usarModelo:'Cópia do documento Nº '+sem.copiaDe);if(S0.rec&&CTI===S0){try{history.replaceState(null,'','#/doc/'+S0.rec.id)}catch(e){}ctPintar()}},30)}
    else if(sem.pedido)setTimeout(()=>{if(CTI===S0)ctEnviar(sem.pedido)},30);
+   else if(sem.livre)S0.msgs.push({q:'ia',t:'Modo livre: fale ou escreva o contrato do jeito que você quer, com as cláusulas e condições que quiser. Eu monto exatamente assim.'});
    else S0.msgs.push({q:'ia',t:'Descreva o contrato ou documento que você precisa: para que serve, quem são as partes e as condições que quer incluir. Eu identifico o documento adequado, pergunto só o que faltar e redijo o texto completo.'});
   }
  }
@@ -11385,7 +11449,7 @@ function telaCtIA(host,rec,repinta){
  const scAnt=repinta&&$('#ctiPane',host)?$('#ctiPane',host).scrollTop:0;
  host.innerHTML=`<div class="cti" data-painel="${S.painel}">
   <div class="fv-topo">${volta}
-   <span class="dc-tt"><b>${r?esc(r.numero)+' · ':''}${esc(S.doc?(modelo?r&&r.nomeModelo||S.doc.tipo:S.doc.tipo||S.doc.titulo):S.origem?'Novo documento a partir do Nº '+S.origem.numero:'Novo documento com IA')}</b>
+   <span class="dc-tt"><b>${r?esc(r.numero)+' · ':''}${esc(S.doc?(modelo?r&&r.nomeModelo||S.doc.tipo:S.doc.tipo||S.doc.titulo):S.origem?'Novo documento a partir do Nº '+S.origem.numero:S.livre?'Contrato do meu jeito':'Novo documento com IA')}</b>
     <small>${r?(modelo?'Modelo da empresa':esc(r.parte||'sem parte informada')+' · '+tag(CT_ROT_ST[sitT]||sitT,sitC)+(r.versao>1?' · versão '+r.versao:'')+(r.assinatura?' · assinatura registrada em '+esc(fData(r.assinatura.data)):'')):'A IA entende o pedido, pergunta o que falta e redige'}</small></span>
    <span class="fv-acoes dc-acoes">${S.doc?`${modelo&&edita?`<button type="button" class="btn pri" id="ctiUsar">Usar este modelo</button>`:''}<button type="button" class="btn" id="ctiImp">${ic('doc')}Imprimir</button><button type="button" class="btn ${modelo?'':'pri'}" id="ctiPdf">${ic('baixar')}Gerar PDF</button><button type="button" class="btn" id="ctiMais" aria-haspopup="menu">Mais ▾</button>`:''}</span></div>
   <div class="dc-abas-mob cti-mob" role="tablist"><button type="button" data-cpn="conversa" class="${S.painel==='conversa'?'on':''}">Conversa</button><button type="button" data-cpn="documento" class="${S.painel==='documento'?'on':''}">Documento</button></div>
@@ -11394,8 +11458,8 @@ function telaCtIA(host,rec,repinta){
     <div class="cti-msgs" id="ctiMsgs">${ctHtmlMsgs(S)}</div>
     ${S.doc&&!trav&&!modelo&&edita?`<div class="cti-cmds" role="group" aria-label="Comandos rápidos">${CT_COMANDOS.map(([l],i)=>`<button type="button" data-cmd="${i}">${esc(l)}</button>`).join('')}</div>`:''}
     <form class="cti-in" id="ctiForm"><textarea id="ctiTxt" rows="2" ${S.pensando||!edita||modelo?'disabled':''} placeholder="${S.doc?(trav?'Documento travado: peça um aditivo, distrato ou renovação no menu Mais':'Peça uma alteração ou tire uma dúvida sobre o documento'):S.perguntas.length?'Ou escreva aqui tudo de uma vez':'Descreva o contrato ou documento que você precisa'}" aria-label="Mensagem para a IA">${esc(S.rasc||'')}</textarea>
-     <button type="submit" class="btn pri" ${S.pensando||!edita||modelo?'disabled':''} aria-label="Enviar">${ic('enviar')}</button></form>
-    <p class="cti-nota">Dados pessoais do cadastro (CPF, RG, endereço, salário) não são enviados à IA. A IA apoia a redação; não substitui advogado.</p>
+     <button type="button" class="ct-mic" data-mic="ctiTxt" ${S.pensando||!edita||modelo?'disabled':''} aria-label="Falar pelo microfone" title="Falar pelo microfone">${CT_IC_MIC}</button><button type="submit" class="btn pri" ${S.pensando||!edita||modelo?'disabled':''} aria-label="Enviar">${ic('enviar')}</button></form>
+    <p class="cti-nota">${S.livre?'<b>Modo livre:</b> a IA escreve do jeito que você pedir. ':''}Dados pessoais do cadastro (CPF, RG, endereço, salário) não são enviados à IA. A IA apoia a redação; não substitui advogado.</p>
    </section>
    <section class="cti-doc" aria-label="Documento">
     <div class="abas cti-abas" role="tablist">${[['doc','Documento'],['analise','Análise jurídica'+(nAt?' <span class="fv-n at">'+nAt+'</span>':'')],['editar','Editar à mão'],['hist','Histórico'+(S.versoes.length?' <span class="fv-n">'+S.versoes.length+'</span>':'')]].map(([a,l])=>`<button type="button" role="tab" data-cab="${a}" class="${S.aba===a?'on':''}">${l}</button>`).join('')}</div>
@@ -11403,7 +11467,7 @@ function telaCtIA(host,rec,repinta){
    </section>
   </div></div>`;
  const el=host.firstElementChild;const msgs=$('#ctiMsgs',el);msgs.scrollTop=msgs.scrollHeight;if(S.topo){S.topo=false}else if(repinta)$('#ctiPane',el).scrollTop=scAnt;
- const txt=$('#ctiTxt',el);txt.oninput=()=>{S.rasc=txt.value};
+ const txt=$('#ctiTxt',el);txt.oninput=()=>{S.rasc=txt.value};ctLigarMics(el);
  txt.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&window.innerWidth>760){e.preventDefault();$('#ctiForm',el).requestSubmit()}};
  $('#ctiForm',el).onsubmit=e=>{e.preventDefault();const t=txt.value;if(String(t).trim())ctEnviar(t)};
  $$('[data-cpn]',el).forEach(b=>b.onclick=()=>{S.painel=b.dataset.cpn;el.dataset.painel=S.painel;$$('[data-cpn]',el).forEach(x=>x.classList.toggle('on',x===b))});

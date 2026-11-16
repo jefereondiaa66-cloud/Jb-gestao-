@@ -146,7 +146,7 @@ teste('programa', 'leitura por foto aos poucos (V109): programa, adaptador da nu
 teste('programa', 'ponto com foto: câmera liberada só para o próprio site e perfil "Celular do ponto" no painel', () => {
   const h = ler('nuvem/_headers');
   assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o celular do ponto precisa da câmera: nuvem/_headers deve ter camera=(self)');
-  assert.match(h, /Permissions-Policy:[^\n]*microphone=\(\)/, 'o microfone continua bloqueado');
+  assert.match(h, /Permissions-Policy:[^\n]*microphone=\(self\)/, 'ditado dos contratos (V125): microfone liberado só para o próprio site');
   const app = ler('app/jb-gestao.html');
   assert.equal(app.split('<script id="ponto-foto-v78">').length - 1, 1, 'bloco do ponto com foto ausente ou repetido');
   assert.match(ler('nuvem/admin.html'), /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');

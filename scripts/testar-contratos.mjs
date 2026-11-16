@@ -135,7 +135,7 @@ try {
   await ir('#/central');
   const t0 = await page.evaluate(() => ({ heroi: !!document.querySelector('#ctPedido'), titulo: (document.querySelector('.ct-heroi h2') || {}).textContent, abas: [...document.querySelectorAll('.fv-abas [data-ca]')].map((b) => b.dataset.ca), emp: (document.querySelector('.ct-emp') || {}).textContent, ia: ctTemIA() }));
   ok(t0.heroi && /inteligência artificial/i.test(t0.titulo), 'campo grande “Criar contrato com inteligência artificial” na aba Contratos');
-  ok(t0.abas.join() === 'docs,biblioteca,controle,base', 'abas: Documentos, Biblioteca, Controle de vencimentos e Base jurídica');
+  ok(t0.abas.join() === 'docs,livre,biblioteca,controle,base', 'abas: Documentos, Criar do meu jeito, Biblioteca, Controle de vencimentos e Base jurídica');
   ok(/Empresa Exemplo LTDA/.test(t0.emp) && /11\.222\.333/.test(t0.emp), 'empresa cadastrada já aparece (sem digitar de novo)');
   await foto('01-inicio');
   await page.click('[data-ca="biblioteca"]');
@@ -334,6 +334,29 @@ try {
 
   const cont = await page.evaluate(async () => { const orig = APP.sample; let n = 0; const vistos = []; APP.sample = async (input, o) => { n++; vistos.push(input.length); const t = n === 1 ? 'parte um ' : 'parte dois'; if (o.onText) o.onText({ text: t }); return { text: t, truncated: n === 1 }; }; let parcial = ''; let r; try { r = await ctChamarIA([{ role: 'user', content: 'x' }], { onText: (t) => { parcial = t; } }); } finally { APP.sample = orig; } return { r, n, vistos: vistos.join(), parcial }; });
   ok(cont.r === 'parte um parte dois' && cont.n === 2 && cont.vistos === '1,3' && cont.parcial === 'parte um parte dois', 'resposta cortada no limite da IA continua de onde parou, sem perder o que já veio');
+
+  console.log('Criar do meu jeito (modo livre, em branco e microfone)');
+  await ir('#/central'); await page.click('[data-ca="livre"]');
+  ok(await page.evaluate(() => !!document.querySelector('#ctLivre') && !!document.querySelector('[data-mic="ctLivre"]') && !!document.querySelector('[data-mic="ctPedido"]') && !!document.querySelector('#ctBranco')), 'aba “Criar do meu jeito” com campo grande, microfone e “Abrir em branco”');
+  const n0 = pedidos.length;
+  await page.fill('#ctLivre', 'Contrato de manutenção do jeito que eu quero: a contratada recebe R$ 4.500,00 por mês e a multa é de 50% se ela atrasar.');
+  await page.click('#ctLivreIr');
+  await page.waitForFunction(() => CTI && CTI.livre && CTI.doc && CTI.rec && !CTI.pensando, null, { timeout: 20000 }); await pronto();
+  const lv = await page.evaluate(() => ({ livre: CTI.rec.livre, nota: /Modo livre/.test(document.querySelector('.cti-nota').textContent), banner: !!document.querySelector('.ct-faixa.at b') && /Risco trabalhista/.test(document.querySelector('.ct-faixas').textContent) }));
+  const pl = pedidos.slice(n0);
+  ok(pl.length === 1 && /MODO LIVRE/.test(pl[0]) && !/REGRAS QUE VALEM SEMPRE/.test(pl[0]) && /Faça exatamente o que ele pedir/.test(pl[0]), 'modo livre: vai direto para a redação (sem perguntas) com a regra de fazer do jeito pedido');
+  ok(lv.livre && lv.nota && !lv.banner, 'documento do modo livre salvo, marcado como livre e sem faixa de alerta por cima');
+  await page.fill('#ctiTxt', 'Altere as condições de pagamento para R$ 5.000,00.'); await page.click('#ctiForm button[type=submit]');
+  await page.waitForFunction(() => !CTI.pensando && CTI.rec.versao === 2, null, { timeout: 15000 }); await pronto();
+  ok(/Modo livre: faça o que foi pedido/.test(pedidos[pedidos.length - 1]), 'conversa no modo livre também segue o pedido sem barrar');
+  await ir('#/central'); await page.click('[data-ca="livre"]'); await page.click('#ctBranco');
+  await page.waitForFunction(() => CTI && CTI.livre && CTI.rec && CTI.aba === 'editar' && document.querySelector('[data-ect="0"]'), null, { timeout: 10000 }); await pronto();
+  const nb = pedidos.length;
+  await page.evaluate(() => { const t = document.querySelector('[data-ect="0"]'); t.value = 'Do que eu quero'; t.dispatchEvent(new Event('input', { bubbles: true })); const x = document.querySelector('[data-ecx="0"]'); x.value = 'Texto escrito por mim, do meu jeito.'; x.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#ctiEdSalvar'); await page.waitForFunction(() => !CTI.sujo && CTI.rec.versao === 2, null, { timeout: 10000 }); await pronto();
+  ok(await page.evaluate(() => /Texto escrito por mim/.test(document.querySelector('#ctiPane').textContent) || CTI.doc.clausulas[0].x === 'Texto escrito por mim, do meu jeito.') && pedidos.length === nb, 'contrato em branco escrito à mão, salvo sem passar pela IA');
+  const mic = await page.evaluate(() => { let ok1 = false; const R = function () { this.start = () => { ok1 = true; setTimeout(() => this.onresult && this.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: 'cláusula falada' }], { isFinal: true })] }), 10); }; this.stop = () => { this.onend && this.onend(); }; }; window.webkitSpeechRecognition = R; window.SpeechRecognition = R; ctMic(document.querySelector('[data-mic="ctiTxt"]'), 'ctiTxt'); return new Promise((r) => setTimeout(() => { const v = document.querySelector('#ctiTxt').value; ctMicParar(); r({ ok1, v }); }, 60)); });
+  ok(mic.ok1 && /cláusula falada/.test(mic.v), 'microfone: o que é falado aparece escrito no campo');
 
   console.log('Lista, filtros e celular');
   await ir('#/central');
