@@ -14606,7 +14606,15 @@ function porParteRel(O,U){const vs=opsRelV(O,U);const g=somaPorV(vs,v=>v[O.campo
 function contasRel(O,U,sts,tit){const vs=opsRelV(O,U).filter(v=>{const f=finVenda(v);return f.saldo>0&&(!sts||sts.includes(f.status))});
  return{cols:[{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'data',l:'Emissão',t:'data'},{k:'venc',l:'Vencimento',t:'data'},{k:'dias',l:'Dias de atraso',t:'num',semTotal:1},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:O.K==='venda'?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'status',l:'Situação'}],
   rows:vs.sort((a,b)=>String(a.vencimento).localeCompare(String(b.vencimento))).map(v=>{const f=finVenda(v);const d=v.vencimento&&v.vencimento<hoje()?diasEntre(v.vencimento,hoje()):0;return{numero:fNumV(v.numero),parte:parteSnap(v).nome||'',data:v.data,venc:v.vencimento,dias:d,total:f.total,pago:f.pago,saldo:f.saldo,status:f.status}}),
-  total:true,nota:tit+' com saldo em aberto, de '+(O.K==='venda'?'vendas':'compras')+' do período ('+periodoTxtV(U)+'). Para ver todas, use “Todo o período”.'}}
+  total:true,nota:tit+' com saldo em aberto, de '+(O.K==='venda'?'vendas':'compras')+' do período ('+periodoTxtV(U)+'). Para ver todas, use “Todo o período”.',
+  /* V128 (16/11/2026, pedido do Jeferson): embaixo da lista, o total em aberto de cada fornecedor (ou cliente) */
+  extras:[totalPorParteRel(O,vs)]}}
+function totalPorParteRel(O,vs){const g={};vs.forEach(v=>{const f=finVenda(v);const n=parteSnap(v).nome||'(sem nome)';const o=g[n]||(g[n]={parte:n,n:0,total:0,pago:0,saldo:0,venc:0});
+  o.n++;o.total=round2(o.total+f.total);o.pago=round2(o.pago+f.pago);o.saldo=round2(o.saldo+f.saldo);if(f.status==='Vencido')o.venc=round2(o.venc+f.saldo)});
+ const venda=O.K==='venda';
+ return{titulo:venda?'Total a receber por cliente':'Total a pagar por fornecedor',total:true,
+  cols:[{k:'parte',l:O.Parte},{k:'n',l:'Contas',t:'num'},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:venda?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:venda?'Saldo a receber':'Saldo a pagar',t:'moeda'},{k:'venc',l:'Vencido',t:'moeda'}],
+  rows:Object.values(g).sort((a,b)=>b.saldo-a.saldo||a.parte.localeCompare(b.parte,'pt-BR')),vazio:'Nenhuma conta em aberto.'}}
 function pagamentosRel(O,U){const vs=opsRelV(O,{...U,ini:'',fim:''},{comCanceladas:true});const out=[];
  vs.forEach(v=>(v.pagamentos||[]).forEach(p=>{if(!p.estornado&&noPeriodoV(p.data,U)&&(!U.forma||p.forma===U.forma))out.push({v,p})}));
  return{cols:[{k:'data',l:O.K==='venda'?'Recebido em':'Pago em',t:'data'},{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'forma',l:'Forma'},{k:'valor',l:'Valor',t:'moeda'},{k:'por',l:'Registrado por'}],
