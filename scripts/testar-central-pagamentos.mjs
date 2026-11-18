@@ -566,6 +566,33 @@ try {
   ok(n18.painel.larg <= n18.painel.vis + 2 && n18.painel.k === 7 && n18.painel.pills >= 6 && n18.painel.tiles >= 20 && n18.painel.barra.includes('Agenda') && ['hoje', 'agenda', 'contas', 'pagos', 'ind', 'agMes', 'agDia'].every((a) => n18[a].larg <= n18[a].vis + 2) && n18.fim.length === 2 && /não estava agendado/.test(n18.fim[0]) && /Relatório do dia para o dono/.test(n18.fim[1]) && n18.modal.dentro && n18.cel.n > 0 && n18.cel.vis === n18.cel.n && / · /.test(n18.cel.txt) && !n18.cel.emenda && !n18.vazou,
     `18. no celular (390 px) o painel, a Agenda do Gustavo (com o fechamento do dia), as cinco partes da Central e o Novo pagamento cabem na largura; o cartão mostra categoria e forma (${n18.cel.txt}); barra de baixo: ${n18.painel.barra.join(' · ')}`, n18);
 
+  /* 19. padrão de lançamentos (V134): três pontinhos completos nos módulos e nas listas que apontam para um registro; período da Lenha no padrão */
+  const n19 = await page.evaluate(async () => {
+    const r = {}; const itens = () => [...document.querySelectorAll('.dc-pop [data-i], .dc-pop [role=menuitem]')].map((b) => b.childNodes[0].textContent.trim());
+    const abrirMenu = async (tr) => { const b = tr && tr.querySelector('.jbl-m'); if (!b) return null; b.click(); await T.dorme(350); const L = itens(); document.querySelectorAll('.dc-pop').forEach((x) => x.remove()); return L; };
+    /* módulo do Financeiro: a linha tem Pagar à vista e o resto no menu, com o documento do compromisso */
+    await T.ir('#/fGerais', /Despesas gerais/); await T.dorme(500); [...document.querySelectorAll('[data-cpms]')].find((b) => b.dataset.cpms === '').click(); await T.dorme(500);
+    const trM = document.querySelector('#svCorpo tr[data-cpgref][data-oref]'); r.modulo = await abrirMenu(trM); r.moduloMais = document.querySelectorAll('#svCorpo [data-cpgmais]').length;
+    /* conta do fornecedor de lenha: a entrega aponta para a compra e ganha o documento dela */
+    await T.ir('#/fLenha/f_vasco', /./); await T.dorme(700);
+    let trE = document.querySelector('#svCorpo tr[data-go^="#/compra/"]');
+    if (!trE) for (const b of [...document.querySelectorAll('#svCorpo .cpl-cards button')]) { b.click(); await T.dorme(450); trE = document.querySelector('#svCorpo tr[data-go^="#/compra/"]'); if (trE) break; }
+    r.entregaDbg = { linhas: document.querySelectorAll('#svCorpo tr[data-go]').length, lc: !!(trE && trE.closest('table.lc')), pontos: !!(trE && trE.querySelector('.jbl-m')), h1: (document.querySelector('#svCorpo h1') || {}).textContent };
+    r.entrega = await abrirMenu(trE);
+    /* Lenha: a barra de período virou o botão "Período" do padrão (os atalhos antigos somem) */
+    marcarSetor('lenha'); T.limpar(); location.hash = '#/clPag'; await T.esperar(() => document.querySelector('#conteudo .cl-periodo')); await T.dorme(700);
+    const f = document.querySelector('#conteudo .cl-periodo'); r.per = { padrao: f.classList.contains('jbf') && !!f.querySelector('.jbf-per'), rot: (f.querySelector('.jbf-per') || {}).textContent || '', atalhos: [...f.querySelectorAll('[data-per]')].filter((x) => x.offsetParent !== null).length };
+    /* trocar as datas pelo padrão continua filtrando a tela (mesmo evento de antes) */
+    const de = f.querySelector('[data-pde]'); de.value = addDias(hoje(), -40); de.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(600);
+    const f2 = document.querySelector('#conteudo .cl-periodo'); r.per.depois = (f2.querySelector('[data-pde]') || {}).value === addDias(hoje(), -40) && !!f2.querySelector('.jbf-per');
+    marcarSetor('financeiro'); return r;
+  });
+  const tem = (L, xs) => Array.isArray(L) && xs.every((x) => L.includes(x));
+  ok(tem(n19.modulo, ['Visualizar', 'Imprimir', 'Compartilhar', 'Abrir']) && n19.modulo.some((x) => /Corrigir setor|Classificar setor/.test(x)) && n19.moduloMais === 0,
+    `19. nos módulos do Financeiro, os três pontinhos da linha trazem ${(n19.modulo || []).join(' · ')}`, n19);
+  ok(tem(n19.entrega, ['Visualizar', 'Imprimir', 'Compartilhar', 'Abrir']), `19. a linha que aponta para um registro (entrega de lenha na conta do fornecedor) ganha o documento dele: ${(n19.entrega || []).join(' · ')}`, n19.entregaDbg);
+  ok(n19.per.padrao && /^Período:/.test(n19.per.rot.trim()) && n19.per.atalhos === 0 && n19.per.depois, `19. na Lenha, o filtro de datas virou o botão do padrão (“${n19.per.rot.trim()}”) e continua filtrando`, n19.per);
+
   ok(!erros.length, erros.length ? 'erros de JavaScript: ' + erros.slice(0, 4).join(' | ') : 'nenhum erro de JavaScript durante o teste');
 } catch (e) { falhas++; console.error('  ✘ o teste parou: ' + (e && e.message ? e.message.split('\n')[0] : e)); }
 finally { await browser.close(); http.close(); }

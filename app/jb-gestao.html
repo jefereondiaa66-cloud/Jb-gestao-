@@ -32943,7 +32943,9 @@ function telaAPagar(c){
 /* ---------- pagamentos (o que saiu de dinheiro) e abatimentos ---------- */
 const PER={};
 function barraPeriodo(c,k){const P=PER[k]||(PER[k]={de:hoje().slice(0,8)+'01',ate:hoje(),p:'mes'});
- return `<div class="cl-periodo" role="group" aria-label="Período">${[['dia','Hoje'],['semana','7 dias'],['mes','Este mês'],['pers','Personalizado']].map(([v,l])=>`<button type="button" class="btn min${P.p===v?' pri':''}" data-per="${v}">${l}</button>`).join('')}
+ /* V134 (18/11/2026): a barra é uma barra de filtros comum (fi-filtros): no layout novo as duas datas viram o botão "Período" do padrão,
+    que já traz os atalhos (Hoje, Últimos 7 dias, Este mês…); os botões de atalho antigos ficam só no layout clássico */
+ return `<div class="fi-filtros cl-periodo" role="group" aria-label="Período">${[['dia','Hoje'],['semana','7 dias'],['mes','Este mês'],['pers','Personalizado']].map(([v,l])=>`<button type="button" class="btn min${P.p===v?' pri':''}" data-per="${v}">${l}</button>`).join('')}
   <label class="inline" style="gap:4px;font-size:12.5px;color:var(--suave)">De <input type="date" data-pde value="${esc(P.de)}"></label><label class="inline" style="gap:4px;font-size:12.5px;color:var(--suave)">até <input type="date" data-pate value="${esc(P.ate)}"></label></div>`}
 function ligarPeriodo(c,k){const P=PER[k];
  c.querySelectorAll('[data-per]').forEach(b=>b.onclick=()=>{const v=b.dataset.per;P.p=v;const h=hoje();if(v==='dia'){P.de=h;P.ate=h}else if(v==='semana'){P.de=addDias(h,-6);P.ate=h}else if(v==='mes'){P.de=h.slice(0,8)+'01';P.ate=h}renderTela()});
@@ -44412,19 +44414,21 @@ function tabelaPagos(xs,opc){opc=opc||{};const e=ed();if(!xs.length)return `<div
 async function desagendar(ref){const o=ob(ref);if(!o)return;
  try{const f=lenhaForn(o);if(f){LEN().abrirAgendar(f);return}await gravarAgenda(o,{dataPrevista:'',naAgenda:false});toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}}
 /* ---------- lista no visual de antes (painel do setor e módulos): Data · Conta · Módulo (com o setor) · Valor · Pago · Falta pagar · Situação,
-   com os botões Pagar, Agendar e Mais ▾ na linha. O menu Mais ▾ ganhou a classificação do setor e a nova tentativa de encaminhamento. ---------- */
+   com os botões Pagar, Agendar e Mais ▾ na linha (painel do setor). O menu Mais ▾ ganhou a classificação do setor e a nova tentativa de encaminhamento.
+   Nos módulos (opc.semMod) a linha segue o padrão de lançamentos: Pagar à vista e o resto no menu de três pontos, com Visualizar, Imprimir e Compartilhar
+   o documento do compromisso (data-oref). ---------- */
 /* o setor de destino entra na coluna do módulo (uma linha a mais), sem mudar a largura das colunas de antes */
 function linhaSetor(o){const e=encDe(o);if(e.st==='aguardando')return '<span class="sub"><span class="tag at">Setor não identificado</span></span>';
  const s=SET(e.setor);return s?`<span class="sub">Setor: ${esc(s.n)}${e.st==='pendente'?' · pendente de integração':e.modo==='manual'?' · classificação manual':''}</span>`:''}
 function tabelaAnt(xs,opc){opc=opc||{};const e=ed();if(!xs.length)return `<div class="vazio">${opc.vazio||'<b>Nenhuma conta aqui</b>'}</div>`;
  return `<div class="painel tabwrap"><table class="tbl cartao fi-tbl cpg-tab" data-sem-total><thead><tr><th>Data</th><th>Conta</th>${opc.semMod?'<th>Tipo</th>':'<th>Módulo</th>'}<th class="num">Valor</th><th class="num">Pago</th><th class="num">${opc.pagas?'Saldo':'Falta pagar'}</th><th>Situação</th><th></th></tr></thead><tbody>
  ${xs.slice(0,300).map(o=>{const s=sitU(o),ab=abertaO(o),up=ultPag(o);const R=` data-ref="${esc(o.ref)}"`;
-  return `<tr class="clic" data-cpgref="${esc(o.ref)}" tabindex="0"><td data-l="Data">${ab||!up?(o.dataCal?esc(fData(o.dataCal)):'<span class="ajuda">sem data</span>'):esc(fData(up))}${ab&&o.prog?`<span class="sub">agendado${o.venc&&o.venc!==o.prog?' · vence '+esc(fData(o.venc)):''}</span>`:ab&&o.venc?'<span class="sub">vencimento</span>':!ab&&up?'<span class="sub">pago</span>':''}</td>
+  return `<tr class="clic" data-cpgref="${esc(o.ref)}"${opc.semMod?` data-oref="${esc(o.ref)}"`:''} tabindex="0"><td data-l="Data">${ab||!up?(o.dataCal?esc(fData(o.dataCal)):'<span class="ajuda">sem data</span>'):esc(fData(up))}${ab&&o.prog?`<span class="sub">agendado${o.venc&&o.venc!==o.prog?' · vence '+esc(fData(o.venc)):''}</span>`:ab&&o.venc?'<span class="sub">vencimento</span>':!ab&&up?'<span class="sub">pago</span>':''}</td>
    <td data-l="Conta"><b>${esc(o.benef||'—')}</b><span class="sub">${esc(o.descricao)}${o.num?' · '+esc(o.num):''}${o.parcela?' · '+esc(o.parcela):''}</span></td>
    <td data-l="${opc.semMod?'Tipo':'Módulo'}">${opc.semMod?esc(o.categoria||'—'):esc(MOD(moduloDe(o)).n+(o.categoria&&semAcento(o.categoria)!==semAcento(MOD(moduloDe(o)).n)?' · '+o.categoria:''))}${linhaSetor(o)}</td>
    <td data-l="Valor" class="num">${esc(fMoeda(o.valor))}</td><td data-l="Pago" class="num">${esc(fMoeda(o.s.pagoEf))}</td><td data-l="${opc.pagas?'Saldo':'Falta pagar'}" class="num"><b>${esc(fMoeda(o.s.saldo))}</b></td>
    <td data-l="Situação">${tagU(s)}</td>
-   <td class="acs">${o.podePagar&&ab?`<button type="button" class="btn min pri" data-cpga="pagar"${R} data-cpgpagar="${esc(o.ref)}">Pagar</button>`:''}${e&&ab?`<button type="button" class="btn min" data-cpga="agendar"${R} data-cpgag="${esc(o.ref)}">${o.prog?'Editar agendamento':'Agendar'}</button>`:''}<button type="button" class="btn min" data-cpga="mais"${R} data-cpgmais="${esc(o.ref)}" aria-label="Mais ações de ${esc(o.benef||o.descricao)}">Mais ▾</button></td></tr>`}).join('')}</tbody></table>
+   <td class="acs">${opc.semMod?botoes(o,e,null):`${o.podePagar&&ab?`<button type="button" class="btn min pri" data-cpga="pagar"${R} data-cpgpagar="${esc(o.ref)}">Pagar</button>`:''}${e&&ab?`<button type="button" class="btn min" data-cpga="agendar"${R} data-cpgag="${esc(o.ref)}">${o.prog?'Editar agendamento':'Agendar'}</button>`:''}<button type="button" class="btn min" data-cpga="mais"${R} data-cpgmais="${esc(o.ref)}" aria-label="Mais ações de ${esc(o.benef||o.descricao)}">Mais ▾</button>`}</td></tr>`}).join('')}</tbody></table>
  ${xs.length>300?'<p class="ajuda" style="padding:8px 12px">Mostrando as 300 primeiras. Use a pesquisa ou os filtros para ver as demais.</p>':''}</div>`}
 function menuLinha(b,ref){const o=ob(ref);if(!o)return;const ab=abertaO(o),e=ed(),en=encDe(o),tit=o.fonte==='titulo';
  abrirMenuMais(b,[{l:'Histórico e saldo',sub:'pagamentos, agendamento, setor e alterações',fn:()=>A.abrirObrig(ref)},
@@ -45142,6 +45146,8 @@ html.casca2 table.lc tr.jbl-ts,html.casca2 #conteudo.jbl-pg table.lc>tbody>tr.jb
 .jbf-gm{grid-template-columns:repeat(4,minmax(58px,1fr))}
 }
 @media print{.jbl-m,.jbl-ob,.jbf-bt,.jbf-lim,.jbf-pop{display:none!important}}
+/* V134: barra de período da Lenha e do Combustível no padrão (os atalhos estão no botão Período) */
+html.casca2 .fi-filtros.cl-periodo.jbf>[data-per]{display:none!important}
 </style>
 <script id="lanc-filtros-v129">
 "use strict";
@@ -45355,6 +45361,12 @@ html.casca2 table.lc tr.jbl-ts,html.casca2 #conteudo.jbl-pg table.lc>tbody>tr.jb
   const J=window.JB_DOCL;if(!J)return null;
   try{
    if(oref)return ()=>J.docObrigF(oref);
+   /* V134 (18/11/2026): a linha que aponta para um registro (data-go="#/<tela>/<id>") tem o mesmo documento dele, em qualquer tela */
+   const g=/^#\/([A-Za-z0-9_]+)\/([^/?#]+)$/.exec(tr.dataset.go||'');
+   if(g){const m=g[1],i=g[2];
+    if(m==='compra'||m==='venda'){const L=typeof DATA!=='undefined'?DATA[m==='compra'?'compras':'vendas']:null;const v=Array.isArray(L)?L.find(x=>x&&x.id===i):null;if(v&&typeof docOpV==='function')return ()=>docOpV(v);return null}
+    if(typeof MODS!=='undefined'&&MODS[m]){const f=J.fazerDoc(m,i);let d=null;try{d=f()}catch(e){}return d?f:null}
+    return null}
    if(!id||!tr.closest('#corpoLista'))return null;
    if(mod==='vendas'||mod==='compras'){const s=typeof setorAtualV==='function'?setorAtualV():'';
     const x=(J.lancamentosSetor(s)||[]).find(x=>x._doc&&x._go&&String(x._go).split('/').pop()===id&&!/pagamento/i.test(x._docT||''));return x?x._doc:null}

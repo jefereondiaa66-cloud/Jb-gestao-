@@ -42,3 +42,25 @@ Não precisa fazer nada: barra com a classe `filtros` ou `fi-filtros` e lista em
 padrão. Duas datas viram "Período", dois meses lado a lado viram "Competência" e quatro ou mais listas
 de opções ganham "Mais filtros". Ícones na coluna de ações vão para o menu; um botão `.btn.pri` fica
 à vista.
+
+## V134 (18/11/2026): o padrão chega a mais telas
+
+Pedido do dono: os filtros e o menu de três pontos (visualizar, imprimir, abrir, editar) não estavam em todos os
+setores. Uma varredura das 201 telas (programa real, banco simulado) mostrou onde o padrão não chegava.
+
+- **Filtro de período da Lenha e do Combustível** (Pagamentos da lenha, Combustível dos fornecedores e Relatórios):
+  a barra com os botões Hoje / 7 dias / Este mês / Personalizado passou a ser uma barra de filtros comum
+  (`fi-filtros`). No layout novo as duas datas viram o botão "Período" do padrão, que já traz os atalhos; os botões
+  antigos ficam só no layout clássico. A tela filtra pelo mesmo evento de antes.
+- **Linha que aponta para um registro** (`data-go="#/<tela>/<id>"`): o menu de três pontos passa a trazer
+  Visualizar, Imprimir e Compartilhar com o documento do próprio registro, em qualquer tela (antes só na lista
+  geral do módulo). Compras e vendas usam o documento da operação (`docOpV`); os demais, o do módulo (`fazerDoc`).
+  Exemplo: as entregas na conta do fornecedor de lenha.
+- **Módulos do Financeiro** (Combustível, Despesas gerais, Outros): a linha tem Pagar à vista e o resto no menu de
+  três pontos, com o documento do compromisso (`data-oref`). O painel do setor continua com os botões na linha
+  (o início dos setores fica fora do padrão, como antes).
+
+O que continua fora, de propósito: tabelas de resumo e de conferência em que a linha não é um lançamento (fluxo
+de caixa, holerite, diagnósticos, auditoria, configurações) e as fileiras de situação com contagem dos módulos do
+Financeiro e da Lenha (Em aberto, Pendentes, Agendadas…), que são atalhos da própria tela.
+
