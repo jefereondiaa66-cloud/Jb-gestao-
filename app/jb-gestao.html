@@ -39807,7 +39807,7 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
  const NUNCA=/\b(tbl-folha|vd-itens|v56-lote|fis-itens|fis-imp-ed|espelho|jorn|vr-tab|dir-tab|ctl-tb)\b/;
  const TIT=[/^cliente$/i,/^fornecedor/i,/^compromisso$/i,/^funcion[aá]rio$/i,/^nome$/i,/^para$/i,/^item$/i,/^produto$/i,/^descri[cç][aã]o$/i,/^documento$/i,/^tabela$/i,/^conta$/i,/^forma$/i,/^forno$/i,/^fornada$/i,/^jazida$/i,/^motorista$/i,/^placa$/i,/^ferramenta$/i,/^epi$/i,/^o que foi$/i,/^movimento$/i,/^turno$/i,/^tipo$/i,/^setor$/i,/^categoria$/i];
  const SIT=/^(situa[cç][aã]o|status|compra)$/i;
- const VAL=[/^total$/i,/^valor( \(custo\))?$/i,/^l[ií]quida$/i,/^custo estimado$/i,/^custo$/i,/^realizado$/i,/^estimado$/i,/^valor /i,/^quantidade$/i,/^qtd\.?$/i,/^toneladas$/i,/^horas$/i,/^saldo$/i,/^em aberto$/i,/^pre[cç]o$/i,/^meta$/i];
+ const VAL=[/^falta pagar$/i,/^total$/i,/^valor( \(custo\))?$/i,/^l[ií]quida$/i,/^custo estimado$/i,/^custo$/i,/^realizado$/i,/^estimado$/i,/^valor /i,/^quantidade$/i,/^qtd\.?$/i,/^toneladas$/i,/^horas$/i,/^saldo$/i,/^em aberto$/i,/^pre[cç]o$/i,/^meta$/i];
  const MET=/^(n[º°o]\.?|req\.?|c[oó]digo|matr\.?|data|emiss[aã]o|hora|comp\.?|sa[ií]da|vencimento|admiss[aã]o|in[ií]cio|vale desde|m[eê]s)$/i;
  const ACO=/^a[cç][oõ]es$/i;
  function alvo(t){
@@ -43241,6 +43241,23 @@ window.JB_DOCL=Object.freeze({docRegistro,tituloDoc,codLanc,lancamentosSetor,rel
 .cpl-ext td.neg{color:var(--ok,#15803D)}
 .cpl-ext tr.cpl-ini td{color:var(--suave);font-style:italic}
 .cpl-pg-est td{opacity:.6}
+.cpl-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:2px 0 8px}
+.cpl-cards>button{all:unset;box-sizing:border-box;cursor:pointer;position:relative;display:flex;flex-direction:column;justify-content:center;gap:3px;min-height:86px;padding:12px 30px 12px 14px;border:1px solid var(--linha,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);transition:border-color .12s,box-shadow .12s}
+.cpl-cards>button:hover{border-color:#8A9097;box-shadow:0 2px 8px -4px rgba(0,0,0,.25)}
+.cpl-cards>button:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:2px}
+.cpl-cards>button[aria-selected=true]{border:2px solid var(--brasa,#D3121C);padding:11px 29px 11px 13px;background:var(--brasa-bg,#FDECEC)}
+.cpl-cards .rot{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--suave,#5B6168);line-height:1.25}
+.cpl-cards b{font-size:21px;line-height:1.15;font-variant-numeric:tabular-nums;font-weight:800;white-space:nowrap}
+.cpl-cards small{font-size:12.5px;color:var(--suave,#5B6168);line-height:1.3}
+.cpl-cards .ver{position:absolute;top:50%;right:10px;transform:translateY(-50%);font-size:24px;line-height:1;font-weight:400;color:var(--suave,#5B6168)}
+.cpl-cards>button[aria-selected=true] .ver{color:var(--brasa,#D3121C)}
+.cpl-cards .pe b{color:#B42318}.cpl-cards .ok b{color:#16794A}
+@media(max-width:760px){.cpl-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
+@media(max-width:560px){.cpl-cards>button{min-height:76px;padding:10px 24px 10px 11px}.cpl-cards>button[aria-selected=true]{padding:9px 23px 9px 10px}.cpl-cards b{font-size:17px}.cpl-cards .rot{font-size:10.5px}.cpl-cards .ver{right:7px;font-size:20px}}
+.cpl-frase{font-size:15px;line-height:1.5;margin:0 2px 12px}
+.cpl-frase .cpl-atr{color:#B42318}
+.cpl-conta-txt{font-size:13px;color:var(--suave,#5B6168);margin:0 2px 14px;font-variant-numeric:tabular-nums}
+
 .cpl-pg-est td .tag{opacity:1}
 .cpl-chk{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;font-size:13px}
 .cpl-chk input{margin-top:3px}
@@ -43716,97 +43733,176 @@ function abrirEstorno(fid,key){
 }
 
 /* ================= telas ================= */
-const UI={sit:'',q:'',aba:'extrato'};
+const UI={sit:'',q:'',aba:'',fFid:'',vis:'forn'};
 const CHIPS=[['','Todos'],['aberto','Em aberto'],['parcial','Parcialmente pagos'],['pago','Pagos'],['vencido','Vencidos'],['agendado','Agendados']];
-function passa(x,k){if(!k)return true;
+function passa(x,k){if(!k)return true;if(k==='devendo')return x.saldo>0.004;
  if(k==='aberto')return x.saldo>0.004&&!x.parcial;if(k==='parcial')return x.saldo>0.004&&x.parcial;if(k==='pago')return x.saldo<=0.004;
  if(k==='vencido')return x.vencido;if(k==='agendado')return x.saldo>0.004&&!!x.prog;return true}
 function telaRota(c){const r=lerRota();if(r.id)return telaForn(c,r.id);return telaContas(c)}
+/* quadros do alto: cada um abre a lista dele (pedido do Jeferson, 18/11/2026: "clico em 'falta pagar' e mostra o que
+   estou devendo; clico em 'pagou' e abre os lançamentos pagos") */
+function quadros(L,sel,attr,rotulo){
+ return `<div class="cpl-cards" role="tablist" aria-label="${esc(rotulo||'Escolha o que ver')}">${L.map(q=>{const on=sel===q.k;
+  return `<button type="button" role="tab" ${attr}="${esc(q.k)}" aria-selected="${on}" class="${esc(q.cls||'')}"><span class="rot">${esc(q.rot)}</span><b>${esc(q.v)}</b>${q.sub?`<small>${esc(q.sub)}</small>`:''}<span class="ver" aria-hidden="true">›</span></button>`}).join('')}</div>`}
+const pl=(n,s,p)=>n+' '+(n===1?s:(p||s+'s'));
 function telaContas(c){
  if(!podeVer()){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Fale com o administrador.</div>';return}
  const todas=contas().filter(x=>x.ents.length||x.tits.length||x.pags.length||x.credito>0.004);
- const q=normTxtL(UI.q);const L=todas.filter(x=>passa(x,UI.sit)&&(!q||normTxtL(x.nome+' '+x.doc).includes(q)));
+ const q=normTxtL(UI.q);
  const tot=k=>r2(soma(todas,x=>x[k]));const pend=todas.filter(x=>x.saldo>0.004);
  const ed=podePagar();
- c.innerHTML=cabF('chama','Contas a pagar – Lenha','Tudo o que a cerâmica deve a cada fornecedor de lenha: as entregas lançadas no Setor da Lenha, menos o combustível e os descontos já abatidos, menos o que já foi pago. O combustível que o fornecedor recebe vira crédito sozinho. Toque no fornecedor para ver o histórico.',
-  `<button type="button" class="btn" id="cplExp">${ic('baixar')}Exportar ▾</button>${ed?`<button type="button" class="btn" id="cplOutro">${ic('mais')}Pagar outro fornecedor</button>`:''}`)+
-  resumoF([[fMoeda(tot('devido')),'Total a pagar'],[fMoeda(tot('pago')),'Total já pago'],[fMoeda(tot('saldo')),'Total em aberto'],[String(pend.length),'Fornecedores pendentes'],...(tot('credito')>0.004?[[fMoeda(tot('credito')),'Créditos dos fornecedores']]:[])]).replace('class="resumo"','class="resumo cpl-res"')+
-  `<div class="fi-filtros"><input type="search" id="cplQ" placeholder="Localizar fornecedor" value="${esc(UI.q)}" aria-label="Localizar fornecedor" style="flex:1;min-width:180px"></div>
-  <div class="cpl-chips" role="group" aria-label="Situação">${CHIPS.map(([k,l])=>`<button type="button" class="btn min${UI.sit===k?' pri':''}" data-cplsit="${k}" aria-pressed="${UI.sit===k}">${esc(l)}<em>${todas.filter(x=>passa(x,k)).length}</em></button>`).join('')}</div>`+
-  (L.length?`<div class="painel tabwrap"><table class="tbl cartao cpl-tab"><thead><tr><th>Fornecedor</th><th class="num">Lenha recebida</th><th class="num">Entregas</th><th class="num">Abatimentos</th><th class="num">Pago</th><th>Última entrega</th><th class="num">Saldo</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+ const pagsT=todas.flatMap(x=>x.pags.map(g=>({g,x}))).sort((a,b)=>String(b.g.data).localeCompare(String(a.g.data))||String(b.g.em).localeCompare(String(a.g.em)));
+ const nPag=pagsT.filter(p=>p.g.valor>0.004).length;const nEnt=soma(todas,x=>x.ents.length);
+ const vis=UI.vis==='pagos'?'pagos':'forn';
+ const sel=vis==='pagos'?'pago':UI.sit==='devendo'?'falta':UI.sit===''?'todos':'';
+ const cards=[
+  {k:'falta',rot:'Falta pagar',v:fMoeda(tot('saldo')),sub:pend.length?pl(pend.length,'fornecedor','fornecedores')+' com saldo':'nada em aberto',cls:pend.some(x=>x.vencido)?'pe':pend.length?'':'ok'},
+  {k:'pago',rot:'Já pago',v:fMoeda(tot('pago')),sub:pl(nPag,'pagamento')},
+  {k:'todos',rot:'Total das entregas',v:fMoeda(tot('devido')),sub:pl(nEnt,'entrega')+(tot('abat')>0.004?', já sem o combustível e os descontos':'')},
+  ...(tot('credito')>0.004?[{k:'todos',rot:'Crédito dos fornecedores',v:fMoeda(tot('credito')),sub:'desconta sozinho das próximas entregas',cls:'ok'}]:[])];
+ let corpo;
+ if(vis==='pagos'){const L=pagsT.filter(({g,x})=>!q||normTxtL(x.nome+' '+x.doc+' '+(g.forma||'')).includes(q));corpo=htmlPagosTodos(L,!!q)}
+ else{const L=todas.filter(x=>passa(x,UI.sit)&&(!q||normTxtL(x.nome+' '+x.doc).includes(q)));
+  corpo=`<div class="cpl-chips" role="group" aria-label="Situação">${CHIPS.map(([k,l])=>`<button type="button" class="btn min${UI.sit===k?' pri':''}" data-cplsit="${k}" aria-pressed="${UI.sit===k}">${esc(l)}<em>${todas.filter(x=>passa(x,k)).length}</em></button>`).join('')}</div>`+
+  (L.length?`<div class="painel tabwrap"><table class="tbl cartao cpl-tab"><thead><tr><th>Fornecedor</th><th class="num">Lenha recebida</th><th class="num">Valor das entregas</th><th class="num">Combustível e descontos</th><th class="num">Já pago</th><th>Última entrega</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
    ${L.map(x=>`<tr class="clic" data-go="#/${ROTA}/${esc(x.fid)}" tabindex="0">
-    <td data-l="Fornecedor"><b>${esc(x.nome)}</b><span class="cpl-sub">${esc([x.ents.length+' entrega(s)',x.abertas?x.abertas+' em aberto':'',x.doc].filter(Boolean).join(' · '))}</span></td>
-    <td data-l="Lenha recebida" class="num">${esc(txtUnid(x.qtd,true))}</td><td data-l="Entregas" class="num">${esc(fMoeda(x.bruto))}</td><td data-l="Abatimentos" class="num">${esc(fMoeda(x.abat))}</td>
-    <td data-l="Pago" class="num">${esc(fMoeda(x.pago))}</td><td data-l="Última entrega">${x.ult?esc(fData(x.ult)):'—'}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(x.saldo))}</b></td>
+    <td data-l="Fornecedor"><b>${esc(x.nome)}</b><span class="cpl-sub">${esc([pl(x.ents.length,'entrega'),x.abertas?x.abertas+' em aberto':'',x.doc].filter(Boolean).join(' · '))}</span></td>
+    <td data-l="Lenha recebida" class="num">${esc(txtUnid(x.qtd,true))}</td><td data-l="Valor das entregas" class="num">${esc(fMoeda(x.bruto))}</td><td data-l="Combustível e descontos" class="num">${esc(fMoeda(x.abat))}</td>
+    <td data-l="Já pago" class="num">${esc(fMoeda(x.pago))}</td><td data-l="Última entrega">${x.ult?esc(fData(x.ult)):'—'}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(x.saldo))}</b></td>
     <td data-l="Situação">${tagsConta(x)}</td>
     <td class="acs">${ed&&x.fid!==SEM?`<button type="button" class="btn min${x.saldo>0.004?' pri':''} cpl-btn-pagar" data-cplpagar="${esc(x.fid)}">${esc(BTN_PAGAR)}</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:
-   `<div class="vazio"><b>${todas.length?'Nenhum fornecedor neste filtro':'Nenhuma conta de lenha'}</b>${todas.length?'Mude o filtro para ver os demais.':'As contas aparecem aqui quando a lenha for lançada no Setor da Lenha.'}</div>`)+
-  `<p class="cpl-nota">Total a pagar = entregas − abatimentos (combustível e descontos de acerto). Compras importadas do controle antigo, já pagas antes do sistema, não entram. O pagamento registrado aqui aparece também na compra, no Setor da Lenha, em Contas a pagar, no Caixa e na Conciliação: é o mesmo registro.</p>`;
+   `<div class="vazio"><b>${todas.length?'Nenhum fornecedor neste filtro':'Nenhuma conta de lenha'}</b>${todas.length?'Toque em “Todos” para ver os demais.':'As contas aparecem aqui quando a lenha for lançada no Setor da Lenha.'}</div>`)}
+ c.innerHTML=cabF('chama','Contas a pagar – Lenha','Quanto a cerâmica deve a cada fornecedor de lenha. Toque num quadro para ver a lista dele e no fornecedor para ver as entregas e os pagamentos.',
+  `<button type="button" class="btn" id="cplExp">${ic('baixar')}Exportar ▾</button>${ed?`<button type="button" class="btn" id="cplOutro">${ic('mais')}Pagar outro fornecedor</button>`:''}`)+
+  quadros(cards,sel,'data-cplvis','Resumo das contas da lenha')+
+  `<div class="fi-filtros"><input type="search" id="cplQ" placeholder="${vis==='pagos'?'Procurar pagamento':'Localizar fornecedor'}" value="${esc(UI.q)}" aria-label="Localizar fornecedor" style="flex:1;min-width:180px"></div>`+
+  corpo+
+  `<p class="cpl-nota">Falta pagar = entregas − combustível e descontos − o que já foi pago. Compras importadas do controle antigo, já pagas antes do sistema, não entram. O pagamento registrado aqui aparece também na compra, no Setor da Lenha, em Contas a pagar, no Caixa e na Conciliação: é o mesmo registro.</p>`;
  const qi=$('#cplQ',c);qi.oninput=e=>{UI.q=e.target.value;clearTimeout(telaContas.t);telaContas.t=setTimeout(()=>{renderTela();const i=$('#cplQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)};
+ $$('[data-cplvis]',c).forEach(b=>b.onclick=()=>{const k=b.dataset.cplvis;if(k==='pago'){UI.vis='pagos'}else{UI.vis='forn';UI.sit=k==='falta'?'devendo':''}renderTela()});
  $$('[data-cplsit]',c).forEach(b=>b.onclick=()=>{UI.sit=b.dataset.cplsit;renderTela()});
  $$('tr[data-go]',c).forEach(tr=>{tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button'))return;JBNAV.ir(tr.dataset.go)};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)JBNAV.ir(tr.dataset.go)}});
+ $$('tr[data-cplforn]',c).forEach(tr=>{const ir=()=>{UI.fFid=tr.dataset.cplforn;UI.aba='pagamentos';JBNAV.ir('#/'+ROTA+'/'+tr.dataset.cplforn)};tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a'))return;ir()};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)ir()}});
+ $$('[data-cplcomp]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const x=contaDe(b.dataset.cplf);const g=x&&x.pags.find(p=>p.key===b.dataset.cplcomp);if(g)verDoc(docBaixa(g,b.dataset.cplf))});
  $$('[data-cplpagar]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();abrirPagar(b.dataset.cplpagar)});
  if($('#cplOutro',c))$('#cplOutro',c).onclick=()=>abrirPagar('');
- $('#cplExp',c).onclick=()=>{const cols=[{k:'nome',l:'Fornecedor'},{k:'doc',l:'CPF/CNPJ'},{k:'qtd',l:'Lenha recebida'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},{k:'abat',l:'Abatimentos',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'credito',l:'Crédito',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}];
+ $('#cplExp',c).onclick=()=>{
+  if(vis==='pagos'){const L=pagsT.filter(({g,x})=>!q||normTxtL(x.nome+' '+x.doc+' '+(g.forma||'')).includes(q));
+   const cols=[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Fornecedor'},{k:'valor',l:'Valor',t:'moeda'},{k:'forma',l:'Forma'},{k:'conta',l:'Conta'},{k:'pagou',l:'O que foi pago'},{k:'sit',l:'Situação'}];
+   const rows=L.map(({g,x})=>({data:g.data,nome:x.nome,valor:g.valor,forma:g.forma,conta:g.conta?nomeConta(g.conta):'',pagou:g.partes.map(rotParte).join(', '),sit:g.situacao==='Registrado'?'Pago':g.situacao}));
+   const fx=f=>exportar(f,'Pagamentos_lenha_'+hoje(),cols,rows,'Pagamentos feitos – Lenha');
+   abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:pl(rows.length,'pagamento'),fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}]);return}
+  const L=todas.filter(x=>passa(x,UI.sit)&&(!q||normTxtL(x.nome+' '+x.doc).includes(q)));
+  const cols=[{k:'nome',l:'Fornecedor'},{k:'doc',l:'CPF/CNPJ'},{k:'qtd',l:'Lenha recebida'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},{k:'abat',l:'Combustível e descontos',t:'moeda'},{k:'pago',l:'Já pago',t:'moeda'},{k:'saldo',l:'Falta pagar',t:'moeda'},{k:'credito',l:'Crédito',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}];
   const rows=L.map(x=>({nome:x.nome,doc:x.doc,qtd:txtUnid(x.qtd,true),n:x.ents.length,bruto:x.bruto,abat:x.abat,pago:x.pago,saldo:x.saldo,credito:x.credito,ult:x.ult,sit:x.sit}));
   const fx=f=>exportar(f,'Contas_a_pagar_lenha_'+hoje(),cols,rows,'Contas a pagar – Lenha');
-  abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:rows.length+' fornecedor(es)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+  abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:pl(rows.length,'fornecedor','fornecedores'),fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+}
+/* todos os pagamentos de lenha, de todos os fornecedores (quadro "Já pago" da lista) */
+function htmlPagosTodos(L,busca){
+ if(!L.length)return `<div class="vazio"><b>${busca?'Nenhum pagamento com esta pesquisa':'Nenhum pagamento registrado'}</b>${busca?'':'Os pagamentos feitos pelo botão '+esc(BTN_PAGAR)+' aparecem aqui.'}</div>`;
+ const tot=r2(soma(L,({g})=>g.valor));
+ return `<h3 class="grupo-t">Pagamentos feitos · ${esc(fMoeda(tot))}</h3><div class="painel tabwrap"><table class="tbl cartao cpl-pgs" data-sem-total><thead><tr><th>Fornecedor</th><th>Data</th><th>Pagamento</th><th>O que foi pago</th><th class="num">Valor</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+  ${L.map(({g,x})=>`<tr class="clic${g.situacao==='Estornado'?' cpl-pg-est':''}" data-cplforn="${esc(x.fid)}" tabindex="0"><td data-l="Fornecedor"><b>${esc(x.nome)}</b></td><td data-l="Data">${esc(fData(g.data))}</td>
+   <td data-l="Pagamento">${esc((g.forma||'—')+(g.conta?' · '+nomeConta(g.conta):''))}</td><td data-l="O que foi pago">${esc(g.partes.map(rotParte).join(', ')||'—')}</td>
+   <td data-l="Valor" class="num"><b>${esc(fMoeda(g.valor>0.004?g.valor:g.informado))}</b></td><td data-l="Situação">${tag(g.situacao==='Registrado'?'Pago':g.situacao,{Registrado:'ok','Estornado em parte':'at','Registro incompleto':'pe'}[g.situacao]??'')}</td>
+   <td class="acs"><button type="button" class="btn min" data-cplcomp="${esc(g.key)}" data-cplf="${esc(x.fid)}">${ic('doc')}Comprovante</button></td></tr>`).join('')}</tbody></table></div>
+  <p class="cpl-nota">Toque no pagamento para abrir a conta do fornecedor. Estorno não apaga: o pagamento fica marcado, com o motivo.</p>`;
 }
 const normTxtL=s=>semAcento(String(s||'')).toLowerCase().replace(/\s+/g,' ').trim();
-const ABAS_F=[['extrato','Extrato'],['entregas','Entregas'],['pagamentos','Pagamentos'],['abatimentos','Combustível e descontos']];
+const ABAS_F=[['falta','Falta pagar'],['pagamentos','Já pago'],['entregas','Entregas'],['abatimentos','Combustível e descontos'],['extrato','Extrato completo']];
+const ordAb=(a,b)=>String(a.data).localeCompare(String(b.data))||(+a.numero||0)-(+b.numero||0);
+const abertasCta=x=>[...x.ents.filter(e=>e.saldo>0.004).map(e=>({...e,k:'e'})),...x.tits.filter(t=>t.saldo>0.004).map(t=>({...t,k:'t'}))].sort(ordAb);
+const nDescDe=x=>x.creds.length+x.ents.reduce((a,e)=>a+(e.c.abatimentos||[]).filter(y=>!y.estornado&&!String(y.srcId||'').startsWith('cb:')).length+(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).length,0);
 function telaForn(c,fid){
  if(!podeVer()){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Fale com o administrador.</div>';return}
  const x=contaDe(fid);const ed=podePagar();
  if(!x.ents.length&&!x.tits.length&&!x.pags.length&&!(x.credito>0.004)&&!x.f){c.innerHTML=`<div class="vazio"><b>Fornecedor não encontrado</b><div class="vazio-acoes"><a class="btn" href="#/${ROTA}">Contas a pagar – Lenha</a></div></div>`;return}
- const n={extrato:x.extrato.length,entregas:x.ents.length+x.tits.length,pagamentos:x.pags.length,abatimentos:x.creds.length+x.ents.reduce((a,e)=>a+(e.c.abatimentos||[]).filter(y=>!y.estornado&&!String(y.srcId||'').startsWith('cb:')).length+(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).length,0)};
- if(!ABAS_F.some(a=>a[0]===UI.aba))UI.aba='extrato';
- c.innerHTML=cabF('chama',x.nome,esc([x.doc,x.tel,x.ents.length?x.ents.length+' entrega(s) desde '+fData(x.ents[0].data):''].filter(Boolean).join(' · ')||'Fornecedor de lenha'),
+ /* abre no que interessa: o que falta pagar (ou, se está tudo pago, o que já foi pago) */
+ if(UI.fFid!==fid){UI.fFid=fid;UI.aba=''}
+ if(!ABAS_F.some(a=>a[0]===UI.aba))UI.aba=x.saldo>0.004?'falta':x.pags.length?'pagamentos':'entregas';
+ const ab=abertasCta(x);const nPag=x.pags.filter(g=>g.valor>0.004).length;const nDesc=nDescDe(x);const velha=ab[0];
+ const frase=x.saldo>0.004
+  ?`Falta pagar <b>${esc(fMoeda(x.saldo))}</b> a ${esc(x.nome)}, de ${pl(ab.length,'entrega')} em aberto${x.vencido?' <b class="cpl-atr">com atraso</b>':''}.${velha?` A mais antiga é ${velha.k==='e'?'a entrega nº '+esc(fNumV(velha.numero)):'o compromisso nº '+esc(velha.numero||'—')}, de ${esc(fData(velha.data))}.`:''}${x.prog?` Pagamento agendado para <b>${esc(fData(x.prog))}</b>.`:''}`
+  :(x.ents.length||x.tits.length?`<b>Tudo pago.</b> Não há nada a pagar a ${esc(x.nome)}.`:`Ainda não há entregas de ${esc(x.nome)} no sistema.`);
+ const cred=x.credito>0.004?` ${esc(x.nome)} tem <b>${esc(fMoeda(x.credito))} de crédito</b>, que desconta sozinho das próximas entregas.`:'';
+ const fecha=Math.abs(r2(x.bruto-x.abat-x.pago-x.saldo))<0.01;
+ const cards=[
+  {k:'falta',rot:'Falta pagar',v:fMoeda(x.saldo),sub:ab.length?pl(ab.length,'entrega')+' em aberto':'nada em aberto',cls:x.vencido?'pe':x.saldo<=0.004?'ok':''},
+  {k:'pagamentos',rot:'Já pago',v:fMoeda(x.pago),sub:pl(nPag,'pagamento')},
+  {k:'entregas',rot:'Entregas',v:fMoeda(x.bruto),sub:pl(x.ents.length,'entrega')+(x.ents.length?' · '+txtUnid(x.qtd,true):'')},
+  {k:'abatimentos',rot:'Combustível e descontos',v:fMoeda(x.abat),sub:nDesc?pl(nDesc,'lançamento'):'nenhum'}];
+ const corpo=UI.aba==='falta'?htmlFalta(x,ab,ed):UI.aba==='pagamentos'?htmlPagamentos(x,ed):UI.aba==='entregas'?htmlEntregas(x):UI.aba==='abatimentos'?htmlAbat(x):htmlExtrato(x);
+ c.innerHTML=cabF('chama',x.nome,esc([x.doc,x.tel,x.ents.length?pl(x.ents.length,'entrega')+' desde '+fData(x.ents[0].data):''].filter(Boolean).join(' · ')||'Fornecedor de lenha'),
   `<a class="btn" href="#/${ROTA}">${ic('esquerda')}Fornecedores</a><button type="button" class="btn" id="cfExt">${ic('doc')}Extrato ▾</button>${(podeBomba()||podeMao())&&fid!==SEM?`<button type="button" class="btn" id="cfComb">${ic('bomba')}Combustível ▾</button>`:''}${pode('fpagar','e')&&x.saldo>0.004?`<button type="button" class="btn" id="cfAg">${ic('calendario')}${x.prog?'Editar agendamento':'Agendar'}</button>`:''}${ed&&fid!==SEM?`<button type="button" class="btn pri" id="cfPag">${ic('moeda')}${esc(BTN_PAGAR)}</button>`:''}`)+
-  resumoF([[fMoeda(x.bruto),'Entregas'],[fMoeda(x.abat),'Abatimentos'],[fMoeda(x.pago),'Já pago'],[fMoeda(x.saldo),'Saldo pendente'],...(x.credito>0.004?[[fMoeda(x.credito),'Crédito do fornecedor']]:[])]).replace('class="resumo"','class="resumo cpl-res"')+
-  `<p style="margin:-4px 2px 12px">${tagsConta(x)}${x.prog?` <span class="ajuda">Agendado para ${esc(fData(x.prog))}.</span>`:''}</p>
-  <div class="cpl-chips" role="tablist" aria-label="Histórico">${ABAS_F.map(([k,l])=>`<button type="button" role="tab" class="btn min${UI.aba===k?' pri':''}" data-cplaba="${k}" aria-selected="${UI.aba===k}">${esc(l)}<em>${n[k]}</em></button>`).join('')}</div>
-  <div id="cfCorpo">${UI.aba==='entregas'?htmlEntregas(x):UI.aba==='pagamentos'?htmlPagamentos(x,ed):UI.aba==='abatimentos'?htmlAbat(x):htmlExtrato(x)}</div>`;
- $$('[data-cplaba]',c).forEach(b=>b.onclick=()=>{UI.aba=b.dataset.cplaba;renderTela()});
+  `<p class="cpl-frase">${frase}${cred}</p>`+
+  (x.incompleto?`<div class="aviso pe" style="margin:0 0 12px">Há um pagamento com registro incompleto. Abra “Já pago” e toque em “Concluir o registro”.</div>`:'')+
+  quadros(cards,UI.aba,'data-cplaba','O que ver deste fornecedor')+
+  (fecha&&(x.ents.length||x.tits.length)?`<p class="cpl-conta-txt">Entregas ${esc(fMoeda(x.bruto))} − combustível e descontos ${esc(fMoeda(x.abat))} − já pago ${esc(fMoeda(x.pago))} = <b>falta pagar ${esc(fMoeda(x.saldo))}</b></p>`:'')+
+  `<div id="cfCorpo">${corpo}</div>`+
+  (UI.aba!=='extrato'&&x.extrato.length?`<p class="cpl-nota"><a href="javascript:void 0" data-cplaba="extrato">Ver o extrato completo</a>: entregas, pagamentos e descontos em ordem de data, com quanto ficou devendo depois de cada um.</p>`:'');
+ $$('[data-cplaba]',c).forEach(b=>b.onclick=e=>{if(e)e.preventDefault();UI.aba=b.dataset.cplaba;renderTela();setTimeout(()=>{const k=document.getElementById('cfCorpo');if(k&&k.scrollIntoView&&k.getBoundingClientRect().top>innerHeight*0.7)try{k.scrollIntoView({block:'start',behavior:'smooth'})}catch(e2){}},80)});
  if($('#cfPag',c))$('#cfPag',c).onclick=()=>abrirPagar(fid);
+ $$('[data-cplpagar2]',c).forEach(b=>b.onclick=()=>abrirPagar(fid));
  if($('#cfAg',c))$('#cfAg',c).onclick=()=>abrirAgendar(fid);
  if($('#cfComb',c))$('#cfComb',c).onclick=()=>abrirComb(fid,$('#cfComb',c));
- $('#cfExt',c).onclick=()=>{const fx=f=>f==='doc'?verDoc(docExtrato(fid)):exportar(f,'Extrato_lenha_'+nomeArq(x.nome)+'_'+hoje(),[{k:'data',l:'Data',t:'data'},{k:'txt',l:'Descrição'},{k:'deb',l:'Valor gerado',t:'moeda'},{k:'cred',l:'Abatido ou pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'}],x.extrato.map(l=>({data:l.d,txt:l.txt,deb:l.deb||'',cred:l.cred||'',saldo:l.saldo})),'Extrato de '+x.nome+' · lenha');
-  abrirMenuMais($('#cfExt',c),[{l:'Visualizar (documento)',fn:()=>fx('doc')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
- $$('tr[data-go]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a'))return;JBNAV.ir(tr.dataset.go)});
+ $('#cfExt',c).onclick=()=>{const fx=f=>f==='doc'?verDoc(docExtrato(fid)):exportar(f,'Extrato_lenha_'+nomeArq(x.nome)+'_'+hoje(),[{k:'data',l:'Data',t:'data'},{k:'txt',l:'Lançamento'},{k:'deb',l:'Entrega (+)',t:'moeda'},{k:'cred',l:'Pago ou descontado (−)',t:'moeda'},{k:'saldo',l:'Ficou devendo',t:'moeda'}],x.extrato.map(l=>({data:l.d,txt:l.txt,deb:l.deb||'',cred:l.cred||'',saldo:l.saldo})),'Extrato de '+x.nome+' · lenha');
+  abrirMenuMais($('#cfExt',c),[{l:'Ver na tela',sub:'com quanto ficou devendo depois de cada lançamento',fn:()=>{UI.aba='extrato';renderTela()}},{l:'Visualizar (documento)',fn:()=>fx('doc')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+ $$('tr[data-go]',c).forEach(tr=>{tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a'))return;JBNAV.ir(tr.dataset.go)};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)JBNAV.ir(tr.dataset.go)}});
  $$('[data-cplcomp]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const g=x.pags.find(p=>p.key===b.dataset.cplcomp);if(g)verDoc(docBaixa(g,fid))});
  $$('[data-cplest]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();abrirEstorno(fid,b.dataset.cplest)});
  $$('[data-cplconcl]',c).forEach(b=>b.onclick=async e=>{e.stopPropagation();b.disabled=true;await concluir(b.dataset.cplconcl);b.disabled=false});
  if(typeof resolverNomes==='function')resolverNomes(x.pags.map(g=>g.por).filter(Boolean));
 }
+/* situação de uma entrega em aberto, em palavras */
+function sitAb(e){const h=hoje();const t=[];const venc=e.k==='e'?(e.c.vencimento||''):(e.venc||'');const vencida=e.k==='e'?e.status==='Vencido':!!e.vencido;
+ if(vencida){const base=venc||e.data;const d=Math.max(1,Math.round((new Date(h+'T12:00:00')-new Date(base+'T12:00:00'))/864e5));t.push(tag('Vencida há '+pl(d,'dia'),'pe'))}
+ else if(e.prog)t.push(tag('Agendada para '+fData(e.prog).slice(0,5),'in'));
+ else if(venc&&venc===h)t.push(tag('Vence hoje','at'));
+ else if(venc&&venc>h)t.push(tag('Vence em '+fData(venc).slice(0,5),'at'));
+ else t.push(tag('A pagar','at'));
+ if((e.k==='e'?r2(e.pago+e.adt):e.pago)>0.004)t.push(tag('paga em parte','br'));
+ return t.join(' ')}
+function htmlFalta(x,ab,ed){
+ if(!ab.length)return `<div class="vazio"><b>Nada a pagar</b>${x.ents.length||x.tits.length?'Todas as entregas deste fornecedor estão pagas.':'Ainda não há entregas deste fornecedor no sistema.'}${x.pags.length?' Toque em “Já pago” para ver os pagamentos.':''}</div>`;
+ const tS=r2(soma(ab,e=>e.saldo));
+ return `<h3 class="grupo-t">O que falta pagar · ${esc(fMoeda(tS))}</h3>
+ <div class="painel tabwrap"><table class="tbl cartao cpl-falta" data-sem-total data-sem-ordem><thead><tr><th>Entrega</th><th>Lenha</th><th class="num">Valor da entrega</th><th class="num">Já pago ou descontado</th><th class="num">Falta pagar</th><th>Situação</th></tr></thead><tbody>
+ ${ab.map(e=>e.k==='e'
+  ?`<tr class="clic" data-go="#/compra/${esc(e.id)}" tabindex="0"><td data-l="Entrega"><b>Nº ${esc(fNumV(e.numero))}</b><span class="cpl-sub">de ${esc(fData(e.data))}</span></td><td data-l="Lenha">${esc((e.qtdTxt||'—')+(e.preco!=null?' × '+fMoeda(e.preco)+(e.un?'/'+unCurta(e.un):''):''))}</td><td data-l="Valor da entrega" class="num">${esc(fMoeda(e.bruto))}</td><td data-l="Já pago ou descontado" class="num">${esc(fMoeda(r2(e.pago+e.adt+e.abat)))}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(e.saldo))}</b></td><td data-l="Situação">${sitAb(e)}</td></tr>`
+  :`<tr><td data-l="Entrega"><b>${esc(e.desc||'Compromisso')}</b><span class="cpl-sub">compromisso nº ${esc(e.numero||'—')}, de ${esc(fData(e.data))}</span></td><td data-l="Lenha">—</td><td data-l="Valor da entrega" class="num">${esc(fMoeda(e.bruto))}</td><td data-l="Já pago ou descontado" class="num">${esc(fMoeda(e.pago))}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(e.saldo))}</b></td><td data-l="Situação">${sitAb(e)}</td></tr>`).join('')}
+ </tbody></table></div>
+ <p class="cpl-nota">Quando você paga, o valor quita primeiro a entrega mais antiga (a primeira da lista) e o que sobrar vai para a seguinte. Toque na entrega para ver os detalhes dela no Setor da Lenha.</p>${ed&&x.fid!==SEM?`<p style="margin:2px 0 14px"><button type="button" class="btn pri" data-cplpagar2="1">${ic('moeda')}${esc(BTN_PAGAR)}</button></p>`:''}`}
 function htmlExtrato(x){
  if(!x.extrato.length)return '<div class="vazio"><b>Sem movimento</b>Ainda não há entregas nem pagamentos deste fornecedor no sistema.</div>';
- return `<div class="painel tabwrap"><table class="tbl cpl-ext" data-sem-total data-sem-ordem><thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor gerado</th><th class="num">Abatido ou pago</th><th class="num">Saldo</th></tr></thead><tbody>
-  ${x.extrato.map(l=>`<tr><td data-l="Data">${esc(fData(l.d))}</td><td data-l="Descrição">${l.href?`<a href="${esc(l.href)}">${esc(l.txt)}</a>`:esc(l.txt)}</td><td data-l="Valor gerado" class="num">${l.deb?esc(fMoeda(l.deb)):''}</td><td data-l="Abatido ou pago" class="num neg">${l.cred?'− '+esc(fMoeda(l.cred)):''}</td><td data-l="Saldo" class="num"><b>${esc(l.saldo<-0.004?fMoeda(-l.saldo)+' crédito':fMoeda(l.saldo))}</b></td></tr>`).join('')}
-  </tbody></table></div><p class="cpl-nota">Saldo depois de cada linha. Combustível e descontos de acerto abatem o que a cerâmica deve; saldo negativo é crédito do fornecedor, que desconta sozinho das próximas entregas.${x.hist.length?' Antes do sistema: '+x.hist.length+' entrega(s) importada(s) do controle antigo, já pagas ('+esc(fMoeda(soma(x.hist,c=>c.total)))+'), não entram nesta conta.':''}</p>`;
+ return `<h3 class="grupo-t">Extrato completo · em ordem de data</h3><div class="painel tabwrap"><table class="tbl cpl-ext" data-sem-total data-sem-ordem><thead><tr><th>Data</th><th>Lançamento</th><th class="num">Entrega (+)</th><th class="num">Pago ou descontado (−)</th><th class="num">Ficou devendo</th></tr></thead><tbody>
+  ${x.extrato.map(l=>`<tr><td data-l="Data">${esc(fData(l.d))}</td><td data-l="Lançamento">${l.href?`<a href="${esc(l.href)}">${esc(l.txt)}</a>`:esc(l.txt)}</td><td data-l="Entrega (+)" class="num">${l.deb?esc(fMoeda(l.deb)):''}</td><td data-l="Pago ou descontado (−)" class="num neg">${l.cred?'− '+esc(fMoeda(l.cred)):''}</td><td data-l="Ficou devendo" class="num"><b>${esc(l.saldo<-0.004?fMoeda(-l.saldo)+' de crédito':l.saldo<=0.004?'nada (quitado)':fMoeda(l.saldo))}</b></td></tr>`).join('')}
+  </tbody></table></div><p class="cpl-nota">Cada linha mostra quanto a cerâmica ficou devendo depois dela. Combustível e descontos de acerto abatem o que a cerâmica deve; crédito é valor pago a mais, que desconta sozinho das próximas entregas.${x.hist.length?' Antes do sistema: '+x.hist.length+' entrega(s) importada(s) do controle antigo, já pagas ('+esc(fMoeda(soma(x.hist,c=>c.total)))+'), não entram nesta conta.':''}</p>`;
 }
 function htmlEntregas(x){
  if(!x.ents.length&&!x.tits.length)return '<div class="vazio"><b>Nenhuma entrega no sistema</b>As entregas são lançadas no Setor da Lenha.</div>';
- return (x.ents.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Entrega</th><th>Data</th><th class="num">Quantidade</th><th class="num">Valor por unidade</th><th class="num">Valor total</th><th class="num">Abatido</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th></tr></thead><tbody>
-  ${x.ents.slice().reverse().map(e=>`<tr class="clic" data-go="#/compra/${esc(e.id)}"><td data-l="Entrega"><b>Nº ${esc(fNumV(e.numero))}</b><span class="cpl-sub">${esc([e.classe,e.caminhao].filter(Boolean).join(' · ')||'Lenha')}</span></td><td data-l="Data">${esc(fData(e.data))}</td>
-   <td data-l="Quantidade" class="num">${esc(e.qtdTxt||'—')}</td><td data-l="Valor por unidade" class="num">${e.preco!=null?esc(fMoeda(e.preco)+(e.un?' / '+unCurta(e.un):'')):'vários'}</td><td data-l="Valor total" class="num">${esc(fMoeda(e.bruto))}</td>
-   <td data-l="Abatido" class="num">${e.abat?esc(fMoeda(e.abat)):'—'}</td><td data-l="Pago" class="num">${esc(fMoeda(r2(e.pago+e.adt)))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(e.saldo))}</b></td><td data-l="Situação">${tagSitU(sitEnt(e))}</td></tr>`).join('')}</tbody></table></div>`:'')+
-  (x.tits.length?`<h3 class="grupo-t">Outros valores da conta (acertos)</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Descrição</th><th>Data</th><th class="num">Valor</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th></tr></thead><tbody>
-   ${x.tits.map(t=>`<tr><td data-l="Descrição"><b>${esc(t.desc||'Compromisso')}</b><span class="cpl-sub">compromisso nº ${esc(t.numero||'—')}</span></td><td data-l="Data">${esc(fData(t.data))}</td><td data-l="Valor" class="num">${esc(fMoeda(t.bruto))}</td><td data-l="Pago" class="num">${esc(fMoeda(t.pago))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(t.saldo))}</b></td><td data-l="Situação">${tagSitU(t.saldo<=0.004?'Pago':t.vencido?'Vencido':t.pago>0.004?'Parcialmente pago':t.prog?'Agendado':'Pendente')}</td></tr>`).join('')}</tbody></table></div>`:'')+
-  '<p class="cpl-nota">Toque na entrega para abrir a compra no Setor da Lenha (só consulta daqui: os dados da entrega não mudam pelo Financeiro). “Pago” inclui adiantamento descontado.</p>';
+ return (x.ents.length?`<h3 class="grupo-t">Todas as entregas · ${esc(pl(x.ents.length,'entrega'))}</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Entrega</th><th>Data</th><th class="num">Quantidade</th><th class="num">Preço</th><th class="num">Valor</th><th class="num">Combustível e descontos</th><th class="num">Já pago</th><th class="num">Falta pagar</th><th>Situação</th></tr></thead><tbody>
+  ${x.ents.slice().reverse().map(e=>`<tr class="clic" data-go="#/compra/${esc(e.id)}" tabindex="0"><td data-l="Entrega"><b>Nº ${esc(fNumV(e.numero))}</b><span class="cpl-sub">${esc([e.classe,e.caminhao].filter(Boolean).join(' · ')||'Lenha')}</span></td><td data-l="Data">${esc(fData(e.data))}</td>
+   <td data-l="Quantidade" class="num">${esc(e.qtdTxt||'—')}</td><td data-l="Preço" class="num">${e.preco!=null?esc(fMoeda(e.preco)+(e.un?' / '+unCurta(e.un):'')):'vários'}</td><td data-l="Valor" class="num">${esc(fMoeda(e.bruto))}</td>
+   <td data-l="Combustível e descontos" class="num">${e.abat?esc(fMoeda(e.abat)):'—'}</td><td data-l="Já pago" class="num">${esc(fMoeda(r2(e.pago+e.adt)))}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(e.saldo))}</b></td><td data-l="Situação">${tagSitU(sitEnt(e))}</td></tr>`).join('')}</tbody></table></div>`:'')+
+  (x.tits.length?`<h3 class="grupo-t">Outros valores da conta (acertos)</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Descrição</th><th>Data</th><th class="num">Valor</th><th class="num">Já pago</th><th class="num">Falta pagar</th><th>Situação</th></tr></thead><tbody>
+   ${x.tits.map(t=>`<tr><td data-l="Descrição"><b>${esc(t.desc||'Compromisso')}</b><span class="cpl-sub">compromisso nº ${esc(t.numero||'—')}</span></td><td data-l="Data">${esc(fData(t.data))}</td><td data-l="Valor" class="num">${esc(fMoeda(t.bruto))}</td><td data-l="Já pago" class="num">${esc(fMoeda(t.pago))}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(t.saldo))}</b></td><td data-l="Situação">${tagSitU(t.saldo<=0.004?'Pago':t.vencido?'Vencido':t.pago>0.004?'Parcialmente pago':t.prog?'Agendado':'Pendente')}</td></tr>`).join('')}</tbody></table></div>`:'')+
+  '<p class="cpl-nota">Toque na entrega para abrir a compra no Setor da Lenha (só consulta daqui: os dados da entrega não mudam pelo Financeiro). “Já pago” inclui adiantamento descontado.</p>';
 }
 const sitEnt=e=>e.saldo<=0.004?'Pago':e.status==='Vencido'?'Vencido':(e.pago+e.adt)>0.004||e.status==='Parcial'?'Parcialmente pago':e.prog?'Agendado':'Pendente';
 function htmlPagamentos(x,ed){
  if(!x.pags.length)return `<div class="vazio"><b>Nenhum pagamento registrado</b>${ed?'Use o botão '+esc(BTN_PAGAR)+'.':''}</div>`;
- const cor={Registrado:'ok','Estornado':'','Estornado em parte':'at','Registro incompleto':'pe'};
- return `<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th class="num">Valor</th><th>Forma</th><th>Conta</th><th>Contas pagas</th><th>Registrado por</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
-  ${x.pags.map(g=>`<tr class="${g.situacao==='Estornado'?'cpl-pg-est':''}"><td data-l="Data"><b>${esc(fData(g.data))}</b>${g.obs&&!/^Pagamento pelo /.test(g.obs)?`<span class="cpl-sub">${esc(g.obs.replace(/ · Pagamento pelo .*$/,''))}</span>`:''}</td>
-   <td data-l="Valor" class="num"><b>${esc(fMoeda(g.valor>0.004?g.valor:g.informado))}</b>${g.adiantamento>0.004?`<span class="cpl-sub">adiantamento ${esc(fMoeda(g.adiantamento))}</span>`:''}</td><td data-l="Forma">${esc(g.forma||'—')}</td><td data-l="Conta">${esc(g.conta?nomeConta(g.conta):g.semDinheiro?'sem dinheiro':'—')}</td>
-   <td data-l="Contas pagas">${esc(g.partes.map(rotParte).join(', ')||'—')}${g.hdr&&g.hdr.faltas&&g.hdr.faltas.length?`<span class="cpl-sub">não aplicado: ${esc(fMoeda(soma(g.hdr.faltas,y=>y.valor)))}</span>`:''}</td>
-   <td data-l="Registrado por">${esc(nomeUsuario(g.por)||'—')}${g.em?`<span class="cpl-sub">${esc(fDataHora(g.em))}</span>`:''}${g.doModulo?'':'<span class="cpl-sub">na compra</span>'}</td>
-   <td data-l="Situação">${tag(g.situacao,cor[g.situacao]??'')}${g.estorno?`<span class="cpl-sub">${esc((g.estorno.porNome||nomeUsuario(g.estorno.por)||'')+(g.estorno.em?' em '+fData(String(g.estorno.em).slice(0,10)):'')+': '+(g.estorno.motivo||''))}</span>`:''}${g.hdr&&g.hdr.justificativa?`<span class="cpl-sub">acima do saldo: ${esc(g.hdr.justificativa.texto)}</span>`:''}</td>
+ const cor={Registrado:'ok','Estornado':'','Estornado em parte':'at','Registro incompleto':'pe'};const tot=r2(soma(x.pags,g=>g.valor));
+ return `<h3 class="grupo-t">O que já foi pago · ${esc(fMoeda(tot))}</h3><div class="painel tabwrap"><table class="tbl cartao cpl-pgs" data-sem-total><thead><tr><th>Data</th><th>Pagamento</th><th>O que foi pago</th><th class="num">Valor</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+  ${x.pags.map(g=>`<tr class="${g.situacao==='Estornado'?'cpl-pg-est':''}"><td data-l="Data">${esc(fData(g.data))}</td>
+   <td data-l="Pagamento"><b>${esc(g.forma||'Pagamento')}</b>${g.conta?' · '+esc(nomeConta(g.conta)):g.semDinheiro?' · sem dinheiro':''}<span class="cpl-sub">${esc(g.doModulo?'lançado por '+(nomeUsuario(g.por)||'—'):'lançado na compra'+(g.por?' por '+(nomeUsuario(g.por)||''):''))}</span>${g.obs&&!/^Pagamento pelo /.test(g.obs)?`<span class="cpl-sub">${esc(g.obs.replace(/ · Pagamento pelo .*$/,''))}</span>`:''}${g.adiantamento>0.004?`<span class="cpl-sub">inclui adiantamento de ${esc(fMoeda(g.adiantamento))}</span>`:''}</td>
+   <td data-l="O que foi pago">${esc(g.partes.map(rotParte).join(', ')||'—')}${g.hdr&&g.hdr.faltas&&g.hdr.faltas.length?' (não aplicado: '+esc(fMoeda(soma(g.hdr.faltas,y=>y.valor)))+')':''}</td>
+   <td data-l="Valor" class="num"><b>${esc(fMoeda(g.valor>0.004?g.valor:g.informado))}</b></td>
+   <td data-l="Situação">${tag(g.situacao==='Registrado'?'Pago':g.situacao,cor[g.situacao]??'')}${g.estorno?`<span class="cpl-sub">${esc((g.estorno.porNome||nomeUsuario(g.estorno.por)||'')+(g.estorno.em?' em '+fData(String(g.estorno.em).slice(0,10)):'')+': '+(g.estorno.motivo||''))}</span>`:''}${g.hdr&&g.hdr.justificativa?`<span class="cpl-sub">acima do saldo: ${esc(g.hdr.justificativa.texto)}</span>`:''}</td>
    <td class="acs">${g.situacao==='Registro incompleto'&&ed?`<button type="button" class="btn min pri" data-cplconcl="${esc(g.baixaId)}">Concluir o registro</button>`:''}<button type="button" class="btn min" data-cplcomp="${esc(g.key)}">${ic('doc')}Comprovante</button>${ed&&g.doModulo&&g.valor>0.004&&g.situacao!=='Registro incompleto'?`<button type="button" class="btn min" data-cplest="${esc(g.key)}">Estornar</button>`:''}${!g.doModulo&&g.partes[0]&&g.partes[0].tipo==='entrega'?`<a class="btn min" href="#/compra/${esc(g.partes[0].id)}">Abrir a compra</a>`:''}</td></tr>`).join('')}</tbody></table></div>
-  <p class="cpl-nota">Pagamentos feitos aqui e os registrados direto na compra ou em Contas a pagar. Estorno não apaga: marca o pagamento, com o motivo, e devolve o valor ao saldo.</p>`;
+  <p class="cpl-nota">Pagamentos feitos aqui e os registrados direto na compra ou em Contas a pagar. Estorno não apaga: marca o pagamento, com o motivo, e devolve o valor ao que falta pagar.</p>`;
 }
+
 function htmlAbat(x){
  const L=[];
  x.creds.forEach(cr=>{let s=null;try{s=window.CB_LENHA.sitCred(cr)}catch(e){}L.push({d:cr.data,orig:cr.man?'Combustível lançado à mão · '+cr.origem:'Combustível na bomba da cerâmica',q:cr.qtd?fQtd(cr.qtd)+' '+cr.un+(cr.prod?' de '+cr.prod:''):'—',v:cr.valor,sit:s?s.t:'Descontado',cls:s?s.cls:'ok'})});
@@ -43879,11 +43975,14 @@ try{if(FS.RELS_F&&!FS.RELS_F.some(r=>r.id==='rf_lenha'))FS.RELS_F.push({id:'rf_l
  rows:contas().map(x=>({nome:x.nome,n:x.ents.length,bruto:x.bruto,abat:x.abat,pago:x.pago,saldo:x.saldo,ult:x.ult,sit:x.sit})),total:true,
  nota:'Saldo de cada fornecedor de lenha: entregas − combustível e descontos − pagamentos. Compras pagas antes do sistema não entram.'})})}catch(e){console.warn('relatório da lenha',e)}
 
-window.CPL_LENHA={lancarComb,contas,conta:contaDe,planejar,parecidos,registrar,concluir,estornar,agendar,abrirPagar,abrirAgendar,docBaixa,docExtrato,alocAdt,tagSitU,COR_SIT_U,ROTA,BTN_PAGAR};
+window.CPL_LENHA={quadros,lancarComb,contas,conta:contaDe,planejar,parecidos,registrar,concluir,estornar,agendar,abrirPagar,abrirAgendar,docBaixa,docExtrato,alocAdt,tagSitU,COR_SIT_U,ROTA,BTN_PAGAR};
 })();
 </script>
 <style id="central-pagamentos-css">
-.cpg-hero .kpi{cursor:pointer}
+.cpg-hero .kpi{cursor:pointer;position:relative}
+.cpg-hero .kpi::after{content:'ver ›';position:absolute;top:10px;right:12px;font-size:11.5px;font-weight:700;color:var(--brasa,#D3121C)}
+.cpg-hero .kpi.cpg-on::after{content:'mostrando';color:var(--suave,#5B6168);font-weight:500}
+@media(max-width:560px){.cpg-hero .kpi::after{content:'›';font-size:16px;top:6px;right:10px}.cpg-hero .kpi.cpg-on::after{content:''}}
 .cpg-hero .kpi.cpg-on{outline:2px solid var(--c2-preto,#0B0B0D);outline-offset:-2px}
 .cpg-hero .kpi.cpg-pe .v{color:#B42318}
 .cpg-mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:0 0 16px}
@@ -43988,12 +44087,12 @@ function cancelarConta(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;
 
 /* ---------- lista de contas (mesma tabela na central e nos módulos) ---------- */
 function tabela(xs,opc){opc=opc||{};const e=ed();if(!xs.length)return `<div class="vazio">${opc.vazio||'<b>Nenhuma conta aqui</b>'}</div>`;
- return `<div class="painel tabwrap"><table class="tbl cartao fi-tbl cpg-tab" data-sem-total><thead><tr><th>Data</th><th>Conta</th>${opc.semMod?'<th>Tipo</th>':'<th>Módulo</th>'}<th class="num">Valor</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead><tbody>
+ return `<div class="painel tabwrap"><table class="tbl cartao fi-tbl cpg-tab" data-sem-total><thead><tr><th>Data</th><th>Conta</th>${opc.semMod?'<th>Tipo</th>':'<th>Módulo</th>'}<th class="num">Valor</th><th class="num">Pago</th><th class="num">${opc.pagas?'Saldo':'Falta pagar'}</th><th>Situação</th><th></th></tr></thead><tbody>
  ${xs.slice(0,300).map(o=>{const s=sitU(o),ab=abertaO(o),up=ultPag(o);
   return `<tr class="clic" data-cpgref="${esc(o.ref)}" tabindex="0"><td data-l="Data">${ab||!up?(o.dataCal?esc(fData(o.dataCal)):'<span class="ajuda">sem data</span>'):esc(fData(up))}${ab&&o.prog?`<span class="sub">agendado${o.venc&&o.venc!==o.prog?' · vence '+esc(fData(o.venc)):''}</span>`:ab&&o.venc?'<span class="sub">vencimento</span>':!ab&&up?'<span class="sub">pago</span>':''}</td>
    <td data-l="Conta"><b>${esc(o.benef||'—')}</b><span class="sub">${esc(o.descricao)}${o.num?' · '+esc(o.num):''}${o.parcela?' · '+esc(o.parcela):''}</span></td>
    <td data-l="${opc.semMod?'Tipo':'Módulo'}">${opc.semMod?esc(o.categoria||'—'):esc(MOD(moduloDe(o)).n+(o.categoria&&semAcento(o.categoria)!==semAcento(MOD(moduloDe(o)).n)?' · '+o.categoria:''))}</td>
-   <td data-l="Valor" class="num">${esc(fMoeda(o.valor))}</td><td data-l="Pago" class="num">${esc(fMoeda(o.s.pagoEf))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(o.s.saldo))}</b></td>
+   <td data-l="Valor" class="num">${esc(fMoeda(o.valor))}</td><td data-l="Pago" class="num">${esc(fMoeda(o.s.pagoEf))}</td><td data-l="${opc.pagas?'Saldo':'Falta pagar'}" class="num"><b>${esc(fMoeda(o.s.saldo))}</b></td>
    <td data-l="Situação">${tagU(s)}</td>
    <td class="acs">${o.podePagar&&ab?`<button type="button" class="btn min pri" data-cpgpagar="${esc(o.ref)}">Pagar</button>`:''}${e&&ab?`<button type="button" class="btn min" data-cpgag="${esc(o.ref)}">${o.prog?'Editar agendamento':'Agendar'}</button>`:''}<button type="button" class="btn min" data-cpgmais="${esc(o.ref)}" aria-label="Mais ações de ${esc(o.benef||o.descricao)}">Mais ▾</button></td></tr>`}).join('')}</tbody></table>
  ${xs.length>300?'<p class="ajuda" style="padding:8px 12px">Mostrando as 300 primeiras. Use a pesquisa ou os filtros para ver as demais.</p>':''}</div>`}
@@ -44096,7 +44195,7 @@ function telaCentral(c){const B=baldes();const e=ed();
   <div id="cpgBloco">
    <h3 class="grupo-t" id="cpgLista">${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
    <div class="cpg-busca"><input type="search" id="cpgQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(UI.q)}" aria-label="Pesquisar contas">${b!=='agora'?'<button type="button" class="btn" data-cpgb="agora">Ver o que pagar agora</button>':''}</div>
-   ${tabela(xs,{vazio:UI.q?'<b>Nenhuma conta com esta pesquisa</b>':b==='agora'?(B.ab.length?'<b>Nada para pagar hoje e nada em atraso</b>Veja os próximos dias em “Próximos 7 dias”.':'<b>Nenhuma conta em aberto</b>As contas aparecem aqui quando forem lançadas aqui ou nos setores.'):'<b>Nenhuma conta neste quadro</b>'})}
+   ${tabela(xs,{pagas:b==='pagas',vazio:UI.q?'<b>Nenhuma conta com esta pesquisa</b>':b==='agora'?(B.ab.length?'<b>Nada para pagar hoje e nada em atraso</b>Veja os próximos dias em “Próximos 7 dias”.':'<b>Nenhuma conta em aberto</b>As contas aparecem aqui quando forem lançadas aqui ou nos setores.'):'<b>Nenhuma conta neste quadro</b>'})}
    ${curta?`<p style="margin:0 0 12px"><button type="button" class="btn" id="cpgTudo">Ver todas as ${todasX.length} contas</button></p>`:''}
    ${B.semData.length&&b!=='todas'?`<p class="cpg-nota">${q(B.semData.length)} em aberto sem vencimento nem agendamento (${esc(fMoeda(somaS(B.semData)))}). <a href="javascript:void 0" data-cpgb="todas">Ver em “Total pendente”</a></p>`:''}
    <h3 class="grupo-t">A pagar por módulo</h3><div class="cpg-mods">${mods}</div>
@@ -44113,12 +44212,17 @@ function telaCentral(c){const B=baldes();const e=ed();
 
 /* ---------- módulos: Combustível · Despesas gerais · Outros pagamentos ---------- */
 const UM={comb:{s:'aberto',q:''},gerais:{s:'aberto',q:''},outros:{s:'aberto',q:''}};
-const FILTROS=[['aberto','Em aberto',o=>abertaO(o)],['Pendente','Pendentes'],['Agendado','Agendadas'],['Parcialmente pago','Parciais'],['Vencido','Vencidas'],['Pago','Pagas'],['Cancelado','Canceladas'],['','Todas',()=>true]];
+const FILTROS=[['aberto','Em aberto',o=>abertaO(o)],['Pendente','Pendentes'],['Agendado','Agendadas'],['Parcialmente pago','Parciais'],['Vencido','Vencidas'],['Pago','Pagas'],['Cancelado','Canceladas'],['','Todas',()=>true],
+ ['mes','Pagas neste mês',o=>!o.cancelado&&pagsDin(o).some(p=>String(p.data||'').slice(0,7)===hoje().slice(0,7)),true]];
+const TIT_FILTRO={aberto:'O que falta pagar',Pendente:'Pendentes',Agendado:'Agendadas',Vencido:'Em atraso','Parcialmente pago':'Parcialmente pagas',Pago:'Pagas',Cancelado:'Canceladas','':'Todas as contas',mes:'Pagas neste mês'};
+const QUADRO_F={aberto:'falta',Vencido:'atraso',Agendado:'agend',mes:'pago'},FILTRO_Q={falta:'aberto',atraso:'Vencido',agend:'Agendado',pago:'mes'};
+const quadrosM=(L,sel)=>window.CPL_LENHA&&window.CPL_LENHA.quadros?window.CPL_LENHA.quadros(L,sel,'data-cpmq','Resumo do módulo'):'';
 function telaModulo(c,k){const M=MOD(k),U=UM[k],e=ed();const h=hoje(),m=h.slice(0,7);
  const OS=todas().filter(o=>moduloDe(o)===k);const ab=OS.filter(abertaO);
  const F=FILTROS.find(f=>f[0]===U.s)||FILTROS[0];const passa=F[2]||(o=>sitU(o)===F[0]);
  const xs=busca(OS.filter(passa),U.q).slice().sort((a,b)=>abertaO(a)!==abertaO(b)?(abertaO(a)?-1:1):abertaO(a)?ordData(a,b):ultPag(b).localeCompare(ultPag(a)));
  const pagoMes=r2(soma(OS,o=>soma(pagsDin(o).filter(p=>String(p.data||'').slice(0,7)===m),p=>p.valor)));
+ const venc=ab.filter(o=>o.s.vencido),agd=ab.filter(o=>o.prog),nPagMes=OS.filter(o=>!o.cancelado&&pagsDin(o).some(p=>String(p.data||'').slice(0,7)===m)).length;
  const grupoDe=o=>k==='comb'?(o.benef||'Sem fornecedor'):k==='gerais'?(o.categoria||'Sem tipo'):'';
  let corpo;
  if(k==='outros'||!xs.length)corpo=tabela(xs,{semMod:true,vazio:OS.length?'<b>Nenhuma conta neste filtro</b>Toque em “Todas” para ver as demais.':'<b>Nenhuma conta neste módulo</b>'+(e?'Use “Nova conta” para lançar a primeira.':'')});
@@ -44126,11 +44230,16 @@ function telaModulo(c,k){const M=MOD(k),U=UM[k],e=ed();const h=hoje(),m=h.slice(
   corpo=[...G.entries()].sort((a,b)=>somaS(b[1])-somaS(a[1])||a[0].localeCompare(b[0],'pt-BR')).map(([g,L])=>`<h3 class="grupo-t">${esc(g)} · ${esc(somaS(L)>0?fMoeda(somaS(L))+' a pagar':L.length+(L.length===1?' conta':' contas'))}</h3>${tabela(L,{semMod:true})}`).join('')}
  const cont=f=>OS.filter(f[2]||(o=>sitU(o)===f[0])).length;
  c.innerHTML=cabF(M.ic,M.t,M.p,`<a class="btn" href="#/setor-financeiro">${ic('esquerda')}Central</a><button type="button" class="btn" id="cpmExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn pri" id="cpmNova">${ic('mais')}Nova conta${k==='comb'?' ▾':''}</button>`:''}`)+
-  `<div class="resumo cpl-res">${[[fMoeda(somaS(ab)),'Total a pagar'],[fMoeda(somaS(ab.filter(o=>o.s.vencido))),'Em atraso'],[fMoeda(somaS(ab.filter(o=>o.prog))),'Agendado'],[fMoeda(pagoMes),'Pago neste mês'],[String(ab.length),'Contas em aberto']].map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
-  <div class="cpg-busca"><input type="search" id="cpmQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(U.q)}" aria-label="Pesquisar contas"></div>
-  <div class="cpl-chips" role="group" aria-label="Filtrar por situação">${FILTROS.map(f=>`<button type="button" class="btn${U.s===f[0]?' pri':''}" data-cpms="${esc(f[0])}" aria-pressed="${U.s===f[0]}">${esc(f[1])} <span>${cont(f)}</span></button>`).join('')}</div>
+  quadrosM([{k:'falta',rot:'Falta pagar',v:fMoeda(somaS(ab)),sub:ab.length?ab.length+(ab.length===1?' conta em aberto':' contas em aberto'):'nada em aberto',cls:ab.length?'':'ok'},
+   {k:'atraso',rot:'Em atraso',v:fMoeda(somaS(venc)),sub:venc.length?venc.length+(venc.length===1?' conta vencida':' contas vencidas'):'nenhuma',cls:venc.length?'pe':''},
+   {k:'agend',rot:'Agendado',v:fMoeda(somaS(agd)),sub:agd.length?agd.length+(agd.length===1?' conta agendada':' contas agendadas'):'nenhuma'},
+   {k:'pago',rot:'Pago neste mês',v:fMoeda(pagoMes),sub:nPagMes+(nPagMes===1?' conta paga':' contas pagas')}],QUADRO_F[U.s]||'')+
+  `<div class="cpg-busca"><input type="search" id="cpmQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(U.q)}" aria-label="Pesquisar contas"></div>
+  <div class="cpl-chips" role="group" aria-label="Filtrar por situação">${FILTROS.filter(f=>!f[3]).map(f=>`<button type="button" class="btn${U.s===f[0]?' pri':''}" data-cpms="${esc(f[0])}" aria-pressed="${U.s===f[0]}">${esc(f[1])} <span>${cont(f)}</span></button>`).join('')}</div>
+  <h3 class="grupo-t cpm-tit">${esc(TIT_FILTRO[U.s]||'Contas')} · ${esc(U.s==='mes'?xs.length+(xs.length===1?' conta':' contas'):somaS(xs)>0.004?fMoeda(somaS(xs)):xs.length+(xs.length===1?' conta':' contas'))}</h3>
   ${corpo}`;
  $$('[data-cpms]',c).forEach(x=>x.onclick=()=>{U.s=x.dataset.cpms;renderTela()});
+ $$('[data-cpmq]',c).forEach(x=>x.onclick=()=>{U.s=FILTRO_Q[x.dataset.cpmq]||'aberto';renderTela()});
  $('#cpmQ',c).oninput=ev=>{U.q=ev.target.value;clearTimeout(telaModulo.t);telaModulo.t=setTimeout(()=>{renderTela();const i=$('#cpmQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
  $('#cpmExp',c).onclick=()=>exportarLista($('#cpmExp',c),xs,M.t);
  if($('#cpmNova',c))$('#cpmNova',c).onclick=()=>menuNova($('#cpmNova',c),k);

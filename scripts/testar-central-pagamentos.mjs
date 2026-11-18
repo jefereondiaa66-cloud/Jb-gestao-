@@ -252,6 +252,9 @@ try {
     for (const f of ['aberto', 'Pendente', 'Agendado', 'Parcialmente pago', 'Vencido', 'Pago', 'Cancelado', '']) { document.querySelector('[data-cpms="' + f + '"]').click(); await T.dorme(300); r[f || 'todas'] = refs().sort().join(' | '); }
     document.querySelector('[data-cpms="aberto"]').click(); await T.dorme(300);
     r.grupos = [...document.querySelectorAll('#svCorpo h3.grupo-t')].map((h) => h.textContent.trim());
+    /* os quadros do alto também filtram (18/11/2026): tocar em "Em atraso" mostra as vencidas, em "Pago neste mês" as pagas */
+    const qd = async (k) => { document.querySelector('.cpl-cards [data-cpmq="' + k + '"]').click(); await T.dorme(350); return { l: refs().sort().join(' | '), sel: (document.querySelector('.cpl-cards [aria-selected="true"] .rot') || {}).textContent, t: (document.querySelector('#svCorpo .cpm-tit') || {}).textContent || '' }; };
+    r.qAtr = await qd('atraso'); r.qPag = await qd('pago'); r.qAg = await qd('agend'); r.qFal = await qd('falta');
     await T.ir('#/setor-financeiro', /Para pagar agora/);
     const clicar = async (rot) => { [...document.querySelectorAll('#svCorpo .cpg-hero .kpi')].find((k) => k.querySelector('.l').textContent.trim() === rot).click(); await T.dorme(450); return { t: document.querySelector('#cpgLista').textContent.trim(), l: refs().sort().join(' | '), on: (document.querySelector('#svCorpo .cpg-hero .kpi.cpg-on .l') || {}).textContent }; };
     r.kHoje = await clicar('Pagar hoje'); r.kProx = await clicar('Próximos 7 dias'); r.kAtr = await clicar('Em atraso'); r.kPag = await clicar('Pago neste mês'); r.kTot = await clicar('Total pendente');
@@ -262,6 +265,8 @@ try {
   });
   ok(t11.aberto === 'Conta de energia | Conta de água' && t11.Pendente === 'Conta de energia' && t11.Vencido === 'Conta de água' && t11.Pago === 'Conserto da maromba' && t11.Cancelado === 'Internet do escritório' && t11.Agendado === '' && t11['Parcialmente pago'] === '' && t11.todas.split(' | ').length === 4,
     `11. filtros por situação em Despesas gerais: em aberto [${t11.aberto}] · vencidas [${t11.Vencido}] · pagas [${t11.Pago}] · canceladas [${t11.Cancelado}]`);
+  ok(t11.qAtr.l === 'Conta de água' && t11.qAtr.sel === 'Em atraso' && /^Em atraso/.test(t11.qAtr.t) && t11.qPag.l === 'Conserto da maromba' && t11.qPag.sel === 'Pago neste mês' && /^Pagas neste mês/.test(t11.qPag.t) && t11.qAg.l === '' && t11.qFal.l === 'Conta de energia | Conta de água' && t11.qFal.sel === 'Falta pagar',
+    `11. os quadros do alto do módulo abrem a lista: Em atraso [${t11.qAtr.l}] · Pago neste mês [${t11.qPag.l}] · Falta pagar [${t11.qFal.l}]`);
   ok(t11.grupos.some((g) => /^Energia/i.test(g)) && t11.grupos.some((g) => /^Água/i.test(g)) && /Pagar hoje/.test(t11.kHoje.t) && t11.kHoje.l.split(' | ').length === 4 && t11.kHoje.on === 'Pagar hoje' && t11.kProx.l === 'Conserto de pneu' && t11.kAtr.l === 'Conta de água' && t11.kPag.l === 'Conserto da maromba' && t11.kTot.l.split(' | ').length === 6
     && t11.busca === 'Abastecimento da entrega | Diesel S10' && /Para pagar agora/.test(t11.volta), '11. os números da Central filtram a lista (hoje, próximos 7 dias, atraso, pagas, total) e a pesquisa encontra pelo nome do fornecedor');
 

@@ -193,3 +193,19 @@ painel antigo na abertura do setor. As outras mudanças são independentes:
 - importações sem números.
 
 Os dados lançados continuam válidos: são compromissos comuns do Financeiro.
+
+## 8. Ajuste de 18/11/2026: quadros que abrem a lista
+
+Pedido do Jeferson: "quando eu clico em cima desses quadros em cima, ele é fixo, não abre".
+
+Todos os quadros do alto agora abrem a lista deles, e a seta "›" mostra que dá para tocar.
+
+- **Contas a pagar – Lenha:** ver o arquivo [`contas-pagar-lenha-2026-11-17.md`](contas-pagar-lenha-2026-11-17.md).
+- **Combustível, Despesas gerais e Outros pagamentos:** os quadros Falta pagar, Em atraso, Agendado e Pago
+  neste mês filtram a lista. A lista ganhou um título dizendo o que está sendo mostrado.
+- **Central de pagamentos:** os números já filtravam a lista, mas não parecia. Agora mostram "ver ›" e
+  "mostrando" no escolhido.
+
+Nas listas em cartões, quando há a coluna "Falta pagar", ela é o valor em destaque do cartão, porque é o que a
+pessoa precisa ver primeiro. Na Central e nos módulos, a coluna "Saldo" passou a se chamar "Falta pagar",
+menos na lista das contas pagas.

@@ -118,7 +118,7 @@ try {
   const lista = await page.evaluate(async () => {
     await T.irModulo('#/fLenha');
     const txt = document.querySelector('#svCorpo').textContent;
-    const res = [...document.querySelectorAll('#svCorpo .resumo > div')].map((d) => d.textContent.replace(/\s+/g, ' ').trim());
+    const res = [...document.querySelectorAll('#svCorpo .cpl-cards > button')].map((d) => d.textContent.replace(/\s+/g, ' ').trim());
     const linhaA = [...document.querySelectorAll('#svCorpo tr[data-go]')].find((tr) => /Fornecedor Lenha A/.test(tr.textContent));
     const linhaB = [...document.querySelectorAll('#svCorpo tr[data-go]')].find((tr) => /Fornecedor Lenha B/.test(tr.textContent));
     return { res, txt, a: linhaA ? linhaA.textContent.replace(/\s+/g, ' ') : '', b: linhaB ? linhaB.textContent.replace(/\s+/g, ' ') : '', botoes: document.querySelectorAll('[data-cplpagar]').length,
@@ -126,7 +126,7 @@ try {
   });
   await foto('01-lista');
   ok(lista.aba, 'o módulo “Contas a pagar – Lenha” está nas telas do Setor Financeiro');
-  ok(lista.res.some((r) => /7\.550,00/.test(r) && /Total a pagar/i.test(r)) && lista.res.some((r) => /R\$\s?0,00/.test(r) && /já pago/i.test(r)) && lista.res.some((r) => /7\.550,00/.test(r) && /em aberto/i.test(r)) && lista.res.some((r) => /^3\s*Fornecedores pendentes/i.test(r)),
+  ok(lista.res.some((r) => /7\.550,00/.test(r) && /Total das entregas/i.test(r)) && lista.res.some((r) => /R\$\s?0,00/.test(r) && /já pago/i.test(r)) && lista.res.some((r) => /7\.550,00/.test(r) && /Falta pagar/i.test(r) && /3 fornecedores com saldo/i.test(r)),
     `indicadores: ${lista.res.join(' | ')}`);
   ok(/5\.000,00/.test(lista.a) && /Pendente/.test(lista.a) && /PAGAR \/ DAR BAIXA/.test(lista.a), `cartão do fornecedor A: ${lista.a.slice(0, 160)}`);
   ok(/2\.250,00/.test(lista.b) && /500,00/.test(lista.b) && /1\.750,00/.test(lista.b), 'fornecedor B: entregas R$ 2.250 − combustível R$ 500 = saldo R$ 1.750 (abatimento do Setor de Combustível)');
@@ -263,9 +263,36 @@ try {
   await foto('04-historico');
   ok(/Entrega nº/.test(hi.extrato) && /Combustível/.test(hi.extrato) && /Pagamento/.test(hi.extrato) && /650,00/.test(hi.ult), `extrato com entregas, combustível e pagamentos; saldo final R$ 650,00 (${hi.ult.replace(/\s+/g, ' ').slice(-40)})`);
   ok(/2\.250,00/.test(hi.entregas) && /1\.000,00/.test(hi.entregas) && /80,00/.test(hi.entregas), 'entregas com quantidade, valor por unidade e valor total');
-  ok(/Registrado/.test(hi.pagamentos) && /adiantamento/i.test(hi.pagamentos), 'pagamentos com data, forma, conta, quem registrou e o adiantamento');
+  ok(/Pago/.test(hi.pagamentos) && /lançado por/.test(hi.pagamentos) && /adiantamento/i.test(hi.pagamentos), 'pagamentos com data, forma, conta, quem lançou e o adiantamento');
   ok(/500,00/.test(hi.abatimentos) && /bomba/i.test(hi.abatimentos), 'abatimento de combustível no histórico');
   ok(/COMPROVANTE/i.test(hi.doc) && /Fornecedor Lenha B/.test(hi.doc) && hi.volta.startsWith('#/fLenha/f_b'), 'comprovante do pagamento abre e o Voltar retorna ao fornecedor');
+
+  /* J2. quadros do alto clicáveis: "Falta pagar" mostra o que deve; "Já pago" mostra os pagamentos (pedido de 18/11/2026) */
+  const qd = await page.evaluate(async () => {
+    const r = {}; const corpo = () => document.querySelector('#cfCorpo').textContent.replace(/\s+/g, ' ');
+    const quadro = (k) => document.querySelector('.cpl-cards [data-cplaba="' + k + '"]');
+    await T.irModulo('#/fLenha/f_c'); r.abreC = (document.querySelector('.cpl-cards [aria-selected="true"] .rot') || {}).textContent;
+    await T.irModulo('#/fLenha/f_b');
+    r.abre = (document.querySelector('.cpl-cards [aria-selected="true"] .rot') || {}).textContent; r.frase = document.querySelector('.cpl-frase').textContent.replace(/\s+/g, ' ');
+    r.conta = (document.querySelector('.cpl-conta-txt') || {}).textContent || '';
+    r.falta = corpo(); r.linhasFalta = document.querySelectorAll('#cfCorpo tbody tr').length;
+    quadro('pagamentos').click(); await T.dorme(250); r.pago = corpo(); r.selPago = quadro('pagamentos').getAttribute('aria-selected');
+    quadro('entregas').click(); await T.dorme(250); r.ent = corpo();
+    quadro('falta').click(); await T.dorme(250); r.volta = corpo();
+    /* na lista: "Já pago" mostra os pagamentos de todos os fornecedores; tocar no pagamento abre o fornecedor em "Já pago" */
+    await T.irModulo('#/fLenha'); document.querySelector('[data-cplvis="pago"]').click(); await T.dorme(300);
+    r.todos = document.querySelectorAll('#svCorpo tr[data-cplforn]').length; r.tit = (document.querySelector('#svCorpo h3.grupo-t') || {}).textContent || '';
+    const tr = [...document.querySelectorAll('#svCorpo tr[data-cplforn]')].find((t) => /Fornecedor Lenha B/.test(t.textContent)); tr.click(); await T.esperar(() => location.hash === '#/fLenha/f_b'); await T.dorme(300);
+    r.abriuPago = (document.querySelector('.cpl-cards [aria-selected="true"] .rot') || {}).textContent;
+    await T.irModulo('#/fLenha');
+    document.querySelector('[data-cplvis="falta"]').click(); await T.dorme(250); r.soDevendo = [...document.querySelectorAll('#svCorpo tr[data-go]')].map((t) => t.textContent.match(/Fornecedor Lenha [ABC]/)[0]).sort().join();
+    document.querySelector('[data-cplvis="todos"]').click(); await T.dorme(250);
+    return { ...r, nTot: CPL_LENHA.contas().reduce((a, x) => a + x.pags.length, 0) };
+  });
+  ok(qd.abre === 'Falta pagar' && qd.abreC === 'Falta pagar' && /Falta pagar R\$\s?650,00 a Fornecedor Lenha B/.test(qd.frase) && /= falta pagar R\$\s?650,00/.test(qd.conta) && /O que falta pagar/.test(qd.falta) && qd.linhasFalta === 1,
+    `o fornecedor abre em “Falta pagar”: ${qd.frase.slice(0, 90)} · ${qd.conta.trim()}`);
+  ok(qd.selPago === 'true' && /O que já foi pago/.test(qd.pago) && /Pago/.test(qd.pago) && /Todas as entregas/.test(qd.ent) && /O que falta pagar/.test(qd.volta), 'tocar em “Já pago” mostra os pagamentos, em “Entregas” todas as entregas e em “Falta pagar” volta ao que deve');
+  ok(qd.todos === qd.nTot && /Pagamentos feitos/.test(qd.tit) && qd.abriuPago === 'Já pago' && qd.soDevendo === 'Fornecedor Lenha B,Fornecedor Lenha C', `na lista, “Já pago” mostra os ${qd.todos} pagamentos de todos os fornecedores e abre o fornecedor nos pagamentos; “Falta pagar” mostra só quem tem saldo`);
 
   /* K. filtros e pesquisa */
   const fi = await page.evaluate(async () => {
@@ -325,13 +352,13 @@ try {
   await page.reload();
   await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 });
   await utilidades();
-  const rl = await page.evaluate(async () => { await T.dorme(800); await T.irModulo('#/fLenha'); return { A: T.conta('f_a'), B: T.conta('f_b'), C: T.conta('f_c'), n: DATA.fBaixaLenha.length, res: [...document.querySelectorAll('#svCorpo .resumo > div')].map((d) => d.textContent.replace(/\s+/g, ' ').trim()) }; });
+  const rl = await page.evaluate(async () => { await T.dorme(800); await T.irModulo('#/fLenha'); return { A: T.conta('f_a'), B: T.conta('f_b'), C: T.conta('f_c'), n: DATA.fBaixaLenha.length, res: [...document.querySelectorAll('#svCorpo .cpl-cards > button')].map((d) => d.textContent.replace(/\s+/g, ' ').trim()) }; });
   ok(rl.A.saldo === 0 && rl.B.saldo === 650 && rl.C.saldo === 600 && rl.n === 5 && rl.A.sit === 'Pago' && rl.B.sit === 'Parcialmente pago', 'depois de atualizar a página: mesmos saldos, situações e pagamentos');
-  ok(rl.res.some((r) => /1\.250,00/.test(r) && /em aberto/i.test(r)), `indicadores depois de atualizar: ${rl.res.join(' | ')}`);
+  ok(rl.res.some((r) => /1\.250,00/.test(r) && /Falta pagar/i.test(r)), `indicadores depois de atualizar: ${rl.res.join(' | ')}`);
 
   /* O. celular */
   await page.setViewportSize({ width: 390, height: 844 });
-  const cel = await page.evaluate(async () => { await T.irModulo('#/fLenha'); const r = document.querySelector('#svCorpo .resumo'); const b = document.querySelector('[data-cplpagar]'); const rr = b.getBoundingClientRect();
+  const cel = await page.evaluate(async () => { await T.irModulo('#/fLenha'); const r = document.querySelector('#svCorpo .cpl-cards'); const b = document.querySelector('[data-cplpagar]'); const rr = b.getBoundingClientRect();
     return { resumo: !!r && getComputedStyle(r).display !== 'none', larg: document.documentElement.scrollWidth, botao: rr.width > 0 && rr.right <= 391 }; });
   await foto('05-celular');
   await page.evaluate(async () => { await T.abrirPagar('f_c'); });

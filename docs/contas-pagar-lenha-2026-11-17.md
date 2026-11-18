@@ -47,11 +47,31 @@ Filtros: Todos, Em aberto, Parcialmente pagos, Pagos, Vencidos, Agendados; pesqu
   botão "Combustível" na tela do fornecedor.
 - Depois de confirmar: aviso com o saldo e a barra "Pagamento registrado · Comprovante".
 
-## Histórico do fornecedor
+## Tela do fornecedor (simplificada em 18/11/2026)
 
-Extrato (cada lançamento em ordem de data com o saldo depois dele), Entregas, Pagamentos (data, valor, forma,
-conta, contas pagas, quem registrou, situação, comprovante e estorno) e Combustível e descontos. Extrato em
-documento (imprimir/PDF) e Excel. **Agendar / Editar / Cancelar agendamento**: grava a data programada nas
+Pedido do Jeferson: "tá muito confuso; quando eu clico em 'falta pagar' tem que mostrar o que eu estou devendo,
+e em 'pagou' os lançamentos pagos".
+
+- Logo abaixo do nome, uma frase em palavras simples. Exemplo: "Falta pagar R$ 5.816,55 a VASCO, de 5 entregas
+  em aberto com atraso. A mais antiga é a entrega nº 000451, de 09/11/2026." Ou então: "Tudo pago".
+- **Quatro quadros que se tocam:** Falta pagar · Já pago · Entregas · Combustível e descontos. Cada um abre a
+  lista dele logo abaixo.
+  - **Falta pagar**: só as entregas que ainda têm valor a pagar, da mais antiga para a mais nova. Cada uma
+    mostra o valor da entrega, o que já foi pago ou descontado, quanto falta e a situação em palavras
+    ("Vencida há 7 dias", "Vence em 20/11", "Agendada para…", "paga em parte").
+  - **Já pago**: os pagamentos (data, forma, conta, o que foi pago, quem lançou, comprovante e estorno).
+  - **Entregas**: todas as entregas.
+  - **Combustível e descontos**: os abatimentos.
+- A tela abre em "Falta pagar" (ou em "Já pago", se não deve nada).
+- A conta aparece por extenso: "Entregas − combustível e descontos − já pago = falta pagar".
+- O **extrato completo**, com o saldo depois de cada lançamento, continua disponível em "Ver o extrato
+  completo" e em Extrato ▾ (na tela, em documento para imprimir ou PDF, e em Excel).
+
+Na lista de fornecedores, os quadros também se tocam:
+
+- **Falta pagar** mostra só quem tem saldo.
+- **Já pago** mostra os pagamentos de todos os fornecedores; tocar num deles abre o fornecedor em "Já pago".
+- **Total das entregas** mostra todos os fornecedores. **Agendar / Editar / Cancelar agendamento**: grava a data programada nas
 contas em aberto (aparece em Pagamentos do dia e no Calendário; não marca como pago).
 
 **Estorno** (administrador e Financeiro, com motivo): marca as parcelas como estornadas (não apaga), cancela o
