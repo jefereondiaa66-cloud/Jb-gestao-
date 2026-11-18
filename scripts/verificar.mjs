@@ -5,12 +5,12 @@
 //
 //   node scripts/verificar.mjs            tudo
 //   node scripts/verificar.mjs ponte      só os testes da ponte do Claude
-import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, ENVELOPE_CLAUDE, FIM_CLAUDE } from './construir.mjs';
+import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, metaSite, ENVELOPE_CLAUDE, FIM_CLAUDE } from './construir.mjs';
 import { criarServidorFalso } from './lib/servidor-falso.mjs';
 
 const filtro = process.argv[2] || '';
@@ -59,6 +59,19 @@ teste('programa', 'estrutura básica intacta', () => {
     assert.equal(c, n, `"${marca}" aparece ${c} vez(es), esperado ${n}`);
   }
 });
+teste('programa', 'navegação centralizada: só o JBNAV muda de tela', () => {
+  // Toda troca de tela passa por JBNAV.ir / JBNAV.subst / JBNAV.voltar (um histórico só, linear).
+  // Atribuir location.hash direto ou chamar history.back() em outro lugar recria o vai e volta entre telas.
+  const app = ler('app/jb-gestao.html');
+  const m = /<script id="jb-navegacao">([\s\S]*?)<\/script>/.exec(app);
+  assert.ok(m, 'bloco jb-navegacao não encontrado');
+  assert.ok(app.includes('JBNAV.ligar(()=>navegar());'), 'o roteador precisa ser ligado pelo JBNAV');
+  const fora = app.replace(m[0], '');
+  const diretos = (fora.match(/location\.hash\s*=(?!=)/g) || []).length;
+  assert.equal(diretos, 0, `há ${diretos} atribuições diretas a location.hash fora do JBNAV. Use JBNAV.ir(...)`);
+  assert.equal((fora.match(/location\.replace\(/g) || []).length, 0, 'use JBNAV.subst(...) no lugar de location.replace(...)');
+  assert.equal((fora.match(/history\.back\(\)/g) || []).length, 1, 'history.back() só na gaveta do painel; nas telas use JBNAV.voltar()');
+});
 teste('programa', 'todo o JavaScript do programa compila', () => {
   const app = ler('app/jb-gestao.html');
   const ss = scriptsEmbutidos(app, 'app/jb-gestao.html');
@@ -91,17 +104,108 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     const app = ler('app/jb-gestao.html'), cab = ler('nuvem/cabecalho.html');
     const nuvem = readFileSync(join(tmp, 'dist/index.html'), 'utf8');
     const claude = readFileSync(join(tmp, 'saida/claude.html'), 'utf8');
-    assert.equal(nuvem, montarNuvem(app, cab));
-    assert.equal(nuvem.replace(cab, ''), app, 'a nuvem deve ser o programa + cabeçalho, sem nenhuma outra diferença');
+    assert.match(v.site, /^[0-9a-f]{12}$/);
+    assert.equal(nuvem, montarNuvem(app, metaSite(v.site) + cab));
+    assert.equal(nuvem.replace(metaSite(v.site) + cab, ''), app, 'a nuvem deve ser o programa + cabeçalho (com a versão do site), sem nenhuma outra diferença');
+    assert.ok(nuvem.indexOf('name="jb-site"') < nuvem.indexOf('jb-nuvem.js'), 'a versão do site precisa vir antes do adaptador da nuvem');
+    const adm = readFileSync(join(tmp, 'dist/admin.html'), 'utf8');
+    assert.equal(adm.replace(metaSite(v.site), ''), ler('nuvem/admin.html'), 'o admin.html só ganha a versão do site');
     assert.ok(claude.startsWith(ENVELOPE_CLAUDE) && claude.endsWith(FIM_CLAUDE));
     assert.equal(extrairDoClaude(claude), app, 'ida e volta Claude ⇄ repositório perde algo');
     assert.equal(montarClaude(extrairDoClaude(claude)), claude);
-    for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', '_headers', 'versao.json'])
+    for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers', 'versao.json'])
       readFileSync(join(tmp, 'dist', f));
     const vj = JSON.parse(readFileSync(join(tmp, 'dist/versao.json'), 'utf8'));
-    assert.equal(vj.versao, v.versao); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
+    assert.equal(vj.versao, v.versao); assert.equal(vj.site, v.site); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
     assert.ok(nuvem.indexOf('jb-nuvem.js') < nuvem.indexOf('<script id="spot-guarda">'), 'o adaptador da nuvem precisa carregar antes do programa');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+teste('programa', 'Setor Fiscal: chamarF usa a função jb-fiscal (nuvem e ponte) e erro incerto nunca vira "nada enviado"', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('async function chamarF('), f = app.indexOf('async function statusServicoF(');
+  assert.ok(i > 0 && f > i, 'chamarF não encontrado');
+  assert.match(app.slice(i, f), /const via = transporteF\(\);/, 'chamarF precisa usar a ligação nova primeiro');
+  assert.match(app.slice(i, f), /if \(TRANSMITE_F\.has\(tool\)\)[^\n]*throw e; \}\n  const m = await mcpF\(\);/, 'o conector antigo nunca pode transmitir (emitir, cancelar, inutilizar)');
+  const e1 = app.indexOf('async function emitirTravadaF('), e2 = app.indexOf('async function consultarNotaF(');
+  assert.ok(e1 > 0 && e2 > e1, 'emitirTravadaF não encontrado');
+  const emitir = app.slice(e1, e2);
+  assert.ok(!/mcpF|callTool|FISC\.mcp/.test(emitir), 'emitirTravadaF não pode usar o conector MCP antigo');
+  assert.match(emitir, /const lg = ligacaoF\(\);\n  if \(!lg\.via \|\| lg\.motivo\) return \{ ok: false, parar: true/, 'emitirTravadaF para antes de numerar quando a ligação recusaria');
+  assert.ok(emitir.indexOf('ligacaoF()') < emitir.indexOf('reservarNumeroF('), 'a ligação é conferida antes de reservar o número');
+  const nada = /const NADA_ENVIADO = new Set\(\[([^\]]*)\]\)/.exec(app);
+  assert.ok(nada, 'lista NADA_ENVIADO não encontrada');
+  for (const c of ['sem_resposta', 'prazo_fiscal', 'rede', 'upstream_error', 'server_unavailable']) assert.ok(!nada[1].includes("'" + c + "'"), c + ' é incerto: não pode estar em NADA_ENVIADO');
+  for (const c of ['desligado', 'recusado_banco']) assert.ok(nada[1].includes("'" + c + "'"), c + ' garante que nada foi enviado');
+  assert.ok(!/Cloudflare|Nuvem Fiscal ou ACBr/.test(app), 'texto antigo do conector "JB Fiscal" da Cloudflare');
+  const nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /functions\/v1\/jb-fiscal/); assert.match(nv, /fiscal: fiscal,/);
+});
+teste('programa', 'leitura por foto aos poucos (V109): programa, adaptador da nuvem e função do servidor falam a mesma língua', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
+  // o pacote que vai para o Netlify não leva a pasta supabase/: a função é conferida só no repositório
+  if (existsSync(join(RAIZ, 'supabase/functions/jb-ler-documento/index.ts'))) {
+    const fn = ler('supabase/functions/jb-ler-documento/index.ts');
+    assert.match(fn, /corpo\.fluxo !== true/, 'a função só responde aos poucos quando pedido (programa antigo continua recebendo a resposta inteira)');
+    assert.match(fn, /application\/x-ndjson/); assert.match(fn, /t: "fim"/); assert.match(fn, /t: "erro"/);
+    assert.match(fn, /req\.method === "GET"/, 'a função precisa aceitar o GET que só a acorda');
+    assert.match(fn, /cancel\(\) \{ parar\(\); \}/, 'cancelar na tela precisa interromper o pedido à IA');
+  }
+  assert.match(nv, /envio\.fluxo = true/); assert.match(nv, /ndjson/); assert.match(nv, /o\.t === 'fim' \|\| o\.t === 'erro'/);
+  assert.match(nv, /A leitura foi interrompida antes de terminar/, 'resposta sem o fim não pode valer como leitura');
+  assert.match(app, /lt\.ler\(\{prompt,paginas\},sinal,typeof aoAndar==='function'\?aoAndar:undefined\)/, 'o programa precisa pedir o andamento ao adaptador');
+  assert.ok(!/de 20 segundos a alguns minutos/.test(app), 'texto antigo de espera da leitura');
+  assert.equal(app.split('em UMA linha só').length - 1, 2, 'os dois pedidos de leitura (documentos e combustível) pedem a resposta enxuta');
+});
+teste('programa', 'ponto facial (V126): câmera liberada só para o próprio site, perfis do ponto no painel e um bloco só', () => {
+  const h = ler('nuvem/_headers');
+  assert.match(h, /Permissions-Policy:[^\n]*camera=\(self\)/, 'o ponto facial precisa da câmera: nuvem/_headers deve ter camera=(self)');
+  assert.match(h, /Permissions-Policy:[^\n]*microphone=\(self\)/, 'ditado dos contratos (V125): microfone liberado só para o próprio site');
+  const app = ler('app/jb-gestao.html');
+  assert.equal(app.split('<script id="ponto-facial-v126">').length - 1, 1, 'bloco do ponto facial ausente ou repetido');
+  for (const velho of ['ponto-foto-v78', 'ponto-facial-v100', 'relogio-ponto-v79']) assert.ok(!app.includes('id="' + velho + '"'), 'bloco antigo do ponto ainda presente: ' + velho);
+  const adm = ler('nuvem/admin.html');
+  assert.match(adm, /\['celularPonto', 'Celular do ponto/, 'o painel de usuários precisa oferecer o perfil "Celular do ponto"');
+  assert.match(adm, /\['respPonto', 'Responsável pelo ponto/, 'o painel de usuários precisa oferecer o perfil "Responsável pelo ponto"');
+  assert.match(ler('nuvem/jb-nuvem.js'), /JB_PONTO/, 'a nuvem não pode recarregar a página com a câmera do ponto aberta');
+});
+teste('programa', 'ponto facial (V126/V127): reconhecimento com versão fixa, cadastro sem foto, foto só da marcação confirmada e marcações que só entram', () => {
+  const app = ler('app/jb-gestao.html');
+  assert.match(app, /cdn\.jsdelivr\.net\/npm\/@vladmandic\/face-api@\d+\.\d+\.\d+\//, 'a biblioteca do reconhecimento precisa ter a versão fixa');
+  const pz = /<script id="ponto-facial-v126">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(!/toDataURL/.test(pz), 'o ponto facial não guarda imagem dentro do banco');
+  assert.equal(pz.split('assets.upload(').length - 1, 1, 'a única foto enviada é a da marcação (guardarFoto); o cadastro facial continua sem foto');
+  assert.match(pz, /if\(querFoto\(\)\)guardarFoto\(m,/, 'a foto só é guardada depois que a marcação foi gravada (a marcação nunca espera pela foto)');
+  assert.match(pz, /\['pontos','Pontos do funcionário','pessoas'\]/, 'a gestão do ponto tem a aba "Pontos do funcionário"');
+  assert.match(pz, /foto:true\}/, 'a foto da marcação vem ligada e pode ser desligada em Configurações');
+  assert.match(pz, /CONFIRMAR MARCAÇÃO/, 'a marcação só é gravada com o toque em CONFIRMAR MARCAÇÃO');
+  assert.match(pz, /CFG_PF=\{fase:'teste'/, 'o ponto facial começa na fase de testes');
+  assert.match(pz, /lado:'environment'/, 'a câmera traseira é o padrão');
+  // o pacote que vai para o Netlify não leva a pasta supabase/: as migrações são conferidas só no repositório
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    assert.match(ler('supabase/migrations/20261112120000_seg_rostos.sql'), /values \('rostos', 'dp', false, 'dados', true\)/, 'a coleção "rostos" precisa estar em seg.colecoes, no módulo do DP');
+    const m = ler('supabase/migrations/20261115200000_seg_ponto_marcacoes.sql');
+    assert.match(m, /\('pontoMarcacoes', 'dp', true, 'dados', true\)/, 'a coleção "pontoMarcacoes" precisa estar em seg.colecoes');
+    assert.match(m, /\('pontoEventos', 'dp', true, 'dados', true\)/, 'a coleção "pontoEventos" precisa estar em seg.colecoes');
+    assert.match(m, /before insert or update on public\.docs[\s\S]*before delete on public\.docs/, 'as marcações precisam do gatilho que impede alterar e apagar');
+    assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261115200000_seg_ponto_marcacoes.down.sql')), 'a migração do ponto precisa do arquivo de reversão');
+  }
+});
+teste('programa', 'Setor do Barro (V124): o valor do barro entra junto da tonelada, também com a parte de extração ligada', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  assert.match(app, /const PRECO_PAD=\[\{desde:'2026-11-01',valorT:6\.1663,origem:'Índices jan–set\/2026 – taxa fixa'\}\]/, 'valor de referência do barro: R$ 6,1663/t desde 01/11/2026');
+  const cust = trecho('function custoTonB(k,de,ate){', '\n/* ritmo:');
+  assert.ok(/if\(k\.ton>0&&k\.total>0\)return\{real:true/.test(cust), 'com extração com custo, vale o custo real');
+  assert.ok(cust.includes("txt:fRt(r.v),sub:'valor de referência"), 'sem extração com custo, o custo por tonelada é o R$/t vigente (nunca R$ 0,00)');
+  const ini = trecho('function inicioB(c){', '\n}\n');
+  for (const p of ["'Valor do barro consumido · '", 'custoTonB(km,', 'custoCarB(km,', 'valorEstB(est.ton)']) assert.ok(ini.includes(p), 'Início com a extração ligada sem ' + p);
+  assert.ok(!ini.includes('esc(fMoeda(km.porTon))'), 'o Início não pode voltar a mostrar só o custo das extrações (R$ 0,00 sem extração)');
+  assert.ok(trecho('function telaCusto(c){', '\n}\n').includes('custoTonB(k,UC.de,UC.ate)'), 'Custo do barro: custo por tonelada com o valor de referência');
+  assert.ok(trecho('function telaEstoque(c){\n const e=estoqueB()', '\n}\n').includes('valorEstB(e.ton)'), 'Estoque de barro com o valor');
+  assert.ok(trecho('function resumoMes(mes){', '\n}\n').includes('r.consV='), 'resumo do mês com o valor do barro consumido');
+  // V124 só mostra: nada é gravado pelas funções novas
+  const novo = trecho('/* ---------- V124 (14/11/2026)', '\n/* ritmo:');
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(']) assert.ok(!novo.includes(proibido), 'a V124 não grava nada: achou ' + proibido);
 });
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));
@@ -290,6 +394,17 @@ teste('ponte', 'atualizar documento que não existe é recusado e não cria nada
   await assert.rejects(db.doc('horasExtras/2026-10-s1').update({ items: { h: 1 } }), (e) => e.code === 'invalid_argument');
   assert.ok(!srv.estado.docs.has('horasExtras/2026-10-s1'));
 }));
+teste('ponte', 'gravação recusada por falta de conexão sai da fila e não gera erro repetido depois', () => cenario(async ({ amb, srv }) => {
+  const { db, api } = await ligar(amb, srv);
+  srv.estado.falhas.permanente = 'server_unavailable';
+  await assert.rejects(db.doc('vales/2026-11-s0').update({ items: { v1: { valor: 10 } } }), (e) => e.code === 'unavailable');
+  assert.equal(api.estado().pendentes, 0, 'a operação já dada como não gravada não pode continuar na fila');
+  srv.estado.falhas.permanente = null;
+  await api.sincronizar();
+  await esperar(50);
+  assert.equal(amb.toasts.filter(([t]) => t === 'erro').length, 0, 'não pode aparecer um segundo aviso de erro');
+  assert.ok(!srv.estado.docs.has('vales/2026-11-s0'));
+}));
 teste('ponte', 'exclusão chega ao banco e repetir a exclusão não dá erro', () => cenario(async ({ amb, srv }) => {
   srv.estado.gravarDireto('clientes', 'k1', { nome: 'Cliente' });
   const { db } = await ligar(amb, srv);
@@ -340,7 +455,460 @@ teste('ponte', 'envia sinal de vida ao banco para o painel', () => cenario(async
   assert.equal(srv.estado.sinais[0].origem, 'claude');
 }));
 
+/* ---------- serviço fiscal pela ponte (jbcore.fiscal + jbcore.resposta) ---------- */
+const CFG_FISCAL = { cfg: { prazoFiscal: 1500, esperaFiscal: 10 } };
+const SRV_FISCAL = () => criarServidorFalso({ admins: ['u_ADMIN'], fiscal: (acao, args) => acao === 'consultar_nfe'
+  ? { status: 200, corpo: { encontrado: true, documento: { id: args.id, status: 'autorizado' } } }
+  : { status: 503, corpo: { erro: { tipo: 'configuracao', mensagem: 'Produção bloqueada (simulado).' } } } });
+teste('ponte', 'serviço fiscal: pede pelo banco, espera a resposta e devolve o mesmo formato da nuvem', () => cenario(async ({ amb, srv }) => {
+  const { api } = await ligar(amb, srv, CFG_FISCAL);
+  const r = await api.fiscal('consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' });
+  const simples = (v) => JSON.parse(JSON.stringify(v));   // objetos criados dentro do vm têm outro protótipo
+  assert.deepEqual(simples(r), { encontrado: true, documento: { id: 'jb-n1-t1', status: 'autorizado' } });
+  const p = srv.estado.fiscal.pedidos[0];
+  assert.deepEqual([p.acao, p.args, p.uid], ['consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' }, 'u_ADMIN']);
+  assert.ok(srv.estado.chamadas.filter((c) => /jbcore\.resposta\(/.test(c.query)).length >= 2, 'pergunta pela resposta até ela chegar');
+  const recusa = await api.fiscal('emitir_nfe', { ambiente: 'producao' });
+  assert.deepEqual(simples(recusa), { erro: { tipo: 'configuracao', mensagem: 'Produção bloqueada (simulado).' } }, 'recusa do serviço volta como {erro}');
+  assert.equal(api.estado().modo, 'central');
+}, { srv: SRV_FISCAL() }));
+teste('ponte', 'serviço fiscal: recusa do banco = nada enviado; sem resposta = incerto (nunca "nada enviado")', async () => {
+  const admins = ['u_ADMIN'];
+  await cenario(async ({ amb, srv }) => {
+    const { api } = await ligar(amb, srv, CFG_FISCAL);
+    admins.length = 0;                                                     // deixou de ser administrador
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'recusado_banco' && /administradores/.test(e.message));
+    assert.equal(srv.estado.fiscal.pedidos.length, 0);
+    admins.push('u_ADMIN');
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'sem_resposta');        // pg_net: tempo esgotado
+    srv.estado.fiscal.esperas = 1e9;                                       // a resposta nunca chega
+    await assert.rejects(api.fiscal('emitir_nfe', {}), (e) => e.code === 'prazo_fiscal');
+    srv.estado.fiscal.esperas = 1;
+    const p = api.fiscal('emitir_nfe', {});
+    await ate(() => srv.estado.fiscal.pedidos.length === 3);
+    srv.estado.falhas.permanente = 'server_not_connected';                 // o conector cai depois do pedido feito
+    await assert.rejects(p, (e) => e.code === 'prazo_fiscal', 'depois do pedido registrado, nenhuma falha pode dizer que nada foi enviado');
+  }, { srv: criarServidorFalso({ admins, fiscal: () => ({ erro: 'Timeout of 90000 ms reached' }) }) });
+});
+teste('ponte', 'serviço fiscal fora do modo central: recusa sem pedir nada ao banco', () => cenario(async ({ amb, srv }) => {
+  const { api } = await ligar(amb, srv, { uid: 'u_OUTRO' });
+  await assert.rejects(api.fiscal('status_servico', { ambiente: 'homologacao' }), (e) => e.code === 'desligado');
+  assert.equal(srv.estado.fiscal.pedidos.length, 0);
+}));
+
+/* ---------- Setor Fiscal do programa: por onde cada pedido vai (chamarF de verdade, num contexto isolado) ---------- */
+function ligacaoFiscal(janela) {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('const FISC = {'), f = app.indexOf('async function statusServicoF(');
+  assert.ok(i > 0 && f > i, 'trecho da ligação fiscal não encontrado');
+  const g = { window: janela, Error, Set, Object, String, Promise, JSON, Array };
+  vm.createContext(g);
+  vm.runInContext("const SERVIDOR_FISCAL = 'JB Fiscal';\n" + app.slice(i, f) + '\nglobalThis.__f = { chamarF, ligacaoF, NADA_ENVIADO };', g, { filename: 'ligacao-fiscal' });
+  return g.__f;
+}
+function conectorAntigo() {   // o conector MCP "JB Fiscal": anota cada chamada
+  const chamadas = [];
+  return { chamadas, claude: { use: async (n) => (n === 'mcp' ? { callTool: async (...a) => { chamadas.push(a.slice(0, 2)); return { structuredContent: { ok: true } }; } } : null) } };
+}
+const TRANSMITEM = [['emitir_nfe', { ambiente: 'homologacao', referencia: 'jb-x-t1' }], ['cancelar_nfe', { ambiente: 'homologacao', id: 'jb-x-t1', justificativa: 'x'.repeat(20) }],
+  ['inutilizar_numeracao', { ambiente: 'homologacao', serie: 1, numero_inicial: 5, numero_final: 5 }]];
+teste('programa', 'Setor Fiscal no Claude: com a ponte, tudo vai por ela; o conector antigo nunca é usado', async () => {
+  const antigo = conectorAntigo();
+  const amb = ambiente();
+  try {
+    const ponte = carregarPonte(amb);                         // ainda não ligada ao banco central
+    const F = ligacaoFiscal({ JB_CORE_PONTE: ponte, claude: antigo.claude });
+    assert.match(F.ligacaoF().motivo, /banco central/, 'fora do modo central, a emissão para antes de numerar');
+    for (const [acao, args] of [...TRANSMITEM, ['consultar_nfe', { ambiente: 'homologacao', id: 'jb-x-t1' }], ['status_servico', { ambiente: 'homologacao' }], ['consultar_cep', { cep: '65680000' }]]) {
+      await assert.rejects(F.chamarF(acao, args), (e) => e.code === 'desligado' && F.NADA_ENVIADO.has(e.code), acao + ': a ponte recusa (nada enviado)');
+    }
+    const semFiscal = ligacaoFiscal({ JB_CORE_PONTE: { api: { estado: () => ({ modo: 'central' }) } }, claude: antigo.claude });
+    await assert.rejects(semFiscal.chamarF('emitir_nfe', {}), (e) => e.code === 'desligado', 'ponte sem o serviço fiscal: recusa, sem conector');
+    assert.ok(semFiscal.ligacaoF().motivo);
+    assert.equal(antigo.chamadas.length, 0, 'o conector "JB Fiscal" não pode ser chamado quando a ponte existe');
+  } finally { amb.limpar(); }
+  await cenario(async ({ amb: a2, srv }) => {
+    const { ponte } = await ligar(a2, srv, CFG_FISCAL);       // administrador, banco central ligado
+    const F = ligacaoFiscal({ JB_CORE_PONTE: ponte, claude: antigo.claude });
+    assert.equal(F.ligacaoF().motivo, '');
+    const r = await F.chamarF('consultar_nfe', { ambiente: 'homologacao', id: 'jb-n1-t1' });
+    assert.equal(r.documento.status, 'autorizado');
+    await assert.rejects(F.chamarF('emitir_nfe', { ambiente: 'producao' }), (e) => e.code === 'tool_error' && e.erro.tipo === 'configuracao');
+    assert.deepEqual(srv.estado.fiscal.pedidos.map((p) => p.acao), ['consultar_nfe', 'emitir_nfe']);
+    assert.equal(antigo.chamadas.length, 0);
+  }, { srv: SRV_FISCAL() });
+});
+teste('programa', 'Setor Fiscal na nuvem e sem ligação nenhuma: o conector antigo nunca transmite', async () => {
+  const antigo = conectorAntigo();
+  const pedidos = [];
+  const nuvem = ligacaoFiscal({ JB_NUVEM_API: { fiscal: async (a) => { pedidos.push(a); return { ok: true }; } }, JB_CORE_PONTE: { api: { fiscal: async () => { throw new Error('não era para a ponte'); }, estado: () => ({ modo: 'central' }) } }, claude: antigo.claude });
+  for (const [acao, args] of TRANSMITEM) assert.deepEqual({ ...(await nuvem.chamarF(acao, args)) }, { ok: true });
+  assert.deepEqual(pedidos, ['emitir_nfe', 'cancelar_nfe', 'inutilizar_numeracao'], 'na nuvem vai pela função jb-fiscal');
+  const velha = ligacaoFiscal({ JB_NUVEM_API: {}, claude: antigo.claude });   // adaptador da nuvem desatualizado
+  await assert.rejects(velha.chamarF('emitir_nfe', {}), (e) => e.code === 'desligado' && /Atualize a página/.test(e.message));
+  const nada = ligacaoFiscal({ claude: antigo.claude });                        // nem nuvem nem ponte
+  for (const [acao, args] of TRANSMITEM) await assert.rejects(nada.chamarF(acao, args), (e) => e.code === 'sem_mcp' && nada.NADA_ENVIADO.has(e.code), acao);
+  assert.equal(antigo.chamadas.length, 0, 'emitir, cancelar e inutilizar nunca passam pelo conector antigo');
+  assert.ok(nada.ligacaoF().motivo, 'sem ligação, a emissão para antes de numerar');
+  await nada.chamarF('consultar_cep', { cep: '65680000' });                     // só consulta, por compatibilidade
+  assert.deepEqual(antigo.chamadas, [['JB Fiscal', 'consultar_cep']]);
+});
+teste('programa', 'Setor Fiscal: consulta nunca apaga o protocolo já gravado na nota', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('function mesclarSefazF('), f = app.indexOf('/** Aplica a resposta oficial do provedor/SEFAZ à nota.');
+  assert.ok(i > 0 && f > i, 'mesclarSefazF não encontrado');
+  const a1 = app.indexOf('async function aplicarDocumentoF('), a2 = app.indexOf('async function vincularVendaF(');
+  const aplicar = app.slice(a1, a2);
+  assert.match(aplicar, /const sefaz = mesclarSefazF\(n\.sefaz, novo\);/);
+  assert.ok(!/\.\.\.\(n\.sefaz \|\| \{\}\), \.\.\.sefaz/.test(aplicar), 'a mescla antiga apagava o protocolo com null');
+  const g = { Object };
+  vm.createContext(g);
+  vm.runInContext(app.slice(i, f) + '\nglobalThis.mesclar = mesclarSefazF;', g);
+  const gravado = { provedorId: 'jb-n1-t1', chave: '2'.repeat(44), protocolo: '121260000012345', codigo: 100, motivo: 'Autorizado o uso da NF-e', mensagem: null, dataRecebimento: '2026-11-08T10:00:05-03:00', dataEmissao: '2026-11-08T10:00:00-03:00', valorTotal: 1400, statusProvedor: 'autorizado', digest: 'abc=', atualizadoEm: 'antes' };
+  const vazio = { provedorId: 'jb-n1-t1', chave: null, protocolo: null, codigo: 135, motivo: null, mensagem: 'aviso novo', dataRecebimento: null, dataEmissao: null, valorTotal: null, statusProvedor: 'cancelado', digest: null, atualizadoEm: 'agora' };
+  const m = JSON.parse(JSON.stringify(g.mesclar(gravado, vazio)));
+  assert.deepEqual(m, { ...gravado, codigo: 135, mensagem: 'aviso novo', statusProvedor: 'cancelado', atualizadoEm: 'agora' });
+  assert.equal(JSON.parse(JSON.stringify(g.mesclar(gravado, { ...vazio, mensagem: null }))).mensagem, null, 'o aviso é sempre o da resposta nova');
+  const outra = { ...vazio, provedorId: 'jb-n1-t2' };
+  assert.deepEqual(JSON.parse(JSON.stringify(g.mesclar(gravado, outra))), outra, 'outra referência é outro documento');
+  assert.deepEqual(JSON.parse(JSON.stringify(g.mesclar(null, vazio))), vazio);
+});
+
+/* =====================================================================
+   4. JB Fiscal (Focus NFe): tradução e idempotência, sem rede (scripts/testar-fiscal.mjs)
+   O pacote que o publicador (jb-publicar) manda ao Netlify não leva supabase/: aí o grupo é pulado
+   (o GitHub e o Netlify ligado ao repositório rodam tudo).
+   ===================================================================== */
+const temFiscal = existsSync(join(RAIZ, 'supabase/functions/jb-fiscal/nucleo.js'));
+if (temFiscal) {
+  const { TESTES } = await import('./testar-fiscal.mjs');
+  TESTES.forEach((x) => teste('fiscal', x.nome, x.fn));
+} else console.log('  – [fiscal] pulado: este pacote não tem supabase/functions/jb-fiscal');
+
+/* Resumo diário no WhatsApp: contas, parâmetros do modelo e corpo do envio, sem rede (mesma regra do pacote sem supabase/) */
+if (existsSync(join(RAIZ, 'supabase/functions/jb-whatsapp/nucleo.js'))) {
+  const { TESTES: TW } = await import('./testar-whatsapp.mjs');
+  TW.forEach((x) => teste('whatsapp', x.nome, x.fn));
+} else console.log('  – [whatsapp] pulado: este pacote não tem supabase/functions/jb-whatsapp');
+
+/* ---------- V129: padrão global de filtros e de lançamentos ---------- */
+teste('lancamentos', 'V129: filtros e ações dos lançamentos num componente só, depois das listas em cartões, sem gravar nada', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['<style id="lanc-filtros-v129-css">', '<script id="lanc-filtros-v129">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  assert.ok(app.indexOf('<script id="lanc-filtros-v129">') > app.indexOf('<script id="lista-cartoes-js">'), 'o bloco V129 vem depois das listas em cartões');
+  const i = app.indexOf('<script id="lanc-filtros-v129">'); const bloco = app.slice(i, app.indexOf('</script>', i));
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(', '.update(', 'salvarCfg(', 'location.hash', 'location.replace(', 'history.back(']) assert.ok(!bloco.includes(proibido), 'o bloco V129 não pode usar ' + proibido);
+  assert.ok(bloco.includes("c.querySelector('.c2-home')"), 'o início dos setores fica de fora');
+  assert.ok(bloco.includes('#camada [data-acao="excluir"]'), 'o Excluir do menu é o botão da janela do registro (mesma confirmação e regras)');
+  const css = app.slice(app.indexOf('<style id="lanc-filtros-v129-css">'), app.indexOf('</style>', app.indexOf('<style id="lanc-filtros-v129-css">')));
+  assert.ok(/@media print\{[^}]*\.jbl-m[^}]*display:none/.test(css), 'botões e menus do V129 não saem na impressão');
+});
+
 /* ---------- execução ---------- */
+/* ---------- Centro de Inventário ---------- */
+teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['inv-estilos', 'inv-qr-gerador', 'inv-qr-leitor', 'inv-centro']) assert.ok(app.includes(`id="${id}"`), id);
+  assert.ok(app.includes("inv.api_ponte("), 'a ponte chama inv.api_ponte');
+  assert.ok(app.includes("JB_NUVEM_API.rpc('jb_inv'"), 'a nuvem chama jb_inv');
+  assert.ok(!/localStorage\.setItem\([^)]*inv_(bens|dados)/.test(app), 'dados do inventário não ficam no navegador');
+});
+/* ---------- identidade documental (V111): um só lugar para logo, cabeçalho e rodapé de todos os documentos ---------- */
+teste('documentos', 'identidade central: configuração única, logo sem imagem fixa nos geradores e padrão em todos os formatos', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const f of ['function idDocs()', 'function carimboDoc(', 'function metaDoc(', 'function linhaInstDoc()', 'function rodInstDoc()', 'function htmlIdDocs(', 'function previaIdDocs(', 'function tituloFormalDoc(', 'function logoDocSrc()']) assert.ok(app.includes(f), 'falta ' + f);
+  assert.ok(app.includes("sec('Identidade visual e documentos'"), 'seção nas Configurações');
+  // a logo dos documentos vem só da configuração central (CFG.marcaImg) ou da logo oficial embutida; nenhum gerador traz imagem própria
+  const fora = app.replace(/var LOGO_CC='data:image[^']+'/, '').split('\n').filter((l) => /addImage\(\s*'data:image|<img[^>]+class="fvd-logo"[^>]+src="data:image/.test(l));
+  assert.equal(fora.length, 0, 'imagem fixa em gerador de documento');
+  // tela, PDF e Word usam as mesmas peças centrais
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); return app.slice(i, app.indexOf(fim, i + ini.length)); };
+  const html = trecho('function htmlDoc(D,opc){', '\n/* ---------- PDF, no mesmo desenho'), pdf = trecho('function pdfDoc(D){', '\nconst nomeArqDoc='), word = trecho('function wordDoc(D){', '\nasync function baixarWordDoc');
+  for (const [n, t] of [['tela', html], ['PDF', pdf], ['Word', word]]) for (const peca of ['carimboDoc(D)', 'metaDoc(D)', 'sobreTituloDoc(D)', 'rodapeDoc(D)', 'linhaCabDoc(D)']) assert.ok(t.includes(peca), n + ' sem ' + peca);
+  // documentos com desenho próprio também passam pelo cabeçalho e rodapé centrais
+  assert.ok(/function faixaPdf\(p,e,tit,sub\)\{[^\n]*\n return cabPdfCC\(/.test(app), 'inventário usa o cabeçalho central');
+  assert.ok(trecho('function fichaFeriasPDF(fid){', '\n}\n').includes('cabPdfCC(') && trecho('function fichaFeriasPDF(fid){', '\n}\n').includes('rodPdfCC('), 'ficha de férias usa as peças centrais');
+  // impressão: página A4 numerada só para a folha de documento; ticket térmico e etiquetas continuam com a página própria
+  assert.ok(app.includes('#printDoc.folha{page:jbdoc}') && !/#printDoc\{page:jbdoc\}/.test(app), 'página A4 só para a folha');
+  assert.ok(app.includes('counter(page) " de " counter(pages)'), 'numeração de páginas na impressão');
+});
+teste('documentos', 'comprovante do lançamento (V120): em todos os setores, inclusive o Pessoal, só leitura', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('<script id="comprovante-lanc-v120">'), j = app.indexOf('</script>', i);
+  assert.ok(i > 0 && j > i, 'bloco do comprovante do lançamento');
+  const bloco = app.slice(i, j);
+  // telas do menu do DP e telas dos outros setores
+  assert.ok(bloco.includes('MENU.forEach') && bloco.includes('return DPS.has(mod)||') && bloco.includes('ROTAS_SETOR.includes(mod)'), 'regra de setor');
+  // só leitura: o bloco não grava, não apaga e não registra nada
+  assert.ok(!/\b(gravar|apagar|registrarLog|salvarRegistro)\(|APP\.db\b|\.set\(|\.delete\(/.test(bloco), 'o comprovante não pode gravar nada');
+  // sai do que está gravado e usa o visualizador central de documentos
+  assert.ok(bloco.includes('Salve as alterações antes') && bloco.includes('verDoc(D)') && bloco.includes("baseRel("), 'usa o registro gravado e o padrão dos documentos');
+  assert.ok(app.includes("COMP_LANC.botao(mod,st)") && app.includes("if(a==='comprovante')") && app.includes('data-a="comprovante"'), 'botão no lançamento e no compromisso do Financeiro');
+});
+teste('documentos', 'nomenclatura: títulos formais sem mudar os dados', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('const TITULOS_FORMAIS=['), j = app.indexOf('const CAB_FORMAL=', i);
+  assert.ok(i > 0 && j > i);
+  const { tituloFormalDoc } = new Function(app.slice(i, j) + ';return {tituloFormalDoc};')();
+  assert.equal(tituloFormalDoc('Contas a pagar'), 'Relatório de Contas a Pagar');
+  assert.equal(tituloFormalDoc('Custo da lenha mês a mês'), 'Demonstrativo Mensal do Custo da Lenha');
+  assert.equal(tituloFormalDoc('1. Vendas por período · 01/11/2026 a 30/11/2026'), 'Relatório de vendas por período · 01/11/2026 a 30/11/2026');
+  assert.equal(tituloFormalDoc('Relatório de contratos'), 'Relatório de contratos', 'o que já é formal não muda');
+  assert.equal(tituloFormalDoc('Espelho de ponto (gerencial) · Fulano · 11/2026'), 'Espelho de Ponto (gerencial) · Fulano · 11/2026');
+});
+/* ---------- V120: documento de cada lançamento, Lançamentos do setor e tela padrão de relatórios ---------- */
+teste('documentos', 'V120: Lançamentos do setor e documentos nos relatórios de todos os setores, só leitura, sem botão repetido', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  assert.equal(app.split('<script id="v120-relatorios-documentos">').length - 1, 1, 'bloco V120 uma vez só');
+  assert.ok(app.indexOf('<script id="v120-relatorios-documentos">') > app.indexOf('<script id="custo-buscar-v115">'), 'bloco V120 depois de todos os setores');
+  const bloco = trecho('<script id="v120-relatorios-documentos">', '</script>');
+  // só leitura: o bloco não grava, não apaga e não registra nada
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'gravarRegistro(', 'registrarLog(', '.set(', '.update(', '.delete(', 'salvarCfg(']) assert.ok(!bloco.includes(proibido), 'o bloco V120 não pode chamar ' + proibido);
+  for (const s of ['dp', 'producao', 'financeiro', 'vendas', 'lenha', 'combustivel', 'almox', 'paletes', 'barro', 'fiscal']) assert.ok(new RegExp('\\n ' + s + ':\\(\\)=>').test(trecho('const FONTES_LANC={', 'function lancamentosSetor(')), 'Lançamentos do setor sem o setor ' + s);
+  // a janela continua com um botão só (o Comprovante); os relatórios usam o mesmo documento
+  assert.ok(!/abrirRegistro\s*=|abrirObrig\s*=|telaFicha\s*=/.test(bloco), 'o bloco V120 não põe outro botão na janela');
+  assert.ok(bloco.includes('C.doc(mod,r)') && bloco.includes('C.docObrig(') && bloco.includes('const temDoc=mod=>!!MODS[mod]'), 'relatórios com o documento do botão Comprovante, em todos os setores');
+  assert.ok(bloco.includes('sensDe(mod,id)') && bloco.includes('veSensivel()'), 'documento respeita os campos sigilosos');
+  // tela padrão de relatórios: pesquisa, filtros, imprimir, compartilhar e linhas que abrem o lançamento
+  const rel = trecho('function telaRelatorios(el,cfg){', '\n/* ================= configurações');
+  for (const p of ['filtrosExtraRel(R,res,U)', 'data-x="imprimir"', 'data-x="compartilhar"', 'acaoLinhaRel(tr,', 'ligarFiltrosExtraRel(el,U)', "data-sem-total"]) assert.ok(rel.includes(p), 'telaRelatorios sem ' + p);
+  const exp = trecho('function exportar(formato,nome,cols,rows,titulo,opc){', '/* CSV para o Excel');
+  assert.ok(exp.includes("formato==='imprimir'") && exp.includes("formato==='compartilhar'"), 'exportar com Imprimir e Compartilhar');
+  // setores com tela própria de relatórios passam para a tela padrão, com os mesmos cálculos
+  assert.ok(trecho('function telaRelAlm(c){', '\n}\n').includes('dadosRelAlm()') && trecho('function telaRelAlm(c){', '\n}\n').includes('telaRelatorios(c,'), 'almoxarifado na tela padrão');
+  assert.ok(trecho('function telaRelPal(c){', '\n}\n').includes('dadosRelPal()') && app.includes('function dadosRelPal(){'), 'paletes na tela padrão');
+  assert.ok(trecho("function telaRel(c){\n if(UR.id&&UR.id!==URB._sinc", '\n}\n').includes('dadosRel()'), 'barro na tela padrão');
+  assert.ok(app.includes("{ r: '#/setor-fiscal/relatorios', k: 'relatorios'") && app.includes('relatorios: relatoriosFis'), 'Setor Fiscal com Relatórios');
+  // pesquisa e filtros de situação e responsável: mesma conta da tela, sem mexer nas linhas originais
+  const ajudas = trecho('const REL_COL_SIT=', '\nconst linhaAbreRel=');
+  const f = new Function('esc', 'semAcento', 'fData', 'fMoeda', 'fNum', 'fHm', ajudas + ';return {filtrosExtraRel};')(
+    (x) => String(x), (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), (x) => x, (x) => 'R$ ' + x, (x) => String(x), (x) => String(x)).filtrosExtraRel;
+  const res = { cols: [{ k: 'tipo', l: 'Tipo' }, { k: 'sit', l: 'Situação' }, { k: 'resp', l: 'Responsável' }], rows: [{ tipo: 'Vale', sit: 'Pago', resp: 'Ana' }, { tipo: 'Hora extra', sit: 'Pendente', resp: 'João' }, { tipo: 'Vale', sit: 'Pendente', resp: 'João' }] };
+  const R = { f: ['periodo'] };
+  let x = f(R, res, {});
+  assert.equal(x.rows.length, 3); assert.ok(!x.ativo && /data-r="_sit"/.test(x.html) && /data-r="_resp"/.test(x.html) && /data-rbusca/.test(x.html));
+  x = f(R, res, { _sit: 'Pendente' }); assert.equal(x.rows.length, 2); assert.ok(x.ativo);
+  x = f(R, res, { _sit: 'Pendente', _resp: 'Ana' }); assert.equal(x.rows.length, 0);
+  x = f(R, res, { _q: 'hóra' }); assert.deepEqual(x.rows.map((r) => r.tipo), ['Hora extra'], 'pesquisa sem diferença de acento');
+  x = f({ f: ['usuario', 'stvenda'] }, res, {}); assert.ok(!/data-r="_sit"/.test(x.html) && !/data-r="_resp"/.test(x.html), 'relatório que já filtra situação e usuário não ganha filtro repetido');
+  assert.equal(res.rows.length, 3, 'as linhas do relatório não mudam');
+});
+/* ---------- comprovante de entrega de lenha: conta com o fornecedor (pedido do Jeferson, 18/11/2026) ---------- */
+teste('documentos', 'comprovante de entrega de lenha: saldo anterior + esta entrega = total devido ao fornecedor, só leitura', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  const fn = trecho('function contaFornLenhaV(v){', '\nfunction docEntregaLenhaV(v){');
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(', '.set(', '.update(', '.delete(']) assert.ok(!fn.includes(proibido), 'a conta do comprovante não pode gravar nada: ' + proibido);
+  const doc = trecho('function docEntregaLenhaV(v){', '\nfunction docRelLenhaDonoV(v){');
+  assert.ok(doc.includes("total:['TOTAL DEVIDO',fMoeda(cf.total)]") && doc.includes("foot:['Total devido ao fornecedor',fMoeda(cf.total)]"), 'cupom e folha A4 com o total devido ao fornecedor');
+  // o cupom (tela e PDF) desenha o total do bloco no mesmo destaque do total do cupom
+  assert.ok(app.includes('${b.total?`<div class="cp-sep d"></div><div class="cp-total">') && app.includes('if(b.total){sep(1);lr(b.total[0],b.total[1],{b:1,s:fs+2.4})'), 'total do bloco no cupom (tela e PDF)');
+  const r2 = (v) => Math.round((+v || 0) * 100) / 100;
+  const montar = (win, DATA, finVenda) => new Function('ehLenhaV', 'cancV', 'round2', 'window', 'DATA', 'finVenda', 'console', fn + ';return contaFornLenhaV;')(
+    (v) => !!(v && v.setor === 'lenha' && v.tipoOp === 'compra'), (v) => !!v && v.status === 'Cancelada', r2, win, DATA, finVenda, { warn() {} });
+  const v = { id: 'e3', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-12', numero: 6, total: 300 };
+  // com o Financeiro: os saldos do CPL_LENHA; mesmo dia conta pelo número; compromisso da conta entra pela data
+  const conta = { saldo: 2075, credito: 0, ents: [{ id: 'e1', data: '2026-11-10', numero: 2, saldo: 1000 }, { id: 'e2', data: '2026-11-12', numero: 5, saldo: 500 }, { id: 'e3', data: '2026-11-12', numero: 6, saldo: 300 }, { id: 'e4', data: '2026-11-13', numero: 7, saldo: 200 }],
+    tits: [{ data: '2026-11-11', saldo: 50 }, { data: '2026-11-14', saldo: 25 }] };
+  let pedido = null;
+  let f = montar({ CPL_LENHA: { conta: (fid) => { pedido = fid; return conta; } } }, { compras: [] }, () => ({ saldo: 0 }));
+  let x = f(v);
+  assert.equal(pedido, 'f1');
+  assert.deepEqual([x.antes, x.esta, x.depois, x.total, x.credito], [1550, 300, 225, 2075, 0], 'antes 1.000 + 500 + 50 · esta 300 · depois 200 + 25');
+  assert.equal(r2(x.antes + x.esta + x.depois), x.total, 'a conta fecha');
+  // cancelada, importada do controle antigo, sem fornecedor ou fora da lenha: sem conta
+  for (const w of [{ ...v, status: 'Cancelada' }, { ...v, historico: true }, { ...v, fornecedorId: '' }, { ...v, setor: 'combustivel' }]) assert.equal(f(w), null);
+  // entrega que o Financeiro não conhece ou falha na conta: sem o quadro (o comprovante sai igual)
+  assert.equal(f({ ...v, id: 'outra' }), null);
+  assert.equal(montar({ CPL_LENHA: { conta: () => { throw new Error('falha'); } } }, { compras: [] }, () => ({ saldo: 0 }))(v), null);
+  // crédito da cerâmica (adiantamento ou combustível acima do devido)
+  x = montar({ CPL_LENHA: { conta: () => ({ saldo: 0, credito: 250, ents: [{ id: 'e3', data: '2026-11-12', numero: 6, saldo: 0 }], tits: [] }) } }, { compras: [] }, () => ({ saldo: 0 }))(v);
+  assert.deepEqual([x.antes, x.esta, x.total, x.credito], [0, 0, 0, 250]);
+  // sem o módulo do Financeiro: soma dos saldos das entregas do mesmo fornecedor (outras ficam de fora)
+  const compras = [{ ...v, s: 300 }, { id: 'e1', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 2, s: 1000.1 },
+    { id: 'e4', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-13', numero: 7, s: 200.2 }, { id: 'x1', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f2', data: '2026-11-10', numero: 3, s: 999 },
+    { id: 'x2', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 4, s: 999, status: 'Cancelada' }, { id: 'x3', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-01-10', numero: 1, s: 999, historico: true },
+    { id: 'x4', setor: 'combustivel', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 8, s: 999 }];
+  x = montar({}, { compras }, (c) => ({ saldo: c.s }))(v);
+  assert.deepEqual([x.antes, x.esta, x.depois, x.total], [1000.1, 300, 200.2, 1500.3]);
+});
+/* =====================================================================
+   Contratos com inteligência artificial (V125)
+   ===================================================================== */
+teste('contratos', 'aba Contratos: criação por pedido livre, biblioteca, base jurídica e documento assinado travado', () => {
+  const app = ler('app/jb-gestao.html');
+  assert.equal(app.split('function telaCentral(el){').length - 1, 1, 'uma só tela de Contratos no Setor Pessoal (a nova substitui a antiga)');
+  for (const f of ['function telaCtIA(', 'function ctVerificar(', 'function ctRefs(', 'function ctAplicarOps(', 'async function ctRegistrarAssinatura(', 'function ctDerivar(', 'function ctDuplicar(', 'async function ctSalvarModelo(']) assert.ok(app.includes(f), f);
+  assert.ok(app.includes('Criar contrato com inteligência artificial') && app.includes('Descreva o contrato ou documento que você precisa. Explique a finalidade, as condições, as obrigações e as informações que deseja incluir.'), 'campo de pedido livre com a orientação');
+  assert.ok(app.includes("if(rec&&rec.modelo==='ia')return telaCtIA(el,rec);") && app.includes("if(r.id==='ia')return telaCtIA(el,null);"), 'o documento da IA abre pela mesma rota dos documentos');
+  // regras que a IA recebe sempre
+  const regras = app.slice(app.indexOf('function ctRegras(S){'), app.indexOf('function ctCtxPedido(S){'));
+  for (const r of [/Não invente artigo, lei, decisão judicial nem obrigação/, /só cite lei, artigo, norma ou entendimento que esteja na BASE JURÍDICA/, /nunca escreva cláusula genérica para afastar direitos trabalhistas/, /\[PREENCHER: o que falta\]/, /Nunca diga que o documento substitui advogado/, /Não peça confirmação, não faça perguntas, não recuse por discordar/, /você não faz validação jurídica, só aponta pontos de atenção/, /\{\{empresa\.rep_cpf\}\}/]) assert.match(regras, r);
+  assert.ok(!/s\.cpf|s\.rg|s\.endereco|s\.salario/.test(app.slice(app.indexOf('function ctCtxPedido(S){'), app.indexOf('function ctPromptInterpretar('))), 'dado pessoal do cadastro não entra no pedido à IA (só marcadores)');
+  // base jurídica: toda referência com endereço oficial
+  const base = app.slice(app.indexOf('const CT_BASE=['), app.indexOf('const ctBase=()=>'));
+  const urls = base.match(/url:(CT_URL_C(C|LT)|'[^']+')/g) || [];
+  assert.ok(urls.length >= 25, 'base jurídica encolheu: ' + urls.length);
+  urls.forEach((u) => assert.match(u, /CT_URL_|'https:\/\/www\.(planalto\.gov\.br|gov\.br|tst\.jus\.br)/, 'endereço fora das fontes oficiais: ' + u));
+  // assinatura só com comprovação; assinado não é alterado
+  assert.match(app, /if\(s==='Assinado'\|\|s==='Vigente'\)return ctRegistrarAssinatura\(rec\);/);
+  assert.match(app, /!o\.comprovante\?'Informe a comprovação da assinatura\.'/);
+  assert.match(app, /if\(!novo&&CT_TRAVADO\(base\.status\)&&!opc\.forcar\)throw \{code:'travado'\};/);
+  assert.ok(app.includes("if(r.x==='editar'&&podeDoc(m,'e')&&!CT_TRAVADO(rec.status))return telaEditorDoc(el,m,rec);"), 'documento antigo assinado também não abre para edição');
+});
+teste('contratos', 'formato do documento e operações de edição: o que a IA não citou fica letra por letra', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('const ctLinhas=t=>'), app.indexOf('/* ---------- marcadores: dado pessoal do cadastro não vai para a IA ---------- */'));
+  const { ctLerDoc, ctEscreverDoc, ctAplicarOps } = new Function('clone', cod + ';return {ctLerDoc,ctEscreverDoc,ctAplicarOps};')((o) => (o == null ? o : JSON.parse(JSON.stringify(o))));
+  const texto = 'Segue.\n@@TITULO: contrato de locação\n@@SUBTITULO: Código Civil, arts. 565 a 578\n@@CATEGORIA: civil\n@@VISUAL: contrato\n@@VINCULO: nao_se_aplica\n@@OUTRA-PARTE: Locadora X\n@@INICIO: 2026-12-01\n@@TERMINO: 31/12/2027\n@@PARTE: locatária\nRazão social: Empresa\nCNPJ: 11.222.333/0001-81\n@@PARTE: LOCADORA\nRazão social: Locadora X\n@@ABERTURA\nAs partes ajustam.\n@@CLAUSULA: Do objeto\nLocação de uma pá carregadeira.\na) com operador;\n@@CLAUSULA: Do preço\nR$ 1,00.\n@@CLAUSULA: Do foro\nForo local.\n@@FECHO\nAssinam.\n@@LOCAL-DATA: Cidade/UF, 1 de dezembro de 2026.\n@@ASSINATURA: Empresa | LOCATÁRIA\n@@ASSINATURA: Locadora X | LOCADORA\n@@TESTEMUNHAS: sim\n@@ANALISE-ATENCAO\n- Conferir o seguro.\n@@ALERTA-VINCULO\nnenhum\n@@FIM';
+  const L = ctLerDoc(texto, { mapa: { '{{pessoa.cpf}}': '1' } });
+  assert.equal(L.doc.titulo, 'CONTRATO DE LOCAÇÃO'); assert.equal(L.doc.clausulas.length, 3); assert.equal(L.doc.partes[0].papel, 'LOCATÁRIA');
+  assert.deepEqual(L.doc.partes[0].campos[1], ['CNPJ', '11.222.333/0001-81'], 'o valor pode ter dois-pontos e barras');
+  assert.equal(L.doc.inicio, '2026-12-01'); assert.equal(L.doc.termino, '', 'data fora do formato não vira vigência');
+  assert.equal(L.doc.assinaturas.length, 2); assert.equal(L.doc.testemunhas, true); assert.deepEqual(L.analise.atencao, ['Conferir o seguro.']); assert.equal(L.analise.alertaVinculo, '');
+  assert.deepEqual(L.doc.mapa, { '{{pessoa.cpf}}': '1' }, 'os marcadores acompanham o documento');
+  assert.equal(ctLerDoc(texto.slice(0, texto.indexOf('@@CLAUSULA: Do preço'))).doc.clausulas.length, 1, 'texto ainda chegando também é lido');
+  assert.deepEqual(ctLerDoc(ctEscreverDoc(L.doc)).doc.clausulas, L.doc.clausulas, 'ida e volta sem perda');
+  const antes = JSON.stringify(L.doc);
+  const r = ctAplicarOps(L.doc, '@@RESPOSTA\nFeito.\n@@ALTERAR-CLAUSULA: [2] | Do preço e do reajuste\nR$ 2,00.\n@@NOVA-CLAUSULA-APOS: 1 | Do seguro\nO bem terá seguro.\n@@REMOVER-CLAUSULA: 9\n@@ALTERAR-DATAS: termino=2027-12-31\n@@FIM');
+  assert.equal(JSON.stringify(L.doc), antes, 'o documento original não é mexido');
+  assert.deepEqual(r.doc.clausulas.map((c) => c.t), ['Do objeto', 'Do seguro', 'Do preço e do reajuste', 'Do foro']);
+  assert.deepEqual(r.doc.clausulas[0], L.doc.clausulas[0]); assert.deepEqual(r.doc.clausulas[3], L.doc.clausulas[2]); assert.equal(r.doc.clausulas[2].x, 'R$ 2,00.');
+  assert.equal(r.doc.termino, '2027-12-31'); assert.equal(r.resposta, 'Feito.'); assert.equal(r.mudancas.length, 3, 'número de cláusula que não existe é ignorado');
+  assert.deepEqual(r.doc.partes, L.doc.partes); assert.equal(r.doc.abertura, L.doc.abertura); assert.equal(r.doc.fecho, L.doc.fecho);
+  const e = ctAplicarOps(L.doc, 'A cláusula do foro diz onde uma ação seria julgada.');
+  assert.equal(e.mexeu, false); assert.equal(e.resposta, 'A cláusula do foro diz onde uma ação seria julgada.'); assert.deepEqual(e.doc.clausulas, L.doc.clausulas);
+  const rem = ctAplicarOps(L.doc, '@@REMOVER-CLAUSULA: 2\n@@FIM');
+  assert.deepEqual(rem.doc.clausulas.map((c) => c.t), ['Do objeto', 'Do foro']);
+});
+teste('contratos', 'autonomia (V127): sem rodada de perguntas, sem etapa jurídica obrigatória e sem travas por limite legal', () => {
+  const app = ler('app/jb-gestao.html');
+  const enviar = app.slice(app.indexOf('async function ctEnviar(txt){'), app.indexOf('/* ---------- ditado por voz'));
+  assert.ok(!enviar.includes('ctInterpretar(') && enviar.includes('return ctElaborar();') && enviar.includes('ctAcharPessoa('), 'o pedido vai direto para a redação, com a pessoa do cadastro');
+  assert.ok(!app.includes("add(8,'Revisão por profissional'") && !app.includes('Consultando a base jurídica') && !app.includes("'Análise jurídica'"), 'nada de etapa ou aba de análise jurídica obrigatória');
+  assert.ok(app.includes('O sistema não faz validação nem parecer jurídico'), 'a tela não afirma validação jurídica');
+  const salvar = app.slice(app.indexOf('async function salvarEditorDoc('), app.indexOf('let DOC_APOS=null;'));
+  assert.ok(!salvar.includes("'Campo obrigatório.'") && !salvar.includes('await confirmar(') && salvar.includes('avisos.push('), 'campo em branco e limite legal viram aviso, não trava');
+  assert.ok(app.includes("if(st==='Pronto para assinar'){S.rec=await mudarStatusDoc(S.rec,'Rascunho')"), 'aguardando assinatura: altera e volta para rascunho');
+  assert.match(app, /if\(!novo&&CT_TRAVADO\(base\.status\)&&!opc\.forcar\)throw \{code:'travado'\};/, 'documento assinado continua protegido');
+  assert.ok(app.includes("data-ch=\"${esc(String(S.chave))}\"") && app.includes('function fvdRemendar(art,novoArt){'), 'tela fixa e documento remendado por partes');
+});
+teste('contratos', 'comandos simples na hora, sem IA: só o trecho pedido muda; na dúvida, o pedido segue para a IA', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('const CT_CL_PRONTAS=['), app.indexOf('/* pedidos pequenos vão para a IA no modo leve'));
+  const semAcento = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const { ctComandoLocal } = new Function('clone', 'semAcento', 'sMoeda', 'extensoMoeda', cod + ';return {ctComandoLocal};')(
+    (o) => JSON.parse(JSON.stringify(o)), semAcento, (v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), (v) => 'por extenso ' + v);
+  const doc = { titulo: 'CONTRATO DE TRABALHO', clausulas: [
+    { t: 'Da função', x: 'O(A) EMPREGADO(A) exercerá a função de Forneiro, no setor Queima.' },
+    { t: 'Do salário', x: 'O salário mensal é de R$ 1.850,00 (um mil oitocentos e cinquenta reais), pago até o 5º dia útil.' },
+    { t: 'Da jornada', x: 'A jornada é de 44 horas semanais.' },
+    { t: 'Das disposições gerais', x: 'Aplica-se a CLT.' }] };
+  const antes = JSON.stringify(doc);
+  let r = ctComandoLocal(doc, 'Altere o salário para R$ 2.800.');
+  assert.ok(r && r.mexeu); assert.equal(JSON.stringify(doc), antes, 'o original não é mexido');
+  assert.equal(r.doc.clausulas[1].x, 'O salário mensal é de R$ 2.800,00 (por extenso 2800), pago até o 5º dia útil.');
+  [0, 2, 3].forEach((i) => assert.deepEqual(r.doc.clausulas[i], doc.clausulas[i], 'as outras cláusulas ficam letra por letra'));
+  assert.equal(ctComandoLocal(doc, 'mude o salário para 2,8 mil').doc.clausulas[1].x.includes('R$ 2.800,00'), true);
+  const marc = { titulo: 'X', clausulas: [{ t: 'Do salário', x: 'O salário é de {{pessoa.salario}}.' }] };
+  assert.equal(ctComandoLocal(marc, 'Altere o salário para 3000').doc.clausulas[0].x, 'O salário é de R$ 3.000,00 (por extenso 3000).', 'troca também o marcador do cadastro');
+  r = ctComandoLocal(doc, 'Mude o cargo para Auxiliar de Produção');
+  assert.equal(r.doc.clausulas[0].x, 'O(A) EMPREGADO(A) exercerá a função de Auxiliar de Produção, no setor Queima.');
+  r = ctComandoLocal(doc, 'Adicione uma cláusula de confidencialidade');
+  assert.deepEqual(r.doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Da jornada', 'Da confidencialidade', 'Das disposições gerais'], 'entra antes das disposições gerais');
+  const de = ctComandoLocal(r.doc, 'Adicione uma cláusula de confidencialidade');
+  assert.ok(de && !de.mexeu && /já tem/.test(de.resposta), 'não duplica cláusula');
+  assert.deepEqual(ctComandoLocal(doc, 'Retire a cláusula 3').doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Das disposições gerais']);
+  assert.deepEqual(ctComandoLocal(doc, 'remova a cláusula da jornada').doc.clausulas.map((c) => c.t), ['Da função', 'Do salário', 'Das disposições gerais']);
+  assert.deepEqual(ctComandoLocal(doc, 'tire a terceira cláusula').doc.clausulas.length, 3);
+  assert.equal(ctComandoLocal(doc, 'Retire a cláusula 9').mexeu, false, 'cláusula que não existe: avisa e não mexe');
+  assert.equal(ctComandoLocal(doc, 'Mude o título para contrato de experiência').doc.titulo, 'CONTRATO DE EXPERIÊNCIA');
+  // na dúvida, não adivinha: segue para a IA
+  const dois = { titulo: 'X', clausulas: [{ t: 'Do preço', x: 'Valor de R$ 100,00 e multa de R$ 50,00.' }] };
+  const nasPartes = { titulo: 'X', partes: [{ papel: 'EMPREGADO(A)', campos: [['Salário', 'R$ 1.850,00']] }], clausulas: [{ t: 'Do salário', x: 'O salário é de R$ 1.850,00 (um mil oitocentos e cinquenta reais).' }] };
+  const extensoSolto = { titulo: 'X', clausulas: [{ t: 'Do salário', x: 'O salário é de R$ 1.850,00 por mês (um mil oitocentos e cinquenta reais).' }] };
+  const cargoComSetor = { titulo: 'X', clausulas: [{ t: 'Da função', x: 'Exercerá a função de Forneiro no setor de Queima, com zelo.' }] };
+  for (const [d, p] of [[nasPartes, 'Altere o salário para 2800'], [extensoSolto, 'Altere o salário para 2800'], [cargoComSetor, 'Mude o cargo para Operador'], [doc, 'Mude o cargo para Operador a partir de 01/12'], [doc, 'Adicione uma cláusula de confidencialidade por 5 anos']])
+    assert.equal(ctComandoLocal(d, p), null, 'alvo incerto ou pedido com condição própria vai para a IA: ' + p);
+  for (const [d, p] of [[dois, 'Altere o valor para 200'], [doc, 'Adicione uma cláusula sobre uso do celular no trabalho'], [doc, 'Altere o salário para 2800 e inclua uma cláusula de sigilo'], [doc, 'Explique a cláusula 2?'], [doc, 'Melhore este contrato'], [doc, 'retire a cláusula das obrigações'], [doc, 'Mude a jornada para 40 horas']])
+    assert.equal(ctComandoLocal(d, p), null, 'deveria ir para a IA: ' + p);
+});
+teste('contratos', 'pessoa do cadastro: só liga quando o nome é inconfundível (dado pessoal nunca vai para o contrato da pessoa errada)', () => {
+  const app = ler('app/jb-gestao.html');
+  const cod = app.slice(app.indexOf('function ctAcharPessoa(texto){'), app.indexOf('async function ctEnviar(txt){'));
+  const semAcento = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const DATA = { funcionarios: [
+    { id: 'a', nome: 'João Pedro Barbosa', situacao: 'Ativo' }, { id: 'b', nome: 'Maria de Jesus Silva', situacao: 'Ativo' }, { id: 'c', nome: 'Maria de Jesus Costa', situacao: 'Ativo' },
+    { id: 'd', nome: 'Ana Paula Souza', situacao: 'Ativo' }, { id: 'e', nome: 'Carlos Alberto Lima', situacao: 'Desligado' }, { id: 'f', nome: 'Raimundo', situacao: 'Ativo' }] };
+  const { ctAcharPessoa } = new Function('DATA', 'filtroSetor', 'semAcento', cod + ';return {ctAcharPessoa};')(DATA, (l) => l, semAcento);
+  const id = (t) => { const f = ctAcharPessoa(t); return f ? f.id : null; };
+  assert.equal(id('Contrato de experiência de 45 dias para João Pedro Barbosa'), 'a', 'nome completo');
+  assert.equal(id('contrato de experiência para o joão pedro, auxiliar de produção'), 'a', 'dois primeiros nomes, sem diferença de maiúscula ou acento');
+  assert.equal(id('Contrato para João Pedro, Auxiliar de Produção'), 'a', 'vírgula depois do nome separa o cargo');
+  assert.equal(id('Contrato para a Ana Paula com salário de R$ 2.000'), 'd');
+  assert.equal(id('Contrato para João Pedro Almeida'), null, 'outro sobrenome: é outra pessoa');
+  assert.equal(id('Contrato para João Pedro da Silva'), null, 'outro sobrenome depois de "da"');
+  assert.equal(id('Contrato para Maria de Fátima'), null); assert.equal(id('Contrato para Maria de Jesus'), null, 'duas pessoas com o mesmo começo de nome: não escolhe');
+  assert.equal(id('Contrato para Maria de Jesus Costa'), 'c');
+  assert.equal(id('Contrato para o João'), null, 'só o primeiro nome não liga ninguém'); assert.equal(id('Contrato para o Raimundo'), null);
+  assert.equal(id('Contrato para Carlos Alberto Lima'), null, 'desligado não entra'); assert.equal(id('Contrato de manutenção para uma empresa'), null);
+});
+teste('contratos', 'redator da nuvem: adaptador e função do servidor conferem a sessão e a permissão; a chave nunca vai para o navegador', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /functions\/v1\/jb-contratos-ia/); assert.match(nv, /if \(nome === 'redator'\) \{ await pronto; return redator; \}/);
+  assert.match(nv, /ler: function \(corpo, sinal, aoAndar\) \{ return pedirFluxo\(LEITOR, corpo, sinal, aoAndar\); \}/, 'a leitura por foto continua pelo mesmo caminho');
+  assert.match(app, /if\(w&&typeof w\.use==='function'&&window\.JB_NUVEM\)\{try\{APP\.redator=await w\.use\('redator'\)/);
+  assert.match(app, /APP\.redator\.escrever\(\{mensagens:input,rapido:!!o\.rapido,longo:!!o\.longo\}/);
+  assert.match(app, /ctPromptElaborar\(S\)\}\],\{signal:S\.ctl\.signal,rapido:true,longo:true,tier:'complex'/, 'a redação pede resposta ligeira e comprida (o texto começa a chegar antes)');
+  if (existsSync(join(RAIZ, 'supabase/functions/jb-contratos-ia/index.ts'))) {
+    const fn = ler('supabase/functions/jb-contratos-ia/index.ts');
+    assert.match(fn, /rpc\/jb_eu/, 'a sessão é conferida pela mesma regra do sistema');
+    assert.match(fn, /!!eu\.admin \|\| \(!!\(p\.dp && p\.dp\.criar\) && !!\(p\.dp_sensivel && p\.dp_sensivel\.ler\)\)/, 'só quem cria no Setor Pessoal e vê dados pessoais');
+    assert.match(fn, /Deno\.env\.get\("ANTHROPIC_API_KEY"\)/); assert.ok(!/sk-ant-[A-Za-z0-9]/.test(fn), 'nenhuma chave escrita na função');
+    assert.match(fn, /includes\(MARCA\)/, 'só atende o pedido montado pelo programa'); assert.match(fn, /MAX_LETRAS/);
+    assert.match(fn, /max_tokens: corpo\.rapido === true && corpo\.longo !== true \? 4000 : 32000,/, 'pedido rápido e comprido (redação) não é cortado em 4000');
+    assert.match(fn, /application\/x-ndjson/); assert.match(fn, /cortado: msg\.stop_reason === "max_tokens"/); assert.match(fn, /cancel\(\) \{ parar\(\); \}/);
+  }
+});
+teste('nuvem', 'acesso por setor (16/11/2026): cadastros de um setor guardados no módulo de outro chegam a quem trabalha no setor', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js');
+  assert.match(nv, /sb\.rpc\('jb_compartilhados'\)/, 'o adaptador pede ao servidor os cadastros compartilhados');
+  assert.match(nv, /r\.error\.code === 'PGRST202' \|\| r\.error\.code === '42883'/, 'servidor sem a função: segue como antes (não trava a entrada)');
+  assert.match(nv, /var comp = lerCompartilhados\(\)\.catch/, 'a carga completa já traz os compartilhados junto');
+  assert.match(nv, /if \(!novo\.has\(k\)\) novo\.set\(k,/, 'documento que a pessoa lê inteiro nunca é trocado pela parte compartilhada');
+  assert.match(nv, /parciais\.size\) atualizarCompartilhados\(\)/, 'coleção parcial (sem tempo real) é conferida ao voltar para a aba');
+  assert.match(nv, /agendarCompartilhados\(p\.colecao\)/, 'depois de gravar, confere o que o servidor completou (ex.: número do compromisso)');
+  assert.match(nv, /window\.JB_SETOR_SRV = function \(id\)/, 'setores sem acesso no servidor não aparecem na nuvem');
+  assert.match(app, /const setorVisivel=s=>\(!s\.v\|\|s\.v\(\)\)&&\(typeof window\.JB_SETOR_SRV!=='function'\|\|window\.JB_SETOR_SRV\(s\.id\)!==false\);/, 'fora da nuvem a regra dos setores não muda');
+  assert.match(app, /const ult=setorUlt\(\);const vis=SETORES\.filter\(setorVisivel\);/, 'tela de setores usa a mesma regra');
+  assert.match(app, /const vis=SETORES\.filter\(typeof setorVisivel==='function'\?setorVisivel:/, 'trilho dos setores usa a mesma regra');
+  if (existsSync(join(RAIZ, 'supabase/migrations/20261116150000_seg_compartilhar_setores.sql'))) {
+    const m = ler('supabase/migrations/20261116150000_seg_compartilhar_setores.sql');
+    assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261116150000_seg_compartilhar_setores.down.sql')), 'reversão descrita');
+    assert.ok(!/\bdrop\b/i.test(m.replace(/--.*$/gm, '')), 'a migração só acrescenta (sem drop: pelo celular a confirmação não aparece)');
+    assert.match(m, /revoke all on function public\.jb_compartilhados\(\) from public, anon;/);
+    assert.match(m, /grant execute on function public\.jb_compartilhados\(\) to authenticated;/);
+    const li = /function seg\.leitura_item[\s\S]*?\$function\$;/.exec(m)[0];
+    assert.ok(!/'mei'|Mão de obra|Funcionários/.test(li), 'MEI e pagamento de pessoal nunca são compartilhados');
+    assert.match(m, /v := v - 'saldoInicial' - 'dataSaldoInicial' - 'obs';/, 'conta compartilhada vai sem o saldo inicial');
+    const fu = /'dados', jsonb_strip_nulls\(jsonb_build_object\(([\s\S]*?)\)\)\)\);/.exec(m)[1];
+    assert.ok(!/sensivel|cpf|salario|obs|formaRemuneracao|telefone|email/i.test(fu), 'do funcionário só vão nome e função');
+    assert.match(m, /\(ea and m_a is null\) or \(eb and m_b is null\) or \(ea and eb and m_a is distinct from m_b\)/, 'gravar item compartilhado: antes e depois do mesmo setor');
+    assert.match(m, /pg_advisory_xact_lock\(hashtext\('jb-fin-numero'\)\)/, 'número do compromisso sem repetição');
+  }
+});
+/* o pacote do publicador da nuvem não leva supabase/migrations: aí esta conferência fica para o repositório (GitHub Actions e antes do commit) */
+if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.sql'))) teste('inventario', 'banco: só a função conferida é exposta, e só para usuário logado; histórico imutável', () => {
+  const m = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
+  assert.ok(/revoke all on function public\.jb_inv\(text,jsonb\) from public,anon/.test(m));
+  assert.ok(/grant execute on function public\.jb_inv\(text,jsonb\) to authenticated/.test(m));
+  assert.ok(!/grant[^;]+schema inv/i.test(m), 'esquema inv não pode ser liberado');
+  for (const t of ['auditoria', 'movimentacoes', 'leituras']) assert.ok(m.includes(`create trigger imutavel before update or delete on inv.${t}`), t);
+  assert.ok(m.includes('unique (empresa_id,codigo_patrimonial)'), 'código único por empresa');
+  assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.down.sql')), 'reversão descrita');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

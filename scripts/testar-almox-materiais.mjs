@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Teste de ponta a ponta do almoxarifado e do patrimônio (V58) no navegador, com o banco
+// Teste de ponta a ponta do cadastro de materiais do almoxarifado (V136) no navegador, com o banco
 // central simulado (scripts/lib/servidor-falso.mjs) e só dados de exemplo:
 //   - grupo de materiais, cadastro de vários itens de uma vez, item com reposição
 //   - custo de referência, consumo médio, ponto de reposição, curva ABC e relatórios
-//   - cadastro de bens, termo de responsabilidade e inventário patrimonial completo
-// Uso: node scripts/construir.mjs && node scripts/testar-almox-patrimonio.mjs [pasta-das-capturas]
+//   - folha de contagem e aviso dos itens sem contagem no inventário do almoxarifado
+// Uso: node scripts/construir.mjs && node scripts/testar-almox-materiais.mjs [pasta-das-capturas]
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -43,8 +43,9 @@ await page.addInitScript(({ codigo, docs }) => {
 await page.goto(base + '/saida/claude.html');
 await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 });
 const ir = async (h, sel) => { await page.evaluate((h) => { location.hash = h; }, h); await page.waitForTimeout(500); if (sel) await page.waitForSelector(sel, { timeout: 8000 }); };
-const salvar = async () => { await page.evaluate(() => document.querySelector('[data-acao="salvar"]').click()); };
-const fechou = () => page.waitForFunction(() => !document.querySelector('#camada .gaveta'), null, { timeout: 10000 });
+const visivel = () => page.evaluate(() => [...document.querySelectorAll('[data-acao="salvar"]')].filter((b) => b.offsetParent !== null).length);
+const salvar = async () => { await page.evaluate(() => { const bs = [...document.querySelectorAll('[data-acao="salvar"]')].filter((b) => b.offsetParent !== null); bs[bs.length - 1].click(); }); };
+const fechou = () => page.waitForFunction(() => ![...document.querySelectorAll('[data-acao="salvar"]')].some((b) => b.offsetParent !== null), null, { timeout: 10000 });
 const foto = (n) => page.screenshot({ path: join(OUT, n + '.png'), fullPage: false });
 try {
   // 1. grupos
@@ -84,7 +85,9 @@ try {
   await salvar(); await page.waitForTimeout(400);
   ok(await page.locator('[data-campo="maximo"].erro').count() === 1, 'máximo menor que o mínimo é recusado');
   await page.fill('[data-k="maximo"]', '10'); await foto('04-item-novo');
-  await salvar(); await fechou();
+  await page.waitForTimeout(800); // o sistema ignora um segundo clique em menos de 0,7 s
+  await salvar();
+  await fechou();
   const novo = await page.evaluate(() => { const i = DATA.almItens.find(x => x.nome === 'Rolamento 6310 C3'); return { ...i, e: ALMOX_V52.estI(i.id), p: ALMOX_V52.repI(i) }; });
   ok(novo.codigo === 'PEC-004' && novo.custoRef === 85.5 && novo.maximo === 10, 'item salvo com código ' + novo.codigo + ', custo de referência e máximo');
   ok(novo.p.ponto === 2 && novo.p.comprar === 10, `sem saldo: ponto ${novo.p.ponto}, comprar ${novo.p.comprar}`);
@@ -102,76 +105,30 @@ try {
   await page.selectOption('#aeS', 'Repor agora'); await page.waitForTimeout(400);
   ok(await page.locator('tr[data-go^="#/almItens/"]').count() === 1, 'filtro "Repor agora" mostra 1 item');
   await page.selectOption('#aeS', '');
-  await ir('#/almRel', '#arId');
-  for (const r of ['repor', 'abc', 'grupo']) { await page.selectOption('#arId', r); await page.waitForTimeout(300); ok(await page.locator('#svCorpo tbody tr').count() >= 1, 'relatório ' + r + ' com linhas'); }
+  await ir('#/almRel', '#svCorpo a[data-rel]');
+  for (const [r, tx] of [['repor', 'Rolamento 6310 C3'], ['abc', 'Rolamento 6310 C3'], ['grupo', 'Rolamentos']]) {
+    await page.click(`#svCorpo a[data-rel="${r}"]`); await page.waitForTimeout(500);
+    const t = await page.locator('#svCorpo').innerText();
+    ok(t.includes(tx), 'relatório ' + r + ' mostra ' + tx);
+  }
   await foto('06-relatorio-grupo');
   await ir('#/almItens/' + novo.id, '#frm'); await page.waitForTimeout(300); await foto('07-item-estoque');
   await page.click('.gav-cab [data-fechar]'); await fechou();
-  // 4. patrimônio
-  await ir('#/patBens', '#bNovo'); await foto('08-patrimonio-vazio');
-  await page.click('#bNovo'); await page.waitForSelector('#frm [data-k="nome"]'); await page.waitForTimeout(200);
-  await page.selectOption('[data-k="tipo"]', 'Máquinas e equipamentos');
-  ok(await page.inputValue('[data-k="vidaAnos"]') === '10', 'vida útil sugerida pelo tipo');
-  await page.fill('[data-k="nome"]', 'Maromba a vácuo'); await page.fill('[data-k="marca"]', 'Bonfanti'); await page.fill('[data-k="setor"]', 'Maromba');
-  await page.selectOption('[data-k="funcId"]', 'f1'); await page.fill('[data-k="aquisicao"]', '2021-11-10'); await page.fill('[data-k="valor"]', '120.000,00');
-  await page.waitForTimeout(400); await foto('09-bem-novo');
-  ok(/60\.000,00/.test(await page.inputValue('[data-campo="_vh"] input')), 'valor estimado hoje: ' + await page.inputValue('[data-campo="_vh"] input'));
-  await salvar(); await fechou();
-  await page.evaluate(async () => { for (const [n, t, s, f] of [['Caminhão basculante', 'Veículos e caminhões', 'Entrega / Frota', 'f2'], ['Computador do escritório', 'Informática e eletrônicos', 'Escritório', ''], ['Empilhadeira', 'Máquinas e equipamentos', 'Carregamento / Pátio', 'f1']]) { const st = { ...MODS.patBens.padrao(), id: novoId(), nome: n, tipo: t, setor: s, funcId: f }; const r = conferirRegistro('patBens', st); if (Object.keys(r.erros).length) throw new Error(JSON.stringify(r.erros)); await gravarRegistro('patBens', st, null, true); } });
-  await page.waitForFunction(() => DATA.patBens.length === 4, null, { timeout: 8000 });
-  const nums = await page.evaluate(() => DATA.patBens.map(b => b.numero).sort().join());
-  ok(nums === 'PAT-0001,PAT-0002,PAT-0003,PAT-0004', 'plaquetas em sequência: ' + nums);
-  await ir('#/patBens', '#bNovo'); await page.waitForTimeout(300); await foto('10-patrimonio-lista');
-  // número repetido
-  const dup = await page.evaluate(() => conferirRegistro('patBens', { ...MODS.patBens.padrao(), id: 'x', nome: 'Outro', tipo: 'Outros', setor: 'Fornos', numero: 'pat-0001' }).erros);
-  ok(!!dup.numero, 'número de patrimônio repetido é recusado');
-  // termo
-  const b1 = await page.evaluate(() => DATA.patBens.find(b => b.nome === 'Maromba a vácuo').id);
-  await page.evaluate((id) => ALMOX_V52.termoBem(id), b1); await page.waitForTimeout(400); await foto('11-termo');
-  const txt = await page.evaluate(() => document.body.innerText);
-  ok(/TERMO DE RESPONSABILIDADE/i.test(txt) && /Empilhadeira/.test(txt) && !/Caminhão basculante/.test(txt), 'termo lista só os bens da pessoa');
-  // 5. inventário patrimonial
-  await ir('#/patInvs', '#piNovo'); await page.click('#piNovo'); await page.waitForSelector('#piD'); await page.locator('.veu .btn.pri').last().click();
-  await page.waitForFunction(() => /#\/patInv\//.test(location.hash), null, { timeout: 8000 }); await page.waitForSelector('tr[data-bem]');
-  ok(await page.locator('tr[data-bem]').count() === 4, 'inventário lista os 4 bens');
-  const ids = await page.evaluate(() => Object.fromEntries(DATA.patBens.map(b => [b.nome, b.id])));
-  const linha = (n) => page.locator(`tr[data-bem="${ids[n]}"]`);
-  await linha('Maromba a vácuo').locator('[data-pk="r"]').selectOption('ok'); await linha('Maromba a vácuo').locator('[data-pk="estado"]').selectOption('Regular');
-  await linha('Empilhadeira').locator('[data-pk="r"]').selectOption('outro');
-  await linha('Computador do escritório').locator('[data-pk="r"]').selectOption('nao'); await linha('Computador do escritório').locator('[data-pk="obs"]').fill('Não está na sala');
-  await page.click('#piFechar'); await page.waitForTimeout(400);
-  ok(await page.evaluate(() => DATA.patInvs[0].status) === 'aberto', 'não fecha sem dizer o setor onde o bem foi encontrado');
-  await linha('Empilhadeira').locator('[data-pk="setor"]').fill('Fornos');
-  await page.click('#piSalvar'); await page.waitForFunction(() => Object.keys(DATA.patInvs[0].conf || {}).length === 3, null, { timeout: 8000 });
-  await page.waitForTimeout(300); await foto('12-inventario-aberto');
-  ok(await linha('Empilhadeira').locator('[data-pk="setor"]').inputValue() === 'Fornos', 'conferência salva continua na tela');
-  await page.click('#piFechar'); await page.waitForTimeout(400); await foto('13-confirmar-fechamento');
-  const conf = await page.evaluate(() => document.querySelector('.veu:last-child').innerText);
-  ok(/1 bem\(ns\) ficaram sem conferir/.test(conf), 'confirmação avisa do bem sem conferir');
-  await page.locator('.veu .btn.pri').last().click();
-  await page.waitForFunction(() => DATA.patInvs[0].status === 'fechado', null, { timeout: 15000 });
-  const fim = await page.evaluate(() => ({ inv: DATA.patInvs[0], bens: Object.fromEntries(DATA.patBens.map(b => [b.nome, { setor: b.setor, estado: b.estado, ultConf: b.ultConf || '', nl: b.naoLocalizado || '' }])) }));
-  ok(fim.inv.resultado.conferidos === 3 && fim.inv.resultado.nao === 1 && fim.inv.resultado.outro === 1 && fim.inv.resultado.estado === 1 && !fim.inv.aplicando, 'resultado: ' + JSON.stringify({ ...fim.inv.resultado, linhas: undefined }));
-  ok(fim.bens['Maromba a vácuo'].estado === 'Regular' && fim.bens['Empilhadeira'].setor === 'Fornos' && !!fim.bens['Computador do escritório'].nl && fim.bens['Caminhão basculante'].ultConf === '', 'bens atualizados: ' + JSON.stringify(fim.bens));
-  await page.waitForTimeout(400); await foto('14-inventario-fechado');
-  ok(await page.locator('tr[data-bem]').count() === 0 && await page.locator('#piFechar').count() === 0, 'inventário fechado fica travado');
-  await ir('#/patBens/' + ids['Computador do escritório'], '#frm'); await page.waitForTimeout(300); await foto('15-bem-nao-localizado');
-  ok(/Não localizado/.test(await page.locator('#frm').innerText()), 'bem mostra o aviso de não localizado');
-  await page.click('.gav-cab [data-fechar]'); await fechou();
-  const bloq = await page.evaluate((id) => preExcluirV51('patBens', DATA.patBens.find(b => b.id === id)), ids['Empilhadeira']);
-  ok(!!(bloq && bloq.bloq), 'bem que passou por inventário não é excluído (só baixado)');
   ok(!!(await page.evaluate((g) => preExcluirV51('almGrupos', DATA.almGrupos.find(x => x.id === g)), gid)).bloq, 'grupo com itens não é excluído');
   // inventário do almoxarifado continua funcionando + folha
   await ir('#/setor-almox', '.almp-hero'); await page.waitForTimeout(300); await foto('16-inicio');
-  ok(/não localizado/.test(await page.locator('#svCorpo').innerText()), 'início avisa do bem não localizado');
+  ok(await page.locator('#svCorpo a[href="#/almGrupos"]').count() >= 1, 'início tem o atalho para Grupos de materiais');
   await ir('#/almInventarios', '#ivNovo'); await page.click('#ivNovo'); await page.waitForSelector('#ivD'); await page.locator('.veu .btn.pri').last().click();
-  await page.waitForSelector('#ivFolha'); await page.click('#ivFolha'); await page.waitForTimeout(300); await foto('17-folha-contagem'); await page.keyboard.press('Escape');
-  await page.locator('[data-ivq]').first().fill('5'); await page.click('#ivFechar'); await page.waitForTimeout(400);
-  ok(/3 item\(ns\) ficaram sem contagem/.test(await page.evaluate(() => document.querySelector('.veu:last-child').innerText)), 'inventário do almoxarifado avisa dos itens sem contagem');
+  await page.waitForSelector('#ivFolha'); await page.click('#ivFolha'); await page.waitForTimeout(300); await foto('17-folha-contagem');
+  ok(/Visualizar/.test(await page.evaluate(() => document.body.innerText)), 'folha de contagem abre o menu de exportar');
+  await page.mouse.click(300, 700); await page.waitForTimeout(300);
+  await page.locator('[data-ivq]').first().fill('5'); await page.waitForTimeout(200); await page.click('#ivFechar'); await page.waitForTimeout(600);
+  const tc = await page.evaluate(() => document.body.innerText); await foto('18-fechar-inventario');
+  ok(/3 (itens|item\(ns\)) ficaram sem contagem/.test(tc), 'inventário do almoxarifado avisa dos itens sem contagem' + (/Fechar o inventário\?/.test(tc) ? '' : ' (a confirmação não abriu)'));
   // tudo chegou ao banco
   await page.waitForFunction(() => APP.central.estado().pendentes === 0, null, { timeout: 15000 }).catch(() => {});
-  const banco = await page.evaluate(() => { const t = {}; window.__srv.estado.docs.forEach((d, k) => { if (k.startsWith('alm/')) { const s = JSON.stringify(d.dados); for (const j of ['grupo', 'bem', 'invpat', 'item']) t[j] = (t[j] || 0) + (s.split('"jbt":"' + j + '"').length - 1); } }); return t; });
-  ok(banco.grupo === 1 && banco.bem === 4 && banco.invpat === 1 && banco.item === 4, 'banco central recebeu tudo: ' + JSON.stringify(banco));
+  const banco = await page.evaluate(() => { const t = {}; window.__srv.estado.docs.forEach((d, k) => { if (k.startsWith('alm/')) { const s = JSON.stringify(d.dados); for (const j of ['grupo', 'item']) t[j] = (t[j] || 0) + (s.split('"jbt":"' + j + '"').length - 1); } }); return t; });
+  ok(banco.grupo === 1 && banco.item === 4, 'banco central recebeu tudo: ' + JSON.stringify(banco));
 } catch (e) { ok(false, 'erro no roteiro: ' + (e && e.message)); await foto('zz-erro').catch(() => {}); }
 const rel = erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
 ok(rel.length === 0, `sem erros de JavaScript${rel.length ? ': ' + rel.slice(0, 4).join(' | ') : ''}`);

@@ -17,9 +17,13 @@ export const VIEWPORT = '<meta name="viewport" content="width=device-width, init
 // envelope que o Claude usa para publicar um artifact (igual ao da ferramenta de publicação)
 export const ENVELOPE_CLAUDE = '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>';
 export const FIM_CLAUDE = '</body></html>';
-const ARQUIVOS_NUVEM = ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', '_headers'];
+const ARQUIVOS_NUVEM = ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers'];
 
 export const sha256 = (t) => createHash('sha256').update(t).digest('hex');
+// versão do SITE da nuvem (programa + cabeçalho + arquivos da nuvem). Vai numa <meta> dentro da própria
+// página e no versao.json: a página aberta compara a sua com a publicada e avisa quando sai versão nova
+// (antes ela comparava com a primeira leitura do versao.json, que pode já ser a nova).
+export const metaSite = (site) => `<meta name="jb-site" content="${site}">\n`;
 
 export function montarNuvem(app, cabecalho) {
   const i = app.indexOf(VIEWPORT);
@@ -45,15 +49,22 @@ export function construir(saida = RAIZ) {
   const dist = join(saida, 'dist'), sai = join(saida, 'saida');
   rmSync(dist, { recursive: true, force: true }); mkdirSync(dist, { recursive: true }); mkdirSync(sai, { recursive: true });
 
-  const nuvem = montarNuvem(app, cab);
+  const site = sha256(app + cab + ARQUIVOS_NUVEM.map((f) => readFileSync(join(RAIZ, 'nuvem', f), 'utf8')).join('\n')).slice(0, 12);
+  const nuvem = montarNuvem(app, metaSite(site) + cab);
   writeFileSync(join(dist, 'index.html'), nuvem);
-  for (const f of ARQUIVOS_NUVEM) copyFileSync(join(RAIZ, 'nuvem', f), join(dist, f));
+  for (const f of ARQUIVOS_NUVEM) {
+    if (f !== 'admin.html') { copyFileSync(join(RAIZ, 'nuvem', f), join(dist, f)); continue; }
+    const adm = readFileSync(join(RAIZ, 'nuvem', f), 'utf8');   // o painel de administração também carrega o adaptador
+    if (!adm.includes('<head>\n')) throw new Error('nuvem/admin.html: não achei o <head>');
+    writeFileSync(join(dist, f), adm.replace('<head>\n', '<head>\n' + metaSite(site)));
+  }
   const claude = montarClaude(app);
   writeFileSync(join(sai, 'claude.html'), claude);
 
   const ponte = /var VERSAO = '([^']+)'/.exec(app);
   const versao = {
     versao: sha256(app).slice(0, 12),
+    site,
     programa_sha256: sha256(app),
     nuvem_sha256: sha256(nuvem),
     claude_sha256: sha256(claude),

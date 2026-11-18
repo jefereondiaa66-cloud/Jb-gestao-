@@ -25,10 +25,47 @@ jobs:
         run: node scripts/construir.mjs
       - name: Instalar navegador de teste
         run: |
-          npm install --no-save --no-package-lock playwright@1.48.2
+          npm install --no-save --no-package-lock playwright@1.48.2 xlsx@0.18.5 @vladmandic/face-api@1.7.15 jspdf@2.5.1 jspdf-autotable@3.8.2
           npx playwright install --with-deps chromium
       - name: Teste de ponta a ponta no navegador
         run: node scripts/testar-navegador.mjs
+      - name: Ponto facial (reconhecimento de verdade, câmera simulada)
+        timeout-minutes: 12
+        run: node scripts/testar-ponto-facial.mjs
+      - name: Pendências (avisos no botão PENDÊNCIAS)
+        run: node scripts/testar-pendencias.mjs
+      - name: Padrão de cores de todos
+        run: node scripts/testar-tema-padrao.mjs
+      - name: Testar a tela fixa
+        run: node scripts/testar-tela-fixa.mjs
+      - name: Testar insalubridade e adicional noturno
+        run: node scripts/testar-adicionais.mjs
+      - name: Setor de Vendas (pedido, venda, ticket 58/80 mm, orçamento, simulação)
+        run: node scripts/testar-vendas.mjs
+      - name: "Filtros e lançamentos (V129: Período, Competência, Mais filtros, Ordenar e menu de três pontos)"
+        timeout-minutes: 5
+        run: node scripts/testar-lanc-filtros.mjs
+      - name: Combustível e Lenha (lançamentos, foto, programação, descontos e acerto)
+        timeout-minutes: 8
+        run: node scripts/testar-combustivel-lenha.mjs
+      - name: Fornos com saldo (enforna e desenforna em partes, perda no fechamento, lenha por milheiro)
+        timeout-minutes: 8
+        run: node scripts/testar-fornos-saldo.mjs
+      - name: Custo de buscar o combustível (V115)
+        timeout-minutes: 5
+        run: node scripts/testar-custo-buscar.mjs
+      - name: "Combustível para fornecedor de lenha (V117: desconto automático, painéis, lançamento à mão e acerto)"
+        timeout-minutes: 8
+        run: node scripts/testar-combustivel-fornecedor-lenha.mjs
+      - name: "Comprovante do lançamento (V120: todos os setores menos o Pessoal)"
+        timeout-minutes: 5
+        run: node scripts/testar-comprovante-lancamento.mjs
+      - name: "Setor do Barro (V124: valor do barro junto da tonelada, também com a extração ligada)"
+        timeout-minutes: 5
+        run: node scripts/testar-barro-valor.mjs
+      - name: "Contratos com IA (V125: pedido livre, perguntas, edição, análise, assinatura, versões, derivados)"
+        timeout-minutes: 8
+        run: node scripts/testar-contratos.mjs
       - name: Guardar o que foi construído
         if: always()
         uses: actions/upload-artifact@v4

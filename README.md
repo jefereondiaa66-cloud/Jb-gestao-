@@ -24,11 +24,34 @@ Um programa, dois endereços, um banco só.
 
 | Comando | Para quê |
 |---|---|
-| `node scripts/verificar.mjs` | 20 verificações: programa, construção, ponte (testes B–F) |
+| `node scripts/verificar.mjs` | verificações do programa, da construção, da ponte (testes B–F) e do JB Fiscal |
 | `node scripts/construir.mjs` | gera `dist/` (nuvem) e `saida/claude.html` (Claude) |
 | `node scripts/testar-navegador.mjs` | abre o programa real no Chromium com o banco simulado |
+| `node scripts/testar-navegacao.mjs` | navegação central (JBNAV): Voltar linear, limite, janelas, abas, cliques repetidos, F5 e celular, em todas as telas de todos os setores (135 itens) |
+| `node scripts/testar-janelas.mjs` | testa janelas, abas, rascunhos, clique duplo e gravação sem conexão (21 itens) |
+| `node scripts/testar-vendas.mjs` | Setor de Vendas: pedido, venda, ticket 58/80 mm, orçamento, simulação ([docs/vendas-v110.md](docs/vendas-v110.md)) |
+| `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta: lançamentos, foto (IA simulada), programação, descontos e acerto (69 conferências) |
+| `node scripts/testar-custo-buscar.mjs` | V115: custo por litro do combustível = média das compras + custo de buscar |
+| `node scripts/testar-combustivel-fornecedor-lenha.mjs` | V117: combustível para fornecedor de lenha, descontado sozinho do que a cerâmica deve, painéis nos dois setores, lançamento à mão e acerto ([docs/combustivel-fornecedor-lenha-v117.md](docs/combustivel-fornecedor-lenha-v117.md)) (37 conferências) |
+| `node scripts/testar-contas-pagar-lenha.mjs` | Financeiro › Contas a pagar – Lenha: saldo por fornecedor, PAGAR / DAR BAIXA inteiro e parcial, acima do saldo com justificativa (adiantamento), combustível como crédito, estorno, queda no meio sem duplicar, agendamento, histórico e recarga ([docs/contas-pagar-lenha-2026-11-17.md](docs/contas-pagar-lenha-2026-11-17.md)) (39 conferências) |
+| `node scripts/testar-comprovante-lenha-conta.mjs` | comprovante de entrega de lenha com a conta do fornecedor: saldo anterior + esta entrega = total devido (igual ao Financeiro), combustível, pagamento parcial, emitido de novo, adiantamento, cupom 80/58 mm, A4 e PDF ([docs/comprovante-lenha-conta-2026-11-18.md](docs/comprovante-lenha-conta-2026-11-18.md)) |
+| `node scripts/testar-central-pagamentos.mjs` | Financeiro › Central de pagamentos e módulos (Combustível, Despesas gerais, Outros pagamentos): os 14 testes do prompt master — cadastrar, localizar fornecedor, agendar, alterar agendamento, parcial, saldo, pagamento final, quitação, histórico, indicadores, filtros, navegação, persistência e sem duplicados |
+| `node scripts/testar-comprovante-lancamento.mjs` | V120: botão "Comprovante" em todo lançamento fora do Setor Pessoal (cupom 80/58 mm e folha A4), ficha dos cadastros e comprovante do compromisso do Financeiro ([docs/comprovante-lancamento-v120.md](docs/comprovante-lancamento-v120.md)) |
+| `node scripts/testar-contratos.mjs` | V125/V127: Contratos com IA de ponta a ponta (IA simulada): pedido livre direto para a redação, civil e trabalhista, edição, comandos na hora sem IA, pontos de atenção, tela fixa, PDF, assinatura, versões, renovar, aditivo, distrato e modelos ([docs/contratos-ia-v125.md](docs/contratos-ia-v125.md)) |
+| `node scripts/testar-acesso-setores.mjs` | nuvem com permissão por setor: quem só tem o Combustível vê os terceiros (guardados no Financeiro), quem só tem o Almoxarifado vê funcionários (só nome e função) e máquinas, e cada um só vê os setores dele ([docs/acesso-setores-2026-11-16.md](docs/acesso-setores-2026-11-16.md)) |
+| `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
+| `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
+| `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
 | `node scripts/do-claude.mjs <pagina>` | traz para cá uma versão alterada dentro do Claude |
 
 Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como operar) ·
+[`docs/fiscal.md`](docs/fiscal.md) (nota fiscal pela Focus NFe: tokens, instalação, produção) ·
 [`docs/auditoria-2026-10-30.md`](docs/auditoria-2026-10-30.md) (estado encontrado e decisões) ·
+[`docs/evolucao-2026-11-13.md`](docs/evolucao-2026-11-13.md) (área de trabalho: janelas, abas, rascunhos) ·
+[`docs/combustivel-lenha-2026-11-13.md`](docs/combustivel-lenha-2026-11-13.md) (Combustível e Lenha, V112) ·
+[`docs/combustivel-fornecedor-lenha-v117.md`](docs/combustivel-fornecedor-lenha-v117.md) (combustível para fornecedor de lenha, V117) ·
+[`docs/comprovante-lancamento-v120.md`](docs/comprovante-lancamento-v120.md) (comprovante do lançamento, V120) ·
+[`docs/contas-pagar-lenha-2026-11-17.md`](docs/contas-pagar-lenha-2026-11-17.md) (Financeiro › Contas a pagar – Lenha) ·
+[`docs/financeiro-central-pagamentos-2026-11-17.md`](docs/financeiro-central-pagamentos-2026-11-17.md) (Financeiro: auditoria, Central de pagamentos e módulos) ·
+[`docs/comprovante-lenha-conta-2026-11-18.md`](docs/comprovante-lenha-conta-2026-11-18.md) (comprovante de entrega de lenha com o total devido ao fornecedor) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).
