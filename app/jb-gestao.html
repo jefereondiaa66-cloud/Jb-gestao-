@@ -17678,7 +17678,7 @@ Object.assign(BUCKET,{[CA]:'mes',[CP]:'mes'});Object.assign(PARTES,{[CA]:6,[CP]:
 if(typeof SEM_JANELA!=='undefined'){SEM_JANELA.add(CA);SEM_JANELA.add(CP)}
 /* nome lógico (o mesmo da coleção no controle antigo) → [coleção física, tipo] */
 const LOG={almItens:[CA,'item'],almFornecedores:[CA,'fornecedor'],almEntradas:[CA,'entrada'],almPagamentos:[CA,'pagamento'],almSaidas:[CA,'saida'],
- almDevolucoes:[CA,'devolucao'],almAjustes:[CA,'ajuste'],almEpis:[CA,'epi'],almEmprestimos:[CA,'emprestimo'],almInventarios:[CA,'inventario'],
+ almDevolucoes:[CA,'devolucao'],almAjustes:[CA,'ajuste'],almEpis:[CA,'epi'],almEmprestimos:[CA,'emprestimo'],almInventarios:[CA,'inventario'],almGrupos:[CA,'grupo'],patBens:[CA,'bem'],patInvs:[CA,'invpat'],
  paleteTipos:[CP,'tipo'],paleteConfig:[CP,'config'],paleteMov:[CP,'mov'],paleteCompras:[CP,'compra'],pagamentosPaletes:[CP,'pagamento']};
 const MEMO={};
 Object.keys(LOG).forEach(m=>Object.defineProperty(DATA,m,{enumerable:false,configurable:true,
@@ -17697,9 +17697,10 @@ const PV=['admin','gerente','vendedor','estoquista','financeiro'],PE=['admin','g
 Object.assign(PERM,{'setor-almox':{v:AV,e:[]},almItens:{v:AV,e:AE},almFornecedores:{v:AV,e:AE},almEntradas:{v:AV,e:AE},almEntrada:{v:AV,e:AE},almPagamentos:{v:AV,e:[]},
  almSaidas:{v:AV,e:AE},almSaida:{v:AV,e:AE},almDevolucoes:{v:AV,e:AE},almAjustes:{v:AV,e:AE},almEpis:{v:AV,e:AE},almEmprestimos:{v:AV,e:AE},almInventarios:{v:AV,e:AE},almInv:{v:AV,e:AE},
  almEstoque:{v:AV,e:[]},almMov:{v:AV,e:[]},almPagar:{v:AV,e:[]},almRel:{v:AV,e:[]},almResp:{v:AV,e:AE},
+ almGrupos:{v:AV,e:AE},patBens:{v:AV,e:AE},patInvs:{v:AV,e:AE},patInv:{v:AV,e:AE},
  'setor-paletes':{v:PV,e:[]},paleteMov:{v:PV,e:PE},paleteTipos:{v:PV,e:['admin','gerente']},paleteConfig:{v:PV,e:['admin','gerente']},paleteCompras:{v:PV,e:PC},
  pagamentosPaletes:{v:PV,e:[]},palClientes:{v:PV,e:[]},palEstoque:{v:PV,e:PC},palRel:{v:PV,e:[]},palResp:{v:PV,e:PC}});
-const ROTAS_A=['setor-almox','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp'];
+const ROTAS_A=['setor-almox','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp','almGrupos','patBens','patInvs','patInv'];
 const ROTAS_P=['setor-paletes','paleteConfig','pagamentosPaletes','paleteMov','paleteTipos','paleteCompras','palClientes','palEstoque','palRel','palResp'];
 [...ROTAS_A,...ROTAS_P].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
 window.ROTAS_SETOR_V52={almox:ROTAS_A.slice(),paletes:ROTAS_P.slice()};
@@ -17724,7 +17725,8 @@ function proxCodigo(cat,excl){const p=PREF[cat]||'OUT';const re=new RegExp('^'+p
 
 /* ================= almoxarifado: saldo e custo médio ================= */
 /* saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas ou danificadas.
-   Custo médio = valor das entradas (com o frete rateado pelo valor de cada linha) ÷ quantidade que entrou. */
+   Custo médio = valor das entradas (com o frete rateado pelo valor de cada linha) ÷ quantidade que entrou.
+   Item sem nenhuma entrada (saldo inicial que veio da contagem): vale o custo de referência do cadastro. */
 let MA={b:null,v:null};
 const VZ={eq:0,ev:0,sq:0,dq:0,aq:0,epi:0,perda:0,emp:0,saldo:0,cm:0,valor:0,disp:0,ultEnt:'',ultSai:''};
 function fretesDe(e){const ls=(e.itens||[]).filter(l=>l&&l.itemId);const base=soma(ls,l=>(+l.qtd||0)*(+l.preco||0));const fr=+e.frete||0;const qt=soma(ls,l=>+l.qtd||0);
@@ -17738,7 +17740,8 @@ function calcAlm(){
  DATA.almAjustes.forEach(a=>{if(!a.itemId)return;const q=+a.qtd||0;g(a.itemId).aq+=a.tipo==='saida'?-q:q});
  DATA.almEpis.forEach(x=>{if(x.itemId)g(x.itemId).epi+=+x.qtd||0});
  DATA.almEmprestimos.forEach(x=>{if(!x.itemId)return;const o=g(x.itemId);const q=+x.qtd||0;if(x.devData){if(x.devEstado==='Danificada'||x.devEstado==='Perdida')o.perda+=q}else o.emp+=q});
- Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda);o.cm=o.eq>0?o.ev/o.eq:0;o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
+ DATA.almItens.forEach(i=>{if(+i.custoRef>0)g(i.id).ref=+i.custoRef});
+ Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda);o.cm=o.eq>0?o.ev/o.eq:(o.ref||0);o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
  MA={b:DATA[CA],v:it};return it;
 }
 const estI=id=>calcAlm()[id]||VZ;
@@ -17748,6 +17751,40 @@ const COR_IT={'Inativo':'','Abaixo do mínimo':'pe','Com saldo':'ok','Sem saldo'
 const tagIt=i=>{const s=sitItem(i);return tag(s,COR_IT[s]??'')};
 const abaixoMin=()=>DATA.almItens.filter(i=>ativo(i)&&temMin(i)&&estI(i.id).saldo<+i.minimo);
 function caVencido(i){return i&&i.categoria==='EPI'&&i.caValidade&&i.caValidade<hoje()}
+
+/* ================= almoxarifado: grupos de materiais, consumo e reposição (V58) =================
+   Pedido do Jeferson (18/11/2026): cadastro de materiais por grupo e inventário patrimonial.
+   · Três tipos novos dentro da coleção alm (jbt): grupo (família de itens), bem (patrimônio) e
+     invpat (inventário patrimonial). Nenhum registro antigo muda de formato.
+   · Categoria › Grupo › Item. O item ganha marca, especificação, código do fabricante, estoque
+     máximo, prazo de reposição e custo de referência (para o saldo inicial sem nota).
+   · Consumo médio = requisições − devoluções + EPIs entregues nos últimos 90 dias.
+     Ponto de reposição = consumo por dia × prazo de reposição + estoque mínimo.
+     Curva ABC pelo valor consumido em 12 meses: A até 80%, B até 95%, C o resto. */
+const GRUPO=id=>DATA.almGrupos.find(x=>x.id===id);
+const nomeGrupo=id=>{const g=GRUPO(id);return g?String(g.nome||''):''};
+const optsGrupos=()=>DATA.almGrupos.slice().sort((a,b)=>String(a.categoria+a.nome).localeCompare(String(b.categoria+b.nome),'pt-BR')).map(g=>[g.id,g.categoria+' › '+g.nome+(ativo(g)?'':' · inativo')]);
+const locaisAlm=()=>[...new Set([...DATA.almItens.map(i=>i.local),...DATA.almGrupos.map(g=>g.local)].filter(Boolean))].sort();
+const itensDoGrupo=id=>DATA.almItens.filter(i=>i.grupoId===id);
+let MC={b:null,d:'',v:null};
+function consumoAlm(){
+ const h=hoje();if(MC.b===DATA[CA]&&MC.d===h)return MC.v;
+ const d90=addDias(h,-90),d365=addDias(h,-365);const c={};const g=id=>c[id]||(c[id]={q90:0,q365:0,abc:'',v365:0});
+ const add=(id,data,q)=>{data=String(data||'');if(!id||!data||data>h)return;const o=g(id);if(data>=d90)o.q90+=q;if(data>=d365)o.q365+=q};
+ DATA.almSaidas.forEach(s=>(s.itens||[]).forEach(l=>{if(l)add(l.itemId,s.data,+l.qtd||0)}));
+ DATA.almDevolucoes.forEach(d=>(d.itens||[]).forEach(l=>{if(l)add(l.itemId,d.data,-(+l.qtd||0))}));
+ DATA.almEpis.forEach(x=>add(x.itemId,x.data,+x.qtd||0));
+ const L=Object.keys(c).map(id=>({id,v:Math.max(0,c[id].q365)*estI(id).cm})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);const tot=soma(L,x=>x.v);let ac=0;
+ L.forEach(x=>{const antes=tot>0?ac/tot:0;ac+=x.v;c[x.id].abc=antes<0.8?'A':antes<0.95?'B':'C';c[x.id].v365=r2(x.v)});
+ MC={b:DATA[CA],d:h,v:c};return c}
+const consI=id=>consumoAlm()[id]||{q90:0,q365:0,abc:'',v365:0};
+/* quando comprar e quanto: só sugere, nunca lança nada */
+function repI(i){
+ const c=consI(i.id),e=estI(i.id);const dia=Math.max(0,c.q90)/90;const prazo=+i.prazoRep>0?+i.prazoRep:0;const min=temMin(i)?+i.minimo:0;
+ const ponto=prazo||temMin(i)?r3(dia*prazo+min):null;const alvo=+i.maximo>0?+i.maximo:(ponto!=null?r3(ponto+dia*30):null);
+ const precisa=ponto!=null&&(e.saldo<ponto||(ponto>0&&e.saldo<=ponto&&prazo>0));
+ return{dia,mes:r3(dia*30),ponto,alvo,comprar:precisa&&alvo!=null?Math.max(0,r3(alvo-e.saldo)):0,dias:dia>0?Math.floor(Math.max(0,e.saldo)/dia):null,abc:c.abc||''}}
+const aRepor=()=>DATA.almItens.filter(i=>ativo(i)&&repI(i).comprar>0);
 
 /* ================= Financeiro: o compromisso mora no Financeiro, a entrada guarda o número ================= */
 const TIT=id=>DATA.fTitulos.find(t=>t.id===id);
@@ -17820,40 +17857,114 @@ function htmlEstoqueItem(r){
  const e=estI(r.id);const u=un(r.unidade);
  return `<div class="cl-sit"><div><span>Saldo</span><b>${esc(fQtd(e.saldo)+' '+u)}</b></div><div><span>Custo médio</span><b>${esc(fMoeda(e.cm))}</b></div><div><span>Valor em estoque</span><b>${esc(fMoeda(e.valor))}</b></div>
   ${e.emp?`<div><span>Emprestado</span><b>${esc(fQtd(e.emp)+' '+u)}</b></div>`:''}<div><span>Última entrada</span><b>${esc(e.ultEnt?fData(e.ultEnt):'—')}</b></div><div><span>Última saída</span><b>${esc(e.ultSai?fData(e.ultSai):'—')}</b></div>
-  ${temMin(r)?`<div class="${e.saldo<+r.minimo?'pe':''}"><span>Mínimo</span><b>${esc(fQtd(r.minimo)+' '+u)}</b></div>`:''}</div>
+  ${temMin(r)?`<div class="${e.saldo<+r.minimo?'pe':''}"><span>Mínimo</span><b>${esc(fQtd(r.minimo)+' '+u)}</b></div>`:''}
+  ${(()=>{const p=repI(r);return `<div><span>Consumo médio por mês</span><b>${esc(p.mes?fQtd(p.mes)+' '+u:'sem consumo em 90 dias')}</b></div>${p.dias!=null?`<div><span>O saldo dura</span><b>${esc(p.dias+' dia(s)')}</b></div>`:''}${p.ponto!=null?`<div class="${p.comprar>0?'pe':''}"><span>Ponto de reposição</span><b>${esc(fQtd(p.ponto)+' '+u)}</b></div>`:''}${p.comprar>0?`<div class="pe"><span>Comprar agora</span><b>${esc(fQtd(p.comprar)+' '+u)}</b></div>`:''}${p.abc?`<div><span>Curva ABC</span><b>${esc(p.abc)}</b></div>`:''}`})()}</div>
   <a class="btn min" href="javascript:void 0" onclick="ALMOX_V52.verMov('${esc(r.id)}')">${ic('lupa')}Ver as movimentações deste item</a>`}
 MODS.almItens={titulo:'Itens do almoxarifado',sing:'item',ic:'livro',
  desc:'Peças, EPIs, ferramentas, material de produção, cozinha, limpeza e escritório. O código é automático pela categoria (PEC-001, EPI-001…).',
  fields:[
   {k:'_cod',l:'Código',t:'calc',calc:r=>r.codigo||'gerado ao salvar, pela categoria',s:'Item'},
-  {k:'nome',l:'Nome do item',t:'txt',req:1,w2:1,s:'Item'},
+  {k:'nome',l:'Nome do item',t:'txt',req:1,w2:1,aj:'Comece pelo nome e depois a medida ou o tipo. Ex.: Rolamento 6205 2RS; Luva de raspa cano longo.',s:'Item'},
   {k:'categoria',l:'Categoria',t:'sel',req:1,op:CAT_NOMES,s:'Item'},
+  {k:'grupoId',l:'Grupo de materiais',t:'sel',op:optsGrupos,aj:'Família do item dentro da categoria. Cadastre os grupos na aba Grupos de materiais.',s:'Item'},
   {k:'unidade',l:'Unidade',t:'sel',req:1,op:UNIDS,aj:'O estoque é contado nesta unidade.',s:'Item'},
   {k:'tipoCoz',l:'Tipo (cozinha)',t:'sel',op:TIPOS_COZ,sh:r=>r.categoria==='Cozinha',s:'Item'},
-  {k:'local',l:'Local de guarda',t:'lista',op:()=>[...new Set(DATA.almItens.map(i=>i.local).filter(Boolean))].sort(),s:'Item'},
-  {k:'minimo',l:'Estoque mínimo',t:'num',aj:'Abaixo disso, o sistema avisa. Em branco: sem aviso.',s:'Item'},
-  {k:'fornecedorId',l:'Fornecedor habitual',t:'sel',op:()=>optsFornA(),s:'Item'},
+  {k:'marca',l:'Marca',t:'lista',op:()=>[...new Set(DATA.almItens.map(i=>i.marca).filter(Boolean))].sort(),s:'Item'},
+  {k:'refFab',l:'Código do fabricante ou de barras',t:'txt',aj:'O código que vem na embalagem ou na peça. Ajuda a não cadastrar o mesmo item duas vezes.',s:'Item'},
+  {k:'especificacao',l:'Especificação',t:'txt',w2:1,aj:'Medidas, material, voltagem, aplicação. Ex.: 25 × 52 × 15 mm, blindado, para a maromba.',s:'Item'},
+  {k:'local',l:'Local de guarda',t:'lista',op:locaisAlm,aj:'Ex.: prateleira B3, armário 2.',s:'Item'},
+  {k:'minimo',l:'Estoque mínimo',t:'num',aj:'Abaixo disso, o sistema avisa. Em branco: sem aviso.',s:'Reposição'},
+  {k:'maximo',l:'Estoque máximo',t:'num',aj:'Até quanto comprar. Em branco: o sistema sugere um mês de consumo acima do ponto de reposição.',s:'Reposição'},
+  {k:'prazoRep',l:'Prazo de reposição (dias)',t:'num',aj:'Quantos dias o fornecedor leva para entregar. Com ele o sistema calcula quando pedir.',s:'Reposição'},
+  {k:'fornecedorId',l:'Fornecedor habitual',t:'sel',op:()=>optsFornA(),s:'Reposição'},
+  {k:'custoRef',l:'Custo de referência',t:'moeda',aj:'Preço aproximado de uma unidade. Só vale enquanto o item não tiver entrada com preço (saldo inicial que veio da contagem).',s:'Reposição'},
   {k:'ca',l:'Nº do CA (certificado de aprovação)',t:'txt',sh:r=>r.categoria==='EPI',s:'EPI'},
   {k:'caValidade',l:'Validade do CA',t:'data',sh:r=>r.categoria==='EPI',s:'EPI'},
   {k:'ativo',l:'Situação',t:'sel',req:1,op:OP_ATIVO,aj:'Inativo: some das listas de lançamento. O histórico continua.',s:'Item'},
   {k:'_est',l:'Estoque agora',t:'html',w2:1,calc:htmlEstoqueItem,s:'Estoque'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Estoque'},campoQuando],
  cols:[{k:'codigo',l:'Código',o:r=>String(r.codigo||'')},{k:'nome',l:'Item',v:r=>'<b>'+esc(r.nome)+'</b>'+(r.local?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(r.local)+'</span>':''),o:r=>r.nome},
-  {k:'categoria',l:'Categoria',v:r=>esc(r.categoria)+(r.tipoCoz?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(r.tipoCoz)+'</span>':''),o:r=>r.categoria},
+  {k:'categoria',l:'Categoria',v:r=>esc(r.categoria)+(r.grupoId||r.tipoCoz?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc([nomeGrupo(r.grupoId),r.tipoCoz].filter(Boolean).join(' · '))+'</span>':''),o:r=>r.categoria+' '+nomeGrupo(r.grupoId)},
   {k:'unidade',l:'Unidade'},{k:'_s',l:'Saldo',t:'num',v:r=>esc(fQtd(estI(r.id).saldo)),o:r=>estI(r.id).saldo},
   {k:'_cm',l:'Custo médio',t:'moeda',v:r=>esc(fMoeda(estI(r.id).cm)),o:r=>estI(r.id).cm},{k:'_v',l:'Valor em estoque',t:'moeda',v:r=>esc(fMoeda(estI(r.id).valor)),o:r=>estI(r.id).valor},
   {k:'_sit',l:'Situação',v:tagIt,o:r=>sitItem(r)}],
- filtros:[{k:'categoria',l:'Categoria',op:CAT_NOMES},{k:'_sit',l:'Situação',op:['Com saldo','Sem saldo','Abaixo do mínimo','Inativo'],fn:(r,v)=>sitItem(r)===v}],
+ filtros:[{k:'categoria',l:'Categoria',op:CAT_NOMES},{k:'grupoId',l:'Grupo',op:optsGrupos},{k:'_sit',l:'Situação',op:['Com saldo','Sem saldo','Abaixo do mínimo','Inativo'],fn:(r,v)=>sitItem(r)===v}],
  ordem:['codigo','asc'],semExcluir:true,
- padrao:()=>({categoria:'',unidade:'unidade',ativo:true,minimo:'',ca:'',caValidade:'',tipoCoz:'',local:'',fornecedorId:''}),
- aoMudar(st,k){fixAtivo(st,k);if(k==='categoria'&&st.categoria==='Cozinha'&&!st.local)st.local='Cozinha'},
+ padrao:()=>({categoria:'',grupoId:'',unidade:'unidade',ativo:true,minimo:'',maximo:'',prazoRep:'',custoRef:'',marca:'',refFab:'',especificacao:'',ca:'',caValidade:'',tipoCoz:'',local:'',fornecedorId:''}),
+ aoMudar(st,k){fixAtivo(st,k);if(k==='categoria'&&st.categoria==='Cozinha'&&!st.local)st.local='Cozinha';
+  if(k==='grupoId'&&st.grupoId){const g=GRUPO(st.grupoId);if(g){if(!st.categoria)st.categoria=g.categoria;if(!st.local&&g.local)st.local=g.local}}
+  if(k==='categoria'&&st.grupoId){const g=GRUPO(st.grupoId);if(g&&g.categoria!==st.categoria)st.grupoId=''}},
  validar(st){const e={};const n=normT(st.nome);
   if(n){const d=DATA.almItens.find(x=>x.id!==st.id&&normT(x.nome)===n&&x.categoria===st.categoria);if(d)e.nome='Já existe este item nesta categoria: '+rotItem(d)+'.'}
   if(st.minimo!==''&&st.minimo!=null&&!(+st.minimo>=0))e.minimo='Não pode ser negativo.';
+  const nv=x=>x!==''&&x!=null&&!isNaN(+x);
+  if(nv(st.maximo)&&!(+st.maximo>0))e.maximo='Informe um número maior que zero ou deixe em branco.';else if(nv(st.maximo)&&nv(st.minimo)&&+st.maximo<+st.minimo)e.maximo='O máximo não pode ser menor que o mínimo.';
+  if(nv(st.prazoRep)&&!(+st.prazoRep>=0))e.prazoRep='Não pode ser negativo.';
+  if(nv(st.custoRef)&&+st.custoRef<0)e.custoRef='Não pode ser negativo.';
+  if(st.grupoId){const g=GRUPO(st.grupoId);if(g&&st.categoria&&g.categoria!==st.categoria)e.grupoId='Este grupo é da categoria '+g.categoria+'.'}
+  const rf=normT(st.refFab);if(rf){const d=DATA.almItens.find(x=>x.id!==st.id&&normT(x.refFab)===rf);if(d)e.refFab='Já existe item com este código: '+rotItem(d)+'.'}
   if(st.categoria==='EPI'&&st.caValidade&&st.caValidade<hoje())e._aviso='A validade do CA já passou ('+fData(st.caValidade)+'). Salvar assim mesmo?';
   return e},
  preparar(rec,novo){rec.nome=String(rec.nome||'').trim();rec.minimo=rec.minimo===''||rec.minimo==null||isNaN(+rec.minimo)?null:+rec.minimo;rec.ativo=rec.ativo!==false&&rec.ativo!=='false';
+  ['maximo','prazoRep','custoRef'].forEach(k=>{rec[k]=rec[k]===''||rec[k]==null||isNaN(+rec[k])?null:+rec[k]});['marca','refFab','especificacao'].forEach(k=>{rec[k]=String(rec[k]||'').trim()});if(!rec.grupoId)rec.grupoId='';
   if(rec.categoria!=='EPI'){rec.ca='';rec.caValidade=''}if(rec.categoria!=='Cozinha')rec.tipoCoz='';if(!rec.codigo)rec.codigo=proxCodigo(rec.categoria,rec.id)}};
+
+/* ---------- grupos de materiais ---------- */
+function htmlItensGrupo(r){
+ if(!r||!r.id||!GRUPO(r.id))return '<span class="ajuda">Salve o grupo para começar a colocar os itens dentro dele.</span>';
+ const xs=itensDoGrupo(r.id).sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));const ed=pode('almItens','e');
+ return (xs.length?`<div class="tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Código</th><th>Item</th><th class="num">Saldo</th><th>Un.</th><th class="num">Valor</th></tr></thead><tbody>${xs.map(i=>{const e=estI(i.id);
+   return `<tr class="clic" data-go="#/almItens/${esc(i.id)}"><td data-l="Código">${esc(i.codigo||'')}</td><td data-l="Item"><b>${esc(i.nome)}</b>${ativo(i)?'':' '+tag('Inativo','')}</td><td data-l="Saldo" class="num">${esc(fQtd(e.saldo))}</td><td data-l="Un.">${esc(un(i.unidade))}</td><td data-l="Valor" class="num">${esc(fMoeda(e.valor))}</td></tr>`}).join('')}</tbody></table></div>`
+  :'<span class="ajuda">Nenhum item neste grupo ainda.</span>')+
+  (ed&&ativo(r)?`<p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn min pri" href="javascript:void 0" onclick="ALMOX_V52.novoItemGrupo('${esc(r.id)}')">${ic('mais')}Novo item neste grupo</a><a class="btn min" href="javascript:void 0" onclick="ALMOX_V52.variosItens('${esc(r.id)}')">${ic('planilha')}Cadastrar vários de uma vez</a></p>`:'')}
+MODS.almGrupos={titulo:'Grupos de materiais',sing:'grupo',ic:'caixa',
+ desc:'Famílias de itens parecidos dentro de cada categoria (Rolamentos, Correias, Luvas, Lâmpadas…). Cadastre o grupo uma vez e coloque os itens dentro dele.',
+ fields:[
+  {k:'nome',l:'Nome do grupo',t:'txt',req:1,w2:1,aj:'No plural e sem medida. Ex.: Rolamentos; Parafusos e porcas; Luvas.',s:'Grupo'},
+  {k:'categoria',l:'Categoria',t:'sel',req:1,op:CAT_NOMES,s:'Grupo'},
+  {k:'local',l:'Local de guarda padrão',t:'lista',op:locaisAlm,aj:'Os itens novos do grupo já vêm com este local.',s:'Grupo'},
+  {k:'ativo',l:'Situação',t:'sel',req:1,op:OP_ATIVO,aj:'Inativo: some das listas. Os itens continuam.',s:'Grupo'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Grupo'},
+  {k:'_itens',l:'Itens deste grupo',t:'html',w2:1,calc:htmlItensGrupo,s:'Itens do grupo'},campoQuando],
+ cols:[{k:'nome',l:'Grupo',v:r=>'<b>'+esc(r.nome)+'</b>',o:r=>r.nome},{k:'categoria',l:'Categoria'},
+  {k:'_n',l:'Itens',t:'num',v:r=>String(itensDoGrupo(r.id).length),o:r=>itensDoGrupo(r.id).length},
+  {k:'_s',l:'Com saldo',t:'num',v:r=>String(itensDoGrupo(r.id).filter(i=>estI(i.id).saldo>0).length),o:r=>itensDoGrupo(r.id).filter(i=>estI(i.id).saldo>0).length},
+  {k:'_v',l:'Valor em estoque',t:'moeda',v:r=>esc(fMoeda(soma(itensDoGrupo(r.id),i=>estI(i.id).valor))),o:r=>soma(itensDoGrupo(r.id),i=>estI(i.id).valor)},
+  {k:'_a',l:'Situação',v:tagAtivo,o:r=>ativo(r)?'Ativo':'Inativo'}],
+ filtros:[{k:'categoria',l:'Categoria',op:CAT_NOMES},{k:'_a',l:'Situação',op:['Ativo','Inativo'],fn:(r,v)=>(ativo(r)?'Ativo':'Inativo')===v}],
+ ordem:['nome','asc'],
+ padrao:()=>({categoria:'',local:'',ativo:true,obs:''}),
+ aoMudar:fixAtivo,
+ validar(st){const e={};const n=normT(st.nome);
+  if(n){const d=DATA.almGrupos.find(x=>x.id!==st.id&&normT(x.nome)===n&&x.categoria===st.categoria);if(d)e.nome='Já existe este grupo nesta categoria.'}
+  const ant=GRUPO(st.id);if(ant&&ant.categoria!==st.categoria&&itensDoGrupo(st.id).length)e.categoria='O grupo já tem itens da categoria '+ant.categoria+'. Mude a categoria dos itens antes.';
+  return e},
+ preparar(rec){rec.nome=String(rec.nome||'').trim();rec.local=String(rec.local||'').trim();rec.ativo=rec.ativo!==false&&rec.ativo!=='false'}};
+function novoItemGrupo(id){if(!pode('almItens','e')){toast('Seu perfil não cadastra itens.','erro');return}
+ PREFILL={mod:'almItens',dados:{grupoId:id}};if(typeof fecharGaveta==='function')fecharGaveta();location.hash='#/almItens/novo'}
+/* cadastro de vários itens de uma vez: um nome por linha, mesma categoria, grupo e unidade */
+function modalVariosItens(grupoId){
+ if(!pode('almItens','e')){toast('Seu perfil não cadastra itens.','erro');return}
+ const g0=GRUPO(grupoId);const gs=DATA.almGrupos.filter(ativo).sort((a,b)=>String(a.categoria+a.nome).localeCompare(String(b.categoria+b.nome),'pt-BR'));
+ if(typeof fecharGaveta==='function'&&document.querySelector('#camada .gaveta'))fecharGaveta();
+ H.modalF('Cadastrar vários itens',`<p class="ajuda" style="margin:0 0 10px">Escreva um item por linha, começando pelo nome e depois a medida ou o tipo. Todos entram com a mesma categoria, grupo e unidade, e o código sai em sequência. Depois dá para completar cada um em Itens.</p>
+  <div class="duas">${H.campoM('nvG','Grupo',`<select id="nvG"><option value="">Sem grupo</option>${gs.map(g=>`<option value="${esc(g.id)}" data-cat="${esc(g.categoria)}" data-loc="${esc(g.local||'')}" ${g0&&g.id===g0.id?'selected':''}>${esc(g.categoria+' › '+g.nome)}</option>`).join('')}</select>`)}${H.campoM('nvC','Categoria<i> *</i>',`<select id="nvC"><option value="">Selecione…</option>${optH(CAT_NOMES,g0?g0.categoria:'')}</select>`)}</div>
+  <div class="duas">${H.campoM('nvU','Unidade<i> *</i>',`<select id="nvU">${optH(UNIDS,'unidade')}</select>`)}${H.campoM('nvL','Local de guarda',`<input id="nvL" value="${esc(g0&&g0.local||'')}" autocomplete="off">`)}</div>
+  ${H.campoM('nvT','Itens, um por linha<i> *</i>',`<textarea id="nvT" rows="9" placeholder="Rolamento 6205 2RS&#10;Rolamento 6206 2RS&#10;Rolamento 6308 ZZ"></textarea>`)}`,'Cadastrar os itens',async v=>{
+  const cat=H.valM(v,'nvC'),gid=H.valM(v,'nvG'),uni=H.valM(v,'nvU'),loc=String(H.valM(v,'nvL')||'').trim();const g=gid?GRUPO(gid):null;
+  if(!cat){toast('Escolha a categoria.','erro');return false}if(g&&g.categoria!==cat){toast('O grupo '+g.nome+' é da categoria '+g.categoria+'.','erro');return false}
+  const vistos=new Set();const nomes=String(H.valM(v,'nvT')||'').split(/\r?\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(s=>{const n=normT(s);if(!n||vistos.has(n))return false;vistos.add(n);return true});
+  if(!nomes.length){toast('Escreva pelo menos um item.','erro');return false}if(nomes.length>200){toast('No máximo 200 itens por vez.','erro');return false}
+  const ja=nomes.filter(n=>DATA.almItens.some(x=>normT(x.nome)===normT(n)&&x.categoria===cat));const novos=nomes.filter(n=>!ja.includes(n));
+  if(!novos.length){toast('Todos estes itens já estão cadastrados nesta categoria.','erro');return false}
+  if(!await confirmar('Cadastrar '+novos.length+' item(ns)?','Categoria '+cat+(g?' · grupo '+g.nome:'')+' · unidade '+uni+'.'+(ja.length?' '+ja.length+' já existia(m) e fica(m) de fora: '+ja.slice(0,5).join('; ')+(ja.length>5?'…':'')+'.':''),{ok:'Cadastrar'}))return false;
+  const m=/^(.+)-(\d+)$/.exec(proxCodigo(cat));let n=+m[2];let feitos=0;
+  try{for(const nome of novos){const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:cat,grupoId:gid||'',unidade:uni,local:loc||(cat==='Cozinha'?'Cozinha':''),codigo:m[1]+'-'+String(n++).padStart(3,'0')};
+    await gravarRegistro('almItens',st,null,true);feitos++}
+   toast(feitos+' item(ns) cadastrado(s).'+(ja.length?' '+ja.length+' já existia(m).':''),'ok')}
+  catch(e){toast((feitos?feitos+' item(ns) cadastrado(s) antes da falha. ':'')+msgFalhaSalvar(e),'erro');return false}},
+  {depois:v=>{const sg=v.querySelector('#nvG'),sc=v.querySelector('#nvC'),il=v.querySelector('#nvL');if(sg)sg.onchange=()=>{const o=sg.selectedOptions[0];if(o&&o.dataset.cat){sc.value=o.dataset.cat;if(o.dataset.loc&&!il.value)il.value=o.dataset.loc}}}});
+}
 
 MODS.almFornecedores={titulo:'Fornecedores do almoxarifado',sing:'fornecedor',ic:'predio',
  desc:'Quem vende peças, materiais, EPIs e alimentos para a cerâmica. Separados dos fornecedores de lenha e combustível.',
@@ -18033,6 +18144,9 @@ const SETS={
   {r:'#/almAjustes',m:'almAjustes',ic:'engrenagem',l:'Ajustes',at:['almAjustes']},
   {r:'#/almPagar',m:'almPagar',ic:'moeda',l:'Contas a pagar',at:['almPagar']},
   {r:'#/almItens',m:'almItens',ic:'livro',l:'Itens',at:['almItens']},
+  {r:'#/almGrupos',m:'almGrupos',ic:'caixa',l:'Grupos de materiais',at:['almGrupos']},
+  {r:'#/patBens',m:'patBens',ic:'predio',l:'Patrimônio',at:['patBens']},
+  {r:'#/patInvs',m:'patInvs',ic:'escudo',l:'Inventário patrimonial',at:['patInvs','patInv']},
   {r:'#/almFornecedores',m:'almFornecedores',ic:'predio',l:'Fornecedores',at:['almFornecedores']},
   {r:'#/almRel',m:'almRel',ic:'grafico',l:'Relatórios',at:['almRel']},
   {r:'#/almResp',m:'almResp',ic:'pessoas',l:'Responsáveis',at:['almResp']}]},
@@ -18077,12 +18191,14 @@ function inicioAlm(c){
  const k=(cls,ico,rot,val,sub,href)=>kpiV(cls,ico,rot,val,sub,href);
  const ed=pode('almEntrada','e');
  c.innerHTML=cab('cozinha','Setor do Almoxarifado / Cozinha','Peças, EPIs, ferramentas, material de produção, cozinha, limpeza e escritório: o que entrou, o que saiu, para onde foi e quanto vale o estoque.',
-  `${pode('almSaida','e')?`<a class="btn" href="#/almSaida/nova">${ic('saida')}Nova requisição</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
+  `${pode('patBens')?`<a class="btn" href="#/patBens">${ic('predio')}Patrimônio${DATA.patBens.length?' ('+DATA.patBens.filter(bemAtivo).length+')':''}</a>`:''}${pode('almGrupos')?`<a class="btn" href="#/almGrupos">${ic('caixa')}Grupos de materiais</a>`:''}${pode('almSaida','e')?`<a class="btn" href="#/almSaida/nova">${ic('saida')}Nova requisição</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
   `${!its.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os itens e os fornecedores e lance a primeira entrada. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   ${ab.length?`<div class="aviso pe" style="margin-bottom:10px"><span><b>${ab.length} item(ns) abaixo do estoque mínimo:</b> ${esc(ab.slice(0,6).map(i=>i.nome+' ('+fQtd(estI(i.id).saldo)+' de '+fQtd(i.minimo)+' '+un(i.unidade)+')').join('; '))}${ab.length>6?'…':''}. <a href="#/almEstoque" data-fab>Ver no estoque</a></span></div>`:''}
   ${atr.length?`<div class="aviso at" style="margin-bottom:10px"><span><b>${atr.length} ferramenta(s) com devolução atrasada:</b> ${esc(atr.slice(0,5).map(x=>nomeItem(ITEM(x.itemId))+' com '+(nomeF(x.funcId)||'—')+' desde '+fData(x.data)).join('; '))}. <a href="#/almEmprestimos">Ver empréstimos</a></span></div>`:''}
   ${caV.length?`<div class="aviso at" style="margin-bottom:10px"><span><b>CA vencido em ${caV.length} EPI(s):</b> ${esc(caV.map(i=>i.nome+' ('+fData(i.caValidade)+')').join('; '))}.</span></div>`:''}
   ${invAb.length?`<div class="aviso in" style="margin-bottom:10px"><span>Há ${invAb.length} inventário(s) em aberto. <a href="#/almInv/${esc(invAb[0].id)}">Continuar a contagem</a></span></div>`:''}
+  ${(()=>{if(!pode('patBens'))return '';const pa=DATA.patInvs.filter(x=>x.status!=='fechado');const nl=DATA.patBens.filter(b=>bemAtivo(b)&&b.naoLocalizado);
+   return (pa.length?`<div class="aviso in" style="margin-bottom:10px"><span>Há ${pa.length} inventário(s) patrimonial(is) em aberto. <a href="#/patInv/${esc(pa[0].id)}">Continuar a conferência</a></span></div>`:'')+(nl.length?`<div class="aviso pe" style="margin-bottom:10px"><span><b>${nl.length} bem(ns) do patrimônio não localizado(s):</b> ${esc(nl.slice(0,5).map(rotBem).join('; '))}${nl.length>5?'…':''}. <a href="#/patBens">Ver o patrimônio</a></span></div>`:'')})()}
   ${JB_MES.barra('almox')}
   <div class="hero almp-hero">
    ${k('c3','caixa','Valor em estoque',fMoeda(valor),comSaldo.length+' de '+at.length+' item(ns) com saldo','#/almEstoque')}
@@ -18470,27 +18586,30 @@ function telaSaida(el){
   detalheS(c,s)})}
 
 /* ================= almoxarifado: estoque ================= */
-const UE={cat:'',sit:'',q:''};
+const UE={cat:'',grp:'',sit:'',q:''};
 function telaEstoqueAlm(c){
- let L=DATA.almItens.slice();if(UE.cat)L=L.filter(i=>i.categoria===UE.cat);if(UE.sit)L=L.filter(i=>sitItem(i)===UE.sit);
- if(UE.q){const q=semAcento(UE.q);L=L.filter(i=>semAcento(i.codigo+' '+i.nome+' '+(i.local||'')).includes(q))}
+ if(UE.grp&&!GRUPO(UE.grp))UE.grp='';
+ let L=DATA.almItens.slice();if(UE.cat)L=L.filter(i=>i.categoria===UE.cat);if(UE.grp)L=L.filter(i=>i.grupoId===UE.grp);if(UE.sit)L=L.filter(i=>UE.sit==='Repor agora'?ativo(i)&&repI(i).comprar>0:sitItem(i)===UE.sit);
+ if(UE.q){const q=semAcento(UE.q);L=L.filter(i=>semAcento([i.codigo,i.nome,i.local,i.marca,i.refFab,i.especificacao,nomeGrupo(i.grupoId)].filter(Boolean).join(' ')).includes(q))}
  L.sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));
  const at=DATA.almItens.filter(ativo);const val=r2(soma(at,i=>estI(i.id).valor));
  c.innerHTML=cab('caixa','Estoque do almoxarifado','Saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas ou danificadas. Valor = saldo × custo médio das compras (com o frete rateado).',
   `<button type="button" class="btn" id="aeExp">${ic('baixar')}Exportar ▾</button>${pode('almInventarios','e')?`<a class="btn" href="#/almInventarios">${ic('planilha')}Inventário</a>`:''}`)+
-  resumo([[fMoeda(val),'Valor em estoque'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Itens com saldo'],[String(at.length),'Itens ativos'],[String(abaixoMin().length),'Abaixo do mínimo'],[String(at.filter(i=>estI(i.id).emp>0).length),'Com ferramenta emprestada']])+
-  `<div class="fi-filtros"><input type="search" id="aeQ" placeholder="Pesquisar código, nome ou local" value="${esc(UE.q)}" aria-label="Pesquisar">
+  resumo([[fMoeda(val),'Valor em estoque'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Itens com saldo'],[String(at.length),'Itens ativos'],[String(abaixoMin().length),'Abaixo do mínimo'],[String(aRepor().length),'Para repor agora'],[String(at.filter(i=>estI(i.id).emp>0).length),'Com ferramenta emprestada']])+
+  `<div class="fi-filtros"><input type="search" id="aeQ" placeholder="Pesquisar código, nome, marca, grupo ou local" value="${esc(UE.q)}" aria-label="Pesquisar">
    <select id="aeC" aria-label="Categoria"><option value="">Categoria: todas</option>${optH(CAT_NOMES,UE.cat)}</select>
-   <select id="aeS" aria-label="Situação"><option value="">Situação: todas</option>${optH(['Com saldo','Sem saldo','Abaixo do mínimo','Inativo'],UE.sit)}</select></div>`+
-  (L.length?tabela(['Código','Item','Categoria','Unidade',['Saldo',1],['Emprestado',1],['Mínimo',1],['Custo médio',1],['Valor',1],'Situação'],L.map(i=>{const e=estI(i.id);
-   return `<tr class="clic" data-go="#/almItens/${esc(i.id)}">${td('Código',esc(i.codigo||''))}${td('Item','<b>'+esc(i.nome)+'</b>'+(i.local?'<span class="sub">'+esc(i.local)+'</span>':''))}${td('Categoria',esc(i.categoria||''))}${td('Unidade',esc(un(i.unidade)))}
-    ${td('Saldo',esc(fQtd(e.saldo)),1)}${td('Emprestado',e.emp?esc(fQtd(e.emp)):'—',1)}${td('Mínimo',temMin(i)?esc(fQtd(i.minimo)):'—',1)}${td('Custo médio',esc(fMoeda(e.cm)),1)}${td('Valor',esc(fMoeda(e.valor)),1)}${td('Situação',tagIt(i))}</tr>`})):noNada('Nenhum item com estes filtros',''))+
+   ${DATA.almGrupos.length?`<select id="aeG" aria-label="Grupo"><option value="">Grupo: todos</option>${optH(optsGrupos().filter(g=>!UE.cat||(GRUPO(g[0])||{}).categoria===UE.cat),UE.grp)}</select>`:''}
+   <select id="aeS" aria-label="Situação"><option value="">Situação: todas</option>${optH(['Com saldo','Sem saldo','Abaixo do mínimo','Repor agora','Inativo'],UE.sit)}</select></div>`+
+  (L.length?tabela(['Código','Item','Categoria',['Saldo',1],['Emprestado',1],['Mínimo',1],['Consumo/mês',1],['Comprar',1],['Custo médio',1],['Valor',1],'Situação'],L.map(i=>{const e=estI(i.id);const p=ativo(i)?repI(i):{mes:0,comprar:0,abc:''};
+   return `<tr class="clic" data-go="#/almItens/${esc(i.id)}">${td('Código',esc(i.codigo||''))}${td('Item','<b>'+esc(i.nome)+'</b>'+(i.local||i.marca?'<span class="sub">'+esc([i.marca,i.local].filter(Boolean).join(' · '))+'</span>':''))}${td('Categoria',esc(i.categoria||'')+(i.grupoId&&GRUPO(i.grupoId)?'<span class="sub">'+esc(nomeGrupo(i.grupoId))+'</span>':''))}
+    ${td('Saldo','<b>'+esc(fQtd(e.saldo))+'</b> '+esc(un(i.unidade)),1)}${td('Emprestado',e.emp?esc(fQtd(e.emp)):'—',1)}${td('Mínimo',temMin(i)?esc(fQtd(i.minimo)):'—',1)}${td('Consumo/mês',p.mes?esc(fQtd(p.mes)):'—',1)}${td('Comprar',p.comprar>0?'<b style="color:var(--pe)">'+esc(fQtd(p.comprar))+'</b>':'—',1)}${td('Custo médio',esc(fMoeda(e.cm)),1)}${td('Valor',esc(fMoeda(e.valor)),1)}${td('Situação',tagIt(i)+(p.abc?' <span class="ajuda" title="Curva ABC pelo valor consumido em 12 meses">curva '+esc(p.abc)+'</span>':''))}</tr>`})):noNada('Nenhum item com estes filtros',''))+
+  (DATA.almGrupos.length?`<h3 class="grupo-t">Valor por grupo</h3>`+tabela(['Grupo','Categoria',['Itens',0],['Com saldo',0],['Valor',1]],[...DATA.almGrupos.filter(ativo).map(g=>({g,xs:at.filter(i=>i.grupoId===g.id)})),{g:{nome:'(sem grupo)',categoria:'—'},xs:at.filter(i=>!i.grupoId||!GRUPO(i.grupoId))}].filter(x=>x.xs.length).sort((a,b)=>soma(b.xs,i=>estI(i.id).valor)-soma(a.xs,i=>estI(i.id).valor)).map(x=>`<tr>${td('Grupo',esc(x.g.nome))}${td('Categoria',esc(x.g.categoria))}${td('Itens',String(x.xs.length))}${td('Com saldo',String(x.xs.filter(i=>estI(i.id).saldo>0).length))}${td('Valor',esc(fMoeda(soma(x.xs,i=>estI(i.id).valor))),1)}</tr>`)):'')+
   `<h3 class="grupo-t">Valor por categoria</h3>`+tabela(['Categoria',['Itens',0],['Com saldo',0],['Valor',1]],CAT_NOMES.map(cn=>{const xs=at.filter(i=>i.categoria===cn);if(!xs.length)return '';return `<tr>${td('Categoria',esc(cn))}${td('Itens',String(xs.length))}${td('Com saldo',String(xs.filter(i=>estI(i.id).saldo>0).length))}${td('Valor',esc(fMoeda(soma(xs,i=>estI(i.id).valor))),1)}</tr>`}).filter(Boolean));
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
  $('#aeQ',c).oninput=e=>{UE.q=e.target.value;clearTimeout(telaEstoqueAlm.t);telaEstoqueAlm.t=setTimeout(()=>{renderTela();const i=$('#aeQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)};
- $('#aeC',c).onchange=e=>{UE.cat=e.target.value;renderTela()};$('#aeS',c).onchange=e=>{UE.sit=e.target.value;renderTela()};
- $('#aeExp',c).onclick=()=>exportarMenu($('#aeExp',c),'Estoque_almoxarifado','Estoque do almoxarifado',[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'categoria',l:'Categoria'},{k:'un',l:'Unidade'},{k:'saldo',l:'Saldo',t:'num'},{k:'emp',l:'Emprestado',t:'num'},{k:'min',l:'Mínimo',t:'num'},{k:'cm',l:'Custo médio',t:'moeda'},{k:'valor',l:'Valor',t:'moeda'},{k:'sit',l:'Situação'}],
-  L.map(i=>{const e=estI(i.id);return{codigo:i.codigo||'',nome:i.nome,categoria:i.categoria,un:un(i.unidade),saldo:e.saldo,emp:e.emp,min:temMin(i)?+i.minimo:'',cm:r2(e.cm),valor:e.valor,sit:sitItem(i)}}));
+ $('#aeC',c).onchange=e=>{UE.cat=e.target.value;if(UE.grp&&(GRUPO(UE.grp)||{}).categoria!==UE.cat&&UE.cat)UE.grp='';renderTela()};$('#aeS',c).onchange=e=>{UE.sit=e.target.value;renderTela()};if($('#aeG',c))$('#aeG',c).onchange=e=>{UE.grp=e.target.value;renderTela()};
+ $('#aeExp',c).onclick=()=>exportarMenu($('#aeExp',c),'Estoque_almoxarifado','Estoque do almoxarifado',[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'categoria',l:'Categoria'},{k:'grupo',l:'Grupo'},{k:'marca',l:'Marca'},{k:'local',l:'Local'},{k:'un',l:'Unidade'},{k:'saldo',l:'Saldo',t:'num'},{k:'emp',l:'Emprestado',t:'num'},{k:'min',l:'Mínimo',t:'num'},{k:'mes',l:'Consumo/mês',t:'num'},{k:'comprar',l:'Comprar',t:'num'},{k:'cm',l:'Custo médio',t:'moeda'},{k:'valor',l:'Valor',t:'moeda'},{k:'abc',l:'Curva'},{k:'sit',l:'Situação'}],
+  L.map(i=>{const e=estI(i.id);const p=ativo(i)?repI(i):{mes:0,comprar:0,abc:''};return{codigo:i.codigo||'',nome:i.nome,categoria:i.categoria,grupo:nomeGrupo(i.grupoId),marca:i.marca||'',local:i.local||'',un:un(i.unidade),saldo:e.saldo,emp:e.emp,min:temMin(i)?+i.minimo:'',mes:p.mes||'',comprar:p.comprar||'',cm:r2(e.cm),valor:e.valor,abc:p.abc,sit:sitItem(i)}}));
 }
 
 /* ================= almoxarifado: movimentações (kardex) ================= */
@@ -18554,11 +18673,15 @@ function telaInv(el){
     ${td('Diferença',dif==null?'—':`<b style="color:var(${dif<0?'--pe':dif>0?'--ok':'--suave'})">${esc((dif>0?'+':dif<0?'−':'')+fQtd(Math.abs(dif)))}</b>`,1)}${td('Valor da diferença',dif==null?'—':esc(fMoeda(dif*estI(i.id).cm)),1)}</tr>`};
   const res=v.resultado||{};
   c.innerHTML=cab('planilha','Inventário de '+fData(v.data),esc(v.categoria||'Todos os itens')+' · responsável '+esc(v.responsavel||'—')+' · '+(v.status==='fechado'?'fechado em '+esc(fDataHora(v.fechadoEm)):'em aberto'),
-   `<a class="btn" href="#/almInventarios">${ic('esquerda')}Inventários</a>${ed?`<button type="button" class="btn" id="ivSalvar">Salvar contagem</button><button type="button" class="btn pri" id="ivFechar">${ic('escudo')}Fechar inventário</button><button type="button" class="btn perigo" id="ivExc">${ic('lixo')}Excluir</button>`:''}`)+
+   `<a class="btn" href="#/almInventarios">${ic('esquerda')}Inventários</a><button type="button" class="btn" id="ivFolha">${ic('baixar')}Folha de contagem ▾</button>${ed?`<button type="button" class="btn" id="ivSalvar">Salvar contagem</button><button type="button" class="btn pri" id="ivFechar">${ic('escudo')}Fechar inventário</button><button type="button" class="btn perigo" id="ivExc">${ic('lixo')}Excluir</button>`:''}`)+
    (v.status==='fechado'?resumo([[String(Object.keys(v.contagens||{}).length),'Itens contados'],[String(res.ajustes||0),'Ajustes gerados'],[fMoeda(res.valor||0),'Valor da diferença']]):
     `<p class="fi-nota">Conte e digite a quantidade de cada item. Item sem contagem fica como está. “Salvar contagem” guarda o que foi digitado; “Fechar inventário” gera os ajustes das diferenças e trava a contagem.</p>`)+
    tabela(['Código','Item','Un.',['Saldo do sistema',1],['Contagem',1],['Diferença',1],['Valor da diferença',1]],its.map(linha),'tbl-inv');
   $$('[data-ivq]',c).forEach(i=>i.oninput=()=>{cont[i.dataset.ivq]=i.value===''?'':+i.value});
+  /* folha para contar no papel: sem o saldo do sistema, na ordem do local de guarda */
+  $('#ivFolha',c).onclick=()=>exportarMenu($('#ivFolha',c),'Folha_de_contagem','Folha de contagem · inventário de '+fData(v.data)+' · '+(v.categoria||'Todos os itens'),
+   [{k:'local',l:'Local'},{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'un',l:'Unidade'},{k:'cont',l:'Contagem'},{k:'obs',l:'Observação'}],
+   its.slice().sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true})).map(i=>({local:i.local||'',codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),un:un(i.unidade),cont:'',obs:''})));
   const gravarCont=async()=>{const n={...clone(v),contagens:Object.fromEntries(Object.entries(cont).filter(([,q])=>q!==''&&q!=null&&!isNaN(+q)).map(([k,q])=>[k,r3(q)])),alteradoEm:agoraIso(),alteradoPor:eu()};
    await gravar('almInventarios',n,v);return n};
   if($('#ivSalvar',c))$('#ivSalvar',c).onclick=async()=>{try{await gravarCont();toast('Contagem salva.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}};
@@ -18567,8 +18690,8 @@ function telaInv(el){
   if($('#ivFechar',c))$('#ivFechar',c).onclick=async()=>{
    const difs=its.map(i=>{const q=cont[i.id];if(q===''||q==null||isNaN(+q))return null;const d=r3(+q-estI(i.id).saldo);return Math.abs(d)>1e-9?{i,d}:null}).filter(Boolean);
    if(difs.some(x=>+cont[x.i.id]<0)){toast('Contagem negativa não vale.','erro');return}
-   const val=r2(soma(difs,x=>x.d*estI(x.i.id).cm));
-   if(!await confirmar('Fechar o inventário?',difs.length?difs.length+' item(ns) com diferença ('+fMoeda(val)+'). Cada diferença vira um ajuste com o motivo “Inventário de '+fData(v.data)+'”. Depois de fechado, a contagem não muda.':'Nenhuma diferença entre a contagem e o sistema. O inventário fica registrado como fechado.',{ok:'Fechar inventário'}))return;
+   const val=r2(soma(difs,x=>x.d*estI(x.i.id).cm));const semC=its.filter(i=>ativo(i)).filter(i=>{const q=cont[i.id];return q===''||q==null||isNaN(+q)}).length;
+   if(!await confirmar('Fechar o inventário?',(semC?'ATENÇÃO: '+semC+' item(ns) ficaram sem contagem e continuam com o saldo do sistema. ':'')+(difs.length?difs.length+' item(ns) com diferença ('+fMoeda(val)+'). Cada diferença vira um ajuste com o motivo “Inventário de '+fData(v.data)+'”. Depois de fechado, a contagem não muda.':'Nenhuma diferença entre a contagem e o sistema. O inventário fica registrado como fechado.'),{ok:'Fechar inventário'}))return;
    try{const atual=await gravarCont();const saldos={};its.forEach(i=>{saldos[i.id]=estI(i.id).saldo});
     for(const x of difs){const aj={id:novoId(),itemId:x.i.id,data:v.data,tipo:x.d>0?'entrada':'saida',qtd:r3(Math.abs(x.d)),motivo:'Inventário de '+fData(v.data),inventarioId:v.id,criadoEm:agoraIso(),criadoPor:eu()};
      await gravar('almAjustes',aj,null);await registrarLog('almAjustes',aj.id,'criou',null,aj,rotulosDe(MODS.almAjustes))}
@@ -18595,7 +18718,8 @@ function telaPagarAlm(c){
 }
 
 /* ================= almoxarifado: relatórios ================= */
-const REL_A=[['setor','Consumo por setor'],['maquina','Consumo por máquina'],['item','Consumo por item'],['forn','Compras por fornecedor'],['cat','Compras por categoria'],['cozinha','Cozinha: compras por mês e tipo'],['epi','EPIs entregues por funcionário'],['minimo','Itens abaixo do mínimo']];
+const REL_A=[['setor','Consumo por setor'],['maquina','Consumo por máquina'],['item','Consumo por item'],['forn','Compras por fornecedor'],['cat','Compras por categoria'],['cozinha','Cozinha: compras por mês e tipo'],['epi','EPIs entregues por funcionário'],['minimo','Itens abaixo do mínimo'],['repor','Sugestão de compra (ponto de reposição)'],['abc','Curva ABC (consumo de 12 meses)'],['grupo','Estoque por grupo de materiais']];
+const REL_SEM_PER=['minimo','repor','abc','grupo'];
 const URA={id:'setor',de:'',ate:''};
 function dadosRelAlm(){
  const de=URA.de||'0000',ate=URA.ate||'9999';const noP=d=>!!d&&d>=de&&d<=ate;
@@ -18618,12 +18742,20 @@ function dadosRelAlm(){
   return{cols:[{k:'func',l:'Funcionário'},{k:'item',l:'EPI'},{k:'q',l:'Quantidade',t:'num'},{k:'ult',l:'Última entrega',t:'data'}],rows:[...m.values()].sort((a,b)=>String(a.func).localeCompare(String(b.func),'pt-BR'))}}
  if(id==='minimo')return{cols:[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'saldo',l:'Saldo',t:'num'},{k:'min',l:'Mínimo',t:'num'},{k:'un',l:'Unidade'},{k:'forn',l:'Fornecedor habitual'}],
   rows:abaixoMin().map(i=>({codigo:i.codigo,nome:i.nome,saldo:estI(i.id).saldo,min:+i.minimo,un:un(i.unidade),forn:i.fornecedorId?nomeFornA(i.fornecedorId):'—'}))};
+ if(id==='repor')return{cols:[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'saldo',l:'Saldo',t:'num'},{k:'ponto',l:'Ponto de reposição',t:'num'},{k:'mes',l:'Consumo/mês',t:'num'},{k:'comprar',l:'Comprar',t:'num'},{k:'un',l:'Unidade'},{k:'valor',l:'Valor estimado',t:'moeda'},{k:'forn',l:'Fornecedor habitual'}],
+  rows:aRepor().map(i=>{const p=repI(i),e=estI(i.id);return{codigo:i.codigo,nome:i.nome,saldo:e.saldo,ponto:p.ponto,mes:p.mes,comprar:p.comprar,un:un(i.unidade),valor:r2(p.comprar*e.cm),forn:i.fornecedorId?nomeFornA(i.fornecedorId):'—'}}).sort((a,b)=>String(a.forn).localeCompare(String(b.forn),'pt-BR')||String(a.codigo).localeCompare(String(b.codigo),'pt-BR',{numeric:true}))};
+ if(id==='abc'){const C=consumoAlm();const xs=DATA.almItens.filter(i=>C[i.id]&&C[i.id].abc).sort((a,b)=>C[b.id].v365-C[a.id].v365);const tot=soma(xs,i=>C[i.id].v365);let ac=0;
+  return{cols:[{k:'abc',l:'Curva'},{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'q',l:'Consumo em 12 meses',t:'num'},{k:'un',l:'Unidade'},{k:'v',l:'Valor consumido',t:'moeda'},{k:'pct',l:'% acumulado'}],
+   rows:xs.map(i=>{ac+=C[i.id].v365;return{abc:C[i.id].abc,codigo:i.codigo,nome:i.nome,q:r3(C[i.id].q365),un:un(i.unidade),v:C[i.id].v365,pct:(tot>0?Math.round(ac/tot*1000)/10:0).toLocaleString('pt-BR')+'%'}})}}
+ if(id==='grupo'){const at=DATA.almItens.filter(ativo);const gs=[...DATA.almGrupos.map(g=>({rot:g.nome,cat:g.categoria,xs:at.filter(i=>i.grupoId===g.id)})),{rot:'(sem grupo)',cat:'—',xs:at.filter(i=>!i.grupoId||!GRUPO(i.grupoId))}].filter(x=>x.xs.length);
+  return{cols:[{k:'rot',l:'Grupo'},{k:'cat',l:'Categoria'},{k:'n',l:'Itens',t:'num'},{k:'s',l:'Com saldo',t:'num'},{k:'r',l:'Para repor',t:'num'},{k:'v',l:'Valor em estoque',t:'moeda'}],
+   rows:gs.map(x=>({rot:x.rot,cat:x.cat,n:x.xs.length,s:x.xs.filter(i=>estI(i.id).saldo>0).length,r:x.xs.filter(i=>repI(i).comprar>0).length,v:r2(soma(x.xs,i=>estI(i.id).valor))})).sort((a,b)=>b.v-a.v)}}
  return{cols:[],rows:[]}}
 function telaRelAlm(c){
  const R=dadosRelAlm();const tit=(REL_A.find(x=>x[0]===URA.id)||[,''])[1];
  const fmt=(col,v)=>col.t==='moeda'?fMoeda(v):col.t==='num'?fQtd(v):col.t==='data'?fData(v):String(v??'');
  c.innerHTML=cab('grafico','Relatórios do almoxarifado','Consumo pelas requisições (menos as devoluções) e pelo custo médio; compras pelas entradas. Sem período: tudo.',`<button type="button" class="btn" id="arExp">${ic('baixar')}Exportar ▾</button>`)+
-  `<div class="fi-filtros"><select id="arId" aria-label="Relatório">${optH(REL_A,URA.id)}</select>${URA.id==='minimo'?'':`<input type="date" id="arDe" value="${esc(URA.de)}" aria-label="De" title="De"><input type="date" id="arAte" value="${esc(URA.ate)}" aria-label="Até" title="Até">`}</div>`+
+  `<div class="fi-filtros"><select id="arId" aria-label="Relatório">${optH(REL_A,URA.id)}</select>${REL_SEM_PER.includes(URA.id)?'':`<input type="date" id="arDe" value="${esc(URA.de)}" aria-label="De" title="De"><input type="date" id="arAte" value="${esc(URA.ate)}" aria-label="Até" title="Até">`}</div>`+
   (R.rows.length?tabela(R.cols.map(x=>[x.l,x.t==='moeda'||x.t==='num'?1:0]),R.rows.map(r=>`<tr>${R.cols.map(x=>td(x.l,esc(fmt(x,r[x.k])),x.t==='moeda'||x.t==='num')).join('')}</tr>`)):noNada('Nada para mostrar neste período',''));
  $('#arId',c).onchange=e=>{URA.id=e.target.value;renderTela()};if($('#arDe',c)){$('#arDe',c).onchange=e=>{URA.de=e.target.value;renderTela()};$('#arAte',c).onchange=e=>{URA.ate=e.target.value;renderTela()}}
  $('#arExp',c).onclick=()=>exportarMenu($('#arExp',c),'Almoxarifado_'+URA.id,tit+(URA.de||URA.ate?' · '+(URA.de?fData(URA.de):'início')+' a '+(URA.ate?fData(URA.ate):'hoje'):''),R.cols,R.rows);
@@ -18985,6 +19117,195 @@ function telaRelPal(c){
  $('#prExp',c).onclick=()=>exportarMenu($('#prExp',c),'Paletes_'+URP.id,(REL_P.find(x=>x[0]===URP.id)||[,''])[1],cols,rows);
 }
 
+/* ================= patrimônio: cadastro dos bens (V58) =================
+   Bem patrimonial = o que dura e não é consumido (máquina, veículo, móvel, computador, ferramenta
+   durável). Cada bem tem número de patrimônio (o da plaqueta), setor, responsável, estado e situação.
+   Nada é apagado na baixa: o bem fica como Baixado, com data e motivo.
+   A vida útil daqui serve só para estimar o valor de hoje. A depreciação oficial é a da Controladoria. */
+const TIPOS_BEM=[['Máquinas e equipamentos',10],['Veículos e caminhões',5],['Móveis e utensílios',10],['Informática e eletrônicos',5],['Ferramentas',5],['Instalações',10],['Edificações e benfeitorias',25],['Outros',10]];
+const VIDA_TIPO=Object.fromEntries(TIPOS_BEM);
+const ESTADOS_BEM=['Novo','Bom','Regular','Ruim','Inservível'];
+const SIT_BEM=['Em uso','Em manutenção','Guardado (sem uso)','Emprestado','Baixado'];
+const ORIG_BEM=['Próprio','Arrendado','Alugado','Comodato (de terceiros)'];
+const MOT_BAIXA=['Venda','Sucata ou descarte','Perda, furto ou roubo','Doação','Devolução ao dono','Outro'];
+const SETORES_BEM=['Extração / Barro','Maromba','Secagem','Fornos','Carregamento / Pátio','Entrega / Frota','Oficina / Manutenção','Almoxarifado','Cozinha / Refeitório','Escritório'];
+const BEM=id=>DATA.patBens.find(x=>x.id===id);
+const bemAtivo=b=>!!b&&b.situacao!=='Baixado';
+const rotBem=b=>b?(b.numero?b.numero+' · ':'')+String(b.nome||''):'(bem removido)';
+const setoresBem=()=>[...new Set([...SETORES_BEM,...DATA.patBens.map(b=>b.setor).filter(Boolean)])];
+const COR_EST={Novo:'ok',Bom:'ok',Regular:'at',Ruim:'pe','Inservível':'pe'};
+const COR_SITB={'Em uso':'ok','Em manutenção':'at','Guardado (sem uso)':'in','Emprestado':'in','Baixado':''};
+function proxPat(excl){const n=Math.max(0,...DATA.patBens.filter(b=>b.id!==excl).map(b=>{const m=/^PAT-(\d+)$/.exec(String(b.numero||''));return m?+m[1]:0}));return 'PAT-'+String(n+1).padStart(4,'0')}
+const mesesEntre=(a,b)=>(+b.slice(0,4)*12+ +b.slice(5,7))-(+a.slice(0,4)*12+ +a.slice(5,7));
+/* valor estimado hoje: linear, sem valor residual; bem de terceiros não tem valor para a empresa */
+function valorHojeBem(b){const v=+b.valor||0,anos=+b.vidaAnos||0;if(!(v>0)||(b.dono&&b.dono!=='Próprio'))return null;if(!(anos>0)||!b.aquisicao)return r2(v);
+ const m=Math.min(Math.max(0,mesesEntre(String(b.aquisicao),b.situacao==='Baixado'&&b.baixaData?String(b.baixaData):hoje())),anos*12);return r2(Math.max(0,v-v/(anos*12)*m))}
+function htmlConfBem(r){
+ const b=r&&r.id?BEM(r.id):null;if(!b)return '<span class="ajuda">Depois de salvar, o bem entra no próximo inventário patrimonial.</span>';
+ const invs=DATA.patInvs.filter(v=>v.status==='fechado'&&v.resultado&&(v.resultado.linhas||[]).some(l=>l.id===b.id)).sort((x,y)=>String(y.data).localeCompare(String(x.data))).slice(0,5);
+ const ROT={ok:'Encontrado',outro:'Encontrado em outro setor',nao:'Não encontrado'};
+ return (b.naoLocalizado?`<div class="aviso pe" style="margin-bottom:8px"><span><b>Não localizado</b> no inventário de ${esc(fData(b.naoLocalizado))}. Quando achar, marque como encontrado no próximo inventário. Se sumiu de vez, mude a situação para Baixado.</span></div>`:'')+
+  `<div class="cl-sit"><div><span>Última conferência</span><b>${esc(b.ultConf?fData(b.ultConf):'nunca conferido')}</b></div></div>`+
+  (invs.length?`<ul class="fi-vinc">${invs.map(v=>{const l=v.resultado.linhas.find(x=>x.id===b.id);return `<li><a href="#/patInv/${esc(v.id)}">Inventário de ${esc(fData(v.data))}</a>: ${esc(ROT[l.r]||'—')}${l.r==='outro'?' ('+esc(l.setor||'—')+' → '+esc(l.novoSetor||'—')+')':''}${l.novoEstado&&l.novoEstado!==l.estado?' · estado '+esc(l.estado||'—')+' → '+esc(l.novoEstado):''}${l.obs?' · '+esc(l.obs):''}</li>`}).join('')}</ul>`:'')+
+  (b.funcId?`<p style="margin:10px 0 0"><a class="btn min" href="javascript:void 0" onclick="ALMOX_V52.termoBem('${esc(b.id)}')">${ic('recibo')}Termo de responsabilidade</a></p>`:'<p class="ajuda" style="margin:8px 0 0">Escolha o responsável para emitir o termo de responsabilidade.</p>')}
+MODS.patBens={titulo:'Patrimônio',sing:'bem',ic:'predio',
+ desc:'Máquinas, veículos, móveis, computadores e ferramentas duráveis da cerâmica. Cada bem com o número da plaqueta, onde fica, quem responde por ele e em que estado está.',
+ fields:[
+  {k:'numero',l:'Nº do patrimônio (plaqueta)',t:'txt',aj:'Em branco: o sistema gera (PAT-0001, PAT-0002…). É o número que vai na plaqueta ou etiqueta colada no bem.',s:'Bem'},
+  {k:'tipo',l:'Tipo de bem',t:'sel',req:1,op:TIPOS_BEM.map(t=>t[0]),s:'Bem'},
+  {k:'nome',l:'Descrição do bem',t:'txt',req:1,w2:1,aj:'Ex.: Maromba a vácuo; Caminhão basculante; Mesa de escritório em L.',s:'Bem'},
+  {k:'marca',l:'Marca',t:'txt',s:'Bem'},{k:'modelo',l:'Modelo',t:'txt',s:'Bem'},
+  {k:'serie',l:'Nº de série, chassi ou placa',t:'txt',s:'Bem'},
+  {k:'setor',l:'Setor onde fica',t:'lista',req:1,op:setoresBem,s:'Onde está e com quem'},
+  {k:'local',l:'Local exato',t:'txt',aj:'Ex.: galpão 2, ao lado do forno 3.',s:'Onde está e com quem'},
+  {k:'funcId',l:'Responsável',t:'sel',op:optsFuncAlm,aj:'Quem usa ou cuida do bem. É quem assina o termo de responsabilidade.',s:'Onde está e com quem'},
+  {k:'estado',l:'Estado de conservação',t:'sel',req:1,op:ESTADOS_BEM,s:'Onde está e com quem'},
+  {k:'situacao',l:'Situação',t:'sel',req:1,op:SIT_BEM,aj:'Baixado: saiu da empresa (venda, sucata, perda). O cadastro continua guardado.',s:'Onde está e com quem'},
+  {k:'baixaData',l:'Data da baixa',t:'data',req:1,sh:r=>r.situacao==='Baixado',s:'Onde está e com quem'},
+  {k:'baixaMotivo',l:'Motivo da baixa',t:'sel',req:1,op:MOT_BAIXA,sh:r=>r.situacao==='Baixado',s:'Onde está e com quem'},
+  {k:'dono',l:'De quem é',t:'sel',req:1,op:ORIG_BEM,aj:'Bem arrendado, alugado ou em comodato também é controlado aqui, mas não é patrimônio da empresa.',s:'Compra e valor'},
+  {k:'aquisicao',l:'Data da compra (ou de quando chegou)',t:'data',s:'Compra e valor'},
+  {k:'valor',l:'Valor de compra',t:'moeda',sh:r=>!r.dono||r.dono==='Próprio',s:'Compra e valor'},
+  {k:'fornecedor',l:r=>!r.dono||r.dono==='Próprio'?'Comprado de':'Dono do bem',t:'txt',s:'Compra e valor'},
+  {k:'nota',l:'Nota fiscal ou contrato',t:'txt',s:'Compra e valor'},
+  {k:'vidaAnos',l:'Vida útil (anos)',t:'num',sh:r=>!r.dono||r.dono==='Próprio',aj:'Vem uma sugestão pelo tipo de bem; confirme com o contador. Serve só para estimar o valor de hoje. A depreciação oficial continua na Controladoria.',s:'Compra e valor'},
+  {k:'_vh',l:'Valor estimado hoje',t:'calc',calc:r=>{const v=valorHojeBem(r);return v==null?'—':fMoeda(v)},sh:r=>!r.dono||r.dono==='Próprio',s:'Compra e valor'},
+  {k:'anexo',l:'Foto ou nota fiscal',t:'arq',s:'Compra e valor'},
+  {k:'_conf',l:'Conferências',t:'html',w2:1,calc:htmlConfBem,s:'Inventário patrimonial'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Inventário patrimonial'},campoQuando],
+ cols:[{k:'numero',l:'Nº',o:r=>String(r.numero||'')},
+  {k:'nome',l:'Bem',v:r=>'<b>'+esc(r.nome)+'</b>'+([r.marca,r.modelo].filter(Boolean).length?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc([r.marca,r.modelo].filter(Boolean).join(' · '))+'</span>':''),o:r=>r.nome},
+  {k:'tipo',l:'Tipo'},
+  {k:'setor',l:'Setor',v:r=>esc(r.setor||'—')+(r.local?'<span class="sub" style="display:block;font-size:11.5px;color:var(--fraco)">'+esc(r.local)+'</span>':''),o:r=>r.setor},
+  {k:'_resp',l:'Responsável',v:r=>esc(r.funcId?nomeF(r.funcId)||'—':'—'),o:r=>r.funcId?nomeF(r.funcId)||'':''},
+  {k:'estado',l:'Estado',v:r=>tag(r.estado||'—',COR_EST[r.estado]??''),o:r=>ESTADOS_BEM.indexOf(r.estado)},
+  {k:'situacao',l:'Situação',v:r=>tag(r.situacao||'—',COR_SITB[r.situacao]??'')+(r.naoLocalizado&&bemAtivo(r)?' '+tag('Não localizado','pe'):''),o:r=>r.situacao},
+  {k:'valor',l:'Valor de compra',t:'moeda',v:r=>+r.valor>0?esc(fMoeda(r.valor)):'—',o:r=>+r.valor||0}],
+ filtros:[{k:'tipo',l:'Tipo',op:TIPOS_BEM.map(t=>t[0])},{k:'_set',l:'Setor',op:setoresBem,fn:(r,v)=>r.setor===v},{k:'estado',l:'Estado',op:ESTADOS_BEM},{k:'situacao',l:'Situação',op:SIT_BEM},
+  {k:'_pend',l:'Pendência',op:['Não localizado','Sem responsável','Nunca conferido'],fn:(r,v)=>bemAtivo(r)&&(v==='Não localizado'?!!r.naoLocalizado:v==='Sem responsável'?!r.funcId:!r.ultConf)}],
+ ordem:['numero','asc'],
+ padrao:()=>({numero:'',tipo:'',marca:'',modelo:'',serie:'',setor:'',local:'',funcId:'',estado:'Bom',situacao:'Em uso',baixaData:'',baixaMotivo:'',dono:'Próprio',aquisicao:'',valor:'',fornecedor:'',nota:'',vidaAnos:'',obs:'',_va:1}),
+ aoMudar(st,k){
+  if(k==='tipo'&&(st._va||st.vidaAnos===''||st.vidaAnos==null)&&VIDA_TIPO[st.tipo]){st.vidaAnos=VIDA_TIPO[st.tipo];st._va=1}
+  if(k==='vidaAnos')st._va=0;
+  if(k==='situacao'&&st.situacao==='Baixado'&&!st.baixaData)st.baixaData=hoje()},
+ validar(st){const e={};const n=String(st.numero||'').trim().toUpperCase();
+  if(n){const d=DATA.patBens.find(x=>x.id!==st.id&&String(x.numero||'').trim().toUpperCase()===n);if(d)e.numero='Este número já está em uso: '+rotBem(d)+'.'}
+  if(st.aquisicao&&st.aquisicao>hoje())e.aquisicao='A data não pode ser no futuro.';
+  if(st.valor!==''&&st.valor!=null&&+st.valor<0)e.valor='Não pode ser negativo.';
+  if(st.vidaAnos!==''&&st.vidaAnos!=null&&!(+st.vidaAnos>0))e.vidaAnos='Informe os anos (maior que zero) ou deixe em branco.';
+  if(st.situacao==='Baixado'&&st.baixaData){if(st.baixaData>hoje())e.baixaData='A data não pode ser no futuro.';else if(st.aquisicao&&st.baixaData<st.aquisicao)e.baixaData='A baixa não pode ser antes da compra.'}
+  return e},
+ preparar(rec){['nome','marca','modelo','serie','setor','local','fornecedor','nota'].forEach(k=>{rec[k]=String(rec[k]||'').trim()});
+  rec.numero=String(rec.numero||'').trim().toUpperCase()||proxPat(rec.id);
+  rec.valor=rec.valor===''||rec.valor==null||isNaN(+rec.valor)?null:r2(rec.valor);rec.vidaAnos=rec.vidaAnos===''||rec.vidaAnos==null||isNaN(+rec.vidaAnos)?null:+rec.vidaAnos;
+  if(rec.dono!=='Próprio'){rec.valor=null;rec.vidaAnos=null}
+  if(rec.situacao!=='Baixado'){rec.baixaData='';rec.baixaMotivo=''}else rec.naoLocalizado=''}};
+MODS.patInvs={titulo:'Inventário patrimonial',sing:'inventário patrimonial',ic:'escudo',desc:'Conferência dos bens da cerâmica, setor por setor.',
+ fields:[{k:'data',l:'Data',t:'data',s:'Inventário'},{k:'responsavel',l:'Responsável',t:'txt',s:'Inventário'},{k:'setor',l:'Setor',t:'txt',s:'Inventário'},{k:'status',l:'Situação',t:'txt',s:'Inventário'}],
+ cols:[{k:'data',l:'Data',t:'data'}],filtros:[],ordem:['data','desc'],semExcluir:true,imutavel:true,padrao:()=>({})};
+const ROT_BEM_LOG=()=>({...rotulosDe(MODS.patBens),ultConf:'Última conferência',naoLocalizado:'Não localizado no inventário de'});
+
+/* termo de responsabilidade: todos os bens ativos que estão com a mesma pessoa */
+function docTermoBens(funcId){
+ const nome=nomeF(funcId)||'';const bs=DATA.patBens.filter(b=>bemAtivo(b)&&b.funcId===funcId).sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true}));
+ const D=baseRel('TERMO DE RESPONSABILIDADE','Patrimônio · '+nome,[]);
+ D.meta=[['Data',fData(hoje())],['Bens',String(bs.length)]];
+ D.quadros=[{rot:'RESPONSÁVEL PELOS BENS',campos:[['Nome',nome||'—',1]]},quadroEmpresaDoc('PATRIMÔNIO')];
+ D.parteNome=nome;D.arquivo='Termo_responsabilidade_'+nomeArq(nome||'bens');D.rodape='Termo de responsabilidade · '+nome;
+ D.blocos.push({tipo:'p',texto:'Declaro que recebi da empresa os bens relacionados abaixo, no estado de conservação indicado, para uso no trabalho. Comprometo-me a zelar por eles, a usá-los somente a serviço da empresa, a avisar de imediato qualquer defeito, dano, perda ou furto e a devolvê-los quando a empresa pedir ou quando eu deixar a função.'});
+ D.blocos.push({tipo:'tabela',head:['Nº do patrimônio','Bem','Marca e modelo','Nº de série','Setor','Estado'],dir:[],body:bs.map(b=>[b.numero||'',b.nome||'',[b.marca,b.modelo].filter(Boolean).join(' · ')||'—',b.serie||'—',b.setor||'—',b.estado||'—'])});
+ const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(hoje())+'.';
+ D.assinaturas=[{nome,sub:'Responsável pelos bens'},{nome:respP(ABA_ALM)||'',sub:'Pela empresa'}];
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
+function termoBem(id){const b=BEM(id);if(!b||!b.funcId){toast('Escolha o responsável do bem e salve antes.','erro');return}
+ if(typeof fecharGaveta==='function')fecharGaveta();verDoc(docTermoBens(b.funcId),{voltar:'#/patBens'})}
+
+/* ================= patrimônio: inventário patrimonial (V58) =================
+   Conferência física dos bens: para cada um, encontrado, encontrado em outro setor ou não encontrado,
+   mais o estado de conservação. Ao fechar, o cadastro do bem é atualizado (setor, estado e data da
+   conferência). Bem não encontrado fica marcado como "não localizado": nada é baixado sozinho.
+   O fechamento grava primeiro o resultado no inventário e só depois mexe nos bens; se a conexão
+   cair no meio, "Concluir o fechamento" termina o serviço sem repetir nada. */
+const ROT_CONF={ok:'Encontrado',outro:'Encontrado em outro setor',nao:'Não encontrado'};
+const RASC_PAT={};
+function telaPatInvs(c){
+ const L=DATA.patInvs.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));const ed=pode('patInvs','e');
+ const at=DATA.patBens.filter(bemAtivo);const nl=at.filter(b=>b.naoLocalizado);const nc=at.filter(b=>!b.ultConf);
+ c.innerHTML=cab('escudo','Inventário patrimonial','Conferência dos bens, de todos os setores ou de um só. Ao fechar, o setor e o estado de cada bem são atualizados no cadastro; o que não foi achado fica marcado como não localizado.',ed?`<button type="button" class="btn pri" id="piNovo">${ic('mais')}Novo inventário</button>`:'')+
+  resumo([[String(at.length),'Bens ativos'],[String(nc.length),'Nunca conferidos'],[String(nl.length),'Não localizados'],[L.length&&L.find(v=>v.status==='fechado')?fData(L.find(v=>v.status==='fechado').data):'—','Último inventário fechado']])+
+  (!DATA.patBens.length?`<div class="aviso in" style="margin-bottom:10px"><span><b>Comece pelo cadastro.</b> Cadastre os bens em <a href="#/patBens">Patrimônio</a> e depois abra o primeiro inventário para conferir tudo.</span></div>`:'')+
+  (L.length?tabela(['Data','Setor','Responsável','Situação',['Conferidos',0],['Em outro setor',0],['Não encontrados',0]],L.map(v=>{const res=v.resultado||{};const n=Object.values(v.conf||{}).filter(x=>x&&x.r).length;const f=v.status==='fechado';
+   return `<tr class="clic" data-go="#/patInv/${esc(v.id)}">${td('Data',esc(fData(v.data)))}${td('Setor',esc(v.setor||'Todos os setores'))}${td('Responsável',esc(v.responsavel||'—'))}${td('Situação',f?tag('Fechado','ok'):v.aplicando?tag('Fechamento pela metade','pe'):tag('Em aberto','at'))}
+    ${td('Conferidos',String(f?res.conferidos||0:n))}${td('Em outro setor',f?String(res.outro||0):'—')}${td('Não encontrados',f?String(res.nao||0):'—')}</tr>`})):noNada('Nenhum inventário patrimonial ainda','Use “Novo inventário” para conferir os bens.'));
+ $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.go);
+ if($('#piNovo',c))$('#piNovo',c).onclick=()=>{
+  if(!at.length){toast('Cadastre os bens em Patrimônio antes.','erro');return}
+  const sets=[...new Set(at.map(b=>b.setor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  H.modalF('Novo inventário patrimonial',`<div class="duas">${H.campoM('piD','Data da conferência<i> *</i>',`<input id="piD" type="date" max="${hoje()}" value="${hoje()}">`)}${H.campoM('piR','Responsável<i> *</i>',`<input id="piR" value="${esc(respP(ABA_ALM)||APP.nome||'')}">`)}</div>
+   ${H.campoM('piS','Setor',`<select id="piS"><option value="">Todos os setores</option>${optH(sets,'')}</select>`,'Confira um setor por vez se a fábrica for grande.')}`,'Começar a conferência',async v=>{
+   const data=H.valM(v,'piD'),resp=H.valM(v,'piR').trim(),setor=H.valM(v,'piS');if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}if(!resp){toast('Informe o responsável.','erro');return false}
+   const ab=DATA.patInvs.find(x=>x.status!=='fechado'&&(x.setor||'')===setor);if(ab){toast('Já existe um inventário em aberto para '+(setor||'todos os setores')+'.','erro');return false}
+   const rec={id:novoId(),data,responsavel:resp,setor,status:'aberto',conf:{},resultado:null,fechadoEm:'',criadoEm:agoraIso(),criadoPor:eu()};
+   await gravar('patInvs',rec,null);await registrarLog('patInvs',rec.id,'criou',null,rec,rotulosDe(MODS.patInvs));location.hash='#/patInv/'+rec.id})};
+}
+function linhasPatInv(v,bens,conf){
+ return bens.map(b=>{const x=conf[b.id]||{};const r=x.r||'';return{id:b.id,numero:b.numero||'',nome:b.nome||'',setor:b.setor||'',estado:b.estado||'',r,novoSetor:r==='outro'?String(x.setor||'').trim():'',novoEstado:r&&r!=='nao'?(x.estado||b.estado||''):'',obs:String(x.obs||'').trim()}})}
+function telaPatInv(el){
+ const r=lerRota();
+ shellS(el,'almox','patInv',c=>{
+  const v=DATA.patInvs.find(x=>x.id===r.id);if(!v){c.innerHTML=noNada('Inventário não encontrado',`<div class="vazio-acoes"><a class="btn" href="#/patInvs">${ic('esquerda')}Voltar</a></div>`);return}
+  const fech=v.status==='fechado';const pod=pode('patInvs','e');const ed=pod&&!fech&&!v.aplicando;
+  const cont=RASC_PAT[v.id]||(RASC_PAT[v.id]=clone(v.conf||{}));
+  const bens=DATA.patBens.filter(b=>(bemAtivo(b)||cont[b.id])&&(!v.setor||b.setor===v.setor||cont[b.id])).sort((a,b)=>String(a.setor||'').localeCompare(String(b.setor||''),'pt-BR')||String(a.numero||'').localeCompare(String(b.numero||''),'pt-BR',{numeric:true}));
+  const LS=fech?(v.resultado&&v.resultado.linhas||[]):v.aplicando&&v.linhas?v.linhas:linhasPatInv(v,bens,cont);
+  const res=v.resultado||{};const sets=setoresBem();
+  const linha=l=>{const b=BEM(l.id)||{};
+   if(!ed)return `<tr>${td('Nº',esc(l.numero))}${td('Bem','<b>'+esc(l.nome)+'</b>')}${td('Setor no sistema',esc(l.setor||'—'))}${td('Resultado',l.r?tag(ROT_CONF[l.r],l.r==='ok'?'ok':l.r==='nao'?'pe':'at'):'<span class="ajuda">não conferido</span>')}${td('Estado',esc(l.novoEstado||l.estado||'—')+(l.novoEstado&&l.novoEstado!==l.estado?' <span class="ajuda">(era '+esc(l.estado||'—')+')</span>':''))}${td('Setor encontrado',esc(l.novoSetor||'—'))}${td('Observação',esc(l.obs||''))}</tr>`;
+   const x=cont[l.id]||{};
+   return `<tr data-bem="${esc(l.id)}">${td('Nº',esc(l.numero))}${td('Bem','<b>'+esc(l.nome)+'</b><span class="sub">'+esc([b.marca,b.modelo,b.serie].filter(Boolean).join(' · ')||(b.funcId?nomeF(b.funcId)||'':''))+'</span>')}${td('Setor no sistema',esc(l.setor||'—')+(b.local?'<span class="sub">'+esc(b.local)+'</span>':''))}
+    <td data-l="Resultado"><select data-pk="r" aria-label="Resultado de ${esc(l.nome)}"><option value="">Não conferido</option>${optH(Object.entries(ROT_CONF),x.r||'')}</select></td>
+    <td data-l="Estado"><select data-pk="estado" aria-label="Estado de ${esc(l.nome)}" ${!x.r||x.r==='nao'?'disabled':''}>${optH(ESTADOS_BEM,x.estado||b.estado||'Bom')}</select></td>
+    <td data-l="Setor encontrado"><input data-pk="setor" list="piSets" value="${esc(x.setor||'')}" ${x.r==='outro'?'':'disabled'} style="width:150px" aria-label="Setor onde ${esc(l.nome)} foi encontrado"></td>
+    <td data-l="Observação"><input data-pk="obs" value="${esc(x.obs||'')}" style="width:160px" aria-label="Observação de ${esc(l.nome)}"></td></tr>`};
+  const nConf=LS.filter(l=>l.r).length;
+  c.innerHTML=cab('escudo','Inventário patrimonial de '+fData(v.data),esc(v.setor||'Todos os setores')+' · responsável '+esc(v.responsavel||'—')+' · '+(fech?'fechado em '+esc(fDataHora(v.fechadoEm)):v.aplicando?'fechamento pela metade':'em aberto'),
+   `<a class="btn" href="#/patInvs">${ic('esquerda')}Inventários</a><button type="button" class="btn" id="piFolha">${ic('baixar')}Folha de conferência ▾</button>${ed?`<button type="button" class="btn" id="piSalvar">Salvar conferência</button>`:''}${pod&&!fech?`<button type="button" class="btn pri" id="piFechar">${ic('escudo')}${v.aplicando?'Concluir o fechamento':'Fechar inventário'}</button>`:''}${ed?`<button type="button" class="btn perigo" id="piExc">${ic('lixo')}Excluir</button>`:''}`)+
+   (fech?resumo([[String(res.conferidos||0)+' de '+String(LS.length),'Bens conferidos'],[String(res.outro||0),'Em outro setor'],[String(res.estado||0),'Mudaram de estado'],[String(res.nao||0),'Não encontrados']])
+    :v.aplicando?`<div class="aviso pe" style="margin-bottom:10px"><span><b>O fechamento não terminou</b> (a conexão caiu no meio). Use “Concluir o fechamento”: o que já foi atualizado não é repetido.</span></div>`
+    :resumo([[nConf+' de '+LS.length,'Bens conferidos'],[String(LS.filter(l=>l.r==='nao').length),'Não encontrados até agora']])+`<p class="fi-nota">Vá até o bem, confira o número da plaqueta e marque o resultado. Bem sem conferir fica como está no cadastro. Achou um bem que não está na lista? <a href="#/patBens/novo">Cadastre em Patrimônio</a> e ele aparece aqui. Salve a conferência de vez em quando.</p>`)+
+   `<datalist id="piSets">${sets.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`+
+   (LS.length?tabela(['Nº','Bem','Setor no sistema','Resultado','Estado','Setor encontrado','Observação'],LS.map(linha),'tbl-inv'):noNada('Nenhum bem para conferir',v.setor?'Não há bem ativo no setor '+esc(v.setor)+'.':'Cadastre os bens em Patrimônio.'));
+  $$('tr[data-bem]',c).forEach(tr=>{const id=tr.dataset.bem;$$('[data-pk]',tr).forEach(i=>{const up=()=>{const o=cont[id]||(cont[id]={});o[i.dataset.pk]=i.value;
+     if(i.dataset.pk==='r'){const e=$('[data-pk="estado"]',tr),s=$('[data-pk="setor"]',tr);e.disabled=!i.value||i.value==='nao';s.disabled=i.value!=='outro';if(i.value&&i.value!=='nao'&&!o.estado)o.estado=e.value;if(i.value!=='outro'){o.setor='';s.value=''}if(!i.value&&!o.obs)delete cont[id]}};
+    i.onchange=up;if(i.tagName==='INPUT')i.oninput=up})});
+  const limpa=()=>Object.fromEntries(Object.entries(cont).filter(([,x])=>x&&(x.r||x.obs)).map(([k,x])=>[k,{r:x.r||'',estado:x.r&&x.r!=='nao'?x.estado||'':'',setor:x.r==='outro'?String(x.setor||'').trim():'',obs:String(x.obs||'').trim()}]));
+  const gravarConf=async extra=>{const atual=DATA.patInvs.find(x=>x.id===v.id)||v;const n={...clone(atual),conf:limpa(),...(extra||{}),alteradoEm:agoraIso(),alteradoPor:eu()};await gravar('patInvs',n,atual);return n};
+  $('#piFolha',c).onclick=()=>exportarMenu($('#piFolha',c),'Folha_inventario_patrimonial','Inventário patrimonial de '+fData(v.data)+' · '+(v.setor||'Todos os setores'),
+   [{k:'setor',l:'Setor'},{k:'numero',l:'Nº'},{k:'nome',l:'Bem'},{k:'det',l:'Marca, modelo e série'},{k:'resp',l:'Responsável'},{k:'r',l:'Encontrado? (S/N)'},{k:'estado',l:'Estado'},{k:'obs',l:'Observação'}],
+   LS.map(l=>{const b=BEM(l.id)||{};return{setor:l.setor,numero:l.numero,nome:l.nome,det:[b.marca,b.modelo,b.serie].filter(Boolean).join(' · '),resp:b.funcId?nomeF(b.funcId)||'':'',r:fech?(ROT_CONF[l.r]||''):'',estado:fech?(l.novoEstado||''):'',obs:fech?l.obs:''}}));
+  if($('#piSalvar',c))$('#piSalvar',c).onclick=async()=>{try{await gravarConf();toast('Conferência salva.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}};
+  if($('#piExc',c))$('#piExc',c).onclick=async()=>{if(!await confirmar('Excluir este inventário?','A conferência em aberto é descartada. Nenhum bem foi alterado.',{ok:'Sim, excluir',perigo:true}))return;
+   try{await apagar('patInvs',v);await registrarLog('patInvs',v.id,'excluiu');delete RASC_PAT[v.id];location.hash='#/patInvs'}catch(e){toast(msgFalhaSalvar(e),'erro')}};
+  if($('#piFechar',c))$('#piFechar',c).onclick=async()=>{
+   const linhas=v.aplicando&&v.linhas?v.linhas:linhasPatInv(v,bens,limpa());
+   if(!v.aplicando){
+    const ruim=linhas.find(l=>l.r==='outro'&&(!l.novoSetor||l.novoSetor===l.setor));if(ruim){toast('Informe em que setor o bem '+(ruim.numero||ruim.nome)+' foi encontrado (diferente do setor do sistema).','erro');return}
+    const conf=linhas.filter(l=>l.r).length;if(!conf){toast('Marque o resultado de pelo menos um bem.','erro');return}
+    const nao=linhas.filter(l=>l.r==='nao').length,outro=linhas.filter(l=>l.r==='outro').length,est=linhas.filter(l=>l.r&&l.r!=='nao'&&l.novoEstado&&l.novoEstado!==l.estado).length,sem=linhas.length-conf;
+    if(!await confirmar('Fechar o inventário patrimonial?',conf+' bem(ns) conferido(s)'+(outro?'; '+outro+' em outro setor (o setor será atualizado)':'')+(est?'; '+est+' com estado alterado':'')+(nao?'; '+nao+' não encontrado(s), que ficam marcados como “não localizado” (nada é baixado sozinho)':'')+'.'+(sem?' ATENÇÃO: '+sem+' bem(ns) ficaram sem conferir e continuam como estão.':'')+' Depois de fechado, a conferência não muda.',{ok:'Fechar inventário'}))return}
+   try{
+    if(!v.aplicando)await gravarConf({linhas,aplicando:true});
+    for(const l of linhas){if(!l.r)continue;const b=BEM(l.id);if(!b)continue;
+     const n={...clone(b),ultConf:v.data,naoLocalizado:l.r==='nao'?v.data:'',...(l.r!=='nao'?{estado:l.novoEstado||b.estado,setor:l.r==='outro'?l.novoSetor:b.setor,...(l.r==='outro'?{local:''}:{})}:{})};
+     if(n.ultConf===b.ultConf&&(n.naoLocalizado||'')===(b.naoLocalizado||'')&&n.estado===b.estado&&n.setor===b.setor)continue;
+     n.alteradoEm=agoraIso();n.alteradoPor=eu();await gravar('patBens',n,b);await registrarLog('patBens',b.id,'alterou',b,n,ROT_BEM_LOG())}
+    const atual=DATA.patInvs.find(x=>x.id===v.id)||v;const cf=linhas.filter(l=>l.r);
+    const fim={...clone(atual),status:'fechado',fechadoEm:agoraIso(),aplicando:false,linhas:null,resultado:{linhas,conferidos:cf.length,outro:cf.filter(l=>l.r==='outro').length,nao:cf.filter(l=>l.r==='nao').length,estado:cf.filter(l=>l.r!=='nao'&&l.novoEstado&&l.novoEstado!==l.estado).length}};
+    await gravar('patInvs',fim,atual);await logV('patInvs',v.id,'fechou o inventário patrimonial',[{c:'Conferidos',de:'',para:String(fim.resultado.conferidos)},{c:'Não encontrados',de:'',para:String(fim.resultado.nao)}]);
+    delete RASC_PAT[v.id];toast('Inventário patrimonial fechado.','ok')}catch(e){toast(msgFalhaSalvar(e)+' Abra de novo e use “Concluir o fechamento”.','erro')}};
+ })}
+
 /* ================= rotas ================= */
 const naA=(ativa,corpo)=>el=>shellS(el,'almox',ativa,corpo);
 const naP=(ativa,corpo)=>el=>shellS(el,'paletes',ativa,corpo);
@@ -18997,6 +19318,8 @@ Object.assign(TELAS_V,{
  almAjustes:naA('almAjustes',c=>telaLista(c,'almAjustes')),almEpis:naA('almEpis',c=>telaLista(c,'almEpis')),almEmprestimos:naA('almEmprestimos',c=>telaLista(c,'almEmprestimos')),
  almInventarios:el=>{const r=lerRota();if(r.id&&r.id!=='novo'){location.replace('#/almInv/'+r.id);return}naA('almInventarios',telaInventarios)(el)},almInv:telaInv,almEstoque:naA('almEstoque',telaEstoqueAlm),almMov:naA('almMov',telaMovAlm),
  almPagar:naA('almPagar',telaPagarAlm),almRel:naA('almRel',telaRelAlm),
+ almGrupos:naA('almGrupos',c=>telaLista(c,'almGrupos')),patBens:naA('patBens',c=>telaLista(c,'patBens')),
+ patInvs:el=>{const r=lerRota();if(r.id&&r.id!=='novo'){location.replace('#/patInv/'+r.id);return}naA('patInvs',telaPatInvs)(el)},patInv:telaPatInv,
  'setor-paletes':naP('setor-paletes',inicioPal),
  paleteMov:el=>{const r=lerRota();shellS(el,'paletes',r.id==='novo'?'pmov-novo':'paleteMov',c=>telaLista(c,'paleteMov'))},
  paleteCompras:naP('paleteCompras',c=>telaLista(c,'paleteCompras')),paleteTipos:naP('paleteTipos',c=>telaLista(c,'paleteTipos')),
@@ -19008,13 +19331,21 @@ if(MODS.palResp)TELAS_V.palResp=naP('palResp',c=>telaLista(c,'palResp'));
 /* o prazo de devolução fica na tela dos tipos */
 const av0=avisosModulo;
 avisosModulo=function(mod){if(mod==='paleteTipos'){const P=cfgPal();return `<div class="aviso in"><span>Prazo para o cliente devolver os paletes: <b>${esc(String(P.prazoDias))} dias</b> depois da saída.${pode('paleteConfig','e')?' <a href="javascript:void 0" onclick="PALETES_V52.prazo()">Alterar o prazo</a>':''}</span></div>`}
- if(mod==='almEntradas'||mod==='almSaidas'){return ''}return av0.apply(this,arguments)};
+ if(mod==='almEntradas'||mod==='almSaidas'){return ''}
+ if(mod==='almItens'&&pode('almItens','e'))return `<div class="aviso in"><span>Muitos itens para cadastrar? <a href="javascript:void 0" onclick="ALMOX_V52.variosItens()">Cadastre vários de uma vez</a> (um por linha) ou organize por família em <a href="#/almGrupos">Grupos de materiais</a>.</span></div>`+(av0.apply(this,arguments)||'');
+ if(mod==='patBens'){const P=DATA.patBens.filter(bemAtivo);const semR=P.filter(b=>!b.funcId).length;
+  return (!DATA.patBens.length?`<div class="aviso in"><span><b>Primeiros passos.</b> Ande pela fábrica setor por setor e cadastre cada bem com o número da plaqueta. Depois abra um <a href="#/patInvs">inventário patrimonial</a> para conferir tudo.</span></div>`:semR?`<div class="aviso at"><span>${semR} bem(ns) ativo(s) sem responsável. Use o filtro “Pendência” para achar.</span></div>`:'')+(av0.apply(this,arguments)||'')}
+ return av0.apply(this,arguments)};
+if(typeof resumoModulo==='function'){const rm0=resumoModulo;resumoModulo=function(mod,rows){
+ if(mod==='patBens'){const P=rows.filter(bemAtivo);const pr=P.filter(b=>!b.dono||b.dono==='Próprio');
+  return resumo([[String(P.length),'Bens ativos no filtro'],[fMoeda(soma(pr,b=>+b.valor||0)),'Valor de compra'],[fMoeda(soma(pr,b=>valorHojeBem(b)||0)),'Valor estimado hoje'],[String(P.filter(b=>b.situacao==='Em manutenção').length),'Em manutenção'],[String(P.filter(b=>b.naoLocalizado).length),'Não localizados'],[String(rows.length-P.length),'Baixados']])}
+ return rm0.apply(this,arguments)}}
 
 /* ================= cartões na seleção de setores ================= */
 {const BR=FS.BREVE||{};const BA=BR.almox;if(BR.almox)delete BR.almox;
  const i=SETORES.findIndex(s=>s.id==='almox');
  const novoA={id:'almox',nome:'Setor do Almoxarifado / Cozinha',ic:'cozinha',rota:'#/setor-almox',v:()=>pode('setor-almox'),
-  desc:'Peças, EPIs, ferramentas, cozinha, limpeza e escritório: entradas, requisições, estoque com custo médio, inventário e contas a pagar.'};
+  desc:'Peças, EPIs, ferramentas, cozinha, limpeza e escritório: entradas, requisições, estoque com custo médio, inventário e contas a pagar. Também o patrimônio da cerâmica (máquinas, veículos, móveis) e o inventário patrimonial.'};
  const novoP={id:'paletes',nome:'Setor de Paletes',ic:'palete',rota:'#/setor-paletes',v:()=>pode('setor-paletes'),
   desc:'Paletes livres, carregados no pátio, aguardando conserto e com os clientes; prazo de devolução, cobrança, compras e consertos.'};
  if(i>=0){SETORES.splice(i,1,novoA);SETORES.splice(i+1,0,novoP)}else SETORES.push(novoA,novoP);
@@ -19057,6 +19388,9 @@ window.preExcluirV51=function(mod,rec){
   const ex=[];if(mod==='almAjustes')ex.push(rec.tipo==='saida'?'A quantidade volta para o estoque.':'A quantidade sai do estoque.');if(mod==='almEpis')ex.push('O EPI volta para o estoque.');
   if(mod==='almAjustes'&&rec.inventarioId)ex.push('Ele foi gerado por um inventário: o inventário continua registrado.');
   return{texto:txt(mod==='almEpis'?'A entrega de EPI será excluída.':mod==='almAjustes'?'O ajuste será excluído.':'O empréstimo será excluído.',ex)}}
+ if(mod==='almGrupos'){const n=itensDoGrupo(rec.id).length;if(n)return{bloq:'Este grupo tem '+n+' item(ns). Mude os itens de grupo antes, ou deixe o grupo como Inativo.'};return{texto:txt('O grupo será excluído.')}}
+ if(mod==='patBens'){if(DATA.patInvs.some(v=>(v.conf&&v.conf[rec.id])||(v.resultado&&(v.resultado.linhas||[]).some(l=>l.id===rec.id&&l.r))))return{bloq:'Este bem já passou por inventário patrimonial. Em vez de excluir, mude a situação para Baixado: o histórico fica guardado.'};
+  return{texto:txt('O bem será excluído do patrimônio. Use só para cadastro feito por engano; se o bem saiu da empresa, o certo é a situação Baixado.')}}
  if(mod==='paleteMov'){
   const neg=novosNegativos(semEste(DATA.paleteMov,rec.id),DATA.paleteCompras);if(neg.length)return{bloq:'Não dá para excluir: '+neg[0]+'. Exclua antes os lançamentos que vieram depois.'};
   const ex=[];let depois=null;
@@ -19094,6 +19428,7 @@ posSalvarV=function(mod,rec,ant){
 
 /* ================= para os testes e para as telas ================= */
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
+ consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,proxPat,valorHojeBem,termoBem,docTermoBens,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();location.hash='#/almMov'},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,cfgPal,sugestaoPaletes,prazo:modalPrazoPal,inventario:modalInvPal,cobrar:k=>modalCobranca(calcPal().C[k])};
