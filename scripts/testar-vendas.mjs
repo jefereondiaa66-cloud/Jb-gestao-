@@ -317,8 +317,10 @@ try {
     const nFiltro = await page.evaluate(() => document.querySelectorAll('#conteudo [aria-label^="Imprimir nº"]').length);
     ok(filtrado && nFiltro === 1, `filtro por produto: só o pedido com o Tijolo 8 furos (${nFiltro})`);
     ok(await page.evaluate(() => /Produto: Tijolo 8 furos \(teste\)/.test(document.getElementById('conteudo').textContent)), 'aviso do filtro mostra o nome do produto (não o código interno)');
-    await page.click('#conteudo [aria-label^="Imprimir nº"]');
-    ok(await page.waitForSelector('.vs-imp', { timeout: 4000 }).then(() => true).catch(() => false), 'reimprimir pela lista de pedidos');
+    // V129: as ações de cada linha ficam no menu de três pontos (o "Imprimir ou reimprimir" de sempre continua lá)
+    await page.click('#conteudo tr:has([aria-label^="Imprimir nº"]) .jbl-m');
+    await page.click('.dc-pop button:has-text("Imprimir ou reimprimir")');
+    ok(await page.waitForSelector('.vs-imp', { timeout: 4000 }).then(() => true).catch(() => false), 'reimprimir pela lista de pedidos (menu de três pontos)');
     await page.click('.vs-imp [data-fechar]');
     ok(await semRolagemLado(page), 'consulta sem rolagem para o lado');
     await page.screenshot({ path: join(RAIZ, `saida/vendas-consulta-${vp.nome}.png`) });

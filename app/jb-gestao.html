@@ -44166,5 +44166,384 @@ if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){co
 window.CPG_FIN={moduloDe,sitU,baldes,agendar,pagar,novaConta,cancelarConta,gravarAgenda,MODULOS,catsDoModulo};
 })();
 </script>
+<style id="lanc-filtros-v129-css">
+/* ================= V129 · Padrão global de filtros e de lançamentos (17/11/2026) =================
+   Pedido do Jeferson: filtros mais limpos (Período e Competência com calendário, "Mais filtros",
+   "Limpar"), um botão só para ordenar e as ações de cada lançamento num menu de três pontos
+   (Visualizar, Imprimir, Compartilhar, Editar, Excluir). Componente único (script lanc-filtros-v129):
+   uma melhoria aqui vale para todos os setores. Só aparência e atalhos: os campos, as tabelas e as
+   funções de cada tela continuam os mesmos por baixo. O início dos setores não muda. Na impressão,
+   nenhum botão ou menu aparece. */
+@media screen{
+html.casca2 .jbf{align-items:center}
+html.casca2 .jbf .jbf-h{display:none!important}
+html.casca2 .jbf:not(.jbf-ab):not(.lc-f) .jbf-x{display:none!important}
+html.casca2 .jbf.lc-f>.jbf-mais{display:none!important}
+html.casca2 .jbf [hidden],html.casca2 .jbl-ob [hidden]{display:none!important}
+html.casca2 .jbf-bt{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:13px;line-height:1;white-space:nowrap;cursor:pointer;flex:none;width:auto;box-shadow:none;margin:0}
+html.casca2 .jbf-bt:hover{border-color:var(--pn-s,#565A63)}
+html.casca2 .jbf-bt>*,html.casca2 .jbl-m>*{pointer-events:none}
+html.casca2 .jbf-bt svg{width:15px;height:15px;flex:none;fill:none;stroke:var(--pn-s,#565A63);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+html.casca2 .jbf-bt b{font-weight:600}
+html.casca2 .jbf-bt.on{border-color:var(--c2-verm,#D3121C);box-shadow:0 0 0 3px rgba(211,18,28,.10)}
+html.casca2 .jbf-n{background:var(--c2-verm,#D3121C);color:#fff;border-radius:99px;font-size:10.5px;font-weight:700;padding:2px 6px;line-height:1}
+html.casca2 .jbf-n:empty{display:none}
+html.casca2 .jbf-lim{border:0;background:none;color:var(--c2-verm,#D3121C);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:0 6px;height:36px;flex:none;width:auto;margin:0}
+html.casca2 .jbl-ob{display:flex;justify-content:flex-end;margin:0 0 8px}
+html.casca2 .jbl-ob .jbf-bt{height:32px}
+html.casca2 table.lc.jbl-ord>thead{display:none!important}
+html.casca2 .jbl-m{width:30px;height:30px;border:1px solid transparent;border-radius:8px;background:none;display:inline-grid;place-items:center;cursor:pointer;color:var(--pn-s,#565A63);padding:0;margin:0;flex:none;vertical-align:middle}
+html.casca2 .jbl-m:hover,html.casca2 .jbl-m:focus-visible{background:var(--pn-l2,#ECEEF0);border-color:var(--pn-l,#DDE0E3)}
+html.casca2 .jbl-m svg{width:16px;height:16px;fill:currentColor;stroke:none}
+html.casca2 table.lc td.lc-a .jbl-oc{display:none!important}
+html.casca2 table.lc tr.jbl-tm>td.lc-a{display:flex!important;align-items:center;justify-content:flex-end;gap:8px}
+html.casca2 table.lc tr.jbl-ts{position:relative;padding-right:50px!important}
+html.casca2 table.lc tr.jbl-ts>.jbl-m{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+html.casca2 #conteudo.jbl-pg table.lc>tbody>tr{padding:9px 14px!important;margin:0 0 6px;border-radius:10px;row-gap:2px}
+html.casca2 #conteudo.jbl-pg table.lc>tbody>tr.jbl-ts{padding-right:50px!important}
+html.casca2 #conteudo.jbl-pg table.lc .tag{font-size:11.5px!important;padding:2px 9px!important;border-color:transparent!important;box-shadow:none!important}
+html.casca2 #conteudo.jbl-pg table.lc .tag::before{display:none!important}
+html.casca2 #conteudo.jbl-pg table.lc>tfoot>tr{border-radius:10px;padding:9px 14px}
+html.casca2 #conteudo.jbl-pg .sec-cab .acoes .btn[disabled]{display:none}
+}
+@media screen and (min-width:901px){
+html.casca2 .jbf>input[type=search]{order:-2;flex:1 1 150px;min-width:140px;max-width:340px}
+html.casca2 .jbf>select,html.casca2 .jbf>label>select{max-width:190px}
+html.casca2 .jbf>.jbf-per:not(.jbf-par),html.casca2 .jbf>.jbf-comp{order:-1}
+html.casca2 .jbf>.jbf-ord{margin-left:auto}
+html.casca2 #conteudo.jbl-pg table.lc>tbody>tr>td.lc-d.jbl-vz{visibility:hidden}
+}
+@media screen and (max-width:900px){
+html.casca2 .jbf>.jbf-ord{order:4}
+html.casca2 .jbl-ob{justify-content:flex-start}
+html.casca2 table.lc tr.jbl-tm>td.lc-a{flex:0 0 100%}
+html.casca2 table.lc tr.jbl-ts>.jbl-m{top:auto;bottom:6px;transform:none}
+html.casca2 table.lc tr.jbl-ts,html.casca2 #conteudo.jbl-pg table.lc>tbody>tr.jbl-ts{padding-right:13px!important;padding-bottom:38px!important}
+}
+/* calendário de período e de competência */
+.jbf-pop{position:fixed;z-index:90;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);border:1px solid var(--pn-l,#DDE0E3);border-radius:14px;box-shadow:0 14px 40px rgba(20,20,30,.18);padding:12px;display:flex;gap:14px;font-size:13px;max-width:calc(100vw - 16px);font-family:inherit;text-align:left}
+.jbf-pre{display:flex;flex-direction:column;gap:2px;min-width:136px;border-right:1px solid var(--pn-l2,#ECEEF0);padding-right:10px}
+.jbf-pop button{font:inherit;color:inherit}
+.jbf-pre button{border:0;background:none;text-align:left;padding:7px 9px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
+.jbf-pre button:hover{background:var(--pn-l2,#ECEEF0)}
+.jbf-pre button.on{background:var(--c2-vli,#FDECEC);color:var(--c2-verm,#D3121C);font-weight:600}
+.jbf-cals{display:flex;gap:18px}
+.jbf-cal h4{margin:0 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;height:28px;text-transform:capitalize}
+.jbf-cal h4 button{border:0;background:none;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:17px;line-height:1}
+.jbf-cal h4 button:hover{background:var(--pn-l2,#ECEEF0)}
+.jbf-g{display:grid;grid-template-columns:repeat(7,32px);row-gap:2px;text-align:center}
+.jbf-gm{display:grid;grid-template-columns:repeat(4,58px);row-gap:6px;text-align:center}
+.jbf-g i{font-style:normal;font-size:10.5px;color:var(--pn-f,#858992);padding-bottom:3px}
+.jbf-g button,.jbf-gm button{border:0;background:none;height:30px;font-size:12.5px;cursor:pointer;padding:0;border-radius:8px}
+.jbf-gm button{height:34px}
+.jbf-g button:hover,.jbf-gm button:hover{background:var(--pn-l2,#ECEEF0)}
+.jbf-g button.hj,.jbf-gm button.hj{font-weight:700;text-decoration:underline}
+.jbf-g button.in,.jbf-gm button.in{background:var(--c2-vli,#FDECEC);border-radius:0}
+.jbf-g button.a,.jbf-g button.z,.jbf-gm button.a,.jbf-gm button.z{background:var(--c2-verm,#D3121C);color:#fff;font-weight:600}
+.jbf-g button.a,.jbf-gm button.a{border-radius:8px 0 0 8px}
+.jbf-g button.z,.jbf-gm button.z{border-radius:0 8px 8px 0}
+.jbf-g button.a.z,.jbf-gm button.a.z{border-radius:8px}
+.jbf-pe{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--pn-l2,#ECEEF0);margin-top:10px;padding-top:10px;flex-wrap:wrap}
+.jbf-pe input{border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:5px 8px;font:inherit;font-size:12.5px;width:136px;color:inherit;background:var(--pn-b,#fff)}
+.jbf-pe .ok{background:var(--c2-verm,#D3121C);color:#fff!important;border:0;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+@media (max-width:900px){
+.jbf-pop{left:8px!important;right:8px;top:auto!important;bottom:8px;flex-direction:column;max-height:calc(100vh - 16px);overflow:auto}
+.jbf-pre{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--pn-l2,#ECEEF0);padding:0 0 8px;min-width:0}
+.jbf-cals{justify-content:center}
+.jbf-g{grid-template-columns:repeat(7,minmax(34px,1fr))}
+.jbf-gm{grid-template-columns:repeat(4,minmax(58px,1fr))}
+}
+@media print{.jbl-m,.jbl-ob,.jbf-bt,.jbf-lim,.jbf-pop{display:none!important}}
+</style>
+<script id="lanc-filtros-v129">
+"use strict";
+/* V129 · Padrão global de filtros e de lançamentos (componente único, 17/11/2026).
+   Filtros (.filtros e .fi-filtros das telas, menos o início dos setores):
+   - as duas datas viram o botão "Período" (calendário com atalhos) e o par de meses vira "Competência";
+   - do 3º filtro de lista em diante, tudo fica em "Mais filtros"; "Limpar" aparece com filtro ligado;
+   - a fileira "Ordenar por" das listas em cartões vira um botão "Ordenar".
+   Lançamentos (listas em cartões, bloco lista-cartoes): as ações de cada linha vão para um menu de três
+   pontos (Visualizar, Imprimir, Compartilhar, Editar, Excluir e as ações próprias da tela). A ação
+   principal da linha (botão vermelho, ex.: "Pagar") continua à vista.
+   Nada grava, apaga ou muda dado: os campos de filtro continuam na tela (escondidos) e recebem o valor
+   escolhido com o mesmo evento de antes; cada item do menu chama o que a tela já tinha (o Excluir é o
+   botão da janela do registro, com a mesma confirmação e as mesmas regras). Tela nova: nada a fazer,
+   lista em cartões e barra .filtros/.fi-filtros já entram no padrão. */
+(function(){
+ const D=document;
+ const SV=d=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>';
+ const I={cal:SV('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
+  fil:SV('<path d="M4 6h16M7 12h10M10 18h4"/>'),
+  ord:SV('<path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/>'),
+  pts:SV('<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>')};
+ const p2=n=>String(n).padStart(2,'0');
+ const iso=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+ const dia=s=>{const a=String(s).split('-').map(Number);return new Date(a[0],(a[1]||1)-1,a[2]||1)};
+ const okD=s=>/^\d{4}-\d{2}-\d{2}$/.test(s||''),okM=s=>/^\d{4}-\d{2}$/.test(s||'');
+ const MC=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+ const NM=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+ const br=s=>s.slice(8)+'/'+s.slice(5,7)+'/'+s.slice(0,4);
+ const brM=(s,c)=>MC[+s.slice(5,7)-1]+'/'+(c?s.slice(2,4):s.slice(0,4));
+ const HJ=()=>iso(new Date());
+ const somaD=(s,n)=>{const d=dia(s);d.setDate(d.getDate()+n);return iso(d)};
+ const somaM=(s,n)=>iso(new Date(+s.slice(0,4),+s.slice(5,7)-1+n,1)).slice(0,7);
+ const por=(el,t)=>{if(el&&el.textContent!==t)el.textContent=t};
+ const rota=()=>{try{return lerRota().mod||''}catch(e){return ''}};
+ const desk=()=>matchMedia('(min-width:901px)').matches;
+ const escH=x=>String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ /* "Ordenar" sozinho ou "Ordenar: Data ↓" (só reescreve quando muda) */
+ const rotOrd=(bt,ths)=>{const at=ths.find(th=>setaTh(th));const v=at?'Ordenar: <b>'+escH(nomeTh(at)+setaTh(at))+'</b>':'Ordenar';const s=bt.querySelector('span');if(s&&s.dataset.v!==v){s.dataset.v=v;s.innerHTML=v}};
+ const nomeTh=th=>String(th.textContent||'').replace(/[↑↓▲▼⇅]/g,'').replace(/\s+/g,' ').trim();
+ const setaTh=th=>{const a=th.getAttribute('aria-sort');if(a==='ascending')return ' ↑';if(a==='descending')return ' ↓';const m=/[↑↓]/.exec(th.textContent||'');return m?' '+m[0]:''};
+ const thsOrd=t=>t&&t.tHead?[...t.tHead.querySelectorAll('th')].filter(th=>th.matches('.ord,.ord-auto,[data-o]')&&nomeTh(th)&&!/^(a[cç][oõ]es|marcar)$/i.test(nomeTh(th))):[];
+
+ /* ---------------- rótulos e atalhos ---------------- */
+ function rotuloPer(de,ate){
+  if(!okD(de)&&!okD(ate))return 'todos';
+  if(okD(de)&&okD(ate)){if(de===ate)return br(de);return (de.slice(0,4)===ate.slice(0,4)?br(de).slice(0,5):br(de))+' a '+br(ate)}
+  return okD(de)?'desde '+br(de):'até '+br(ate);
+ }
+ function rotuloMes(de,ate){
+  if(!okM(de)&&!okM(ate))return 'todas';
+  if(okM(de)&&okM(ate))return de===ate?brM(de):brM(de,1)+' a '+brM(ate,1);
+  return okM(de)?'desde '+brM(de,1):'até '+brM(ate,1);
+ }
+ function atalhos(modo){const h=HJ();
+  if(modo==='mes'){const m=h.slice(0,7),y=+h.slice(0,4);
+   return [['Este mês',m,m],['Mês passado',somaM(m,-1),somaM(m,-1)],['Últimos 3 meses',somaM(m,-2),m],['Este ano',y+'-01',y+'-12'],['Ano passado',(y-1)+'-01',(y-1)+'-12'],['Todas','','']]}
+  const d=dia(h),y=d.getFullYear(),m=d.getMonth();
+  return [['Hoje',h,h],['Ontem',somaD(h,-1),somaD(h,-1)],['Últimos 7 dias',somaD(h,-6),h],['Este mês',iso(new Date(y,m,1)),iso(new Date(y,m+1,0))],
+   ['Mês passado',iso(new Date(y,m-1,1)),iso(new Date(y,m,0))],['Este ano',y+'-01-01',y+'-12-31'],['Todo o período','','']];
+ }
+
+ /* ---------------- calendário (dias ou meses) ---------------- */
+ let POP=null;
+ function fecharCal(){if(!POP)return;const P=POP;POP=null;P.el.remove();D.removeEventListener('mousedown',P.fora,true);D.removeEventListener('keydown',P.esc,true);window.removeEventListener('scroll',P.rolar);if(P.bt)P.bt.classList.remove('on')}
+ function abrirCal(bt,modo,ler,aplicar){
+  if(POP&&POP.bt===bt){fecharCal();return}
+  fecharCal();
+  const mm=modo==='mes',ok=mm?okM:okD,hj=HJ(),hjK=mm?hj.slice(0,7):hj;
+  const v0=ler();let de=ok(v0[0])?v0[0]:'',ate=ok(v0[1])?v0[1]:'';
+  let ano,mes;const ir=s=>{const b=dia(s||hj);ano=b.getFullYear();mes=b.getMonth()};ir(de||ate);
+  const el=D.createElement('div');el.className='jbf-pop';el.setAttribute('role','dialog');el.setAttribute('aria-label',mm?'Escolher a competência':'Escolher o período');
+  const cls=s=>{const c=[];if(s===hjK)c.push('hj');if(de&&s===de)c.push('a');if((ate&&s===ate)||(de&&!ate&&s===de))c.push('z');if(de&&ate&&s>de&&s<ate)c.push('in');return c.join(' ')};
+  const cab=(tit,esq,dir,rot)=>'<h4><button type="button" data-nav="-1" aria-label="'+rot[0]+'"'+(esq?'':' style="visibility:hidden"')+'>‹</button><span>'+tit+'</span><button type="button" data-nav="1" aria-label="'+rot[1]+'"'+(dir?'':' style="visibility:hidden"')+'>›</button></h4>';
+  const mesHtml=(y,m,esq,dir)=>{const n=new Date(y,m+1,0).getDate();let h='';for(let i=new Date(y,m,1).getDay();i>0;i--)h+='<span></span>';
+   for(let d=1;d<=n;d++){const s=y+'-'+p2(m+1)+'-'+p2(d);h+='<button type="button" data-d="'+s+'" class="'+cls(s)+'">'+d+'</button>'}
+   return '<div class="jbf-cal">'+cab(NM[m]+' '+y,esq,dir,['Mês anterior','Mês seguinte'])+'<div class="jbf-g">'+['D','S','T','Q','Q','S','S'].map(x=>'<i>'+x+'</i>').join('')+h+'</div></div>'};
+  const anoHtml=y=>'<div class="jbf-cal">'+cab(String(y),1,1,['Ano anterior','Ano seguinte'])+'<div class="jbf-gm">'+MC.map((x,i)=>{const s=y+'-'+p2(i+1);return '<button type="button" data-d="'+s+'" class="'+cls(s)+'">'+x+'</button>'}).join('')+'</div></div>';
+  function desenhar(){
+   const A=atalhos(modo);let cals;
+   if(mm)cals=anoHtml(ano);
+   else{const d2=new Date(ano,mes+1,1),dois=desk();cals=mesHtml(ano,mes,1,!dois)+(dois?mesHtml(d2.getFullYear(),d2.getMonth(),0,1):'')}
+   const tp=mm?'month':'date';
+   el.innerHTML='<div class="jbf-pre">'+A.map((a,i)=>'<button type="button" data-at="'+i+'" class="'+(a[1]===de&&a[2]===ate?'on':'')+'">'+a[0]+'</button>').join('')+'</div>'+
+    '<div><div class="jbf-cals">'+cals+'</div><div class="jbf-pe"><span><input type="'+tp+'" data-c="de" value="'+de+'" aria-label="Início"> até <input type="'+tp+'" data-c="ate" value="'+ate+'" aria-label="Fim"></span><button type="button" class="ok">Aplicar</button></div></div>';
+  }
+  const pos=()=>{const r=bt.getBoundingClientRect();el.style.top=Math.max(8,Math.min(innerHeight-el.offsetHeight-8,r.bottom+6))+'px';el.style.left=Math.max(8,Math.min(innerWidth-el.offsetWidth-8,r.left))+'px'};
+  const concluir=()=>{if(de&&ate&&de>ate){const t=de;de=ate;ate=t}fecharCal();aplicar(de,ate)};
+  el.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;
+   if(t.dataset.at!=null){const a=atalhos(modo)[+t.dataset.at];de=a[1];ate=a[2];concluir();return}
+   if(t.dataset.nav){if(mm)ano+=+t.dataset.nav;else{const d=new Date(ano,mes+(+t.dataset.nav),1);ano=d.getFullYear();mes=d.getMonth()}desenhar();return}
+   if(t.dataset.d){const s=t.dataset.d;if(!de||ate){de=s;ate=''}else if(s<de){ate=de;de=s}else ate=s;desenhar();return}
+   if(t.classList.contains('ok')){if(de&&!ate)ate=de;concluir()}});
+  el.addEventListener('change',e=>{const c=e.target.dataset&&e.target.dataset.c;if(!c)return;const v=ok(e.target.value)?e.target.value:'';if(c==='de')de=v;else ate=v;ir(de||ate);desenhar()});
+  D.body.appendChild(el);desenhar();pos();bt.classList.add('on');
+  POP={el,bt,fora:e=>{if(!el.contains(e.target)&&!bt.contains(e.target))fecharCal()},esc:e=>{if(e.key==='Escape'){fecharCal();bt.focus()}},rolar:()=>{if(desk())fecharCal()}};
+  D.addEventListener('mousedown',POP.fora,true);D.addEventListener('keydown',POP.esc,true);window.addEventListener('scroll',POP.rolar,{passive:true});
+ }
+
+ /* ---------------- valores nos campos de sempre ---------------- */
+ /* o campo pode ter sido redesenhado pela própria tela depois do primeiro evento: acha o novo pelo id/atributo */
+ function seletor(el){
+  const tg=el.tagName.toLowerCase(),q=v=>'"'+String(v).replace(/["\\]/g,'\\$&')+'"';
+  if(el.id)return '#'+CSS.escape(el.id);
+  for(const a of el.attributes)if(/^data-/.test(a.name)&&a.value)return tg+'['+a.name+'='+q(a.value)+']';
+  if(el.name)return tg+'[name='+q(el.name)+']';
+  const l=el.getAttribute('aria-label');return l?tg+'[aria-label='+q(l)+']':'';
+ }
+ function aplicarValores(pares){
+  const c=D.getElementById('conteudo');
+  pares.map(([el,v])=>[el,seletor(el),v]).forEach(([el,s,v])=>{
+   let e=el;if(!e.isConnected){e=null;try{if(s&&c)e=c.querySelector(s)}catch(x){}}
+   if(!e||e.value===v)return;e.value=v;
+   if(e.type==='search')e.dispatchEvent(new Event('input',{bubbles:true}));
+   e.dispatchEvent(new Event('change',{bubbles:true}))});
+ }
+
+ /* ---------------- menus (três pontos e ordenar): o mesmo menu "Mais" das telas de documento ---------------- */
+ let MB=null;
+ function alternarMenu(bt,itens){
+  const p=D.querySelector('.dc-pop');if(p&&p.dataset.jbm&&MB===bt){p.remove();MB=null;return}
+  if(typeof abrirMenuMais!=='function'||!itens.length)return;
+  MB=bt;abrirMenuMais(bt,itens);const n=D.querySelector('.dc-pop');if(n)n.dataset.jbm='1';
+ }
+ function menuOrd(bt,t){const ths=thsOrd(t);if(!ths.length)return;
+  alternarMenu(bt,ths.map(th=>({l:nomeTh(th)+setaTh(th),sub:setaTh(th)?'toque de novo para inverter a ordem':'',fn:()=>th.click()})))}
+
+ /* ---------------- barra de filtros ---------------- */
+ const caixa=(e,f)=>e.parentNode===f?e:e.parentNode;
+ const campos=f=>[...f.querySelectorAll('input[type=date],input[type=month],input[type=search],select')].filter(e=>e.parentNode===f||(e.parentNode.tagName==='LABEL'&&e.parentNode.parentNode===f));
+ const parDe=(f,tipo)=>{const x=campos(f).filter(e=>e.type===tipo);return x.length===2?x:null};
+ const mesesPar=f=>{const m=campos(f).filter(e=>e.type==='month'&&caixa(e,f).classList.contains('jbf-mp'));return m.length===2?m:null};
+ function botao(cls,html){const b=D.createElement('button');b.type='button';b.className='jbf-bt '+cls;b.innerHTML=html;return b}
+ /* esconde as caixas do par e o texto solto entre elas ("até") */
+ function esconderPar(f,a,b,cls){const ca=caixa(a,f),cb=caixa(b,f);ca.classList.add(cls);cb.classList.add(cls);
+  for(let n=ca.nextSibling;n&&n!==cb;){const prox=n.nextSibling;
+   if(n.nodeType===3&&n.textContent.trim()){const s=D.createElement('span');s.className=cls;f.insertBefore(s,n);s.appendChild(n)}
+   else if(n.nodeType===1&&!campos(f).some(x=>caixa(x,f)===n))n.classList.add(cls);
+   n=prox}}
+ function tabelaDe(f){const c=D.getElementById('conteudo');const raiz=f.closest('#svCorpo')||c;if(!raiz)return null;const ts=raiz.querySelectorAll('table.lc');return ts.length===1?ts[0]:null}
+ const ativoF=(e,f)=>{if(e.type==='month'&&!caixa(e,f).classList.contains('jbf-h'))return false;
+  if(e.tagName==='SELECT')return e.value!==''&&[...e.options].some(o=>o.value==='');return e.value!==''};
+ function montar(f){
+  if(f.dataset.jbf&&f.querySelector(':scope>.jbf-ord'))return sinc(f);
+  /* a tela redesenhou o miolo da barra: refaz */
+  f.querySelectorAll(':scope>.jbf-bt,:scope>.jbf-lim').forEach(x=>x.remove());
+  const E=campos(f);if(!E.length)return;
+  f.dataset.jbf='1';f.classList.add('jbf');
+  const datas=parDe(f,'date'),meses=E.filter(e=>e.type==='month'),sels=E.filter(e=>e.tagName==='SELECT');
+  if(datas){
+   const selPer=sels.find(s=>/^per[ií]odo$/i.test((s.getAttribute('aria-label')||'').trim()));
+   const per=botao('jbf-per lc-x'+(selPer?' jbf-par':''),I.cal+'<span>'+(selPer?'':'Período: ')+'<b></b></span>');per.setAttribute('aria-haspopup','dialog');per.title='Escolher as datas';
+   f.insertBefore(per,caixa(datas[0],f));esconderPar(f,datas[0],datas[1],'jbf-h');
+   if(meses.length===1&&!caixa(meses[0],f).classList.contains('jbf-h'))caixa(meses[0],f).classList.add('jbf-h');
+   per.onclick=()=>{const p=parDe(f,'date');if(!p)return;const [a,b]=p;
+    abrirCal(per,'dia',()=>[a.value,b.value],(de,ate)=>{por(per.querySelector('b'),rotuloPer(de,ate));
+     aplicarValores(de&&b.value&&de>b.value?[[b,ate],[a,de]]:[[a,de],[b,ate]])})};
+  }
+  if(meses.length===2&&caixa(meses[0],f).nextElementSibling===caixa(meses[1],f)){
+   const rot=String(meses[0].getAttribute('aria-label')||meses[0].title||'').replace(/\s*:\s*de$/i,'').trim()||'Competência';
+   const cp=botao('jbf-comp lc-x',I.cal+'<span>'+rot+': <b></b></span>');cp.setAttribute('aria-haspopup','dialog');
+   f.insertBefore(cp,caixa(meses[0],f));caixa(meses[0],f).classList.add('jbf-mp');caixa(meses[1],f).classList.add('jbf-mp');esconderPar(f,meses[0],meses[1],'jbf-h');
+   cp.onclick=()=>{const p=mesesPar(f);if(!p)return;const [a,b]=p;
+    abrirCal(cp,'mes',()=>[a.value,b.value],(de,ate)=>{por(cp.querySelector('b'),rotuloMes(de,ate));
+     aplicarValores(de&&b.value&&de>b.value?[[b,ate],[a,de]]:[[a,de],[b,ate]])})};
+  }
+  if(sels.length>3){
+   sels.slice(2).forEach(s=>caixa(s,f).classList.add('jbf-x'));
+   const m=botao('jbf-mais',I.fil+'<span>Mais filtros</span><span class="jbf-n"></span>');m.setAttribute('aria-expanded','false');
+   f.insertBefore(m,caixa(sels[2],f));
+   m.onclick=()=>{const k=rota();if(ABERTO.has(k))ABERTO.delete(k);else ABERTO.add(k);sinc(f)};
+  }
+  const o=botao('jbf-ord',I.ord+'<span>Ordenar</span>');o.setAttribute('aria-haspopup','menu');o.hidden=true;f.appendChild(o);
+  o.onclick=()=>{const t=tabelaDe(f);if(t)menuOrd(o,t)};
+  const l=D.createElement('button');l.type='button';l.className='jbf-lim lc-x';l.textContent='Limpar';l.title='Tirar todos os filtros';l.hidden=true;f.appendChild(l);
+  l.onclick=()=>{ABERTO.delete(rota());aplicarValores(campos(f).filter(e=>ativoF(e,f)).map(e=>[e,'']));if(f.isConnected)sinc(f)};
+  sinc(f);
+ }
+ const ABERTO=new Set();
+ function sinc(f){
+  const E=campos(f);
+  const per=f.querySelector(':scope>.jbf-per');if(per){const d=parDe(f,'date');if(d)por(per.querySelector('b'),rotuloPer(d[0].value,d[1].value))}
+  const cp=f.querySelector(':scope>.jbf-comp');if(cp){const m=mesesPar(f);if(m)por(cp.querySelector('b'),rotuloMes(m[0].value,m[1].value))}
+  const m=f.querySelector(':scope>.jbf-mais');
+  if(m){const ab=ABERTO.has(rota());f.classList.toggle('jbf-ab',ab);m.classList.toggle('on',ab);m.setAttribute('aria-expanded',ab?'true':'false');
+   por(m.querySelector('.jbf-n'),String(E.filter(e=>e.tagName==='SELECT'&&caixa(e,f).classList.contains('jbf-x')&&e.value!=='').length||''))}
+  const l=f.querySelector(':scope>.jbf-lim');if(l){const at=E.some(e=>ativoF(e,f));if(l.hidden===at)l.hidden=!at}
+  const o=f.querySelector(':scope>.jbf-ord');
+  if(o){o.classList.remove('lc-x');const t=tabelaDe(f);const ths=thsOrd(t);const tem=ths.length>0;if(o.hidden===tem)o.hidden=!tem;
+   if(tem){t.dataset.jbo='f';t._jbf=f;t.classList.add('jbl-ord');rotOrd(o,ths)}}
+ }
+ /* lista sem barra de filtros (ou com mais de uma lista na tela): o botão Ordenar fica logo acima dela */
+ const dono=t=>t.dataset.jbo==='f'&&!!t._jbf&&t._jbf.isConnected&&tabelaDe(t._jbf)===t;
+ function ordAvulso(c){
+  c.querySelectorAll('.jbl-ob').forEach(x=>{const n=x.nextElementSibling;if(!n||!n.matches('table.lc')||dono(n))x.remove()});
+  c.querySelectorAll('table.lc').forEach(t=>{
+   if(dono(t)||!t.parentNode)return;const ths=thsOrd(t);
+   let ob=t.previousElementSibling;if(!(ob&&ob.classList.contains('jbl-ob')))ob=null;
+   if(!ths.length){if(ob)ob.remove();delete t.dataset.jbo;t.classList.remove('jbl-ord');return}
+   if(!ob){ob=D.createElement('div');ob.className='jbl-ob';const b=botao('jbf-ord',I.ord+'<span>Ordenar</span>');b.setAttribute('aria-haspopup','menu');
+    b.onclick=()=>{const tt=b.parentNode&&b.parentNode.nextElementSibling;if(tt&&tt.matches('table.lc'))menuOrd(b,tt)};ob.appendChild(b);t.parentNode.insertBefore(ob,t)}
+   t.dataset.jbo='b';t.classList.add('jbl-ord');
+   rotOrd(ob.querySelector('.jbf-ord'),ths);
+  });
+ }
+
+ /* ---------------- menu de três pontos ---------------- */
+ const D_=x=>typeof x==='function'?x():x;
+ const reg=(mod,id)=>{try{return (DATA[mod]||[]).find(r=>r.id===id)||null}catch(e){return null}};
+ function docDe(mod,id,oref,tr){
+  const J=window.JB_DOCL;if(!J)return null;
+  try{
+   if(oref)return ()=>J.docObrigF(oref);
+   if(!id||!tr.closest('#corpoLista'))return null;
+   if(mod==='vendas'||mod==='compras'){const s=typeof setorAtualV==='function'?setorAtualV():'';
+    const x=(J.lancamentosSetor(s)||[]).find(x=>x._doc&&x._go&&String(x._go).split('/').pop()===id&&!/pagamento/i.test(x._docT||''));return x?x._doc:null}
+   if(typeof MODS!=='undefined'&&MODS[mod])return J.fazerDoc(mod,id);
+  }catch(e){console.warn('V129 documento',e)}
+  return null;
+ }
+ const abre=tr=>typeof tr.onclick==='function'&&tr.matches('.clic,[data-id],[data-oref],[data-go],[data-href],[data-ri]');
+ const rotAcao=e=>(e.dataset.tip||e.getAttribute('aria-label')||e.textContent||'').trim().replace(/\s+/g,' ')||'Ação';
+ function menu(tr,bt){
+  const mod=rota(),id=tr.dataset.id||'',oref=tr.dataset.oref||'',naLista=!!tr.closest('#corpoLista');
+  const M=naLista&&typeof MODS!=='undefined'?MODS[mod]:null;
+  const ed=!!M&&typeof pode==='function'&&pode(mod,'e');
+  const clic=abre(tr),doc=docDe(mod,id,oref,tr),temVer=!!doc&&typeof verDoc==='function';
+  let ex=[...tr.querySelectorAll('.jbl-oc')].map(e=>({l:rotAcao(e),fn:()=>e.click(),off:!!e.disabled}));
+  const abrir=()=>tr.onclick({target:tr,currentTarget:tr,stopPropagation(){},preventDefault(){}});
+  const comDoc=fn=>()=>{let d=null;try{d=D_(doc)}catch(e){console.warn('V129 documento',e)}
+   if(d){fn(d);return}if(clic)abrir();else if(typeof toast==='function')toast('Este lançamento não tem documento para mostrar.')};
+  const it=[];
+  if(temVer)it.push({l:'Visualizar',sub:'documento completo do lançamento',fn:comDoc(d=>verDoc(d))});
+  else if(clic)it.push({l:'Visualizar',sub:'abrir o lançamento',fn:abrir});
+  else{const v=ex.find(x=>/^(ver|abrir)\b/i.test(x.l));if(v){ex=ex.filter(x=>x!==v);it.push({...v,l:'Visualizar'})}}
+  const imp=ex.find(x=>/^imprimir/i.test(x.l));
+  if(imp){ex=ex.filter(x=>x!==imp);it.push(imp)}else if(temVer)it.push({l:'Imprimir',sub:'documento no padrão da empresa',fn:comDoc(d=>verDoc(d,{imprimir:true}))});
+  if(temVer&&typeof compartilharDoc==='function')it.push({l:'Compartilhar',sub:'PDF por WhatsApp, e-mail…',fn:comDoc(d=>compartilharDoc(d))});
+  if(clic){ex=ex.filter(x=>!/^(ver|abrir)\b/i.test(x.l));if(temVer)it.push({l:ed?'Editar':'Abrir',sub:ed?'abrir o lançamento para alterar':'detalhes e ações do lançamento',fn:abrir})}
+  ex.forEach(x=>it.push(x));
+  /* Excluir: o botão da janela do registro, com a confirmação e as regras de sempre */
+  const r=M&&id?reg(mod,id):null;
+  if(M&&ed&&r&&clic&&mod!=='funcionarios'&&!M.rotaItem&&!(M.semExcluir&&!M.excluirLanc)&&!(mod==='despesas'&&r.origem)){
+   it.push('-');it.push({l:'Excluir',perigo:true,sub:'pede confirmação antes',fn:()=>{abrir();let n=0;
+    const tentar=()=>{const b=D.querySelector('#camada [data-acao="excluir"]');if(b){b.click();return}if(++n<30)setTimeout(tentar,120);else if(typeof toast==='function')toast('Abra o lançamento para ver por que ele não pode ser excluído.')};setTimeout(tentar,150)}});
+  }
+  alternarMenu(bt,it);
+ }
+ function tresPontos(t){
+  let algum=false;
+  [...t.tBodies[0].rows].forEach(tr=>{
+   if(tr.dataset.jbm||!tr.dataset.lc||tr.classList.contains('lc-msg'))return;tr.dataset.jbm='1';
+   [...tr.cells].forEach(td=>{if(td.classList.contains('lc-d')&&/^[—-]?$/.test((td.textContent||'').trim()))td.classList.add('jbl-vz')});
+   const acs=[...tr.querySelectorAll(':scope>td.lc-a a,:scope>td.lc-a button')].filter(e=>!e.closest('label'));
+   const fica=acs.find(e=>e.matches('.btn.pri'));const dobra=acs.filter(e=>e!==fica);
+   if(!abre(tr)&&!dobra.length)return;
+   dobra.forEach(e=>e.classList.add('jbl-oc'));
+   const b=D.createElement('button');b.type='button';b.className='jbl-m';b.title='Ações';b.setAttribute('aria-label','Ações do lançamento');b.setAttribute('aria-haspopup','menu');b.innerHTML=I.pts;
+   b.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();menu(tr,b)});
+   b.addEventListener('keydown',e=>e.stopPropagation());
+   const cel=[...tr.querySelectorAll(':scope>td.lc-a')].pop();
+   if(cel){tr.classList.add('jbl-tm');cel.appendChild(b);algum=true}else{tr.classList.add('jbl-ts');tr.appendChild(b)}
+  });
+  if(algum)ajustarColuna(t);
+ }
+ /* a coluna de ações passa a ter só o necessário (os ícones foram para o menu) */
+ function ajustarColuna(t){
+  if(!desk())return;const v=t.style.getPropertyValue('--lc-cols');if(!v||!/\d+(\.\d+)?px\s*$/.test(v))return;
+  let w=0;t.tBodies[0].querySelectorAll(':scope>tr.jbl-tm').forEach(tr=>{const c=[...tr.querySelectorAll(':scope>td.lc-a')].pop();if(c)w=Math.max(w,Math.ceil(c.getBoundingClientRect().width))});
+  if(w>0)t.style.setProperty('--lc-cols',v.replace(/\d+(\.\d+)?px\s*$/,w+'px'));
+ }
+
+ /* ---------------- varredura ---------------- */
+ function varrer(){
+  if(!D.documentElement.classList.contains('casca2'))return;
+  const c=D.getElementById('conteudo');if(!c)return;
+  if(c.querySelector('.c2-home')){c.classList.remove('jbl-pg');return}   /* início dos setores: fica como está */
+  const ts=[...c.querySelectorAll('table.lc')];
+  c.classList.toggle('jbl-pg',ts.length>0);
+  ts.forEach(t=>{try{if(t.tBodies[0])tresPontos(t)}catch(e){console.warn('V129 ações',e)}});
+  c.querySelectorAll('.filtros,.fi-filtros').forEach(f=>{try{if(f.matches('.jbmes,.fi-dia-nav')||f.closest('.gaveta,.modal,#camada'))return;montar(f)}catch(e){console.warn('V129 filtros',e)}});
+  try{ordAvulso(c)}catch(e){console.warn('V129 ordenar',e)}
+ }
+ let tm=null;const agendar=()=>{clearTimeout(tm);tm=setTimeout(varrer,40)};
+ function ligar(){const c=D.getElementById('conteudo');if(!c)return setTimeout(ligar,200);new MutationObserver(agendar).observe(c,{childList:true,subtree:true});
+  /* trocou de tela: fecha o calendário e o menu de três pontos/ordenar que estiverem abertos */
+  window.addEventListener('hashchange',()=>{fecharCal();const p=D.querySelector('.dc-pop[data-jbm]');if(p)p.remove();MB=null});agendar()}
+ ligar();
+ window.JB_LANC_FILTROS=Object.freeze({varrer,abrirCal,rotuloPer,rotuloMes});
+})();
+</script>
 </body>
 </html>

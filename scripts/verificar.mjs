@@ -591,6 +591,19 @@ if (existsSync(join(RAIZ, 'supabase/functions/jb-whatsapp/nucleo.js'))) {
   TW.forEach((x) => teste('whatsapp', x.nome, x.fn));
 } else console.log('  – [whatsapp] pulado: este pacote não tem supabase/functions/jb-whatsapp');
 
+/* ---------- V129: padrão global de filtros e de lançamentos ---------- */
+teste('lancamentos', 'V129: filtros e ações dos lançamentos num componente só, depois das listas em cartões, sem gravar nada', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['<style id="lanc-filtros-v129-css">', '<script id="lanc-filtros-v129">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  assert.ok(app.indexOf('<script id="lanc-filtros-v129">') > app.indexOf('<script id="lista-cartoes-js">'), 'o bloco V129 vem depois das listas em cartões');
+  const i = app.indexOf('<script id="lanc-filtros-v129">'); const bloco = app.slice(i, app.indexOf('</script>', i));
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(', '.update(', 'salvarCfg(', 'location.hash', 'location.replace(', 'history.back(']) assert.ok(!bloco.includes(proibido), 'o bloco V129 não pode usar ' + proibido);
+  assert.ok(bloco.includes("c.querySelector('.c2-home')"), 'o início dos setores fica de fora');
+  assert.ok(bloco.includes('#camada [data-acao="excluir"]'), 'o Excluir do menu é o botão da janela do registro (mesma confirmação e regras)');
+  const css = app.slice(app.indexOf('<style id="lanc-filtros-v129-css">'), app.indexOf('</style>', app.indexOf('<style id="lanc-filtros-v129-css">')));
+  assert.ok(/@media print\{[^}]*\.jbl-m[^}]*display:none/.test(css), 'botões e menus do V129 não saem na impressão');
+});
+
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
 teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
