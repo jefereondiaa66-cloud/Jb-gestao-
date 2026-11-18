@@ -164,9 +164,16 @@ try {
   ok(c2.como === 'aprendido', 'descrição aprendida liga o item direto');
 
   /* ---------- 3. boleto: só Financeiro, sem pergunta ---------- */
+  /* V130 (18/11/2026): a tela saiu do menu do setor e abre por dentro da Central de Pagamentos (Mais ▾ › Lançar por foto) */
+  const pelaCentral = await page.evaluate(async () => { const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
+    location.hash = '#/fcentral'; for (let i = 0; i < 100 && !document.querySelector('#cpgMaisT'); i++) await dorme(100);
+    const b = document.querySelector('#cpgMaisT'); if (!b) return false; b.click(); await dorme(300);
+    const it = [...document.querySelectorAll('.dc-pop [data-i]')].find((x) => /Lançar por foto/.test(x.textContent)); if (!it) return false; it.click();
+    for (let i = 0; i < 60 && location.hash !== '#/fIA'; i++) await dorme(100); const abriu = location.hash === '#/fIA';
+    location.hash = '#/setor-financeiro'; await dorme(600); return abriu; });
   await page.evaluate((r) => { LANC_IA_V65.novo(); window.__resposta = r; location.hash = '#/fIA'; }, BOLETO);
   await page.waitForSelector('#liaZona');
-  ok(await page.evaluate(() => [...document.querySelectorAll('.dir-aba')].some((a) => /Lançamento Inteligente por Foto/.test(a.textContent))), 'aba "Lançamento Inteligente por Foto" no Financeiro');
+  ok(pelaCentral, 'a tela "Lançamento Inteligente por Foto" abre pela Central de Pagamentos (Mais ▾ › Lançar por foto)');
   await foto('boleto9876');
   await fase('conferir');
   const c3 = await page.evaluate(() => { const C = LANC_IA_V65.estado().C; return { dest: C.destino, perg: C.pag.fonte, sit: C.pag.sit, cat: C.categoria, erros: LANC_IA_V65.alertas().erros }; });

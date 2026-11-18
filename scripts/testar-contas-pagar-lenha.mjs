@@ -116,16 +116,22 @@ try {
 
   /* B. o módulo lê tudo sozinho: indicadores e cartões por fornecedor */
   const lista = await page.evaluate(async () => {
+    /* V130 (18/11/2026): o módulo saiu do menu do setor e abre por dentro da Central de Pagamentos (Mais ▾) */
+    location.hash = '#/fcentral'; await T.esperar(() => document.querySelector('#cpgMaisT')); await T.dorme(250);
+    document.querySelector('#cpgMaisT').click(); await T.esperar(() => document.querySelector('.dc-pop [data-i]'));
+    const itemLenha = [...document.querySelectorAll('.dc-pop [data-i]')].find((b) => /Lenha: conta por fornecedor/.test(b.textContent));
+    if (itemLenha) itemLenha.click(); await T.dorme(400);
+    const pelaCentral = !!itemLenha && location.hash === '#/fLenha';
     await T.irModulo('#/fLenha');
     const txt = document.querySelector('#svCorpo').textContent;
     const res = [...document.querySelectorAll('#svCorpo .cpl-cards > button')].map((d) => d.textContent.replace(/\s+/g, ' ').trim());
     const linhaA = [...document.querySelectorAll('#svCorpo tr[data-go]')].find((tr) => /Fornecedor Lenha A/.test(tr.textContent));
     const linhaB = [...document.querySelectorAll('#svCorpo tr[data-go]')].find((tr) => /Fornecedor Lenha B/.test(tr.textContent));
     return { res, txt, a: linhaA ? linhaA.textContent.replace(/\s+/g, ' ') : '', b: linhaB ? linhaB.textContent.replace(/\s+/g, ' ') : '', botoes: document.querySelectorAll('[data-cplpagar]').length,
-      aba: [...document.querySelectorAll('.sv-abas a')].map((a) => a.textContent.trim()).includes('Contas a pagar – Lenha'), A: T.conta('f_a'), B: T.conta('f_b') };
+      aba: pelaCentral && /Contas a pagar – Lenha/.test(txt), A: T.conta('f_a'), B: T.conta('f_b') };
   });
   await foto('01-lista');
-  ok(lista.aba, 'o módulo “Contas a pagar – Lenha” está nas telas do Setor Financeiro');
+  ok(lista.aba, 'o módulo “Contas a pagar – Lenha” abre pela Central de Pagamentos (Mais ▾ › Lenha: conta por fornecedor)');
   ok(lista.res.some((r) => /7\.550,00/.test(r) && /Total das entregas/i.test(r)) && lista.res.some((r) => /R\$\s?0,00/.test(r) && /já pago/i.test(r)) && lista.res.some((r) => /7\.550,00/.test(r) && /Falta pagar/i.test(r) && /3 fornecedores com saldo/i.test(r)),
     `indicadores: ${lista.res.join(' | ')}`);
   ok(/5\.000,00/.test(lista.a) && /Pendente/.test(lista.a) && /PAGAR \/ DAR BAIXA/.test(lista.a), `cartão do fornecedor A: ${lista.a.slice(0, 160)}`);
