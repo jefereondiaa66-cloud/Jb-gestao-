@@ -694,6 +694,45 @@ teste('documentos', 'V120: Lançamentos do setor e documentos nos relatórios de
   x = f({ f: ['usuario', 'stvenda'] }, res, {}); assert.ok(!/data-r="_sit"/.test(x.html) && !/data-r="_resp"/.test(x.html), 'relatório que já filtra situação e usuário não ganha filtro repetido');
   assert.equal(res.rows.length, 3, 'as linhas do relatório não mudam');
 });
+/* ---------- comprovante de entrega de lenha: conta com o fornecedor (pedido do Jeferson, 18/11/2026) ---------- */
+teste('documentos', 'comprovante de entrega de lenha: saldo anterior + esta entrega = total devido ao fornecedor, só leitura', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  const fn = trecho('function contaFornLenhaV(v){', '\nfunction docEntregaLenhaV(v){');
+  for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(', '.set(', '.update(', '.delete(']) assert.ok(!fn.includes(proibido), 'a conta do comprovante não pode gravar nada: ' + proibido);
+  const doc = trecho('function docEntregaLenhaV(v){', '\nfunction docRelLenhaDonoV(v){');
+  assert.ok(doc.includes("total:['TOTAL DEVIDO',fMoeda(cf.total)]") && doc.includes("foot:['Total devido ao fornecedor',fMoeda(cf.total)]"), 'cupom e folha A4 com o total devido ao fornecedor');
+  // o cupom (tela e PDF) desenha o total do bloco no mesmo destaque do total do cupom
+  assert.ok(app.includes('${b.total?`<div class="cp-sep d"></div><div class="cp-total">') && app.includes('if(b.total){sep(1);lr(b.total[0],b.total[1],{b:1,s:fs+2.4})'), 'total do bloco no cupom (tela e PDF)');
+  const r2 = (v) => Math.round((+v || 0) * 100) / 100;
+  const montar = (win, DATA, finVenda) => new Function('ehLenhaV', 'cancV', 'round2', 'window', 'DATA', 'finVenda', 'console', fn + ';return contaFornLenhaV;')(
+    (v) => !!(v && v.setor === 'lenha' && v.tipoOp === 'compra'), (v) => !!v && v.status === 'Cancelada', r2, win, DATA, finVenda, { warn() {} });
+  const v = { id: 'e3', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-12', numero: 6, total: 300 };
+  // com o Financeiro: os saldos do CPL_LENHA; mesmo dia conta pelo número; compromisso da conta entra pela data
+  const conta = { saldo: 2075, credito: 0, ents: [{ id: 'e1', data: '2026-11-10', numero: 2, saldo: 1000 }, { id: 'e2', data: '2026-11-12', numero: 5, saldo: 500 }, { id: 'e3', data: '2026-11-12', numero: 6, saldo: 300 }, { id: 'e4', data: '2026-11-13', numero: 7, saldo: 200 }],
+    tits: [{ data: '2026-11-11', saldo: 50 }, { data: '2026-11-14', saldo: 25 }] };
+  let pedido = null;
+  let f = montar({ CPL_LENHA: { conta: (fid) => { pedido = fid; return conta; } } }, { compras: [] }, () => ({ saldo: 0 }));
+  let x = f(v);
+  assert.equal(pedido, 'f1');
+  assert.deepEqual([x.antes, x.esta, x.depois, x.total, x.credito], [1550, 300, 225, 2075, 0], 'antes 1.000 + 500 + 50 · esta 300 · depois 200 + 25');
+  assert.equal(r2(x.antes + x.esta + x.depois), x.total, 'a conta fecha');
+  // cancelada, importada do controle antigo, sem fornecedor ou fora da lenha: sem conta
+  for (const w of [{ ...v, status: 'Cancelada' }, { ...v, historico: true }, { ...v, fornecedorId: '' }, { ...v, setor: 'combustivel' }]) assert.equal(f(w), null);
+  // entrega que o Financeiro não conhece ou falha na conta: sem o quadro (o comprovante sai igual)
+  assert.equal(f({ ...v, id: 'outra' }), null);
+  assert.equal(montar({ CPL_LENHA: { conta: () => { throw new Error('falha'); } } }, { compras: [] }, () => ({ saldo: 0 }))(v), null);
+  // crédito da cerâmica (adiantamento ou combustível acima do devido)
+  x = montar({ CPL_LENHA: { conta: () => ({ saldo: 0, credito: 250, ents: [{ id: 'e3', data: '2026-11-12', numero: 6, saldo: 0 }], tits: [] }) } }, { compras: [] }, () => ({ saldo: 0 }))(v);
+  assert.deepEqual([x.antes, x.esta, x.total, x.credito], [0, 0, 0, 250]);
+  // sem o módulo do Financeiro: soma dos saldos das entregas do mesmo fornecedor (outras ficam de fora)
+  const compras = [{ ...v, s: 300 }, { id: 'e1', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 2, s: 1000.1 },
+    { id: 'e4', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-13', numero: 7, s: 200.2 }, { id: 'x1', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f2', data: '2026-11-10', numero: 3, s: 999 },
+    { id: 'x2', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 4, s: 999, status: 'Cancelada' }, { id: 'x3', setor: 'lenha', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-01-10', numero: 1, s: 999, historico: true },
+    { id: 'x4', setor: 'combustivel', tipoOp: 'compra', fornecedorId: 'f1', data: '2026-11-10', numero: 8, s: 999 }];
+  x = montar({}, { compras }, (c) => ({ saldo: c.s }))(v);
+  assert.deepEqual([x.antes, x.esta, x.depois, x.total], [1000.1, 300, 200.2, 1500.3]);
+});
 /* =====================================================================
    Contratos com inteligência artificial (V125)
    ===================================================================== */

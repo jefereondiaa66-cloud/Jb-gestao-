@@ -29677,6 +29677,7 @@ window.JB_FISCAL = Object.freeze({ podeF, ambienteAtual, nomeNota, calcularNota,
 .cp-it-d em{font-style:normal;font-weight:700;margin-right:6px}
 .cp-it-x{font-size:.92em}
 .cp-total{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:1.42em;margin:3px 0}
+.cp-nota{text-align:center;font-size:.86em;margin:2px 0 0}
 .cp-canc{text-align:center;font-weight:700;border:2px solid #000;padding:4px 2px;margin:6px 0;text-transform:uppercase}
 .cp-txt{text-align:left;margin:2px 0}
 .cp-ass{text-align:center;margin-top:34px}
@@ -29863,8 +29864,9 @@ const txPdf=s=>String(s==null?'':s).replace(/\u0001\w+\u0002/g,'__________').rep
 /* ---------- padrão B: cupom térmico (58 ou 80 mm) ----------
    Cupom não fiscal / recibo / comprovante: nunca se apresenta como documento fiscal.
    Modelo C = {kind,tipo,titulo,numero,id:[[rótulo,valor]],cancelado,parte:{rot,nome,linhas},
-   itens:[{cod,desc,linha,total,x:[]}],resumo:[[rótulo,valor]],total:[rótulo,valor],blocos:[{rot,linhas}],
-   texto,obs,assinaturas:[{rot,nome,sub}],mensagem,aviso,rodape} */
+   itens:[{cod,desc,linha,total,x:[]}],resumo:[[rótulo,valor]],total:[rótulo,valor],blocos:[{rot,linhas,total,nota}],
+   texto,obs,assinaturas:[{rot,nome,sub}],mensagem,aviso,rodape}
+   bloco.total (opcional) = [rótulo,valor]: sai em destaque, no mesmo desenho do total do cupom; bloco.nota: linha curta centralizada */
 function empCupom(){const e=(CFG&&CFG.empresa)||{};const razao=String(e.razao||e.fantasia||MARCA_DOCS()).trim();
  const fant=String(e.fantasia||'').trim();return{razao,fantasia:fant&&semAcento(fant).toLowerCase()!==semAcento(razao).toLowerCase()?fant:'',cnpj:e.cnpj||'',endereco:e.endereco||'',cidade:e.cidade||'',telefone:e.telefone||''}}
 const MSG_CUPOM_PAD='Obrigado pela preferência!';
@@ -29890,7 +29892,7 @@ function htmlCupom(C,w,opc){
    ${C.itens.length?C.itens.map((i,k)=>`<div class="cp-it"><div class="cp-it-d"><em>${String(k+1).padStart(3,'0')}</em>${i.cod?esc(i.cod)+' ':''}${esc(i.desc)}</div>${ln(i.linha,i.total)}${(i.x||[]).map(x=>`<div class="cp-it-x">${esc(x)}</div>`).join('')}</div>`).join(''):'<div>Nenhum item.</div>'}`:''}
   ${(C.resumo||[]).length||C.total?`<div class="cp-sep"></div>${(C.resumo||[]).map(([l,v])=>ln(l,v)).join('')}`:''}
   ${C.total?`<div class="cp-sep d"></div><div class="cp-total"><span>${esc(C.total[0])}</span><span>${esc(C.total[1])}</span></div><div class="cp-sep d"></div>`:''}
-  ${(C.blocos||[]).map(b=>`${b.semSep?'':'<div class="cp-sep"></div>'}${b.rot?`<div class="cp-rot">${esc(b.rot)}</div>`:''}${(b.linhas||[]).map(([l,v,f])=>v==null?`<div>${esc(l)}</div>`:ln(l,v,f?'f':'q')).join('')}`).join('')}
+  ${(C.blocos||[]).map(b=>`${b.semSep?'':'<div class="cp-sep"></div>'}${b.rot?`<div class="cp-rot">${esc(b.rot)}</div>`:''}${(b.linhas||[]).map(([l,v,f])=>v==null?`<div>${esc(l)}</div>`:ln(l,v,f?'f':'q')).join('')}${b.total?`<div class="cp-sep d"></div><div class="cp-total"><span>${esc(b.total[0])}</span><span>${esc(b.total[1])}</span></div><div class="cp-sep d"></div>`:''}${b.nota?`<div class="cp-nota">${esc(b.nota)}</div>`:''}`).join('')}
   ${C.texto?`<div class="cp-sep"></div><div class="cp-txt">${esc(C.texto)}</div>`:''}
   ${C.obs?`<div class="cp-sep"></div><div class="cp-rot">Observações</div><div class="cp-txt">${esc(C.obs)}</div>`:''}
   ${(C.assinaturas||[]).map(a=>`<div class="cp-ass"><i></i><b>${esc(a.rot)}</b>${a.nome?`<small>${esc(a.nome)}</small>`:''}${a.sub?`<small>${esc(a.sub)}</small>`:''}</div>`).join('')}
@@ -29933,7 +29935,8 @@ function pdfCupom(C,w){
    C.itens.forEach((i,k)=>{texto(String(k+1).padStart(3,'0')+' '+(i.cod?i.cod+' ':'')+String(i.desc||'').toUpperCase(),{b:1});lr(String(i.linha).replace(/×/g,'x'),i.total);(i.x||[]).forEach(x=>texto(x))})}
   if((C.resumo||[]).length||C.total){sep();(C.resumo||[]).forEach(([l,v])=>lr(l,v))}
   if(C.total){sep(1);lr(C.total[0],C.total[1],{b:1,s:fs+2.4});y+=lh*.25;sep(1)}
-  (C.blocos||[]).forEach(b=>{if(!b.semSep)sep();if(b.rot)texto(String(b.rot).toUpperCase(),{b:1});(b.linhas||[]).forEach(([l,v,f])=>v==null?texto(l):lr(l,v,{b:!!f,q:!f}))});
+  (C.blocos||[]).forEach(b=>{if(!b.semSep)sep();if(b.rot)texto(String(b.rot).toUpperCase(),{b:1});(b.linhas||[]).forEach(([l,v,f])=>v==null?texto(l):lr(l,v,{b:!!f,q:!f}));
+   if(b.total){sep(1);lr(b.total[0],b.total[1],{b:1,s:fs+2.4});y+=lh*.25;sep(1)}if(b.nota)centro(b.nota,{s:fs-.8})});
   if(C.texto){sep();texto(C.texto)}
   if(C.obs){sep();texto('OBSERVAÇÕES',{b:1});texto(C.obs)}
   (C.assinaturas||[]).forEach(a=>{y+=lh*3.4;if(draw&&doc.line){doc.setDrawColor(0,0,0);doc.setLineWidth(.25);doc.line(mg+Lm*.06,y,w-mg-Lm*.06,y)}centro(String(a.rot).toUpperCase(),{b:1});if(a.nome)centro(a.nome);if(a.sub)centro(a.sub)});
@@ -30099,16 +30102,58 @@ function cupomEntregaV(v,e){const c=v.cliente||{};const cg=(v.cargas||[]).find(x
       com a assinatura de quem entregou e de quem recebeu;
    2) relatório da entrega para o dono da empresa (folha A4 completa).
    Só leitura da compra registrada (tipo, caminhão e medidas, destino, itens, valores e pagamento):
-   nenhum número é recalculado e nenhum registro é alterado. */
+   nenhum número é recalculado e nenhum registro é alterado. O comprovante também traz a conta com o
+   fornecedor (18/11/2026), lida dos mesmos saldos do Financeiro › Contas a pagar – Lenha. */
 const ehLenhaV=v=>!!(v&&v.setor==='lenha'&&opDe(v).K==='compra');
 function qtdLenhaV(v){const its=v.itens||[];const uns=[...new Set(its.map(i=>i.unidade||''))];
  return uns.length===1?fQtd(round3(soma(its,i=>+i.qtd||0)))+' '+uns[0]:its.map(i=>fQtd(i.qtd)+' '+(i.unidade||'')).join(' + ')}
 function destinoLenhaV(v){if(!v.lenhaLocal)return '';try{const L=window.LENHA_V111&&window.LENHA_V111.depositos?window.LENHA_V111.depositos(true):[];const d=(L||[]).find(x=>x.id===v.lenhaLocal);return d?String(d.nome||d.curto||''):''}catch(e){return ''}}
 function medicaoLenhaV(v){const m=v.lenhaMedicao;if(!m)return null;const n=x=>x===''||x==null||isNaN(+x)?'—':fNum(+x,2)+' m';
  return [['Caminhão',m.caminhao||'—'],['Comprimento',n(m.comp)],['Largura',n(m.larg)],['Altura',n(m.alt)],['Volume medido',m.m3!=null&&m.m3!==''?fQtd(round3(+m.m3))+' m³':'—']]}
+/* ---------- conta com o fornecedor no comprovante de entrega (pedido do Jeferson, 18/11/2026) ----------
+   Junto com esta entrega, o que a cerâmica deve no total a quem entregou. Só leitura e sem conta nova: são os
+   mesmos saldos do Financeiro › Contas a pagar – Lenha (CPL_LENHA.conta: finVenda de cada entrega, já com
+   pagamentos, combustível, adiantamentos e descontos de acerto, mais os outros valores da conta do fornecedor).
+   É a posição na hora em que o comprovante é emitido:
+     saldo anterior (o que falta pagar do que veio antes desta entrega) + o que falta pagar desta entrega
+     + entregas lançadas depois desta (só existe quando o comprovante é emitido de novo, mais tarde) = total devido.
+   Compra cancelada, importada do controle antigo ou sem fornecedor cadastrado não mostra a conta.
+   Qualquer falha na conta só tira o quadro: o comprovante sai como sempre. */
+function contaFornLenhaV(v){
+ try{
+  if(!ehLenhaV(v)||cancV(v)||v.historico||!v.fornecedorId)return null;
+  const fid=v.fornecedorId,dv=String(v.data||''),nv=+v.numero||0;
+  const depois=(d,n)=>String(d||'')>dv||(String(d||'')===dv&&(+n||0)>nv);
+  let esta=null,dep=0,total=0,credito=0;
+  const cpl=window.CPL_LENHA;
+  if(cpl&&typeof cpl.conta==='function'){
+   const x=cpl.conta(fid);if(!x)return null;
+   (x.ents||[]).forEach(en=>{const s=round2(+en.saldo||0);if(en.id===v.id)esta=s;else if(depois(en.data,en.numero))dep=round2(dep+s)});
+   (x.tits||[]).forEach(t=>{if(String(t.data||'')>dv)dep=round2(dep+(+t.saldo||0))});
+   total=round2(+x.saldo||0);credito=round2(+x.credito||0);
+  }else{
+   /* sem o módulo do Financeiro carregado: a mesma soma dos saldos das entregas do fornecedor */
+   (DATA.compras||[]).forEach(cc=>{if(!cc||cc.tipoOp!=='compra'||cc.setor!=='lenha'||cc.historico||cancV(cc)||cc.fornecedorId!==fid)return;
+    const s=round2(finVenda(cc).saldo);total=round2(total+s);if(cc.id===v.id)esta=s;else if(depois(cc.data,cc.numero))dep=round2(dep+s)});
+  }
+  if(esta==null)return null;
+  let antes=round2(total-esta-dep);if(Math.abs(antes)<0.005)antes=0;
+  return{fid,antes,esta,depois:dep,total,credito,em:new Date().toISOString()};
+ }catch(e){console.warn('conta do fornecedor no comprovante da lenha',e);return null}
+}
 function docEntregaLenhaV(v){
  const f=finVenda(v);const c=parteSnap(v);const fs=v.fiscal||{};const e=CFG.empresa||{};const rec=v.recebidoPor||v.responsavelNome||'';
  const tipoL=String(v.lenhaClasse||'').trim(),dest=destinoLenhaV(v),med=medicaoLenhaV(v),cam=(v.lenhaMedicao||{}).caminhao||'';
+ /* 18/11/2026: o que já foi descontado desta entrega (combustível, desconto de acerto, adiantamento) aparece no
+    pagamento, para a conta fechar (pago + descontos + saldo = valor da entrega); e, embaixo, a conta com o
+    fornecedor: saldo anterior + esta entrega = o total que a cerâmica deve a ele */
+ const descL=round2((+f.comb||0)+(+f.abat||0)),adtL=round2(+f.adt||0);
+ const pagL=[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento?[['Vencimento',fData(v.vencimento)]]:[]),['Pago',fMoeda(f.pago)],
+  ...(descL>0.004?[['Combustível e descontos',fMoeda(descL)]]:[]),...(adtL>0.004?[['Adiantamento descontado',fMoeda(adtL)]]:[])];
+ const cf=contaFornLenhaV(v);
+ const contaL=cf?[['Saldo anterior',fMoeda(cf.antes)],[cf.esta<round2(v.total)-0.004?'(+) Falta pagar desta entrega':'(+) Esta entrega',fMoeda(cf.esta)],
+  ...(cf.depois>0.004?[['(+) Entregas lançadas depois desta',fMoeda(cf.depois)]]:[]),
+  ...(cf.credito>0.004?[['Crédito da cerâmica (desconta das próximas entregas)',fMoeda(cf.credito)]]:[])]:[];
  const D=baseRel('COMPROVANTE DE ENTREGA DE LENHA','Setor da Lenha · Compra nº '+fNumV(v.numero),[]);D.setor=nomeSetorDoc('lenha');D.classe='comprovante';
  D.numero='Nº '+fNumV(v.numero);D.meta=[['Data e hora da entrega',fData(v.data)+(v.hora?' às '+v.hora:'')],['Nota do fornecedor',fs.numero||'não informada'],['Situação',cancV(v)?'Cancelada':'Recebida']];
  D.quadros=[{rot:'QUEM ENTREGOU · FORNECEDOR',campos:[['Madeireira / fornecedor',c.nome||'—',1],['CPF/CNPJ',c.doc||'—'],['Cidade',c.cidade||'—'],...(cam?[['Caminhão',cam]]:[]),...(c.whatsapp||c.telefone?[['Telefone',c.whatsapp||c.telefone]]:[])]},
@@ -30119,7 +30164,8 @@ function docEntregaLenhaV(v){
  D.blocos.push({tipo:'p',texto:'A '+(e.razao||e.fantasia||'cerâmica')+' declara que recebeu de '+(c.nome||'fornecedor')+(cam?', no caminhão '+cam:'')+', em '+fData(v.data)+(v.hora?' às '+v.hora:'')+', a lenha relacionada abaixo'+(dest?', descarregada em '+dest:'')+'.'});
  D.blocos.push({tipo:'tabela',head:['Tipo de lenha','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:(v.itens||[]).map(i=>[i.nome+(i.lenhaClasse||tipoL?' · '+(i.lenhaClasse||tipoL):''),fQtd(i.qtd),i.unidade||'',fMoeda(i.preco),fMoeda(i.total)]),foot:['Lenha','','','',fMoeda(v.subtotal)]});
  D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[['Lenha',fMoeda(v.subtotal)],...(+v.desconto?[['(–) Desconto',fMoeda(-v.desconto)]]:[]),...(+v.frete?[['(+) Frete',fMoeda(v.frete)]]:[]),...(+v.outros?[['(+) Outros valores',fMoeda(v.outros)]]:[])],foot:['Valor total',fMoeda(v.total)]});
- D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],body:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento?[['Vencimento',fData(v.vencimento)]]:[]),['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo)]]});
+ D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],body:[...pagL,['Saldo a pagar',fMoeda(f.saldo)]]});
+ if(cf)D.blocos.push({tipo:'tabela',head:['Conta com o fornecedor · posição em '+fDataHora(cf.em),'Valor'],dir:[1],body:contaL,foot:['Total devido ao fornecedor',fMoeda(cf.total)]});
  if(med)D.blocos.push({tipo:'tabela',head:['Medição da carga','Medida'],dir:[1],body:med});
  if(v.obs)D.blocos.push({tipo:'p',texto:'Observações: '+v.obs});
  D.blocos.push({tipo:'aviso',texto:'Comprovante de recebimento de mercadoria, sem valor fiscal. '+(fs.numero?'Nota do fornecedor nº '+fs.numero+'.':'A nota do fornecedor ainda não foi informada.')});
@@ -30134,7 +30180,8 @@ function docEntregaLenhaV(v){
   itensCab:'ITEM  TIPO DE LENHA',itens:itensCp(v.itens,false),resumo:resumoCp(v,v.itens),total:['TOTAL',fMoeda(v.total)],
   obs:v.obs||'',assinaturas:[{rot:'Entregue por',sub:'Nome e assinatura'},{rot:'Recebido por (cerâmica)',nome:rec}],
   mensagem:'Via de quem entregou',aviso:'Comprovante de entrega · não é documento fiscal',rodape:agoraCp()};
- D.cupom.blocos.push({rot:'Pagamento',linhas:[['Forma',v.forma||'—'],['Condição',v.condicao||'—'],...(v.vencimento?[['Vencimento',fData(v.vencimento)]]:[]),['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo),1]]});
+ D.cupom.blocos.push({rot:'Pagamento',linhas:[...pagL,['Saldo a pagar',fMoeda(f.saldo),1]]});
+ if(cf)D.cupom.blocos.push({rot:'Conta com o fornecedor',linhas:contaL,total:['TOTAL DEVIDO',fMoeda(cf.total)],nota:'Posição da conta em '+fDataHora(cf.em)});
  return D;
 }
 function docRelLenhaDonoV(v){
