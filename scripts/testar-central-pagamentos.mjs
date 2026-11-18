@@ -277,14 +277,23 @@ try {
     r.f = await T.novo({ modo: 'agendar', desc: 'Conta de energia', benef: 'Companhia de Energia', valor: '850,00', data: d3 });
     T.val('#npD', addDias(h, -1)); r.passado = !(await T.confirmar()); r.avisoP = T.ultimoToast(); T.val('#npD', d3);
     r.fechou = await T.confirmar(); await T.sincronizado(); const t = T.tit('Conta de energia'); r.R = 't:' + t.id; r.t = { venc: t.vencimento, prev: t.dataPrevista, pgs: (t.pagamentos || []).length, extra: !!t.extra, cond: t.condicao, enc: t.enc.setor + '/' + t.enc.modo }; r.ob = T.ob(r.R); r.toast = T.ultimoToast();
-    /* agenda do mês: o dia mostra o compromisso; tocar no dia abre o dia */
+    /* a agenda de quem paga COMEÇA VAZIA: a conta agendada em outra tela (acima, pela Central) não aparece nela */
     CPG_FIN.UI.cal = 'mes'; CPG_FIN.UI.mes = d3.slice(0, 7); await T.agenda(/Toque num dia/);
-    const cel = document.querySelector('#cpgCorpo .fi-cal [data-cpgdia="' + d3 + '"]'); r.celula = cel ? cel.textContent.replace(/\s+/g, ' ').trim() : ''; r.classes = document.querySelector('#cpgCorpo .fi-cal') ? 'fi-cal' : '';
+    const cel = document.querySelector('#cpgCorpo .fi-cal [data-cpgdia="' + d3 + '"]'); r.classes = document.querySelector('#cpgCorpo .fi-cal') ? 'fi-cal' : '';
+    r.vazia = { celula: cel ? cel.textContent.replace(/\s+/g, ' ').trim() : 'sem célula', comValor: document.querySelectorAll('#cpgCorpo .fi-cal .cel .t').length, nota: /começa vazia/.test(document.querySelector('#cpgCorpo').textContent), marca: T.tit('Conta de energia').naAgenda === true };
     cel.click(); await T.esperar(() => document.querySelector('#cpgDia')); await T.dorme(400);
+    r.vazia.lista = T.refs(); r.vazia.txt = /Nada agendado para este dia/.test(document.querySelector('#cpgCorpo').textContent);
+    /* ele mesmo traz para o dia a conta que já existe */
+    document.querySelector('#cpgCorpo [data-cpgprog]').click(); await T.esperar(() => document.querySelector('.veu .modal .lista-sel')); await T.dorme(200);
+    const rot = [...document.querySelectorAll('.veu .modal .lista-sel label')]; r.opcoes = rot.length; const lb = rot.find((l) => /Companhia de Energia/.test(l.textContent)); lb.querySelector('input').checked = true;
+    r.trouxe = await T.confirmar(); await T.sincronizado(); await T.agenda(/Conta de energia/); await T.dorme(300);
+    r.marca = T.tit('Conta de energia').naAgenda === true; r.prev = T.tit('Conta de energia').dataPrevista; r.nEnergia = T.tits('Conta de energia').length;
+    CPG_FIN.UI.cal = 'mes'; renderTela(); await T.dorme(400); r.celula = document.querySelector('#cpgCorpo .fi-cal [data-cpgdia="' + d3 + '"]').textContent.replace(/\s+/g, ' ').trim();
+    CPG_FIN.UI.cal = 'dia'; CPG_FIN.UI.dia = d3; renderTela(); await T.dorme(400);
     r.dia = { data: document.querySelector('#cpgDia').value, lista: T.refs(), titulo: [...document.querySelectorAll('#cpgCorpo h3.grupo-t')].map((x) => x.textContent.trim())[0], novoTxt: document.querySelector('#cpgNovo').textContent.trim(), rel: !!document.querySelector('#cpgRel'), resumo: T.resumo() };
     /* lançar, dentro do dia, o que não estava agendado para ele */
     const f2 = await T.novo({ desc: 'Internet do escritório', benef: 'Provedor de Internet', valor: '150,00', cat: 'Outras despesas' }); r.f2 = { modo: f2.okTxt, data: f2.data, rot: f2.rot, contaVisivel: f2.contaVisivel, setor: f2.setor };
-    r.fechou2 = await T.confirmar(); await T.sincronizado(); await T.agenda(/Internet do escritório/); r.dia2 = T.refs(); r.t2 = T.tit('Internet do escritório').dataPrevista;
+    r.fechou2 = await T.confirmar(); await T.sincronizado(); await T.agenda(/Internet do escritório/); r.dia2 = T.refs(); r.t2 = T.tit('Internet do escritório').dataPrevista; r.marca2 = T.tit('Internet do escritório').naAgenda === true;
     /* semana e volta para hoje */
     CPG_FIN.UI.cal = 'sem'; CPG_FIN.UI.sem = d3; renderTela(); await T.dorme(400); r.semana = !!document.querySelector('#cpgCorpo .fi-sem') && /Companhia de Energia/.test(document.querySelector('#cpgCorpo .fi-sem').textContent);
     CPG_FIN.UI.cal = 'dia'; CPG_FIN.UI.dia = h; renderTela(); await T.dorme(400); r.hojeTxt = document.querySelector('#cpgNovo').textContent.trim();
@@ -297,10 +306,12 @@ try {
   await foto('02-central-hoje');
   ok(n6.f.okTxt === 'Agendar pagamento' && !n6.f.contaVisivel && n6.f.rot === 'Data para pagar' && n6.f.setor === 'producao' && n6.passado && /passado/.test(n6.avisoP) && n6.fechou && n6.t.venc === n6.d3 && n6.t.prev === n6.d3 && n6.t.pgs === 0 && !n6.t.extra && n6.t.cond === 'A prazo' && n6.ob.sit === 'Agendado' && n6.ob.saldo === 850 && n6.ob.pags === 0 && /não marca como pago/.test(n6.toast),
     `6. agendamento pelo Novo pagamento: fica Agendado para ${n6.d3}, com saldo R$ 850,00 e NENHUM pagamento (agendar não é pagar); data no passado é barrada`);
-  ok(n6.classes === 'fi-cal' && /850,00/.test(n6.celula) && /1 a pagar/.test(n6.celula) && n6.dia.data === n6.d3 && n6.dia.lista.join() === 'Conta de energia' && /Agendado para/.test(n6.dia.titulo) && /^Agendar para \d\d\/\d\d$/.test(n6.dia.novoTxt) && !n6.dia.rel,
-    `6. agenda no calendário do sistema: o dia mostra “${n6.celula}”; tocar no dia abre a lista dele e o botão vira “${n6.dia.novoTxt}”`);
-  ok(n6.f2.modo === 'Agendar pagamento' && n6.f2.data === n6.d3 && !n6.f2.contaVisivel && n6.fechou2 && n6.t2 === n6.d3 && n6.dia2.slice().sort().join() === 'Conta de energia,Internet do escritório' && n6.semana && n6.hojeTxt === 'Novo pagamento',
-    '6. dentro do dia dá para lançar o que não estava agendado para ele; a semana mostra os mesmos compromissos');
+  ok(n6.classes === 'fi-cal' && n6.vazia.comValor === 0 && n6.vazia.nota && !n6.vazia.marca && n6.vazia.lista.length === 0 && n6.vazia.txt,
+    '6. a Agenda do Gustavo começa vazia: a conta agendada em outra tela (e os vencimentos) não aparecem nela', n6.vazia);
+  ok(n6.opcoes > 0 && n6.trouxe && n6.marca && n6.prev === n6.d3 && n6.nEnergia === 1 && /850,00/.test(n6.celula) && /1 a pagar/.test(n6.celula) && n6.dia.data === n6.d3 && n6.dia.lista.join() === 'Conta de energia' && /Agendado para/.test(n6.dia.titulo) && /^Agendar para \d\d\/\d\d$/.test(n6.dia.novoTxt) && !n6.dia.rel,
+    `6. “Trazer contas para este dia” põe na agenda uma conta que já existe, sem criar outra: o dia mostra “${n6.celula}” e o botão de cima vira “${n6.dia.novoTxt}”`, n6);
+  ok(n6.f2.modo === 'Agendar pagamento' && n6.f2.data === n6.d3 && !n6.f2.contaVisivel && n6.fechou2 && n6.t2 === n6.d3 && n6.marca2 && n6.dia2.slice().sort().join() === 'Conta de energia,Internet do escritório' && n6.semana && n6.hojeTxt === 'Novo pagamento',
+    '6. o que é lançado de dentro da agenda entra nela; a semana mostra os mesmos compromissos');
   ok(n6.fechou3 && /Agendado/.test(n6.hoje.linha) && n6.hoje.ob.sit === 'Agendado' && n6.hoje.ob.saldo === 420 && T_num(n6.hoje.resumo['Falta pagar']) === 2420, '6. o que foi agendado para hoje aparece em “Para pagar hoje”');
 
   /* 7. PAGAR com poucos cliques: confirma, registra a data efetiva e quem pagou, atualiza a situação */
@@ -449,6 +460,7 @@ try {
     r.q = { pagos: Q.pagos.length, extras: Q.extras.length, ag: Q.doAg.length, vPago: Q.vPago, vExtra: Q.vExtra, vAg: Q.vAg, pend: Q.pend.length, atras: Q.atras.length };
     r.cols = D.cols.map((c) => c.l); r.linhas = D.rows.map((x) => x.descricao + '|' + x.tipo + '|' + x.setor + '|' + x.por); r.horas = D.rows.map((x) => x.hora); r.extrasT = D.extras.map((x) => x.titulo);
     r.resumo = D.extras[0].itens.map((x) => x.join(': ')); r.txt = CPG_FIN.textoRelDia(h);
+    const DA = CPG_FIN.dadosRelDia(h, true); r.ag = { prog: DA.Q.prog.length, pagos: DA.Q.pagos.length, extras: DA.Q.extras.length, atras: DA.Q.atras.length, itens: DA.extras[0].itens.map((x) => x[0]).join('|'), tipos: [...new Set(DA.rows.map((x) => x.tipo))].join('|') };
     await T.central('hoje'); document.querySelector('#cpgRel').click(); await T.dorme(250); r.menu = [...document.querySelectorAll('.dc-pop [data-i]')].map((b) => b.childNodes[0].textContent.trim());
     [...document.querySelectorAll('.dc-pop [data-i]')].find((b) => /Visualizar/.test(b.textContent)).click();
     /* todo relatório pergunta quem é o responsável (regra do sistema); o teste confirma a opção marcada */
@@ -462,6 +474,8 @@ try {
   ok(P13.pagos === 10 && P13.extras === 7 && P13.ag === 3 && Math.abs(P13.vPago - (P13.vExtra + P13.vAg)) < 0.005 && P13.vAg === 5420 && n13.cols.join('|') === 'Hora|Fornecedor ou beneficiário|Descrição|Categoria|Setor|Forma|Conta|Tipo|Valor|Lançado por' && n13.horas.length === 10 && n13.horas.every((x) => /^\d\d:\d\d$/.test(x))
     && n13.linhas.some((l) => /^Boleto do contador.*\|Agendado\|Administrativo\|Dono$/.test(l)) && n13.linhas.some((l) => /^Gasolina da saveiro.*\|Extra \(não agendado\)\|Combustível\|Dono$/.test(l)) && n13.extrasT.join('|') === 'Resumo do dia|Ficou sem pagar (estava agendado para o dia)|Pago por setor|Pago por forma e conta',
     `13. relatório do dia: ${P13.pagos} pagamentos (${P13.ag} do que estava agendado e ${P13.extras} extras), com hora, setor, forma, conta e quem lançou`);
+  ok(n13.ag.prog === 0 && n13.ag.pagos === P13.pagos && n13.ag.extras === P13.pagos && n13.ag.atras === 0 && !/Em atraso/.test(n13.ag.itens) && n13.ag.tipos === 'Extra (não agendado)',
+    '13. pelo relatório da agenda, tudo o que foi pago no dia sem ter sido agendado dentro dela sai como extra (e sem a parte de atrasos do sistema)', n13.ag);
   ok(/RELATÓRIO DE PAGAMENTOS DO DIA/i.test(n13.doc) && /Gasolina da saveiro/.test(n13.doc) && /Resumo do dia/i.test(n13.doc) && /Pago por setor/i.test(n13.doc) && n13.menu.join('|') === 'Visualizar o relatório|Gerar PDF|Imprimir|Compartilhar o PDF|Enviar ao dono pelo WhatsApp|Copiar o resumo|Exportar Excel' && /\*Pagamentos do dia/.test(n13.txt) && /Extras \(não agendados\)/.test(n13.txt) && /- Posto Exemplo · Gasolina da saveiro · R\$\s?180,00 · PIX \(extra\)/.test(n13.txt) && n13.voltou === 'Hoje',
     '13. o relatório abre no padrão de documentos da empresa (visualizar, PDF, imprimir, compartilhar) e tem o resumo pronto para o WhatsApp do dono');
 

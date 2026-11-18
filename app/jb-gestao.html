@@ -44186,7 +44186,7 @@ function agendar(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;
   const at=todas().find(x=>x.ref===ref);if(!at||!abertaO(at)){toast('Esta conta já foi paga ou cancelada.','erro');return}
   await gravarAgenda(at,{dataPrevista:d,formaPrevista:valM(v,'cgF'),contaId:valM(v,'cgC')});
   toast((tem?'Agendamento alterado para ':'Pagamento agendado para ')+fData(d)+'. A conta continua em aberto até o pagamento ser registrado.','ok')},{depois:v=>{const x=$('#cgX',v);if(x)x.onclick=async()=>{x.disabled=true;
-   try{const at=todas().find(y=>y.ref===ref);if(at)await gravarAgenda(at,{dataPrevista:''});v.remove();toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){x.disabled=false;toast(msgFalhaSalvar(e),'erro')}}}});
+   try{const at=todas().find(y=>y.ref===ref);if(at)await gravarAgenda(at,{dataPrevista:'',naAgenda:false});v.remove();toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){x.disabled=false;toast(msgFalhaSalvar(e),'erro')}}}});
 }
 function cancelarConta(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;
  if(o.fonte!=='titulo'){toast(o.fonte==='compra'?'Esta conta nasceu de uma compra do '+o.origem+': o cancelamento é feito lá, em “Abrir na origem”.':'Esta despesa é do Setor Pessoal: o cancelamento é feito lá.','erro');return}
@@ -44407,10 +44407,10 @@ function tabelaPagos(xs,opc){opc=opc||{};const e=ed();if(!xs.length)return `<div
    <td data-l="Categoria">${esc(o.categoria||'—')}</td><td data-l="Setor">${celSetor(o)}</td>
    <td data-l="Forma">${esc(p.forma||'—')}${p.conta?`<span class="sub">${esc(nomeConta(p.conta))}</span>`:''}</td>
    <td data-l="Valor" class="num"><b>${esc(fMoeda(p.valor))}</b></td>
-   <td data-l="Situação">${tagU('Pago')}${ehExtra(o)?' <span class="tag br">extra</span>':''}</td><td class="acs">${botoes(o,e,p)}</td></tr>`).join('')}</tbody></table>
+   <td data-l="Situação">${tagU('Pago')}${(opc.extra||ehExtra)(o)?' <span class="tag br">extra</span>':''}</td><td class="acs">${botoes(o,e,p)}</td></tr>`).join('')}</tbody></table>
  ${xs.length>max?`<p class="ajuda" style="padding:8px 12px">Mostrando os ${max} primeiros. Use os filtros para ver os demais.</p>`:''}</div>`}
 async function desagendar(ref){const o=ob(ref);if(!o)return;
- try{const f=lenhaForn(o);if(f){LEN().abrirAgendar(f);return}await gravarAgenda(o,{dataPrevista:''});toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}}
+ try{const f=lenhaForn(o);if(f){LEN().abrirAgendar(f);return}await gravarAgenda(o,{dataPrevista:'',naAgenda:false});toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}}
 /* ---------- lista no visual de antes (painel do setor e módulos): Data · Conta · Módulo (com o setor) · Valor · Pago · Falta pagar · Situação,
    com os botões Pagar, Agendar e Mais ▾ na linha. O menu Mais ▾ ganhou a classificação do setor e a nova tentativa de encaminhamento. ---------- */
 /* o setor de destino entra na coluna do módulo (uma linha a mais), sem mudar a largura das colunas de antes */
@@ -44611,7 +44611,7 @@ function novoPagamento(pre){pre=pre||{};if(!ed()){toast('Seu perfil não lança 
   const enc=novoEnc(setor,setor?(S.setAuto?'auto':'manual'):'',S.regra,null);
   if(lenhaCat&&!fidL)Object.assign(enc,{st:'pendente',motivo:M_FALTA_FORN});
   const st={id,data:pago?d:hoje(),descricao:desc,categoria:cat,setorOrigem:'Geral (Financeiro)',valor:val,vencimento:d,dataPrevista:pago?'':d,formaPrevista:forma,contaId:pago?conta:'',obs,pagamentos:[],
-   condicaoT:pago?'À vista (já pago)':'A prazo',origemCentral:true,...(pago?{extra:true}:{}),enc,
+   condicaoT:pago?'À vista (já pago)':'A prazo',origemCentral:true,...(pago?{extra:true}:{}),...(!pago&&pre.agenda?{naAgenda:true}:{}),enc,
    ...(fReg?{beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:fReg.id}:{beneficiarioTipo:'Outro',beneficiario:b?b.nome:nome}),
    ...(cat===CAT_ENT?{motorista:nome}:{}),...(lenhaCat&&fidL&&pago?{adiantamentoLenha:{fornecedorId:fidL,central:true}}:{}),
    ...(rep?{repetir:'Repetir todo mês',nVezes:nv}:{repetir:'Não repete'})};
@@ -44674,55 +44674,62 @@ function novoPagamento(pre){pre=pre||{};if(!ed()){toast('Seu perfil não lança 
 /* a hora em que a baixa foi registrada fica no lançamento original (a lista comum de pagamentos não traz) */
 const emPag=(o,p)=>{try{const x=((o.rec&&o.rec.pagamentos)||[]).find(y=>y&&y.id===p.id);return (x&&x.em)||''}catch(e){return ''}};
 const pagamentosTodos=()=>todas().filter(o=>!o.cancelado).flatMap(o=>pagsDin(o).map(p=>({o,p:p.em?p:{...p,em:emPag(o,p)}})));
-function quadroDia(d){const h=hoje();const OS=todas();
- const prog=OS.filter(o=>!o.cancelado&&o.dataCal===d&&!ehExtra(o));
+/* ---------- agenda de quem paga as contas (V133): começa vazia e só mostra o que foi agendado DENTRO dela ----------
+   A marca (naAgenda) fica no próprio registro, junto com a data agendada de sempre (dataPrevista): a conta aparece como Agendada em todas as
+   telas e nada é lançado em dobro. Vencimento e agendamento feito em outra tela NÃO entram na agenda. Compras e despesas dos outros setores
+   guardam a marca no mesmo registro de apoio do Financeiro que já guarda a data agendada delas (fMeta). */
+const naAg=o=>{try{if(!o)return false;if(o.fonte==='titulo')return !!(o.rec&&o.rec.naAgenda);const id='m_'+refSeg(o.ref);return (DATA.fMeta||[]).some(x=>x&&x.id===id&&x.naAgenda===true)}catch(e){return false}};
+function quadroDia(d,ag){const h=hoje();const OS=todas();
+ /* ag: a agenda de quem paga (só o que foi agendado dentro dela para o dia; sem vencimentos, atrasos nem avisos do resto do sistema) */
+ const prog=ag?OS.filter(o=>!o.cancelado&&naAg(o)&&o.prog===d):OS.filter(o=>!o.cancelado&&o.dataCal===d&&!ehExtra(o));
  const pend=prog.filter(abertaO).sort(ordData);
  const pagos=pagamentosTodos().filter(x=>x.p.data===d).sort((a,b)=>String(a.p.em||'').localeCompare(String(b.p.em||'')));
- const extras=pagos.filter(x=>ehExtra(x.o));const doAg=pagos.filter(x=>!ehExtra(x.o));
- const atras=d===h?OS.filter(o=>abertaO(o)&&o.s.vencido&&o.dataCal!==d).sort(ordData):[];
- const aguard=d===h?OS.filter(o=>!o.cancelado&&o.fonte==='titulo'&&encDe(o).st==='aguardando'&&(abertaO(o)||ultPag(o)>=addDias(h,-30))):[];
- const pint=d===h?OS.filter(o=>!o.cancelado&&o.fonte==='titulo'&&encDe(o).st==='pendente'):[];
- return{d,prog,pend,pagos,extras,doAg,atras,aguard,pint,previsto:r2(soma(prog,o=>o.valor)),vPend:somaS(pend),vPago:r2(soma(pagos,x=>x.p.valor)),vExtra:r2(soma(extras,x=>x.p.valor)),vAg:r2(soma(doAg,x=>x.p.valor)),vAtras:somaS(atras)}}
+ const fora=x=>ag?!naAg(x.o):ehExtra(x.o);   /* pago sem estar agendado (na agenda: sem ter sido agendado dentro dela) */
+ const extras=pagos.filter(fora);const doAg=pagos.filter(x=>!fora(x));
+ const atras=!ag&&d===h?OS.filter(o=>abertaO(o)&&o.s.vencido&&o.dataCal!==d).sort(ordData):[];
+ const aguard=!ag&&d===h?OS.filter(o=>!o.cancelado&&o.fonte==='titulo'&&encDe(o).st==='aguardando'&&(abertaO(o)||ultPag(o)>=addDias(h,-30))):[];
+ const pint=!ag&&d===h?OS.filter(o=>!o.cancelado&&o.fonte==='titulo'&&encDe(o).st==='pendente'):[];
+ return{d,ag:!!ag,prog,pend,pagos,extras,doAg,atras,aguard,pint,previsto:r2(soma(prog,o=>o.valor)),vPend:somaS(pend),vPago:r2(soma(pagos,x=>x.p.valor)),vExtra:r2(soma(extras,x=>x.p.valor)),vAg:r2(soma(doAg,x=>x.p.valor)),vAtras:somaS(atras)}}
 const nP=n=>n+(n===1?' pagamento':' pagamentos');const nC=n=>n+(n===1?' conta':' contas');
 const diaTxt=d=>DIAS_SEM[dt(d).getDay()]+', '+fData(d);
-function htmlDia(d){const Q=quadroDia(d);const h=hoje();const fut=d>h,pas=d<h;
- const R=[[fMoeda(Q.previsto),fut?'Agendado para o dia':'Previsto para o dia'],...(fut?[]:[[fMoeda(Q.vPago),'Pago no dia'],[fMoeda(Q.vExtra),'Extras (não agendados)']]),[fMoeda(Q.vPend),pas?'Ficou sem pagar':'Falta pagar'],...(d===h?[[fMoeda(Q.vAtras),'Em atraso']]:[])];
+function htmlDia(d,ag){const Q=quadroDia(d,ag);const h=hoje();const fut=d>h,pas=d<h;
+ const R=[[fMoeda(Q.previsto),ag||fut?'Agendado para o dia':'Previsto para o dia'],...(fut?[]:[[fMoeda(Q.vPago),'Pago no dia'],[fMoeda(Q.vExtra),'Extras (não agendados)']]),[fMoeda(Q.vPend),pas?'Ficou sem pagar':'Falta pagar'],...(d===h&&!ag?[[fMoeda(Q.vAtras),'Em atraso']]:[])];
  return `<div class="resumo cpl-res cpg-resdia">${R.map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
   ${Q.aguard.length||Q.pint.length?`<p class="cpg-linha">${Q.aguard.length?`<span class="tag at">${Q.aguard.length} aguardando classificação</span> <a href="javascript:void 0" data-cpgir="aguard">Classificar agora</a>`:''}${Q.pint.length?` <span class="tag pe">${Q.pint.length===1?'1 pendente':Q.pint.length+' pendentes'} de integração</span> <a href="javascript:void 0" data-cpgir="pint">Ver</a>`:''}</p>`:''}
   <h3 class="grupo-t">${esc(d===h?'Para pagar hoje':fut?'Agendado para '+fData(d):'Ficou sem pagar em '+fData(d))}${Q.pend.length?' · '+esc(fMoeda(Q.vPend))+' · '+esc(nC(Q.pend.length)):''}</h3>
-  ${tabela(Q.pend,{vazio:d===h?'<b>Nada agendado para hoje</b>Use “Novo pagamento” para lançar o que surgir no dia.':fut?'<b>Nada agendado para este dia</b>Use “Novo pagamento” para agendar.':'<b>Nada ficou sem pagar neste dia</b>'})}
+  ${tabela(Q.pend,{vazio:ag?(pas?'<b>Nada ficou sem pagar neste dia</b>':'<b>Nada agendado para '+(d===h?'hoje':'este dia')+'</b>Toque em “Trazer contas para este dia” para escolher o que vai ser pago, ou no botão de cima para lançar uma conta nova.'):d===h?'<b>Nada agendado para hoje</b>Use “Novo pagamento” para lançar o que surgir no dia.':fut?'<b>Nada agendado para este dia</b>Use “Novo pagamento” para agendar.':'<b>Nada ficou sem pagar neste dia</b>'})}
   ${Q.atras.length?`<h3 class="grupo-t">Em atraso · ${esc(fMoeda(Q.vAtras))} · ${esc(nC(Q.atras.length))}</h3>${tabela(Q.atras)}`:''}
   ${fut?'':`<h3 class="grupo-t">${esc(d===h?'Pagos hoje':'Pagos em '+fData(d))}${Q.pagos.length?' · '+esc(fMoeda(Q.vPago))+' · '+esc(nP(Q.pagos.length)):''}</h3>
-  ${tabelaPagos(Q.pagos,{vazio:'<b>Nenhum pagamento registrado neste dia</b>'})}
+  ${tabelaPagos(Q.pagos,{vazio:'<b>Nenhum pagamento registrado neste dia</b>',extra:ag?(o=>!naAg(o)):null})}
   <div class="cpg-fim"><div><b>${d===h?'Fim do dia':'Fechamento de '+esc(fData(d))}</b><span>Lance o que foi pago e não estava agendado e mande o relatório do dia ao dono.</span></div>
    <div class="cpg-fim-b">${ed()?`<button type="button" class="btn" data-cpgnovo="${esc(d)}">${ic('mais')}Lançar o que não estava agendado</button>`:''}<button type="button" class="btn" data-cpgrel="${esc(d)}">${ic('doc')}Relatório do dia para o dono ▾</button></div></div>`}`}
 
 /* ---------- relatório do dia: o que estava agendado, o que foi pago, os extras e o que ficou pendente ---------- */
-function dadosRelDia(d){const Q=quadroDia(d);try{resolverNomes(Q.pagos.map(x=>x.p.por).filter(Boolean))}catch(e){}
+function dadosRelDia(d,ag){const Q=quadroDia(d,ag);try{resolverNomes(Q.pagos.map(x=>x.p.por).filter(Boolean))}catch(e){}
  const hora=p=>{if(!p.em)return '';const x=new Date(p.em);return isNaN(x)?'':pad(x.getHours())+':'+pad(x.getMinutes())};
- const rows=Q.pagos.map(({o,p})=>({hora:hora(p),benef:o.benef,descricao:o.descricao+(o.num?' · '+o.num:''),categoria:o.categoria,setor:nomeSet(encDe(o).setor)||'Não identificado',forma:p.forma||'',conta:nomeConta(p.conta)||'',tipo:ehExtra(o)?'Extra (não agendado)':'Agendado',valor:p.valor,por:nomeUsuario(p.por)||''}));
+ const rows=Q.pagos.map(({o,p})=>({hora:hora(p),benef:o.benef,descricao:o.descricao+(o.num?' · '+o.num:''),categoria:o.categoria,setor:nomeSet(encDe(o).setor)||'Não identificado',forma:p.forma||'',conta:nomeConta(p.conta)||'',tipo:(ag?!naAg(o):ehExtra(o))?'Extra (não agendado)':'Agendado',valor:p.valor,por:nomeUsuario(p.por)||''}));
  const cols=[{k:'hora',l:'Hora'},{k:'benef',l:'Fornecedor ou beneficiário'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'setor',l:'Setor'},{k:'forma',l:'Forma'},{k:'conta',l:'Conta'},{k:'tipo',l:'Tipo'},{k:'valor',l:'Valor',t:'moeda'},{k:'por',l:'Lançado por'}];
  const grupo=f=>{const m=new Map();Q.pagos.forEach(x=>{const k=f(x)||'—';const g=m.get(k)||{k,n:0,valor:0};g.n++;g.valor=r2(g.valor+x.p.valor);m.set(k,g)});return [...m.values()].sort((a,b)=>b.valor-a.valor)};
  const linO=o=>({benef:o.benef,descricao:o.descricao+(o.num?' · '+o.num:''),categoria:o.categoria,setor:nomeSet(encDe(o).setor)||'Não identificado',venc:o.venc||o.dataCal,saldo:o.s.saldo});
  const colsO=[{k:'benef',l:'Fornecedor ou beneficiário'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'setor',l:'Setor'},{k:'venc',l:'Vencimento',t:'data'},{k:'saldo',l:'Saldo a pagar',t:'moeda'}];
  const extras=[{tipo:'quadro',titulo:'Resumo do dia',itens:[['Agendado para o dia',fMoeda(Q.previsto)+' · '+nC(Q.prog.length)],['Pago do que estava agendado',fMoeda(Q.vAg)+' · '+nP(Q.doAg.length)],['Pagamentos extras (não estavam agendados)',fMoeda(Q.vExtra)+' · '+nP(Q.extras.length)],
-   ['Total pago no dia',fMoeda(Q.vPago)+' · '+nP(Q.pagos.length)],['Ficou sem pagar (do dia)',fMoeda(Q.vPend)+' · '+nC(Q.pend.length)],...(d===hoje()?[['Em atraso (contas vencidas em aberto)',fMoeda(Q.vAtras)+' · '+nC(Q.atras.length)]]:[])]},
+   ['Total pago no dia',fMoeda(Q.vPago)+' · '+nP(Q.pagos.length)],['Ficou sem pagar (do dia)',fMoeda(Q.vPend)+' · '+nC(Q.pend.length)],...(d===hoje()&&!ag?[['Em atraso (contas vencidas em aberto)',fMoeda(Q.vAtras)+' · '+nC(Q.atras.length)]]:[])]},
   {titulo:'Ficou sem pagar (estava agendado para o dia)',cols:colsO,rows:Q.pend.map(linO),vazio:'Nada ficou sem pagar.'},
   {titulo:'Pago por setor',cols:[{k:'k',l:'Setor'},{k:'n',l:'Pagamentos',t:'num'},{k:'valor',l:'Valor',t:'moeda'}],rows:grupo(x=>nomeSet(encDe(x.o).setor)||'Não identificado'),vazio:'Nenhum pagamento no dia.'},
   {titulo:'Pago por forma e conta',cols:[{k:'k',l:'Forma e conta'},{k:'n',l:'Pagamentos',t:'num'},{k:'valor',l:'Valor',t:'moeda'}],rows:grupo(x=>[x.p.forma,nomeConta(x.p.conta)].filter(Boolean).join(' · ')),vazio:'Nenhum pagamento no dia.'},
   ...(d===hoje()&&Q.atras.length?[{titulo:'Contas em atraso',cols:colsO,rows:Q.atras.map(linO)}]:[])];
  return{Q,cols,rows,extras,titulo:'Relatório de pagamentos do dia '+fData(d)}}
-function textoRelDia(d){const R=dadosRelDia(d),Q=R.Q;const L=['*Pagamentos do dia · '+diaTxt(d)+'*',typeof razaoMostra==='function'?razaoMostra():'',''];
+function textoRelDia(d,ag){const R=dadosRelDia(d,ag),Q=R.Q;const L=['*Pagamentos do dia · '+diaTxt(d)+'*',typeof razaoMostra==='function'?razaoMostra():'',''];
  L.push('Pago no dia: '+fMoeda(Q.vPago)+' ('+nP(Q.pagos.length)+')');L.push('• Do que estava agendado: '+fMoeda(Q.vAg));L.push('• Extras (não agendados): '+fMoeda(Q.vExtra));
- L.push('Ficou sem pagar: '+fMoeda(Q.vPend)+' ('+nC(Q.pend.length)+')');if(d===hoje())L.push('Em atraso: '+fMoeda(Q.vAtras)+' ('+nC(Q.atras.length)+')');
- if(Q.pagos.length){L.push('','*Pagos*');Q.pagos.forEach(({o,p})=>L.push('- '+(o.benef||'—')+' · '+o.descricao+' · '+fMoeda(p.valor)+(p.forma?' · '+p.forma:'')+(ehExtra(o)?' (extra)':'')))}
+ L.push('Ficou sem pagar: '+fMoeda(Q.vPend)+' ('+nC(Q.pend.length)+')');if(d===hoje()&&!ag)L.push('Em atraso: '+fMoeda(Q.vAtras)+' ('+nC(Q.atras.length)+')');
+ if(Q.pagos.length){L.push('','*Pagos*');Q.pagos.forEach(({o,p})=>L.push('- '+(o.benef||'—')+' · '+o.descricao+' · '+fMoeda(p.valor)+(p.forma?' · '+p.forma:'')+((ag?!naAg(o):ehExtra(o))?' (extra)':'')))}
  if(Q.pend.length){L.push('','*Ficou sem pagar*');Q.pend.forEach(o=>L.push('- '+(o.benef||'—')+' · '+o.descricao+' · '+fMoeda(o.s.saldo)))}
  L.push('','Gerado no '+(typeof SPOT_NOME!=='undefined'?SPOT_NOME:'JB ERP')+' por '+(APP.nome||'—'));return L.filter((x,i)=>x!==''||i>1).join('\n')}
-function relatorioDia(btn,d){const fx=f=>{const R=dadosRelDia(d);return exportar(f,'Pagamentos_do_dia_'+d,R.cols,R.rows,R.titulo,{filtros:'Dia '+diaTxt(d),extras:R.extras})};
+function relatorioDia(btn,d,ag){const fx=f=>{const R=dadosRelDia(d,ag);return exportar(f,'Pagamentos_do_dia_'+d,R.cols,R.rows,R.titulo,{filtros:'Dia '+diaTxt(d),extras:R.extras})};
  abrirMenuMais(btn,[{l:'Visualizar o relatório',sub:diaTxt(d),fn:()=>fx('ver')},{l:'Gerar PDF',fn:()=>fx('pdf')},{l:'Imprimir',fn:()=>fx('imprimir')},
   {l:'Compartilhar o PDF',sub:'WhatsApp, e-mail ou outro aplicativo',fn:()=>fx('compartilhar')},
-  {l:'Enviar ao dono pelo WhatsApp',sub:'resumo pronto: abre o WhatsApp para escolher o contato',fn:()=>{try{window.open('https://wa.me/?text='+encodeURIComponent(textoRelDia(d)),'_blank','noopener')}catch(e){toast('Não foi possível abrir o WhatsApp.','erro')}}},
-  {l:'Copiar o resumo',fn:async()=>{try{await navigator.clipboard.writeText(textoRelDia(d));toast('Resumo copiado.','ok')}catch(e){toast('Não foi possível copiar aqui.','erro')}}},
+  {l:'Enviar ao dono pelo WhatsApp',sub:'resumo pronto: abre o WhatsApp para escolher o contato',fn:()=>{try{window.open('https://wa.me/?text='+encodeURIComponent(textoRelDia(d,ag)),'_blank','noopener')}catch(e){toast('Não foi possível abrir o WhatsApp.','erro')}}},
+  {l:'Copiar o resumo',fn:async()=>{try{await navigator.clipboard.writeText(textoRelDia(d,ag));toast('Resumo copiado.','ok')}catch(e){toast('Não foi possível copiar aqui.','erro')}}},
   {l:'Exportar Excel',fn:()=>fx('xlsx')}])}
 
 /* ---------- agenda (o mesmo calendário do Financeiro: mês, semana e dia) ---------- */
@@ -44730,13 +44737,14 @@ const UI={b:'',q:'',tudo:false,aba:'hoje',cal:'mes',mes:mesAtual(),sem:hoje(),di
  f:{q:'',sit:'',setor:'',cat:'',benef:'',de:'',ate:''},p:{q:'',de:mesAtual()+'-01',ate:'',setor:'',tipo:''},i:{mes:mesAtual(),setor:'',cat:'',benef:''},pm:mesAtual()};
 const ultimoDiaM=m=>addDias(addMeses(m+'-01',1),-1);
 const corPt=o=>o.s.st==='Divergente'||o.s.vencido?'fi-pe':o.s.pagoEf>0.004&&abertaO(o)?'fi-at':abertaO(o)?'fi-in':'fi-ok';
-function htmlAgenda(){const h=hoje();
+function htmlAgenda(ag){const h=hoje();
  const modos=`<div class="dir-abas cpg-calm" style="padding:0" role="group" aria-label="Visão da agenda">${[['mes','Mês'],['sem','Semana'],['dia','Dia']].map(([k,l])=>`<button type="button" class="dir-aba${UI.cal===k?' on':''}" data-cpgcal="${k}" aria-pressed="${UI.cal===k}">${l}</button>`).join('')}</div>`;
  if(UI.cal==='dia'){const d=/^\d{4}-\d{2}-\d{2}$/.test(UI.dia)?UI.dia:h;
   return `<div class="cpg-agtopo">${modos}<span class="fi-dia-nav"><button type="button" class="btn" data-cpgdd="-1" aria-label="Dia anterior">${ic('esquerda')}</button><input type="date" id="cpgDia" value="${esc(d)}" aria-label="Dia"><button type="button" class="btn" data-cpgdd="1" aria-label="Próximo dia">${ic('direita')}</button>${d!==h?'<button type="button" class="btn" data-cpgdd="0">Hoje</button>':''}</span><b class="cpg-diat">${esc(diaTxt(d))}</b>
-   ${ed()&&d>=h?`<span class="cpg-agac"><button type="button" class="btn" data-cpgprog="${esc(d)}">Trazer contas para este dia</button></span>`:''}</div>${htmlDia(d)}`}
- const OS=todas().filter(o=>!o.cancelado&&o.dataCal);const por={};OS.forEach(o=>(por[o.dataCal]=por[o.dataCal]||[]).push(o));
- const semData=todas().filter(o=>abertaO(o)&&!o.dataCal).length;let corpo='',nav='';
+   ${ed()&&d>=h?`<span class="cpg-agac"><button type="button" class="btn" data-cpgprog="${esc(d)}">Trazer contas para este dia</button></span>`:''}</div>${htmlDia(d,ag)}`}
+ /* na agenda de quem paga o calendário só tem o que foi agendado dentro dela, no dia em que foi agendado */
+ const diaDe=o=>ag?o.prog:o.dataCal;const OS=todas().filter(o=>!o.cancelado&&(ag?naAg(o)&&o.prog:o.dataCal));const por={};OS.forEach(o=>(por[diaDe(o)]=por[diaDe(o)]||[]).push(o));
+ const semData=ag?0:todas().filter(o=>abertaO(o)&&!o.dataCal).length;let corpo='',nav='';
  if(UI.cal==='mes'){const m=/^\d{4}-\d{2}$/.test(UI.mes)?UI.mes:mesAtual();const p=dt(m+'-01');const ini=addDias(m+'-01',-p.getDay());const dias=[];for(let i=0;i<42;i++){const d=addDias(ini,i);if(i>=35&&d.slice(0,7)!==m)break;dias.push(d)}
   nav=`<button type="button" class="btn" data-cpgcm="-1" aria-label="Mês anterior">${ic('esquerda')}</button><input type="month" id="cpgMes" value="${esc(m)}" aria-label="Mês"><button type="button" class="btn" data-cpgcm="1" aria-label="Próximo mês">${ic('direita')}</button>`;
   corpo=`<div class="fi-cal">${DIAS_SEM.map(x=>`<div class="dsem">${x}</div>`).join('')}${dias.map(d=>{const xs=por[d]||[];const ab=xs.filter(abertaO);
@@ -44746,7 +44754,7 @@ function htmlAgenda(){const h=hoje();
   corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-cpgdia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-cpgver="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(sitU(o))}</span></div>`).join('')||'<div class="it" style="cursor:default;color:var(--fraco)">—</div>'}</div>`}).join('')}</div>`}
  return `<div class="cpg-agtopo">${modos}<span class="fi-dia-nav">${nav}</span></div>
   <div class="fi-leg"><span><i class="fi-in"></i>a pagar</span><span><i class="fi-at"></i>parcial</span><span><i class="fi-pe"></i>vencido</span><span><i class="fi-ok"></i>pago</span></div>${corpo}
-  <p class="cpg-nota" style="margin-top:12px">Toque num dia para ver o que está agendado, pagar, lançar o que não estava agendado e tirar o relatório do dia.${semData?' '+nC(semData)+' em aberto sem data não aparecem na agenda: <a href="javascript:void 0" data-cpgir="semdata">ver e agendar</a>.':''}</p>`}
+  <p class="cpg-nota" style="margin-top:12px">${ag?'A agenda começa vazia: só aparece o que for agendado aqui dentro. ':''}Toque num dia para ${ag?'agendar o que vai ser pago,':'ver o que está agendado,'} pagar, lançar o que não estava agendado e tirar o relatório do dia.${semData?' '+nC(semData)+' em aberto sem data não aparecem na agenda: <a href="javascript:void 0" data-cpgir="semdata">ver e agendar</a>.':''}</p>`}
 
 /* ---------- contas (todas, com filtros) ---------- */
 const SITS_C=[['','Em aberto'],['Pendente','Pendentes'],['Agendado','Agendados'],['Vencido','Vencidos'],['Parcialmente pago','Parcialmente pagos'],['Pago','Pagos'],['_aguard','Aguardando classificação'],['_enc','Encaminhados ao setor'],['_pint','Pendentes de integração'],['_semdata','Sem data'],['Cancelado','Cancelados'],['todas','Todas']];
@@ -44831,23 +44839,33 @@ const MIN_K='jb_fin_painel_min';
 const MIN=(()=>{try{const v=JSON.parse(localStorage.getItem(MIN_K)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch(e){return {}}})();
 const guardarMin=()=>{try{localStorage.setItem(MIN_K,JSON.stringify({lista:!!MIN.lista,mods:!!MIN.mods}))}catch(e){}};
 const ABAS=[['hoje','Hoje'],['agenda','Agenda'],['contas','Contas'],['pagos','Pagos'],['ind','Indicadores']];
+/* traz para a agenda de quem paga contas que já existem (em aberto): marca o dia e a conta passa a aparecer na agenda */
+function trazerParaAgenda(d){if(!ed()){toast('Seu perfil não agenda pagamentos.','erro');return}
+ const L=todas().filter(o=>abertaO(o)&&!(naAg(o)&&o.prog===d)).sort(ordData);
+ if(!L.length){toast('Não há contas em aberto para trazer.','ok');return}
+ const N=x=>semAcento(String(x||'')).toLowerCase();
+ modalF('Agendar para '+fData(d),`<p class="ajuda" style="margin:0 0 8px">Marque o que vai ser pago neste dia. Agendar não marca como pago.</p><input type="search" id="taQ" placeholder="Pesquisar por nome ou descrição" aria-label="Pesquisar contas" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px 10px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit">
+  <div class="lista-sel">${L.map(o=>`<label data-t="${esc(N([o.benef,o.descricao,o.num,o.categoria,o.origem].join(' ')))}"><input type="checkbox" value="${esc(o.ref)}"><span><b>${esc(o.benef||o.descricao)}</b> · ${esc(fMoeda(o.s.saldo))}<br><small>${esc(o.descricao)}${o.venc?' · '+(o.s.vencido?'venceu em ':'vence em ')+esc(fData(o.venc)):''}${o.prog?' · agendada para '+esc(fData(o.prog)):''}</small></span></label>`).join('')}</div>`,'Agendar marcados',async v=>{
+  const refs=$$('.lista-sel input:checked',v).map(i=>i.value);if(!refs.length){toast('Marque ao menos uma conta.','erro');return false}
+  let n=0;for(const ref of refs){const o=ob(ref);if(!o||!abertaO(o))continue;await gravarAgenda(o,{dataPrevista:d,naAgenda:true});n++}
+  toast((n===1?'1 conta agendada':n+' contas agendadas')+' para '+fData(d)+'. Agendar não marca como pago.','ok')},{depois:v=>{const q=$('#taQ',v);if(q)q.oninput=e=>{const t=N(e.target.value);$$('.lista-sel label',v).forEach(l=>l.hidden=!!t&&!l.dataset.t.includes(t))}}})}
 function irAba(a,mud){if(mud)mud();UI.aba=a;if(lerRota().mod==='fcentral')renderTela();else JBNAV.ir('#/fcentral')}
 function telaCentral(c,so){const e=ed();const ag=so==='agenda';const a=ag?'agenda':ABAS.some(x=>x[0]===UI.aba)?UI.aba:'hoje';if(!ag)UI.aba=a;const h=hoje();
  /* na agenda, com um dia aberto, os botões do alto valem para aquele dia */
  const dR=a==='agenda'&&UI.cal==='dia'&&/^\d{4}-\d{2}-\d{2}$/.test(UI.dia)?UI.dia:h;const dC=fData(dR).slice(0,5);
- c.innerHTML=(ag?cabF(IC.quinzena?'quinzena':'calendario',nomeAgenda(),'Toque no dia e agende o que vai ser pago. O que está agendado no dia é o que se paga no dia. No fim do dia, lance o que não estava agendado e mande o relatório ao dono.',
+ c.innerHTML=(ag?cabF(IC.quinzena?'quinzena':'calendario',nomeAgenda(),'Aqui só aparece o que for agendado aqui dentro. Toque no dia e agende o que vai ser pago; no fim do dia, lance o que não estava agendado e mande o relatório ao dono.',
   `<button type="button" class="btn" id="cpgMaisT">Mais ▾</button>${dR<=h?`<button type="button" class="btn" id="cpgRel">${ic('doc')}${dR===h?'Relatório do dia':'Relatório de '+esc(dC)} ▾</button>`:''}${e?`<button type="button" class="btn pri" id="cpgNovo">${ic('mais')}${dR===h?'Novo pagamento':dR>h?'Agendar para '+esc(dC):'Novo pagamento em '+esc(dC)}</button>`:''}`)
   :cabF('carteira','Central de Pagamentos','Tudo o que é pagamento num lugar só: o que pagar hoje, a agenda, as contas, o que já foi pago e os indicadores.',
   `<button type="button" class="btn" id="cpgMaisT">Mais ▾</button>${dR<=h?`<button type="button" class="btn" id="cpgRel">${ic('doc')}${dR===h?'Relatório do dia':'Relatório de '+esc(dC)} ▾</button>`:''}${e?`<button type="button" class="btn pri" id="cpgNovo">${ic('mais')}${dR===h?'Novo pagamento':dR>h?'Agendar para '+esc(dC):'Novo pagamento em '+esc(dC)}</button>`:''}`))+
   `${ag?'':`<nav class="dir-abas cpg-abas" aria-label="Partes da Central de Pagamentos">${ABAS.map(([k,l])=>`<button type="button" class="dir-aba${a===k?' on':''}" data-cpgaba="${k}"${a===k?' aria-current="page"':''}>${esc(l)}</button>`).join('')}</nav>`}
-  <div id="cpgCorpo">${a==='hoje'?`<p class="cpg-diat cpg-hojet">${esc(diaTxt(h))}</p>`+htmlDia(h):a==='agenda'?htmlAgenda():a==='contas'?htmlContas():a==='pagos'?htmlPagos():htmlInd()}</div>`;
+  <div id="cpgCorpo">${a==='hoje'?`<p class="cpg-diat cpg-hojet">${esc(diaTxt(h))}</p>`+htmlDia(h):a==='agenda'?htmlAgenda(ag):a==='contas'?htmlContas():a==='pagos'?htmlPagos():htmlInd()}</div>`;
  $$('[data-cpgaba]',c).forEach(b=>b.onclick=()=>{UI.aba=b.dataset.cpgaba;renderTela()});
  const diaRef=()=>dR;
- if($('#cpgNovo',c))$('#cpgNovo',c).onclick=()=>novoPagamento({data:dR});
- if($('#cpgRel',c))$('#cpgRel',c).onclick=()=>relatorioDia($('#cpgRel',c),dR);
+ if($('#cpgNovo',c))$('#cpgNovo',c).onclick=()=>novoPagamento({data:dR,agenda:ag});
+ if($('#cpgRel',c))$('#cpgRel',c).onclick=()=>relatorioDia($('#cpgRel',c),dR,ag);
  $('#cpgMaisT',c).onclick=()=>abrirMenuMais($('#cpgMaisT',c),[{l:'Exportar a lista desta aba',sub:'visualizar, PDF ou Excel',fn:()=>setTimeout(()=>exportarAba($('#cpgMaisT')||document.body,a),30)},
   e&&pode('fIA')?{l:'Lançar por foto',sub:'nota, boleto ou cupom lido pela câmera',fn:()=>JBNAV.ir('#/fIA')}:null,
-  e?{l:'Trazer várias contas para um dia',sub:'marca o dia de pagar contas que já existem',fn:()=>A.programarVarios&&A.programarVarios(diaRef()>=h?diaRef():h)}:null,'-',
+  e?{l:'Trazer várias contas para um dia',sub:'marca o dia de pagar contas que já existem',fn:()=>ag?trazerParaAgenda(diaRef()>=h?diaRef():h):(A.programarVarios&&A.programarVarios(diaRef()>=h?diaRef():h))}:null,'-',
   pode('fLenha')?{l:'Lenha: conta por fornecedor',sub:'saldo, PAGAR / DAR BAIXA e extrato',fn:()=>JBNAV.ir('#/fLenha')}:null,
   {l:'Combustível por posto',fn:()=>JBNAV.ir('#/fComb')},{l:'Despesas gerais por tipo',fn:()=>JBNAV.ir('#/fGerais')},{l:'Outros pagamentos',fn:()=>JBNAV.ir('#/fOutros')},'-',
   {l:'Contas a pagar (tela completa)',sub:'pagar várias marcadas, banco e conciliação',fn:()=>JBNAV.ir('#/fpagar')},
@@ -44869,9 +44887,9 @@ function telaCentral(c,so){const e=ed();const ag=so==='agenda';const a=ag?'agend
  $$('[data-cpgdd]',co).forEach(b=>b.onclick=()=>{UI.dia=+b.dataset.cpgdd===0?h:addDias(UI.dia,+b.dataset.cpgdd);renderTela()});
  $$('[data-cpgdia]',co).forEach(b=>b.onclick=()=>{UI.dia=b.dataset.cpgdia;UI.sem=UI.dia;UI.mes=UI.dia.slice(0,7);UI.cal='dia';renderTela()});
  $$('[data-cpgver]',co).forEach(b=>b.onclick=()=>A.abrirObrig(b.dataset.cpgver));
- $$('[data-cpgnovo]',co).forEach(b=>b.onclick=()=>novoPagamento({data:b.dataset.cpgnovo}));
- $$('[data-cpgprog]',co).forEach(b=>b.onclick=()=>A.programarVarios&&A.programarVarios(b.dataset.cpgprog));
- $$('[data-cpgrel]',co).forEach(b=>b.onclick=()=>relatorioDia(b,b.dataset.cpgrel));
+ $$('[data-cpgnovo]',co).forEach(b=>b.onclick=()=>novoPagamento({data:b.dataset.cpgnovo,agenda:ag}));
+ $$('[data-cpgprog]',co).forEach(b=>b.onclick=()=>ag?trazerParaAgenda(b.dataset.cpgprog):(A.programarVarios&&A.programarVarios(b.dataset.cpgprog)));
+ $$('[data-cpgrel]',co).forEach(b=>b.onclick=()=>relatorioDia(b,b.dataset.cpgrel,ag));
  /* atalhos entre as abas */
  const limpaF=()=>Object.assign(UI.f,{q:'',setor:'',cat:'',benef:'',de:'',ate:''});
  $$('[data-cpgir]',co).forEach(x=>x.onclick=()=>{limpaF();UI.f.sit={aguard:'_aguard',pint:'_pint',semdata:'_semdata'}[x.dataset.cpgir]||'';irAba('contas')});
@@ -45033,7 +45051,7 @@ if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;windo
  return L}}
 
 window.CPG_FIN={moduloDe,sitU,baldes,agendar,pagar,novaConta,cancelarConta,gravarAgenda,MODULOS,catsDoModulo,
- SETS,identificar,sugerirCategoria,encDe,sitEnc,ehExtra,aplicarSetor,classificar,reenviar,novoPagamento,pagarRapido,quadroDia,dadosRelDia,textoRelDia,relatorioDia,dadosInd,blocoRastreio,encaminhadosAo,UI,irAba};
+ SETS,identificar,sugerirCategoria,encDe,sitEnc,ehExtra,aplicarSetor,classificar,reenviar,novoPagamento,pagarRapido,quadroDia,dadosRelDia,textoRelDia,relatorioDia,dadosInd,blocoRastreio,encaminhadosAo,UI,irAba,naAg,nomeAgenda,trazerParaAgenda};
 })();
 </script>
 <style id="lanc-filtros-v129-css">

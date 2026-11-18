@@ -214,3 +214,20 @@ V130.
   mostra a lista; tocar de novo no número que já está aberto também esconde. A escolha fica guardada no aparelho
   (`localStorage`, chave `jb_fin_painel_min`).
 
+## 10. V133 (18/11/2026): a agenda de quem paga começa vazia
+
+Pedido do dono: a agenda é dele (de quem paga as contas). Não deve trazer vencimentos nem agendamentos feitos em
+outras telas; ele mesmo agenda o que quiser lá dentro.
+
+- **Marca `naAgenda`** no próprio registro, junto com a data agendada de sempre (`dataPrevista`): no título do
+  Financeiro, ou no registro de apoio `fMeta` quando a conta nasceu em outro setor (compra de lenha ou combustível,
+  despesa do Setor Pessoal). Nada é copiado: a conta aparece como Agendada em todas as telas.
+- **O que entra na agenda**: (1) "Trazer contas para este dia", que lista as contas em aberto para ele marcar;
+  (2) conta nova lançada de dentro da agenda em "Agendar para pagar". Cancelar o agendamento tira da agenda.
+- **O que não entra**: vencimentos, contas agendadas em outras telas, a lista de atrasos e os avisos de classificação.
+  O calendário e o dia só mostram o que tem a marca.
+- **Pagos no dia e relatório**: o dia continua mostrando tudo o que foi pago nele. No relatório tirado pela agenda,
+  "extra" é o que foi pago sem ter sido agendado dentro dela.
+- A parte "Agenda" da Central de Pagamentos não mudou: continua mostrando tudo por vencimento ou data agendada.
+- Nenhum dado existente foi alterado: a agenda começa vazia e a marca só é gravada quando alguém agenda por ela.
+
