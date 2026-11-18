@@ -613,6 +613,17 @@ teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela
   assert.ok(app.includes("JB_NUVEM_API.rpc('jb_inv'"), 'a nuvem chama jb_inv');
   assert.ok(!/localStorage\.setItem\([^)]*inv_(bens|dados)/.test(app), 'dados do inventário não ficam no navegador');
 });
+teste('inventario', 'setor da cerâmica (18/11/2026): sem cadastro nem escolha de empresa; a empresa única vem das Configurações', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('<script id="inv-centro">');
+  assert.ok(i > 0, 'bloco do Centro de Inventário');
+  const bloco = app.slice(i, app.indexOf('</script>', i));
+  assert.ok(!bloco.includes("['empresas','Empresas'") && !bloco.includes('TELA.empresas'), 'sem a tela Empresas');
+  assert.ok(!/Cadastrar empresa|Empresas cadastradas|Ver todas as empresas|Inventário individual por empresa|invEmpP|várias empresas/.test(bloco), 'nada de cadastro, contagem ou escolha de empresa');
+  assert.ok(/function ctx\(\)\{return ''\}/.test(bloco), 'telas sem caixa de escolha de empresa');
+  assert.ok(bloco.includes('function dadosCeramica(){') && bloco.includes('CFG.empresa'), 'a empresa única usa os dados das Configurações');
+  assert.ok(bloco.includes("chamar('painel',{empresa_id:eid()})"), 'o painel é só o da cerâmica');
+});
 /* ---------- identidade documental (V111): um só lugar para logo, cabeçalho e rodapé de todos os documentos ---------- */
 teste('documentos', 'identidade central: configuração única, logo sem imagem fixa nos geradores e padrão em todos os formatos', () => {
   const app = ler('app/jb-gestao.html');

@@ -1,4 +1,4 @@
-# V136 · Almoxarifado: cadastro de materiais por grupo, em lote e com reposição (18/11/2026)
+# V137 · Almoxarifado: cadastro de materiais por grupo, em lote e com reposição (18/11/2026)
 
 Pedido do Jeferson: organizar o cadastro de todos os materiais do almoxarifado, item por item ou
 por grupo de produtos, para formar o estoque. O patrimônio (máquinas, veículos, móveis) continua

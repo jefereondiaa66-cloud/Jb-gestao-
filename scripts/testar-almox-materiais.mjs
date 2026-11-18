@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Teste de ponta a ponta do cadastro de materiais do almoxarifado (V136) no navegador, com o banco
+// Teste de ponta a ponta do cadastro de materiais do almoxarifado (V137) no navegador, com o banco
 // central simulado (scripts/lib/servidor-falso.mjs) e só dados de exemplo:
 //   - grupo de materiais, cadastro de vários itens de uma vez, item com reposição
 //   - custo de referência, consumo médio, ponto de reposição, curva ABC e relatórios
