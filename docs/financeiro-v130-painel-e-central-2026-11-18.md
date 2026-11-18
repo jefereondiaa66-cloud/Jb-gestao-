@@ -231,3 +231,17 @@ outras telas; ele mesmo agenda o que quiser lá dentro.
 - A parte "Agenda" da Central de Pagamentos não mudou: continua mostrando tudo por vencimento ou data agendada.
 - Nenhum dado existente foi alterado: a agenda começa vazia e a marca só é gravada quando alguém agenda por ela.
 
+
+## 11. V135 — painel sem a lista de contas e pagamentos fora do agendamento (18/11/2026)
+
+Pedido do dono: o painel do Financeiro estava com informação demais para quem vai pagar.
+
+- A lista “Para pagar agora” saiu do painel. As contas ficam dentro dos módulos e da Central de Pagamentos.
+  Tocar num indicador abre a Central já filtrada.
+- Para voltar a mostrar a lista: Financeiro › Configurações › “Painel do Financeiro”
+  (campo `painelLista` no registro `fcfg`; desligado por padrão).
+- Agenda de quem paga: o dia ganhou a parte “Pagamentos fora do agendamento” (o que foi pago sem estar agendado),
+  separada do que estava agendado, com botão direto no alto da agenda (abre o lançamento já em “Já foi pago”, na data do dia).
+  O calendário mostra “+N fora” no dia e o relatório do dia para o dono continua trazendo esses pagamentos como extras.
+
+Reversão: `git revert` do commit da V135 (não há migração nem mudança de dados).

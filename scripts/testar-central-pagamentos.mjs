@@ -125,6 +125,11 @@ try {
   await page.evaluate(async () => { const h = hoje(); await gravar('fContas', { id: '__caixa', data: h, nome: 'Caixa (dinheiro)', tipoConta: 'Caixa', situacao: 'Ativa', saldoInicial: 20000, dataSaldoInicial: addDias(h, -30), criadoEm: new Date().toISOString(), criadoPor: 'u_DONO' }, null); await T.sincronizado(); });
 
   /* A. painel do setor: só os três indicadores e a entrada da Central */
+  /* V135: por padrão o painel não traz a lista de contas; liga nas Configurações (o resto do teste roda com ela ligada) */
+  const p0 = await page.evaluate(async () => { await T.ir('#/setor-financeiro', /A pagar por módulo/); await T.dorme(500); const r = { lista: !!document.querySelector('#cpgLista'), kpis: Object.keys(T.kpis()).length, mods: document.querySelectorAll('#svCorpo .cpg-mods a').length };
+    [...document.querySelectorAll('#conteudo .cpg-hero .kpi')].find((k) => k.querySelector('.l').textContent.trim() === 'Total pendente').click(); await T.esperar(() => location.hash === '#/fcentral' && document.querySelector('#cpgCorpo')); await T.dorme(400); r.abre = CPG_FIN.UI.aba; CPG_FIN.UI.aba = 'hoje'; Object.assign(CPG_FIN.UI.f, { q: '', setor: '', cat: '', benef: '', ate: '', de: '', sit: '' });
+    await T.ir('#/fcfg', /./); await T.dorme(500); const k = document.querySelector('#cpgCfgL'); r.cfg = !!k && !k.checked; k.click(); await T.esperar(() => CPG_FIN.listaNoPainel()); await T.sincronizado(); return r; });
+  ok(!p0.lista && p0.kpis === 7 && p0.mods === 4 && p0.abre === 'contas' && p0.cfg, 'painel sem a lista de contas por padrão (os números abrem a Central); a lista liga em Configurações do Financeiro', p0);
   const pa = await page.evaluate(async () => {
     await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(600);
     const c = document.querySelector('#conteudo'); const tx = (x) => (x ? x.textContent : '').replace(/\s+/g, ' ').trim();
@@ -454,6 +459,19 @@ try {
   ok(n12.pagos.n === n12.pagos.esp.n && T_num(n12.pagos.res['Total pago no período']) === n12.pagos.esp.mes && +n12.pagos.res.Pagamentos === n12.pagos.esp.n && n12.extras.includes('Gasolina da saveiro') && n12.extras.includes('Pagamento ao Zeca') && !n12.extras.includes('Boleto do contador') && !n12.extras.includes('Conserto da maromba'),
     `12. Pagos: ${n12.pagos.n} pagamentos realizados no mês (${n12.pagos.res['Total pago no período']}); os extras ficam separados do que estava agendado`);
 
+  /* V135: na agenda, o que foi pago fora do agendamento tem parte própria no dia, botão direto e aparece no calendário */
+  const nF = await page.evaluate(async () => { const r = {}; const h = hoje(); CPG_FIN.UI.cal = 'mes'; await T.agenda(); await T.dorme(400);
+    r.botMes = !!document.querySelector('#cpgCorpo .cpg-agtopo [data-cpgfora]'); r.cel = (document.querySelector('#cpgCorpo .cel.hoje .cpg-foraq') || {}).textContent || '';
+    CPG_FIN.UI.cal = 'dia'; CPG_FIN.UI.dia = h; await T.agenda(); await T.dorme(400); const Q = CPG_FIN.quadroDia(h, true);
+    r.grupos = [...document.querySelectorAll('#cpgCorpo h3.grupo-t')].map((x) => x.textContent.trim()); r.nFora = Q.extras.length; r.linhasFora = document.querySelectorAll('#cpgFora + .painel tbody tr').length;
+    r.res = [...document.querySelectorAll('#cpgCorpo .cpg-resdia span')].map((x) => x.textContent.trim());
+    document.querySelector('#cpgCorpo .cpg-agtopo [data-cpgfora]').click(); await T.esperar(() => document.querySelector('.veu .modal #npDs')); await T.dorme(200);
+    r.modo = (document.querySelector('.veu .modal [data-npm][aria-checked="true"]') || {}).textContent; r.data = document.querySelector('#npD').value === h;
+    const f = document.querySelector('.veu .modal'); (f.querySelector('[data-fechar]') || f.querySelector('.fechar') || f.querySelector('button.x') || {}).click && (f.querySelector('[data-fechar]') || f.querySelector('.fechar') || f.querySelector('button.x')).click(); await T.dorme(300);
+    if (document.querySelector('.veu')) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await T.dorme(300); } if (document.querySelector('.veu')) document.querySelectorAll('.veu').forEach((v) => v.remove());
+    CPG_FIN.UI.cal = 'mes'; return r; });
+  ok(nF.botMes && /^\+\d+ fora$/.test(nF.cel) && nF.nFora > 0 && nF.linhasFora === nF.nFora && nF.grupos.some((g) => /^Pagamentos fora do agendamento · /.test(g)) && nF.grupos.some((g) => /^Pagos hoje \(do que estava agendado\)/.test(g)) && nF.res.includes('Fora do agendamento') && /Já foi pago/.test(nF.modo || '') && nF.data,
+    'agenda: “Pagamentos fora do agendamento” tem parte própria no dia, botão direto no alto (abre já em “Já foi pago”, na data do dia) e aparece no calendário', nF);
   /* 13. relatório do dia: agendado × pago × extras × pendente, para imprimir, gerar PDF e mandar ao dono */
   const n13 = await page.evaluate(async () => {
     const r = {}; const h = hoje(); const D = CPG_FIN.dadosRelDia(h); const Q = D.Q;
@@ -563,7 +581,7 @@ try {
     return r;
   });
   await foto('03-celular-hoje');
-  ok(n18.painel.larg <= n18.painel.vis + 2 && n18.painel.k === 7 && n18.painel.pills >= 6 && n18.painel.tiles >= 20 && n18.painel.barra.includes('Agenda') && ['hoje', 'agenda', 'contas', 'pagos', 'ind', 'agMes', 'agDia'].every((a) => n18[a].larg <= n18[a].vis + 2) && n18.fim.length === 2 && /não estava agendado/.test(n18.fim[0]) && /Relatório do dia para o dono/.test(n18.fim[1]) && n18.modal.dentro && n18.cel.n > 0 && n18.cel.vis === n18.cel.n && / · /.test(n18.cel.txt) && !n18.cel.emenda && !n18.vazou,
+  ok(n18.painel.larg <= n18.painel.vis + 2 && n18.painel.k === 7 && n18.painel.pills >= 6 && n18.painel.tiles >= 20 && n18.painel.barra.includes('Agenda') && ['hoje', 'agenda', 'contas', 'pagos', 'ind', 'agMes', 'agDia'].every((a) => n18[a].larg <= n18[a].vis + 2) && n18.fim.length === 1 && /Relatório do dia para o dono/.test(n18.fim[0]) && n18.modal.dentro && n18.cel.n > 0 && n18.cel.vis === n18.cel.n && / · /.test(n18.cel.txt) && !n18.cel.emenda && !n18.vazou,
     `18. no celular (390 px) o painel, a Agenda do Gustavo (com o fechamento do dia), as cinco partes da Central e o Novo pagamento cabem na largura; o cartão mostra categoria e forma (${n18.cel.txt}); barra de baixo: ${n18.painel.barra.join(' · ')}`, n18);
 
   /* 19. padrão de lançamentos (V134): três pontinhos completos nos módulos e nas listas que apontam para um registro; período da Lenha no padrão */

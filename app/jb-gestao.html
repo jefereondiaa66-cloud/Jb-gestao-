@@ -44050,6 +44050,7 @@ window.CPL_LENHA={quadros,lancarComb,contas,conta:contaDe,planejar,parecidos,reg
 .cpg-linha{margin:0 0 12px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .cpg-agtopo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
 .cpg-agac{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.cpg-forat{display:flex;gap:8px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.cpg-forat .btn{font-size:13px}.cpg-foraq{display:block;color:#8A5A00;font-weight:600}
 .cpg-fil{margin-bottom:10px}
 .cpg-blocos{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin:0 0 12px}
 .cpg-calm{margin:0!important}
@@ -44697,16 +44698,16 @@ function quadroDia(d,ag){const h=hoje();const OS=todas();
 const nP=n=>n+(n===1?' pagamento':' pagamentos');const nC=n=>n+(n===1?' conta':' contas');
 const diaTxt=d=>DIAS_SEM[dt(d).getDay()]+', '+fData(d);
 function htmlDia(d,ag){const Q=quadroDia(d,ag);const h=hoje();const fut=d>h,pas=d<h;
- const R=[[fMoeda(Q.previsto),ag||fut?'Agendado para o dia':'Previsto para o dia'],...(fut?[]:[[fMoeda(Q.vPago),'Pago no dia'],[fMoeda(Q.vExtra),'Extras (não agendados)']]),[fMoeda(Q.vPend),pas?'Ficou sem pagar':'Falta pagar'],...(d===h&&!ag?[[fMoeda(Q.vAtras),'Em atraso']]:[])];
+ const R=[[fMoeda(Q.previsto),ag||fut?'Agendado para o dia':'Previsto para o dia'],...(fut?[]:[[fMoeda(Q.vPago),'Pago no dia'],[fMoeda(Q.vExtra),ag?'Fora do agendamento':'Extras (não agendados)']]),[fMoeda(Q.vPend),pas?'Ficou sem pagar':'Falta pagar'],...(d===h&&!ag?[[fMoeda(Q.vAtras),'Em atraso']]:[])];
  return `<div class="resumo cpl-res cpg-resdia">${R.map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
   ${Q.aguard.length||Q.pint.length?`<p class="cpg-linha">${Q.aguard.length?`<span class="tag at">${Q.aguard.length} aguardando classificação</span> <a href="javascript:void 0" data-cpgir="aguard">Classificar agora</a>`:''}${Q.pint.length?` <span class="tag pe">${Q.pint.length===1?'1 pendente':Q.pint.length+' pendentes'} de integração</span> <a href="javascript:void 0" data-cpgir="pint">Ver</a>`:''}</p>`:''}
   <h3 class="grupo-t">${esc(d===h?'Para pagar hoje':fut?'Agendado para '+fData(d):'Ficou sem pagar em '+fData(d))}${Q.pend.length?' · '+esc(fMoeda(Q.vPend))+' · '+esc(nC(Q.pend.length)):''}</h3>
   ${tabela(Q.pend,{vazio:ag?(pas?'<b>Nada ficou sem pagar neste dia</b>':'<b>Nada agendado para '+(d===h?'hoje':'este dia')+'</b>Toque em “Trazer contas para este dia” para escolher o que vai ser pago, ou no botão de cima para lançar uma conta nova.'):d===h?'<b>Nada agendado para hoje</b>Use “Novo pagamento” para lançar o que surgir no dia.':fut?'<b>Nada agendado para este dia</b>Use “Novo pagamento” para agendar.':'<b>Nada ficou sem pagar neste dia</b>'})}
   ${Q.atras.length?`<h3 class="grupo-t">Em atraso · ${esc(fMoeda(Q.vAtras))} · ${esc(nC(Q.atras.length))}</h3>${tabela(Q.atras)}`:''}
-  ${fut?'':`<h3 class="grupo-t">${esc(d===h?'Pagos hoje':'Pagos em '+fData(d))}${Q.pagos.length?' · '+esc(fMoeda(Q.vPago))+' · '+esc(nP(Q.pagos.length)):''}</h3>
-  ${tabelaPagos(Q.pagos,{vazio:'<b>Nenhum pagamento registrado neste dia</b>',extra:ag?(o=>!naAg(o)):null})}
-  <div class="cpg-fim"><div><b>${d===h?'Fim do dia':'Fechamento de '+esc(fData(d))}</b><span>Lance o que foi pago e não estava agendado e mande o relatório do dia ao dono.</span></div>
-   <div class="cpg-fim-b">${ed()?`<button type="button" class="btn" data-cpgnovo="${esc(d)}">${ic('mais')}Lançar o que não estava agendado</button>`:''}<button type="button" class="btn" data-cpgrel="${esc(d)}">${ic('doc')}Relatório do dia para o dono ▾</button></div></div>`}`}
+  ${fut?'':`<h3 class="grupo-t">${esc((d===h?'Pagos hoje':'Pagos em '+fData(d))+(ag?' (do que estava agendado)':''))}${(ag?Q.doAg:Q.pagos).length?' · '+esc(fMoeda(ag?Q.vAg:Q.vPago))+' · '+esc(nP((ag?Q.doAg:Q.pagos).length)):''}</h3>
+  ${ag?tabelaPagos(Q.doAg,{vazio:'<b>Nada do que estava agendado foi pago ainda</b>',extra:()=>false})+`<h3 class="grupo-t cpg-forat" id="cpgFora"><span>Pagamentos fora do agendamento${Q.extras.length?' · '+esc(fMoeda(Q.vExtra))+' · '+esc(nP(Q.extras.length)):''}</span>${ed()?`<button type="button" class="btn" data-cpgnovo="${esc(d)}" data-cpgfora>${ic('mais')}Lançar pagamento fora do agendamento</button>`:''}</h3>`+tabelaPagos(Q.extras,{vazio:'<b>Nenhum pagamento fora do agendamento neste dia</b>O que for pago sem estar agendado entra aqui e sai no relatório do dia.',extra:()=>false}):tabelaPagos(Q.pagos,{vazio:'<b>Nenhum pagamento registrado neste dia</b>'})}
+  <div class="cpg-fim"><div><b>${d===h?'Fim do dia':'Fechamento de '+esc(fData(d))}</b><span>${ag?'Confira os pagamentos fora do agendamento acima e mande o relatório do dia ao dono.':'Lance o que foi pago e não estava agendado e mande o relatório do dia ao dono.'}</span></div>
+   <div class="cpg-fim-b">${ed()&&!ag?`<button type="button" class="btn" data-cpgnovo="${esc(d)}">${ic('mais')}Lançar o que não estava agendado</button>`:''}<button type="button" class="btn" data-cpgrel="${esc(d)}">${ic('doc')}Relatório do dia para o dono ▾</button></div></div>`}`}
 
 /* ---------- relatório do dia: o que estava agendado, o que foi pago, os extras e o que ficou pendente ---------- */
 function dadosRelDia(d,ag){const Q=quadroDia(d,ag);try{resolverNomes(Q.pagos.map(x=>x.p.por).filter(Boolean))}catch(e){}
@@ -44745,18 +44746,19 @@ function htmlAgenda(ag){const h=hoje();
  const modos=`<div class="dir-abas cpg-calm" style="padding:0" role="group" aria-label="Visão da agenda">${[['mes','Mês'],['sem','Semana'],['dia','Dia']].map(([k,l])=>`<button type="button" class="dir-aba${UI.cal===k?' on':''}" data-cpgcal="${k}" aria-pressed="${UI.cal===k}">${l}</button>`).join('')}</div>`;
  if(UI.cal==='dia'){const d=/^\d{4}-\d{2}-\d{2}$/.test(UI.dia)?UI.dia:h;
   return `<div class="cpg-agtopo">${modos}<span class="fi-dia-nav"><button type="button" class="btn" data-cpgdd="-1" aria-label="Dia anterior">${ic('esquerda')}</button><input type="date" id="cpgDia" value="${esc(d)}" aria-label="Dia"><button type="button" class="btn" data-cpgdd="1" aria-label="Próximo dia">${ic('direita')}</button>${d!==h?'<button type="button" class="btn" data-cpgdd="0">Hoje</button>':''}</span><b class="cpg-diat">${esc(diaTxt(d))}</b>
-   ${ed()&&d>=h?`<span class="cpg-agac"><button type="button" class="btn" data-cpgprog="${esc(d)}">Trazer contas para este dia</button></span>`:''}</div>${htmlDia(d,ag)}`}
+   ${ed()&&(d>=h||(ag&&d<=h))?`<span class="cpg-agac">${d>=h?`<button type="button" class="btn" data-cpgprog="${esc(d)}">Trazer contas para este dia</button>`:''}${ag&&d<=h?`<button type="button" class="btn" data-cpgnovo="${esc(d)}" data-cpgfora>${ic('mais')}Pago fora do agendamento</button>`:''}</span>`:''}</div>${htmlDia(d,ag)}`}
  /* na agenda de quem paga o calendário só tem o que foi agendado dentro dela, no dia em que foi agendado */
  const diaDe=o=>ag?o.prog:o.dataCal;const OS=todas().filter(o=>!o.cancelado&&(ag?naAg(o)&&o.prog:o.dataCal));const por={};OS.forEach(o=>(por[diaDe(o)]=por[diaDe(o)]||[]).push(o));
  const semData=ag?0:todas().filter(o=>abertaO(o)&&!o.dataCal).length;let corpo='',nav='';
+ const foraD={};if(ag)pagamentosTodos().forEach(x=>{if(!naAg(x.o)&&x.p.data){const f=foraD[x.p.data]=foraD[x.p.data]||{n:0,v:0};f.n++;f.v=r2(f.v+(+x.p.valor||0))}});
  if(UI.cal==='mes'){const m=/^\d{4}-\d{2}$/.test(UI.mes)?UI.mes:mesAtual();const p=dt(m+'-01');const ini=addDias(m+'-01',-p.getDay());const dias=[];for(let i=0;i<42;i++){const d=addDias(ini,i);if(i>=35&&d.slice(0,7)!==m)break;dias.push(d)}
   nav=`<button type="button" class="btn" data-cpgcm="-1" aria-label="Mês anterior">${ic('esquerda')}</button><input type="month" id="cpgMes" value="${esc(m)}" aria-label="Mês"><button type="button" class="btn" data-cpgcm="1" aria-label="Próximo mês">${ic('direita')}</button>`;
   corpo=`<div class="fi-cal">${DIAS_SEM.map(x=>`<div class="dsem">${x}</div>`).join('')}${dias.map(d=>{const xs=por[d]||[];const ab=xs.filter(abertaO);
-   return `<button type="button" class="cel${d.slice(0,7)!==m?' fora':''}${d===h?' hoje':''}" data-cpgdia="${d}" aria-label="${esc(fData(d))}: ${xs.length} pagamento(s)"><span class="n">${+d.slice(8)}</span>${xs.length?`${(v=>`<span class="t"><span class="t-l">${esc(fMoeda(v))}</span><span class="t-c" aria-hidden="true">${esc(fMoedaCurta(v))}</span></span>`)(ab.length?soma(ab,o=>o.s.saldo):soma(xs,o=>o.valor))}<span class="q">${xs.length} item(ns)${ab.length?' · '+ab.length+' a pagar':''}</span><span class="pts">${xs.slice(0,8).map(o=>`<i class="${corPt(o)}"></i>`).join('')}</span>`:''}</button>`}).join('')}</div>`}
+   return `<button type="button" class="cel${d.slice(0,7)!==m?' fora':''}${d===h?' hoje':''}" data-cpgdia="${d}" aria-label="${esc(fData(d))}: ${xs.length} pagamento(s)"><span class="n">${+d.slice(8)}</span>${xs.length?`${(v=>`<span class="t"><span class="t-l">${esc(fMoeda(v))}</span><span class="t-c" aria-hidden="true">${esc(fMoedaCurta(v))}</span></span>`)(ab.length?soma(ab,o=>o.s.saldo):soma(xs,o=>o.valor))}<span class="q">${xs.length} item(ns)${ab.length?' · '+ab.length+' a pagar':''}</span><span class="pts">${xs.slice(0,8).map(o=>`<i class="${corPt(o)}"></i>`).join('')}</span>`:''}${foraD[d]?`<span class="q cpg-foraq" title="Pago fora do agendamento: ${esc(fMoeda(foraD[d].v))}">+${foraD[d].n} fora</span>`:''}</button>`}).join('')}</div>`}
  else{const s=/^\d{4}-\d{2}-\d{2}$/.test(UI.sem)?UI.sem:h;const p=dt(s);const ini=addDias(s,-p.getDay());const dias=Array.from({length:7},(_,i)=>addDias(ini,i));
   nav=`<button type="button" class="btn" data-cpgcs="-7" aria-label="Semana anterior">${ic('esquerda')}</button><input type="date" id="cpgSem" value="${esc(s)}" aria-label="Semana do dia"><button type="button" class="btn" data-cpgcs="7" aria-label="Próxima semana">${ic('direita')}</button>`;
-  corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-cpgdia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-cpgver="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(sitU(o))}</span></div>`).join('')||'<div class="it" style="cursor:default;color:var(--fraco)">—</div>'}</div>`}).join('')}</div>`}
- return `<div class="cpg-agtopo">${modos}<span class="fi-dia-nav">${nav}</span></div>
+  corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-cpgdia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-cpgver="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(sitU(o))}</span></div>`).join('')||(foraD[d]?'':'<div class="it" style="cursor:default;color:var(--fraco)">—</div>')}${foraD[d]?`<div class="it" data-cpgdia="${d}"><b>Fora do agendamento</b><span>${esc(fMoeda(foraD[d].v))} · ${esc(nP(foraD[d].n))}</span></div>`:''}</div>`}).join('')}</div>`}
+ return `<div class="cpg-agtopo">${modos}<span class="fi-dia-nav">${nav}</span>${ag&&ed()?`<span class="cpg-agac"><button type="button" class="btn" data-cpgnovo="${esc(h)}" data-cpgfora>${ic('mais')}Pago hoje fora do agendamento</button></span>`:''}</div>
   <div class="fi-leg"><span><i class="fi-in"></i>a pagar</span><span><i class="fi-at"></i>parcial</span><span><i class="fi-pe"></i>vencido</span><span><i class="fi-ok"></i>pago</span></div>${corpo}
   <p class="cpg-nota" style="margin-top:12px">${ag?'A agenda começa vazia: só aparece o que for agendado aqui dentro. ':''}Toque num dia para ${ag?'agendar o que vai ser pago,':'ver o que está agendado,'} pagar, lançar o que não estava agendado e tirar o relatório do dia.${semData?' '+nC(semData)+' em aberto sem data não aparecem na agenda: <a href="javascript:void 0" data-cpgir="semdata">ver e agendar</a>.':''}</p>`}
 
@@ -44839,6 +44841,9 @@ function exportarAba(btn,a0){const a=a0||UI.aba;
 const NOME_AGENDA='Agenda do Gustavo';
 const nomeAgenda=()=>{try{const c=DATA.fCfg.find(x=>x.id==='fcfg');const n=String((c&&c.agendaNome)||'').trim();return n||NOME_AGENDA}catch(e){return NOME_AGENDA}};
 /* listas do painel: tocar no título (ou de novo no mesmo número) mostra ou esconde; a escolha fica guardada neste aparelho */
+/* V135 (18/11/2026, pedido do dono): a lista de contas do painel fica desligada; as contas ficam nos módulos. Liga em Configurações do Financeiro. */
+const listaNoPainel=()=>{try{const c=DATA.fCfg.find(x=>x.id==='fcfg');return !!(c&&c.painelLista===true)}catch(e){return false}};
+async function gravarListaPainel(v){const ant=DATA.fCfg.find(x=>x.id==='fcfg')||null;const n={...(ant?clone(ant):{id:'fcfg',data:'2026-01-01'}),painelLista:!!v,alteradoEm:new Date().toISOString(),alteradoPor:APP.uid||'local'};await gravar('fCfg',n,ant)}
 const MIN_K='jb_fin_painel_min';
 const MIN=(()=>{try{const v=JSON.parse(localStorage.getItem(MIN_K)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch(e){return {}}})();
 const guardarMin=()=>{try{localStorage.setItem(MIN_K,JSON.stringify({lista:!!MIN.lista,mods:!!MIN.mods}))}catch(e){}};
@@ -44891,7 +44896,7 @@ function telaCentral(c,so){const e=ed();const ag=so==='agenda';const a=ag?'agend
  $$('[data-cpgdd]',co).forEach(b=>b.onclick=()=>{UI.dia=+b.dataset.cpgdd===0?h:addDias(UI.dia,+b.dataset.cpgdd);renderTela()});
  $$('[data-cpgdia]',co).forEach(b=>b.onclick=()=>{UI.dia=b.dataset.cpgdia;UI.sem=UI.dia;UI.mes=UI.dia.slice(0,7);UI.cal='dia';renderTela()});
  $$('[data-cpgver]',co).forEach(b=>b.onclick=()=>A.abrirObrig(b.dataset.cpgver));
- $$('[data-cpgnovo]',co).forEach(b=>b.onclick=()=>novoPagamento({data:b.dataset.cpgnovo,agenda:ag}));
+ $$('[data-cpgnovo]',co).forEach(b=>b.onclick=()=>novoPagamento({data:b.dataset.cpgnovo,agenda:ag,...(b.hasAttribute('data-cpgfora')?{modo:'pago'}:{})}));
  $$('[data-cpgprog]',co).forEach(b=>b.onclick=()=>ag?trazerParaAgenda(b.dataset.cpgprog):(A.programarVarios&&A.programarVarios(b.dataset.cpgprog)));
  $$('[data-cpgrel]',co).forEach(b=>b.onclick=()=>relatorioDia(b,b.dataset.cpgrel,ag));
  /* atalhos entre as abas */
@@ -44907,7 +44912,7 @@ const ROT={agora:'Para pagar agora',hoje:'Pagar hoje',prox:'Próximos 7 dias',at
 const CURTA=6;
 /* no layout novo os números do setor sobem para baixo da saudação; a lista do que pagar vem logo depois deles */
 function arrumar(c){try{const hero=c.querySelector(':scope>.hero'),bl=c.querySelector(':scope>#cpgBloco');if(hero&&bl&&hero.nextElementSibling!==bl)hero.insertAdjacentElement('afterend',bl)}catch(e){}}
-function telaInicio(c){const B=baldes();const e=ed();const QH=quadroDia(hoje());const nPiH=QH.pint.length;
+function telaInicio(c){const B=baldes();const e=ed();const LP=listaNoPainel();const QH=quadroDia(hoje());const nPiH=QH.pint.length;
  const b=ROT[UI.b]?UI.b:'agora';
  const lista={agora:[...B.atras,...B.hj],hoje:B.hj,prox:B.prox,atras:B.atras,agend:B.agend,parc:B.parc,pagas:B.pagosMes,todas:B.ab}[b];
  const todasX=busca(lista,UI.q).slice().sort(b==='pagas'?(x,y)=>ultPag(y).localeCompare(ultPag(x)):ordData);
@@ -44924,24 +44929,27 @@ function telaInicio(c){const B=baldes();const e=ed();const QH=quadroDia(hoje());
   `<div class="hero cpg-hero" role="group" aria-label="Resumo das contas a pagar">${KP.map(k=>kpiV(k[1]+(b===k[0]?' cpg-on':'')+(k[0]==='atras'&&B.atras.length?' cpg-pe':''),IC[k[2]]?k[2]:'moeda',k[3],esc(k[4]),esc(k[5]))).join('')}</div>
   <div id="cpgBloco">
    ${QH.aguard.length||nPiH?`<p class="cpg-linha">${QH.aguard.length?`<span class="tag at">${QH.aguard.length} aguardando classificação</span> <a href="javascript:void 0" data-cpgir="aguard">Classificar agora</a>`:''}${nPiH?` <span class="tag pe">${nPiH===1?'1 pendente':nPiH+' pendentes'} de integração</span> <a href="javascript:void 0" data-cpgir="pint">Ver</a>`:''}</p>`:''}
-   <h3 class="grupo-t cpg-tog" id="cpgLista" role="button" tabindex="0" aria-expanded="${!MIN.lista}" data-cpgmin="lista" title="${MIN.lista?'Tocar para mostrar a lista':'Tocar para esconder a lista'}">${MIN.lista?'▸':'▾'} ${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
+   ${LP?`<h3 class="grupo-t cpg-tog" id="cpgLista" role="button" tabindex="0" aria-expanded="${!MIN.lista}" data-cpgmin="lista" title="${MIN.lista?'Tocar para mostrar a lista':'Tocar para esconder a lista'}">${MIN.lista?'▸':'▾'} ${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
    <div id="cpgListaC"${MIN.lista?' hidden':''}>
    <div class="cpg-busca"><input type="search" id="cpgQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(UI.q)}" aria-label="Pesquisar contas">${b!=='agora'?'<button type="button" class="btn" data-cpgb="agora">Ver o que pagar agora</button>':''}</div>
    ${tabelaAnt(xs,{pagas:b==='pagas',vazio:UI.q?'<b>Nenhuma conta com esta pesquisa</b>':b==='agora'?(B.ab.length?'<b>Nada para pagar hoje e nada em atraso</b>Veja os próximos dias em “Próximos 7 dias”.':'<b>Nenhuma conta em aberto</b>As contas aparecem aqui quando forem lançadas aqui ou nos setores.'):'<b>Nenhuma conta neste quadro</b>'})}
    ${curta?`<p style="margin:0 0 12px"><button type="button" class="btn" id="cpgTudo">Ver todas as ${todasX.length} contas</button></p>`:''}
    ${B.semData.length&&b!=='todas'?`<p class="cpg-nota">${q(B.semData.length)} em aberto sem vencimento nem agendamento (${esc(fMoeda(somaS(B.semData)))}). <a href="javascript:void 0" data-cpgb="todas">Ver em “Total pendente”</a></p>`:''}
-   </div>
+   </div>`:''}
    <h3 class="grupo-t cpg-tog" role="button" tabindex="0" aria-expanded="${!MIN.mods}" data-cpgmin="mods" title="${MIN.mods?'Tocar para mostrar':'Tocar para esconder'}">${MIN.mods?'▸':'▾'} A pagar por módulo</h3><div class="cpg-mods"${MIN.mods?' hidden':''}>${mods}</div>
    <p class="cpg-nota">A rotina do dia (agendar, pagar, lançar o que não estava agendado e relatório para o dono) fica na <a href="#/fagenda">${esc(nomeAgenda())}</a>. Os gráficos e a conferência com o banco continuam em <a href="#/fpainel">Indicadores</a>.</p>
   </div>`;
  $$('.cpg-hero .kpi',c).forEach((x,i)=>{x.setAttribute('role','button');x.setAttribute('aria-pressed',String(b===KP[i][0]));x.dataset.cpgb=KP[i][0]});
  $$('[data-cpgb]',c).forEach(x=>x.onclick=ev=>{ev.preventDefault();const k=x.dataset.cpgb;
+  /* sem a lista no painel, o número abre as contas na Central de Pagamentos */
+  if(!LP){if(k==='hoje'||k==='agora'){irAba('hoje');return}if(k==='pagas'){const m=hoje().slice(0,7);irAba('pagos',()=>Object.assign(UI.p,{q:'',de:m+'-01',ate:'',setor:'',tipo:''}));return}
+   irAba('contas',()=>Object.assign(UI.f,{q:'',setor:'',cat:'',benef:'',ate:k==='prox'?addDias(hoje(),7):'',de:k==='prox'?addDias(hoje(),1):'',sit:{atras:'Vencido',agend:'Agendado',parc:'Parcialmente pago'}[k]||''}));return}
   /* tocar de novo no número que já está aberto esconde a lista; qualquer outro toque mostra */
   if(x.classList.contains('kpi')&&b===k&&!MIN.lista){MIN.lista=true;UI.b='';guardarMin();renderTela();return}
   UI.b=k;UI.tudo=false;if(MIN.lista){MIN.lista=false;guardarMin()}
   renderTela();setTimeout(()=>{const l=document.getElementById('cpgLista');if(l&&l.scrollIntoView)try{l.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(e2){}},90)});
  $$('[data-cpgmin]',c).forEach(x=>{const f=()=>{const k=x.dataset.cpgmin;MIN[k]=!MIN[k];guardarMin();renderTela()};x.onclick=f;x.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f()}}});
- $('#cpgQ',c).oninput=ev=>{UI.q=ev.target.value;clearTimeout(telaInicio.t);telaInicio.t=setTimeout(()=>{renderTela();const i=$('#cpgQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
+ if($('#cpgQ',c))$('#cpgQ',c).oninput=ev=>{UI.q=ev.target.value;clearTimeout(telaInicio.t);telaInicio.t=setTimeout(()=>{renderTela();const i=$('#cpgQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
  if($('#cpgTudo',c))$('#cpgTudo',c).onclick=()=>{UI.tudo=true;renderTela()};
  $('#cpgExp',c).onclick=()=>exportarLista($('#cpgExp',c),todasX,'Central de pagamentos – '+ROT[b]);
  if($('#cpgNova',c))$('#cpgNova',c).onclick=()=>abrirMenuMais($('#cpgNova',c),[{l:'Despesa geral',sub:'energia, água, internet, manutenção, serviço…',fn:()=>novaConta('gerais')},{l:'Combustível',sub:'posto ou fornecedor',fn:()=>setTimeout(()=>menuNova($('#cpgNova')||document.body,'comb'),30)},{l:'Outro pagamento',sub:'conta eventual ou sem classificação',fn:()=>novaConta('outros')},{l:'Lenha',sub:'as entregas vêm do Setor da Lenha: abre o módulo',fn:()=>JBNAV.ir('#/fLenha')}]);
@@ -45022,6 +45030,9 @@ window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
   {r:'#/fComb',m:'fComb',ic:'bomba',l:'Contas a pagar – Combustível',at:['fComb']},{r:'#/fGerais',m:'fGerais',ic:'recibo',l:'Despesas gerais',at:['fGerais']},{r:'#/fOutros',m:'fOutros',ic:'moeda',l:'Outros pagamentos',at:['fOutros']}];
  novas.forEach(a=>{a.depois='setor-financeiro'});X.unshift(...novas);
  if(!X.some(a=>a.m==='fpainel'))X.push({depois:'fcal',r:'#/fpainel',m:'fpainel',ic:'grafico',l:'Indicadores',at:['fpainel']})}
+{const t0=TELAS_V.fcfg;if(typeof t0==='function')TELAS_V.fcfg=function(el){const x=t0.apply(this,arguments);try{const c=$('#svCorpo',el);if(c&&!c.querySelector('#cpgCfgL')){const on=listaNoPainel();
+ c.insertAdjacentHTML('beforeend',`<div class="painel" style="padding:14px 16px;margin-top:14px"><h3 class="grupo-t" style="margin-top:0">Painel do Financeiro</h3><label class="cpg-chk"><input type="checkbox" id="cpgCfgL"${on?' checked':''}${ed()?'':' disabled'}> Mostrar a lista de contas (“Para pagar agora”) no painel</label><p class="ajuda" style="margin:0">Desligado, o painel fica só com os indicadores e os módulos; as contas ficam dentro de cada módulo.</p></div>`);
+ const k=$('#cpgCfgL',c);if(k)k.onchange=async()=>{try{await gravarListaPainel(k.checked);toast(k.checked?'Lista ligada no painel.':'Lista desligada no painel.','ok')}catch(e){k.checked=!k.checked;toast(msgFalhaSalvar(e),'erro')}}}}catch(e){}return x}}
 /* a Agenda e a Central ficam sempre nos atalhos favoritos do setor, antes dos escolhidos pela pessoa */
 window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(k=>k!=='#/fagenda'&&k!=='#/fcentral'),'#/fagenda','#/fcentral'];
 
@@ -45055,7 +45066,7 @@ if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;windo
  return L}}
 
 window.CPG_FIN={moduloDe,sitU,baldes,agendar,pagar,novaConta,cancelarConta,gravarAgenda,MODULOS,catsDoModulo,
- SETS,identificar,sugerirCategoria,encDe,sitEnc,ehExtra,aplicarSetor,classificar,reenviar,novoPagamento,pagarRapido,quadroDia,dadosRelDia,textoRelDia,relatorioDia,dadosInd,blocoRastreio,encaminhadosAo,UI,irAba,naAg,nomeAgenda,trazerParaAgenda};
+ SETS,identificar,sugerirCategoria,encDe,sitEnc,ehExtra,aplicarSetor,classificar,reenviar,novoPagamento,pagarRapido,quadroDia,dadosRelDia,textoRelDia,relatorioDia,dadosInd,blocoRastreio,encaminhadosAo,UI,irAba,gravarListaPainel,listaNoPainel,naAg,nomeAgenda,trazerParaAgenda};
 })();
 </script>
 <style id="lanc-filtros-v129-css">
