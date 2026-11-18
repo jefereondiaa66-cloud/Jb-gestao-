@@ -18518,7 +18518,10 @@ const nomeConta=id=>id===CAIXA?((CONTA(CAIXA)||{}).nome||'Caixa (dinheiro)'):(CO
 const optsContas=(todas)=>[...DATA.fContas.filter(c=>c.id!==CAIXA&&(todas||c.situacao!=='Inativa')).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(c=>[c.id,c.nome]),[CAIXA,nomeConta(CAIXA)]];
 const tagF=(v,cls)=>`<span class="tag ${cls||''}">${esc(v)}</span>`;
 const COR_SIT={Programado:'in',Pendente:'at',Vencido:'pe','Pago informado':'in','Identificado no banco':'in',Conciliado:'ok',Parcial:'br',Divergente:'pe',Cancelado:'','Não identificado':'at',Identificado:'in','Em investigação':'pe'};
-const tagSit=s=>tagF(s,COR_SIT[s]??'');
+/* situações com nome simples (17/11/2026): Pendente · Agendado · Parcialmente pago · Pago · Vencido · Cancelado. Só muda o texto mostrado; a regra é a mesma. */
+const ROT_SIT={Programado:'Agendado',Parcial:'Parcialmente pago','Pago informado':'Pago','Identificado no banco':'Pago · no banco',Conciliado:'Pago · conciliado'};
+const rotSit=s=>ROT_SIT[s]||s;
+const tagSit=s=>tagF(rotSit(s),COR_SIT[s]??'');
 const normTxt=s=>semAcento(s).replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
 const ultimoDia=m=>addDias(addMeses(m+'-01',1),-1);
 /* identificador estável (53 bits) para não repetir linha de extrato */
@@ -18859,7 +18862,7 @@ function telaPainelF(c){
  $$('a[href^="#/fpagar?"]',c).forEach(a=>a.onclick=e=>{e.preventDefault();const q=a.getAttribute('href').split('?')[1];Object.assign(UP,{sit:q==='vencidas'?'Vencido':q==='parcial'?'Parcial':q==='divergente'?'Divergente':q==='semdoc'?'_semdoc':q==='semdata'?'_semdata':'',q:''});JBNAV.ir('#/fpagar')});
  $$('[data-oref]',c).forEach(a=>a.onclick=e=>{e.preventDefault();abrirObrig(a.dataset.oref)});
 }
-function itemO(o){return{href:'javascript:void 0',ic:o.s.st==='Divergente'||o.s.vencido?'aviso':'calendario',cls:o.s.st==='Divergente'||o.s.vencido?'a-pe':'a-at',t:o.benef||o.descricao,s:(o.dataCal?(o.s.vencido?'venceu em ':'em ')+fData(o.dataCal):'sem data')+' · '+o.s.st+' · '+o.origem,v:fMoeda(o.s.saldo||o.valor),ref:o.ref}}
+function itemO(o){return{href:'javascript:void 0',ic:o.s.st==='Divergente'||o.s.vencido?'aviso':'calendario',cls:o.s.st==='Divergente'||o.s.vencido?'a-pe':'a-at',t:o.benef||o.descricao,s:(o.dataCal?(o.s.vencido?'venceu em ':'em ')+fData(o.dataCal):'sem data')+' · '+rotSit(o.s.st)+' · '+o.origem,v:fMoeda(o.s.saldo||o.valor),ref:o.ref}}
 /* lstV não leva atributo extra: o vínculo fica num marcador lido depois */
 const lstO=(itens,vazio)=>{const h=lstV(itens,vazio);let i=0;return h.replace(/<a href="javascript:void 0"/g,()=>{const it=itens.filter(x=>x.ref)[i++];return it?`<a href="javascript:void 0" data-oref="${esc(it.ref)}"`:'<a href="javascript:void 0"'})};
 
@@ -19079,7 +19082,7 @@ function telaPagar(c){
  const rows=linhasPagar();
  c.innerHTML=cabF('recibo','Contas a pagar','Todos os compromissos da cerâmica num lugar só: os lançados aqui, as compras da Lenha e do Combustível e as despesas do Setor Pessoal. Cada um continua morando na origem.',
   `<button class="btn" id="fpExp">${ic('baixar')}Exportar ▾</button>${edF()?`<button class="btn" id="fpVarios" disabled>${ic('moeda')}Pagar marcadas<span id="fpVn"></span></button><a class="btn pri" href="#/fTitulos/novo">${ic('mais')}Novo compromisso</a>`:''}`)+
-  filtrosHtml(UF,`<input type="search" id="fpQ" placeholder="Pesquisar" value="${esc(UP.q)}" aria-label="Pesquisar"><select id="fpS" aria-label="Situação"><option value="">Situação: em aberto e pagos</option>${optH([['_abertas','Só em aberto'],...SITS.map(x=>[x,x]),['_semdata','Sem data definida'],['_semdoc','Pago sem comprovante']],UP.sit)}</select>
+  filtrosHtml(UF,`<input type="search" id="fpQ" placeholder="Pesquisar" value="${esc(UP.q)}" aria-label="Pesquisar"><select id="fpS" aria-label="Situação"><option value="">Situação: em aberto e pagos</option>${optH([['_abertas','Só em aberto'],...SITS.map(x=>[x,rotSit(x)]),['_semdata','Sem data definida'],['_semdoc','Pago sem comprovante']],UP.sit)}</select>
    <input type="month" id="fpMes" value="${esc(UP.de&&UP.ate&&UP.de.endsWith('-01')&&UP.ate===ultimoDia(UP.de.slice(0,7))?UP.de.slice(0,7):'')}" aria-label="Mês" title="Mês"><label class="inline" style="font-size:12.5px;color:var(--suave)">De <input type="date" id="fpDe" value="${esc(UP.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="fpAte" value="${esc(UP.ate)}"></label>`)+
   resumoF([[String(rows.length),'Compromissos no filtro'],[fMoeda(soma(rows,o=>o.valor)),'Previsto'],[fMoeda(soma(rows,o=>o.s.P)),'Pago informado'],[fMoeda(soma(rows,o=>o.s.Bt)),'Identificado no banco'],[fMoeda(soma(rows,o=>o.s.saldo)),'Saldo a pagar'],[fMoeda(soma(rows.filter(o=>o.s.vencido),o=>o.s.saldo)),'Vencido']])+
   (rows.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr>${edF()?'<th class="v56-chk"><span class="sr">Marcar</span></th>':''}<th>Data</th><th>Compromisso</th><th>Origem</th><th>Categoria</th><th class="num">Valor</th><th class="num">Pago</th><th class="num">No banco</th><th class="num">Saldo</th><th>Situação</th></tr></thead><tbody>
@@ -19097,7 +19100,7 @@ function telaPagar(c){
   c.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.pmarca!==undefined)atu()});
   bv.onclick=()=>{const m=marc();if(m.length&&typeof window.pagarVariosV56==='function')window.pagarVariosV56(m)};atu()}}
  $('#fpExp',c).onclick=()=>{const cols=[{k:'data',l:'Data',t:'data'},{k:'venc',l:'Vencimento',t:'data'},{k:'benef',l:'Beneficiário'},{k:'descricao',l:'Descrição'},{k:'num',l:'Número'},{k:'origem',l:'Origem'},{k:'categoria',l:'Categoria'},{k:'centro',l:'Centro de custo'},{k:'valor',l:'Valor',t:'moeda'},{k:'pago',l:'Pago informado',t:'moeda'},{k:'banco',l:'No banco',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
-  const dados=rows.map(o=>({data:o.dataCal,venc:o.venc,benef:o.benef,descricao:o.descricao,num:o.num,origem:o.origem,categoria:o.categoria,centro:o.centro,valor:o.valor,pago:o.s.P,banco:o.s.Bt,saldo:o.s.saldo,sit:o.s.st}));
+  const dados=rows.map(o=>({data:o.dataCal,venc:o.venc,benef:o.benef,descricao:o.descricao,num:o.num,origem:o.origem,categoria:o.categoria,centro:o.centro,valor:o.valor,pago:o.s.P,banco:o.s.Bt,saldo:o.s.saldo,sit:rotSit(o.s.st)}));
   const fx=f=>exportar(f,'Contas_a_pagar_'+hoje(),cols,dados,'Contas a pagar');
   abrirMenuMais($('#fpExp',c),[{l:'Visualizar',sub:rows.length+' compromisso(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
 }
@@ -19128,7 +19131,7 @@ function telaDia(c){
  if($('#fdNovo',c))$('#fdNovo',c).onclick=()=>{PREFILL={mod:'fTitulos',dados:{vencimento:d,dataPrevista:d}};JBNAV.ir('#/fTitulos/novo')};
  if($('#fdAdd',c))$('#fdAdd',c).onclick=()=>programarVarios(d);
  $('#fdExp',c).onclick=()=>{const cols=[{k:'benef',l:'Beneficiário'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'origem',l:'Origem'},{k:'forma',l:'Forma'},{k:'conta',l:'Conta'},{k:'valor',l:'Previsto',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
-  const dados=prog.map(o=>({benef:o.benef,descricao:o.descricao,categoria:o.categoria,origem:o.origem,forma:o.forma,conta:nomeConta(o.conta),valor:o.valor,pago:o.s.P,saldo:o.s.saldo,sit:o.s.st}));
+  const dados=prog.map(o=>({benef:o.benef,descricao:o.descricao,categoria:o.categoria,origem:o.origem,forma:o.forma,conta:nomeConta(o.conta),valor:o.valor,pago:o.s.P,saldo:o.s.saldo,sit:rotSit(o.s.st)}));
   const fx=f=>exportar(f,'Pagamentos_do_dia_'+d,cols,dados,'Pagamentos do dia '+fData(d));
   abrirMenuMais($('#fdExp',c),[{l:'Visualizar',sub:prog.length+' compromisso(s)',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'para imprimir e conferir',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
 }
@@ -19157,7 +19160,7 @@ function telaCal(c){
   corpo=`<div class="fi-cal">${DIAS_SEM.map(x=>`<div class="dsem">${x}</div>`).join('')}${dias.map(d=>{const xs=por[d]||[];const ab=xs.filter(abertaO);
    return `<button type="button" class="cel${d.slice(0,7)!==m?' fora':''}${d===hoje()?' hoje':''}" data-dia="${d}" aria-label="${esc(fData(d))}: ${xs.length} compromisso(s)"><span class="n">${+d.slice(8)}</span>${xs.length?`${(v=>`<span class="t"><span class="t-l">${esc(fMoeda(v))}</span><span class="t-c" aria-hidden="true">${esc(fMoedaCurta(v))}</span></span>`)(ab.length?soma(ab,o=>o.s.saldo):soma(xs,o=>o.valor))}<span class="q">${xs.length} item(ns)${ab.length?' · '+ab.length+' a pagar':''}</span><span class="pts">${xs.slice(0,8).map(o=>`<i class="${corPt(o)}"></i>`).join('')}</span>`:''}</button>`}).join('')}</div>`}
  else{const p=dt(UC.sem);const ini=addDias(UC.sem,-p.getDay());const dias=Array.from({length:7},(_,i)=>addDias(ini,i));
-  corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-dia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-oref="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(o.s.st)}${o.parcela?' · '+esc(o.parcela):''}</span></div>`).join('')||'<div class="it" style="cursor:default;color:var(--fraco)">—</div>'}</div>`}).join('')}</div>`}
+  corpo=`<div class="fi-sem">${dias.map(d=>{const xs=por[d]||[];return `<div class="col"><h4><a href="javascript:void 0" data-dia="${d}">${esc(DIAS_SEM[dt(d).getDay()]+' '+fData(d).slice(0,5))}</a><span>${esc(fMoeda(soma(xs.filter(abertaO),o=>o.s.saldo)))}</span></h4>${xs.map(o=>`<div class="it" data-oref="${esc(o.ref)}"><b>${esc(o.benef||o.descricao)}</b><span>${esc(fMoeda(o.valor))} · ${esc(rotSit(o.s.st))}${o.parcela?' · '+esc(o.parcela):''}</span></div>`).join('')||'<div class="it" style="cursor:default;color:var(--fraco)">—</div>'}</div>`}).join('')}</div>`}
  c.innerHTML=cabF('calendario','Calendário financeiro','Compromissos pela data programada (ou, sem programação, pelo vencimento). Toque no dia para abrir os pagamentos daquele dia.',
   `<div class="dir-abas" style="padding:0">${[['mes','Mês'],['sem','Semana']].map(([k,l])=>`<button type="button" class="dir-aba${UC.modo===k?' on':''}" data-cv="${k}">${l}</button>`).join('')}<a class="dir-aba" href="#/fdia">Dia</a></div>`)+
   filtrosHtml(UF,`<span class="fi-dia-nav">${nav}</span>`)+
@@ -19239,7 +19242,7 @@ function telaExtrato(c){
   <div class="fi-filtros"><select id="exC" aria-label="Conta">${optH([['','Conta: todas'],...contas.map(x=>[x.id,x.nome])],UE.conta)}</select><select id="exN" aria-label="Natureza">${optH([['','Saídas e entradas'],['s','Só saídas'],['e','Só entradas']],UE.nat)}</select>
    <label class="inline" style="font-size:12.5px;color:var(--suave)">De <input type="date" id="exDe" value="${esc(UE.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="exAte" value="${esc(UE.ate)}"></label><input type="search" id="exQ" placeholder="Pesquisar na descrição" value="${esc(UE.q)}"></div>
   ${LS.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Data</th><th>Conta</th><th>Descrição original</th><th>Identificador</th><th class="num">Valor</th><th>Situação</th></tr></thead><tbody>${LS.slice(0,300).map(l=>`<tr class="clic" data-lin="${esc(l.id)}"><td data-l="Data">${esc(fData(l.data))}</td><td data-l="Conta">${esc(nomeConta(l.conta))}</td><td data-l="Descrição">${esc(l.descricao)}<span class="sub">${esc(l.arquivo||'')}</span></td><td data-l="Identificador">${esc(l.idBanco||l.doc||'—')}</td><td data-l="Valor" class="num" style="color:${l.valor<0?'var(--pe)':'var(--ok)'}">${esc(fMoeda(l.valor))}</td><td data-l="Situação">${tagSit(sitL(l))}</td></tr>`).join('')}</tbody></table>${LS.length>300?'<p class="ajuda" style="padding:8px 12px">Mostrando 300 de '+LS.length+'. Use os filtros.</p>':''}</div>`:'<div class="vazio">Nenhuma movimentação no filtro.</div>'}
-  <h3 class="grupo-t">Importações</h3>${imps.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Quando</th><th>Conta</th><th>Arquivo</th><th>Período</th><th class="num">Lidas</th><th class="num">Novas</th><th class="num">Já existiam</th><th class="num">Ignoradas</th><th>Por</th></tr></thead><tbody>${imps.map(i=>`<tr><td data-l="Quando">${esc(fDataHora(i.em))}</td><td data-l="Conta">${esc(nomeConta(i.conta))}</td><td data-l="Arquivo">${i.arquivoId?`<a href="/_blob/${esc(i.arquivoId)}" target="_blank" rel="noopener">${esc(i.arquivo)}</a>`:esc(i.arquivo)} <span class="sub">${esc(String(i.formato||'').toUpperCase())}</span></td><td data-l="Período">${esc(fData(i.ini)+' a '+fData(i.fim))}</td><td data-l="Lidas" class="num">${i.lidas}</td><td data-l="Novas" class="num">${i.novas}</td><td data-l="Já existiam" class="num">${i.jaExistiam}</td><td data-l="Ignoradas" class="num">${i.ignoradas||0}</td><td data-l="Por">${esc(nomeUsuario(i.por))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Nenhuma importação ainda.</div>'}`;
+  <h3 class="grupo-t">Importações</h3>${imps.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Quando</th><th>Conta</th><th>Arquivo</th><th>Período</th><th class="num">Lidas</th><th class="num">Novas</th><th class="num">Já existiam</th><th class="num">Ignoradas</th><th>Por</th></tr></thead><tbody>${imps.map(i=>`<tr><td data-l="Quando">${esc(fDataHora(i.em))}</td><td data-l="Conta">${esc(nomeConta(i.conta))}</td><td data-l="Arquivo">${i.arquivoId?`<a href="/_blob/${esc(i.arquivoId)}" target="_blank" rel="noopener">${esc(i.arquivo||'arquivo')}</a>`:esc(i.arquivo||'—')} <span class="sub">${esc(String(i.formato||'').toUpperCase())}</span></td><td data-l="Período">${esc(fData(i.ini)+' a '+fData(i.fim))}</td><td data-l="Lidas" class="num">${+i.lidas||0}</td><td data-l="Novas" class="num">${+i.novas||0}</td><td data-l="Já existiam" class="num">${+i.jaExistiam||0}</td><td data-l="Ignoradas" class="num">${i.ignoradas||0}</td><td data-l="Por">${esc(nomeUsuario(i.por))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Nenhuma importação ainda.</div>'}`;
  resolverNomes(imps.map(i=>i.por));
  const f=(id,k)=>{const x=$('#'+id,c);if(x)x.onchange=x.oninput=e=>{UE[k]=e.target.value;if(e.type==='input'&&id==='exQ'){clearTimeout(telaExtrato.t);telaExtrato.t=setTimeout(()=>{renderTela();const i=$('#exQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},300);return}renderTela()}};
  f('exC','conta');f('exN','nat');f('exDe','de');f('exAte','ate');f('exQ','q');
@@ -19422,7 +19425,7 @@ const perF=U=>U.ini||U.fim?(U.ini?fData(U.ini):'início')+' a '+(U.fim?fData(U.f
 const noU=(d,U)=>!!d&&(!U.ini||d>=U.ini)&&(!U.fim||d<=U.fim);
 const obsU=U=>obrigacoes().filter(o=>(!U.forigem||o.origem===U.forigem)&&(!U.fcat||o.categoria===U.fcat)&&(!U.fcentro||o.centro===U.fcentro)&&(!U.fconta||o.conta===U.fconta||o.pagamentos.some(p=>p.conta===U.fconta)));
 const colsO=[{k:'data',l:'Data',t:'data'},{k:'benef',l:'Beneficiário'},{k:'descricao',l:'Descrição'},{k:'origem',l:'Origem'},{k:'categoria',l:'Categoria'},{k:'valor',l:'Previsto',t:'moeda'},{k:'pago',l:'Pago informado',t:'moeda'},{k:'banco',l:'No banco',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
-const linO=o=>({data:o.dataCal,benef:o.benef,descricao:o.descricao,origem:o.origem,categoria:o.categoria,centro:o.centro,valor:o.valor,pago:o.s.P,banco:o.s.Bt,saldo:o.s.saldo,sit:o.s.st,dif:r2(o.s.pagoEf-o.valor)});
+const linO=o=>({data:o.dataCal,benef:o.benef,descricao:o.descricao,origem:o.origem,categoria:o.categoria,centro:o.centro,valor:o.valor,pago:o.s.P,banco:o.s.Bt,saldo:o.s.saldo,sit:rotSit(o.s.st),dif:r2(o.s.pagoEf-o.valor)});
 const agrupa=(xs,kf,cols)=>{const g={};xs.forEach(o=>{const k=kf(o)||'(sem)';const x=g[k]||(g[k]={k,n:0,valor:0,pago:0,banco:0,saldo:0});x.n++;x.valor=r2(x.valor+o.valor);x.pago=r2(x.pago+o.s.P);x.banco=r2(x.banco+o.s.Bt);x.saldo=r2(x.saldo+o.s.saldo)});return Object.values(g)};
 const colsG=l=>[{k:'k',l},{k:'n',l:'Compromissos',t:'num'},{k:'valor',l:'Previsto',t:'moeda'},{k:'pago',l:'Pago informado',t:'moeda'},{k:'banco',l:'No banco',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'}];
 const RELS_F=[
@@ -19492,7 +19495,7 @@ function telaCfgF(c){
  if(!ed)return;
  c.onclick=e=>{const b=e.target.closest('[data-rm],[data-ad]');if(!b)return;
   if(b.dataset.rm){const[k,i]=b.dataset.rm.split('|');if(k==='categorias'&&usados.has(R[k][+i])&&!confirm('A categoria “'+R[k][+i]+'” está em uso. Ela sai só da lista de opções; os lançamentos continuam com ela. Remover?'))return;R[k].splice(+i,1);renderTela();return}
-  const k=b.dataset.ad;const inp=$(`[data-nv="${k}"]`,c);const v=String(inp.value||'').trim();if(!v)return;if(R[k].some(x=>normTxt(x)===normTxt(v))){toast('Já está na lista.','erro');return}R[k].push(v);renderTela()};
+  const k=b.dataset.ad;const inp=$(`[data-nv="${k}"]`,c);const v=String(inp.value||'').trim();if(!v){toast('Escreva o nome antes de adicionar.','erro');inp.focus();return}if(R[k].some(x=>normTxt(x)===normTxt(v))){toast('Já está na lista.','erro');return}R[k].push(v);renderTela()};
  $('#cfT',c).oninput=e=>{R.tolDias=e.target.value};$('#cfD',c).oninput=e=>{R.pastaDrive=e.target.value};
  $('#cfS',c).onclick=async()=>{const t=+R.tolDias;if(!(Number.isInteger(t)&&t>=0&&t<=30)){toast('Tolerância de 0 a 30 dias.','erro');return}
   const pd=String(R.pastaDrive||'').trim();if(pd&&!/^https:\/\//i.test(pd)){toast('Use o endereço completo da pasta (https://…).','erro');return}
@@ -19566,7 +19569,7 @@ telaSetores=function(el){tsF(el);
   if(!card.querySelector('.spot-info')){const sp=document.createElement('span');sp.className='spot-info';sp.textContent='Funcionalidades em desenvolvimento. Nada é registrado aqui por enquanto.';b.before(sp)}
   b.innerHTML='Ver o escopo planejado '+ic('direita');b.classList.remove('pri')})};
 
-window.FINANCEIRO_SETOR={h:{COL,TIPO,CAIXA,r2,ig,tagF,tagSit,optH,campoM,valM,modalF,shellF,cabF,resumoF,optsContas,nomeConta,CONTA,fcfg,ORIGENS,abertaO,rotuloO,logF,edF,subirComprovante,criarDoc},obrigacoes,situacao,saldoConta,lerOFX,lerCSV,autoMapa,linhasCSV,marcarImport,sugerir,RELS_F,BREVE,
+window.FINANCEIRO_SETOR={h:{COL,TIPO,CAIXA,r2,ig,tagF,tagSit,rotSit,optH,campoM,valM,modalF,shellF,cabF,resumoF,optsContas,nomeConta,CONTA,fcfg,ORIGENS,abertaO,rotuloO,logF,edF,subirComprovante,criarDoc},obrigacoes,situacao,saldoConta,lerOFX,lerCSV,autoMapa,linhasCSV,marcarImport,sugerir,RELS_F,BREVE,
  acoes:{abrirObrig,pagar,programar,justificar,cancelarT,anexar,estornarPag,vincular,classificar,investigar,conferir,desfazer}};
 })();
 </script>
@@ -19849,7 +19852,7 @@ function telaPagSetor(c){
   (OS.length?G.filter(g=>g.xs.length).map(g=>`<h3 class="grupo-t">${esc(g.n)} · ${esc(fMoeda(soma(g.xs,o=>o.s.saldo)))}</h3>${tabObrig(g.xs)}`).join(''):'<div class="vazio"><b>Nada em aberto</b>Quando houver compromisso a pagar em algum setor, ele aparece aqui.</div>');
  ligarObrig(c);
  $('#fgExp',c).onclick=()=>{const cols=[{k:'grupo',l:'Setor'},{k:'venc',l:'Vencimento',t:'data'},{k:'benef',l:'Beneficiário'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'valor',l:'Valor',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
-  const dados=G.flatMap(g=>g.xs.map(o=>({grupo:g.n,venc:o.venc,benef:o.benef,descricao:o.descricao,categoria:o.categoria,valor:o.valor,saldo:o.s.saldo,sit:o.s.st})));
+  const dados=G.flatMap(g=>g.xs.map(o=>({grupo:g.n,venc:o.venc,benef:o.benef,descricao:o.descricao,categoria:o.categoria,valor:o.valor,saldo:o.s.saldo,sit:(H.rotSit||(x=>x))(o.s.st)})));
   const fx=f=>exportar(f,'Pagamentos_por_setor_'+hoje(),cols,dados,'Pagamentos por setor');
   abrirMenuMais($('#fgExp',c),[{l:'Visualizar',sub:dados.length+' compromisso(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
 }
@@ -20095,7 +20098,7 @@ function telaCad(c){
  $$('[data-sc]',c).forEach(b=>b.onclick=saldoInicialCaixa);
  if(!ed)return;
  $$('[data-ci]',c).forEach(s=>s.onchange=()=>{R.lista[+s.dataset.ci][s.dataset.ck]=s.value;R.sujo=true;const b=$('#ccSalvar',c);if(b)b.disabled=false});
- $('#ccAdd',c).onclick=()=>{const v=String($('#ccN',c).value||'').trim();if(!v)return;if(R.lista.some(x=>semAcento(x.n)===semAcento(v))){toast('Já está na lista.','erro');return}
+ $('#ccAdd',c).onclick=()=>{const v=String($('#ccN',c).value||'').trim();if(!v){toast('Escreva o nome da categoria antes de adicionar.','erro');$('#ccN',c).focus();return}if(R.lista.some(x=>semAcento(x.n)===semAcento(v))){toast('Já está na lista.','erro');return}
   R.lista.push({n:v,tipo:'Despesa',natureza:'',grupo:'',situacao:'Ativa'});R.sujo=true;renderTela()};
  $('#ccSalvar',c).onclick=async e=>{const b=e.currentTarget;b.disabled=true;
   try{const ant=cfgRec();const info={};R.lista.forEach(x=>{info[x.n]={tipo:x.tipo||'Despesa',natureza:x.natureza||'',grupo:x.grupo||'',situacao:x.situacao||'Ativa'}});
@@ -39802,7 +39805,7 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
 (function(){
  const so=s=>String(s||'').replace(/[↑↓▲▼⇅]/g,'').replace(/\s+/g,' ').trim();
  const NUNCA=/\b(tbl-folha|vd-itens|v56-lote|fis-itens|fis-imp-ed|espelho|jorn|vr-tab|dir-tab|ctl-tb)\b/;
- const TIT=[/^cliente$/i,/^fornecedor/i,/^funcion[aá]rio$/i,/^nome$/i,/^para$/i,/^item$/i,/^produto$/i,/^descri[cç][aã]o$/i,/^documento$/i,/^tabela$/i,/^conta$/i,/^forma$/i,/^forno$/i,/^fornada$/i,/^jazida$/i,/^motorista$/i,/^placa$/i,/^ferramenta$/i,/^epi$/i,/^o que foi$/i,/^movimento$/i,/^turno$/i,/^tipo$/i,/^setor$/i,/^categoria$/i];
+ const TIT=[/^cliente$/i,/^fornecedor/i,/^compromisso$/i,/^funcion[aá]rio$/i,/^nome$/i,/^para$/i,/^item$/i,/^produto$/i,/^descri[cç][aã]o$/i,/^documento$/i,/^tabela$/i,/^conta$/i,/^forma$/i,/^forno$/i,/^fornada$/i,/^jazida$/i,/^motorista$/i,/^placa$/i,/^ferramenta$/i,/^epi$/i,/^o que foi$/i,/^movimento$/i,/^turno$/i,/^tipo$/i,/^setor$/i,/^categoria$/i];
  const SIT=/^(situa[cç][aã]o|status|compra)$/i;
  const VAL=[/^total$/i,/^valor( \(custo\))?$/i,/^l[ií]quida$/i,/^custo estimado$/i,/^custo$/i,/^realizado$/i,/^estimado$/i,/^valor /i,/^quantidade$/i,/^qtd\.?$/i,/^toneladas$/i,/^horas$/i,/^saldo$/i,/^em aberto$/i,/^pre[cç]o$/i,/^meta$/i];
  const MET=/^(n[º°o]\.?|req\.?|c[oó]digo|matr\.?|data|emiss[aã]o|hora|comp\.?|sa[ií]da|vencimento|admiss[aã]o|in[ií]cio|vale desde|m[eê]s)$/i;
@@ -39848,7 +39851,10 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
   const rows=[...t.tBodies[0].rows];const lin=rows.filter(r=>r.cells.length===M.h.length);
   const larg=i=>{let w=0;lin.forEach(r=>{const e=r.cells[i].firstElementChild||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width)});return Math.ceil(w)||110};
   const tagc=[];if(M.s>=0)tagc.push(M.s);tagc.push(...M.tag);
-  const lg=tagc.map(larg),la=M.aco.map(larg);
+  /* coluna de botões: cabe TODOS os botões da célula (antes media só o primeiro e os demais cobriam o valor e a situação) */
+  const largA=i=>{let w=0;lin.forEach(r=>{const ks=[...r.cells[i].children].filter(e=>e.getBoundingClientRect().width>0);if(ks.length<2){const e=ks[0]||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width);return}
+    let s=0;ks.forEach(e=>{const cs=getComputedStyle(e);s+=e.getBoundingClientRect().width+(parseFloat(cs.marginLeft)||0)+(parseFloat(cs.marginRight)||0)});w=Math.max(w,s+(ks.length-1)*5)});return Math.ceil(w)||110};
+  const lg=tagc.map(larg),la=M.aco.map(largA);
   t.classList.add('lc');t.classList.toggle('lc-sem-ord',!t.tHead.querySelector('.ord,.ord-auto,[data-o]'));
   const w=t.closest('.tabwrap');if(w)w.classList.add('lc-wrap');const p=t.closest('.painel');if(p)p.classList.add('lc-painel');
   let c='minmax(170px,1.5fr) ';if(cols)c+=`repeat(${cols},minmax(0,1fr)) `;if(M.val>=0)c+='max-content ';c+=lg.concat(la).map(x=>x+'px').join(' ');
@@ -43874,6 +43880,290 @@ try{if(FS.RELS_F&&!FS.RELS_F.some(r=>r.id==='rf_lenha'))FS.RELS_F.push({id:'rf_l
  nota:'Saldo de cada fornecedor de lenha: entregas − combustível e descontos − pagamentos. Compras pagas antes do sistema não entram.'})})}catch(e){console.warn('relatório da lenha',e)}
 
 window.CPL_LENHA={lancarComb,contas,conta:contaDe,planejar,parecidos,registrar,concluir,estornar,agendar,abrirPagar,abrirAgendar,docBaixa,docExtrato,alocAdt,tagSitU,COR_SIT_U,ROTA,BTN_PAGAR};
+})();
+</script>
+<style id="central-pagamentos-css">
+.cpg-hero .kpi{cursor:pointer}
+.cpg-hero .kpi.cpg-on{outline:2px solid var(--c2-preto,#0B0B0D);outline-offset:-2px}
+.cpg-hero .kpi.cpg-pe .v{color:#B42318}
+.cpg-mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:0 0 16px}
+.cpg-mods a{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:1px solid var(--linha,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);color:inherit;text-decoration:none}
+.cpg-mods a:hover{border-color:var(--c2-preto,#0B0B0D)}
+.cpg-mods a>span:first-child{display:flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px}
+.cpg-mods a svg{width:17px;height:17px}
+.cpg-mods b{font-size:18px;font-variant-numeric:tabular-nums}
+.cpg-mods small{font-size:12px;color:var(--suave,#5B6168)}
+.cpg-mods small.pe{color:#B42318}
+.cpg-busca{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.cpg-busca input[type=search]{flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit}
+.cpg-nota{font-size:12.5px;color:var(--suave,#5B6168);margin:0 0 12px}
+.cpg-chk{display:flex;gap:8px;align-items:center;font-size:13.5px;margin:4px 0 10px}
+#cpgBloco{margin:0 0 18px}
+@media(max-width:560px){html.casca2 .sv-corpo .cpg-hero .kpi{grid-template-columns:minmax(0,1fr)!important}html.casca2 .sv-corpo .cpg-hero .kpi .ic{display:none!important}html.casca2 .sv-corpo .cpg-hero .kpi>*{grid-column:1!important}html.casca2 .sv-corpo .cpg-hero .kpi .v{font-size:17px!important;white-space:nowrap;overflow-wrap:normal}html.casca2 .sv-corpo .cpg-hero .kpi.c2-kdest .v{font-size:22px!important}}
+@media(max-width:560px){.cpg-mods{grid-template-columns:1fr 1fr}.cpg-mods b{font-size:16px}}
+</style>
+<script id="central-pagamentos">
+/* Central de pagamentos e módulos do Financeiro (pedido do Jeferson, 17/11/2026 – "reengenharia funcional").
+   Nada aqui cria outro cadastro: tudo lê a base única de compromissos do Financeiro (FS.obrigacoes) e grava
+   pelos mesmos caminhos de sempre (compromisso, compra do setor, despesa do DP). Cada conta cai em UM módulo:
+   Lenha · Combustível · Despesas gerais · Outros pagamentos. Situações simples, calculadas dos fatos:
+   Pendente · Agendado · Parcialmente pago · Pago · Vencido · Cancelado. Agendar nunca marca como pago. */
+(function(){'use strict';
+const FS=window.FINANCEIRO_SETOR;if(!FS||!FS.h||!FS.acoes)return;
+const H=FS.h,A=FS.acoes;const {shellF,cabF,modalF,campoM,valM,optH,optsContas,nomeConta,abertaO,rotuloO,fcfg,r2}=H;
+const FV=['admin','financeiro','gerente'],FE=['admin','financeiro'];
+const LEN=()=>window.CPL_LENHA||null;
+const MODULOS=[
+ {k:'lenha',rota:'fLenha',n:'Lenha',ic:'chama',d:'Fornecedores de lenha'},
+ {k:'comb',rota:'fComb',n:'Combustível',ic:'bomba',d:'Postos e fornecedores de combustível',t:'Contas a pagar – Combustível',p:'Compras do Setor de Combustível e abastecimentos em posto, por fornecedor: valores, datas, pagamentos e saldo.'},
+ {k:'gerais',rota:'fGerais',n:'Despesas gerais',ic:'recibo',d:'Energia, água, internet, manutenção, serviços…',t:'Despesas gerais',p:'Energia, água, internet, manutenção, serviços, impostos, folha e as demais despesas da operação, separadas por tipo.'},
+ {k:'outros',rota:'fOutros',n:'Outros pagamentos',ic:'moeda',d:'Contas eventuais e não classificadas',t:'Outros pagamentos',p:'Contas eventuais, extraordinárias ou sem classificação. Dá para mudar o tipo da conta depois, em Editar dados.'}];
+const MOD=k=>MODULOS.find(m=>m.k===k);
+Object.assign(PERM,{fComb:{v:FV,e:FE},fGerais:{v:FV,e:FE},fOutros:{v:FV,e:FE},fpainel:{v:FV,e:[]}});
+['fComb','fGerais','fOutros','fpainel'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+const ed=()=>pode('fpagar','e');
+
+/* ---------- em qual módulo cada conta mora (uma regra só, usada em todas as telas) ---------- */
+function moduloDe(o){const r=o.rec||{};
+ if(o.fonte==='titulo'&&['comb','gerais','outros'].includes(r.moduloFin))return r.moduloFin;
+ const c=semAcento(o.categoria||'').trim();
+ /* lenha: o que o módulo da Lenha mostra (entregas do setor e contas de fornecedor cadastrado); conta de lenha lançada
+    para alguém sem cadastro fica em Outros pagamentos, para os totais da Central sempre fecharem com os dos módulos */
+ if(o.origem==='Setor da Lenha'||c==='lenha'||r.adiantamentoLenha)return o.fonte==='titulo'&&!r.fornecedorId&&!r.adiantamentoLenha?'outros':'lenha';
+ if(o.origem==='Setor de Combustível'||/combust|diesel|gasolina|etanol/.test(c))return 'comb';
+ if(o.fonte==='titulo'&&(!c||/^outras? despesas?$|^outros pagamentos?$|^diversos?$|eventua|extraordin/.test(c)))return 'outros';
+ return 'gerais'}
+/* ---------- situação simples ---------- */
+function sitU(o){const s=o.s;if(o.cancelado)return 'Cancelado';if(s.saldo<=0.004)return 'Pago';if(s.vencido)return 'Vencido';if(s.pagoEf>0.004)return 'Parcialmente pago';if(o.prog)return 'Agendado';return 'Pendente'}
+const COR={Pendente:'at',Agendado:'in',Vencido:'pe','Parcialmente pago':'br',Pago:'ok',Cancelado:''};
+const tagU=s=>`<span class="tag ${COR[s]||''}">${esc(s)}</span>`;
+const SITS_U=['Pendente','Agendado','Parcialmente pago','Vencido','Pago','Cancelado'];
+const ultPag=o=>o.pagamentos.map(p=>p.data||'').sort().pop()||'';
+const todas=()=>FS.obrigacoes();
+const somaS=xs=>r2(soma(xs,o=>o.s.saldo));
+/* pagamento de verdade: o abatimento com combustível da fábrica (V62) não é dinheiro pago, é desconto da lenha */
+const pagsDin=o=>o.pagamentos.filter(p=>p.forma!==(window.COMB_V62||'Combustível da fábrica'));
+function baldes(){const h=hoje(),f7=addDias(h,7),m=h.slice(0,7);const OS=todas();const ab=OS.filter(abertaO);
+ const atras=ab.filter(o=>o.s.vencido);const fora=new Set(atras);
+ const rest=ab.filter(o=>!fora.has(o));
+ const hj=rest.filter(o=>o.dataCal&&o.dataCal<=h);const prox=rest.filter(o=>o.dataCal>h&&o.dataCal<=f7);const depois=rest.filter(o=>o.dataCal>f7);
+ const semData=rest.filter(o=>!o.dataCal);
+ const noMes=o=>pagsDin(o).filter(p=>String(p.data||'').slice(0,7)===m);
+ const pagosMes=OS.filter(o=>!o.cancelado&&noMes(o).length);
+ return{h,OS,ab,atras,hj,prox,depois,semData,agend:ab.filter(o=>o.prog),parc:ab.filter(o=>o.s.pagoEf>0.004),pagosMes,
+  valPagoMes:r2(soma(pagosMes,o=>soma(noMes(o),p=>p.valor)))}}
+
+/* ---------- ações (cada origem pelo próprio caminho) ---------- */
+const lenhaForn=o=>{const r=o.rec||{};return LEN()&&moduloDe(o)==='lenha'&&o.fonte==='compra'&&(r.fornecedorId||r.parteId)?(r.fornecedorId||r.parteId):''};
+function pagar(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;const f=lenhaForn(o);
+ if(f&&typeof LEN().abrirPagar==='function'){LEN().abrirPagar(f);return}A.pagar(ref)}
+const refSeg=ref=>String(ref).replace(/[^A-Za-z0-9_\-]/g,'_');
+async function gravarAgenda(o,mud){const agora=new Date().toISOString(),u=APP.uid||'local';
+ if(o.fonte==='titulo'){const t=DATA.fTitulos.find(x=>x.id===o.rec.id);if(!t)throw new Error('Conta não encontrada.');const n={...clone(t),...mud,alteradoEm:agora,alteradoPor:u};
+  await gravar('fTitulos',n,t);await registrarLog('fTitulos',t.id,'alterou',t,n,rotulosDe(MODS.fTitulos));return}
+ const id='m_'+refSeg(o.ref);const ant=DATA.fMeta.find(x=>x.id===id)||null;
+ const n={...(ant?clone(ant):{id,ref:o.ref,data:hoje(),criadoEm:agora,criadoPor:u}),...mud,alteradoEm:agora,alteradoPor:u};
+ await gravar('fMeta',n,ant);
+ await registrarLog('fMeta',refSeg(o.ref),mud.dataPrevista?'agendou pagamento':'cancelou o agendamento',ant||{},n,{dataPrevista:'Data agendada',contaId:'Conta prevista',formaPrevista:'Forma prevista'})}
+function agendar(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;
+ if(!ed()){toast('Seu perfil não agenda pagamentos.','erro');return}
+ if(!abertaO(o)){toast('Esta conta não tem saldo a pagar.','erro');return}
+ const f=lenhaForn(o);if(f&&typeof LEN().abrirAgendar==='function'){LEN().abrirAgendar(f);return}
+ if(o.fonte==='despesa'){A.programar(ref);return}
+ const tem=!!o.prog;
+ modalF(tem?'Editar agendamento':'Agendar pagamento',`<p class="ajuda" style="margin:0 0 10px">${esc(rotuloO(o))}<br>Saldo a pagar <b>${esc(fMoeda(o.s.saldo))}</b>${o.venc?' · vence em '+esc(fData(o.venc)):''}. <b>Agendar não marca como pago.</b></p>
+  <div class="duas">${campoM('cgD','Data do pagamento<i> *</i>',`<input id="cgD" type="date" min="${hoje()}" value="${esc(o.prog&&o.prog>=hoje()?o.prog:(o.venc&&o.venc>=hoje()?o.venc:hoje()))}">`)}
+  ${campoM('cgF','Forma prevista',`<select id="cgF"><option value="">—</option>${optH(window.FORMAS_F||FORMAS_V,o.forma)}</select>`)}
+  ${campoM('cgC','Conta de saída prevista',`<select id="cgC"><option value="">—</option>${optH(optsContas(),o.conta)}</select>`)}</div>
+  ${tem?`<p style="margin:6px 0 0"><button type="button" class="btn perigo" id="cgX">Cancelar agendamento</button> <span class="ajuda">A conta continua em aberto, sem data marcada.</span></p>`:''}`,tem?'Salvar agendamento':'Agendar',async v=>{
+  const d=valM(v,'cgD');if(!d){toast('Informe a data do pagamento.','erro');return false}if(d<hoje()){toast('A data agendada não pode ser no passado.','erro');return false}
+  const at=todas().find(x=>x.ref===ref);if(!at||!abertaO(at)){toast('Esta conta já foi paga ou cancelada.','erro');return}
+  await gravarAgenda(at,{dataPrevista:d,formaPrevista:valM(v,'cgF'),contaId:valM(v,'cgC')});
+  toast((tem?'Agendamento alterado para ':'Pagamento agendado para ')+fData(d)+'. A conta continua em aberto até o pagamento ser registrado.','ok')},{depois:v=>{const x=$('#cgX',v);if(x)x.onclick=async()=>{x.disabled=true;
+   try{const at=todas().find(y=>y.ref===ref);if(at)await gravarAgenda(at,{dataPrevista:''});v.remove();toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){x.disabled=false;toast(msgFalhaSalvar(e),'erro')}}}});
+}
+function cancelarConta(ref){const o=todas().find(x=>x.ref===ref);if(!o)return;
+ if(o.fonte!=='titulo'){toast(o.fonte==='compra'?'Esta conta nasceu de uma compra do '+o.origem+': o cancelamento é feito lá, em “Abrir na origem”.':'Esta despesa é do Setor Pessoal: o cancelamento é feito lá.','erro');return}
+ A.cancelarT(ref)}
+
+/* ---------- lista de contas (mesma tabela na central e nos módulos) ---------- */
+function tabela(xs,opc){opc=opc||{};const e=ed();if(!xs.length)return `<div class="vazio">${opc.vazio||'<b>Nenhuma conta aqui</b>'}</div>`;
+ return `<div class="painel tabwrap"><table class="tbl cartao fi-tbl cpg-tab" data-sem-total><thead><tr><th>Data</th><th>Conta</th>${opc.semMod?'<th>Tipo</th>':'<th>Módulo</th>'}<th class="num">Valor</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead><tbody>
+ ${xs.slice(0,300).map(o=>{const s=sitU(o),ab=abertaO(o),up=ultPag(o);
+  return `<tr class="clic" data-cpgref="${esc(o.ref)}" tabindex="0"><td data-l="Data">${ab||!up?(o.dataCal?esc(fData(o.dataCal)):'<span class="ajuda">sem data</span>'):esc(fData(up))}${ab&&o.prog?`<span class="sub">agendado${o.venc&&o.venc!==o.prog?' · vence '+esc(fData(o.venc)):''}</span>`:ab&&o.venc?'<span class="sub">vencimento</span>':!ab&&up?'<span class="sub">pago</span>':''}</td>
+   <td data-l="Conta"><b>${esc(o.benef||'—')}</b><span class="sub">${esc(o.descricao)}${o.num?' · '+esc(o.num):''}${o.parcela?' · '+esc(o.parcela):''}</span></td>
+   <td data-l="${opc.semMod?'Tipo':'Módulo'}">${opc.semMod?esc(o.categoria||'—'):esc(MOD(moduloDe(o)).n+(o.categoria&&semAcento(o.categoria)!==semAcento(MOD(moduloDe(o)).n)?' · '+o.categoria:''))}</td>
+   <td data-l="Valor" class="num">${esc(fMoeda(o.valor))}</td><td data-l="Pago" class="num">${esc(fMoeda(o.s.pagoEf))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(o.s.saldo))}</b></td>
+   <td data-l="Situação">${tagU(s)}</td>
+   <td class="acs">${o.podePagar&&ab?`<button type="button" class="btn min pri" data-cpgpagar="${esc(o.ref)}">Pagar</button>`:''}${e&&ab?`<button type="button" class="btn min" data-cpgag="${esc(o.ref)}">${o.prog?'Editar agendamento':'Agendar'}</button>`:''}<button type="button" class="btn min" data-cpgmais="${esc(o.ref)}" aria-label="Mais ações de ${esc(o.benef||o.descricao)}">Mais ▾</button></td></tr>`}).join('')}</tbody></table>
+ ${xs.length>300?'<p class="ajuda" style="padding:8px 12px">Mostrando as 300 primeiras. Use a pesquisa ou os filtros para ver as demais.</p>':''}</div>`}
+function ligarTabela(c){
+ $$('tr[data-cpgref]',c).forEach(tr=>{tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('.acs'))return;A.abrirObrig(tr.dataset.cpgref)};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)tr.onclick(e)}});
+ $$('[data-cpgpagar]',c).forEach(b=>b.onclick=()=>pagar(b.dataset.cpgpagar));
+ $$('[data-cpgag]',c).forEach(b=>b.onclick=()=>agendar(b.dataset.cpgag));
+ $$('[data-cpgmais]',c).forEach(b=>b.onclick=()=>{const ref=b.dataset.cpgmais;const o=todas().find(x=>x.ref===ref);if(!o)return;const ab=abertaO(o);
+  abrirMenuMais(b,[{l:'Histórico e saldo',sub:'pagamentos, agendamento e alterações',fn:()=>A.abrirObrig(ref)},
+   ed()?{l:'Anexar comprovante',fn:()=>A.anexar(ref)}:null,
+   ed()&&ab&&o.prog?{l:'Cancelar agendamento',sub:'a conta continua em aberto',fn:async()=>{try{const f=lenhaForn(o);if(f){LEN().abrirAgendar(f);return}await gravarAgenda(o,{dataPrevista:''});toast('Agendamento cancelado. A conta continua em aberto.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}}}:null,
+   o.href?{l:'Abrir na origem',sub:o.origem,fn:()=>JBNAV.ir(o.href)}:null,
+   ed()&&!o.cancelado&&o.fonte==='titulo'&&!o.rec.adiantamentoLenha?{l:'Editar dados',fn:()=>JBNAV.ir('#/fTitulos/'+o.rec.id)}:null,
+   ed()&&!o.cancelado&&o.s.pagoEf<=0.004&&o.fonte==='titulo'?{l:'Cancelar conta',perigo:true,sub:'fica guardada como cancelada, com o motivo',fn:()=>cancelarConta(ref)}:null])})}
+const ordData=(a,b)=>(a.dataCal||'9999').localeCompare(b.dataCal||'9999')||String(a.benef).localeCompare(String(b.benef),'pt-BR');
+const busca=(xs,q)=>{q=semAcento(q||'').trim();return q?xs.filter(o=>semAcento([o.benef,o.descricao,o.num,o.categoria,o.origem,o.docOrigem].join(' ')).includes(q)):xs};
+function exportarLista(btn,xs,titulo){const cols=[{k:'data',l:'Data',t:'data'},{k:'venc',l:'Vencimento',t:'data'},{k:'benef',l:'Quem recebe'},{k:'descricao',l:'Descrição'},{k:'modulo',l:'Módulo'},{k:'categoria',l:'Tipo'},{k:'valor',l:'Valor',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
+ const dados=xs.map(o=>({data:o.dataCal,venc:o.venc,benef:o.benef,descricao:o.descricao+(o.num?' · '+o.num:''),modulo:MOD(moduloDe(o)).n,categoria:o.categoria,valor:o.valor,pago:o.s.pagoEf,saldo:o.s.saldo,sit:sitU(o)}));
+ const fx=f=>exportar(f,titulo.replace(/[^A-Za-z0-9À-ú]+/g,'_')+'_'+hoje(),cols,dados,titulo);
+ abrirMenuMais(btn,[{l:'Visualizar',sub:xs.length+' conta(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}
+
+/* ---------- cadastro rápido de conta (vira um compromisso do Financeiro, o mesmo de sempre) ---------- */
+const CAT_ENT='Combustível para entrega';
+const SUGERIDOS=[['Água',/agua|saneamento|esgoto/],['Internet',/internet|telefone/],['Serviços',/servic/],['Energia',/energia|luz/],['Manutenção',/manutenc/]];
+const tiposNovos=()=>{const C=fcfg().categorias.map(c=>semAcento(c));return SUGERIDOS.filter(([n,re])=>!C.some(c=>re.test(c))).map(([n])=>n)};
+async function garantirCategoria(cat){const C=fcfg().categorias;if(C.some(c=>semAcento(c)===semAcento(cat)))return;
+ const ant=DATA.fCfg.find(x=>x.id==='fcfg')||null;const agora=new Date().toISOString();
+ const n={...(ant?clone(ant):{id:'fcfg',data:'2026-01-01'}),categorias:[...C,cat],alteradoEm:agora,alteradoPor:APP.uid||'local'};
+ await gravar('fCfg',n,ant);await registrarLog('fCfg','fcfg',ant?'alterou':'criou',ant||{},n,{categorias:'Categorias'})}
+function catsDoModulo(k){const todasC=fcfg().categorias;const doMod=c=>moduloDe({fonte:'titulo',rec:{},categoria:c,origem:'Geral (Financeiro)'})===k;
+ let L=todasC.filter(doMod).filter(c=>{const i=(window.CATS_V48&&window.CATS_V48.infoDe(c))||{};return i.situacao!=='Inativa'&&(i.tipo||'Despesa')==='Despesa'});
+ if(k==='outros'&&!L.length)L=['Outras despesas'];if(k==='comb'&&!L.includes(CAT_ENT))L.push(CAT_ENT);if(k==='gerais')L=[...L,...tiposNovos()];return L}
+const benefsConhecidos=()=>{const m=new Map();DATA.fornecedores.filter(f=>f.situacao!=='Inativo').forEach(f=>{const n=nomeFornecedor(f);if(n)m.set(semAcento(n),{nome:n,fid:f.id})});
+ DATA.fTitulos.forEach(t=>{const n=String(t.beneficiarioNome||'').trim();if(n&&!/^Adiantamento/.test(t.descricao||'')&&!m.has(semAcento(n)))m.set(semAcento(n),{nome:n,fid:''})});return m};
+function novaConta(k,pre){if(!ed()){toast('Seu perfil não lança contas.','erro');return}
+ const M=MOD(k);const cats=catsDoModulo(k);const B=benefsConhecidos();const id=novoId();pre=pre||{};
+ const catIni=pre.categoria||(k==='outros'?cats[0]:'');
+ modalF('Nova conta · '+M.n,`<div class="duas">
+  ${campoM('ncB','Quem recebe<i> *</i>',`<input id="ncB" list="ncBL" autocomplete="off" value="${esc(pre.benef||'')}" placeholder="Digite para procurar"><datalist id="ncBL">${[...B.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(x=>`<option value="${esc(x.nome)}">`).join('')}</datalist>`,'Fornecedor já cadastrado aparece na lista; nome novo também serve.')}
+  ${campoM('ncT','Tipo da conta<i> *</i>',`<select id="ncT">${cats.length>1?'<option value="">Selecione…</option>':''}${optH(cats,catIni)}</select>`)}
+  ${campoM('ncDs','Descrição<i> *</i>',`<input id="ncDs" value="${esc(pre.descricao||'')}" placeholder="Ex.: conta de energia de novembro">`)}
+  ${campoM('ncV','Valor<i> *</i>',`<input id="ncV" data-masc="moeda" inputmode="decimal" placeholder="0,00">`)}
+  ${campoM('ncVc','Vencimento<i> *</i>',`<input id="ncVc" type="date" value="${hoje()}">`)}
+  ${campoM('ncAg','Agendar pagamento para',`<input id="ncAg" type="date" min="${hoje()}">`,'Opcional. Agendar não marca como pago.')}
+  <div id="ncMw" hidden>${campoM('ncM','Motorista<i> *</i>','<input id="ncM">','Quem abasteceu o caminhão da entrega.')}</div></div>
+  ${k==='gerais'?`<label class="cpg-chk"><input type="checkbox" id="ncR"> Esta conta se repete todo mês</label><div id="ncRw" hidden>${campoM('ncN','Por quantos meses (contando este)','<input id="ncN" type="number" min="2" max="60" step="1" value="12">','Cria uma conta por mês, cada uma com o próprio vencimento.')}</div>`:''}
+  ${campoM('ncO','Observação','<input id="ncO">')}
+  <div class="aviso at" id="ncDup" hidden style="margin-top:8px"><span id="ncDupT"></span><label class="cpg-chk" style="margin:6px 0 0"><input type="checkbox" id="ncDupOk"> Conferi: está certo, salvar assim mesmo</label></div>`,'Salvar conta',async v=>{
+  const nome=valM(v,'ncB').trim(),cat=valM(v,'ncT'),desc=valM(v,'ncDs').trim(),val=r2(lerMoeda(valM(v,'ncV'))),venc=valM(v,'ncVc'),ag=valM(v,'ncAg');
+  if(nome.length<2){toast('Informe quem recebe.','erro');$('#ncB',v).focus();return false}
+  if(!cat){toast('Escolha o tipo da conta.','erro');$('#ncT',v).focus();return false}
+  if(desc.length<2){toast('Escreva a descrição da conta.','erro');$('#ncDs',v).focus();return false}
+  if(!(val>0)){toast('Informe um valor maior que zero.','erro');$('#ncV',v).focus();return false}
+  if(!venc){toast('Informe o vencimento.','erro');$('#ncVc',v).focus();return false}
+  if(ag&&ag<hoje()){toast('A data agendada não pode ser no passado.','erro');return false}
+  const mot=valM(v,'ncM').trim();if(cat===CAT_ENT&&!mot){toast('Informe o motorista.','erro');$('#ncM',v).focus();return false}
+  const rep=!!($('#ncR',v)&&$('#ncR',v).checked);const n=rep?+valM(v,'ncN'):0;if(rep&&!(Number.isInteger(n)&&n>=2&&n<=60)){toast('Meses: informe de 2 a 60.','erro');return false}
+  const b=B.get(semAcento(nome));
+  const st={id,data:hoje(),descricao:desc,categoria:cat,setorOrigem:k==='comb'&&cat!==CAT_ENT?'Setor de Combustível':'Geral (Financeiro)',valor:val,vencimento:venc,dataPrevista:ag||'',formaPrevista:'PIX',obs:valM(v,'ncO').trim(),pagamentos:[],moduloFin:k,
+   ...(b&&b.fid?{beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:b.fid}:{beneficiarioTipo:'Outro',beneficiario:b?b.nome:nome}),...(cat===CAT_ENT?{motorista:mot}:{}),...(rep?{repetir:'Repetir todo mês',nVezes:n}:{repetir:'Não repete'})};
+  if(DATA.fTitulos.some(t=>t.id===id)){toast('Esta conta já foi salva.','ok');return}
+  const er=MODS.fTitulos.validar({...st});const dup=er&&er._aviso;const duro=er&&Object.entries(er).filter(([c])=>c!=='_aviso');
+  if(duro&&duro.length){toast(duro[0][1],'erro');return false}
+  if(dup&&!$('#ncDupOk',v).checked){$('#ncDup',v).hidden=false;$('#ncDupT',v).textContent=dup;toast(/repetid/i.test(dup)?'Parece repetida. Confira o aviso antes de salvar.':'Confira o aviso antes de salvar.','erro');return false}
+  try{await garantirCategoria(cat)}catch(e){console.warn('categoria nova',e)}
+  const rec=await gravarRegistro('fTitulos',st,null,true);
+  let seq=false;try{if(rec.parcelas>1&&typeof posSalvarV==='function')seq=!!posSalvarV('fTitulos',rec,null)}catch(e){console.warn('contas seguintes',e)}
+  if(!seq)toast('Conta salva: '+fMoeda(val)+' para '+(b?b.nome:nome)+', vence em '+fData(venc)+(ag?' · agendada para '+fData(ag):'')+'.','ok')},{depois:v=>{
+  const t=$('#ncT',v);const mw=$('#ncMw',v);const at=()=>{if(mw)mw.hidden=t.value!==CAT_ENT};t.onchange=at;at();
+  const r=$('#ncR',v);if(r)r.onchange=()=>{$('#ncRw',v).hidden=!r.checked};
+  ['ncB','ncV','ncVc'].forEach(i=>{const x=$('#'+i,v);if(x)x.addEventListener('change',()=>{$('#ncDup',v).hidden=true;$('#ncDupOk',v).checked=false})})}})}
+function menuNova(btn,k){
+ if(k==='lenha'){JBNAV.ir('#/fLenha');return}
+ if(k==='comb'){const its=[{l:'Abastecimento em posto',sub:'caminhão da entrega, com motorista',fn:()=>novaConta('comb',{categoria:CAT_ENT})},{l:'Outra conta de combustível',sub:'fatura do posto, óleo, serviço',fn:()=>novaConta('comb')}];
+  if(pode('compras','e')&&typeof liberadoV==='function'&&liberadoV('combustivel'))its.push({l:'Compra para o tanque da cerâmica',sub:'entra no estoque: é lançada no Setor de Combustível',fn:()=>{SV='combustivel';if(typeof marcarSetor==='function')marcarSetor('combustivel');JBNAV.ir('#/compra/nova')}});
+  abrirMenuMais(btn,its);return}
+ novaConta(k)}
+
+/* ---------- Central de pagamentos ---------- */
+const UI={b:'',q:'',tudo:false};
+const ROT={agora:'Para pagar agora',hoje:'Pagar hoje',prox:'Próximos 7 dias',atras:'Em atraso',agend:'Agendadas',parc:'Parcialmente pagas',pagas:'Pagas neste mês',todas:'Todas em aberto'};
+const CURTA=6;
+/* no layout novo os números do setor sobem para baixo da saudação; a lista do que pagar vem logo depois deles */
+function arrumar(c){try{const hero=c.querySelector(':scope>.hero'),bl=c.querySelector(':scope>#cpgBloco');if(hero&&bl&&hero.nextElementSibling!==bl)hero.insertAdjacentElement('afterend',bl)}catch(e){}}
+function telaCentral(c){const B=baldes();const e=ed();
+ const b=ROT[UI.b]?UI.b:'agora';
+ const lista={agora:[...B.atras,...B.hj],hoje:B.hj,prox:B.prox,atras:B.atras,agend:B.agend,parc:B.parc,pagas:B.pagosMes,todas:B.ab}[b];
+ const todasX=busca(lista,UI.q).slice().sort(b==='pagas'?(x,y)=>ultPag(y).localeCompare(ultPag(x)):ordData);
+ const curta=!UI.tudo&&!UI.q&&todasX.length>CURTA;const xs=curta?todasX.slice(0,CURTA):todasX;
+ const q=n=>n+(n===1?' conta':' contas');
+ const KP=[['hoje','c1','calendario','Pagar hoje',fMoeda(somaS(B.hj)),q(B.hj.length)],['prox','c5','calendario','Próximos 7 dias',fMoeda(somaS(B.prox)),q(B.prox.length)],
+  ['atras','c6','aviso','Em atraso',fMoeda(somaS(B.atras)),B.atras.length?q(B.atras.length):'nenhuma'],['agend','c2','relogio','Agendadas',fMoeda(somaS(B.agend)),q(B.agend.length)],
+  ['parc','c3','moeda','Parcialmente pagas',fMoeda(somaS(B.parc)),B.parc.length?q(B.parc.length)+' com saldo':'nenhuma'],['pagas','c4','recibo','Pago neste mês',fMoeda(B.valPagoMes),q(B.pagosMes.length)],
+  ['todas','c2','carteira','Total pendente',fMoeda(somaS(B.ab)),q(B.ab.length)+' em aberto']];
+ const mods=MODULOS.map(m=>{const xs2=B.ab.filter(o=>moduloDe(o)===m.k);const vc=xs2.filter(o=>o.s.vencido);
+  return `<a href="#/${m.rota}" data-cpgmod="${m.k}"><span>${ic(m.ic)}${esc(m.n)}</span><b>${esc(fMoeda(somaS(xs2)))}</b><small>${xs2.length?q(xs2.length)+' em aberto':'nada em aberto'}</small>${vc.length?`<small class="pe">${esc(fMoeda(somaS(vc)))} em atraso</small>`:`<small>${esc(m.d)}</small>`}</a>`}).join('');
+ c.innerHTML=cabF('moeda','Central de pagamentos','O que pagar, quando, quanto e para quem. Toque num número para ver as contas; em cada conta dá para pagar, agendar e ver o histórico.',
+  `<button type="button" class="btn" id="cpgExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn pri" id="cpgNova">${ic('mais')}Nova conta ▾</button>`:''}`)+
+  `<div class="hero cpg-hero" role="group" aria-label="Resumo das contas a pagar">${KP.map(k=>kpiV(k[1]+(b===k[0]?' cpg-on':'')+(k[0]==='atras'&&B.atras.length?' cpg-pe':''),IC[k[2]]?k[2]:'moeda',k[3],esc(k[4]),esc(k[5]))).join('')}</div>
+  <div id="cpgBloco">
+   <h3 class="grupo-t" id="cpgLista">${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
+   <div class="cpg-busca"><input type="search" id="cpgQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(UI.q)}" aria-label="Pesquisar contas">${b!=='agora'?'<button type="button" class="btn" data-cpgb="agora">Ver o que pagar agora</button>':''}</div>
+   ${tabela(xs,{vazio:UI.q?'<b>Nenhuma conta com esta pesquisa</b>':b==='agora'?(B.ab.length?'<b>Nada para pagar hoje e nada em atraso</b>Veja os próximos dias em “Próximos 7 dias”.':'<b>Nenhuma conta em aberto</b>As contas aparecem aqui quando forem lançadas aqui ou nos setores.'):'<b>Nenhuma conta neste quadro</b>'})}
+   ${curta?`<p style="margin:0 0 12px"><button type="button" class="btn" id="cpgTudo">Ver todas as ${todasX.length} contas</button></p>`:''}
+   ${B.semData.length&&b!=='todas'?`<p class="cpg-nota">${q(B.semData.length)} em aberto sem vencimento nem agendamento (${esc(fMoeda(somaS(B.semData)))}). <a href="javascript:void 0" data-cpgb="todas">Ver em “Total pendente”</a></p>`:''}
+   <h3 class="grupo-t">A pagar por módulo</h3><div class="cpg-mods">${mods}</div>
+   <p class="cpg-nota">Os gráficos e a conferência com o banco continuam em <a href="#/fpainel">Indicadores</a>.</p>
+  </div>`;
+ $$('.cpg-hero .kpi',c).forEach((x,i)=>{x.setAttribute('role','button');x.setAttribute('aria-pressed',String(b===KP[i][0]));x.dataset.cpgb=KP[i][0]});
+ $$('[data-cpgb]',c).forEach(x=>x.onclick=ev=>{ev.preventDefault();UI.b=x.dataset.cpgb;UI.tudo=false;renderTela();setTimeout(()=>{const l=document.getElementById('cpgLista');if(l&&l.scrollIntoView)try{l.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(e2){}},90)});
+ $('#cpgQ',c).oninput=ev=>{UI.q=ev.target.value;clearTimeout(telaCentral.t);telaCentral.t=setTimeout(()=>{renderTela();const i=$('#cpgQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
+ if($('#cpgTudo',c))$('#cpgTudo',c).onclick=()=>{UI.tudo=true;renderTela()};
+ $('#cpgExp',c).onclick=()=>exportarLista($('#cpgExp',c),todasX,'Central de pagamentos – '+ROT[b]);
+ if($('#cpgNova',c))$('#cpgNova',c).onclick=()=>abrirMenuMais($('#cpgNova',c),[{l:'Despesa geral',sub:'energia, água, internet, manutenção, serviço…',fn:()=>novaConta('gerais')},{l:'Combustível',sub:'posto ou fornecedor',fn:()=>setTimeout(()=>menuNova($('#cpgNova')||document.body,'comb'),30)},{l:'Outro pagamento',sub:'conta eventual ou sem classificação',fn:()=>novaConta('outros')},{l:'Lenha',sub:'as entregas vêm do Setor da Lenha: abre o módulo',fn:()=>JBNAV.ir('#/fLenha')}]);
+ ligarTabela(c);
+ arrumar(c);try{if(telaCentral.mo)telaCentral.mo.disconnect();telaCentral.mo=new MutationObserver(()=>arrumar(c));telaCentral.mo.observe(c,{childList:true})}catch(e2){}}
+
+/* ---------- módulos: Combustível · Despesas gerais · Outros pagamentos ---------- */
+const UM={comb:{s:'aberto',q:''},gerais:{s:'aberto',q:''},outros:{s:'aberto',q:''}};
+const FILTROS=[['aberto','Em aberto',o=>abertaO(o)],['Pendente','Pendentes'],['Agendado','Agendadas'],['Parcialmente pago','Parciais'],['Vencido','Vencidas'],['Pago','Pagas'],['Cancelado','Canceladas'],['','Todas',()=>true]];
+function telaModulo(c,k){const M=MOD(k),U=UM[k],e=ed();const h=hoje(),m=h.slice(0,7);
+ const OS=todas().filter(o=>moduloDe(o)===k);const ab=OS.filter(abertaO);
+ const F=FILTROS.find(f=>f[0]===U.s)||FILTROS[0];const passa=F[2]||(o=>sitU(o)===F[0]);
+ const xs=busca(OS.filter(passa),U.q).slice().sort((a,b)=>abertaO(a)!==abertaO(b)?(abertaO(a)?-1:1):abertaO(a)?ordData(a,b):ultPag(b).localeCompare(ultPag(a)));
+ const pagoMes=r2(soma(OS,o=>soma(pagsDin(o).filter(p=>String(p.data||'').slice(0,7)===m),p=>p.valor)));
+ const grupoDe=o=>k==='comb'?(o.benef||'Sem fornecedor'):k==='gerais'?(o.categoria||'Sem tipo'):'';
+ let corpo;
+ if(k==='outros'||!xs.length)corpo=tabela(xs,{semMod:true,vazio:OS.length?'<b>Nenhuma conta neste filtro</b>Toque em “Todas” para ver as demais.':'<b>Nenhuma conta neste módulo</b>'+(e?'Use “Nova conta” para lançar a primeira.':'')});
+ else{const G=new Map();xs.forEach(o=>{const g=grupoDe(o);if(!G.has(g))G.set(g,[]);G.get(g).push(o)});
+  corpo=[...G.entries()].sort((a,b)=>somaS(b[1])-somaS(a[1])||a[0].localeCompare(b[0],'pt-BR')).map(([g,L])=>`<h3 class="grupo-t">${esc(g)} · ${esc(somaS(L)>0?fMoeda(somaS(L))+' a pagar':L.length+(L.length===1?' conta':' contas'))}</h3>${tabela(L,{semMod:true})}`).join('')}
+ const cont=f=>OS.filter(f[2]||(o=>sitU(o)===f[0])).length;
+ c.innerHTML=cabF(M.ic,M.t,M.p,`<a class="btn" href="#/setor-financeiro">${ic('esquerda')}Central</a><button type="button" class="btn" id="cpmExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn pri" id="cpmNova">${ic('mais')}Nova conta${k==='comb'?' ▾':''}</button>`:''}`)+
+  `<div class="resumo cpl-res">${[[fMoeda(somaS(ab)),'Total a pagar'],[fMoeda(somaS(ab.filter(o=>o.s.vencido))),'Em atraso'],[fMoeda(somaS(ab.filter(o=>o.prog))),'Agendado'],[fMoeda(pagoMes),'Pago neste mês'],[String(ab.length),'Contas em aberto']].map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
+  <div class="cpg-busca"><input type="search" id="cpmQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(U.q)}" aria-label="Pesquisar contas"></div>
+  <div class="cpl-chips" role="group" aria-label="Filtrar por situação">${FILTROS.map(f=>`<button type="button" class="btn${U.s===f[0]?' pri':''}" data-cpms="${esc(f[0])}" aria-pressed="${U.s===f[0]}">${esc(f[1])} <span>${cont(f)}</span></button>`).join('')}</div>
+  ${corpo}`;
+ $$('[data-cpms]',c).forEach(x=>x.onclick=()=>{U.s=x.dataset.cpms;renderTela()});
+ $('#cpmQ',c).oninput=ev=>{U.q=ev.target.value;clearTimeout(telaModulo.t);telaModulo.t=setTimeout(()=>{renderTela();const i=$('#cpmQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
+ $('#cpmExp',c).onclick=()=>exportarLista($('#cpmExp',c),xs,M.t);
+ if($('#cpmNova',c))$('#cpmNova',c).onclick=()=>menuNova($('#cpmNova',c),k);
+ ligarTabela(c)}
+
+/* ---------- rotas e abas: a Central abre o setor; o painel antigo vira "Indicadores" ---------- */
+const painelAntigo=TELAS_V['setor-financeiro'];
+const marcarAba=(el,rota,rotulo)=>{$$('.sv-abas a',el).forEach(a=>{const on=a.getAttribute('href')===rota;a.classList.toggle('on',on);if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+ const p=$('.sv-abas a[href="#/setor-financeiro"] span',el);if(p)p.textContent='Central de pagamentos'};
+Object.assign(TELAS_V,{
+ 'setor-financeiro':el=>{shellF(el,'setor-financeiro',telaCentral);marcarAba(el,'#/setor-financeiro')},
+ fpainel:el=>{if(typeof painelAntigo==='function')painelAntigo(el);marcarAba(el,'#/fpainel')},
+ fComb:el=>{shellF(el,'fComb',c=>telaModulo(c,'comb'));marcarAba(el,'#/fComb')},
+ fGerais:el=>{shellF(el,'fGerais',c=>telaModulo(c,'gerais'));marcarAba(el,'#/fGerais')},
+ fOutros:el=>{shellF(el,'fOutros',c=>telaModulo(c,'outros'));marcarAba(el,'#/fOutros')}});
+['fdia','fcal','fpagar','fTitulos','fpag','fLenha','fMeis','fextrato','fContas','fcaixa','fTransf','fAvulso','fConfSaldo','ffluxo','fconc','fDocs','frel','faud','fcad','fResp','fcfg','fIA'].forEach(r=>{const t=TELAS_V[r];if(typeof t!=='function')return;
+ TELAS_V[r]=function(el){const x=t.apply(this,arguments);try{const p=$('.sv-abas a[href="#/setor-financeiro"] span',el);if(p)p.textContent='Central de pagamentos'}catch(e){}return x}});
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+{const X=window.FIN_ABAS_EXTRA;const len=X.find(a=>a.m==='fLenha');if(len)X.splice(X.indexOf(len),1);
+ const novas=[len||{r:'#/fLenha',m:'fLenha',ic:'chama',l:'Contas a pagar – Lenha',at:['fLenha']},
+  {r:'#/fComb',m:'fComb',ic:'bomba',l:'Contas a pagar – Combustível',at:['fComb']},{r:'#/fGerais',m:'fGerais',ic:'recibo',l:'Despesas gerais',at:['fGerais']},{r:'#/fOutros',m:'fOutros',ic:'moeda',l:'Outros pagamentos',at:['fOutros']}];
+ novas.forEach(a=>{a.depois='setor-financeiro'});X.unshift(...novas);
+ if(!X.some(a=>a.m==='fpainel'))X.push({depois:'fcal',r:'#/fpainel',m:'fpainel',ic:'grafico',l:'Indicadores',at:['fpainel']})}
+
+/* ---------- busca geral (Ctrl K) ---------- */
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{if(pode('setor-financeiro')){
+ const N=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(t,s,icone,rota,extra)=>E.push({g:'Telas',t,s,ic:icone,k:N(t+' '+s+' '+(extra||'')),ir:()=>JBNAV.ir(rota),h:rota,ix:E.length});
+ add('Central de pagamentos','Financeiro · o que pagar hoje, nos próximos dias e em atraso','moeda','#/setor-financeiro','pagar contas agendar vencidas atraso');
+ MODULOS.filter(m=>m.k!=='lenha').forEach(m=>add(m.t,'Financeiro · '+m.d,m.ic,'#/'+m.rota,'pagar conta'));
+ add('Indicadores do Financeiro','Financeiro · gráficos, banco e conferência','grafico','#/fpainel','painel')}}catch(e){}return E}}
+
+window.CPG_FIN={moduloDe,sitU,baldes,agendar,pagar,novaConta,cancelarConta,gravarAgenda,MODULOS,catsDoModulo};
 })();
 </script>
 </body>
