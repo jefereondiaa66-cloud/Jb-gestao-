@@ -1,7 +1,14 @@
-# Financeiro V130: painel com três indicadores e Central de Pagamentos (18/11/2026)
+# Financeiro V130 e V131: Central de Pagamentos, Agenda de Pagamentos e painel no visual de antes (18/11/2026)
+
+> **V131 (18/11/2026, depois de o dono ver a V130 no ar):** o painel enxuto de três números ficou "simples demais". O
+> Financeiro voltou a abrir no **visual de antes** (sete indicadores que abrem a lista, "A pagar por módulo", atalhos
+> favoritos e todos os módulos no menu), **mantendo as melhorias** desta versão, e ganhou uma tela nova, a
+> **Agenda de Pagamentos**. O que mudou da V130 para a V131 está na seção 8; as seções 2 e 3 descrevem a V130 e
+> valem para a Central de Pagamentos, que continua existindo como mais um módulo.
+
 
 Pedido do Jeferson: **reformular e evoluir o Financeiro atual, sem criar outro**. O painel fica só com três
-indicadores e um botão; o Gustavo resolve toda a rotina na **Central de Pagamentos**: agenda, pagamentos do
+indicadores e um botão; quem paga as contas resolve toda a rotina na **Central de Pagamentos**: agenda, pagamentos do
 dia, pagamento extra, classificação por setor, encaminhamento automático e relatório do dia para o dono.
 Nada do que existia foi apagado: telas, lançamentos, históricos, fornecedores, categorias e integrações
 continuam os mesmos.
@@ -164,3 +171,34 @@ está instalada no ambiente de teste) não dependem do Financeiro.
 
 Só código mudou; nenhum dado foi convertido. Reverter o commit desta versão devolve o Financeiro de 17/11.
 O campo `enc` gravado nos títulos classificados fica sem uso e não atrapalha a versão anterior.
+
+## 8. V131: o visual de antes, com as melhorias, e a Agenda de Pagamentos
+
+Pedido do dono depois de ver a V130: voltar o modelo visual que estava lá (indicadores, acesso rápido e módulos),
+manter as melhorias e criar no acesso rápido uma pasta só para a agenda de quem paga as contas, separada do
+Calendário que já existe.
+
+| Ponto | V130 | V131 |
+|---|---|---|
+| Painel do setor (`#/setor-financeiro`) | Três indicadores e um botão | O painel de antes (commit `762592a`): sete indicadores que abrem a lista, lista "Para pagar agora", "A pagar por módulo". O código é o de antes (`telaInicio`, montado a partir dele) |
+| Acesso rápido | Sem atalhos nem quadradinhos | Atalhos favoritos e módulos de volta. A Agenda e a Central ficam sempre nos favoritos (`window.C2_FAV_FIXOS`), antes dos escolhidos pela pessoa |
+| Menu do setor | Uma entrada só (Central) | Todas as telas de antes, na ordem de antes, mais **Agenda de Pagamentos** e **Central de Pagamentos** logo depois do Painel |
+| Listas do painel e dos módulos | Lista nova (colunas da Central) | A lista de antes (Data · Conta · Módulo · Valor · Pago · Falta pagar · Situação; Pagar, Agendar e Mais ▾ na linha), com o **setor** na coluna do módulo e, no Mais ▾, **Classificar / Corrigir setor** e **Tentar encaminhar de novo** |
+| Botões do painel | — | Exportar ▾, Nova conta ▾ (como antes) e **Novo pagamento** (o da V130, que identifica o setor) |
+| Agenda | Uma das partes da Central | Também uma **tela própria** (`#/fagenda`), a pasta "Agenda de Pagamentos" do acesso rápido |
+| Central de Pagamentos (`#/fcentral`) | A entrada única | Continua igual, como mais um módulo |
+
+**Agenda de Pagamentos** (rotina de quem paga): calendário por mês, semana e dia. Tocar no dia mostra o que está
+agendado para ele (é o que se paga no dia), com **Pagar** na linha, **Agendar para o dia** / **Novo pagamento** e
+**Trazer contas para este dia**. No fim da lista do dia fica o bloco **Fim do dia**: **Lançar o que não estava
+agendado** (pagamento extra) e **Relatório do dia para o dono** (documento, PDF, imprimir, compartilhar, Excel e
+**Enviar ao dono pelo WhatsApp**). A agenda usa as mesmas contas do Financeiro: o que é agendado ali aparece como
+Agendado em todas as telas e nada é lançado em dobro. O Calendário financeiro que já existia (`#/fcal`) não mudou.
+
+No código: saíram os remendos da V130 no menu do setor (`arrumarAbasF`) e no início do setor (`data-inicio-limpo`);
+entrou o dos favoritos fixos (`C2_FAV_FIXOS`, genérico). Os nomes das telas não levam nome de pessoa.
+
+Testes: `testar-central-pagamentos.mjs` com 51 conferências (painel de antes, acesso rápido, menu, Agenda como tela
+própria, fechamento do dia, e tudo o que a V130 já conferia). Para desfazer só a V131, reverta o commit dela: volta a
+V130.
+

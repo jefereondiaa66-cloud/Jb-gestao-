@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Teste de ponta a ponta do Financeiro reformulado (V130, 18/11/2026): painel com três indicadores e a
+// Teste de ponta a ponta do Financeiro (V131, 18/11/2026): painel no visual de antes, Agenda de Pagamentos e a
 // Central de Pagamentos (Hoje, Agenda, Contas, Pagos e Indicadores), no navegador, com o programa REAL
 // (saida/claude.html) e o banco central simulado (scripts/lib/servidor-falso.mjs).
 // Os dados são de teste e só existem no banco simulado, em memória: nada toca o banco de verdade.
@@ -83,6 +83,8 @@ try {
       ir: async (rota, re) => { marcarSetor('financeiro'); T.limpar(); if (location.hash === rota) renderTela(); else location.hash = rota; try { await T.esperar(() => (re || /./).test((document.querySelector('#svCorpo') || {}).textContent || '')); } catch (e) { throw new Error('a tela ' + rota + ' não mostrou ' + re + ' | aba ' + CPG_FIN.UI.aba + ' | ' + ((document.querySelector('#svCorpo') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 300)); } await T.dorme(350); },
       /* abre a Central numa aba (as abas são estado da tela, não endereço) */
       central: async (aba, re) => { CPG_FIN.UI.aba = aba || 'hoje'; await T.ir('#/fcentral', re || /Central de Pagamentos/); },
+      /* a Agenda de Pagamentos é uma tela própria (a mesma agenda também é uma das partes da Central) */
+      agenda: async (re) => { await T.ir('#/fagenda', re || /Agenda de Pagamentos/); },
       val: (sel, v) => { const el = document.querySelector('.veu .modal ' + sel); if (!el) throw new Error('sem campo ' + sel); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); },
       ultimoToast: () => { const t = [...document.querySelectorAll('#toasts .toast')]; return t.length ? t[t.length - 1].textContent : ''; },
       /* o sistema ignora um segundo clique no mesmo botão em menos de 0,7 s (proteção contra clique duplo): espera como uma pessoa */
@@ -124,21 +126,33 @@ try {
 
   /* A. painel do setor: só os três indicadores e a entrada da Central */
   const pa = await page.evaluate(async () => {
-    await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(500);
-    const c = document.querySelector('#conteudo'); const abas = [...document.querySelectorAll('.sv-abas a')].map((a) => a.textContent.trim());
-    const r = { kpis: Object.keys(T.kpis()), nK: c.querySelectorAll('.kpi').length, entrada: !!c.querySelector('#cpgEntrar'), tiles: c.querySelectorAll('.c2-tile').length, favs: c.querySelectorAll('.c2-favblk, .c2-pill').length, tabelas: c.querySelectorAll('table').length,
-      botoes: [...c.querySelectorAll('#svCorpo a.btn, #svCorpo button.btn')].filter((b) => b.offsetParent).map((b) => b.textContent.replace(/\s+/g, ' ').trim().slice(0, 30)), abas, limpo: document.querySelector('#svCorpo').hasAttribute('data-inicio-limpo') };
-    document.querySelector('#cpgEntrar').click(); await T.esperar(() => location.hash === '#/fcentral'); await T.dorme(500);
-    r.central = { h1: document.querySelector('#svCorpo h1').textContent.trim(), abas: [...document.querySelectorAll('[data-cpgaba]')].map((b) => b.textContent.trim()), on: (document.querySelector('[data-cpgaba].on') || {}).textContent, novo: !!document.querySelector('#cpgNovo'), rel: !!document.querySelector('#cpgRel'), navOn: (document.querySelector('.sv-abas a.on') || {}).textContent.trim() };
+    await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(600);
+    const c = document.querySelector('#conteudo'); const tx = (x) => (x ? x.textContent : '').replace(/\s+/g, ' ').trim();
+    const r = { kpis: Object.keys(T.kpis()), abas: [...document.querySelectorAll('.sv-abas a')].map(tx), lista: tx(c.querySelector('#cpgLista')), mods: [...c.querySelectorAll('.cpg-mods a > span:first-child')].map(tx),
+      favs: [...c.querySelectorAll('.c2-pill')].map(tx), tiles: [...c.querySelectorAll('.c2-tile')].map(tx), botoes: [...c.querySelectorAll('#cpgExp, #cpgNova, #cpgNovoP')].map(tx), limpo: document.querySelector('#svCorpo').hasAttribute('data-inicio-limpo') };
+    /* a pasta da agenda no acesso rápido abre a tela própria */
+    [...c.querySelectorAll('.c2-pill')].find((a) => /Agenda de Pagamentos/.test(a.textContent)).click(); await T.esperar(() => location.hash === '#/fagenda' && document.querySelector('#cpgCorpo')); await T.dorme(500);
+    r.agenda = { h1: tx(document.querySelector('#svCorpo h1')), abas: document.querySelectorAll('[data-cpgaba]').length, cal: !!document.querySelector('#cpgCorpo .fi-cal'), modos: [...document.querySelectorAll('#cpgCorpo [data-cpgcal]')].map(tx).join('|'), novo: !!document.querySelector('#cpgNovo'), rel: !!document.querySelector('#cpgRel'), navOn: tx(document.querySelector('.sv-abas a.on')) };
+    JBNAV.voltar(); await T.esperar(() => location.hash === '#/setor-financeiro'); await T.dorme(500); r.voltou1 = location.hash;
+    /* a Central abre pelo quadradinho dos módulos */
+    [...document.querySelectorAll('#conteudo .c2-tile')].find((a) => /Central de Pagamentos/.test(a.textContent)).click(); await T.esperar(() => location.hash === '#/fcentral' && document.querySelector('#cpgCorpo')); await T.dorme(500);
+    r.central = { h1: tx(document.querySelector('#svCorpo h1')), abas: [...document.querySelectorAll('[data-cpgaba]')].map(tx), on: tx(document.querySelector('[data-cpgaba].on')), novo: !!document.querySelector('#cpgNovo'), rel: !!document.querySelector('#cpgRel'), navOn: tx(document.querySelector('.sv-abas a.on')) };
     JBNAV.voltar(); await T.esperar(() => location.hash === '#/setor-financeiro'); r.voltou = location.hash; return r;
   });
   await foto('01-painel');
-  ok(pa.kpis.join('|') === 'Pagos no mês|Pagamentos de hoje|Pagamentos agendados' && pa.nK === 3 && pa.entrada && pa.tiles === 0 && pa.favs === 0 && pa.tabelas === 0 && pa.limpo && pa.botoes.length === 1 && /Central de Pagamentos/.test(pa.botoes[0]),
-    `painel do Financeiro: só três indicadores (${pa.kpis.join(' · ')}) e o botão Central de Pagamentos; nenhum quadradinho, atalho ou lista`);
-  ok(pa.abas[0] === 'Painel' && pa.abas[1] === 'Central de Pagamentos' && !pa.abas.some((a) => /Contas a pagar|Pagamentos do dia|Calend|Despesas gerais|Outros pagamentos|^Pagamentos$|^Indicadores$|por Foto/.test(a)) && ['Extratos', 'Caixa e bancos', 'Conciliação', 'Relatórios', 'Configurações'].every((x) => pa.abas.includes(x)),
-    `menu do setor: uma entrada só para pagamentos (${pa.abas.join(' · ')})`);
+  const ANT = ['Contas a pagar – Lenha', 'Contas a pagar – Combustível', 'Despesas gerais', 'Outros pagamentos', 'Pagamentos do dia', 'Calendário', 'Indicadores', 'Contas a pagar', 'Pagamentos', 'Extratos', 'Caixa e bancos', 'Conciliação', 'Relatórios', 'Configurações'];
+  ok(pa.kpis.join('|') === 'Pagar hoje|Próximos 7 dias|Em atraso|Agendadas|Parcialmente pagas|Pago neste mês|Total pendente' && /^Para pagar agora/.test(pa.lista) && pa.mods.join('|') === 'Lenha|Combustível|Despesas gerais|Outros pagamentos' && !pa.limpo
+    && pa.botoes.length === 3 && /Exportar/.test(pa.botoes[0]) && /Nova conta/.test(pa.botoes[1]) && /Novo pagamento/.test(pa.botoes[2]),
+    `painel do Financeiro no visual de antes: sete indicadores (${pa.kpis.join(' · ')}), a lista “Para pagar agora”, “A pagar por módulo” e os botões Exportar, Nova conta e Novo pagamento`, pa);
+  ok(/Agenda de Pagamentos/.test(pa.favs[0] || '') && /Central de Pagamentos/.test(pa.favs[1] || '') && ['Contas a pagar – Lenha', 'Contas a pagar – Combustível', 'Despesas gerais', 'Outros pagamentos'].every((x) => pa.favs.some((f) => f.includes(x)))
+    && /Agenda de Pagamentos/.test(pa.tiles[0] || '') && /Central de Pagamentos/.test(pa.tiles[1] || '') && ANT.concat(['Lançamento Inteligente por Foto']).every((x) => pa.tiles.some((t) => t.includes(x))) && pa.tiles.length >= 20,
+    `acesso rápido de volta: atalhos favoritos (${pa.favs.join(' · ')}) e ${pa.tiles.length} módulos, com a Agenda de Pagamentos e a Central de Pagamentos na frente`, pa);
+  ok(pa.abas[0] === 'Painel' && pa.abas[1] === 'Agenda de Pagamentos' && pa.abas[2] === 'Central de Pagamentos' && ANT.every((x) => pa.abas.includes(x)),
+    `menu do setor com todas as telas de antes e as duas novas (${pa.abas.join(' · ')})`);
+  ok(pa.agenda.h1 === 'Agenda de Pagamentos' && pa.agenda.abas === 0 && pa.agenda.cal && pa.agenda.modos === 'Mês|Semana|Dia' && pa.agenda.novo && pa.agenda.rel && pa.agenda.navOn === 'Agenda de Pagamentos' && pa.voltou1 === '#/setor-financeiro',
+    'a pasta “Agenda de Pagamentos” do acesso rápido abre uma tela própria (calendário por mês, semana e dia, Novo pagamento e Relatório do dia) e o Voltar retorna ao painel', pa.agenda);
   ok(pa.central.h1 === 'Central de Pagamentos' && pa.central.abas.join('|') === 'Hoje|Agenda|Contas|Pagos|Indicadores' && pa.central.on === 'Hoje' && pa.central.novo && pa.central.rel && pa.central.navOn === 'Central de Pagamentos' && pa.voltou === '#/setor-financeiro',
-    'o botão abre a Central (Hoje · Agenda · Contas · Pagos · Indicadores) e o Voltar retorna ao painel');
+    'o módulo “Central de Pagamentos” abre a Central (Hoje · Agenda · Contas · Pagos · Indicadores) e o Voltar retorna ao painel');
 
   /* 1. NOVO PAGAMENTO extra com identificação automática (Combustível) e encaminhamento ao setor */
   const n1 = await page.evaluate(async () => {
@@ -264,13 +278,13 @@ try {
     T.val('#npD', addDias(h, -1)); r.passado = !(await T.confirmar()); r.avisoP = T.ultimoToast(); T.val('#npD', d3);
     r.fechou = await T.confirmar(); await T.sincronizado(); const t = T.tit('Conta de energia'); r.R = 't:' + t.id; r.t = { venc: t.vencimento, prev: t.dataPrevista, pgs: (t.pagamentos || []).length, extra: !!t.extra, cond: t.condicao, enc: t.enc.setor + '/' + t.enc.modo }; r.ob = T.ob(r.R); r.toast = T.ultimoToast();
     /* agenda do mês: o dia mostra o compromisso; tocar no dia abre o dia */
-    CPG_FIN.UI.cal = 'mes'; CPG_FIN.UI.mes = d3.slice(0, 7); await T.central('agenda', /Toque num dia/);
+    CPG_FIN.UI.cal = 'mes'; CPG_FIN.UI.mes = d3.slice(0, 7); await T.agenda(/Toque num dia/);
     const cel = document.querySelector('#cpgCorpo .fi-cal [data-cpgdia="' + d3 + '"]'); r.celula = cel ? cel.textContent.replace(/\s+/g, ' ').trim() : ''; r.classes = document.querySelector('#cpgCorpo .fi-cal') ? 'fi-cal' : '';
     cel.click(); await T.esperar(() => document.querySelector('#cpgDia')); await T.dorme(400);
     r.dia = { data: document.querySelector('#cpgDia').value, lista: T.refs(), titulo: [...document.querySelectorAll('#cpgCorpo h3.grupo-t')].map((x) => x.textContent.trim())[0], novoTxt: document.querySelector('#cpgNovo').textContent.trim(), rel: !!document.querySelector('#cpgRel'), resumo: T.resumo() };
     /* lançar, dentro do dia, o que não estava agendado para ele */
     const f2 = await T.novo({ desc: 'Internet do escritório', benef: 'Provedor de Internet', valor: '150,00', cat: 'Outras despesas' }); r.f2 = { modo: f2.okTxt, data: f2.data, rot: f2.rot, contaVisivel: f2.contaVisivel, setor: f2.setor };
-    r.fechou2 = await T.confirmar(); await T.sincronizado(); await T.central('agenda', /Internet do escritório/); r.dia2 = T.refs(); r.t2 = T.tit('Internet do escritório').dataPrevista;
+    r.fechou2 = await T.confirmar(); await T.sincronizado(); await T.agenda(/Internet do escritório/); r.dia2 = T.refs(); r.t2 = T.tit('Internet do escritório').dataPrevista;
     /* semana e volta para hoje */
     CPG_FIN.UI.cal = 'sem'; CPG_FIN.UI.sem = d3; renderTela(); await T.dorme(400); r.semana = !!document.querySelector('#cpgCorpo .fi-sem') && /Companhia de Energia/.test(document.querySelector('#cpgCorpo .fi-sem').textContent);
     CPG_FIN.UI.cal = 'dia'; CPG_FIN.UI.dia = h; renderTela(); await T.dorme(400); r.hojeTxt = document.querySelector('#cpgNovo').textContent.trim();
@@ -385,10 +399,11 @@ try {
     const r = {}; const h = hoje(); const OS = FINANCEIRO_SETOR.obrigacoes(); const ab = OS.filter((o) => !o.cancelado && o.s.saldo > 0.004);
     const P = T.pagosDe(); const fut = ab.filter((o) => o.dataCal > h); const pendHoje = ab.filter((o) => o.dataCal === h);
     r.esp = { mes: P.mes, n: P.n, dia: P.dia, pendHoje: pendHoje.reduce((s, o) => s + o.s.saldo, 0), fut: Math.round(fut.reduce((s, o) => s + o.s.saldo, 0) * 100) / 100, nFut: fut.length, pend: Math.round(ab.reduce((s, o) => s + o.s.saldo, 0) * 100) / 100, venc: Math.round(ab.filter((o) => o.s.vencido).reduce((s, o) => s + o.s.saldo, 0) * 100) / 100 };
-    await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(500); r.k = T.kpis();
-    /* tocar num indicador abre a Central na parte certa */
-    [...document.querySelectorAll('#conteudo .hero .kpi')].find((k) => /agendados/.test(k.textContent)).click(); await T.esperar(() => location.hash === '#/fcentral'); await T.dorme(500);
-    r.abaAg = (document.querySelector('[data-cpgaba].on') || {}).textContent; r.listaAg = T.refs().slice().sort();
+    CPG_FIN.UI.b = ''; CPG_FIN.UI.q = ''; await T.ir('#/setor-financeiro', /Para pagar agora/); await T.dorme(500); r.k = T.kpis();
+    /* tocar num indicador do painel abre a lista dele, na própria tela */
+    [...document.querySelectorAll('#conteudo .cpg-hero .kpi')].find((k) => k.querySelector('.l').textContent.trim() === 'Agendadas').click(); await T.dorme(500);
+    r.tituloAg = document.querySelector('#cpgLista').textContent.trim(); r.listaAg = T.refs().slice().sort(); r.agEsp = ab.filter((o) => o.prog).map((o) => o.descricao).sort();
+    CPG_FIN.UI.b = '';
     await T.central('ind', /Despesas por setor/); r.res = T.resumo();
     r.setores = Object.fromEntries([...document.querySelectorAll('#cpgCorpo table.cpg-ind')][0] ? [...[...document.querySelectorAll('#cpgCorpo table.cpg-ind')][0].tBodies[0].rows].filter((tr) => tr.cells.length === 4 && tr.querySelector('a')).map((tr) => [tr.cells[0].textContent.trim(), [tr.cells[1].textContent.trim(), tr.cells[2].textContent.trim()]]) : []);
     r.blocos = [...document.querySelectorAll('#cpgCorpo .bloco h3')].map((x) => x.childNodes[0].textContent.trim());
@@ -398,9 +413,9 @@ try {
     return r;
   });
   const E = n11.esp, K11 = n11.k;
-  ok(T_num(K11['Pagos no mês'].split('|')[0]) === E.mes && new RegExp('^' + E.n + ' pagamentos').test(K11['Pagos no mês'].split('|')[1].trim()) && T_num(K11['Pagamentos de hoje'].split('|')[0]) === Math.round((E.dia + E.pendHoje) * 100) / 100 && /pago R\$/.test(K11['Pagamentos de hoje']) && /pendente R\$/.test(K11['Pagamentos de hoje']) && T_num(K11['Pagamentos agendados'].split('|')[0]) === E.fut && new RegExp('^' + E.nFut + ' compromisso').test(K11['Pagamentos agendados'].split('|')[1].trim()),
-    `11. painel: pagos no mês ${K11['Pagos no mês']} · hoje ${K11['Pagamentos de hoje']} · agendados ${K11['Pagamentos agendados']} (conferido com os registros)`);
-  ok(n11.abaAg === 'Contas' && n11.listaAg.join() === 'Conta de energia' && n11.blocos.join('|') === 'Despesas por setor|Pagamentos futuros|Histórico mensal', '11. tocar em “Pagamentos agendados” abre as contas agendadas; a Central tem despesas por setor, pagamentos futuros e histórico mensal');
+  ok(T_num(K11['Pago neste mês'].split('|')[0]) === E.mes && T_num(K11['Total pendente'].split('|')[0]) === E.pend && T_num(K11['Pagar hoje'].split('|')[0]) === Math.round(E.pendHoje * 100) / 100 && Object.keys(K11).length === 7,
+    `11. painel: pagar hoje ${K11['Pagar hoje']} · pago neste mês ${K11['Pago neste mês']} · total pendente ${K11['Total pendente']} (conferido com os registros)`, { K11, E });
+  ok(/^Agendadas/.test(n11.tituloAg) && n11.listaAg.join() === n11.agEsp.join() && n11.listaAg.includes('Conta de energia') && n11.blocos.join('|') === 'Despesas por setor|Pagamentos futuros|Histórico mensal', '11. tocar em “Agendadas” no painel mostra as contas agendadas; a Central tem despesas por setor, pagamentos futuros e histórico mensal', n11);
   ok(Object.keys(n11.res).length === 6 && T_num(Object.entries(n11.res).find(([k]) => /^Pago em/.test(k))[1]) === E.mes && T_num(n11.res['Total pendente']) === E.pend && T_num(n11.res['Total vencido']) === E.venc && T_num(n11.res['Pago hoje']) === E.dia && n11.somaSet === E.mes && n11.setores['Combustível'] && T_num(n11.setores['Combustível'][0]) === 180 && T_num(n11.setores['Lenha'][0]) === 1500 && T_num(n11.setores['Lenha'][1]) === 2000,
     `11. indicadores da Central: ${Object.entries(n11.res).map(([k, v]) => k + ' ' + v).join(' · ')}; a soma do pago por setor fecha com o pago no mês`);
   ok(n11.abaSet === 'Contas' && n11.listaSet.join() === 'Gasolina da saveiro', '11. tocar num setor mostra só as contas dele');
@@ -447,7 +462,7 @@ try {
   ok(P13.pagos === 10 && P13.extras === 7 && P13.ag === 3 && Math.abs(P13.vPago - (P13.vExtra + P13.vAg)) < 0.005 && P13.vAg === 5420 && n13.cols.join('|') === 'Hora|Fornecedor ou beneficiário|Descrição|Categoria|Setor|Forma|Conta|Tipo|Valor|Lançado por' && n13.horas.length === 10 && n13.horas.every((x) => /^\d\d:\d\d$/.test(x))
     && n13.linhas.some((l) => /^Boleto do contador.*\|Agendado\|Administrativo\|Dono$/.test(l)) && n13.linhas.some((l) => /^Gasolina da saveiro.*\|Extra \(não agendado\)\|Combustível\|Dono$/.test(l)) && n13.extrasT.join('|') === 'Resumo do dia|Ficou sem pagar (estava agendado para o dia)|Pago por setor|Pago por forma e conta',
     `13. relatório do dia: ${P13.pagos} pagamentos (${P13.ag} do que estava agendado e ${P13.extras} extras), com hora, setor, forma, conta e quem lançou`);
-  ok(/RELATÓRIO DE PAGAMENTOS DO DIA/i.test(n13.doc) && /Gasolina da saveiro/.test(n13.doc) && /Resumo do dia/i.test(n13.doc) && /Pago por setor/i.test(n13.doc) && n13.menu.join('|') === 'Visualizar o relatório|Gerar PDF|Imprimir|Compartilhar o PDF|Enviar resumo no WhatsApp|Copiar o resumo|Exportar Excel' && /\*Pagamentos do dia/.test(n13.txt) && /Extras \(não agendados\)/.test(n13.txt) && /- Posto Exemplo · Gasolina da saveiro · R\$\s?180,00 · PIX \(extra\)/.test(n13.txt) && n13.voltou === 'Hoje',
+  ok(/RELATÓRIO DE PAGAMENTOS DO DIA/i.test(n13.doc) && /Gasolina da saveiro/.test(n13.doc) && /Resumo do dia/i.test(n13.doc) && /Pago por setor/i.test(n13.doc) && n13.menu.join('|') === 'Visualizar o relatório|Gerar PDF|Imprimir|Compartilhar o PDF|Enviar ao dono pelo WhatsApp|Copiar o resumo|Exportar Excel' && /\*Pagamentos do dia/.test(n13.txt) && /Extras \(não agendados\)/.test(n13.txt) && /- Posto Exemplo · Gasolina da saveiro · R\$\s?180,00 · PIX \(extra\)/.test(n13.txt) && n13.voltou === 'Hoje',
     '13. o relatório abre no padrão de documentos da empresa (visualizar, PDF, imprimir, compartilhar) e tem o resumo pronto para o WhatsApp do dono');
 
   /* 14. rastreabilidade na janela do pagamento */
@@ -461,21 +476,30 @@ try {
     && n14.trilha === 3 && n14.botao && n14.hist.filter((h) => /classificou o setor/.test(h)).length === 2 && n14.hist.some((h) => /registrou pagamento extra/.test(h)),
     '14. cada pagamento guarda o próprio histórico: quem cadastrou e quando, quem deu a baixa e a data efetiva, setor de destino, classificação automática ou manual e a trilha do encaminhamento');
 
-  /* 15. navegação: uma Central só; as telas antigas continuam abrindo e voltam para ela */
+  /* 15. navegação: todas as telas de antes continuam no menu do setor, cada uma na sua entrada; a Agenda e a Central são telas a mais */
   const n15 = await page.evaluate(async () => {
-    const r = { rotas: {} }; await T.ir('#/setor-financeiro', /Central de Pagamentos/); const h0 = JBNAV.estado ? JBNAV.estado().pilha.length : 0;
-    document.querySelector('#cpgEntrar').click(); await T.esperar(() => location.hash === '#/fcentral'); await T.dorme(400);
-    const p0 = JBNAV.estado ? JBNAV.estado().pilha.length : 0;
+    const r = { rotas: {} }; await T.central('hoje'); const p0 = JBNAV.estado ? JBNAV.estado().pilha.length : 0;
     for (const a of ['agenda', 'contas', 'pagos', 'ind', 'hoje']) { [...document.querySelectorAll('[data-cpgaba]')].find((b) => b.dataset.cpgaba === a).click(); await T.dorme(300); }
     r.abasNaoEmpilham = (JBNAV.estado ? JBNAV.estado().pilha.length : 0) === p0 && location.hash === '#/fcentral';
-    for (const [rota, re] of [['#/fdia', /Pagamentos do dia/], ['#/fcal', /Calendário financeiro/], ['#/fpagar', /Contas a pagar/], ['#/fpag', /Pagamentos/], ['#/fpainel', /Gráficos e conferência/], ['#/fComb', /Combustível/], ['#/fGerais', /Despesas gerais/], ['#/fOutros', /Outros pagamentos/], ['#/fLenha', /Lenha/]]) {
-      await T.ir(rota, re); r.rotas[rota] = { on: ((document.querySelector('.sv-abas a.on') || {}).textContent || '').trim(), volta: !!document.querySelector('#svCorpo a[href="#/fcentral"]') }; }
-    await T.ir('#/fGerais', /Despesas gerais/); document.querySelector('#svCorpo a[href="#/fcentral"]').click(); await T.esperar(() => location.hash === '#/fcentral'); r.voltaCentral = location.hash;
-    JBNAV.voltar(); await T.dorme(500); r.v1 = location.hash;
+    for (const [rota, re, rot] of [['#/fagenda', /Agenda de Pagamentos/, 'Agenda de Pagamentos'], ['#/fcentral', /Central de Pagamentos/, 'Central de Pagamentos'], ['#/fdia', /Pagamentos do dia/, 'Pagamentos do dia'], ['#/fcal', /Calendário financeiro/, 'Calendário'], ['#/fpagar', /Contas a pagar/, 'Contas a pagar'], ['#/fpag', /Pagamentos/, 'Pagamentos'],
+      ['#/fpainel', /./, 'Indicadores'], ['#/fComb', /Combustível/, 'Contas a pagar – Combustível'], ['#/fGerais', /Despesas gerais/, 'Despesas gerais'], ['#/fOutros', /Outros pagamentos/, 'Outros pagamentos'], ['#/fLenha', /Lenha/, 'Contas a pagar – Lenha']]) {
+      await T.ir(rota, re); r.rotas[rota] = { on: ((document.querySelector('.sv-abas a.on') || {}).textContent || '').trim(), esperado: rot }; }
+    /* painel: os números abrem a lista; o menu Mais ▾ da linha tem a classificação do setor; o aviso de classificação leva às contas */
+    CPG_FIN.UI.b = ''; CPG_FIN.UI.q = ''; await T.ir('#/setor-financeiro', /Para pagar agora/); await T.dorme(400);
+    const kpi = async (rot) => { [...document.querySelectorAll('#conteudo .cpg-hero .kpi')].find((k) => k.querySelector('.l').textContent.trim() === rot).click(); await T.dorme(500); return { t: document.querySelector('#cpgLista').textContent.trim(), n: T.refs().length, on: (document.querySelector('#conteudo .cpg-hero .kpi.cpg-on .l') || {}).textContent }; };
+    r.kPag = await kpi('Pago neste mês'); r.kTot = await kpi('Total pendente'); r.abertas = FINANCEIRO_SETOR.obrigacoes().filter((o) => !o.cancelado && o.s.saldo > 0.004).length;
+    document.querySelector('#cpgTudo') && document.querySelector('#cpgTudo').click(); await T.dorme(400); r.nTot = T.refs().length;
+    const mais = [...document.querySelectorAll('#svCorpo [data-cpgmais]')].find((b) => /^t:/.test(b.dataset.cpgmais)); mais.click(); await T.dorme(250); r.menuLinha = [...document.querySelectorAll('.dc-pop [data-i]')].map((b) => b.childNodes[0].textContent.trim()); T.limpar();
+    r.colunas = [...document.querySelectorAll('#svCorpo table.cpg-tab thead th')].map((x) => x.textContent.trim()).filter(Boolean).join('|');
+    document.querySelector('#cpgNovoP').click(); await T.esperar(() => document.querySelector('.veu .modal #npV')); r.novoP = true; T.limpar();
+    await T.ir('#/fGerais', /Despesas gerais/); document.querySelector('#svCorpo a[href="#/setor-financeiro"]').click(); await T.esperar(() => location.hash === '#/setor-financeiro'); r.voltaPainel = location.hash;
     return r;
   });
-  ok(n15.abasNaoEmpilham && Object.values(n15.rotas).every((x) => x.on === 'Central de Pagamentos') && ['#/fdia', '#/fcal', '#/fpagar', '#/fpag', '#/fpainel', '#/fComb', '#/fGerais', '#/fOutros'].every((k) => n15.rotas[k].volta) && n15.voltaCentral === '#/fcentral' && n15.v1 === '#/fGerais',
-    '15. trocar de aba na Central não cria passo no Voltar; as telas antigas de pagamento continuam funcionando, aparecem como parte da Central e têm o caminho de volta');
+  ok(n15.abasNaoEmpilham && Object.values(n15.rotas).every((x) => x.on === x.esperado) && n15.voltaPainel === '#/setor-financeiro',
+    '15. trocar de parte na Central não cria passo no Voltar; todas as telas de antes continuam no menu, cada uma na sua entrada, e os módulos voltam para o painel', n15.rotas);
+  ok(/^Pagas neste mês/.test(n15.kPag.t) && n15.kPag.n > 0 && n15.kPag.on === 'Pago neste mês' && /^Todas em aberto/.test(n15.kTot.t) && n15.kTot.on === 'Total pendente' && n15.nTot === n15.abertas && n15.colunas === 'Data|Conta|Módulo|Valor|Pago|Falta pagar|Situação'
+    && n15.menuLinha[0] === 'Histórico e saldo' && n15.menuLinha.some((x) => /Classificar setor|Corrigir setor/.test(x)) && n15.novoP,
+    `15. no painel, os números abrem a lista (Pago neste mês: ${n15.kPag.n}; Total pendente: ${n15.nTot}), a lista tem as colunas de antes e o Mais ▾ da linha traz o setor (${n15.menuLinha.join(' · ')})`, n15);
 
   /* 16. persistência: depois de atualizar a página tudo continua igual */
   const antes16 = await page.evaluate(() => ({ n: DATA.fTitulos.length, pg: T.pagosDe(), encs: DATA.fTitulos.map((t) => t.descricao + ':' + ((t.enc || {}).setor || '-') + '/' + ((t.enc || {}).st || '-')).sort().join(';'), vasco: window.CPL_LENHA.conta('f_vasco').saldo }));
@@ -483,7 +507,7 @@ try {
   {
     await page.reload(); await page.waitForFunction(() => typeof APP !== 'undefined' && APP.pronto === true && APP.carregado, null, { timeout: 30000 }); await utilidades();
     const dep16 = await page.evaluate(async () => { await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(500); return { n: DATA.fTitulos.length, pg: T.pagosDe(), encs: DATA.fTitulos.map((t) => t.descricao + ':' + ((t.enc || {}).setor || '-') + '/' + ((t.enc || {}).st || '-')).sort().join(';'), vasco: window.CPL_LENHA.conta('f_vasco').saldo, k: Object.keys(T.kpis()).length }; });
-    ok(dep16.n === antes16.n && dep16.pg.mes === antes16.pg.mes && dep16.pg.n === antes16.pg.n && dep16.encs === antes16.encs && dep16.vasco === antes16.vasco && dep16.k === 3, `16. depois de atualizar a página: ${dep16.n} contas, ${dep16.pg.n} pagamentos (R$ ${dep16.pg.mes}), setores, encaminhamentos e saldo da Lenha iguais`);
+    ok(dep16.n === antes16.n && dep16.pg.mes === antes16.pg.mes && dep16.pg.n === antes16.pg.n && dep16.encs === antes16.encs && dep16.vasco === antes16.vasco && dep16.k === 7, `16. depois de atualizar a página: ${dep16.n} contas, ${dep16.pg.n} pagamentos (R$ ${dep16.pg.mes}), setores, encaminhamentos e saldo da Lenha iguais`);
   }
 
   /* 17. sem duplicados no fim de tudo */
@@ -496,8 +520,9 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   const n18 = await page.evaluate(async () => {
     const r = {}; const med = () => { const se = document.scrollingElement; return { larg: se.scrollWidth, vis: innerWidth }; };
-    await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(700); r.painel = { ...med(), k: Object.keys(T.kpis()).length, entrada: !!document.querySelector('#cpgEntrar') && document.querySelector('#cpgEntrar').getBoundingClientRect().width > 300, barra: [...document.querySelectorAll('#c2mob a, #c2mob button')].map((a) => a.textContent.trim()) };
+    await T.ir('#/setor-financeiro', /Central de Pagamentos/); await T.dorme(700); r.painel = { ...med(), k: Object.keys(T.kpis()).length, pills: document.querySelectorAll('#conteudo .c2-pill').length, tiles: document.querySelectorAll('#conteudo .c2-tile').length, barra: [...document.querySelectorAll('#c2mob a, #c2mob button')].map((a) => a.textContent.trim()) };
     for (const a of ['hoje', 'agenda', 'contas', 'pagos', 'ind']) { CPG_FIN.UI.cal = 'mes'; await T.central(a); await T.dorme(500); r[a] = med(); }
+    CPG_FIN.UI.cal = 'mes'; await T.agenda(); await T.dorme(400); r.agMes = med(); CPG_FIN.UI.cal = 'dia'; CPG_FIN.UI.dia = hoje(); renderTela(); await T.dorme(500); r.agDia = med(); r.fim = [...document.querySelectorAll('#cpgCorpo .cpg-fim button')].map((b) => b.textContent.replace(/\s+/g, ' ').trim());
     /* cartão da lista no celular: categoria e forma numa linha própria (sem texto emendado) e nenhum trecho de código aparecendo na tela */
     CPG_FIN.UI.p = Object.assign(CPG_FIN.UI.p || {}, { q: '', de: '', ate: '', setor: '', tipo: '' }); await T.central('pagos'); await T.dorme(600);
     const cel = [...document.querySelectorAll('#svCorpo table.cpg-pg .cpg-cel')]; r.cel = { n: cel.length, vis: cel.filter((x) => x.getBoundingClientRect().height > 0).length, txt: cel[0] ? cel[0].textContent : '', emenda: [...document.querySelectorAll('#svCorpo table.cpg-pg td.lc-d1')].some((td) => /\S/.test(getComputedStyle(td, '::after').content.replace(/^none$|"/g, ''))) };
@@ -506,8 +531,8 @@ try {
     return r;
   });
   await foto('03-celular-hoje');
-  ok(n18.painel.larg <= n18.painel.vis + 2 && n18.painel.k === 3 && n18.painel.entrada && n18.painel.barra.includes('Central') && ['hoje', 'agenda', 'contas', 'pagos', 'ind'].every((a) => n18[a].larg <= n18[a].vis + 2) && n18.modal.dentro && n18.cel.n > 0 && n18.cel.vis === n18.cel.n && / · /.test(n18.cel.txt) && !n18.cel.emenda && !n18.vazou,
-    `18. no celular (390 px) o painel, as cinco partes da Central e o Novo pagamento cabem na largura; o cartão mostra categoria e forma (${n18.cel.txt}); barra de baixo: ${n18.painel.barra.join(' · ')}`, n18);
+  ok(n18.painel.larg <= n18.painel.vis + 2 && n18.painel.k === 7 && n18.painel.pills >= 6 && n18.painel.tiles >= 20 && n18.painel.barra.includes('Agenda') && ['hoje', 'agenda', 'contas', 'pagos', 'ind', 'agMes', 'agDia'].every((a) => n18[a].larg <= n18[a].vis + 2) && n18.fim.length === 2 && /não estava agendado/.test(n18.fim[0]) && /Relatório do dia para o dono/.test(n18.fim[1]) && n18.modal.dentro && n18.cel.n > 0 && n18.cel.vis === n18.cel.n && / · /.test(n18.cel.txt) && !n18.cel.emenda && !n18.vazou,
+    `18. no celular (390 px) o painel, a Agenda de Pagamentos (com o fechamento do dia), as cinco partes da Central e o Novo pagamento cabem na largura; o cartão mostra categoria e forma (${n18.cel.txt}); barra de baixo: ${n18.painel.barra.join(' · ')}`, n18);
 
   ok(!erros.length, erros.length ? 'erros de JavaScript: ' + erros.slice(0, 4).join(' | ') : 'nenhum erro de JavaScript durante o teste');
 } catch (e) { falhas++; console.error('  ✘ o teste parou: ' + (e && e.message ? e.message.split('\n')[0] : e)); }
