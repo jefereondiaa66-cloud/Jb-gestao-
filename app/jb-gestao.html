@@ -44099,6 +44099,12 @@ html.casca2 table.lc.cpg-tab>tbody>tr>td.lc-d1::after{content:none}}
 .cpg-fim b{font-size:14.5px}.cpg-fim span{font-size:12.5px;color:var(--suave,#5B6168)}
 .cpg-fim-b{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:560px){.cpg-fim-b{width:100%}.cpg-fim-b .btn{flex:1 1 100%;justify-content:center}}
+/* V132 (18/11/2026): o último indicador do painel fica do tamanho dos outros (o ajuste automático da grade alargava o "Total pendente") */
+html.casca2 .sv-corpo .cpg-hero>.kpi:not(.c2-kdest){grid-column:auto!important}
+/* listas do painel que abrem e fecham com um toque no título */
+.cpg-tog{cursor:pointer;-webkit-user-select:none;user-select:none}
+.cpg-tog:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:2px}
+.cpg-mods[hidden],#cpgListaC[hidden]{display:none!important}
 </style>
 <script id="central-pagamentos">
 /* Central de pagamentos e módulos do Financeiro (pedido do Jeferson, 17/11/2026 – "reengenharia funcional").
@@ -44817,12 +44823,19 @@ function exportarAba(btn,a0){const a=a0||UI.aba;
  exportarLista(btn,xs,a==='contas'?'Central de Pagamentos – contas':'Central de Pagamentos – a pagar')}
 
 /* ---------- a Central de Pagamentos ---------- */
+/* nome da agenda de quem paga as contas: o dono pediu "Agenda do Gustavo" (18/11/2026); o campo agendaNome da configuração do Financeiro troca o nome sem mexer no programa */
+const NOME_AGENDA='Agenda do Gustavo';
+const nomeAgenda=()=>{try{const c=DATA.fCfg.find(x=>x.id==='fcfg');const n=String((c&&c.agendaNome)||'').trim();return n||NOME_AGENDA}catch(e){return NOME_AGENDA}};
+/* listas do painel: tocar no título (ou de novo no mesmo número) mostra ou esconde; a escolha fica guardada neste aparelho */
+const MIN_K='jb_fin_painel_min';
+const MIN=(()=>{try{const v=JSON.parse(localStorage.getItem(MIN_K)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch(e){return {}}})();
+const guardarMin=()=>{try{localStorage.setItem(MIN_K,JSON.stringify({lista:!!MIN.lista,mods:!!MIN.mods}))}catch(e){}};
 const ABAS=[['hoje','Hoje'],['agenda','Agenda'],['contas','Contas'],['pagos','Pagos'],['ind','Indicadores']];
 function irAba(a,mud){if(mud)mud();UI.aba=a;if(lerRota().mod==='fcentral')renderTela();else JBNAV.ir('#/fcentral')}
 function telaCentral(c,so){const e=ed();const ag=so==='agenda';const a=ag?'agenda':ABAS.some(x=>x[0]===UI.aba)?UI.aba:'hoje';if(!ag)UI.aba=a;const h=hoje();
  /* na agenda, com um dia aberto, os botões do alto valem para aquele dia */
  const dR=a==='agenda'&&UI.cal==='dia'&&/^\d{4}-\d{2}-\d{2}$/.test(UI.dia)?UI.dia:h;const dC=fData(dR).slice(0,5);
- c.innerHTML=(ag?cabF(IC.quinzena?'quinzena':'calendario','Agenda de Pagamentos','Toque no dia e agende o que vai ser pago. O que está agendado no dia é o que se paga no dia. No fim do dia, lance o que não estava agendado e mande o relatório ao dono.',
+ c.innerHTML=(ag?cabF(IC.quinzena?'quinzena':'calendario',nomeAgenda(),'Toque no dia e agende o que vai ser pago. O que está agendado no dia é o que se paga no dia. No fim do dia, lance o que não estava agendado e mande o relatório ao dono.',
   `<button type="button" class="btn" id="cpgMaisT">Mais ▾</button>${dR<=h?`<button type="button" class="btn" id="cpgRel">${ic('doc')}${dR===h?'Relatório do dia':'Relatório de '+esc(dC)} ▾</button>`:''}${e?`<button type="button" class="btn pri" id="cpgNovo">${ic('mais')}${dR===h?'Novo pagamento':dR>h?'Agendar para '+esc(dC):'Novo pagamento em '+esc(dC)}</button>`:''}`)
   :cabF('carteira','Central de Pagamentos','Tudo o que é pagamento num lugar só: o que pagar hoje, a agenda, as contas, o que já foi pago e os indicadores.',
   `<button type="button" class="btn" id="cpgMaisT">Mais ▾</button>${dR<=h?`<button type="button" class="btn" id="cpgRel">${ic('doc')}${dR===h?'Relatório do dia':'Relatório de '+esc(dC)} ▾</button>`:''}${e?`<button type="button" class="btn pri" id="cpgNovo">${ic('mais')}${dR===h?'Novo pagamento':dR>h?'Agendar para '+esc(dC):'Novo pagamento em '+esc(dC)}</button>`:''}`))+
@@ -44885,20 +44898,27 @@ function telaInicio(c){const B=baldes();const e=ed();const QH=quadroDia(hoje());
  const mods=MODULOS.map(m=>{const xs2=B.ab.filter(o=>moduloDe(o)===m.k);const vc=xs2.filter(o=>o.s.vencido);
   return `<a href="#/${m.rota}" data-cpgmod="${m.k}"><span>${ic(m.ic)}${esc(m.n)}</span><b>${esc(fMoeda(somaS(xs2)))}</b><small>${xs2.length?q(xs2.length)+' em aberto':'nada em aberto'}</small>${vc.length?`<small class="pe">${esc(fMoeda(somaS(vc)))} em atraso</small>`:`<small>${esc(m.d)}</small>`}</a>`}).join('');
  c.innerHTML=cabF('moeda','Painel do Financeiro','O que pagar, quando, quanto e para quem. Toque num número para ver as contas; em cada conta dá para pagar, agendar e ver o histórico.',
-  `<button type="button" class="btn" id="cpgExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn" id="cpgNova">${ic('mais')}Nova conta ▾</button><button type="button" class="btn pri" id="cpgNovoP">${ic('mais')}Novo pagamento</button>`:''}`)+
+  `<a class="btn" href="#/fagenda" id="cpgAg">${ic(IC.quinzena?'quinzena':'calendario')}${esc(nomeAgenda())}</a><button type="button" class="btn" id="cpgExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn" id="cpgNova">${ic('mais')}Nova conta ▾</button><button type="button" class="btn pri" id="cpgNovoP">${ic('mais')}Novo pagamento</button>`:''}`)+
   `<div class="hero cpg-hero" role="group" aria-label="Resumo das contas a pagar">${KP.map(k=>kpiV(k[1]+(b===k[0]?' cpg-on':'')+(k[0]==='atras'&&B.atras.length?' cpg-pe':''),IC[k[2]]?k[2]:'moeda',k[3],esc(k[4]),esc(k[5]))).join('')}</div>
   <div id="cpgBloco">
    ${QH.aguard.length||nPiH?`<p class="cpg-linha">${QH.aguard.length?`<span class="tag at">${QH.aguard.length} aguardando classificação</span> <a href="javascript:void 0" data-cpgir="aguard">Classificar agora</a>`:''}${nPiH?` <span class="tag pe">${nPiH===1?'1 pendente':nPiH+' pendentes'} de integração</span> <a href="javascript:void 0" data-cpgir="pint">Ver</a>`:''}</p>`:''}
-   <h3 class="grupo-t" id="cpgLista">${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
+   <h3 class="grupo-t cpg-tog" id="cpgLista" role="button" tabindex="0" aria-expanded="${!MIN.lista}" data-cpgmin="lista" title="${MIN.lista?'Tocar para mostrar a lista':'Tocar para esconder a lista'}">${MIN.lista?'▸':'▾'} ${esc(ROT[b])}${todasX.length?' · '+esc(b==='pagas'?q(todasX.length):fMoeda(somaS(todasX))+' · '+q(todasX.length)):''}</h3>
+   <div id="cpgListaC"${MIN.lista?' hidden':''}>
    <div class="cpg-busca"><input type="search" id="cpgQ" placeholder="Pesquisar por nome, descrição ou número" value="${esc(UI.q)}" aria-label="Pesquisar contas">${b!=='agora'?'<button type="button" class="btn" data-cpgb="agora">Ver o que pagar agora</button>':''}</div>
    ${tabelaAnt(xs,{pagas:b==='pagas',vazio:UI.q?'<b>Nenhuma conta com esta pesquisa</b>':b==='agora'?(B.ab.length?'<b>Nada para pagar hoje e nada em atraso</b>Veja os próximos dias em “Próximos 7 dias”.':'<b>Nenhuma conta em aberto</b>As contas aparecem aqui quando forem lançadas aqui ou nos setores.'):'<b>Nenhuma conta neste quadro</b>'})}
    ${curta?`<p style="margin:0 0 12px"><button type="button" class="btn" id="cpgTudo">Ver todas as ${todasX.length} contas</button></p>`:''}
    ${B.semData.length&&b!=='todas'?`<p class="cpg-nota">${q(B.semData.length)} em aberto sem vencimento nem agendamento (${esc(fMoeda(somaS(B.semData)))}). <a href="javascript:void 0" data-cpgb="todas">Ver em “Total pendente”</a></p>`:''}
-   <h3 class="grupo-t">A pagar por módulo</h3><div class="cpg-mods">${mods}</div>
-   <p class="cpg-nota">A rotina do dia (agendar, pagar, lançar o que não estava agendado e relatório para o dono) fica na <a href="#/fagenda">Agenda de Pagamentos</a>. Os gráficos e a conferência com o banco continuam em <a href="#/fpainel">Indicadores</a>.</p>
+   </div>
+   <h3 class="grupo-t cpg-tog" role="button" tabindex="0" aria-expanded="${!MIN.mods}" data-cpgmin="mods" title="${MIN.mods?'Tocar para mostrar':'Tocar para esconder'}">${MIN.mods?'▸':'▾'} A pagar por módulo</h3><div class="cpg-mods"${MIN.mods?' hidden':''}>${mods}</div>
+   <p class="cpg-nota">A rotina do dia (agendar, pagar, lançar o que não estava agendado e relatório para o dono) fica na <a href="#/fagenda">${esc(nomeAgenda())}</a>. Os gráficos e a conferência com o banco continuam em <a href="#/fpainel">Indicadores</a>.</p>
   </div>`;
  $$('.cpg-hero .kpi',c).forEach((x,i)=>{x.setAttribute('role','button');x.setAttribute('aria-pressed',String(b===KP[i][0]));x.dataset.cpgb=KP[i][0]});
- $$('[data-cpgb]',c).forEach(x=>x.onclick=ev=>{ev.preventDefault();UI.b=x.dataset.cpgb;UI.tudo=false;renderTela();setTimeout(()=>{const l=document.getElementById('cpgLista');if(l&&l.scrollIntoView)try{l.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(e2){}},90)});
+ $$('[data-cpgb]',c).forEach(x=>x.onclick=ev=>{ev.preventDefault();const k=x.dataset.cpgb;
+  /* tocar de novo no número que já está aberto esconde a lista; qualquer outro toque mostra */
+  if(x.classList.contains('kpi')&&b===k&&!MIN.lista){MIN.lista=true;UI.b='';guardarMin();renderTela();return}
+  UI.b=k;UI.tudo=false;if(MIN.lista){MIN.lista=false;guardarMin()}
+  renderTela();setTimeout(()=>{const l=document.getElementById('cpgLista');if(l&&l.scrollIntoView)try{l.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(e2){}},90)});
+ $$('[data-cpgmin]',c).forEach(x=>{const f=()=>{const k=x.dataset.cpgmin;MIN[k]=!MIN[k];guardarMin();renderTela()};x.onclick=f;x.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f()}}});
  $('#cpgQ',c).oninput=ev=>{UI.q=ev.target.value;clearTimeout(telaInicio.t);telaInicio.t=setTimeout(()=>{renderTela();const i=$('#cpgQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},280)};
  if($('#cpgTudo',c))$('#cpgTudo',c).onclick=()=>{UI.tudo=true;renderTela()};
  $('#cpgExp',c).onclick=()=>exportarLista($('#cpgExp',c),todasX,'Central de pagamentos – '+ROT[b]);
@@ -44974,7 +44994,7 @@ Object.assign(TELAS_V,{
  fOutros:el=>{shellF(el,'fOutros',c=>telaModulo(c,'outros'));marcarAba(el,'#/fOutros')}});
 window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
 {const X=window.FIN_ABAS_EXTRA;const len=X.find(a=>a.m==='fLenha');if(len)X.splice(X.indexOf(len),1);
- const novas=[{r:'#/fagenda',m:'fagenda',ic:IC.quinzena?'quinzena':'calendario',l:'Agenda de Pagamentos',at:['fagenda']},
+ const novas=[{r:'#/fagenda',m:'fagenda',ic:IC.quinzena?'quinzena':'calendario',get l(){return nomeAgenda()},at:['fagenda']},
   {r:'#/fcentral',m:'fcentral',ic:'carteira',l:'Central de Pagamentos',at:['fcentral']},
   len||{r:'#/fLenha',m:'fLenha',ic:'chama',l:'Contas a pagar – Lenha',at:['fLenha']},
   {r:'#/fComb',m:'fComb',ic:'bomba',l:'Contas a pagar – Combustível',at:['fComb']},{r:'#/fGerais',m:'fGerais',ic:'recibo',l:'Despesas gerais',at:['fGerais']},{r:'#/fOutros',m:'fOutros',ic:'moeda',l:'Outros pagamentos',at:['fOutros']}];
@@ -44988,7 +45008,7 @@ if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){co
  const N=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
  const add=(t,s,icone,rota,extra)=>E.push({g:'Telas',t,s,ic:icone,k:N(t+' '+s+' '+(extra||'')),ir:()=>JBNAV.ir(rota),h:rota,ix:E.length});
  add('Painel do Financeiro','Financeiro · o que pagar hoje, nos próximos dias e em atraso','moeda','#/setor-financeiro','pagar contas agendar vencidas atraso central de pagamentos');
- add('Agenda de Pagamentos','Financeiro · agendar por dia, pagar o dia, lançar o que não estava agendado e relatório para o dono','calendario','#/fagenda','agenda agendamento calendario dia pagar relatorio do dia dono fim do dia');
+ add(nomeAgenda(),'Financeiro · agendar por dia, pagar o dia, lançar o que não estava agendado e relatório para o dono','calendario','#/fagenda','agenda agendamento calendario dia pagar relatorio do dia dono fim do dia');
  add('Central de Pagamentos','Financeiro · hoje, contas, pagos e indicadores por setor','carteira','#/fcentral','pagar contas agendar vencidas atraso novo pagamento extra setor classificar');
  MODULOS.filter(m=>m.k!=='lenha').forEach(m=>add(m.t,'Financeiro · '+m.d,m.ic,'#/'+m.rota,'pagar conta'));
  add('Indicadores do Financeiro','Financeiro · gráficos, banco e conferência','grafico','#/fpainel','painel')}}catch(e){}return E}}

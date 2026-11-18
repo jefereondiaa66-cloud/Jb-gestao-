@@ -196,9 +196,21 @@ agendado** (pagamento extra) e **Relatório do dia para o dono** (documento, PDF
 Agendado em todas as telas e nada é lançado em dobro. O Calendário financeiro que já existia (`#/fcal`) não mudou.
 
 No código: saíram os remendos da V130 no menu do setor (`arrumarAbasF`) e no início do setor (`data-inicio-limpo`);
-entrou o dos favoritos fixos (`C2_FAV_FIXOS`, genérico). Os nomes das telas não levam nome de pessoa.
+entrou o dos favoritos fixos (`C2_FAV_FIXOS`, genérico).
 
 Testes: `testar-central-pagamentos.mjs` com 51 conferências (painel de antes, acesso rápido, menu, Agenda como tela
 própria, fechamento do dia, e tudo o que a V130 já conferia). Para desfazer só a V131, reverta o commit dela: volta a
 V130.
+
+## 9. V132 (18/11/2026): ajustes pedidos pelo dono no painel
+
+- **Total pendente** deixou de ser o quadro largo do fim: fica do tamanho dos outros indicadores (o ajuste automático da
+  grade alargava o último; no painel do Financeiro ele não vale mais).
+- **Botão no alto** do painel para a agenda de quem paga as contas, junto de Exportar, Nova conta e Novo pagamento.
+- **Nome da agenda**: o dono pediu que a agenda leve o nome de quem paga as contas. O nome padrão está na constante
+  `NOME_AGENDA`; o campo `agendaNome` da configuração do Financeiro (`fcfg`) troca o nome sem mexer no programa. O
+  nome vale para o botão, o atalho, o módulo, o menu, o título da tela e a busca.
+- **Listas do painel que abrem e fecham**: tocar no título de "Para pagar agora" ou de "A pagar por módulo" esconde ou
+  mostra a lista; tocar de novo no número que já está aberto também esconde. A escolha fica guardada no aparelho
+  (`localStorage`, chave `jb_fin_painel_min`).
 
