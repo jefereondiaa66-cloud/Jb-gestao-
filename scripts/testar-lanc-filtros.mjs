@@ -34,6 +34,9 @@ const ok = (c, m) => { console.log(`  ${c ? '✔' : '✘'} ${m}`); if (!c) falha
 const ir = async (page, h) => { await page.evaluate((x) => { location.hash = x; }, h); await page.waitForTimeout(700); };
 const vis = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden'; }, sel);
 const linhas = (page) => page.evaluate(() => document.querySelectorAll('#corpoLista table.lc > tbody > tr[data-lc]').length);
+/* espera a lista ficar com n lançamentos (a tela filtra na hora; a espera só cobre computador lento) */
+const esperaLinhas = (page, n) => page.waitForFunction((x) => document.querySelectorAll('#corpoLista table.lc > tbody > tr[data-lc]').length === x, n, { timeout: 6000 }).catch(() => {});
+const esperaDocumento = (page) => page.waitForFunction(() => location.hash === '#/documento' && !!document.getElementById('fvdDoc'), null, { timeout: 8000 }).catch(() => {});
 const itensMenu = (page) => page.evaluate(() => [...document.querySelectorAll('.dc-pop button')].map((b) => (b.firstChild ? b.firstChild.textContent : '').trim()));
 
 /* dados fictícios, gravados pela função do próprio sistema */
@@ -95,7 +98,7 @@ try {
   await page.click('#conteudo .jbf-per');
   ok(await vis(page, '.jbf-pop'), 'Período: o calendário abre');
   await page.click('.jbf-pop .jbf-pre button:has-text("Este mês")');
-  await page.waitForTimeout(600);
+  await esperaLinhas(page, 2);
   ok(!(await vis(page, '.jbf-pop')) && await linhas(page) === 2, `Período "Este mês": ${await linhas(page)} de 3 vendas (a do mês passado sai)`);
   ok(/\d\d\/\d\d a \d\d\/\d\d\/\d{4}/.test(await page.textContent('#conteudo .jbf-per')), 'Período: o botão mostra as datas escolhidas');
   ok(await vis(page, '#conteudo .jbf-lim'), 'Limpar aparece com filtro ligado');
@@ -106,10 +109,10 @@ try {
   await page.click(`.jbf-pop [data-d="${ant}"]`);
   await page.click(`.jbf-pop [data-d="${ant}"]`);
   await page.click('.jbf-pop .ok');
-  await page.waitForTimeout(600);
+  await esperaLinhas(page, 1);
   ok(await linhas(page) === 1, `Período escolhido dia a dia no calendário: só a venda daquele dia (${await linhas(page)})`);
   await page.click('#conteudo .jbf-lim');
-  await page.waitForTimeout(600);
+  await esperaLinhas(page, 3);
   ok(await linhas(page) === 3 && /todos/.test(await page.textContent('#conteudo .jbf-per')) && !(await vis(page, '#conteudo .jbf-lim')), 'Limpar tira os filtros e some');
 
   const maisVisiveis = () => page.evaluate(() => [...document.querySelectorAll('#conteudo .jbf .jbf-x')].filter((e) => e.getClientRects().length).length);
@@ -122,7 +125,7 @@ try {
   await page.click('#conteudo .jbf-ord');
   ok(await vis(page, '.dc-pop') && (await itensMenu(page)).some((x) => /^Cliente/.test(x)), 'Ordenar: abre a lista de colunas');
   await page.click('.dc-pop button:has-text("Cliente")');
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => /Cliente/.test(document.querySelector('#conteudo .jbf-ord').textContent), null, { timeout: 6000 }).catch(() => {});
   ok(/Cliente/.test(await page.textContent('#conteudo .jbf-ord')), 'Ordenar: a lista passa a ser pela coluna escolhida');
 
   await page.click('#corpoLista tbody tr[data-lc] .jbl-m');
@@ -133,7 +136,7 @@ try {
   ok(!(await vis(page, '.dc-pop')), 'tocar de novo nos três pontos fecha o menu');
   await page.click('#corpoLista tbody tr[data-lc] .jbl-m');
   await page.click('.dc-pop button:has-text("Visualizar")');
-  await page.waitForTimeout(900);
+  await esperaDocumento(page);
   ok(await page.evaluate(() => location.hash === '#/documento' && !!document.getElementById('fvdDoc')), 'Visualizar abre o documento do lançamento');
 
   // Despesas com pessoal: Competência
@@ -144,7 +147,7 @@ try {
   await page.click('#conteudo .jbf-comp');
   ok(await vis(page, '.jbf-pop .jbf-gm'), 'Competência: abre a grade de meses');
   await page.click('.jbf-pop .jbf-pre button:has-text("Mês passado")');
-  await page.waitForTimeout(600);
+  await esperaLinhas(page, 1);
   ok(nDesp === 2 && await linhas(page) === 1, `Competência "Mês passado": ${await linhas(page)} de ${nDesp}`);
 
   // Horas extras: Excluir com a confirmação de sempre
@@ -171,14 +174,14 @@ try {
   ok(await vis(page, '#conteudo .jbf-mais') && await page.evaluate(() => [...document.querySelectorAll('#conteudo .fi-filtros .jbf-x')].every((e) => !e.getClientRects().length)), 'Contas a pagar: filtros a mais guardados em "Mais filtros"');
   await page.click('#conteudo .jbf-per');
   await page.click('.jbf-pop .jbf-pre button:has-text("Este mês")');
-  await page.waitForTimeout(700);
+  await page.waitForFunction(() => { const de = document.getElementById('fpDe'); return !!de && !!de.value; }, null, { timeout: 6000 }).catch(() => {});
   ok(await page.evaluate(() => { const h = new Date(); const m = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0'); const de = document.getElementById('fpDe'), ate = document.getElementById('fpAte'); return !!de && de.value === m + '-01' && !!ate && ate.value.startsWith(m); }), 'Contas a pagar: o Período escolhido chega aos campos da tela');
   await page.waitForSelector('#conteudo tr[data-oref] .jbl-m', { timeout: 8000 });
   await page.click('#conteudo tr[data-oref] .jbl-m');
   const it2 = await itensMenu(page);
   ok(['Visualizar', 'Imprimir', 'Compartilhar'].every((x) => it2.includes(x)), `Contas a pagar: menu com ${it2.join(', ')}`);
   await page.click('.dc-pop button:has-text("Visualizar")');
-  await page.waitForTimeout(900);
+  await esperaDocumento(page);
   ok(await page.evaluate(() => location.hash === '#/documento' && !!document.getElementById('fvdDoc')), 'Contas a pagar: Visualizar abre o documento do compromisso');
 
   // trocar de tela fecha menu e calendário
@@ -208,7 +211,7 @@ try {
   await m.page.click('#conteudo .jbf-per');
   ok(await vis(m.page, '.jbf-pop'), 'celular: o calendário abre embaixo, na largura da tela');
   await m.page.click('.jbf-pop .jbf-pre button:has-text("Este mês")');
-  await m.page.waitForTimeout(600);
+  await esperaLinhas(m.page, 2);
   ok(await linhas(m.page) === 2, `celular: Período aplicado (${await linhas(m.page)} de 3)`);
   ok(await m.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'celular: sem rolagem para o lado');
   const rel2 = m.erros.filter((x) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(x));

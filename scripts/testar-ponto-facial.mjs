@@ -47,6 +47,17 @@ const rotas = async (ctx) => {
 
 let falhas = 0;
 const ok = (c, m) => { console.log(`  ${c ? '✔' : '✘'} ${m}`); if (!c) falhas++; };
+/* V129: nas listas em cartões, as ações da linha ficam no menu de três pontos (a principal, em vermelho,
+   continua à vista). Espera o padrão arrumar a linha e usa o botão, se estiver à vista, ou o item do menu. */
+const acaoDaLinha = async (page, linha, alvo) => {
+  const sel = `${linha} ${alvo}`;
+  await page.waitForSelector(sel, { state: 'attached', timeout: 8000 });
+  await page.waitForFunction((l) => { const tr = document.querySelector(l); return !!tr && tr.dataset.jbm === '1'; }, linha, { timeout: 4000 }).catch(() => {});
+  if (await page.isVisible(sel)) { await page.click(sel); return; }
+  const rot = await page.$eval(sel, (e) => (e.dataset.tip || e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' '));
+  await page.click(`${linha} .jbl-m`);
+  await page.click(`.dc-pop button:has-text("${rot}")`);
+};
 const semErros = (erros) => erros.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::/.test(m));
 
 /* ---------- 0. os quadros da câmera: um rosto grande no meio de 640 × 480 ---------- */
@@ -177,7 +188,7 @@ try {
   await page.waitForSelector('#pgTabRostos [data-rosto="f1"]', { timeout: 15000 });
   ok((await page.$$eval('#pgTabRostos [data-rosto]', (b) => b.map((x) => x.dataset.rosto))).join() === 'f1,f2,f3', 'cadastro facial lista os empregados ativos do DP (sem prestador e sem desligado): não há segunda base de funcionários');
   const t0 = Date.now();
-  await page.click('[data-rosto="f1"] [data-a="cadastrar"]');
+  await acaoDaLinha(page, '[data-rosto="f1"]', '[data-a="cadastrar"]');
   await page.waitForSelector('#pzTermoOk', { timeout: 5000 });
   await page.click('.modal [data-r="1"]');
   ok(!(await page.$('.pz-cad')), 'sem o termo de ciência (LGPD) marcado, o cadastro não começa');
@@ -355,11 +366,11 @@ try {
 
   /* ---------- 11. tratamento: conferir e anular, com justificativa; a original fica ---------- */
   const idManual = ms[2].id, idSaida = ms[3].id;
-  await page.click(`#pgTabMarc tr[data-marc="${idManual}"] [data-a="tratar"]`);
+  await acaoDaLinha(page, `#pgTabMarc tr[data-marc="${idManual}"]`, '[data-a="tratar"]');
   await page.waitForSelector('#pgTrA'); await page.click('.modal [data-r="1"]');
   await page.waitForFunction((id) => /Conferida/.test(document.querySelector(`#pgTabMarc tr[data-marc="${id}"]`).textContent), idManual, { timeout: 8000 });
   ok(true, 'tratar › conferir: a marcação manual passa a "Conferida"');
-  await page.click(`#pgTabMarc tr[data-marc="${idSaida}"] [data-a="tratar"]`);
+  await acaoDaLinha(page, `#pgTabMarc tr[data-marc="${idSaida}"]`, '[data-a="tratar"]');
   await page.waitForSelector('#pgTrA'); await page.selectOption('#pgTrA', 'anulada'); await page.click('.modal [data-r="1"]');
   ok(!!(await page.$('#pgTrA')), 'anular sem justificativa não é aceito');
   await page.fill('#pgTrJ', 'Marcada por engano no teste'); await page.waitForTimeout(800); await page.click('.modal [data-r="1"]');
@@ -368,7 +379,7 @@ try {
   const ms11 = await marcs(), tr11 = await eventos('tratamento');
   ok(ms11.length === 4 && JSON.stringify(ms11[3]) === JSON.stringify(ms[3]) && tr11.length === 2 && tr11.some((e) => e.acao === 'anulada' && e.justificativa === 'Marcada por engano no teste' && e.uid === 'u_DONO'), 'a marcação original continua igual no banco; o tratamento fica à parte, com justificativa e responsável');
   ok(r11.ok && r11.op.join() === 'saida', 'com a saída anulada, a pessoa pode marcar a saída de novo');
-  await page.click(`#pgTabMarc tr[data-marc="${idManual}"] [data-a="comprovante"]`);
+  await acaoDaLinha(page, `#pgTabMarc tr[data-marc="${idManual}"]`, '[data-a="comprovante"]');
   await page.waitForSelector('.pg-comp');
   ok(/Ana Teste Souza.*matrícula 101/.test(await page.textContent('.pg-comp')) && /controle interno/.test(await page.textContent('.modal')), 'comprovante da marcação disponível (identifica empregador e trabalhador; avisa que é de controle interno)');
   await page.click('.modal [data-r="0"]');
@@ -505,7 +516,7 @@ try {
   /* ---------- 18. cadastro facial: desativar tira do reconhecimento ---------- */
   await page.evaluate(() => { location.hash = '#/pontoGestao/funcionarios'; });
   await page.waitForSelector('[data-rosto="f2"] [data-a="desativar"]', { timeout: 8000 });
-  await page.click('[data-rosto="f2"] [data-a="desativar"]');
+  await acaoDaLinha(page, '[data-rosto="f2"]', '[data-a="desativar"]');
   await page.waitForSelector('.modal [data-r="1"]'); await page.click('.modal [data-r="1"]');
   await page.waitForFunction(() => /Desativado/.test(document.querySelector('[data-rosto="f2"]').textContent), null, { timeout: 8000 });
   ok(await page.evaluate(async (q) => { const i = new Image(); i.src = q; await i.decode(); const b = await JB_PONTO.ver(i); return JB_PONTO.comparar(b.desc).fid === null; }, quadros[1]), 'reconhecimento desativado: a pessoa deixa de ser identificada, sem apagar o cadastro');
