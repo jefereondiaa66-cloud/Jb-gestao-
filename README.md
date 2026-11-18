@@ -33,6 +33,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-combustivel-lenha.mjs` | Combustível e Lenha de ponta a ponta: lançamentos, foto (IA simulada), programação, descontos e acerto (69 conferências) |
 | `node scripts/testar-custo-buscar.mjs` | V115: custo por litro do combustível = média das compras + custo de buscar |
 | `node scripts/testar-combustivel-fornecedor-lenha.mjs` | V117: combustível para fornecedor de lenha, descontado sozinho do que a cerâmica deve, painéis nos dois setores, lançamento à mão e acerto ([docs/combustivel-fornecedor-lenha-v117.md](docs/combustivel-fornecedor-lenha-v117.md)) (37 conferências) |
+| `node scripts/testar-contas-pagar-lenha.mjs` | Financeiro › Contas a pagar – Lenha: saldo por fornecedor, PAGAR / DAR BAIXA inteiro e parcial, acima do saldo com justificativa (adiantamento), combustível como crédito, estorno, queda no meio sem duplicar, agendamento, histórico e recarga ([docs/contas-pagar-lenha-2026-11-17.md](docs/contas-pagar-lenha-2026-11-17.md)) (39 conferências) |
 | `node scripts/testar-comprovante-lancamento.mjs` | V120: botão "Comprovante" em todo lançamento fora do Setor Pessoal (cupom 80/58 mm e folha A4), ficha dos cadastros e comprovante do compromisso do Financeiro ([docs/comprovante-lancamento-v120.md](docs/comprovante-lancamento-v120.md)) |
 | `node scripts/testar-contratos.mjs` | V125/V127: Contratos com IA de ponta a ponta (IA simulada): pedido livre direto para a redação, civil e trabalhista, edição, comandos na hora sem IA, pontos de atenção, tela fixa, PDF, assinatura, versões, renovar, aditivo, distrato e modelos ([docs/contratos-ia-v125.md](docs/contratos-ia-v125.md)) |
 | `node scripts/testar-acesso-setores.mjs` | nuvem com permissão por setor: quem só tem o Combustível vê os terceiros (guardados no Financeiro), quem só tem o Almoxarifado vê funcionários (só nome e função) e máquinas, e cada um só vê os setores dele ([docs/acesso-setores-2026-11-16.md](docs/acesso-setores-2026-11-16.md)) |
@@ -48,4 +49,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/combustivel-lenha-2026-11-13.md`](docs/combustivel-lenha-2026-11-13.md) (Combustível e Lenha, V112) ·
 [`docs/combustivel-fornecedor-lenha-v117.md`](docs/combustivel-fornecedor-lenha-v117.md) (combustível para fornecedor de lenha, V117) ·
 [`docs/comprovante-lancamento-v120.md`](docs/comprovante-lancamento-v120.md) (comprovante do lançamento, V120) ·
+[`docs/contas-pagar-lenha-2026-11-17.md`](docs/contas-pagar-lenha-2026-11-17.md) (Financeiro › Contas a pagar – Lenha) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

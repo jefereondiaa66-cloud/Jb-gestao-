@@ -32704,7 +32704,7 @@ const elegivel=(c,fid,de,ate)=>c.setor==='lenha'&&c.tipoOp==='compra'&&c.fornece
 function calcAcerto(A){
  const cs=DATA.compras.filter(c=>elegivel(c,A.fornecedorId,A.de,A.ate)).sort((a,b)=>String(a.data).localeCompare(String(b.data))||(+a.numero||0)-(+b.numero||0));
  const ids=new Set(cs.map(c=>c.id));
- const linhas=cs.map(c=>{const f=finVenda(c);return{c,qtd:qtdCompra(c),un:((c.itens||[])[0]||{}).unidade||'',bruto:r2(c.total),pago:r2(f.pago),abatAnt:r2(f.abat||0),comb:r2(f.comb||0),combPartes:f.combPartes||[],saldo:r2(f.saldo)}});
+ const linhas=cs.map(c=>{const f=finVenda(c);return{c,qtd:qtdCompra(c),un:((c.itens||[])[0]||{}).unidade||'',bruto:r2(c.total),pago:r2(f.pago+(+f.adt||0)),abatAnt:r2(f.abat||0),comb:r2(f.comb||0),combPartes:f.combPartes||[],saldo:r2(f.saldo)}});
  const disp=DATA.clDesc.filter(d=>d.fornecedorId===A.fornecedorId&&descUsavel(d));
  const descs=disp.filter(d=>!d.compraId||ids.has(d.compraId));const fora=disp.filter(d=>d.compraId&&!ids.has(d.compraId));
  const usados=descs.filter(d=>A.usar[d.id]!==false);
@@ -43214,6 +43214,666 @@ try{if(typeof RELS_V!=='undefined'&&!RELS_V.some(r=>r.id==='rx_lanc'))RELS_V.pus
 
 window.JB_DOCL=Object.freeze({docRegistro,tituloDoc,codLanc,lancamentosSetor,relLanc,docObrigF,docPagF,docMesCtl,fazerDoc,ehDP,
  registrarFonte:(s,fn)=>{const f0=FONTES_LANC[s];FONTES_LANC[s]=f0?()=>[...f0(),...seguro(fn,[])]:fn}});
+})();
+</script>
+<style id="contas-pagar-lenha-css">
+/* ===== Financeiro · Contas a pagar – Lenha (17/11/2026) · só aparência das telas novas ===== */
+.cpl-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.cpl-chips .btn em{font-style:normal;opacity:.7;margin-left:4px}
+.cpl-conta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:0 0 12px}
+.cpl-conta>div{border:1px solid var(--linha);border-radius:10px;padding:8px 10px;background:var(--branco)}
+.cpl-conta span{display:block;font-size:12px;color:var(--suave)}
+.cpl-conta b{font-size:15px;font-variant-numeric:tabular-nums}
+.cpl-conta .tot{border-color:var(--brasa);background:var(--brasa-bg)}
+.cpl-conta .tot b{color:var(--brasa2)}
+.cpl-prev{border:1px dashed var(--linha);border-radius:10px;padding:9px 11px;margin:2px 0 10px;font-size:13px;line-height:1.5}
+.cpl-prev ul{margin:4px 0 0;padding-left:18px}
+.cpl-prev .fim{display:block;margin-top:4px}
+.cpl-sub{display:block;font-size:12px;color:var(--suave);font-weight:400;margin-top:2px}
+.cpl-tags{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+.cpl-ext td.num,.cpl-ext th.num{white-space:nowrap}
+.cpl-ext td.neg{color:var(--ok,#15803D)}
+.cpl-ext tr.cpl-ini td{color:var(--suave);font-style:italic}
+.cpl-pg-est td{opacity:.6}
+.cpl-pg-est td .tag{opacity:1}
+.cpl-chk{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;font-size:13px}
+.cpl-chk input{margin-top:3px}
+.cpl-nota{font-size:12px;color:var(--suave);margin:8px 2px 0;line-height:1.5}
+.cpl-btn-pagar{white-space:nowrap}
+/* filtros de situação: claros, o escolhido escuro (como o "Ordenar por") */
+html.casca2 .cpl-chips .btn{background:var(--pn-b,#fff);color:var(--pn-t,#17181B);border:1px solid var(--pn-l,#DDE0E3);box-shadow:none;height:34px}
+html.casca2 .cpl-chips .btn.pri{background:var(--c2-preto,#0B0B0D);color:#fff;border-color:var(--c2-preto,#0B0B0D)}
+/* os indicadores do topo continuam à vista no celular (pedido do módulo) */
+html.casca2 #conteudo.lc-pg:not(.lc-fab) .resumo.cpl-res{display:grid}
+@media (max-width:700px){
+ html .tbl.cpl-ext tbody tr{display:grid!important;grid-template-columns:1fr auto;grid-template-areas:"d s" "t t" "g p";gap:3px 10px;padding:10px 13px!important;margin:0 0 8px!important}
+ html .tbl.cpl-ext tbody td{display:block!important;padding:0!important;border:0!important;text-align:left!important;background:none!important}
+ html .tbl.cpl-ext tbody td:before{content:none!important;display:none!important}
+ html .tbl.cpl-ext td[data-l="Data"]{grid-area:d;font-size:12px;color:var(--suave)}
+ html .tbl.cpl-ext td[data-l="Saldo"]{grid-area:s;text-align:right!important}
+ html .tbl.cpl-ext td[data-l="Descrição"]{grid-area:t;font-size:13.5px}
+ html .tbl.cpl-ext td[data-l="Valor gerado"]{grid-area:g;font-size:12.5px}
+ html .tbl.cpl-ext td[data-l="Abatido ou pago"]{grid-area:p;font-size:12.5px;text-align:right!important}
+}
+</style>
+<script id="contas-pagar-lenha">
+"use strict";
+/* ================= Financeiro · Contas a pagar – Lenha (17/11/2026) =================
+   Pedido do Jeferson: dentro do Setor Financeiro, um módulo com tudo o que a cerâmica deve aos
+   fornecedores de lenha, por fornecedor, com o botão PAGAR / DAR BAIXA (pagamento inteiro ou parcial),
+   agendamento e o histórico de cada um. Regras:
+   · nada é cadastrado de novo: as entregas são as compras do Setor da Lenha; o combustível do
+     fornecedor (V117), os descontos dos acertos (V112) e os pagamentos já registrados entram como
+     estão (finVenda e CB_LENHA). Os dados da entrega (quantidade, preço, valor, data) nunca mudam: o
+     pagamento entra na lista de pagamentos da própria compra, como sempre foi no sistema, com o código
+     da baixa, e por isso o Setor da Lenha, as Contas a pagar, o Caixa e a Conciliação veem o mesmo;
+   · saldo por fornecedor: o pagamento quita primeiro as entregas mais antigas; parcial deixa o resto
+     em aberto; vários pagamentos para a mesma conta; nada é apagado (estorno marca, com motivo);
+   · pagamento acima do saldo só com confirmação e justificativa: o que passa vira adiantamento
+     (compromisso à vista no Financeiro, categoria Lenha) e desconta sozinho das próximas entregas;
+   · cada pagamento tem um registro próprio (coleção fin, tipo "baixaLenha") gravado ANTES das parcelas,
+     com o plano e códigos fixos: se a conexão cair no meio, "Concluir o registro" termina sem repetir;
+   · clique duplo e repetição: botão travado durante a gravação, uma gravação por fornecedor de cada
+     vez e aviso (com confirmação) de pagamento igual no mesmo dia ou feito há poucos minutos. */
+(()=>{
+const FS=window.FINANCEIRO_SETOR;if(!FS||!FS.h){console.warn('Contas a pagar – Lenha: Setor Financeiro não carregado');return}
+const H=FS.h;const {TIPO,CAIXA,optH,campoM,valM,modalF,shellF,cabF,resumoF,optsContas,nomeConta}=H;
+const r2=v=>round2(v),r3=v=>round3(v);
+const agoraIso=()=>new Date().toISOString();
+const eu=()=>APP.uid||'local';
+const nomeEu=()=>APP.nome||nomeUsuario(APP.uid)||'Usuário';
+const ROTA='fLenha',T_BAIXA='baixaLenha',SEM='__sem';
+const ORIG_PAG='Financeiro · Contas a pagar – Lenha';
+const BTN_PAGAR='PAGAR / DAR BAIXA';
+const erroMsg=m=>{const e=new Error(m);e.cplMsg=m;return e};
+const msgDe=e=>e&&e.cplMsg?e.cplMsg:(typeof msgFalhaSalvar==='function'?msgFalhaSalvar(e):msgErro(e));
+const unCurta=u=>String(u||'').replace(/\s*\(.*\)\s*/,'').trim();
+
+/* ---------- baixas (cabeçalho de cada pagamento) dentro da coleção fin ---------- */
+TIPO.fBaixaLenha=T_BAIXA;
+let MB={b:null,v:[]};
+Object.defineProperty(DATA,'fBaixaLenha',{enumerable:false,configurable:true,
+ get(){const b=DATA[H.COL]||[];if(MB.b===b)return MB.v;const v=b.filter(r=>r.tipo===T_BAIXA);MB={b,v};return v}});
+const BAIXA=id=>DATA.fBaixaLenha.find(x=>x.id===id)||null;
+
+/* ---------- permissões e lugar no Financeiro ---------- */
+const FV=['admin','financeiro','gerente'],FE=['admin','financeiro'];
+Object.assign(PERM,{[ROTA]:{v:FV,e:FE}});
+if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+const podeVer=()=>pode(ROTA);
+const podePagar=()=>pode(ROTA,'e')&&pode('pagar','e');
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m===ROTA))window.FIN_ABAS_EXTRA.unshift({depois:'fpagar',r:'#/'+ROTA,m:ROTA,ic:'chama',l:'Contas a pagar – Lenha',at:[ROTA]});
+
+/* ---------- o que é da conta da lenha ---------- */
+const ehCL=c=>!!c&&c.tipoOp==='compra'&&c.setor==='lenha'&&!c.historico&&!cancV(c);
+const ordC=(a,b)=>String(a.data||'').localeCompare(String(b.data||''))||(+a.numero||0)-(+b.numero||0)||String(a.id).localeCompare(String(b.id));
+const COMB=()=>window.COMB_V62||'Combustível da fábrica';
+const ehCombV62=p=>!!p&&(p.forma===COMB()||(!!p.consumoId&&!!p.semDinheiro));
+const ehAdt=t=>!!(t&&t.adiantamentoLenha&&t.adiantamentoLenha.fornecedorId);
+const ehTitLenha=t=>!!t&&!t.cancelado&&!ehAdt(t)&&!!t.fornecedorId&&(t.setorOrigem==='Setor da Lenha'||t.categoria==='Lenha');
+const pagoTit=t=>r2(soma((t.pagamentos||[]).filter(p=>!p.estornado),p=>p.valor));
+const credAdt=t=>t.cancelado?0:pagoTit(t);
+const semDin=f=>typeof window.formaSemDinheiroV62==='function'&&window.formaSemDinheiroV62(f);
+const metaDe=ref=>(DATA.fMeta||[]).find(x=>x.ref===ref)||null;
+
+/* ---------- adiantamento (pago acima do saldo): desconta sozinho das próximas entregas ----------
+   Calculado, nunca um contador: o crédito de cada adiantamento abate o saldo das entregas em aberto do
+   fornecedor, da mais antiga para a mais nova (como o combustível da V117). Contas a pagar, Setor da
+   Lenha, acerto e painéis leem o valor que resta pelo finVenda. Estornar o adiantamento devolve o saldo. */
+const fvAntes=finVenda;
+let MA={k:null,v:null};
+function alocAdt(){
+ const k=[DATA.compras,DATA.consumos,DATA.clCtrl,DATA[H.COL]];if(MA.k&&MA.k.every((x,i)=>x===k[i]))return MA.v;
+ const porCompra={},porForn={};
+ const lst=(DATA.fTitulos||[]).filter(t=>ehAdt(t)&&!t.cancelado).map(t=>({t,fid:t.adiantamentoLenha.fornecedorId,valor:credAdt(t)})).filter(x=>x.valor>=0.005)
+  .sort((a,b)=>String(a.t.data||'').localeCompare(String(b.t.data||''))||String(a.t.criadoEm||'').localeCompare(String(b.t.criadoEm||'')));
+ [...new Set(lst.map(x=>x.fid))].forEach(fid=>{
+  const fila=lst.filter(x=>x.fid===fid).map(x=>({...x,rest:x.valor}));let i=0;
+  (DATA.compras||[]).filter(c=>ehCL(c)&&c.fornecedorId===fid).sort(ordC).forEach(c=>{if(i>=fila.length)return;let s=r2(fvAntes(c).saldo);const partes=[];
+   while(s>=0.005&&i<fila.length){const x=fila[i];const q=r2(Math.min(s,x.rest));if(q>=0.005){partes.push({tituloId:x.t.id,valor:q});x.rest=r2(x.rest-q);s=r2(s-q)}if(x.rest<0.005)i++}
+   if(partes.length)porCompra[c.id]={valor:r2(soma(partes,p=>p.valor)),partes}});
+  porForn[fid]={total:r2(soma(fila,x=>x.valor)),credito:r2(soma(fila,x=>x.rest>=0.005?x.rest:0))}});
+ MA={k,v:{porCompra,porForn}};return MA.v;
+}
+finVenda=function(v){const f=fvAntes(v);if(!ehCL(v))return f;
+ let A;try{A=alocAdt()}catch(e){console.warn('adiantamento da lenha',e);return f}
+ const x=A.porCompra[v.id];if(!x)return f;
+ const total=r2(Math.max(0,f.total-x.valor)),saldo=r2(Math.max(0,f.saldo-x.valor));
+ return{...f,bruto:f.bruto!=null?f.bruto:r2(v.total),total,saldo,adt:x.valor,adtPartes:x.partes,status:saldo<0.005?'Pago':f.status==='Pendente'?'Parcial':f.status}};
+
+/* ---------- a conta de cada fornecedor ---------- */
+function docForn(f){if(!f)return '';if(f.tipoPessoa==='Física')return f.cpf?mascCPF(f.cpf):'';return f.cnpj?fmtCNPJ(f.cnpj):(f.cpf?mascCPF(f.cpf):'')}
+let MC={k:null,v:null,ob:null};
+const chaveDados=()=>[DATA.compras,DATA.consumos,DATA.clCtrl,DATA[H.COL],DATA.fornecedores,hoje()];
+function contas(){
+ const k=chaveDados();if(MC.k&&MC.k.every((x,i)=>x===k[i]))return MC.v;
+ const ob=new Map();try{FS.obrigacoes().forEach(o=>ob.set(o.ref,o))}catch(e){console.warn('contas da lenha',e)}
+ const ids=new Set();const cr=credsTodos();
+ (DATA.compras||[]).forEach(c=>{if(ehCL(c))ids.add(c.fornecedorId||SEM)});
+ (DATA.fTitulos||[]).forEach(t=>{if(ehTitLenha(t))ids.add(t.fornecedorId);else if(ehAdt(t))ids.add(t.adiantamentoLenha.fornecedorId)});
+ cr.forEach(x=>{if(x.fornecedorId)ids.add(x.fornecedorId)});
+ DATA.fBaixaLenha.forEach(b=>{if(b.fornecedorId)ids.add(b.fornecedorId)});
+ const L=[...ids].map(fid=>calcConta(fid,ob,cr)).sort((a,b)=>(b.saldo>0.004)-(a.saldo>0.004)||b.saldo-a.saldo||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ MC={k,v:L,ob};return L;
+}
+const credsTodos=()=>{try{return window.CB_LENHA?window.CB_LENHA.creds():[]}catch(e){return []}};
+const contaDe=fid=>contas().find(x=>x.fid===fid)||calcConta(fid,MC.ob||new Map(),credsTodos());
+function calcConta(fid,ob,credsAll){
+ const f=fid===SEM?null:FORN(fid)||null;
+ const cs=(DATA.compras||[]).filter(c=>ehCL(c)&&(c.fornecedorId||SEM)===fid).sort(ordC);
+ const adts=(DATA.fTitulos||[]).filter(t=>ehAdt(t)&&t.adiantamentoLenha.fornecedorId===fid);
+ const nome=fid===SEM?'Entregas sem fornecedor':(f&&nomeFornecedor(f))||(cs[0]&&parteSnap(cs[0]).nome)||(adts[0]&&adts[0].beneficiarioNome)||'(fornecedor sem cadastro)';
+ const ents=cs.map(c=>{const fv=finVenda(c);const pgs=(c.pagamentos||[]).filter(p=>!p.estornado);
+  const combV62=r2(soma(pgs.filter(ehCombV62),p=>p.valor));const pago=r2(soma(pgs.filter(p=>!ehCombV62(p)),p=>p.valor));
+  const abs=(c.abatimentos||[]).filter(a=>!a.estornado);const ehCb=a=>String(a.srcId||'').startsWith('cb:');
+  const abCb=r2(soma(abs.filter(ehCb),a=>a.valor)),desc=r2(soma(abs.filter(a=>!ehCb(a)),a=>a.valor));
+  const comb=r2((+fv.comb||0)+abCb+combV62);const its=c.itens||[];
+  const uns=[...new Set(its.map(i=>String(i.unidade||'').trim()))];const qtd=r3(soma(its,i=>+i.qtd||0));
+  const preco=uns.length===1&&qtd>0?r2(soma(its,i=>+i.total||(+i.qtd||0)*(+i.preco||0))/qtd):null;const m=metaDe('c:'+c.id);
+  return{tipo:'entrega',c,id:c.id,ref:'c:'+c.id,numero:c.numero,data:c.data||'',venc:c.vencimento||c.data||'',itens:its,qtd,un:uns.length===1?uns[0]:'',preco,
+   qtdTxt:its.length?txtUnid(porUnidade(its,i=>i.qtd,i=>i.unidade),true):'',classe:c.lenhaClasse||'',caminhao:(c.lenhaMedicao||{}).caminhao||'',
+   bruto:r2(c.total),comb,combV62,desc,abat:r2(comb+desc),pago,adt:r2(+fv.adt||0),saldo:r2(fv.saldo),status:fv.status,prog:(m&&m.dataPrevista)||''}});
+ const tits=(DATA.fTitulos||[]).filter(t=>ehTitLenha(t)&&t.fornecedorId===fid).sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))).map(t=>{const o=ob.get('t:'+t.id);const s=o?o.s:null;
+  return{tipo:'titulo',t,id:t.id,ref:'t:'+t.id,numero:t.numero,data:t.data||'',venc:t.vencimento||'',desc:t.descricao||'',bruto:r2(o?o.valor:t.valor),
+   pago:r2(s?s.pagoEf:pagoTit(t)),saldo:r2(s?s.saldo:Math.max(0,r2(t.valor)-pagoTit(t))),vencido:!!(s&&s.vencido),prog:t.dataPrevista||'',st:s?s.st:''}});
+ const creds=(credsAll||[]).filter(cr=>cr.fornecedorId===fid);
+ let credComb=0;try{credComb=r2(((window.CB_LENHA&&window.CB_LENHA.aloc().porForn[fid])||{}).credito||0)}catch(e){}
+ const A=alocAdt().porForn[fid]||{credito:0};
+ const adtPago=r2(soma(adts,credAdt));
+ const T={entregas:r2(soma(ents,e=>e.bruto)),outros:r2(soma(tits,x=>x.bruto)),comb:r2(soma(ents,e=>e.comb)),desc:r2(soma(ents,e=>e.desc)),
+  pagoEnt:r2(soma(ents,e=>e.pago)),pagoTit:r2(soma(tits,x=>x.pago)),adtPago,saldo:r2(soma(ents,e=>e.saldo)+soma(tits,x=>x.saldo)),
+  credAdt:r2(A.credito||0),credComb,qtd:porUnidade(ents.flatMap(e=>e.itens),i=>i.qtd,i=>i.unidade)};
+ T.bruto=r2(T.entregas+T.outros);T.abat=r2(T.comb+T.desc);T.devido=r2(T.bruto-T.abat);T.pago=r2(T.pagoEnt+T.pagoTit+T.adtPago);T.credito=r2(T.credAdt+T.credComb);
+ const cta={fid,f,nome,doc:docForn(f)||((cs[0]&&parteSnap(cs[0]).doc)||''),tel:f?(f.whatsapp||f.telefone||''):'',ents,tits,adts,creds,
+  hist:(DATA.compras||[]).filter(c=>c.tipoOp==='compra'&&c.setor==='lenha'&&c.historico&&!cancV(c)&&(c.fornecedorId||SEM)===fid),
+  ...T,ult:ents.length?ents[ents.length-1].data:'',abertas:ents.filter(e=>e.saldo>0.004).length+tits.filter(x=>x.saldo>0.004).length};
+ cta.pags=pagamentosDe(cta);
+ const ex=extratoDe(cta);cta.extrato=ex.linhas;cta.pagoCiclo=ex.pagoCiclo;cta.devidoCiclo=ex.devidoCiclo;
+ cta.vencido=cta.saldo>0.004&&(ents.some(e=>e.saldo>0.004&&e.status==='Vencido')||tits.some(x=>x.saldo>0.004&&x.vencido));
+ const progs=[...ents.filter(e=>e.saldo>0.004).map(e=>e.prog),...tits.filter(x=>x.saldo>0.004).map(x=>x.prog)].filter(Boolean).sort();
+ cta.prog=progs[0]||'';cta.parcial=cta.saldo>0.004&&cta.pagoCiclo>0.004;
+ cta.incompleto=cta.pags.some(g=>g.situacao==='Registro incompleto');
+ cta.sit=cta.saldo<=0.004?(ents.length||tits.length||cta.pags.length?'Pago':'Sem movimento'):cta.vencido?'Vencido':cta.parcial?'Parcialmente pago':cta.prog?'Agendado':'Pendente';
+ return cta;
+}
+/* situação unificada do Financeiro (a mesma palavra em todos os módulos) */
+const COR_SIT_U={Pendente:'at',Agendado:'in',Vencido:'pe','Parcialmente pago':'br',Pago:'ok',Cancelado:'','Sem movimento':''};
+const tagSitU=s=>tag(s,COR_SIT_U[s]??'');
+function tagsConta(x){const t=[tagSitU(x.sit)];
+ if(x.sit==='Vencido'&&x.parcial)t.push(tag('parcial','br'));
+ if(x.prog&&x.saldo>0.004&&x.sit!=='Agendado')t.push(tag('agendado '+fData(x.prog).slice(0,5),'in'));
+ if(x.credito>0.004)t.push(tag('crédito '+fMoeda(x.credito),'ok'));
+ if(x.incompleto)t.push(tag('registro incompleto','pe'));
+ return `<span class="cpl-tags">${t.join('')}</span>`}
+
+/* ---------- pagamentos de um fornecedor (agrupados pela baixa) ---------- */
+function pagamentosDe(cta){
+ const G=new Map();
+ const grupo=(key,base)=>{let g=G.get(key);if(!g){g={key,partes:[],hdr:null,...base};G.set(key,g)}return g};
+ const parte=(g,p,x)=>g.partes.push({...x,valor:r2(p.valor),estornado:!!p.estornado,est:p.estornado||null,pid:p.id});
+ const base=p=>({baixaId:p.baixaLenhaId||'',data:p.data||'',em:p.em||'',forma:p.forma||'',conta:p.contaId||'',semDinheiro:!!p.semDinheiro,obs:p.obs||'',por:p.por||'',comprovante:p.comprovante||null});
+ cta.ents.forEach(e=>(e.c.pagamentos||[]).forEach(p=>{if(ehCombV62(p))return;
+  const g=grupo(p.baixaLenhaId?'b:'+p.baixaLenhaId:'p:'+e.id+':'+p.id,base(p));parte(g,p,{tipo:'entrega',id:e.id,numero:e.numero,data:e.data})}));
+ cta.tits.forEach(x=>(x.t.pagamentos||[]).forEach(p=>{
+  const g=grupo(p.baixaLenhaId?'b:'+p.baixaLenhaId:'t:'+x.id+':'+p.id,base(p));parte(g,p,{tipo:'titulo',id:x.id,numero:x.numero,data:x.data,desc:x.desc})}));
+ cta.adts.forEach(t=>(t.pagamentos||[]).forEach(p=>{const bid=(t.adiantamentoLenha||{}).baixaId||'';
+  const g=grupo(bid?'b:'+bid:'a:'+t.id+':'+p.id,{...base(p),baixaId:bid});parte(g,{...p,estornado:p.estornado||(t.cancelado?{motivo:(t.cancelado||{}).motivo||'adiantamento cancelado',em:(t.cancelado||{}).em}:null)},{tipo:'adiantamento',id:t.id,numero:t.numero,data:t.data})}));
+ DATA.fBaixaLenha.filter(b=>b.fornecedorId===cta.fid).forEach(b=>{const g=grupo('b:'+b.id,{baixaId:b.id});g.hdr=b;
+  Object.assign(g,{data:b.data,em:b.criadoEm||g.em,forma:b.forma,conta:b.contaId||'',semDinheiro:!!b.semDinheiro,obs:b.obs||'',por:b.criadoPor||g.por,comprovante:b.comprovante||g.comprovante||null})});
+ const L=[...G.values()].map(g=>{const vivas=g.partes.filter(p=>!p.estornado),est=g.partes.filter(p=>p.estornado);
+  g.valor=r2(soma(vivas,p=>p.valor));g.valorEst=r2(soma(est,p=>p.valor));g.informado=g.hdr?r2(g.hdr.valor):r2(g.valor+g.valorEst);
+  g.situacao=g.hdr&&g.hdr.situacao==='Registrando'?'Registro incompleto':g.partes.length&&!vivas.length?'Estornado':est.length?'Estornado em parte':'Registrado';
+  g.estorno=(g.hdr&&g.hdr.estorno)||(est[0]&&est[0].est)||null;g.adiantamento=r2(soma(vivas.filter(p=>p.tipo==='adiantamento'),p=>p.valor));
+  g.doModulo=!!g.baixaId;return g});
+ return L.sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.em).localeCompare(String(a.em)));
+}
+const rotParte=p=>p.tipo==='entrega'?'entrega nº '+fNumV(p.numero):p.tipo==='titulo'?'compromisso nº '+(p.numero||'—')+(p.desc?' ('+p.desc+')':''):'adiantamento (crédito)';
+
+/* ---------- extrato (conta corrente) do fornecedor: tudo em ordem de data, com o saldo depois de cada linha ---------- */
+function extratoDe(cta){
+ const ev=[];const E=(o)=>ev.push(o);
+ cta.ents.forEach(e=>E({d:e.data,ts:e.c.criadoEm||'',k:'ent',txt:'Entrega nº '+fNumV(e.numero)+(e.qtdTxt?' · '+e.qtdTxt:'')+(e.preco!=null?' × '+fMoeda(e.preco)+(e.un?'/'+unCurta(e.un):''):''),deb:e.bruto,href:'#/compra/'+e.id}));
+ cta.tits.forEach(x=>E({d:x.data,ts:x.t.criadoEm||'',k:'tit',txt:(x.desc||'Compromisso')+(x.numero?' (compromisso nº '+x.numero+')':''),deb:x.bruto}));
+ cta.creds.forEach(cr=>E({d:cr.data,ts:cr.em||'',k:'comb',txt:'Combustível '+(cr.man?'lançado à mão ('+cr.origem+')':'na bomba da cerâmica')+(cr.qtd?' · '+fQtd(cr.qtd)+' '+cr.un+(cr.prod?' de '+cr.prod:''):''),cred:r2(cr.valor)}));
+ cta.ents.forEach(e=>{(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).forEach(p=>E({d:p.data,ts:p.em||'',k:'comb',txt:'Pago com combustível (entrega nº '+fNumV(e.numero)+')',cred:r2(p.valor)}));
+  (e.c.abatimentos||[]).filter(a=>!a.estornado&&!String(a.srcId||'').startsWith('cb:')).forEach(a=>E({d:a.data,ts:a.em||'',k:'desc',txt:'Desconto do acerto nº '+fNumV(a.acertoNumero)+(a.origem?' · '+a.origem:''),cred:r2(a.valor)}))});
+ cta.pags.forEach(g=>{if(!(g.valor>0.004))return;
+  E({d:g.data,ts:g.em||'',k:'pag',txt:(g.adiantamento>0.004&&g.adiantamento>=g.valor-0.004?'Adiantamento':'Pagamento')+(g.forma?' · '+g.forma:'')+(g.conta?' · '+nomeConta(g.conta):'')+(g.adiantamento>0.004&&g.adiantamento<g.valor-0.004?' (inclui adiantamento de '+fMoeda(g.adiantamento)+')':''),cred:g.valor,key:g.key})});
+ ev.sort((a,b)=>String(a.d).localeCompare(String(b.d))||String(a.ts).localeCompare(String(b.ts))||((a.deb?0:1)-(b.deb?0:1)));
+ let bal=0,pagoCiclo=0,devidoCiclo=0;const linhas=[];
+ ev.forEach(x=>{bal=r2(bal+(+x.deb||0)-(+x.cred||0));
+  if(x.k==='pag')pagoCiclo=r2(pagoCiclo+x.cred);else if(x.deb)devidoCiclo=r2(devidoCiclo+x.deb);else devidoCiclo=r2(devidoCiclo-x.cred);
+  linhas.push({...x,saldo:bal});
+  if(bal<=0.004){pagoCiclo=0;devidoCiclo=0}});
+ return{linhas,pagoCiclo,devidoCiclo,saldo:bal};
+}
+
+/* ---------- plano do pagamento: primeiro as contas mais antigas ---------- */
+function abertasDe(fid){const cta=contaDe(fid);
+ return [...cta.ents.filter(e=>e.saldo>0.004).map(e=>({tipo:'entrega',id:e.id,ref:e.ref,numero:e.numero,data:e.data,saldo:e.saldo})),
+  ...cta.tits.filter(x=>x.saldo>0.004).map(x=>({tipo:'titulo',id:x.id,ref:x.ref,numero:x.numero,data:x.data,saldo:x.saldo,desc:x.desc}))]
+  .sort((a,b)=>String(a.data).localeCompare(String(b.data))||(a.tipo==='entrega'?0:1)-(b.tipo==='entrega'?0:1)||(+a.numero||0)-(+b.numero||0))}
+function planejar(fid,valor){
+ const ab=abertasDe(fid);let rest=r2(valor);const plano=[];
+ for(const x of ab){if(rest<0.005)break;const q=r2(Math.min(rest,x.saldo));if(q<0.005)continue;plano.push({...x,valor:q,quita:q>=x.saldo-0.004});rest=r2(rest-q)}
+ return{plano,excedente:rest>=0.005?rest:0,saldo:r2(soma(ab,x=>x.saldo)),abertas:ab};
+}
+/* pagamento igual no mesmo dia (aqui ou em outra tela) ou feito há poucos minutos para o mesmo fornecedor */
+function parecidos(fid,valor,data){
+ const out=[];const v=r2(valor);const ag=Date.now();
+ DATA.fBaixaLenha.filter(b=>b.fornecedorId===fid&&b.situacao!=='Estornado').forEach(b=>{
+  const igual=b.data===data&&Math.abs(r2(b.valor)-v)<0.01;const recente=ag-Date.parse(b.criadoEm||0)<5*60000;
+  if(igual||recente)out.push(fMoeda(b.valor)+' em '+fData(b.data)+' · registrado por '+(b.porNome||nomeUsuario(b.criadoPor)||'—')+(b.criadoEm?' às '+fDataHora(b.criadoEm).slice(11):''))});
+ const cta=contaDe(fid);
+ cta.ents.forEach(e=>(e.c.pagamentos||[]).forEach(p=>{if(!p.estornado&&!p.baixaLenhaId&&!ehCombV62(p)&&p.data===data&&Math.abs(r2(p.valor)-v)<0.01)out.push(fMoeda(p.valor)+' em '+fData(p.data)+' na entrega nº '+fNumV(e.numero)+' · registrado por '+(nomeUsuario(p.por)||'—'))}));
+ return out;
+}
+
+/* ---------- gravação: cabeçalho primeiro, depois as parcelas (códigos fixos: repetir não duplica) ---------- */
+const PAGANDO=new Set();
+const obsPag=h=>[h.obs,'Pagamento pelo '+ORIG_PAG].filter(Boolean).join(' · ');
+const tituloAdt=h=>({id:h.tituloId,data:h.data,descricao:'Adiantamento a '+h.fornecedorNome+' (pago acima do saldo da lenha)',categoria:'Lenha',setorOrigem:'Setor da Lenha',
+ beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:h.fornecedorId,valor:r2(h.excedente),vencimento:h.data,condicaoT:'À vista (já pago)',formaPrevista:h.forma,contaId:h.contaId||'',
+ pagamentos:[{id:h.id+'-adl',data:h.data,valor:r2(h.excedente),forma:h.forma,contaId:h.contaId||'',...(h.semDinheiro?{semDinheiro:true}:{}),quitacao:true,motivoDif:'',obsDif:'',
+  obs:'Adiantamento · '+ORIG_PAG,baixaLenhaId:h.id,...(h.comprovante?{comprovante:h.comprovante}:{}),por:h.criadoPor||eu(),em:h.criadoEm||agoraIso()}],
+ adiantamentoLenha:{fornecedorId:h.fornecedorId,baixaId:h.id,justificativa:(h.justificativa||{}).texto||''},geradoAuto:true,
+ responsavelNome:typeof window.respPrincipalV48==='function'?window.respPrincipalV48('Financeiro'):'',obs:'Pago acima do saldo devido. Justificativa: '+((h.justificativa||{}).texto||'')});
+async function aplicarBaixa(h){
+ const faltas=[];
+ for(const x of h.plano||[]){
+  if(x.tipo==='entrega'){
+   const c=(DATA.compras||[]).find(k=>k.id===x.id);if(!c||cancV(c)){faltas.push({...x,motivo:'a entrega não foi encontrada ou foi cancelada'});continue}
+   const atual=atualOp(c);if((atual.pagamentos||[]).some(p=>p.id===x.pagId))continue;
+   const s=r2(finVenda(atual).saldo);const q=r2(Math.min(x.valor,s));
+   if(q<0.005){faltas.push({...x,motivo:'a entrega já estava paga'});continue}
+   const p={id:x.pagId,data:h.data,valor:q,forma:h.forma,...(h.contaId?{contaId:h.contaId}:{}),...(h.semDinheiro?{semDinheiro:true}:{}),obs:obsPag(h),baixaLenhaId:h.id,origemPag:ORIG_PAG,
+    ...(h.comprovante?{comprovante:h.comprovante}:{}),por:h.criadoPor||eu(),em:h.criadoEm||agoraIso()};
+   await salvarOpV(atual,{pagamentos:[...(atual.pagamentos||[]),p]},'registrou pagamento (Contas a pagar – Lenha)',
+    [{c:'Pagamento',de:'',para:fMoeda(q)+' · '+h.forma+' · '+fData(h.data)+(h.contaId?' · '+nomeConta(h.contaId):'')},{c:'Saldo a pagar',de:fMoeda(s),para:fMoeda(r2(s-q))}]);
+   if(q<x.valor-0.004)faltas.push({...x,valor:r2(x.valor-q),motivo:'a entrega tinha saldo menor'});
+  }else if(x.tipo==='titulo'){
+   const t=(DATA.fTitulos||[]).find(k=>k.id===x.id);if(!t||t.cancelado){faltas.push({...x,motivo:'o compromisso não foi encontrado ou foi cancelado'});continue}
+   if((t.pagamentos||[]).some(p=>p.id===x.pagId))continue;
+   const o=FS.obrigacoes().find(k=>k.ref==='t:'+t.id);const s=o?r2(o.s.saldo):0;const q=r2(Math.min(x.valor,s));
+   if(q<0.005){faltas.push({...x,motivo:'o compromisso já estava pago'});continue}
+   const p={id:x.pagId,data:h.data,valor:q,forma:h.forma,contaId:h.contaId||'',...(h.semDinheiro?{semDinheiro:true}:{}),quitacao:q>=s-0.004,motivoDif:'',obsDif:'',obs:obsPag(h),baixaLenhaId:h.id,
+    ...(h.comprovante?{comprovante:h.comprovante}:{}),por:h.criadoPor||eu(),em:h.criadoEm||agoraIso()};
+   await gravar('fTitulos',{...clone(t),pagamentos:[...(t.pagamentos||[]),p],alteradoEm:agoraIso(),alteradoPor:eu()},t);
+   await logV('fTitulos',t.id,'registrou pagamento (Contas a pagar – Lenha)',[{c:'Pagamento',de:'',para:fMoeda(q)+' · '+h.forma+' · '+fData(h.data)},{c:'Saldo',de:fMoeda(s),para:fMoeda(r2(s-q))}]);
+  }
+ }
+ if(r2(h.excedente)>0.004&&h.tituloId&&!(DATA.fTitulos||[]).some(t=>t.id===h.tituloId))await gravarRegistro('fTitulos',tituloAdt(h),null,true);
+ return faltas;
+}
+async function registrar(d){
+ if(!podePagar())throw erroMsg('Seu perfil não registra pagamentos no Financeiro.');
+ if(!d.fid||d.fid===SEM)throw erroMsg('Escolha o fornecedor.');
+ if(PAGANDO.has(d.fid))throw erroMsg('Já há um pagamento deste fornecedor sendo gravado. Aguarde terminar.');
+ PAGANDO.add(d.fid);
+ try{
+  const cta=contaDe(d.fid);const P=planejar(d.fid,d.valor);
+  if(P.excedente>0.004&&!(d.justificativa&&String(d.justificativa).trim().length>=5))throw erroMsg('O valor passa do saldo devido: confirme e escreva a justificativa.');
+  const id='bl'+novoId();const em=agoraIso();
+  const h={id,data:d.data,fornecedorId:d.fid,fornecedorNome:cta.nome,fornecedorDoc:cta.doc||'',valor:r2(d.valor),forma:d.forma,contaId:d.semDinheiro?'':(d.contaId||''),semDinheiro:!!d.semDinheiro,obs:String(d.obs||'').trim(),
+   ...(d.comprovante?{comprovante:d.comprovante}:{}),...(d.linkDrive?{linkDrive:d.linkDrive}:{}),
+   plano:P.plano.map(x=>({tipo:x.tipo,id:x.id,ref:x.ref,numero:x.numero||'',data:x.data,valor:x.valor,saldoAntes:x.saldo,quita:!!x.quita,pagId:id+'-'+x.id})),
+   excedente:r2(P.excedente),tituloId:P.excedente>0.004?'adl-'+id:'',...(P.excedente>0.004?{justificativa:{texto:String(d.justificativa).trim(),por:eu(),porNome:nomeEu(),em}}:{}),
+   ...(d.repeticao?{repeticaoConfirmada:d.repeticao}:{}),saldoAntes:P.saldo,saldoDepois:r2(Math.max(0,P.saldo-d.valor)),situacao:'Registrando',
+   porNome:nomeEu(),criadoEm:em,criadoPor:eu(),alteradoEm:em,alteradoPor:eu()};
+  await gravar('fBaixaLenha',h,null);   /* se falhar aqui, nada foi gravado */
+  let faltas=[];
+  try{faltas=await aplicarBaixa(h)}catch(e){e.cplIncompleto=h;throw e}
+  const at=BAIXA(id)||h;
+  try{await gravar('fBaixaLenha',{...clone(at),situacao:'Registrado',concluidoEm:agoraIso(),...(faltas.length?{faltas}:{}),alteradoEm:agoraIso(),alteradoPor:eu()},at)}catch(e){e.cplIncompleto=h;throw e}
+  await logV('fBaixaLenha',id,'registrou pagamento a fornecedor de lenha',[{c:'Fornecedor',de:'',para:cta.nome},{c:'Pagamento',de:'',para:fMoeda(h.valor)+' · '+h.forma+' · '+fData(h.data)+(h.contaId?' · '+nomeConta(h.contaId):'')},
+   {c:'Saldo do fornecedor',de:fMoeda(h.saldoAntes),para:fMoeda(h.saldoDepois)},...(h.excedente>0.004?[{c:'Adiantamento (crédito)',de:'',para:fMoeda(h.excedente)+' · '+h.justificativa.texto}]:[])]);
+  return {h,faltas};
+ }finally{PAGANDO.delete(d.fid)}
+}
+async function concluir(bid){
+ const h=BAIXA(bid);if(!h||h.situacao!=='Registrando')return;if(!podePagar()){toast('Seu perfil não registra pagamentos no Financeiro.','erro');return}
+ if(PAGANDO.has(h.fornecedorId)){toast('Aguarde: há um pagamento deste fornecedor sendo gravado.','erro');return}
+ PAGANDO.add(h.fornecedorId);
+ try{const faltas=await aplicarBaixa(h);const at=BAIXA(bid)||h;
+  await gravar('fBaixaLenha',{...clone(at),situacao:'Registrado',concluidoEm:agoraIso(),...(faltas.length?{faltas}:{}),alteradoEm:agoraIso(),alteradoPor:eu()},at);
+  await logV('fBaixaLenha',bid,'concluiu o registro do pagamento',faltas.map(x=>({c:'Não aplicado',de:fMoeda(x.valor),para:x.motivo})));
+  toast(faltas.length?'Registro concluído. '+fMoeda(soma(faltas,x=>x.valor))+' não foram aplicados (confira no histórico).':'Registro do pagamento concluído. Nada foi repetido.',faltas.length?'erro':'ok');renderTela()}
+ catch(e){toast('Ainda não foi possível concluir: '+msgDe(e)+'. Tente de novo: nada é repetido.','erro')}
+ finally{PAGANDO.delete(h.fornecedorId)}
+}
+async function estornar(bid,motivo){
+ if(!podePagar())throw erroMsg('Seu perfil não estorna pagamentos.');
+ const est={em:agoraIso(),por:eu(),porNome:nomeEu(),motivo,baixa:bid};let n=0;
+ for(const c of (DATA.compras||[]).filter(k=>(k.pagamentos||[]).some(p=>p.baixaLenhaId===bid&&!p.estornado))){
+  const atual=atualOp(c);const fa=finVenda(atual);const vs=(atual.pagamentos||[]).filter(p=>p.baixaLenhaId===bid&&!p.estornado);
+  const pgs=(atual.pagamentos||[]).map(p=>p.baixaLenhaId===bid&&!p.estornado?{...p,estornado:est}:p);
+  await salvarOpV(atual,{pagamentos:pgs},'estornou pagamento (Contas a pagar – Lenha)',[{c:'Valor estornado',de:fMoeda(soma(vs,p=>p.valor)),para:'estornado: '+motivo},{c:'Saldo',de:fMoeda(fa.saldo),para:fMoeda(r2(fa.saldo+soma(vs,p=>p.valor)))}]);n++}
+ for(const t of (DATA.fTitulos||[]).filter(k=>(k.pagamentos||[]).some(p=>p.baixaLenhaId===bid&&!p.estornado))){
+  const vs=(t.pagamentos||[]).filter(p=>p.baixaLenhaId===bid&&!p.estornado);const adt=ehAdt(t);
+  const nt={...clone(t),pagamentos:(t.pagamentos||[]).map(p=>p.baixaLenhaId===bid&&!p.estornado?{...p,estornado:est}:p),...(adt&&!t.cancelado?{cancelado:{em:est.em,por:est.por,motivo:'Estorno do pagamento de lenha: '+motivo}}:{}),alteradoEm:est.em,alteradoPor:eu()};
+  await gravar('fTitulos',nt,t);await logV('fTitulos',t.id,adt?'estornou o adiantamento (Contas a pagar – Lenha)':'estornou pagamento (Contas a pagar – Lenha)',[{c:'Valor estornado',de:fMoeda(soma(vs,p=>p.valor)),para:'estornado: '+motivo}]);n++}
+ const h=BAIXA(bid);
+ if(h&&h.situacao!=='Estornado')await gravar('fBaixaLenha',{...clone(h),situacao:'Estornado',estorno:est,alteradoEm:est.em,alteradoPor:eu()},h);
+ await logV('fBaixaLenha',bid,'estornou o pagamento',[{c:'Motivo',de:'',para:motivo}]);
+ return n;
+}
+/* agendar: a data programada vai para as contas em aberto do fornecedor (aparece em Pagamentos do dia e no Calendário) */
+async function agendar(fid,mud){
+ const ab=abertasDe(fid);let n=0;
+ for(const x of ab){
+  if(x.tipo==='entrega'){const ref='c:'+x.id;const id='m_'+String(ref).replace(/[^A-Za-z0-9_\-]/g,'_');const ant=(DATA.fMeta||[]).find(m=>m.id===id)||null;
+   const nv={...(ant?clone(ant):{id,ref,data:hoje(),criadoEm:agoraIso(),criadoPor:eu()}),...mud,alteradoEm:agoraIso(),alteradoPor:eu()};
+   await gravar('fMeta',nv,ant);await registrarLog('fMeta',id.slice(2),mud.dataPrevista?'programou pagamento (Contas a pagar – Lenha)':'retirou a programação (Contas a pagar – Lenha)',ant||{},nv,{dataPrevista:'Data programada',contaId:'Conta prevista',formaPrevista:'Forma prevista'});n++}
+  else{const t=(DATA.fTitulos||[]).find(k=>k.id===x.id);if(!t)continue;const nt={...clone(t),...mud,alteradoEm:agoraIso(),alteradoPor:eu()};
+   await gravar('fTitulos',nt,t);await registrarLog('fTitulos',t.id,'alterou',t,nt,{dataPrevista:'Data programada',contaId:'Conta prevista',formaPrevista:'Forma prevista'});n++}}
+ return n;
+}
+
+/* ---------- formas e contas ---------- */
+function formas(){const PERM_=window.PERMUTA_V48||'Milheiros (tijolos)';const base=typeof window.FORMAS_LENHA_V62==='function'?window.FORMAS_LENHA_V62(''):(window.FORMAS_F||FORMAS_V);
+ return base.filter(x=>x!==COMB()&&x!==PERM_)}
+const ULT={forma:'',conta:''};
+function formaPadrao(cta){const p=cta&&cta.pags.find(g=>g.forma&&g.situacao!=='Estornado');return ULT.forma||(p&&formas().includes(p.forma)?p.forma:'PIX')}
+function contaPadrao(cta,forma){if(semDin(forma))return '';const p=cta&&cta.pags.find(g=>g.conta);return ULT.conta||(p?p.conta:'')||(forma==='Dinheiro'&&(DATA.fContas||[]).some(c=>c.id===CAIXA)?CAIXA:'')}
+const fornecedoresLenha=()=>(DATA.fornecedores||[]).filter(f=>f.setor==='lenha'&&f.situacao!=='Inativo').sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+
+/* ================= janela PAGAR / DAR BAIXA ================= */
+function resumoContaHtml(cta){
+ const it=(l,v,cls)=>`<div${cls?' class="'+cls+'"':''}><span>${esc(l)}</span><b>${v}</b></div>`;
+ return `<div class="cpl-conta">${it('Entregas',esc(fMoeda(cta.bruto)))}${it('Abatimentos',esc(fMoeda(cta.abat)))}${it('Já pago',esc(fMoeda(cta.pago)))}${it('Saldo devido',esc(fMoeda(cta.saldo)),'tot')}</div>`+
+  (cta.credito>0.004?`<p class="ajuda" style="margin:-4px 0 10px">Crédito do fornecedor já descontado das próximas entregas: <b>${esc(fMoeda(cta.credito))}</b>${cta.credComb>0.004?' (combustível '+esc(fMoeda(cta.credComb))+')':''}.</p>`:'');
+}
+function abrirPagar(fid){
+ if(!podePagar()){toast('Seu perfil não registra pagamentos no Financeiro. Peça ao administrador ou ao responsável pelo Financeiro.','erro');return}
+ const escolher=!fid;let cta=fid?contaDe(fid):null;
+ if(fid===SEM){toast('Estas entregas estão sem fornecedor. Corrija o fornecedor da entrega no Setor da Lenha antes de pagar.','erro');return}
+ if(fid&&PAGANDO.has(fid)){toast('Aguarde: há um pagamento deste fornecedor sendo gravado.','erro');return}
+ const fsL=fornecedoresLenha();
+ const forma0=formaPadrao(cta);const conta0=contaPadrao(cta,forma0);
+ const corpo=`${escolher?campoM('cpFo','Fornecedor de lenha<i> *</i>',`<select id="cpFo"><option value="">Selecione…</option>${optH(fsL.map(f=>[f.id,nomeFornecedor(f)]),'')}</select>`,'Os fornecedores são os do Setor da Lenha.'):''}
+  <div id="cpRes">${cta?resumoContaHtml(cta):''}</div>
+  ${campoM('cpF','Forma de pagamento<i> *</i>',`<select id="cpF">${optH([...formas(),[F_COMB,'Combustível (vira crédito do fornecedor)']],forma0)}</select>`)}
+  <div class="aviso in" id="cpCombBox" hidden><div><b>Pagamento com combustível vira crédito sozinho.</b> O valor do combustível que o fornecedor recebe é descontado do que a cerâmica deve a ele (e o que passar fica de crédito para a próxima entrega). Lance o combustível:
+   <div class="inline" style="gap:8px;flex-wrap:wrap;margin-top:8px">${botoesComb(fid)}</div></div></div>
+  <div id="cpCampos"><div class="duas">${campoM('cpV','Valor pago<i> *</i>',`<input id="cpV" data-masc="moeda" inputmode="decimal" autocomplete="off" value="${esc(cta&&cta.saldo>0.004?fMoedaCampo(cta.saldo):'')}">`,'Pode ser parcial: o resto continua em aberto.')}
+  ${campoM('cpD','Data do pagamento<i> *</i>',`<input id="cpD" type="date" max="${hoje()}" value="${hoje()}">`)}
+  <div id="cpCw">${campoM('cpC','Conta de saída<i> *</i>',`<select id="cpC"><option value="">Selecione…</option>${optH(optsContas(),conta0)}</select>`,'Caixa ou banco de onde saiu o dinheiro.')}</div></div>
+  ${campoM('cpO','Observação (opcional)','<input id="cpO" maxlength="240" autocomplete="off">')}
+  ${campoM('cpA','Comprovante (opcional)',APP.assets?'<input id="cpA" type="file" accept="application/pdf,image/*">':'<input id="cpL" placeholder="Link do comprovante no Google Drive">',APP.assets?'Foto ou PDF do comprovante.':'Nesta sessão não dá para enviar arquivo; cole o link, se houver.')}
+  <div class="cpl-prev" id="cpPrev" aria-live="polite"></div>
+  <div class="aviso at" id="cpExc" hidden><div><b>O valor passa do saldo devido em <span id="cpExcV"></span>.</b> Esse valor fica como adiantamento (crédito) do fornecedor e desconta sozinho das próximas entregas dele.
+   <label class="cpl-chk"><input type="checkbox" id="cpExcOk"><span>Confirmo o pagamento acima do saldo devido.</span></label>
+   <div class="cmp" style="margin-top:8px"><label for="cpJ">Justificativa<i> *</i></label><textarea id="cpJ" rows="2" maxlength="300" placeholder="Ex.: adiantamento combinado para a próxima carga"></textarea></div></div></div>
+  <div class="aviso pe" id="cpDup" hidden><div><b>Atenção: pode ser pagamento repetido.</b><ul id="cpDupL" style="margin:6px 0 0;padding-left:18px"></ul>
+   <label class="cpl-chk"><input type="checkbox" id="cpDupOk"><span>Confirmo que é outro pagamento (não é repetição).</span></label></div></div></div>`;
+ const v=modalF(BTN_PAGAR+(cta?' · '+cta.nome:''),corpo,'Confirmar pagamento',async m=>{
+  const f2=escolher?valM(m,'cpFo'):fid;if(!f2){toast('Escolha o fornecedor.','erro');return false}
+  if(PAGANDO.has(f2)){toast('Aguarde: há um pagamento deste fornecedor sendo gravado.','erro');return false}
+  const val=r2(lerMoeda(valM(m,'cpV')));const data=valM(m,'cpD');const forma=valM(m,'cpF');
+  if(!(val>0)||!isFinite(val)){toast('Informe o valor pago (maior que zero).','erro');return false}
+  if(!data||!/^\d{4}-\d{2}-\d{2}$/.test(data)||data>hoje()){toast('Informe a data do pagamento (até hoje).','erro');return false}
+  if(!forma){toast('Escolha a forma de pagamento.','erro');return false}
+  if(forma===F_COMB){toast('Combustível: use um dos botões da janela para lançar o combustível. Ele vira crédito do fornecedor sozinho.','erro');return false}
+  const sd=semDin(forma);const conta=sd?'':valM(m,'cpC');if(!sd&&!conta){toast('Escolha a conta de saída (Caixa ou banco).','erro');return false}
+  const P=planejar(f2,val);
+  const antes=P.plano.find(x=>data<x.data);if(antes){toast('A data do pagamento ('+fData(data)+') é anterior à '+(antes.tipo==='entrega'?'entrega nº '+fNumV(antes.numero):'conta')+' ('+fData(antes.data)+'). Confira a data.','erro');return false}
+  let just='';
+  if(P.excedente>0.004){if(!$('#cpExcOk',m).checked){toast('O valor passa do saldo devido: marque a confirmação ou corrija o valor.','erro');$('#cpExc',m).hidden=false;return false}
+   just=valM(m,'cpJ').trim();if(just.length<5){toast('Escreva a justificativa do pagamento acima do saldo.','erro');$('#cpJ',m).focus();return false}}
+  const dup=parecidos(f2,val,data);let rep=null;
+  if(dup.length){if(!$('#cpDupOk',m).checked){toast('Parece um pagamento repetido: confira e marque a confirmação, se for outro pagamento.','erro');mostrarDup(m,dup);return false}rep={por:eu(),porNome:nomeEu(),em:agoraIso(),iguais:dup}}
+  let arq=null;const lk=String(valM(m,'cpL')||'').trim();
+  try{const fl=$('#cpA',m)&&$('#cpA',m).files[0];if(fl){toast('Enviando o comprovante…');arq=await H.subirComprovante(fl)}}
+  catch(e){toast(e&&e.code==='grande'?'Arquivo maior que 20 MB.':'Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}
+  ULT.forma=forma;ULT.conta=conta||ULT.conta;
+  let r;
+  try{r=await registrar({fid:f2,valor:val,data,forma,contaId:conta,semDinheiro:sd,obs:valM(m,'cpO'),comprovante:arq,linkDrive:lk,justificativa:just,repeticao:rep})}
+  catch(e){
+   if(e&&e.cplIncompleto){toast('O pagamento ficou com o registro incompleto ('+msgDe(e)+'). Abra o fornecedor e toque em “Concluir o registro”: nada será repetido.','erro');renderTela();return true}
+   toast('Pagamento não registrado: '+msgDe(e),'erro');return false}
+  const cd=contaDe(f2);
+  toast('Pagamento de '+fMoeda(val)+' registrado para '+cd.nome+'. '+(cd.saldo>0.004?'Saldo: '+fMoeda(cd.saldo)+' · '+cd.sit+'.':'Conta quitada.')+(r.h.excedente>0.004?' Adiantamento (crédito): '+fMoeda(r.h.excedente)+'.':''),'ok');
+  if(r.faltas.length)toast(fMoeda(soma(r.faltas,x=>x.valor))+' não foram aplicados porque a conta mudou enquanto você registrava. Confira no histórico.','erro');
+  barraFeito(r.h);renderTela();return true},{depois:mm=>{
+  const md=mm.querySelector('.modal');if(md)md.classList.add('cpl-modal');
+  const fAt=()=>escolher?valM(mm,'cpFo'):fid;
+  const prev=()=>prevPagar(mm,fAt());
+  ['cpV','cpD'].forEach(id=>{const x=$('#'+id,mm);if(x){x.addEventListener('input',prev);x.addEventListener('change',prev)}});
+  const fsel=$('#cpF',mm);const ajConta=()=>{const cb=fsel.value===F_COMB;$('#cpCampos',mm).hidden=cb;$('#cpCombBox',mm).hidden=!cb;const ok=mm.querySelector('[data-ok]');if(ok)ok.hidden=cb;
+   const w=$('#cpCw',mm);if(w)w.hidden=semDin(fsel.value);const sc=$('#cpC',mm);if(sc&&!sc.value&&fsel.value==='Dinheiro'&&(DATA.fContas||[]).some(c=>c.id===CAIXA))sc.value=CAIXA};
+  fsel.addEventListener('change',ajConta);ajConta();
+  mm.addEventListener('click',e=>{const b=e.target.closest('[data-cplcomb]');if(!b)return;const f3=escolher?valM(mm,'cpFo'):fid;if(!f3){toast('Escolha o fornecedor.','erro');return}mm.remove();lancarComb(b.dataset.cplcomb,f3)});
+  if(escolher){const s=$('#cpFo',mm);s.addEventListener('change',()=>{const id=s.value;cta=id?contaDe(id):null;$('#cpRes',mm).innerHTML=cta?resumoContaHtml(cta):'';
+   const iv=$('#cpV',mm);if(cta&&!iv.value&&cta.saldo>0.004)iv.value=fMoedaCampo(cta.saldo);prev()})}
+  prev()}});
+ return v;
+}
+/* combustível dado ao fornecedor = crédito: o lançamento é o de sempre (V117), aberto já com o fornecedor */
+const F_COMB='__comb';
+const podeBomba=()=>pode('consumos','e')&&(typeof liberadoV!=='function'||liberadoV('combustivel'))&&!!(window.CB_LENHA&&window.CB_LENHA.novoAbast);
+const podeMao=()=>pode('clComb','e');
+function botoesComb(fid){return (podeBomba()?`<button type="button" class="btn min" data-cplcomb="bomba">${ic('bomba')}Abasteceu na bomba da cerâmica</button>`:'')+(podeMao()?`<button type="button" class="btn min" data-cplcomb="mao">${ic('mais')}Combustível de fora da bomba (lançar à mão)</button>`:'')||'<span class="ajuda">Seu perfil não lança combustível: peça a quem lança no Setor de Combustível.</span>'}
+function lancarComb(onde,fid){
+ if(onde==='bomba'){if(!podeBomba()){toast('Seu perfil não lança abastecimentos no Setor de Combustível.','erro');return}window.CB_LENHA.novoAbast(fid);return}
+ if(!podeMao()){toast('Seu perfil não lança combustível de fornecedor.','erro');return}
+ PREFILL={mod:'clComb',dados:{fornecedorId:fid,data:hoje()}};SV='lenha';if(typeof marcarSetor==='function')marcarSetor('lenha');JBNAV.ir('#/clComb/novo')}
+function abrirComb(fid,btn){const it=[];
+ if(podeBomba())it.push({l:'Abasteceu na bomba da cerâmica',sub:'Setor de Combustível: baixa o estoque e desconta do fornecedor',fn:()=>lancarComb('bomba',fid)});
+ if(podeMao())it.push({l:'Combustível de fora da bomba',sub:'Lançar à mão no Setor da Lenha: só desconta do fornecedor',fn:()=>lancarComb('mao',fid)});
+ if(!it.length){toast('Seu perfil não lança combustível.','erro');return}abrirMenuMais(btn,it)}
+function mostrarDup(m,dup){const w=$('#cpDup',m);if(!w)return;w.hidden=!dup.length;$('#cpDupL',m).innerHTML=dup.map(x=>`<li>${esc(x)}</li>`).join('')}
+function prevPagar(m,fid){
+ const w=$('#cpPrev',m);if(!w)return;const val=r2(lerMoeda(valM(m,'cpV'))||0);
+ if(!fid){w.innerHTML='Escolha o fornecedor para ver o saldo e como o pagamento fica.';$('#cpExc',m).hidden=true;mostrarDup(m,[]);return}
+ if(!(val>0)){w.innerHTML='Informe o valor pago.';$('#cpExc',m).hidden=true;mostrarDup(m,[]);return}
+ const P=planejar(fid,val);const cta=contaDe(fid);const depois=r2(Math.max(0,P.saldo-val));
+ const li=P.plano.map(x=>`<li>${x.quita?'Quita':'Paga parte'} da ${esc(x.tipo==='entrega'?'entrega nº '+fNumV(x.numero)+' de '+fData(x.data):'conta '+(x.desc||'nº '+x.numero))}: <b>${esc(fMoeda(x.valor))}</b>${x.quita?'':' de '+esc(fMoeda(x.saldo))}</li>`).join('');
+ const fim=depois>0.004?`Depois deste pagamento fica <b>${esc(fMoeda(depois))}</b> em aberto · <b>Parcialmente pago</b>.`:P.excedente>0.004?`A conta fica <b>quitada</b> e sobra <b>${esc(fMoeda(P.excedente))}</b> de crédito (adiantamento).`:'A conta fica <b>quitada</b> · <b>Pago</b>.';
+ w.innerHTML=(P.plano.length?`O pagamento quita primeiro as entregas mais antigas:<ul>${li}</ul>`:(cta.saldo>0.004?'':'Este fornecedor não tem saldo em aberto agora.'))+`<span class="fim">${fim}</span>`;
+ $('#cpExc',m).hidden=!(P.excedente>0.004);const ev=$('#cpExcV',m);if(ev)ev.textContent=fMoeda(P.excedente);
+ mostrarDup(m,parecidos(fid,val,valM(m,'cpD')||hoje()));
+}
+function barraFeito(h){
+ document.querySelectorAll('.v56-outro').forEach(x=>x.remove());
+ const b=document.createElement('div');b.className='v56-outro';b.setAttribute('role','status');
+ b.innerHTML=`<span>Pagamento registrado.</span><button type="button" class="btn pri" data-o>${ic('doc')}Comprovante</button><button type="button" class="x" aria-label="Fechar">×</button>`;
+ document.body.appendChild(b);const t=setTimeout(()=>b.remove(),15000);
+ b.querySelector('.x').onclick=()=>{clearTimeout(t);b.remove()};
+ b.querySelector('[data-o]').onclick=()=>{clearTimeout(t);b.remove();const g=contaDe(h.fornecedorId).pags.find(x=>x.baixaId===h.id);if(g)verDoc(docBaixa(g,h.fornecedorId))};
+}
+
+/* ================= agendar / editar / cancelar agendamento ================= */
+function abrirAgendar(fid){
+ if(!pode('fpagar','e')){toast('Seu perfil não agenda pagamentos.','erro');return}
+ const cta=contaDe(fid);if(!(cta.saldo>0.004)){toast(cta.nome+' não tem saldo em aberto para agendar.','erro');return}
+ const tem=!!cta.prog;
+ const v=modalF((tem?'Editar agendamento · ':'Agendar pagamento · ')+cta.nome,`<p class="ajuda" style="margin:0 0 10px">Saldo devido: <b>${esc(fMoeda(cta.saldo))}</b> em ${cta.abertas} conta(s) em aberto. Agendar não marca como pago: o pagamento aparece em Pagamentos do dia e no Calendário na data escolhida.</p>
+  <div class="duas">${campoM('agD','Data agendada<i> *</i>',`<input id="agD" type="date" min="${hoje()}" value="${esc(cta.prog&&cta.prog>=hoje()?cta.prog:addDias(hoje(),1))}">`)}
+  ${campoM('agF','Forma prevista',`<select id="agF"><option value="">—</option>${optH(formas(),formaPadrao(cta))}</select>`)}
+  ${campoM('agC','Conta prevista',`<select id="agC"><option value="">—</option>${optH(optsContas(),contaPadrao(cta,formaPadrao(cta)))}</select>`)}</div>
+  ${tem?`<p class="ajuda" style="margin:4px 0 0">Agendado hoje para ${esc(fData(cta.prog))}. <button type="button" class="btn min" id="agX">Cancelar agendamento</button></p>`:''}`,tem?'Salvar alteração':'Agendar',async m=>{
+  const d=valM(m,'agD');if(!d||d<hoje()){toast('Escolha uma data de hoje em diante.','erro');return false}
+  try{const n=await agendar(fid,{dataPrevista:d,formaPrevista:valM(m,'agF'),contaId:valM(m,'agC')});toast('Pagamento de '+cta.nome+' agendado para '+fData(d)+' ('+n+' conta(s)).','ok');renderTela();return true}
+  catch(e){toast('Agendamento não salvo: '+msgDe(e),'erro');return false}},{depois:mm=>{const x=$('#agX',mm);if(x)x.onclick=async()=>{x.disabled=true;
+  try{const n=await agendar(fid,{dataPrevista:''});toast('Agendamento cancelado ('+n+' conta(s)). Nada foi pago nem apagado.','ok');mm.remove();renderTela()}catch(e){x.disabled=false;toast('Não foi possível cancelar: '+msgDe(e),'erro')}}}});
+ return v;
+}
+function abrirEstorno(fid,key){
+ if(!podePagar()){toast('Seu perfil não estorna pagamentos.','erro');return}
+ const g=contaDe(fid).pags.find(x=>x.key===key);if(!g||!g.baixaId)return;
+ modalF('Estornar o pagamento de '+fMoeda(g.valor)+'?',`<p class="ajuda" style="margin:0 0 10px">Use quando o pagamento foi registrado por engano ou o dinheiro voltou. Nada é apagado: as parcelas ficam marcadas como estornadas, com o motivo e quem estornou, e o valor volta para o saldo do fornecedor.${g.adiantamento>0.004?' O adiantamento de '+esc(fMoeda(g.adiantamento))+' também é cancelado.':''}</p>
+  ${campoM('esM','Motivo<i> *</i>','<input id="esM" maxlength="200">')}`,'Estornar',async m=>{
+  const mot=valM(m,'esM').trim();if(mot.length<4){toast('Informe o motivo do estorno.','erro');return false}
+  try{await estornar(g.baixaId,mot);toast('Pagamento estornado. O valor voltou para o saldo de '+contaDe(fid).nome+'.','ok');renderTela();return true}
+  catch(e){toast('Estorno não concluído: '+msgDe(e)+'. Tente de novo: o que já foi estornado não se repete.','erro');renderTela();return true}},{perigo:true});
+}
+
+/* ================= telas ================= */
+const UI={sit:'',q:'',aba:'extrato'};
+const CHIPS=[['','Todos'],['aberto','Em aberto'],['parcial','Parcialmente pagos'],['pago','Pagos'],['vencido','Vencidos'],['agendado','Agendados']];
+function passa(x,k){if(!k)return true;
+ if(k==='aberto')return x.saldo>0.004&&!x.parcial;if(k==='parcial')return x.saldo>0.004&&x.parcial;if(k==='pago')return x.saldo<=0.004;
+ if(k==='vencido')return x.vencido;if(k==='agendado')return x.saldo>0.004&&!!x.prog;return true}
+function telaRota(c){const r=lerRota();if(r.id)return telaForn(c,r.id);return telaContas(c)}
+function telaContas(c){
+ if(!podeVer()){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Fale com o administrador.</div>';return}
+ const todas=contas().filter(x=>x.ents.length||x.tits.length||x.pags.length||x.credito>0.004);
+ const q=normTxtL(UI.q);const L=todas.filter(x=>passa(x,UI.sit)&&(!q||normTxtL(x.nome+' '+x.doc).includes(q)));
+ const tot=k=>r2(soma(todas,x=>x[k]));const pend=todas.filter(x=>x.saldo>0.004);
+ const ed=podePagar();
+ c.innerHTML=cabF('chama','Contas a pagar – Lenha','Tudo o que a cerâmica deve a cada fornecedor de lenha: as entregas lançadas no Setor da Lenha, menos o combustível e os descontos já abatidos, menos o que já foi pago. O combustível que o fornecedor recebe vira crédito sozinho. Toque no fornecedor para ver o histórico.',
+  `<button type="button" class="btn" id="cplExp">${ic('baixar')}Exportar ▾</button>${ed?`<button type="button" class="btn" id="cplOutro">${ic('mais')}Pagar outro fornecedor</button>`:''}`)+
+  resumoF([[fMoeda(tot('devido')),'Total a pagar'],[fMoeda(tot('pago')),'Total já pago'],[fMoeda(tot('saldo')),'Total em aberto'],[String(pend.length),'Fornecedores pendentes'],...(tot('credito')>0.004?[[fMoeda(tot('credito')),'Créditos dos fornecedores']]:[])]).replace('class="resumo"','class="resumo cpl-res"')+
+  `<div class="fi-filtros"><input type="search" id="cplQ" placeholder="Localizar fornecedor" value="${esc(UI.q)}" aria-label="Localizar fornecedor" style="flex:1;min-width:180px"></div>
+  <div class="cpl-chips" role="group" aria-label="Situação">${CHIPS.map(([k,l])=>`<button type="button" class="btn min${UI.sit===k?' pri':''}" data-cplsit="${k}" aria-pressed="${UI.sit===k}">${esc(l)}<em>${todas.filter(x=>passa(x,k)).length}</em></button>`).join('')}</div>`+
+  (L.length?`<div class="painel tabwrap"><table class="tbl cartao cpl-tab"><thead><tr><th>Fornecedor</th><th class="num">Lenha recebida</th><th class="num">Entregas</th><th class="num">Abatimentos</th><th class="num">Pago</th><th>Última entrega</th><th class="num">Saldo</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+   ${L.map(x=>`<tr class="clic" data-go="#/${ROTA}/${esc(x.fid)}" tabindex="0">
+    <td data-l="Fornecedor"><b>${esc(x.nome)}</b><span class="cpl-sub">${esc([x.ents.length+' entrega(s)',x.abertas?x.abertas+' em aberto':'',x.doc].filter(Boolean).join(' · '))}</span></td>
+    <td data-l="Lenha recebida" class="num">${esc(txtUnid(x.qtd,true))}</td><td data-l="Entregas" class="num">${esc(fMoeda(x.bruto))}</td><td data-l="Abatimentos" class="num">${esc(fMoeda(x.abat))}</td>
+    <td data-l="Pago" class="num">${esc(fMoeda(x.pago))}</td><td data-l="Última entrega">${x.ult?esc(fData(x.ult)):'—'}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(x.saldo))}</b></td>
+    <td data-l="Situação">${tagsConta(x)}</td>
+    <td class="acs">${ed&&x.fid!==SEM?`<button type="button" class="btn min${x.saldo>0.004?' pri':''} cpl-btn-pagar" data-cplpagar="${esc(x.fid)}">${esc(BTN_PAGAR)}</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:
+   `<div class="vazio"><b>${todas.length?'Nenhum fornecedor neste filtro':'Nenhuma conta de lenha'}</b>${todas.length?'Mude o filtro para ver os demais.':'As contas aparecem aqui quando a lenha for lançada no Setor da Lenha.'}</div>`)+
+  `<p class="cpl-nota">Total a pagar = entregas − abatimentos (combustível e descontos de acerto). Compras importadas do controle antigo, já pagas antes do sistema, não entram. O pagamento registrado aqui aparece também na compra, no Setor da Lenha, em Contas a pagar, no Caixa e na Conciliação: é o mesmo registro.</p>`;
+ const qi=$('#cplQ',c);qi.oninput=e=>{UI.q=e.target.value;clearTimeout(telaContas.t);telaContas.t=setTimeout(()=>{renderTela();const i=$('#cplQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)};
+ $$('[data-cplsit]',c).forEach(b=>b.onclick=()=>{UI.sit=b.dataset.cplsit;renderTela()});
+ $$('tr[data-go]',c).forEach(tr=>{tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button'))return;JBNAV.ir(tr.dataset.go)};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)JBNAV.ir(tr.dataset.go)}});
+ $$('[data-cplpagar]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();abrirPagar(b.dataset.cplpagar)});
+ if($('#cplOutro',c))$('#cplOutro',c).onclick=()=>abrirPagar('');
+ $('#cplExp',c).onclick=()=>{const cols=[{k:'nome',l:'Fornecedor'},{k:'doc',l:'CPF/CNPJ'},{k:'qtd',l:'Lenha recebida'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},{k:'abat',l:'Abatimentos',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'credito',l:'Crédito',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}];
+  const rows=L.map(x=>({nome:x.nome,doc:x.doc,qtd:txtUnid(x.qtd,true),n:x.ents.length,bruto:x.bruto,abat:x.abat,pago:x.pago,saldo:x.saldo,credito:x.credito,ult:x.ult,sit:x.sit}));
+  const fx=f=>exportar(f,'Contas_a_pagar_lenha_'+hoje(),cols,rows,'Contas a pagar – Lenha');
+  abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:rows.length+' fornecedor(es)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+}
+const normTxtL=s=>semAcento(String(s||'')).toLowerCase().replace(/\s+/g,' ').trim();
+const ABAS_F=[['extrato','Extrato'],['entregas','Entregas'],['pagamentos','Pagamentos'],['abatimentos','Combustível e descontos']];
+function telaForn(c,fid){
+ if(!podeVer()){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Fale com o administrador.</div>';return}
+ const x=contaDe(fid);const ed=podePagar();
+ if(!x.ents.length&&!x.tits.length&&!x.pags.length&&!(x.credito>0.004)&&!x.f){c.innerHTML=`<div class="vazio"><b>Fornecedor não encontrado</b><div class="vazio-acoes"><a class="btn" href="#/${ROTA}">Contas a pagar – Lenha</a></div></div>`;return}
+ const n={extrato:x.extrato.length,entregas:x.ents.length+x.tits.length,pagamentos:x.pags.length,abatimentos:x.creds.length+x.ents.reduce((a,e)=>a+(e.c.abatimentos||[]).filter(y=>!y.estornado&&!String(y.srcId||'').startsWith('cb:')).length+(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).length,0)};
+ if(!ABAS_F.some(a=>a[0]===UI.aba))UI.aba='extrato';
+ c.innerHTML=cabF('chama',x.nome,esc([x.doc,x.tel,x.ents.length?x.ents.length+' entrega(s) desde '+fData(x.ents[0].data):''].filter(Boolean).join(' · ')||'Fornecedor de lenha'),
+  `<a class="btn" href="#/${ROTA}">${ic('esquerda')}Fornecedores</a><button type="button" class="btn" id="cfExt">${ic('doc')}Extrato ▾</button>${(podeBomba()||podeMao())&&fid!==SEM?`<button type="button" class="btn" id="cfComb">${ic('bomba')}Combustível ▾</button>`:''}${pode('fpagar','e')&&x.saldo>0.004?`<button type="button" class="btn" id="cfAg">${ic('calendario')}${x.prog?'Editar agendamento':'Agendar'}</button>`:''}${ed&&fid!==SEM?`<button type="button" class="btn pri" id="cfPag">${ic('moeda')}${esc(BTN_PAGAR)}</button>`:''}`)+
+  resumoF([[fMoeda(x.bruto),'Entregas'],[fMoeda(x.abat),'Abatimentos'],[fMoeda(x.pago),'Já pago'],[fMoeda(x.saldo),'Saldo pendente'],...(x.credito>0.004?[[fMoeda(x.credito),'Crédito do fornecedor']]:[])]).replace('class="resumo"','class="resumo cpl-res"')+
+  `<p style="margin:-4px 2px 12px">${tagsConta(x)}${x.prog?` <span class="ajuda">Agendado para ${esc(fData(x.prog))}.</span>`:''}</p>
+  <div class="cpl-chips" role="tablist" aria-label="Histórico">${ABAS_F.map(([k,l])=>`<button type="button" role="tab" class="btn min${UI.aba===k?' pri':''}" data-cplaba="${k}" aria-selected="${UI.aba===k}">${esc(l)}<em>${n[k]}</em></button>`).join('')}</div>
+  <div id="cfCorpo">${UI.aba==='entregas'?htmlEntregas(x):UI.aba==='pagamentos'?htmlPagamentos(x,ed):UI.aba==='abatimentos'?htmlAbat(x):htmlExtrato(x)}</div>`;
+ $$('[data-cplaba]',c).forEach(b=>b.onclick=()=>{UI.aba=b.dataset.cplaba;renderTela()});
+ if($('#cfPag',c))$('#cfPag',c).onclick=()=>abrirPagar(fid);
+ if($('#cfAg',c))$('#cfAg',c).onclick=()=>abrirAgendar(fid);
+ if($('#cfComb',c))$('#cfComb',c).onclick=()=>abrirComb(fid,$('#cfComb',c));
+ $('#cfExt',c).onclick=()=>{const fx=f=>f==='doc'?verDoc(docExtrato(fid)):exportar(f,'Extrato_lenha_'+nomeArq(x.nome)+'_'+hoje(),[{k:'data',l:'Data',t:'data'},{k:'txt',l:'Descrição'},{k:'deb',l:'Valor gerado',t:'moeda'},{k:'cred',l:'Abatido ou pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'}],x.extrato.map(l=>({data:l.d,txt:l.txt,deb:l.deb||'',cred:l.cred||'',saldo:l.saldo})),'Extrato de '+x.nome+' · lenha');
+  abrirMenuMais($('#cfExt',c),[{l:'Visualizar (documento)',fn:()=>fx('doc')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+ $$('tr[data-go]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a'))return;JBNAV.ir(tr.dataset.go)});
+ $$('[data-cplcomp]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const g=x.pags.find(p=>p.key===b.dataset.cplcomp);if(g)verDoc(docBaixa(g,fid))});
+ $$('[data-cplest]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();abrirEstorno(fid,b.dataset.cplest)});
+ $$('[data-cplconcl]',c).forEach(b=>b.onclick=async e=>{e.stopPropagation();b.disabled=true;await concluir(b.dataset.cplconcl);b.disabled=false});
+ if(typeof resolverNomes==='function')resolverNomes(x.pags.map(g=>g.por).filter(Boolean));
+}
+function htmlExtrato(x){
+ if(!x.extrato.length)return '<div class="vazio"><b>Sem movimento</b>Ainda não há entregas nem pagamentos deste fornecedor no sistema.</div>';
+ return `<div class="painel tabwrap"><table class="tbl cpl-ext" data-sem-total data-sem-ordem><thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor gerado</th><th class="num">Abatido ou pago</th><th class="num">Saldo</th></tr></thead><tbody>
+  ${x.extrato.map(l=>`<tr><td data-l="Data">${esc(fData(l.d))}</td><td data-l="Descrição">${l.href?`<a href="${esc(l.href)}">${esc(l.txt)}</a>`:esc(l.txt)}</td><td data-l="Valor gerado" class="num">${l.deb?esc(fMoeda(l.deb)):''}</td><td data-l="Abatido ou pago" class="num neg">${l.cred?'− '+esc(fMoeda(l.cred)):''}</td><td data-l="Saldo" class="num"><b>${esc(l.saldo<-0.004?fMoeda(-l.saldo)+' crédito':fMoeda(l.saldo))}</b></td></tr>`).join('')}
+  </tbody></table></div><p class="cpl-nota">Saldo depois de cada linha. Combustível e descontos de acerto abatem o que a cerâmica deve; saldo negativo é crédito do fornecedor, que desconta sozinho das próximas entregas.${x.hist.length?' Antes do sistema: '+x.hist.length+' entrega(s) importada(s) do controle antigo, já pagas ('+esc(fMoeda(soma(x.hist,c=>c.total)))+'), não entram nesta conta.':''}</p>`;
+}
+function htmlEntregas(x){
+ if(!x.ents.length&&!x.tits.length)return '<div class="vazio"><b>Nenhuma entrega no sistema</b>As entregas são lançadas no Setor da Lenha.</div>';
+ return (x.ents.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Entrega</th><th>Data</th><th class="num">Quantidade</th><th class="num">Valor por unidade</th><th class="num">Valor total</th><th class="num">Abatido</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th></tr></thead><tbody>
+  ${x.ents.slice().reverse().map(e=>`<tr class="clic" data-go="#/compra/${esc(e.id)}"><td data-l="Entrega"><b>Nº ${esc(fNumV(e.numero))}</b><span class="cpl-sub">${esc([e.classe,e.caminhao].filter(Boolean).join(' · ')||'Lenha')}</span></td><td data-l="Data">${esc(fData(e.data))}</td>
+   <td data-l="Quantidade" class="num">${esc(e.qtdTxt||'—')}</td><td data-l="Valor por unidade" class="num">${e.preco!=null?esc(fMoeda(e.preco)+(e.un?' / '+unCurta(e.un):'')):'vários'}</td><td data-l="Valor total" class="num">${esc(fMoeda(e.bruto))}</td>
+   <td data-l="Abatido" class="num">${e.abat?esc(fMoeda(e.abat)):'—'}</td><td data-l="Pago" class="num">${esc(fMoeda(r2(e.pago+e.adt)))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(e.saldo))}</b></td><td data-l="Situação">${tagSitU(sitEnt(e))}</td></tr>`).join('')}</tbody></table></div>`:'')+
+  (x.tits.length?`<h3 class="grupo-t">Outros valores da conta (acertos)</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Descrição</th><th>Data</th><th class="num">Valor</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th></tr></thead><tbody>
+   ${x.tits.map(t=>`<tr><td data-l="Descrição"><b>${esc(t.desc||'Compromisso')}</b><span class="cpl-sub">compromisso nº ${esc(t.numero||'—')}</span></td><td data-l="Data">${esc(fData(t.data))}</td><td data-l="Valor" class="num">${esc(fMoeda(t.bruto))}</td><td data-l="Pago" class="num">${esc(fMoeda(t.pago))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(t.saldo))}</b></td><td data-l="Situação">${tagSitU(t.saldo<=0.004?'Pago':t.vencido?'Vencido':t.pago>0.004?'Parcialmente pago':t.prog?'Agendado':'Pendente')}</td></tr>`).join('')}</tbody></table></div>`:'')+
+  '<p class="cpl-nota">Toque na entrega para abrir a compra no Setor da Lenha (só consulta daqui: os dados da entrega não mudam pelo Financeiro). “Pago” inclui adiantamento descontado.</p>';
+}
+const sitEnt=e=>e.saldo<=0.004?'Pago':e.status==='Vencido'?'Vencido':(e.pago+e.adt)>0.004||e.status==='Parcial'?'Parcialmente pago':e.prog?'Agendado':'Pendente';
+function htmlPagamentos(x,ed){
+ if(!x.pags.length)return `<div class="vazio"><b>Nenhum pagamento registrado</b>${ed?'Use o botão '+esc(BTN_PAGAR)+'.':''}</div>`;
+ const cor={Registrado:'ok','Estornado':'','Estornado em parte':'at','Registro incompleto':'pe'};
+ return `<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th class="num">Valor</th><th>Forma</th><th>Conta</th><th>Contas pagas</th><th>Registrado por</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+  ${x.pags.map(g=>`<tr class="${g.situacao==='Estornado'?'cpl-pg-est':''}"><td data-l="Data"><b>${esc(fData(g.data))}</b>${g.obs&&!/^Pagamento pelo /.test(g.obs)?`<span class="cpl-sub">${esc(g.obs.replace(/ · Pagamento pelo .*$/,''))}</span>`:''}</td>
+   <td data-l="Valor" class="num"><b>${esc(fMoeda(g.valor>0.004?g.valor:g.informado))}</b>${g.adiantamento>0.004?`<span class="cpl-sub">adiantamento ${esc(fMoeda(g.adiantamento))}</span>`:''}</td><td data-l="Forma">${esc(g.forma||'—')}</td><td data-l="Conta">${esc(g.conta?nomeConta(g.conta):g.semDinheiro?'sem dinheiro':'—')}</td>
+   <td data-l="Contas pagas">${esc(g.partes.map(rotParte).join(', ')||'—')}${g.hdr&&g.hdr.faltas&&g.hdr.faltas.length?`<span class="cpl-sub">não aplicado: ${esc(fMoeda(soma(g.hdr.faltas,y=>y.valor)))}</span>`:''}</td>
+   <td data-l="Registrado por">${esc(nomeUsuario(g.por)||'—')}${g.em?`<span class="cpl-sub">${esc(fDataHora(g.em))}</span>`:''}${g.doModulo?'':'<span class="cpl-sub">na compra</span>'}</td>
+   <td data-l="Situação">${tag(g.situacao,cor[g.situacao]??'')}${g.estorno?`<span class="cpl-sub">${esc((g.estorno.porNome||nomeUsuario(g.estorno.por)||'')+(g.estorno.em?' em '+fData(String(g.estorno.em).slice(0,10)):'')+': '+(g.estorno.motivo||''))}</span>`:''}${g.hdr&&g.hdr.justificativa?`<span class="cpl-sub">acima do saldo: ${esc(g.hdr.justificativa.texto)}</span>`:''}</td>
+   <td class="acs">${g.situacao==='Registro incompleto'&&ed?`<button type="button" class="btn min pri" data-cplconcl="${esc(g.baixaId)}">Concluir o registro</button>`:''}<button type="button" class="btn min" data-cplcomp="${esc(g.key)}">${ic('doc')}Comprovante</button>${ed&&g.doModulo&&g.valor>0.004&&g.situacao!=='Registro incompleto'?`<button type="button" class="btn min" data-cplest="${esc(g.key)}">Estornar</button>`:''}${!g.doModulo&&g.partes[0]&&g.partes[0].tipo==='entrega'?`<a class="btn min" href="#/compra/${esc(g.partes[0].id)}">Abrir a compra</a>`:''}</td></tr>`).join('')}</tbody></table></div>
+  <p class="cpl-nota">Pagamentos feitos aqui e os registrados direto na compra ou em Contas a pagar. Estorno não apaga: marca o pagamento, com o motivo, e devolve o valor ao saldo.</p>`;
+}
+function htmlAbat(x){
+ const L=[];
+ x.creds.forEach(cr=>{let s=null;try{s=window.CB_LENHA.sitCred(cr)}catch(e){}L.push({d:cr.data,orig:cr.man?'Combustível lançado à mão · '+cr.origem:'Combustível na bomba da cerâmica',q:cr.qtd?fQtd(cr.qtd)+' '+cr.un+(cr.prod?' de '+cr.prod:''):'—',v:cr.valor,sit:s?s.t:'Descontado',cls:s?s.cls:'ok'})});
+ x.ents.forEach(e=>{(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).forEach(p=>L.push({d:p.data,orig:'Pago com combustível (Setor de Combustível)',q:p.quantidade?fQtd(p.quantidade)+' '+(p.unidade||''):'—',v:r2(p.valor),sit:'Na entrega nº '+fNumV(e.numero),cls:'ok'}));
+  (e.c.abatimentos||[]).filter(a=>!a.estornado&&!String(a.srcId||'').startsWith('cb:')).forEach(a=>L.push({d:a.data,orig:'Desconto do acerto nº '+fNumV(a.acertoNumero)+(a.origem?' · '+a.origem:''),q:'—',v:r2(a.valor),sit:'Na entrega nº '+fNumV(e.numero),cls:'ok'}))});
+ L.sort((a,b)=>String(b.d).localeCompare(String(a.d)));
+ if(!L.length)return '<div class="vazio"><b>Nenhum abatimento</b>O combustível que o fornecedor recebe (Setor de Combustível ou lançado à mão no Setor da Lenha) e os descontos dos acertos aparecem aqui.</div>';
+ return `<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Origem</th><th class="num">Quantidade</th><th class="num">Valor</th><th>Situação</th></tr></thead><tbody>
+  ${L.map(y=>`<tr><td data-l="Data">${esc(fData(y.d))}</td><td data-l="Origem">${esc(y.orig)}</td><td data-l="Quantidade" class="num">${esc(y.q)}</td><td data-l="Valor" class="num"><b>${esc(fMoeda(y.v))}</b></td><td data-l="Situação">${tag(y.sit,y.cls||'ok')}</td></tr>`).join('')}</tbody></table></div>
+  <p class="cpl-nota">Combustível e descontos são lançados nos setores (Combustível e Lenha) e descontam sozinhos do que a cerâmica deve. Nada é lançado de novo aqui.</p>`;
+}
+
+/* ================= documentos: comprovante do pagamento e extrato do fornecedor ================= */
+function docBaixa(g,fid){
+ const e=CFG.empresa||{};const cta=contaDe(fid);const h=g.hdr||null;const quem=nomeUsuario(g.por)||(h&&h.porNome)||'';
+ const D=baseRel('COMPROVANTE DE PAGAMENTO','Fornecedor de lenha · '+cta.nome,[]);
+ D.setor=nomeSetorDoc('financeiro');D.classe='comprovante';D.numero='PL-'+String(g.baixaId||g.key).replace(/[^A-Za-z0-9]/g,'').slice(-6).toUpperCase();D.parteNome=cta.nome;
+ const valor=g.valor>0.004?g.valor:g.informado;
+ D.meta=[['Pago em',fData(g.data)],['Valor pago',fMoeda(valor)],['Situação',g.situacao]];
+ D.quadros=[{rot:'PAGADOR',campos:[['Razão social',e.razao||e.fantasia||'—',1],['CNPJ',e.cnpj||'—'],['Conta de saída',g.conta?nomeConta(g.conta):g.semDinheiro?'Sem saída de dinheiro':'—']]},
+  {rot:'FORNECEDOR DE LENHA',campos:[['Nome',cta.nome,1],['CPF/CNPJ',cta.doc||'—']]}];
+ D.blocos.push({tipo:'p',texto:(e.razao||e.fantasia||'A empresa')+' registrou em '+fData(g.data)+' o pagamento de '+fMoeda(valor)+(typeof extensoMoeda==='function'?' ('+extensoMoeda(valor)+')':'')+' a '+cta.nome+', referente à lenha entregue'+(g.forma?', pago por '+g.forma:'')+'.'});
+ D.blocos.push({tipo:'tabela',head:['Conta paga','Data','Valor'],dir:[2],body:g.partes.map(p=>[rotParte(p).replace(/^./,s=>s.toUpperCase())+(p.estornado?' (estornado)':''),fData(p.data||g.data),fMoeda(p.valor)]),foot:['Total pago','',fMoeda(g.valor)]});
+ if(h)D.blocos.push({tipo:'tabela',head:['Conta do fornecedor','Valor'],dir:[1],body:[['Saldo antes do pagamento',fMoeda(h.saldoAntes)],['Este pagamento',fMoeda(-h.valor)],['Saldo depois do pagamento',fMoeda(h.saldoDepois)],...(r2(h.excedente)>0.004?[['Adiantamento (crédito do fornecedor)',fMoeda(h.excedente)]]:[])]});
+ if(h&&h.justificativa)D.blocos.push({tipo:'aviso',texto:'Pagamento acima do saldo devido, confirmado por '+(h.justificativa.porNome||'')+'. Justificativa: '+h.justificativa.texto});
+ if(g.estorno)D.blocos.push({tipo:'aviso',texto:'PAGAMENTO ESTORNADO'+(g.estorno.em?' em '+fDataHora(g.estorno.em):'')+(g.estorno.porNome?' por '+g.estorno.porNome:'')+'. Motivo: '+(g.estorno.motivo||'')+'.'});
+ const obs=String(g.obs||'').replace(/ ?·? ?Pagamento pelo .*$/,'').trim();if(obs)D.blocos.push({tipo:'p',texto:'Observação: '+obs});
+ D.notaFinal='Comprovante interno do pagamento registrado no Financeiro. Não substitui o comprovante do banco.';
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(g.data||hoje())+'.';
+ D.assinaturas=[{nome:cta.nome,sub:'Recebedor (nome e assinatura)'},{nome:quem,sub:'Responsável pelo pagamento'}];
+ D.rodape='Comprovante de pagamento · '+cta.nome;D.arquivo='Pagamento_lenha_'+nomeArq(cta.nome)+'_'+String(g.data||'');
+ return D;
+}
+function docExtrato(fid){
+ const x=contaDe(fid);
+ const D=baseRel('EXTRATO DO FORNECEDOR DE LENHA',x.nome,[['Fornecedor',x.nome],['CPF/CNPJ',x.doc||'—'],['Emitido em',fData(hoje())]]);
+ D.setor=nomeSetorDoc('financeiro');D.parteNome=x.nome;D.numero='';
+ D.meta=[['Saldo pendente',fMoeda(x.saldo)],['Situação',x.sit]];
+ D.blocos.push({tipo:'indicadores',itens:[['Entregas',fMoeda(x.bruto)],['Abatimentos',fMoeda(x.abat)],['Já pago',fMoeda(x.pago),'ok'],['Saldo pendente',fMoeda(x.saldo),x.saldo>0.004?'at':'']]});
+ D.blocos.push({tipo:'tabela',head:['Data','Descrição','Valor gerado','Abatido ou pago','Saldo'],dir:[2,3,4],body:x.extrato.map(l=>[fData(l.d),l.txt,l.deb?fMoeda(l.deb):'',l.cred?fMoeda(-l.cred):'',l.saldo<-0.004?fMoeda(-l.saldo)+' crédito':fMoeda(l.saldo)])});
+ if(x.credito>0.004)D.blocos.push({tipo:'p',texto:'Crédito do fornecedor: '+fMoeda(x.credito)+' (desconta sozinho das próximas entregas).'});
+ D.notaFinal='Extrato interno da conta do fornecedor de lenha no Financeiro. Compras importadas do controle antigo, já pagas antes do sistema, não entram.';
+ D.rodape='Extrato do fornecedor de lenha · '+x.nome;D.arquivo='Extrato_lenha_'+nomeArq(x.nome)+'_'+hoje();
+ return D;
+}
+
+/* ================= ligações com o resto do sistema ================= */
+TELAS_V[ROTA]=el=>shellF(el,ROTA,telaRota);
+/* compra de lenha: mostra o adiantamento descontado (só leitura) */
+if(typeof detalheOpV==='function'){const d0=detalheOpV;detalheOpV=function(c,O,v){const r=d0.apply(this,arguments);
+ try{if(O.K!=='compra'||!v||!ehCL(v)||c.querySelector('.cpl-compra'))return r;const f=finVenda(v);if(!(f.adt>0.004))return r;
+  const w=document.createElement('div');w.className='bloco cpl-compra';w.style.marginTop='14px';
+  w.innerHTML=`<h3>Adiantamento do fornecedor${podeVer()?`<a href="#/${ROTA}/${esc(v.fornecedorId||SEM)}">Conta do fornecedor</a>`:''}</h3><p class="ajuda" style="margin:8px 17px 14px">Desta entrega, <b>${esc(fMoeda(f.adt))}</b> já estavam pagos por adiantamento registrado no Financeiro (pagamento acima do saldo). Falta <b>${esc(fMoeda(f.saldo))}</b>.</p>`;
+  (c.querySelector('main, .sv-corpo')||c).appendChild(w)}catch(e){console.warn('adiantamento na compra',e)}return r}}
+/* pesquisa do sistema (Ctrl K): a tela e a conta de cada fornecedor */
+if(typeof pqEntradas==='function'){const p0=pqEntradas;pqEntradas=function(){const E=p0.apply(this,arguments);
+ try{if(podeVer()){const N=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||'')).toLowerCase();
+  const t='Contas a pagar – Lenha',s='Financeiro · fornecedores de lenha, saldos, pagamentos e baixas';
+  E.push({g:'Telas',t,s,ic:'chama',k:N(t+' '+s+' lenha fornecedor pagar baixa saldo devido'),ir:()=>JBNAV.ir('#/'+ROTA),h:'#/'+ROTA,ix:E.length});
+  contas().filter(x=>x.fid!==SEM).forEach(x=>E.push({g:'Contas da lenha',t:x.nome,s:'Saldo '+fMoeda(x.saldo)+' · '+x.sit,ic:'chama',k:N(x.nome+' '+x.doc+' lenha conta saldo pagar'),ir:()=>JBNAV.ir('#/'+ROTA+'/'+x.fid),h:'#/'+ROTA+'/'+x.fid,ix:E.length}))}}catch(e){console.warn('pesquisa da lenha',e)}
+ return E}}
+/* PENDÊNCIAS: pagamento que ficou com o registro incompleto */
+if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;window.LEMBRETES_V61=function(){const L=l0.apply(this,arguments)||[];
+ try{DATA.fBaixaLenha.filter(b=>b.situacao==='Registrando'&&Date.now()-Date.parse(b.criadoEm||0)>90000&&!PAGANDO.has(b.fornecedorId)).forEach(b=>L.push({key:'cpl-'+b.id,mod:ROTA,setor:'Financeiro',prio:'alta',
+  titulo:'Pagamento de lenha com registro incompleto',det:(b.fornecedorNome||'')+' · '+fMoeda(b.valor)+' em '+fData(b.data)+'. Abra o fornecedor e toque em “Concluir o registro”.',rota:'#/'+ROTA+'/'+b.fornecedorId}))}catch(e){}
+ return L}}
+/* Relatórios do Financeiro */
+try{if(FS.RELS_F&&!FS.RELS_F.some(r=>r.id==='rf_lenha'))FS.RELS_F.push({id:'rf_lenha',n:'Contas a pagar da lenha por fornecedor',m:'frel',f:[],b:()=>({
+ cols:[{k:'nome',l:'Fornecedor'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},{k:'abat',l:'Abatimentos',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}],
+ rows:contas().map(x=>({nome:x.nome,n:x.ents.length,bruto:x.bruto,abat:x.abat,pago:x.pago,saldo:x.saldo,ult:x.ult,sit:x.sit})),total:true,
+ nota:'Saldo de cada fornecedor de lenha: entregas − combustível e descontos − pagamentos. Compras pagas antes do sistema não entram.'})})}catch(e){console.warn('relatório da lenha',e)}
+
+window.CPL_LENHA={lancarComb,contas,conta:contaDe,planejar,parecidos,registrar,concluir,estornar,agendar,abrirPagar,abrirAgendar,docBaixa,docExtrato,alocAdt,tagSitU,COR_SIT_U,ROTA,BTN_PAGAR};
 })();
 </script>
 </body>
