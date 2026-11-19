@@ -973,7 +973,8 @@ teste('inventario', 'programa (V139): fotos da conferência à vista e Estoque d
 });
 
 teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, saída marcando os produtos, cupom e relatórios sobre os mesmos dados', () => {
-  const app = ler('app/jb-gestao.html'), ci = ler('.github/workflows/verificar.yml');
+  /* a pasta .github não vai para a publicação da nuvem: lá esta conferência do CI é pulada */
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
   const i = app.indexOf('/* ================= Estoque / Produtos (V140'); assert.ok(i > 0, 'bloco do Estoque / Produtos');
   const bloco = app.slice(i, app.indexOf('/* ================= para os testes e para as telas ================= */\nwindow.ALMOX_V52={', i));
   const fn = (de, ate) => { const a = bloco.indexOf(de); assert.ok(a >= 0, 'não achei: ' + de); const b = bloco.indexOf(ate, a + de.length); assert.ok(b > a, 'não achei o fim: ' + ate); return bloco.slice(a, b); };
@@ -992,7 +993,7 @@ teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, s
   assert.ok(fn('async function excluirAjPr(a){', '/* ---------- cadastrar por foto').includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9"), 'excluir entrada não deixa saldo negativo');
   // cupom e relatórios: documentos de comprovante (ganham o cupom 80/58 mm) e de relatório
   assert.ok(bloco.includes("baseRel(ent?'COMPROVANTE DE ENTRADA NO ESTOQUE':'COMPROVANTE DE SAÍDA DO ESTOQUE'") && bloco.includes("baseRel('RELATÓRIO DE POSIÇÃO DO ESTOQUE'") && bloco.includes("baseRel('RELATÓRIO DE LANÇAMENTOS DO ESTOQUE'"), 'comprovantes e relatórios');
-  assert.ok(ci.includes('node scripts/testar-almox-produtos.mjs'), 'teste no navegador roda na conferência automática');
+  if (ci) assert.ok(ci.includes('node scripts/testar-almox-produtos.mjs'), 'teste no navegador roda na conferência automática');
 });
 
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
