@@ -41651,34 +41651,16 @@ function estEntrada(itemId){
    const r=conferirRegistro('almAjustes',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
    await gravarRegistro('almAjustes',st,null,true);const i=eItem(d.itemId);toast('Entrada registrada: '+eQt(d.qtd,i)+' de '+(i?i.nome:'material')+'.','ok')});
 }
+/* cadastro de material e de grupo: a MESMA tela de cadastro dos outros setores (pedido do dono, 19/11/2026) */
 function estMaterial(id,ini){
- const A=AX();if(!pode('almItens','e')){toast('Seu perfil não cadastra materiais.','erro');return}
- const ant=id?eItem(id):null;if(id&&!ant){toast('Material não encontrado.','erro');return}
- const TXT=['nome','categoria','grupoId','unidade','local','marca','refFab','especificacao'],NUM=['minimo','maximo','prazoRep','custoRef'];
- const fs=[{k:'nome',l:'Nome do material',req:1,larga:1,aj:'Comece pelo nome e depois a medida ou o tipo. Ex.: Rolamento 6205 2RS.'},{k:'categoria',l:'Categoria',t:'sel',req:1,ops:A.CAT_NOMES},{k:'grupoId',l:'Grupo',t:'sel',ops:A.optsGrupos()},
-  {k:'unidade',l:'Unidade',t:'sel',req:1,semVazio:1,ops:A.UNIDS},{k:'local',l:'Local de guarda',ph:'Ex.: prateleira B3'},{k:'marca',l:'Marca'},{k:'refFab',l:'Código do fabricante ou de barras'},{k:'especificacao',l:'Especificação',larga:1,ph:'Medidas, material, voltagem, aplicação'},
-  {k:'minimo',l:'Estoque mínimo',t:'num',aj:'Abaixo disso, o sistema avisa.'},{k:'maximo',l:'Estoque máximo',t:'num'},{k:'prazoRep',l:'Prazo de reposição (dias)',t:'num'},{k:'custoRef',l:'Custo de referência (R$)',t:'moeda',aj:'Vale enquanto o material não tem compra lançada.'}];
- if(ant)fs.push({k:'ativo',l:'Situação',t:'sel',semVazio:1,ops:[['1','Ativo'],['0','Inativo']],aj:'Inativo some das listas; o histórico continua.'});
- const v0=ant?{...ant,ativo:A.ativo(ant)?'1':'0'}:{unidade:'unidade',...(ini||{})};
- modal(ant?'Editar material':'Novo material',`<div class="inv-grade">${fs.map(f=>campoHtml(f,v0[f.k])).join('')}</div>${ant?'':'<p class="ajuda" style="margin:8px 0 0">O código é gerado pela categoria. O saldo começa em zero: depois lance a entrada ou faça a contagem.</p>'}`,'Salvar',async v=>{
-   const d=lerForm(v,fs);if(!d)return false;
-   const st=ant?clone(ant):{...MODS.almItens.padrao(),id:novoId()};TXT.forEach(k=>{st[k]=eVazio(d[k])});NUM.forEach(k=>{st[k]=eVazio(d[k])});if(ant)st.ativo=d.ativo!=='0';
-   const r=conferirRegistro('almItens',st);const er=Object.entries(r.erros);
-   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=eMat(m)});toast(eMat(er[0][1]),'erro');return false}
-   const rec=await gravarRegistro('almItens',st,ant?clone(ant):null,!ant);toast(ant?'Material atualizado.':'Material '+(rec.codigo||'')+' cadastrado.','ok')},
-  {depois:v=>{const g=v.querySelector('[name=grupoId]'),ct=v.querySelector('[name=categoria]'),lc=v.querySelector('[name=local]');g.onchange=()=>{const x=A.GRUPO(g.value);if(x){ct.value=x.categoria;if(!lc.value&&x.local)lc.value=x.local}}}});
+ if(!pode('almItens','e')){toast('Seu perfil não cadastra materiais.','erro');return}
+ if(id){if(!eItem(id)){toast('Material não encontrado.','erro');return}JBNAV.ir('#/almItens/'+encodeURIComponent(id));return}
+ PREFILL={mod:'almItens',dados:Object.assign({},ini||{})};JBNAV.ir('#/almItens/novo');
 }
 function estGrupo(id){
- const A=AX();if(!pode('almGrupos','e')){toast('Seu perfil não cadastra grupos.','erro');return}
- const ant=id?A.GRUPO(id):null;if(id&&!ant){toast('Grupo não encontrado.','erro');return}
- const fs=[{k:'nome',l:'Nome do grupo',req:1,larga:1,aj:'No plural e sem medida. Ex.: Rolamentos; Parafusos e porcas; Luvas.'},{k:'categoria',l:'Categoria',t:'sel',req:1,ops:A.CAT_NOMES},{k:'local',l:'Local de guarda padrão',ph:'Os materiais novos já vêm com este local'}];
- if(ant)fs.push({k:'ativo',l:'Situação',t:'sel',semVazio:1,ops:[['1','Ativo'],['0','Inativo']]});
- modal(ant?'Editar grupo':'Novo grupo',`<div class="inv-grade">${fs.map(f=>campoHtml(f,ant?(f.k==='ativo'?(A.ativo(ant)?'1':'0'):ant[f.k]):null)).join('')}</div>`,'Salvar',async v=>{
-   const d=lerForm(v,fs);if(!d)return false;
-   const st=ant?clone(ant):{...MODS.almGrupos.padrao(),id:novoId()};st.nome=d.nome;st.categoria=d.categoria;st.local=eVazio(d.local);if(ant)st.ativo=d.ativo!=='0';
-   const r=conferirRegistro('almGrupos',st);const er=Object.entries(r.erros);
-   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=m});toast(er[0][1],'erro');return false}
-   await gravarRegistro('almGrupos',st,ant?clone(ant):null,!ant);toast(ant?'Grupo atualizado.':'Grupo cadastrado. Agora coloque os materiais dentro dele.','ok')});
+ if(!pode('almGrupos','e')){toast('Seu perfil não cadastra grupos.','erro');return}
+ if(id){JBNAV.ir('#/almGrupos/'+encodeURIComponent(id));return}
+ JBNAV.ir('#/almGrupos/novo');
 }
 
 /* ----- contagem (inventário do estoque) ----- */
