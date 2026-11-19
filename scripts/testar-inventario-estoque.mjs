@@ -182,6 +182,7 @@ try {
   await page.click(`#lst [data-i="${ID.i1}"]`);
   await page.waitForSelector('.veu #ftI:not([hidden]) [data-vf]', { timeout: 10000 });
   ok(await page.locator('.veu #ftIg [data-vf]').count() === 2, 'a janela "Registrar" mostra as fotos que o bem já tem');
+  ok(await page.evaluate(() => { const j = document.querySelector('.veu .inv-jan'), g = document.querySelector('.veu #ftIg'); return !!j && getComputedStyle(j).overflowY === 'auto' && getComputedStyle(g).overflowY === 'auto' && j.getBoundingClientRect().bottom <= innerHeight; }), 'a janela rola e cabe na tela: os botões não somem com muitas fotos');
   await t.fechaJanela();
   // registrar o bem pendente com uma foto nova
   await page.click('#ab [data-f="Pendente"]');
@@ -238,6 +239,10 @@ try {
   // saída maior que o saldo é recusada
   await page.waitForTimeout(800);
   await page.click('#eSai'); await t.janela('[name=qtd]');
+  await page.selectOption('.veu [name=itemId]', it.a); await page.fill('.veu [name=qtd]', '1.000'); await page.fill('.veu [name=setor]', 'Fornos');
+  await t.okJanela(); await page.waitForTimeout(500);
+  ok((await t.toasts()).some((x) => /Para mil, digite 1000/.test(x)) && await page.evaluate(() => DATA.almSaidas.length) === 1, '"1.000" não é aceito em silêncio (podia ser mil ou um): pede para digitar sem ponto');
+  await page.waitForTimeout(800);
   await page.selectOption('.veu [name=itemId]', it.a); await page.fill('.veu [name=qtd]', '99'); await page.fill('.veu [name=setor]', 'Fornos');
   await t.okJanela(); await page.waitForTimeout(700);
   ok((await t.toasts()).some((x) => /Estoque insuficiente/.test(x)) && await page.evaluate(() => DATA.almSaidas.length) === 1 && await page.locator('.veu [name=qtd]').count() === 1, 'saída maior que o saldo é recusada e nada é gravado');
@@ -248,16 +253,21 @@ try {
   await t.okJanela();
   await page.waitForFunction(() => ALMOX_V52.estI(window.__it.b).saldo === 5, null, { timeout: 15000 });
   ok(await page.evaluate(() => DATA.almAjustes.some((a) => a.itemId === window.__it.b && a.tipo === 'entrada' && a.qtd === 5 && a.motivo === 'Saldo inicial')), 'entrada sem compra entra como ajuste com o motivo e soma no saldo');
+  await page.waitForFunction(() => /Entradas em \S+\s*R\$\s?500,00\s*2 lançamento/.test(document.querySelector('#ekp').innerText), null, { timeout: 10000 });
+  ok(true, 'o indicador "Entradas em <mês>" conta as entradas sem compra (2 lançamentos, R$ 500,00)');
   // material novo
   await page.click('#eNovo'); await t.janela('[name=nome]');
   await page.fill('.veu [name=nome]', 'Rolamento de teste 6205'); await page.selectOption('.veu [name=categoria]', 'Peças e manutenção');
   await t.okJanela(); await page.waitForTimeout(600);
-  ok(/Já existe este item/.test(await page.textContent('.veu [data-e="nome"]')) && await page.evaluate(() => DATA.almItens.length) === 2, 'material com nome repetido é recusado (mesma regra do almoxarifado)');
+  ok(/Já existe este material/.test(await page.textContent('.veu [data-e="nome"]')) && await page.evaluate(() => DATA.almItens.length) === 2, 'material com nome repetido é recusado (mesma regra do almoxarifado)');
   await page.fill('.veu [name=nome]', 'Lâmpada de teste LED 9W'); await page.selectOption('.veu [name=categoria]', 'Elétrico'); await page.fill('.veu [name=minimo]', '4');
   await page.waitForTimeout(800); await t.okJanela();
   await page.waitForFunction(() => DATA.almItens.length === 3, null, { timeout: 15000 });
   ok(await page.evaluate(() => { const i = DATA.almItens.find((x) => x.nome === 'Lâmpada de teste LED 9W'); return i && i.codigo === 'ELE-001' && i.minimo === 4 && i.ativo === true; }), 'material novo é cadastrado com o código da categoria (ELE-001)');
   await page.waitForFunction(() => /Lâmpada de teste LED 9W/.test(document.querySelector('#elst').innerText), null, { timeout: 10000 });
+  await page.waitForTimeout(800); await page.click('#eVar'); await page.waitForSelector('.veu #nvT', { timeout: 10000 });
+  ok(/Cadastrar vários materiais/.test(await page.locator('.veu').last().textContent()) && !/em Itens/.test(await page.locator('.veu').last().textContent()), '"Vários de uma vez" fala em materiais (e não manda para a tela Itens do almoxarifado)');
+  await t.fechaJanela();
   // grupo
   await page.click('#eab [data-a="grupos"]'); await page.click('#egN'); await t.janela('[name=nome]');
   await page.fill('.veu [name=nome]', 'Rolamentos'); await page.selectOption('.veu [name=categoria]', 'Peças e manutenção');
@@ -277,33 +287,76 @@ try {
   await t.ir('#/inventario/estoque', '#inv-raiz #eab');
   await page.click('#eab [data-a="mov"]'); await page.waitForSelector('#eqm');
   tx = await page.textContent('#elst');
-  ok(/−3 un/.test(tx) && /\+10 un/.test(tx) && /\+5 un/.test(tx), 'aba "Entradas e saídas" lista os lançamentos');
+  ok(/−3 un/.test(tx) && /\+10 un/.test(tx) && /\+5 un/.test(tx) && /Entrada sem compra/.test(tx), 'aba "Entradas e saídas" lista os lançamentos, com a entrada sem compra pelo nome');
+  await page.selectOption('#etm', 'Entrada'); await page.waitForTimeout(300);
+  tx = await page.textContent('#elst');
+  ok(/\+10 un/.test(tx) && /\+5 un/.test(tx) && !/−3 un/.test(tx), 'o filtro "Entrada" mostra as entradas sem compra');
+  await page.selectOption('#etm', '');
   // contagem
   await page.click('#eab [data-a="cont"]'); await page.click('#ecN'); await t.janela('[name=responsavel]');
   await t.okJanela();
   await page.waitForSelector(`#clst [data-cq="${it.a}"]`, { timeout: 15000 });
   ok(/#\/inventario\/estoque\/contagem\//.test(await page.evaluate(() => location.hash)), 'a contagem abre dentro do Centro de Inventário');
+  const idC = await page.evaluate(() => DATA.almItens.find((x) => x.nome === 'Lâmpada de teste LED 9W').id);
+  const ct = () => page.evaluate(() => DATA.almInventarios[0].contagens || {});
   await page.fill(`#clst [data-cq="${it.a}"]`, '6');
-  await page.waitForFunction(() => { const v = DATA.almInventarios[0]; return v && v.contagens && v.contagens[window.__it.a] === 6; }, null, { timeout: 15000 });
+  await page.waitForFunction(() => (DATA.almInventarios[0].contagens || {})[window.__it.a] === 6, null, { timeout: 15000 });
   ok(true, 'o que é digitado na contagem fica guardado sozinho');
+  // outro aparelho (ou a tela do almoxarifado) conta a correia: aparece aqui e não é apagada pelo que se digita depois
+  await page.evaluate(async () => { const v = DATA.almInventarios[0]; await gravar('almInventarios', { ...clone(v), contagens: { ...(v.contagens || {}), [window.__it.b]: 9 } }, v); });
+  await page.waitForFunction((b) => { const i = document.querySelector(`#clst [data-cq="${b}"]`); return i && i.value === '9'; }, it.b, { timeout: 15000 });
+  await page.fill(`#clst [data-cq="${idC}"]`, '4');
+  await page.waitForFunction((c) => (DATA.almInventarios[0].contagens || {})[c] === 4, idC, { timeout: 15000 });
+  let cs = await ct();
+  ok(cs[it.a] === 6 && cs[it.b] === 9 && cs[idC] === 4, 'contagem feita em outro aparelho aparece na tela e não é apagada: ' + JSON.stringify(Object.values(cs)));
+  // apagar o número digitado apaga de verdade (o banco junta campo a campo: tem de ir como vazio explícito)
+  await page.fill(`#clst [data-cq="${idC}"]`, '');
+  await page.waitForFunction((c) => (DATA.almInventarios[0].contagens || {})[c] === null, idC, { timeout: 15000 });
+  ok(true, 'apagar a contagem de um material apaga também no banco (não volta depois)');
+  // sem conexão: um aviso só, o digitado fica na tela e é guardado quando a conexão volta
+  await page.evaluate(() => { window.__salvar = ALMOX_V52.contagem.salvar; window.__tent = 0; ALMOX_V52.contagem.salvar = async () => { window.__tent++; throw new Error('sem conexão (teste)'); }; });
+  await page.fill(`#clst [data-cq="${idC}"]`, '2');
+  await page.waitForFunction(() => window.__tent >= 1, null, { timeout: 10000 }); await page.waitForTimeout(1800);
+  const avisos = (await t.toasts()).filter((x) => /ainda não foi guardada/.test(x)).length;
+  ok(avisos === 1 && await page.evaluate(() => window.__tent) === 1 && /Sem conexão/.test(await page.textContent('#cSt')), 'falha ao guardar: um aviso só e nada de insistir sem parar (tentativas: ' + await page.evaluate(() => window.__tent) + ')');
+  await page.evaluate(() => { ALMOX_V52.contagem.salvar = window.__salvar; });
+  await page.waitForFunction((c) => (DATA.almInventarios[0].contagens || {})[c] === 2, idC, { timeout: 20000 });
+  ok(true, 'quando a conexão volta, o que ficou na tela é guardado sozinho');
+  await page.fill(`#clst [data-cq="${idC}"]`, '');
+  await page.waitForFunction((c) => (DATA.almInventarios[0].contagens || {})[c] === null, idC, { timeout: 15000 });
   await page.evaluate(() => document.activeElement && document.activeElement.blur());
   await t.foto('06-contagem');
+  // celular: o nome do material não pode ficar espremido
+  await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(400);
+  const larg = await page.evaluate(() => Math.min(...[...document.querySelectorAll('#clst .inv-cnt .tx')].map((e) => e.getBoundingClientRect().width)));
+  ok(larg >= 200, 'no celular (360 px) o nome do material ocupa a linha na contagem (' + Math.round(larg) + ' px)');
+  await t.foto('07-contagem-celular');
+  await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(400);
   await page.click('#cFim');
   await page.waitForFunction(() => /Fechar a contagem\?/.test(document.body.innerText), null, { timeout: 10000 });
   const conf = await page.evaluate(() => document.body.innerText);
-  ok(/2 (materiais|material\(is\)) ficaram sem contagem/.test(conf) && /1 (material|material\(is\)) com diferença/.test(conf), 'ao fechar, avisa dos materiais sem contagem e das diferenças');
+  ok(/1 (material|material\(is\)) (ficou|ficaram) sem contagem/.test(conf) && /2 (materiais|material\(is\)) com diferença/.test(conf), 'ao fechar, avisa do material sem contagem e das 2 diferenças (uma delas contada em outro aparelho)');
   await t.confirma();
-  await page.waitForFunction(() => DATA.almInventarios[0].status === 'fechado' && ALMOX_V52.estI(window.__it.a).saldo === 6, null, { timeout: 20000 });
-  const aj = await page.evaluate(() => DATA.almAjustes.filter((a) => a.inventarioId).map((a) => ({ tipo: a.tipo, qtd: a.qtd, item: a.itemId === window.__it.a })));
-  ok(aj.length === 1 && aj[0].tipo === 'saida' && aj[0].qtd === 1 && aj[0].item, 'fechar a contagem lança o ajuste da diferença e acerta o saldo (7 → 6)');
+  await page.waitForFunction(() => DATA.almInventarios[0].status === 'fechado' && ALMOX_V52.estI(window.__it.a).saldo === 6 && ALMOX_V52.estI(window.__it.b).saldo === 9, null, { timeout: 20000 });
+  const aj = await page.evaluate(() => DATA.almAjustes.filter((a) => a.inventarioId).map((a) => (a.itemId === window.__it.a ? 'a' : a.itemId === window.__it.b ? 'b' : '?') + ':' + a.tipo + ':' + a.qtd).sort());
+  const res = await page.evaluate(() => DATA.almInventarios[0].resultado);
+  ok(aj.join() === 'a:saida:1,b:entrada:4' && res.ajustes === 2 && res.itens === 2, 'fechar a contagem lança os dois ajustes e acerta os saldos (7 → 6 e 5 → 9): ' + aj.join() + ' · contados ' + res.itens);
   await page.waitForFunction(() => /Fechada/.test(document.querySelector('#inv-raiz').innerText) && !document.querySelector('#cFim'), null, { timeout: 10000 });
-  ok(true, 'contagem fechada fica travada');
+  ok(/Materiais contados\s*2/.test(await t.texto()), 'contagem fechada fica travada e diz 2 materiais contados (o apagado não conta)');
+  await t.ir('#/inventario/estoque', '#inv-raiz #elst .inv-c');
+  await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(400);
+  const larg2 = await page.evaluate(() => Math.min(...[...document.querySelectorAll('#elst .inv-c .tx')].map((e) => e.getBoundingClientRect().width)));
+  ok(larg2 >= 200 && await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no celular o nome do material ocupa a linha no saldo e nada estoura a largura (' + Math.round(larg2) + ' px)');
+  await t.foto('08-estoque-celular');
+  await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(300);
   // visão geral e o mesmo dado no Almoxarifado
   await t.ir('#/inventario', '#inv-raiz .inv-kpis');
   tx = await t.texto();
   ok(/Estoque de materiais/.test(tx) && /Total de bens cadastrados/.test(tx), 'Visão geral ganhou o indicador do estoque, sem perder os do patrimônio');
   await page.evaluate(() => JBNAV.ir('#/almEstoque')); await page.waitForSelector('#aeQ', { timeout: 15000 });
   ok(/Rolamento de teste 6205/.test(await page.textContent('#svCorpo')) && await page.evaluate(() => ALMOX_V52.estI(window.__it.a).saldo) === 6, 'o Setor do Almoxarifado mostra os mesmos materiais e o mesmo saldo (um estoque só)');
+  await page.evaluate(() => JBNAV.ir('#/almInventarios')); await page.waitForSelector('#ivNovo', { timeout: 15000 });
+  ok(/Fechado\s+2\s+2\s/.test(await page.evaluate(() => document.querySelector('#svCorpo').innerText)), 'a contagem fechada pelo Centro aparece fechada no inventário do almoxarifado, com 2 itens contados e 2 diferenças');
   await page.waitForFunction(() => APP.central.estado().pendentes === 0, null, { timeout: 15000 }).catch(() => {});
   ok(!erros.length, 'sem erro de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
   await ctx.close();

@@ -21019,26 +21019,27 @@ MODS.almGrupos={titulo:'Grupos de materiais',sing:'grupo',ic:'caixa',
 function novoItemGrupo(id){if(!pode('almItens','e')){toast('Seu perfil não cadastra itens.','erro');return}
  PREFILL={mod:'almItens',dados:{grupoId:id}};if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almItens/novo')}
 /* cadastro de vários itens de uma vez: um nome por linha, mesma categoria, grupo e unidade */
-function modalVariosItens(grupoId){
- if(!pode('almItens','e')){toast('Seu perfil não cadastra itens.','erro');return}
+function modalVariosItens(grupoId,mat){
+ const W=mat?{um:'material',pl:'materiais',onde:'na ficha de cada material'}:{um:'item',pl:'itens',onde:'em Itens'};
+ if(!pode('almItens','e')){toast('Seu perfil não cadastra '+W.pl+'.','erro');return}
  const g0=GRUPO(grupoId);const gs=DATA.almGrupos.filter(ativo).sort((a,b)=>String(a.categoria+a.nome).localeCompare(String(b.categoria+b.nome),'pt-BR'));
  if(typeof fecharGaveta==='function'&&document.querySelector('#camada .gaveta'))fecharGaveta();
- H.modalF('Cadastrar vários itens',`<p class="ajuda" style="margin:0 0 10px">Escreva um item por linha, começando pelo nome e depois a medida ou o tipo. Todos entram com a mesma categoria, grupo e unidade, e o código sai em sequência. Depois dá para completar cada um em Itens.</p>
+ H.modalF('Cadastrar vários '+W.pl,`<p class="ajuda" style="margin:0 0 10px">Escreva um ${W.um} por linha, começando pelo nome e depois a medida ou o tipo. Todos entram com a mesma categoria, grupo e unidade, e o código sai em sequência. Depois dá para completar cada um ${W.onde}.</p>
   <div class="duas">${H.campoM('nvG','Grupo',`<select id="nvG"><option value="">Sem grupo</option>${gs.map(g=>`<option value="${esc(g.id)}" data-cat="${esc(g.categoria)}" data-loc="${esc(g.local||'')}" ${g0&&g.id===g0.id?'selected':''}>${esc(g.categoria+' › '+g.nome)}</option>`).join('')}</select>`)}${H.campoM('nvC','Categoria<i> *</i>',`<select id="nvC"><option value="">Selecione…</option>${optH(CAT_NOMES,g0?g0.categoria:'')}</select>`)}</div>
   <div class="duas">${H.campoM('nvU','Unidade<i> *</i>',`<select id="nvU">${optH(UNIDS,'unidade')}</select>`)}${H.campoM('nvL','Local de guarda',`<input id="nvL" value="${esc(g0&&g0.local||'')}" autocomplete="off">`)}</div>
-  ${H.campoM('nvT','Itens, um por linha<i> *</i>',`<textarea id="nvT" rows="9" placeholder="Rolamento 6205 2RS&#10;Rolamento 6206 2RS&#10;Rolamento 6308 ZZ"></textarea>`)}`,'Cadastrar os itens',async v=>{
+  ${H.campoM('nvT',(mat?'Materiais':'Itens')+', um por linha<i> *</i>',`<textarea id="nvT" rows="9" placeholder="Rolamento 6205 2RS&#10;Rolamento 6206 2RS&#10;Rolamento 6308 ZZ"></textarea>`)}`,'Cadastrar os '+W.pl,async v=>{
   const cat=H.valM(v,'nvC'),gid=H.valM(v,'nvG'),uni=H.valM(v,'nvU'),loc=String(H.valM(v,'nvL')||'').trim();const g=gid?GRUPO(gid):null;
   if(!cat){toast('Escolha a categoria.','erro');return false}if(g&&g.categoria!==cat){toast('O grupo '+g.nome+' é da categoria '+g.categoria+'.','erro');return false}
   const vistos=new Set();const nomes=String(H.valM(v,'nvT')||'').split(/\r?\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(s=>{const n=normT(s);if(!n||vistos.has(n))return false;vistos.add(n);return true});
-  if(!nomes.length){toast('Escreva pelo menos um item.','erro');return false}if(nomes.length>200){toast('No máximo 200 itens por vez.','erro');return false}
+  if(!nomes.length){toast('Escreva pelo menos um '+W.um+'.','erro');return false}if(nomes.length>200){toast('No máximo 200 '+W.pl+' por vez.','erro');return false}
   const ja=nomes.filter(n=>DATA.almItens.some(x=>normT(x.nome)===normT(n)&&x.categoria===cat));const novos=nomes.filter(n=>!ja.includes(n));
-  if(!novos.length){toast('Todos estes itens já estão cadastrados nesta categoria.','erro');return false}
-  if(!await confirmar('Cadastrar '+novos.length+' item(ns)?','Categoria '+cat+(g?' · grupo '+g.nome:'')+' · unidade '+uni+'.'+(ja.length?' '+ja.length+' já existia(m) e fica(m) de fora: '+ja.slice(0,5).join('; ')+(ja.length>5?'…':'')+'.':''),{ok:'Cadastrar'}))return false;
+  if(!novos.length){toast('Todos estes '+W.pl+' já estão cadastrados nesta categoria.','erro');return false}
+  if(!await confirmar('Cadastrar '+novos.length+' '+(mat?'material(is)':'item(ns)')+'?','Categoria '+cat+(g?' · grupo '+g.nome:'')+' · unidade '+uni+'.'+(ja.length?' '+ja.length+' já existia(m) e fica(m) de fora: '+ja.slice(0,5).join('; ')+(ja.length>5?'…':'')+'.':''),{ok:'Cadastrar'}))return false;
   const m=/^(.+)-(\d+)$/.exec(proxCodigo(cat));let n=+m[2];let feitos=0;
   try{for(const nome of novos){const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:cat,grupoId:gid||'',unidade:uni,local:loc||(cat==='Cozinha'?'Cozinha':''),codigo:m[1]+'-'+String(n++).padStart(3,'0')};
     await gravarRegistro('almItens',st,null,true);feitos++}
-   toast(feitos+' item(ns) cadastrado(s).'+(ja.length?' '+ja.length+' já existia(m).':''),'ok')}
-  catch(e){toast((feitos?feitos+' item(ns) cadastrado(s) antes da falha. ':'')+msgFalhaSalvar(e),'erro');return false}},
+   toast(feitos+' '+(mat?'material(is)':'item(ns)')+' cadastrado(s).'+(ja.length?' '+ja.length+' já existia(m).':''),'ok')}
+  catch(e){toast((feitos?feitos+' '+(mat?'material(is)':'item(ns)')+' cadastrado(s) antes da falha. ':'')+msgFalhaSalvar(e),'erro');return false}},
   {depois:v=>{const sg=v.querySelector('#nvG'),sc=v.querySelector('#nvC'),il=v.querySelector('#nvL');if(sg)sg.onchange=()=>{const o=sg.selectedOptions[0];if(o&&o.dataset.cat){sc.value=o.dataset.cat;if(o.dataset.loc&&!il.value)il.value=o.dataset.loc}}}});
 }
 
@@ -21776,7 +21777,7 @@ function telaMovAlm(c){
 function telaInventarios(c){
  const L=DATA.almInventarios.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));const ed=pode('almInventarios','e');
  c.innerHTML=cab('planilha','Inventários','Contagem física do almoxarifado (todos os itens ou uma categoria). Ao fechar, as diferenças viram ajustes com o motivo “Inventário de DD/MM/AAAA”.',ed?`<button type="button" class="btn pri" id="ivNovo">${ic('mais')}Novo inventário</button>`:'')+
-  (L.length?tabela(['Data','Categoria','Responsável','Situação',['Itens contados',0],['Diferenças',0],['Valor da diferença',1]],L.map(v=>{const res=v.resultado||{};const n=Object.keys(v.contagens||{}).length;
+  (L.length?tabela(['Data','Categoria','Responsável','Situação',['Itens contados',0],['Diferenças',0],['Valor da diferença',1]],L.map(v=>{const res=v.resultado||{};const n=nContados(v);
    return `<tr class="clic" data-go="#/almInv/${esc(v.id)}">${td('Data',esc(fData(v.data)))}${td('Categoria',esc(v.categoria||'Todos os itens'))}${td('Responsável',esc(v.responsavel||'—'))}${td('Situação',v.status==='fechado'?tag('Fechado','ok'):tag('Em aberto','at'))}
     ${td('Itens contados',String(n))}${td('Diferenças',v.status==='fechado'?String(res.ajustes||0):'—')}${td('Valor da diferença',v.status==='fechado'?esc(fMoeda(res.valor||0)):'—',1)}</tr>`})):noNada('Nenhum inventário ainda','Use “Novo inventário” para contar o estoque.'));
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>JBNAV.ir(tr.dataset.go));
@@ -21792,7 +21793,7 @@ function telaInv(el){
  shellS(el,'almox','almInv',c=>{
   const v=DATA.almInventarios.find(x=>x.id===r.id);if(!v){c.innerHTML=noNada('Inventário não encontrado',`<div class="vazio-acoes"><a class="btn" href="#/almInventarios">${ic('esquerda')}Voltar</a></div>`);return}
   const ed=pode('almInventarios','e')&&v.status!=='fechado';const its=DATA.almItens.filter(i=>(ativo(i)||(v.contagens||{})[i.id]!=null)&&(!v.categoria||i.categoria===v.categoria)).sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));
-  const cont=RASC_INV[v.id]||(RASC_INV[v.id]={...(v.contagens||{})});
+  const cont=v.status==='fechado'?(v.contagens||{}):(RASC_INV[v.id]||(RASC_INV[v.id]={...(v.contagens||{})}));   /* fechado: vale o que ficou gravado, não o rascunho desta tela */
   const linha=i=>{const s=v.status==='fechado'&&v.resultado&&v.resultado.saldos?+(v.resultado.saldos[i.id]||0):estI(i.id).saldo;const q=cont[i.id];const tem=q!==''&&q!=null&&!isNaN(+q);const dif=tem?r3(+q-s):null;
    return `<tr>${td('Código',esc(i.codigo||''))}${td('Item',esc(i.nome))}${td('Un.',esc(un(i.unidade)))}${td('Saldo do sistema',esc(fQtd(s)),1)}
     <td class="num" data-l="Contagem">${ed?`<input type="number" step="any" min="0" data-ivq="${esc(i.id)}" value="${tem?esc(q):''}" style="width:100px;text-align:right" aria-label="Contagem de ${esc(i.nome)}">`:esc(tem?fQtd(q):'—')}</td>
@@ -21800,7 +21801,7 @@ function telaInv(el){
   const res=v.resultado||{};
   c.innerHTML=cab('planilha','Inventário de '+fData(v.data),esc(v.categoria||'Todos os itens')+' · responsável '+esc(v.responsavel||'—')+' · '+(v.status==='fechado'?'fechado em '+esc(fDataHora(v.fechadoEm)):'em aberto'),
    `<a class="btn" href="#/almInventarios">${ic('esquerda')}Inventários</a><button type="button" class="btn" id="ivFolha">${ic('baixar')}Folha de contagem ▾</button>${ed?`<button type="button" class="btn" id="ivSalvar">Salvar contagem</button><button type="button" class="btn pri" id="ivFechar">${ic('escudo')}Fechar inventário</button><button type="button" class="btn perigo" id="ivExc">${ic('lixo')}Excluir</button>`:''}`)+
-   (v.status==='fechado'?resumo([[String(Object.keys(v.contagens||{}).length),'Itens contados'],[String(res.ajustes||0),'Ajustes gerados'],[fMoeda(res.valor||0),'Valor da diferença']]):
+   (v.status==='fechado'?resumo([[String(nContados(v)),'Itens contados'],[String(res.ajustes||0),'Ajustes gerados'],[fMoeda(res.valor||0),'Valor da diferença']]):
     `<p class="fi-nota">Conte e digite a quantidade de cada item. Item sem contagem fica como está. “Salvar contagem” guarda o que foi digitado; “Fechar inventário” gera os ajustes das diferenças e trava a contagem.</p>`)+
    tabela(['Código','Item','Un.',['Saldo do sistema',1],['Contagem',1],['Diferença',1],['Valor da diferença',1]],its.map(linha),'tbl-inv');
   $$('[data-ivq]',c).forEach(i=>i.oninput=()=>{cont[i.dataset.ivq]=i.value===''?'':+i.value});
@@ -21808,7 +21809,8 @@ function telaInv(el){
   $('#ivFolha',c).onclick=()=>exportarMenu($('#ivFolha',c),'Folha_de_contagem','Folha de contagem · inventário de '+fData(v.data)+' · '+(v.categoria||'Todos os itens'),
    [{k:'local',l:'Local'},{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'un',l:'Unidade'},{k:'cont',l:'Contagem'},{k:'obs',l:'Observação'}],
    its.slice().sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true})).map(i=>({local:i.local||'',codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),un:un(i.unidade),cont:'',obs:''})));
-  const gravarCont=async()=>{const n={...clone(v),contagens:Object.fromEntries(Object.entries(cont).filter(([,q])=>q!==''&&q!=null&&!isNaN(+q)).map(([k,q])=>[k,r3(q)])),alteradoEm:agoraIso(),alteradoPor:eu()};
+  /* a gravação junta campo a campo: contagem apagada precisa ir como null, senão o número antigo volta */
+  const gravarCont=async()=>{const n={...clone(v),contagens:{...Object.fromEntries(Object.keys(v.contagens||{}).filter(k=>!temCont(cont[k])).map(k=>[k,null])),...Object.fromEntries(Object.entries(cont).filter(([,q])=>temCont(q)).map(([k,q])=>[k,r3(q)]))},alteradoEm:agoraIso(),alteradoPor:eu()};
    await gravar('almInventarios',n,v);return n};
   if($('#ivSalvar',c))$('#ivSalvar',c).onclick=async()=>{try{await gravarCont();toast('Contagem salva.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}};
   if($('#ivExc',c))$('#ivExc',c).onclick=async()=>{if(!await confirmar('Excluir este inventário?','A contagem em aberto é descartada. Nenhum ajuste foi gerado ainda.',{ok:'Sim, excluir',perigo:true}))return;
@@ -21821,7 +21823,7 @@ function telaInv(el){
    try{const atual=await gravarCont();const saldos={};its.forEach(i=>{saldos[i.id]=estI(i.id).saldo});
     for(const x of difs){const aj={id:novoId(),itemId:x.i.id,data:v.data,tipo:x.d>0?'entrada':'saida',qtd:r3(Math.abs(x.d)),motivo:'Inventário de '+fData(v.data),inventarioId:v.id,criadoEm:agoraIso(),criadoPor:eu()};
      await gravar('almAjustes',aj,null);await registrarLog('almAjustes',aj.id,'criou',null,aj,rotulosDe(MODS.almAjustes))}
-    const n={...clone(atual),status:'fechado',fechadoEm:agoraIso(),resultado:{ajustes:difs.length,valor:val,saldos,itens:Object.keys(atual.contagens||{}).length}};
+    const n={...clone(atual),status:'fechado',fechadoEm:agoraIso(),resultado:{ajustes:difs.length,valor:val,saldos,itens:nContados(atual)}};
     await gravar('almInventarios',n,atual);await logV('almInventarios',v.id,'fechou o inventário',[{c:'Ajustes',de:'',para:String(difs.length)},{c:'Valor',de:'',para:fMoeda(val)}]);
     delete RASC_INV[v.id];toast(difs.length?'Inventário fechado: '+difs.length+' ajuste(s) gerado(s).':'Inventário fechado sem diferenças.','ok')}catch(e){toast(msgFalhaSalvar(e),'erro')}};
  })}
@@ -22385,25 +22387,41 @@ async function saidaRapidaAlm(d){
 /* contagem (inventário do estoque): os mesmos registros de almInventarios e os mesmos ajustes do fechamento daqui.
    Fechar de novo depois de uma queda de conexão não repete ajuste já lançado. */
 const temCont=q=>q!==''&&q!=null&&!isNaN(+q);
-function itensDaContagem(v,cont){const c=cont||v.contagens||{};return DATA.almItens.filter(i=>(ativo(i)||c[i.id]!=null)&&(!v.categoria||i.categoria===v.categoria)).sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}))}
+const nContados=v=>Object.values((v&&v.contagens)||{}).filter(temCont).length;
+function itensDaContagem(v,cont){const c=cont||v.contagens||{};return DATA.almItens.filter(i=>(ativo(i)||temCont(c[i.id]))&&(!v.categoria||i.categoria===v.categoria)).sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}))}
 function difsContagem(v,cont){const its=itensDaContagem(v,cont);
  const difs=its.map(i=>{const q=cont[i.id];if(!temCont(q))return null;const d=r3(+q-estI(i.id).saldo);return Math.abs(d)>1e-9?{i,d}:null}).filter(Boolean);
  return{its,difs,contados:its.filter(i=>temCont(cont[i.id])).length,sem:its.filter(i=>ativo(i)&&!temCont(cont[i.id])).length,valor:r2(soma(difs,x=>x.d*estI(x.i.id).cm))}}
-async function salvarContagemAlm(v,cont){
+/* guarda contagens. "mapa" pode trazer só o que mudou: número = contado; '' ou null = contagem apagada.
+   A gravação junta campo a campo (o que não vai no mapa continua como está no banco): por isso o que
+   outra pessoa contou em outro aparelho não se perde, e a contagem apagada precisa ir como null. */
+async function salvarContagemAlm(v,mapa){
  if(!pode('almInventarios','e'))throw new Error('Seu perfil não faz contagem do estoque.');
  const atual=DATA.almInventarios.find(x=>x.id===v.id)||v;if(atual.status==='fechado')throw new Error('Esta contagem já foi fechada.');
- const n={...clone(atual),contagens:Object.fromEntries(Object.entries(cont).filter(([,q])=>temCont(q)).map(([k,q])=>[k,r3(q)])),alteradoEm:agoraIso(),alteradoPor:eu()};
- await gravar('almInventarios',n,atual);return n}
-async function fecharContagemAlm(v,cont){
- if(Object.values(cont).some(q=>temCont(q)&&+q<0))throw new Error('Contagem negativa não vale.');
- const atual=await salvarContagemAlm(v,cont);const R=difsContagem(atual,cont);const saldos={};R.its.forEach(i=>{saldos[i.id]=estI(i.id).saldo});
- const motivo='Inventário de '+fData(atual.data);
- for(const x of R.difs){
-  if(DATA.almAjustes.some(a=>a.inventarioId===atual.id&&a.itemId===x.i.id))continue;   /* já lançado numa tentativa anterior */
-  const aj={id:novoId(),itemId:x.i.id,data:atual.data,tipo:x.d>0?'entrada':'saida',qtd:r3(Math.abs(x.d)),motivo,inventarioId:atual.id,criadoEm:agoraIso(),criadoPor:eu()};
-  await gravar('almAjustes',aj,null);await registrarLog('almAjustes',aj.id,'criou',null,aj,rotulosDe(MODS.almAjustes))}
- const n={...clone(atual),status:'fechado',fechadoEm:agoraIso(),resultado:{ajustes:R.difs.length,valor:R.valor,saldos,itens:Object.keys(atual.contagens||{}).length}};
- await gravar('almInventarios',n,atual);await logV('almInventarios',v.id,'fechou o inventário',[{c:'Ajustes',de:'',para:String(R.difs.length)},{c:'Valor',de:'',para:fMoeda(R.valor)}]);return n}
+ const ct={...(atual.contagens||{})};Object.entries(mapa||{}).forEach(([k,q])=>{if(temCont(q))ct[k]=r3(q);else if(k in ct)ct[k]=null});
+ const n={...clone(atual),contagens:ct,alteradoEm:agoraIso(),alteradoPor:eu()};
+ await gravar('almInventarios',n,atual);
+ const rs=RASC_INV[v.id];if(rs)Object.keys(mapa||{}).forEach(k=>{rs[k]=temCont(ct[k])?ct[k]:''});   /* a tela de inventário do almoxarifado, se estiver com esta contagem aberta, acompanha */
+ return n}
+/* fecha a contagem: cada diferença (contado − saldo de agora) vira um ajuste. Vale o que está gravado
+   na contagem, inclusive o que foi contado em outro aparelho. Se uma tentativa anterior caiu no meio,
+   os ajustes dela já estão no saldo de agora: nada se repete e só o que faltou é lançado. */
+async function fecharContagemAlm(v,mapa){
+ if(Object.values(mapa||{}).some(q=>temCont(q)&&+q<0))throw new Error('Contagem negativa não vale.');
+ const atual=await salvarContagemAlm(v,mapa);
+ const ef={};Object.entries(atual.contagens||{}).forEach(([k,q])=>{if(temCont(q))ef[k]=+q});
+ if(Object.values(ef).some(q=>q<0))throw new Error('Contagem negativa não vale.');
+ const its=itensDaContagem(atual,ef);const ja=DATA.almAjustes.filter(a=>a.inventarioId===atual.id);
+ const sinal=a=>(a.tipo==='saida'?-1:1)*(+a.qtd||0);
+ const saldos={};its.forEach(i=>{saldos[i.id]=r3(estI(i.id).saldo-soma(ja.filter(a=>a.itemId===i.id),sinal))});   /* o saldo de antes dos ajustes desta contagem */
+ const motivo='Inventário de '+fData(atual.data);const novos=[];
+ for(const i of its){if(!temCont(ef[i.id]))continue;const d=r3(ef[i.id]-estI(i.id).saldo);if(Math.abs(d)<=1e-9)continue;
+  const aj={id:novoId(),itemId:i.id,data:atual.data,tipo:d>0?'entrada':'saida',qtd:r3(Math.abs(d)),motivo,inventarioId:atual.id,criadoEm:agoraIso(),criadoPor:eu()};
+  await gravar('almAjustes',aj,null);await registrarLog('almAjustes',aj.id,'criou',null,aj,rotulosDe(MODS.almAjustes));novos.push(aj)}
+ const todos=ja.concat(novos);const valor=r2(soma(todos,a=>sinal(a)*estI(a.itemId).cm));
+ const n={...clone(atual),status:'fechado',fechadoEm:agoraIso(),resultado:{ajustes:todos.length,valor,saldos,itens:Object.keys(ef).length}};
+ await gravar('almInventarios',n,atual);await logV('almInventarios',v.id,'fechou o inventário',[{c:'Ajustes',de:'',para:String(todos.length)},{c:'Valor',de:'',para:fMoeda(valor)}]);
+ delete RASC_INV[v.id];return n}
 
 /* ================= para os testes e para as telas ================= */
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
@@ -40601,7 +40619,9 @@ button.inv-c{width:100%;font:inherit;text-align:left;cursor:pointer}
 .inv-c .tx b a{color:inherit;text-decoration:none}.inv-c .tx b a:hover{text-decoration:underline}
 .inv-cnt input{flex:none;width:112px;height:40px;padding:0 10px;font:inherit;font-size:15px;text-align:right;border:1px solid var(--inv-l);border-radius:10px;background:var(--inv-b);color:var(--inv-t)}
 .inv-cnt .vl{min-width:92px}
-@media (max-width:600px){.inv-fts .a{width:calc(50% - 5px)}.inv-fts .a button.v{width:100%}.inv-cnt input{flex:1 1 120px}}
+.inv-jan{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto}
+.veu #ftIg{max-height:230px;overflow:auto}
+@media (max-width:600px){.inv-fts .a{width:calc(50% - 5px)}.inv-fts .a button.v{width:100%}.inv-cnt input{flex:1 1 120px}.inv-cnt .tx,#elst .inv-c .tx{flex:1 1 100%}}
 .inv-bar{height:8px;border-radius:99px;background:var(--linha2,#F1F0F5);overflow:hidden}.inv-bar i{display:block;height:100%;background:var(--inv-v);border-radius:99px}
 .inv-tree{display:flex;flex-direction:column;gap:6px}
 .inv-no{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--inv-b);border:1px solid var(--inv-l);border-radius:11px;min-width:0}
@@ -40763,7 +40783,7 @@ async function acao(btn,fn,ok){if(btn&&btn.disabled)return;const h=btn?btn.inner
 /* janela própria do módulo (mesmo desenho das janelas do JB) */
 function modalF(titulo,corpo,okTxt,aoOk,opc){
  opc=opc||{};const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
- v.innerHTML=`<div class="modal vv-modal fi-modal" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3>${corpo}<div class="acoes" style="margin-top:14px"><button type="button" class="btn" data-r="0">${okTxt?'Voltar':'Fechar'}</button>${okTxt?`<button type="button" class="btn ${opc.perigo?'perigo':'pri'}" data-ok>${esc(okTxt)}</button>`:''}</div></div>`;
+ v.innerHTML=`<div class="modal vv-modal fi-modal inv-jan" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3>${corpo}<div class="acoes" style="margin-top:14px"><button type="button" class="btn" data-r="0">${okTxt?'Voltar':'Fechar'}</button>${okTxt?`<button type="button" class="btn ${opc.perigo?'perigo':'pri'}" data-ok>${esc(okTxt)}</button>`:''}</div></div>`;
  document.body.appendChild(v);
  v.addEventListener('click',async e=>{if(e.target===v||e.target.closest('[data-r]')){v.remove();return}const b=e.target.closest('[data-ok]');if(!b||b.disabled)return;b.disabled=true;
   try{const r=await aoOk(v);if(r===false)b.disabled=false;else v.remove()}catch(err){b.disabled=false;console.error(err);toast(msg(err),'erro')}});
@@ -40948,47 +40968,61 @@ async function verArq(a,leg){
  let blob=null,url='';
  const v=modalF(a.nome||'Fotografia',`<div class="inv-ver"><div class="inv-ver-i" id="vfI">${a.miniatura?`<img class="previa" src="${esc(a.miniatura)}" alt="">`:''}<span class="inv-gir"></span></div>${leg?`<p class="ajuda" style="margin:8px 0 0">${esc(leg)}</p>`:''}<p class="ajuda" style="margin:4px 0 0">${esc([a.enviado_por?'Enviada por '+a.enviado_por:'',a.criado_em?fDataHora(a.criado_em):''].filter(Boolean).join(' · '))}</p></div>`,'Baixar',async()=>{try{if(blob)await salvarArquivo(a.nome,blob);else await baixarArq(a)}catch(e){toast(msg(e),'erro')}return false});
  const solta=new MutationObserver(()=>{if(!v.isConnected){solta.disconnect();if(url)URL.revokeObjectURL(url)}});solta.observe(document.body,{childList:true});
- try{blob=await blobArq(a);if(!v.isConnected)return;url=URL.createObjectURL(blob);const cx=v.querySelector('#vfI');if(cx)cx.innerHTML=`<img src="${url}" alt="${esc(a.nome||'Fotografia')}">`}
+ try{blob=await blobArq(a);if(!v.isConnected)return;url=URL.createObjectURL(blob);const cx=v.querySelector('#vfI');if(cx){cx.innerHTML=`<img src="${url}" alt="${esc(a.nome||'Fotografia')}">`;cx.querySelector('img').onerror=()=>{cx.innerHTML='<p class="ajuda" style="margin:0;padding:18px">Este arquivo não abre na tela neste aparelho. Toque em “Baixar”.</p>'}}}
  catch(e){progresso('');const g=v.querySelector('#vfI .inv-gir');if(g)g.remove();toast('Não foi possível abrir a fotografia: '+msg(e),'erro')}
 }
 /* grade de miniaturas com a legenda de cada foto; ligarFotos faz o clique abrir */
 function htmlFotos(fs,semNada){
  return fs.length?`<div class="inv-arq inv-fts">${fs.map((a,k)=>`<div class="a"><button type="button" class="v" data-vf="${k}" aria-label="Abrir ${esc(a.nome||'fotografia')}" ${a.miniatura?`style="background-image:url('${esc(a.miniatura)}')"`:''}>${a.miniatura?'':ic('iAnexo')}</button>${a.codigo||a.descricao?`<small title="${esc([a.codigo,a.descricao].filter(Boolean).join(' · '))}"><b>${esc(a.codigo||'Sem cadastro')}</b> ${esc(a.descricao||'')}</small>`:`<small title="${esc(a.nome||'')}">${esc(a.nome||'')}</small>`}<small>${esc([a.situacao||a.legenda,a.data_hora?fDataHora(a.data_hora):a.criado_em?fDataHora(a.criado_em):''].filter(Boolean).join(' · '))}</small></div>`).join('')}</div>`:`<p class="ajuda" style="margin:0">${esc(semNada||'Nenhuma fotografia.')}</p>`}
 function ligarFotos(raiz,fs){raiz.querySelectorAll('[data-vf]').forEach(b=>b.onclick=ev=>{ev.preventDefault();ev.stopPropagation();const a=fs[+b.dataset.vf];verArq(a,[a.codigo,a.descricao,a.situacao||a.legenda].filter(Boolean).join(' · '))})}
-/* fotos de um inventário, com o estado da tela: lista (em páginas), total e quantas cada item tem */
+/* fotos de um inventário, com o estado da tela: lista (em páginas), total e quantas cada item tem.
+   As cargas entram em fila (uma de cada vez): "Mostrar mais" e a conferência periódica não se atropelam. */
 function fotosDe(id,aoMudar){
  const leg=(a,l,i)=>({...a,leitura_id:l.id,item_id:l.item_id,situacao:l.situacao,data_hora:l.data_hora,bem_id:i&&i.bem_id,codigo:i&&i.retrato&&i.retrato.codigo_patrimonial,descricao:i&&i.retrato&&i.retrato.descricao});
  const avisa=()=>{try{aoMudar()}catch(e){console.warn(e)}};
+ const pede=(lim,pular,item)=>chamar('conferencia_resumo',Object.assign({empresa_id:eid(),inventario_id:id,fotos:true,fotos_limite:lim,fotos_pular:pular},item?{fotos_item:item}:{}));
+ let fila=Promise.resolve();const emFila=fn=>{const p=fila.then(fn,fn);fila=p.catch(()=>{});return p};
+ /* do começo, em blocos de até 200 (limite do banco), até cobrir o que já estava aberto na tela. Devolve false se o banco é o antigo */
+ const doComeco=async()=>{const alvo=Math.max(FT_PAG,F.fotos.length);let fs=[],r=null;
+  for(;;){r=await pede(Math.min(200,alvo-fs.length),fs.length);if(!r||!Array.isArray(r.fotos)){INV.fotosLote=false;return false}
+   const nv=r.fotos.filter(a=>!fs.some(x=>x.id===a.id));fs=fs.concat(nv);if(!nv.length||fs.length>=alvo||fs.length>=(+r.fotos_total||0))break}
+  INV.fotosLote=true;F.lote=true;F.fotos=fs;F.total=Math.max(+r.fotos_total||0,fs.length);F.porItem=r.fotos_por_item||{};F.pronto=true;F.erro=null;return true};
  const F={fotos:[],total:0,porItem:{},lote:null,pronto:false,erro:null,antigo:false,
   /* lote: true = o banco devolve tudo de uma vez; false = banco antigo, busca leitura por leitura */
-  async carregar(mais){
+  carregar(mais){return emFila(async()=>{
    try{
     if(INV.fotosLote!==false){
-     const n=mais?FT_PAG:Math.min(200,Math.max(FT_PAG,F.fotos.length));
-     const r=await chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true,fotos_limite:n,fotos_pular:mais?F.fotos.length:0});
-     if(r&&Array.isArray(r.fotos)){INV.fotosLote=true;F.lote=true;
-      F.fotos=mais?F.fotos.concat(r.fotos.filter(a=>!F.fotos.some(x=>x.id===a.id))):r.fotos;
-      F.total=Math.max(+r.fotos_total||0,F.fotos.length);F.porItem=r.fotos_por_item||{};F.pronto=true;F.erro=null;avisa();return}
-     INV.fotosLote=false}
+     if(mais&&F.lote){const r=await pede(FT_PAG,F.fotos.length);
+      if(r&&Array.isArray(r.fotos)){const nv=r.fotos.filter(a=>!F.fotos.some(x=>x.id===a.id));F.fotos=F.fotos.concat(nv);F.total=Math.max(+r.fotos_total||0,F.fotos.length);F.porItem=r.fotos_por_item||{};
+       if(!nv.length&&F.fotos.length<F.total)await doComeco();   /* chegaram fotos novas e a lista andou: recomeça do topo */
+       avisa();return}
+      INV.fotosLote=false}
+     else if(await doComeco()){avisa();return}}
     F.lote=false;F.pronto=true;F.erro=null;if(F.antigo)await F.tudoAntigo();else avisa()
-   }catch(e){F.erro=e;F.pronto=true;avisa()}},
+   }catch(e){
+    if(F.fotos.length){console.warn(e);if(mais)throw e;return}   /* já há fotos na tela: uma falha passageira não troca o quadro por erro */
+    F.erro=e;F.pronto=true;avisa()}})},
+  /* conferência periódica, leve: só os números; as miniaturas só voltam a ser buscadas se algo mudou */
+  conferir(){return emFila(async()=>{if(!F.lote)return;
+   try{const r=await pede(1,0);if(!r||!Array.isArray(r.fotos))return;const tot=+r.fotos_total||0,pri=(r.fotos[0]||{}).id||null;
+    if(tot===F.total&&pri===((F.fotos[0]||{}).id||null))return;if(await doComeco())avisa()}catch(e){console.warn(e)}})},
   async tudoAntigo(){
    const [ls,its]=await Promise.all([lista('leituras',{inv:id,forcar:true}),lista('itens',{inv:id})]);
    const alvo=[...ls].sort((a,b)=>String(b.data_hora).localeCompare(String(a.data_hora)));const out=[];let k=0;
-   for(const l of alvo){progresso('Buscando as fotografias ('+(++k)+' de '+alvo.length+')');
-    const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});const i=porId(its,l.item_id);as.forEach(a=>out.push(leg(a,l,i)))}
-   progresso('');const pi={};out.forEach(a=>{pi[a.item_id]=(pi[a.item_id]||0)+1});
+   try{for(const l of alvo){progresso('Buscando as fotografias ('+(++k)+' de '+alvo.length+')');
+    const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});const i=porId(its,l.item_id);as.forEach(a=>out.push(leg(a,l,i)))}}finally{progresso('')}
+   const pi={};out.forEach(a=>{pi[a.item_id]=(pi[a.item_id]||0)+1});
    F.fotos=out;F.total=out.length;F.porItem=pi;F.antigo=true;F.pronto=true;F.erro=null;avisa()},
   /* só as fotos de um item (para a janela "Registrar") */
   async doItem(itemId){
-   if(INV.fotosLote!==false){const r=await chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true,fotos_item:itemId,fotos_limite:120});
-    if(r&&Array.isArray(r.fotos)){INV.fotosLote=true;return r.fotos}INV.fotosLote=false}
-   const [ls,its]=await Promise.all([lista('leituras',{inv:id,forcar:true}),lista('itens',{inv:id})]);const out=[];const i=porId(its,itemId);
+   if(INV.fotosLote!==false){const r=await pede(120,0,itemId);if(r&&Array.isArray(r.fotos)){INV.fotosLote=true;return r.fotos}INV.fotosLote=false}
+   if(F.antigo)return F.fotos.filter(a=>a.item_id===itemId);
+   const [ls,its]=await Promise.all([lista('leituras',{inv:id}),lista('itens',{inv:id})]);const out=[];const i=porId(its,itemId);
    for(const l of ls.filter(x=>x.item_id===itemId).sort((a,b)=>String(b.data_hora).localeCompare(String(a.data_hora)))){
     const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});as.forEach(a=>out.push(leg(a,l,i)))}
    return out},
   /* fotos que acabaram de ser enviadas nesta tela: aparecem na hora, sem nova consulta */
-  junta(arqs,leitura,item){const novos=arqs.filter(Boolean).map(a=>leg(a,leitura,item));if(!novos.length)return;
+  junta(arqs,leitura,item){const novos=arqs.filter(Boolean).map(a=>leg(a,leitura,item));if(!novos.length)return;invalida('leituras');
    F.fotos=novos.concat(F.fotos);F.total+=novos.length;F.porItem={...F.porItem,[item.id]:(F.porItem[item.id]||0)+novos.length};avisa()}};
  return F}
 /* pinta o quadro de fotografias (#ftg, com #ftn = total e #ftm = "mostrar mais") dentro de c */
@@ -41161,6 +41195,9 @@ async function telaConf(c,id){
   const fm=c.querySelector('#fm');fm.onsubmit=async e=>{e.preventDefault();const d=lerForm(fm,fs);if(!d)return;if(await acao(fm.querySelector('#sv'),()=>chamar('conferencia_iniciar',{empresa_id:eid(),inventario_id:id,...d}),'Conferência iniciada.')){invalida('inventarios','conferencias');redesenha()}};return}
  let its=await lista('itens',{inv:id,forcar:true});let filtro='Pendente',busca='',qtd=30,tique=0;
  const FT=fotosDe(id,()=>{pintaFotos(c,FT);desenha()});   /* fotografias desta conferência: quadro no fim da tela e selo em cada bem */
+ const enviaFotos=async(inp,leitura,feito)=>{const fs=inp?[...inp.files]:[],env=[];let falhas=0,ult=null;
+  for(const f of fs){try{env.push(await enviarArquivo(f,{entidade:'leitura',registro_id:leitura.id,categoria:'Fotografia'}))}catch(e){falhas++;ult=e;progresso('')}}
+  if(falhas)toast(feito+', mas '+falhas+' de '+fs.length+' fotografia(s) não '+(falhas>1?'foram enviadas':'foi enviada')+': '+msg(ult)+' Para enviar, abra o bem e registre de novo.','erro');return env};
  c.innerHTML=cab('Conferência física',v.nome+' · rodada '+aberta.numero+' · responsável: '+(aberta.responsavel||'—'),`<button class="btn" id="sc">${ic('iMais')}Encontrado sem cadastro</button><button class="btn pri" id="fim">Finalizar conferência</button>`,R('conferencia'))+
  `<div class="inv-ler"><button class="btn pri" id="cam">${ic('iCam')}Ler QR Code</button><form id="fc" style="display:flex;gap:8px;flex:1 1 240px;min-width:0"><input id="cod" placeholder="Código patrimonial ou leitor de código" autocomplete="off" aria-label="Código patrimonial"><button class="btn">Buscar</button></form></div><div class="inv-kpis" id="kp"></div><div class="inv-bar" style="margin:-8px 0 16px"><i id="bar" style="width:0"></i></div>
  <div class="inv-abas" id="ab"></div><div class="inv-filtros"><input type="search" id="fb" placeholder="Buscar por código ou descrição"></div><div class="inv-l" id="lst"></div><button class="btn inv-mais" id="mm" hidden>Mostrar mais</button><p class="ajuda" style="margin-top:12px">Atualiza sozinho a cada poucos segundos. Última atualização: <span id="at"></span></p>
@@ -41183,7 +41220,7 @@ async function telaConf(c,id){
  function registrar(i){const fs=fsReg();const rt=i.retrato;const ini={situacao:i.situacao==='Pendente'?'Localizado e conferido':i.situacao,quantidade:i.quantidade_encontrada!=null?i.quantidade_encontrada:i.quantidade_prevista,localizacao_id:i.localizacao_id_encontrada||rt.localizacao_id,condicao:i.condicao||rt.conservacao,responsavel:aberta.responsavel,divergencias:i.divergencias,observacoes:i.observacoes};
   modal(rt.descricao||'Conferir bem',`<p class="ajuda" style="margin:0 0 10px">${esc(rt.codigo_patrimonial||'Sem cadastro')} · Registrado em: ${esc([rt.departamento,rt.setor,rt.localizacao].filter(Boolean).join(' › ')||'sem localização')} · Quantidade: ${qt(i.quantidade_prevista)}</p><div class="inv-grade">${fs.map(f=>f.k==='data_hora'?`<div class="cmp"><label for="invf_dh">Data e horário</label><input id="invf_dh" name="data_hora" type="datetime-local" value="${agoraLocal()}"></div>`:campoHtml(f,ini[f.k])).join('')}<div class="cmp larga"><label for="fFoto">Fotografias</label><input type="file" id="fFoto" accept="image/*" capture="environment" multiple></div><div class="cmp larga" id="ftI" hidden><label>Fotografias já registradas deste bem</label><div id="ftIg"></div></div></div>${i.bem_id?`<div style="margin-top:8px"><button type="button" class="btn" id="mvE">Transferir para o local encontrado</button></div>`:P('cadastrar_bens')?`<div style="margin-top:8px"><button type="button" class="btn" id="rgz">Cadastrar este bem</button></div>`:''}`,'Registrar',async v=>{const d=lerForm(v,fs.filter(f=>f.k!=='data_hora'));if(!d)return false;const dh=v.querySelector('#invf_dh').value;
     const r=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,item_id:i.id,...d,data_hora:dh?new Date(dh).toISOString():null});
-    const ff=v.querySelector('#fFoto');const env=[];if(ff&&ff.files.length){try{for(const f of ff.files)env.push(await enviarArquivo(f,{entidade:'leitura',registro_id:r.leitura.id,categoria:'Fotografia'}))}catch(e){progresso('');toast('A conferência foi registrada, mas uma fotografia não foi enviada: '+msg(e),'erro')}}
+    const env=await enviaFotos(v.querySelector('#fFoto'),r.leitura,'A conferência foi registrada');
     aoGravar(r);FT.junta(env,r.leitura,r.item);toast(r.item.situacao==='Com divergência'&&ini.situacao!=='Com divergência'&&d.situacao!=='Com divergência'?'Registrado como divergência: '+r.item.divergencias:'Conferência registrada.','ok')},{depois:v=>{
      if(i.id&&(FT.lote===false||FT.porItem[i.id]))FT.doItem(i.id).then(fs=>{const bx=v.querySelector('#ftI');if(!bx||!fs.length)return;bx.hidden=false;const g=v.querySelector('#ftIg');g.innerHTML=htmlFotos(fs);ligarFotos(g,fs)}).catch(e=>console.warn(e));
      const m=v.querySelector('#mvE');if(m)m.onclick=()=>{INV.prefill={bem:i.bem_id,local:v.querySelector('[name=localizacao_id]').value};v.remove();ir(R('movimentacoes/nova'))};
@@ -41195,7 +41232,7 @@ async function telaConf(c,id){
    let i=its.find(x=>x.bem_id===r.bem.id);if(!i){i={id:null,bem_id:r.bem.id,retrato:r.bem,situacao:'Pendente',quantidade_prevista:r.bem.quantidade};const x=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,bem_id:r.bem.id,situacao:'Pendente'});its.push(x.item);i=x.item}
    registrar(i)}catch(e){toast(msg(e),'erro')}};
  function semCad(ds){const fs=[{k:'descricao',l:'Descrição do bem',req:1,larga:1},{k:'quantidade',l:'Quantidade encontrada',t:'num'},{k:'localizacao_id',l:'Localização encontrada',t:'sel',ops:opcoesArvore(locs,true)},{k:'condicao',l:'Condição física',t:'sel',ops:CONS},{k:'observacoes',l:'Observações',t:'area',larga:1}];modal('Encontrado sem cadastro',`<div class="inv-grade">${fs.map(f=>campoHtml(f,f.k==='observacoes'&&ds?'Código lido: '+ds:null)).join('')}<div class="cmp larga"><label for="fFotoS">Fotografias</label><input type="file" id="fFotoS" accept="image/*" capture="environment" multiple></div></div>`,'Registrar',async v=>{const d=lerForm(v,fs);if(!d)return false;const r=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,situacao:'Encontrado sem cadastro',...d});
-   const ff=v.querySelector('#fFotoS');const env=[];if(ff&&ff.files.length){try{for(const f of ff.files)env.push(await enviarArquivo(f,{entidade:'leitura',registro_id:r.leitura.id,categoria:'Fotografia'}))}catch(e){progresso('');toast('O bem foi registrado, mas uma fotografia não foi enviada: '+msg(e),'erro')}}
+   const env=await enviaFotos(v.querySelector('#fFotoS'),r.leitura,'O bem foi registrado');
    aoGravar(r);FT.junta(env,r.leitura,r.item);toast('Registrado.','ok')})}
  c.querySelector('#fc').onsubmit=e=>{e.preventDefault();const x=c.querySelector('#cod');const v2=x.value;x.value='';buscar(v2)};
  c.querySelector('#fb').oninput=e=>{busca=e.target.value.toLowerCase();qtd=30;desenha()};
@@ -41204,7 +41241,8 @@ async function telaConf(c,id){
  c.querySelector('#fim').onclick=async ev=>{const b=ev.currentTarget;const r=await acao(b,()=>chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id}));if(!r)return;const p=r.progresso;
   modal('Finalizar a conferência',`<p>Veja o que ficou em aberto. Finalizar <b>não</b> declara que todos os bens foram localizados: o que está aqui segue registrado assim, para validação.</p><dl class="inv-dl" style="margin:10px 0"><div><dt>Conferidos</dt><dd>${fNum(p.conferidos)} de ${fNum(p.cadastrados)}</dd></div><div><dt>Pendentes</dt><dd>${fNum(p.pendentes)}</dd></div><div><dt>Não localizados</dt><dd>${fNum(p.nao_localizados)}</dd></div><div><dt>Divergências</dt><dd>${fNum(p.divergencias)}</dd></div><div><dt>Sem cadastro</dt><dd>${fNum(p.sem_cadastro)}</dd></div><div><dt>Danificados</dt><dd>${fNum(p.danificados)}</dd></div></dl>${r.pendentes.length?`<h4 style="margin:10px 0 4px">Pendentes</h4><div class="inv-tab" style="max-height:150px"><table>${r.pendentes.slice(0,200).map(x=>`<tr><td>${esc(x.codigo||'')}</td><td>${esc(x.descricao||'')}</td></tr>`).join('')}</table></div>`:''}${r.ocorrencias.length?`<h4 style="margin:10px 0 4px">Ocorrências</h4><div class="inv-tab" style="max-height:150px"><table>${r.ocorrencias.slice(0,200).map(x=>`<tr><td>${esc(x.codigo||'—')}</td><td>${esc(x.descricao||'')}</td><td>${esc(x.situacao)}</td><td>${esc(x.divergencias||'')}</td></tr>`).join('')}</table></div>`:''}<label class="inv-ck" style="margin-top:12px"><input type="checkbox" id="cie"> Vi as pendências e divergências</label>`,'Finalizar',async v=>{if(!v.querySelector('#cie').checked){toast('Marque que viu as pendências e divergências.','erro');return false}await chamar('conferencia_finalizar',{empresa_id:eid(),conferencia_id:aberta.id,ciente:true});toast('Conferência finalizada. O inventário aguarda validação.','ok');invalida('inventarios','conferencias','itens');ir(R('inventarios/'+id))})};
  desenha();pintaFotos(c,FT);FT.carregar();
- INV.timer=setInterval(()=>{if(document.hidden||document.querySelector('.veu'))return;atualizar().catch(()=>{});if(++tique%5===0&&FT.lote)FT.carregar()},8000);
+ const tm=setInterval(()=>{if(!c.isConnected){clearInterval(tm);if(INV.timer===tm)INV.timer=null;return}   /* a tela saiu (até para outro setor): para de consultar */
+  if(document.hidden||document.querySelector('.veu'))return;atualizar().catch(()=>{});if(++tique%5===0)FT.conferir()},8000);INV.timer=tm;
  const pre=INV.prefill&&INV.prefill.ler;if(pre){INV.prefill=null;buscar(pre)}
 }
 function tokenDe(x){x=String(x||'').trim();const m=/inventario\/q\/([0-9a-f-]{36})/i.exec(x);return m?m[1]:x}
@@ -41478,6 +41516,14 @@ const eOrd=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{n
 const COR_SIT={'Com saldo':'ok','Sem saldo':'','Abaixo do mínimo':'er','Inativo':''};
 const eAgora=()=>new Date().toISOString(),eEu=()=>APP.uid||'local';
 const eVazio=x=>x==null?'':x;
+/* lançamentos na língua do Estoque: entrada sem compra e ajuste de contagem são gravados como ajuste no almoxarifado */
+const eAjCont=()=>new Set(DATA.almAjustes.filter(a=>a.inventarioId).map(a=>'a'+a.id));
+const eEhEnt=(m,S)=>m.tipo==='Entrada'||(m.tipo==='Ajuste'&&m.q>0&&!S.has(m.k));
+const eRot=(m,S)=>m.tipo!=='Ajuste'?m.tipo:S.has(m.k)?'Contagem':m.q>0?'Entrada sem compra':'Ajuste de saída';
+const eDoc=d=>String(d||'').replace(/^Inventário de /,'Contagem de ');
+const eMat=t=>String(t||'').replace(/\bitens\b/g,'materiais').replace(/\bitem\b/g,'material');
+/* "1.000" é ambíguo (mil ou um?): pede para digitar sem ponto */
+const eMilhar=v=>{const x=v.querySelector('[name=qtd]');if(x&&/^\d{1,3}(\.\d{3})+$/.test(String(x.value).trim())){toast('Para mil, digite 1000 (sem ponto). Para quebrados, use vírgula: 1,5.','erro');return true}return false};
 TELA.estoque=async function(c,p){
  if(typeof APP!=='undefined'&&!APP.carregado){carregando(c);INV.aoDados=()=>{if(APP.carregado)redesenha()};return}
  if(!pode('almEstoque')){c.innerHTML=vazio('Sem permissão para ver o estoque','O estoque de materiais usa as permissões do almoxarifado.');return}
@@ -41489,15 +41535,15 @@ TELA.estoque=async function(c,p){
 /* ----- tela principal: indicadores e as abas Saldo, Entradas e saídas, Grupos e Contagem ----- */
 function estInicio(c){
  const A=AX();const edS=pode('almSaida','e'),edI=pode('almItens','e'),edA=pode('almAjustes','e'),edC=pode('almInventarios','e');
- const U=INV.est||(INV.est={aba:'saldo',q:'',grp:'',sit:'',qm:'',tm:'',n:40,nm:40});
+ const U=INV.est=Object.assign({aba:'saldo',q:'',grp:'',sit:'',qm:'',tm:'',n:40,nm:40},INV.est);
  c.innerHTML=cab('Estoque de materiais','Quanto tem de cada material, o que entrou e o que saiu. O saldo muda sozinho a cada lançamento.',
   `${edS?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eNovo">Novo material</button><button type="button" class="btn" id="eVar">Vários de uma vez</button>`:''}`)+
   `<div class="inv-kpis" id="ekp"></div><div class="inv-abas" id="eab"></div><div id="ecp"></div>`;
  const kp=(i,l,v,o,cls)=>`<div class="inv-kpi ${cls||''}"><span>${ic(i)}</span><div><small>${esc(l)}</small><b>${v}</b>${o?`<em>${esc(o)}</em>`:''}</div></div>`;
  let ref=null,nG=-1;const cp=c.querySelector('#ecp');
  const topo=()=>{
-  const at=DATA.almItens.filter(A.ativo),m=hoje().slice(0,7),mv=A.movsAlm();
-  const sai=mv.filter(x=>x.q<0&&x.tipo!=='Ajuste'&&String(x.data||'').startsWith(m)),ent=mv.filter(x=>x.tipo==='Entrada'&&String(x.data||'').startsWith(m));
+  const at=DATA.almItens.filter(A.ativo),m=hoje().slice(0,7),mv=A.movsAlm(),S=eAjCont();
+  const sai=mv.filter(x=>x.q<0&&x.tipo!=='Ajuste'&&String(x.data||'').startsWith(m)),ent=mv.filter(x=>eEhEnt(x,S)&&String(x.data||'').startsWith(m));
   const ab=A.abaixoMin().length,rp=A.aRepor().length,cs=at.filter(i=>A.estI(i.id).saldo>0).length;
   c.querySelector('#ekp').innerHTML=kp('iValor','Valor em estoque',esc(fMoeda(soma(at,i=>A.estI(i.id).valor))),fNum(at.length)+' material(is) cadastrado(s)','dest')+
    kp('iCaixa','Com saldo',fNum(cs),'de '+fNum(at.length)+' material(is)')+kp('iAlerta','Abaixo do mínimo',fNum(ab),ab?'precisa repor':'nenhum')+kp('iLista','Para repor agora',fNum(rp),'pelo consumo e pelo prazo')+
@@ -41518,9 +41564,10 @@ function estInicio(c){
   el.querySelectorAll('[data-sai]').forEach(b=>b.onclick=()=>estSaida(b.dataset.sai));
   const m=cp.querySelector('#emm');m.hidden=l.length<=U.n;m.onclick=()=>{U.n+=40;listaSaldo()}};
  /* --- Entradas e saídas --- */
- const listaMov=()=>{const el=cp.querySelector('#elst');if(!el)return;const q=semAcento(U.qm||'');
-  const l=A.movsAlm().filter(m=>(!U.tm||m.tipo.startsWith(U.tm))&&(!q||semAcento(((eItem(m.itemId)||{}).nome||'')+' '+((eItem(m.itemId)||{}).codigo||'')+' '+(m.doc||'')).includes(q))).reverse();
-  el.innerHTML=l.length?l.slice(0,U.nm).map(m=>{const i=eItem(m.itemId);return `<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+eUn(i))} · ${i?`<a href="${R('estoque/item/'+encodeURIComponent(i.id))}">${esc(i.nome)}</a>`:'(material removido)'}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(m.doc):''}</small></div><div class="vl">${esc(fMoeda(Math.abs(m.valor)))}</div>${tag(m.tipo,m.q>0?'ok':m.tipo==='Saída'?'at':'er')}</div>`}).join('')
+ const listaMov=()=>{const el=cp.querySelector('#elst');if(!el)return;const q=semAcento(U.qm||''),S=eAjCont();
+  const doTipo=m=>!U.tm||(U.tm==='Entrada'?eEhEnt(m,S):U.tm==='Contagem'?eRot(m,S)==='Contagem':U.tm==='Ajuste'?eRot(m,S)==='Ajuste de saída':m.tipo.startsWith(U.tm));
+  const l=A.movsAlm().filter(m=>doTipo(m)&&(!q||semAcento(((eItem(m.itemId)||{}).nome||'')+' '+((eItem(m.itemId)||{}).codigo||'')+' '+(m.doc||'')).includes(q))).reverse();
+  el.innerHTML=l.length?l.slice(0,U.nm).map(m=>{const i=eItem(m.itemId);return `<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+eUn(i))} · ${i?`<a href="${R('estoque/item/'+encodeURIComponent(i.id))}">${esc(i.nome)}</a>`:'(material removido)'}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(eDoc(m.doc)):''}</small></div><div class="vl">${esc(fMoeda(Math.abs(m.valor)))}</div>${tag(eRot(m,S),m.q>0?'ok':m.tipo==='Saída'?'at':'er')}</div>`}).join('')
    :vazio('Nenhum lançamento encontrado','As entradas e as saídas aparecem aqui assim que forem lançadas.');
   const mm=cp.querySelector('#emm');mm.hidden=l.length<=U.nm;mm.onclick=()=>{U.nm+=40;listaMov()}};
  /* --- Grupos --- */
@@ -41530,18 +41577,18 @@ function estInicio(c){
   el.innerHTML=(gs.length?gs.map(g=>ln(g.id,g.nome,g.categoria,at.filter(i=>i.grupoId===g.id),!A.ativo(g))).join(''):vazio('Nenhum grupo ainda','Grupo é a família do material: Rolamentos, Correias, Luvas, Lâmpadas…'))+(sem.length&&gs.length?ln('','Materiais sem grupo','Qualquer categoria',sem):'');
   el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{U.grp='g:'+b.dataset.g;U.sit='';U.q='';U.n=40;U.aba='saldo';topo();corpo()});
   el.querySelectorAll('[data-ge]').forEach(b=>b.onclick=()=>estGrupo(b.dataset.ge));
-  el.querySelectorAll('[data-gv]').forEach(b=>b.onclick=()=>A.variosItens(b.dataset.gv));
+  el.querySelectorAll('[data-gv]').forEach(b=>b.onclick=()=>A.variosItens(b.dataset.gv,true));
   cp.querySelector('#emm').hidden=true};
  /* --- Contagem --- */
  const listaCont=()=>{const el=cp.querySelector('#elst');if(!el)return;
   const L=DATA.almInventarios.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));
-  el.innerHTML=L.length?L.map(v=>{const f=v.status==='fechado',res=v.resultado||{},n=Object.keys(v.contagens||{}).length;
+  el.innerHTML=L.length?L.map(v=>{const f=v.status==='fechado',res=v.resultado||{},n=Object.values(v.contagens||{}).filter(x=>x!==''&&x!=null&&!isNaN(+x)).length;
    return `<a class="inv-c" href="${R('estoque/contagem/'+encodeURIComponent(v.id))}"><div class="tx"><b>Contagem de ${esc(fData(v.data))}</b><small>${esc(v.categoria||'Todos os materiais')} · responsável ${esc(v.responsavel||'—')} · ${fNum(n)} material(is) contado(s)</small></div>${f?`<div class="vl">${fNum(res.ajustes||0)} ajuste(s)<small>${esc(fMoeda(res.valor||0))}</small></div>`:''}${tag(f?'Fechada':'Em aberto',f?'ok':'at')}</a>`}).join('')
    :vazio('Nenhuma contagem ainda','Contar o estoque de tempos em tempos acerta o saldo do sistema com o que existe de verdade.');
   cp.querySelector('#emm').hidden=true};
  const pinta=()=>({saldo:listaSaldo,mov:listaMov,grupos:listaGrupos,cont:listaCont}[U.aba]||listaSaldo)();
  const corpo=()=>{const mais='<div class="inv-l" id="elst"></div><button type="button" class="btn inv-mais" id="emm" hidden>Mostrar mais</button>';
-  if(U.aba==='mov'){cp.innerHTML=`<div class="inv-filtros"><input type="search" id="eqm" placeholder="Buscar por material ou documento" value="${esc(U.qm)}" aria-label="Buscar lançamento"><select id="etm" aria-label="Tipo de lançamento"><option value="">Todos os tipos</option>${['Entrada','Saída','Devolução','Ajuste','EPI entregue','Ferramenta'].map(t=>`<option ${U.tm===t?'selected':''}>${t}</option>`).join('')}</select></div>`+mais;
+  if(U.aba==='mov'){cp.innerHTML=`<div class="inv-filtros"><input type="search" id="eqm" placeholder="Buscar por material ou documento" value="${esc(U.qm)}" aria-label="Buscar lançamento"><select id="etm" aria-label="Tipo de lançamento"><option value="">Todos os tipos</option>${[['Entrada','Entrada (com ou sem compra)'],['Saída','Saída'],['Devolução','Devolução'],['Contagem','Acerto de contagem'],['Ajuste','Ajuste de saída'],['EPI entregue','EPI entregue'],['Ferramenta','Ferramenta perdida ou danificada']].map(([t,l])=>`<option value="${t}" ${U.tm===t?'selected':''}>${l}</option>`).join('')}</select></div>`+mais;
    cp.querySelector('#eqm').oninput=e=>{U.qm=e.target.value;U.nm=40;listaMov()};cp.querySelector('#etm').onchange=e=>{U.tm=e.target.value;U.nm=40;listaMov()}}
   else if(U.aba==='grupos'){cp.innerHTML=`<div class="inv-filtros"><span class="ajuda" style="flex:1 1 240px">Toque num grupo para ver os materiais dele. Cada material fica dentro de um grupo.</span>${edI?`<button type="button" class="btn" id="egN">${ic('iMais')}Novo grupo</button>`:''}</div>`+mais;
    const b=cp.querySelector('#egN');if(b)b.onclick=()=>estGrupo(null)}
@@ -41555,7 +41602,7 @@ function estInicio(c){
  const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida('');
  const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada('');
  const b3=c.querySelector('#eNovo');if(b3)b3.onclick=()=>estMaterial(null,U.grp.startsWith('g:')&&U.grp.length>2?{grupoId:U.grp.slice(2),categoria:(A.GRUPO(U.grp.slice(2))||{}).categoria}:U.grp.startsWith('c:')?{categoria:U.grp.slice(2)}:null);
- const b4=c.querySelector('#eVar');if(b4)b4.onclick=()=>A.variosItens(U.grp.startsWith('g:')&&U.grp.length>2?U.grp.slice(2):undefined);
+ const b4=c.querySelector('#eVar');if(b4)b4.onclick=()=>A.variosItens(U.grp.startsWith('g:')&&U.grp.length>2?U.grp.slice(2):undefined,true);
  ref=DATA.alm;topo();corpo();
  INV.aoDados=()=>{if(DATA.alm!==ref)tudo()};
 }
@@ -41568,13 +41615,13 @@ function estItem(c,id){
   const e=A.estI(id),at=A.ativo(i),p=at?A.repI(i):{mes:0,comprar:0,ponto:null,dias:null,abc:''},sit=A.sitItem(i),u=eUn(i);
   const d=(l,x)=>x==null||x===''?'':`<div><dt>${esc(l)}</dt><dd>${esc(x)}</dd></div>`;
   const kp=(l,x,o,cl)=>`<div class="inv-kpi ${cl||''}"><div><small>${esc(l)}</small><b>${x}</b>${o?`<em>${esc(o)}</em>`:''}</div></div>`;
-  let s=0;const mv=A.movsAlm().filter(m=>m.itemId===id).map(m=>{s=Math.round((s+m.q)*1000)/1000;return{...m,s}}).reverse();
+  let s=0;const S=eAjCont(),mv=A.movsAlm().filter(m=>m.itemId===id).map(m=>{s=Math.round((s+m.q)*1000)/1000;return{...m,s}}).reverse();
   const forn=i.fornecedorId?((DATA.almFornecedores||[]).find(f=>f.id===i.fornecedorId)||{}).nome:'';
   c.innerHTML=cab(i.nome,i.codigo,`${edS&&at&&e.disp>0?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA&&at?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eEd">Editar</button>`:''}`,R('estoque'))+
    `<div style="margin:-6px 0 14px;display:flex;gap:6px;flex-wrap:wrap">${tag(sit,COR_SIT[sit])}${p.comprar>0?tag('Repor: comprar '+fQtd(p.comprar)+' '+u,'at'):''}${p.abc?tag('Curva '+p.abc):''}</div>
    <div class="inv-kpis">${kp('Saldo agora',esc(fQtd(e.saldo)+' '+u),e.emp?fQtd(e.emp)+' '+u+' emprestado(s)':'','dest')}${kp('Custo médio',esc(fMoeda(e.cm)),e.eq>0?'das compras lançadas':i.custoRef>0?'custo de referência':'sem compra lançada')}${kp('Valor em estoque',esc(fMoeda(e.valor)))}${kp('Consumo por mês',p.mes?esc(fQtd(p.mes)+' '+u):'—','média de 90 dias')}${p.dias!=null?kp('O saldo dura',fNum(p.dias)+' dia(s)','no ritmo de agora'):''}${p.ponto!=null?kp('Ponto de reposição',esc(fQtd(p.ponto)+' '+u),'abaixo disso, comprar'):''}</div>
    <div class="inv-bloco"><h3>Dados do material</h3><dl class="inv-dl">${d('Categoria',i.categoria)}${d('Grupo',A.nomeGrupo(i.grupoId))}${d('Unidade',i.unidade)}${d('Marca',i.marca)}${d('Especificação',i.especificacao)}${d('Código do fabricante ou de barras',i.refFab)}${d('Local de guarda',i.local)}${d('Estoque mínimo',A.temMin(i)?fQtd(i.minimo)+' '+u:'')}${d('Estoque máximo',i.maximo>0?fQtd(i.maximo)+' '+u:'')}${d('Prazo de reposição',i.prazoRep>0?fNum(i.prazoRep)+' dia(s)':'')}${d('Fornecedor habitual',forn)}${d('Última entrada',e.ultEnt?fData(e.ultEnt):'')}${d('Última saída',e.ultSai?fData(e.ultSai):'')}${d('Observações',i.obs)}</dl></div>
-   <div class="inv-tit"><h2>Entradas e saídas deste material</h2></div><div class="inv-l">${mv.length?mv.slice(0,60).map(m=>`<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+u)} · ${esc(m.tipo)}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(m.doc):''}</small></div><div class="vl">${esc(fQtd(m.s)+' '+u)}<small>saldo depois</small></div></div>`).join(''):vazio('Nenhum lançamento ainda','O saldo começa em zero: lance a entrada ou faça a contagem.')}</div>${mv.length>60?'<p class="ajuda" style="margin-top:8px">Mostrando os 60 lançamentos mais recentes.</p>':''}`;
+   <div class="inv-tit"><h2>Entradas e saídas deste material</h2></div><div class="inv-l">${mv.length?mv.slice(0,60).map(m=>`<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+u)} · ${esc(eRot(m,S))}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(eDoc(m.doc)):''}</small></div><div class="vl">${esc(fQtd(m.s)+' '+u)}<small>saldo depois</small></div></div>`).join(''):vazio('Nenhum lançamento ainda','O saldo começa em zero: lance a entrada ou faça a contagem.')}</div>${mv.length>60?'<p class="ajuda" style="margin-top:8px">Mostrando os 60 lançamentos mais recentes.</p>':''}`;
   const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida(id);const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada(id);const b3=c.querySelector('#eEd');if(b3)b3.onclick=()=>estMaterial(id)};
  desenha();INV.aoDados=()=>{if(DATA.alm!==ref)desenha()};
 }
@@ -41588,7 +41635,7 @@ function estSaida(itemId){
   {k:'setor',l:'Para onde vai (setor)',req:1,lista:'eSet',ph:'Ex.: Maromba, Fornos, Manutenção'},{k:'solicitante',l:'Quem retirou'},{k:'finalidade',l:'Para quê',larga:1,ph:'Opcional'}];
  const ini={itemId:itemId||'',data:hoje(),setor:INV.estSetor||''};
  modal('Lançar saída do estoque',`<div class="inv-grade">${fs.map(f=>campoHtml(f,ini[f.k])).join('')}</div><datalist id="eSet">${A.setoresAlm().map(s=>`<option value="${esc(s)}">`).join('')}</datalist><p class="ajuda" id="eDisp" style="margin:8px 0 0"></p>`,'Lançar saída',async v=>{
-   const d=lerForm(v,fs);if(!d)return false;if(!(d.qtd>0)){toast('Informe uma quantidade maior que zero.','erro');return false}
+   if(eMilhar(v))return false;const d=lerForm(v,fs);if(!d)return false;if(!(d.qtd>0)){toast('Informe uma quantidade maior que zero.','erro');return false}
    const rec=await A.saidaRapida({data:d.data,setor:d.setor,solicitante:eVazio(d.solicitante),finalidade:eVazio(d.finalidade),itens:[{itemId:d.itemId,qtd:d.qtd}]});
    INV.estSetor=d.setor;const i=eItem(d.itemId);toast(A.fReq(rec.numero)+' registrada: saíram '+eQt(d.qtd,i)+' de '+(i?i.nome:'material')+'.','ok')},
   {depois:v=>{const s=v.querySelector('[name=itemId]'),x=v.querySelector('#eDisp');const f=()=>{const i=eItem(s.value);x.textContent=i?'Disponível agora: '+eQt(A.estI(i.id).disp,i)+'. O saldo é baixado na hora, pelo custo médio.':''};s.onchange=f;f()}});
@@ -41599,7 +41646,7 @@ function estEntrada(itemId){
  const fs=[{k:'itemId',l:'Material',t:'sel',req:1,larga:1,ops:its.map(i=>[i.id,i.nome+' · tem '+eQt(A.estI(i.id).saldo,i)])},{k:'qtd',l:'Quantidade que entra',t:'num',req:1},{k:'data',l:'Data',t:'data',req:1},
   {k:'motivo',l:'De onde veio',req:1,larga:1,lista:'eMot',ph:'Ex.: saldo inicial, sobra encontrada, devolução'}];
  modal('Lançar entrada no estoque',`<p class="ajuda" style="margin:0 0 10px">Use para o que entra sem compra: saldo inicial, sobra encontrada, devolução. A compra com nota fiscal é lançada em Entradas do almoxarifado (ela gera a conta a pagar) e soma neste estoque sozinha.</p><div class="inv-grade">${fs.map(f=>campoHtml(f,{itemId:itemId||'',data:hoje()}[f.k])).join('')}</div><datalist id="eMot">${['Saldo inicial','Sobra encontrada','Devolução ao estoque','Material recuperado'].map(s=>`<option value="${s}">`).join('')}</datalist>`,'Lançar entrada',async v=>{
-   const d=lerForm(v,fs);if(!d)return false;
+   if(eMilhar(v))return false;const d=lerForm(v,fs);if(!d)return false;
    const st={...MODS.almAjustes.padrao(),id:novoId(),itemId:d.itemId,data:d.data,tipo:'entrada',qtd:d.qtd,motivo:d.motivo};
    const r=conferirRegistro('almAjustes',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
    await gravarRegistro('almAjustes',st,null,true);const i=eItem(d.itemId);toast('Entrada registrada: '+eQt(d.qtd,i)+' de '+(i?i.nome:'material')+'.','ok')});
@@ -41617,7 +41664,7 @@ function estMaterial(id,ini){
    const d=lerForm(v,fs);if(!d)return false;
    const st=ant?clone(ant):{...MODS.almItens.padrao(),id:novoId()};TXT.forEach(k=>{st[k]=eVazio(d[k])});NUM.forEach(k=>{st[k]=eVazio(d[k])});if(ant)st.ativo=d.ativo!=='0';
    const r=conferirRegistro('almItens',st);const er=Object.entries(r.erros);
-   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=m});toast(er[0][1],'erro');return false}
+   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=eMat(m)});toast(eMat(er[0][1]),'erro');return false}
    const rec=await gravarRegistro('almItens',st,ant?clone(ant):null,!ant);toast(ant?'Material atualizado.':'Material '+(rec.codigo||'')+' cadastrado.','ok')},
   {depois:v=>{const g=v.querySelector('[name=grupoId]'),ct=v.querySelector('[name=categoria]'),lc=v.querySelector('[name=local]');g.onchange=()=>{const x=A.GRUPO(g.value);if(x){ct.value=x.categoria;if(!lc.value&&x.local)lc.value=x.local}}}});
 }
@@ -41649,16 +41696,30 @@ function estNovaContagem(){
 function estContagem(c,id){
  const A=AX(),K=A.contagem;const V=()=>DATA.almInventarios.find(x=>x.id===id)||null;
  const v0=V();if(!v0){c.innerHTML=vazio('Contagem não encontrada','Confira na aba Contagem do estoque.',lk(R('estoque'),'Voltar ao estoque'));return}
- const ed=pode('almInventarios','e');
- if(!INV.rasc||INV.rasc.id!==id)INV.rasc={id,c:{...(v0.contagens||{})},sujo:false};
- const cont=INV.rasc.c;let q='',modo='todos',n=60,ref=null,tSalvar=null,gravando=null,eraFechado=null;
- const tem=x=>x!==''&&x!=null&&!isNaN(+x);
- const guardar=()=>{clearTimeout(tSalvar);tSalvar=null;if(!INV.rasc||!INV.rasc.sujo||gravando)return gravando||Promise.resolve();
-  const v=V();if(!v||v.status==='fechado'||!ed)return Promise.resolve();INV.rasc.sujo=false;
-  gravando=K.salvar(v,cont).catch(e=>{if(INV.rasc)INV.rasc.sujo=true;console.warn(e);toast('A contagem digitada ainda não foi guardada: '+msg(e),'erro')}).then(()=>{gravando=null;if(INV.rasc&&INV.rasc.id===id&&INV.rasc.sujo){clearTimeout(tSalvar);tSalvar=setTimeout(guardar,600)}const s=c.querySelector('#cSt');if(s&&INV.rasc&&!INV.rasc.sujo)s.textContent='Contagem guardada às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'.'});return gravando};
+ const ed=pode('almInventarios','e');const tem=x=>x!==''&&x!=null&&!isNaN(+x);
+ /* INV.rasc.m guarda só o que foi digitado NESTA tela e o banco ainda não confirmou ('' = contagem apagada).
+    cont é o que vale agora: o que está gravado (inclusive por outro aparelho ou pela tela do almoxarifado)
+    com o digitado aqui por cima. Assim ninguém apaga a contagem de ninguém. */
+ if(!INV.rasc||INV.rasc.id!==id)INV.rasc={id,m:{}};
+ const M=INV.rasc.m,cont={};
+ const sinc=()=>{const s=(V()||{}).contagens||{};Object.keys(cont).forEach(k=>delete cont[k]);Object.keys(s).forEach(k=>{if(tem(s[k]))cont[k]=+s[k]});Object.keys(M).forEach(k=>{if(tem(M[k]))cont[k]=+M[k];else delete cont[k]})};
+ const pendente=()=>Object.keys(M).length>0;
+ let q='',modo='todos',n=60,ref=null,tSalvar=null,gravando=null,eraFechado=null,falhas=0;
+ const estado=t=>{const s=c.querySelector('#cSt');if(s)s.textContent=t};
+ /* guarda sozinho o que foi digitado. Sem conexão: avisa uma vez, espera cada vez mais e desiste depois de algumas tentativas (o digitado continua na tela) */
+ const guardar=()=>{clearTimeout(tSalvar);tSalvar=null;if(gravando)return gravando;if(!pendente())return Promise.resolve();
+  const v=V();if(!v||v.status==='fechado'||!ed){Object.keys(M).forEach(k=>delete M[k]);return Promise.resolve()}
+  const env={...M};
+  gravando=K.salvar(v,env).then(()=>{falhas=0;Object.keys(env).forEach(k=>{if(M[k]===env[k])delete M[k]});
+    estado(pendente()?'Guardando o que foi digitado…':'Contagem guardada às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'.')},
+   e=>{falhas++;console.warn(e);const semPerm=!!(e&&e.code==='permission_denied');
+    if(falhas===1||semPerm)toast('A contagem digitada ainda não foi guardada: '+msg(e),'erro');
+    estado(semPerm?'Não foi guardado: '+msg(e):'Sem conexão: o que foi digitado continua nesta tela e é guardado quando a conexão voltar.');if(semPerm)falhas=99})
+   .then(()=>{gravando=null;if(pendente()&&falhas<8){clearTimeout(tSalvar);tSalvar=setTimeout(guardar,falhas?Math.min(60000,4000*Math.pow(2,falhas-1)):600)}});
+  return gravando};
  const difTxt=i=>{const x=cont[i.id];if(!tem(x))return '<span class="ajuda">falta contar</span>';const d=Math.round((+x-A.estI(i.id).saldo)*1000)/1000;return Math.abs(d)<1e-9?tag('Confere','ok'):`<b style="color:${d<0?'#B00E17':'#16784A'}">${esc((d>0?'+':'−')+fQtd(Math.abs(d)))}</b><small>${esc(fMoeda(d*A.estI(i.id).cm))}</small>`};
  const resumo=()=>{const v=V();if(!v)return;const f=v.status==='fechado',res=v.resultado||{};const kp=(l,x,cl)=>`<div class="inv-kpi ${cl||''}"><div><small>${esc(l)}</small><b>${x}</b></div></div>`;const el=c.querySelector('#ckp');if(!el)return;
-  if(f){el.innerHTML=kp('Materiais contados',fNum(Object.keys(v.contagens||{}).length),'dest')+kp('Ajustes lançados',fNum(res.ajustes||0))+kp('Valor das diferenças',esc(fMoeda(res.valor||0)));return}
+  if(f){el.innerHTML=kp('Materiais contados',fNum(Object.values(v.contagens||{}).filter(tem).length),'dest')+kp('Ajustes lançados',fNum(res.ajustes||0))+kp('Valor das diferenças',esc(fMoeda(res.valor||0)));return}
   const R0=K.difs(v,cont);el.innerHTML=kp('Contados',fNum(R0.contados)+' de '+fNum(R0.its.length),'dest')+kp('Faltam contar',fNum(R0.sem))+kp('Com diferença',fNum(R0.difs.length))+kp('Valor das diferenças',esc(fMoeda(R0.valor)))};
  const linhas=()=>{const v=V();const f=v.status==='fechado';const qq=semAcento(q);
   return K.itens(v,f?v.contagens||{}:cont).filter(i=>{if(qq&&!semAcento([i.codigo,i.nome,i.local,i.marca].filter(Boolean).join(' ')).includes(qq))return false;
@@ -41670,33 +41731,46 @@ function estContagem(c,id){
     return `<div class="inv-c"><div class="tx"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.local].filter(Boolean).join(' · '))} · no sistema: ${esc(fQtd(sd)+' '+u)}</small></div><div class="vl">${tem(ct)?esc(fQtd(ct)+' '+u):'—'}<small>contado</small></div>${d==null?tag('Não contado'):Math.abs(d)<1e-9?tag('Confere','ok'):tag((d>0?'+':'−')+fQtd(Math.abs(d)),d<0?'er':'at')}</div>`}
    return `<div class="inv-c inv-cnt"><div class="tx"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.local].filter(Boolean).join(' · '))} · no sistema: ${esc(fQtd(A.estI(i.id).saldo)+' '+u)}</small></div><input type="number" inputmode="decimal" step="any" min="0" data-cq="${esc(i.id)}" value="${tem(cont[i.id])?esc(cont[i.id]):''}" placeholder="Contagem" aria-label="Contagem de ${esc(i.nome)}" ${pode2?'':'disabled'}><div class="vl" data-cd="${esc(i.id)}">${difTxt(i)}</div></div>`}).join('')
    :vazio('Nada nesta lista',modo==='falta'?'Todos os materiais já foram contados.':'');
-  el.querySelectorAll('[data-cq]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.cq;cont[k]=inp.value===''?'':+inp.value;INV.rasc.sujo=true;const i=eItem(k),cd=el.querySelector(`[data-cd="${CSS.escape(k)}"]`);if(i&&cd)cd.innerHTML=difTxt(i);resumo();
-   const s=c.querySelector('#cSt');if(s)s.textContent='Guardando o que foi digitado…';clearTimeout(tSalvar);tSalvar=setTimeout(guardar,1200)});
+  el.querySelectorAll('[data-cq]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.cq;M[k]=inp.value===''?'':+inp.value;if(tem(M[k]))cont[k]=+M[k];else delete cont[k];
+   const i=eItem(k),cd=el.querySelector(`[data-cd="${CSS.escape(k)}"]`);if(i&&cd)cd.innerHTML=difTxt(i);resumo();
+   estado('Guardando o que foi digitado…');clearTimeout(tSalvar);tSalvar=setTimeout(guardar,1200)});
   const m=c.querySelector('#cmm');m.hidden=l.length<=n;m.onclick=()=>{n+=60;pinta()}};
  const tela=()=>{const v=V();if(!v){c.innerHTML=vazio('Contagem não encontrada','Ela pode ter sido excluída.',lk(R('estoque'),'Voltar ao estoque'));return}
-  const f=v.status==='fechado';eraFechado=f;ref=DATA.alm;
+  const f=v.status==='fechado';eraFechado=f;ref=DATA.alm;q='';modo='todos';n=60;sinc();
   c.innerHTML=cab('Contagem de '+fData(v.data),(v.categoria||'Todos os materiais')+' · responsável: '+(v.responsavel||'—')+(f?' · fechada em '+fDataHora(v.fechadoEm):''),
     `<button type="button" class="btn" id="cFo">${ic('baixar')}Folha de contagem</button>${ed&&!f?`<button type="button" class="btn pri" id="cFim">Fechar contagem</button><button type="button" class="btn" id="cExc">Excluir</button>`:''}`,R('estoque'))+
    `<div style="margin:-6px 0 14px">${tag(f?'Fechada':'Em aberto',f?'ok':'at')}</div><div class="inv-kpis" id="ckp"></div>
-   ${f?'':'<p class="ajuda" style="margin:0 0 12px">Conte o que existe e digite ao lado de cada material. O que você digita fica guardado sozinho. Material sem contagem continua com o saldo do sistema. <span id="cSt"></span></p>'}
+   ${f?'':'<p class="ajuda" style="margin:0 0 12px">Conte o que existe e digite ao lado de cada material. O que você digita fica guardado sozinho. Material sem contagem continua com o saldo do sistema. <span id="cSt" role="status"></span></p>'}
    <div class="inv-filtros"><input type="search" id="cq" placeholder="Buscar material, código ou local" aria-label="Buscar material"><select id="cmo" aria-label="Mostrar"><option value="todos">Todos os materiais</option>${f?'':'<option value="falta">Só os que faltam contar</option>'}<option value="dif">Só os com diferença</option></select></div>
    <div class="inv-l" id="clst"></div><button type="button" class="btn inv-mais" id="cmm" hidden>Mostrar mais</button>`;
   c.querySelector('#cq').oninput=e=>{q=e.target.value;n=60;pinta()};c.querySelector('#cmo').onchange=e=>{modo=e.target.value;n=60;pinta()};
-  c.querySelector('#cFo').onclick=ev=>{const cols=[{k:'local',l:'Local'},{k:'codigo',l:'Código'},{k:'nome',l:'Material'},{k:'un',l:'Unidade'},{k:'cont',l:'Contagem'},{k:'obs',l:'Observação'}];
-   const rows=K.itens(v,f?v.contagens||{}:cont).sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||eOrd(a,b)).map(i=>({local:i.local||'',codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),un:eUn(i),cont:f&&tem((v.contagens||{})[i.id])?fQtd((v.contagens||{})[i.id]):'',obs:''}));
-   const fx=fmt=>exportar(fmt,'Folha_de_contagem_'+hoje(),cols,rows,'Folha de contagem · '+fData(v.data)+' · '+(v.categoria||'Todos os materiais'));
+  c.querySelector('#cFo').onclick=ev=>{const at=V()||v,fe=at.status==='fechado';const cols=[{k:'local',l:'Local'},{k:'codigo',l:'Código'},{k:'nome',l:'Material'},{k:'un',l:'Unidade'},{k:'cont',l:'Contagem'},{k:'obs',l:'Observação'}];
+   const rows=K.itens(at,fe?at.contagens||{}:cont).sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||eOrd(a,b)).map(i=>({local:i.local||'',codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),un:eUn(i),cont:fe&&tem((at.contagens||{})[i.id])?fQtd((at.contagens||{})[i.id]):'',obs:''}));
+   const fx=fmt=>exportar(fmt,'Folha_de_contagem_'+hoje(),cols,rows,'Folha de contagem · '+fData(at.data)+' · '+(at.categoria||'Todos os materiais'));
    abrirMenuMais(ev.currentTarget,[{l:'Visualizar',sub:rows.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
-  const bf=c.querySelector('#cFim');if(bf)bf.onclick=async()=>{await guardar();const at=V();if(!at||at.status==='fechado'){tela();return}const R0=K.difs(at,cont);
+  const bf=c.querySelector('#cFim');if(bf)bf.onclick=async()=>{for(let k=0;k<3&&(pendente()||gravando);k++)await guardar();
+   const at=V();if(!at||at.status==='fechado'){tela();return}
+   if(pendente()){toast('Ainda não deu para guardar o que foi digitado. Confira a conexão e tente fechar de novo.','erro');return}
+   sinc();resumo();const R0=K.difs(at,cont);
    if(!R0.contados){toast('Digite a contagem de pelo menos um material.','erro');return}
    if(!await confirmar('Fechar a contagem?',(R0.sem?'ATENÇÃO: '+R0.sem+' material(is) ficaram sem contagem e continuam com o saldo do sistema. ':'')+(R0.difs.length?R0.difs.length+' material(is) com diferença ('+fMoeda(R0.valor)+'). Cada diferença vira um ajuste e o saldo é corrigido. ':'Nenhuma diferença entre a contagem e o sistema. ')+'Depois de fechada, a contagem não muda.',{ok:'Fechar contagem'}))return;
-   if(await acao(bf,()=>K.fechar(V()||at,cont),'Contagem fechada. O saldo foi acertado.')){INV.rasc=null;tela()}};
-  const bx=c.querySelector('#cExc');if(bx)bx.onclick=async()=>{if(!await confirmar('Excluir esta contagem?','O que foi digitado nela se perde. Nenhum ajuste foi lançado ainda.',{ok:'Excluir',perigo:true}))return;clearTimeout(tSalvar);if(INV.rasc)INV.rasc.sujo=false;
+   if(await acao(bf,()=>K.fechar(V()||at,{}),'Contagem fechada. O saldo foi acertado.')){INV.rasc=null;tela()}};
+  const bx=c.querySelector('#cExc');if(bx)bx.onclick=async()=>{const nAj=DATA.almAjustes.filter(a=>a.inventarioId===id).length;
+   if(nAj){toast('Esta contagem já lançou '+nAj+' ajuste(s) num fechamento que não terminou. Toque em “Fechar contagem” para concluir.','erro');return}
+   if(!await confirmar('Excluir esta contagem?','O que foi digitado nela se perde. Nenhum ajuste foi lançado.',{ok:'Excluir',perigo:true}))return;clearTimeout(tSalvar);tSalvar=null;Object.keys(M).forEach(k=>delete M[k]);
    if(await acao(bx,async()=>{const at=V();if(at){await apagar('almInventarios',at);await registrarLog('almInventarios',at.id,'excluiu')}},'Contagem excluída.')){INV.rasc=null;INV.est=Object.assign(INV.est||{},{aba:'cont'});ir(R('estoque'))}};
   resumo();pinta()};
- tela();
+ tela();if(pendente())tSalvar=setTimeout(guardar,600);
  INV.aoDados=()=>{if(DATA.alm===ref)return;ref=DATA.alm;const v=V();if(!v||(v.status==='fechado')!==eraFechado){tela();return}
-  resumo();const el=c.querySelector('#clst');if(el&&el.contains(document.activeElement)){el.querySelectorAll('[data-cd]').forEach(cd=>{const i=eItem(cd.dataset.cd);if(i)cd.innerHTML=difTxt(i)});return}pinta()};
- INV.aoSair=()=>{if(INV.rasc&&INV.rasc.sujo)guardar()};
+  sinc();resumo();const el=c.querySelector('#clst');
+  if(el&&el.contains(document.activeElement)){   /* alguém está digitando: atualiza em volta, sem mexer no campo em uso */
+   el.querySelectorAll('[data-cq]').forEach(inp=>{if(inp===document.activeElement)return;const x=tem(cont[inp.dataset.cq])?String(cont[inp.dataset.cq]):'';if(inp.value!==x)inp.value=x});
+   el.querySelectorAll('[data-cd]').forEach(cd=>{const i=eItem(cd.dataset.cd);if(i)cd.innerHTML=difTxt(i)});return}
+  pinta()};
+ INV.aoSair=()=>{if(pendente())guardar()};
+ /* o programa adia o redesenho enquanto alguém digita; na contagem a pessoa digita o tempo todo, então a própria
+    tela confere de tempos em tempos se chegou contagem de outro aparelho (só compara; não consulta o banco) */
+ const tm=setInterval(()=>{if(!c.isConnected){clearInterval(tm);if(INV.timer===tm)INV.timer=null;return}if(INV.aoDados)INV.aoDados()},4000);INV.timer=tm;
 }
 
 /* ---------- ligação com o resto do JB (só acrescenta; só para quem o servidor autoriza) ---------- */

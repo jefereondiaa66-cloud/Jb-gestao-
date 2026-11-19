@@ -30,6 +30,8 @@ tela mostra as mesmas fotos, buscando leitura por leitura (mais lento).
 - **Entradas e saídas**: tudo o que entrou e saiu.
 - **Grupos** e **cadastro de materiais** (um por vez ou vários de uma vez).
 - **Contagem**: o que é digitado fica guardado sozinho; ao fechar, cada diferença vira um ajuste.
+  Duas pessoas podem contar a mesma contagem em aparelhos diferentes: uma não apaga o que a outra
+  contou. Sem conexão, o digitado fica na tela e é guardado quando a conexão volta.
 - **Ficha do material**: saldo, custo, consumo por mês, ponto de reposição e os lançamentos.
 
 ## Um estoque só
@@ -38,6 +40,13 @@ O Estoque do Centro de Inventário não tem cadastro próprio: mostra e lança s
 materiais, saldos e lançamentos do Setor do Almoxarifado (coleção `alm`), com as mesmas regras
 (`window.ALMOX_V52`) e as mesmas permissões. Nada é digitado duas vezes e não existem dois saldos.
 O patrimônio continua restrito a quem o servidor autoriza (`inv.acessos`).
+
+## Revisão
+
+Quatro revisores independentes leram o código, cada achado conferido por um segundo revisor. Os 31
+confirmados foram corrigidos antes de publicar; os dois graves eram da contagem (contagem feita em
+outro aparelho era ignorada, e número apagado voltava porque o banco junta campo a campo). O segundo
+valia também para o inventário do almoxarifado, que foi corrigido junto.
 
 ## Não foi feito
 

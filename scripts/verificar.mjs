@@ -940,14 +940,36 @@ if (existsSync(join(RAIZ, 'supabase/migrations/20261119120000_inv_02_fotos_confe
 teste('inventario', 'programa (V139): fotos da conferência à vista e Estoque dentro do setor, sobre os dados do almoxarifado', () => {
   const app = ler('app/jb-gestao.html');
   const bloco = /<script id="inv-centro">([\s\S]*?)<\/script>/.exec(app)[1];
-  assert.ok(bloco.includes("['estoque','Estoque','iEstoque']") && bloco.includes('TELA.estoque=async function(c,p){'), 'aba Estoque no Centro de Inventário');
-  assert.ok(bloco.includes("chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true") && bloco.includes("chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id})"), 'fotos: caminho novo (uma chamada) e caminho antigo (por leitura)');
+  // recorta uma função pelo começo dela e pelo começo da seguinte, para conferir DENTRO dela (e não num comentário qualquer)
+  const trecho = (t, de, ate) => { const a = t.indexOf(de); assert.ok(a >= 0, 'não achei: ' + de); const b = t.indexOf(ate, a + de.length); assert.ok(b > a, 'não achei o fim: ' + ate); return t.slice(a, b); };
+  assert.ok(bloco.includes("['estoque','Estoque','iEstoque']"), 'aba Estoque no Centro de Inventário');
+  // fotos: caminho novo (uma chamada, só quando a tela pede) e caminho antigo (por leitura)
+  const fotos = trecho(bloco, 'function fotosDe(id,aoMudar){', 'function pintaFotos(');
+  assert.ok(fotos.includes("chamar('conferencia_resumo',Object.assign({empresa_id:eid(),inventario_id:id,fotos:true,fotos_limite:lim,fotos_pular:pular}"), 'fotos numa chamada só');
+  assert.ok(fotos.includes("chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id})"), 'caminho antigo, leitura por leitura');
+  assert.ok(fotos.includes('emFila(') && fotos.includes('conferir(){'), 'cargas em fila e conferência periódica leve');
   assert.ok(bloco.includes('function verArq(') && bloco.includes('function pintaFotos(') && bloco.includes('seloFt(FT.porItem[i.id])'), 'visualizador, quadro e selo de fotografias');
-  // o Estoque não tem regra própria de gravação: usa as do almoxarifado e as permissões de lá
-  assert.ok(bloco.includes("pode('almEstoque')") && bloco.includes("pode('almSaida','e')") && bloco.includes('A.saidaRapida(') && bloco.includes('K.fechar('), 'permissões e gravação do almoxarifado');
-  assert.ok(!/gravar\('alm(Saidas|Entradas)'/.test(bloco), 'o Centro de Inventário não grava saída nem compra por conta própria');
+  assert.ok(/if\(!c\.isConnected\)\{clearInterval\(tm\)/.test(trecho(bloco, 'async function telaConf(c,id){', 'function tokenDe(')), 'a conferência para de consultar quando a tela sai');
+  // Estoque: cada porta confere a permissão do almoxarifado dentro da própria função
+  assert.ok(trecho(bloco, 'TELA.estoque=async function(c,p){', 'function estInicio(c){').includes("if(!pode('almEstoque')){"), 'ver o estoque exige a permissão do almoxarifado');
+  assert.ok(trecho(bloco, 'function estSaida(itemId){', 'function estEntrada(itemId){').includes("if(!pode('almSaida','e')){"), 'saída exige permissão');
+  assert.ok(trecho(bloco, 'function estEntrada(itemId){', 'function estMaterial(id,ini){').includes("if(!pode('almAjustes','e')){"), 'entrada exige permissão');
+  assert.ok(trecho(bloco, 'function estMaterial(id,ini){', 'function estGrupo(id){').includes("if(!pode('almItens','e')){"), 'cadastro de material exige permissão');
+  assert.ok(trecho(bloco, 'function estNovaContagem(){', 'function estContagem(c,id){').includes("if(!pode('almInventarios','e')){"), 'contagem exige permissão');
+  // o Centro de Inventário não tem regra própria de gravação de saída, compra ou ajuste de contagem: usa as do almoxarifado
+  assert.ok(!/(gravar|gravarRegistro|apagar)\('alm(Saidas|Entradas)'/.test(bloco), 'o Centro não grava saída nem compra por conta própria');
+  assert.ok(bloco.includes('A.saidaRapida(') && bloco.includes('K.salvar(v,env)') && bloco.includes('K.fechar('), 'saída e contagem pelas funções do almoxarifado');
   assert.ok(/saidaRapida:saidaRapidaAlm,contagem:\{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm\}/.test(app), 'o almoxarifado expõe a saída rápida e a contagem');
-  assert.ok(/async function saidaRapidaAlm\(d\)\{\n if\(!pode\('almSaida','e'\)\)throw/.test(app) && /const r=conferirS\(x\);if\(r\.erros\.length\)throw/.test(app), 'saída rápida confere a permissão e as mesmas regras da requisição');
+  const saida = trecho(app, 'async function saidaRapidaAlm(d){', 'const temCont=');
+  assert.ok(/^async function saidaRapidaAlm\(d\)\{\s*if\(!pode\('almSaida','e'\)\)throw/.test(saida) && saida.includes('const r=conferirS(x);if(r.erros.length)throw') && saida.includes("reservarSeqV('numeracao/almSaidas'"), 'saída rápida: permissão, as regras da requisição e a numeração de lá');
+  const salvar = trecho(app, 'async function salvarContagemAlm(v,mapa){', 'async function fecharContagemAlm(v,mapa){');
+  assert.ok(/^async function salvarContagemAlm\(v,mapa\)\{\s*if\(!pode\('almInventarios','e'\)\)throw/.test(salvar) && salvar.includes("if(atual.status==='fechado')throw"), 'guardar contagem: permissão e contagem fechada travada');
+  assert.ok(salvar.includes('else if(k in ct)ct[k]=null'), 'contagem apagada vai como null (a gravação junta campo a campo)');
+  const fechar = trecho(app, 'async function fecharContagemAlm(v,mapa){', '/* ================= para os testes e para as telas');
+  assert.ok(fechar.includes('const atual=await salvarContagemAlm(v,mapa);') && fechar.includes("const ja=DATA.almAjustes.filter(a=>a.inventarioId===atual.id)") && fechar.includes('delete RASC_INV[v.id]'), 'fechar contagem: vale o que está gravado e não repete ajuste de tentativa anterior');
+  // a contagem da tela guarda só o que foi digitado nela e junta o que veio de outros aparelhos
+  const cont = trecho(bloco, 'function estContagem(c,id){', '/* ---------- ligação com o resto do JB');
+  assert.ok(cont.includes("if(!INV.rasc||INV.rasc.id!==id)INV.rasc={id,m:{}};") && cont.includes('const sinc=()=>{') && cont.includes('falhas<8'), 'rascunho só do que foi digitado, junção com o banco e fim das tentativas sem conexão');
 });
 
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
