@@ -40749,6 +40749,14 @@ function casca(el,ativa){el.innerHTML=`<div class="spot sv inv" id="inv-raiz"><d
  <nav class="dir-abas sv-abas" aria-label="Telas do Centro de Inventário">${TELAS.map(([k,l,i])=>`<a class="dir-aba${k===ativa?' on':''}" href="${R(k)}"${k===ativa?' aria-current="page"':''}>${ic(i)}<span>${esc(l)}</span></a>`).join('')}</nav></div>
  <main class="sv-corpo" id="svCorpo"></main></div>`;return el.querySelector('#svCorpo')}
 const partes=()=>location.hash.replace(/^#\/?/,'').split('/').slice(1).map(decodeURIComponent);
+/* as telas de empresa saíram (18/11/2026): abas de trabalho guardadas daquela época (a lista e o
+   cadastro de empresas) continuavam na barra do alto deste navegador. Saem sozinhas ao abrir o setor. */
+function limparAbasEmpresa(){try{
+ if(typeof ABAS==='undefined'||!ABAS||!ABAS.carregou||!Array.isArray(ABAS.lista))return;
+ const velha=k=>/^#\/inventario\/empresas(\/|$)/.test(String(k||''));
+ if(!ABAS.lista.some(a=>velha(a.k)))return;
+ ABAS.lista=ABAS.lista.filter(a=>!velha(a.k));if(velha(ABAS.ativa))ABAS.ativa=null;
+ if(typeof guardarAbas==='function')guardarAbas();if(typeof renderBarraTrab==='function')renderBarraTrab()}catch(e){console.warn(e)}}
 const TELA={};
 async function telaInv(el){
  const h=location.hash;
@@ -40758,7 +40766,10 @@ async function telaInv(el){
  if(!INV.pronto){el.innerHTML='<div class="carrega" role="status">Conferindo o acesso…</div>';await verAcesso();if(location.hash!==h)return}
  if(!INV.acesso){el.innerHTML='<div class="spot"><main class="spot-corpo spot-estreito"><div class="vazio"><b>Sem acesso a esta área</b>Este setor é restrito.</div></main></div>';return}
  if(typeof marcarSetor==='function')marcarSetor('inventario');
- const p=partes();const t=TELA[p[0]]?p[0]:(p[0]==='q'?'q':'visao');const ativa=t==='q'?'bens':t;
+ setTimeout(limparAbasEmpresa,150);
+ const p=partes();
+ if(p[0]==='empresas'){JBNAV.subst('#/inventario');return}   /* endereço antigo das telas de empresa: abre o início do setor */
+ const t=TELA[p[0]]?p[0]:(p[0]==='q'?'q':'visao');const ativa=t==='q'?'bens':t;
  const c=casca(el,ativa);carregando(c);
  const de=()=>{INV.rota='';telaInv(el)};INV.redesenha=de;
  try{await empresas();await TELA[t](c,p.slice(1))}catch(e){console.warn(e);erroTela(c,e,de)}
