@@ -145,7 +145,7 @@ Teste: `node scripts/testar-leitura-rapida.mjs` (função de verdade no Deno + a
 
 ## 8. Centro de Inventário
 
-Setor independente, de acesso exclusivo do dono: inventário patrimonial de várias empresas.
+Setor de acesso exclusivo do dono: inventário patrimonial da cerâmica e, desde a V138, o estoque de materiais.
 
 | Peça | Onde |
 |---|---|
@@ -160,7 +160,13 @@ inventário concluído congelado, movimentações, leituras e auditoria sem alte
 Anexos ficam em `inv.arquivos`/`inv.arquivo_partes`, com limite de 250 MB e pausa automática se o banco chegar perto do limite do plano.
 Cópias: `inv.fazer_copia()` diária às 3h20 (30 dias), separada da cópia geral; os arquivos anexos não entram nela.
 Para abrir o inventário a outra pessoa é preciso uma linha nova em `inv.acessos`, só com pedido do dono.
-Estoque/materiais: `inv.naturezas` já separa as naturezas; só `patrimonial` está ativa.
+Fotografias da conferência (V138): ficam em `inv.arquivos` presas à leitura (`entidade = 'leitura'`). A migração
+`20261119120000_inv_02_fotos_conferencia` faz `inv.conferencia_resumo` devolver as fotos do inventário numa chamada só, quando a
+tela pede (`"fotos": true`); sem ela a tela busca leitura por leitura. Aparecem na conferência, na ficha do inventário e na do bem.
+Estoque de materiais (V138): a aba Estoque (`#/inventario/estoque`) NÃO usa o esquema `inv`. Ela mostra e lança sobre a coleção
+`alm` de `public.docs`, a mesma do Setor do Almoxarifado, com as funções e as permissões de lá (`window.ALMOX_V52`, `pode('almEstoque')`,
+`pode('almSaida','e')`…). Um estoque só: compra lançada no almoxarifado soma no Centro de Inventário e saída lançada no Centro baixa lá.
+`inv.naturezas` continua só com `patrimonial` ativa.
 
 ## 9. Resumo diário no WhatsApp
 

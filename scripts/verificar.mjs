@@ -919,6 +919,36 @@ if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inve
   assert.ok(m.includes('unique (empresa_id,codigo_patrimonial)'), 'código único por empresa');
   assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.down.sql')), 'reversão descrita');
 });
+if (existsSync(join(RAIZ, 'supabase/migrations/20261119120000_inv_02_fotos_conferencia.sql'))) teste('inventario', 'banco (V138): fotos da conferência numa chamada só, só com create or replace, com reversão e sem mudar a resposta antiga', () => {
+  const m = ler('supabase/migrations/20261119120000_inv_02_fotos_conferencia.sql');
+  const d = ler('supabase/migrations/20261119120000_inv_02_fotos_conferencia.down.sql');
+  const o = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
+  for (const [n, t] of [['migração', m], ['reversão', d]]) {
+    assert.ok(!/\bdrop\b|\bdelete\b|\btruncate\b|\balter\b|\bgrant\b|\binsert\b|\bupdate\b/i.test(t.replace(/--.*$/gm, '')), n + ': só pode recriar a função (nada de apagar, alterar tabela, dar permissão ou mexer em dados)');
+    assert.equal((t.match(/create or replace function/g) || []).length, 1, n + ': uma função só');
+    assert.ok(t.includes('create or replace function inv.conferencia_resumo(d jsonb) returns jsonb language plpgsql stable set search_path=inv,pg_temp'), n + ': mesma assinatura e mesmos atributos da função original');
+  }
+  assert.ok(m.includes('select seg.fazer_copia()') && m.includes('20261119120000_inv_02_fotos_conferencia.down.sql'), 'cabeçalho com a cópia de segurança e a reversão');
+  assert.ok(/if coalesce\(d->>'fotos',''\) in \('true','t','1'\) then/.test(m), 'as fotos só vêm quando a tela pede');
+  assert.ok(m.includes("a.entidade='leitura'") && m.includes('a.excluido_em is null and a.completo') && m.includes('a.empresa_id=v_emp'), 'só fotos de leitura, completas, não excluídas e da própria empresa');
+  assert.ok(/least\(greatest\(.*,1\),200\)/.test(m), 'página limitada a 200 fotos');
+  // a reversão devolve exatamente o corpo original; a migração mantém as três chaves de sempre
+  const corpo = (t) => /create (?:or replace )?function inv\.conferencia_resumo\(d jsonb\)[\s\S]*?end \$\$;/.exec(t)[0].replace('create or replace function', 'create function');
+  assert.equal(corpo(d), corpo(o), 'a reversão é a função original, letra por letra');
+  for (const k of ["'progresso',inv.progresso(v_inv)", "'pendentes',(select coalesce(jsonb_agg(", "'ocorrencias',(select coalesce(jsonb_agg("]) assert.ok(m.includes(k), 'resposta antiga mantida: ' + k);
+});
+teste('inventario', 'programa (V138): fotos da conferência à vista e Estoque dentro do setor, sobre os dados do almoxarifado', () => {
+  const app = ler('app/jb-gestao.html');
+  const bloco = /<script id="inv-centro">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(bloco.includes("['estoque','Estoque','iEstoque']") && bloco.includes('TELA.estoque=async function(c,p){'), 'aba Estoque no Centro de Inventário');
+  assert.ok(bloco.includes("chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true") && bloco.includes("chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id})"), 'fotos: caminho novo (uma chamada) e caminho antigo (por leitura)');
+  assert.ok(bloco.includes('function verArq(') && bloco.includes('function pintaFotos(') && bloco.includes('seloFt(FT.porItem[i.id])'), 'visualizador, quadro e selo de fotografias');
+  // o Estoque não tem regra própria de gravação: usa as do almoxarifado e as permissões de lá
+  assert.ok(bloco.includes("pode('almEstoque')") && bloco.includes("pode('almSaida','e')") && bloco.includes('A.saidaRapida(') && bloco.includes('K.fechar('), 'permissões e gravação do almoxarifado');
+  assert.ok(!/gravar\('alm(Saidas|Entradas)'/.test(bloco), 'o Centro de Inventário não grava saída nem compra por conta própria');
+  assert.ok(/saidaRapida:saidaRapidaAlm,contagem:\{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm\}/.test(app), 'o almoxarifado expõe a saída rápida e a contagem');
+  assert.ok(/async function saidaRapidaAlm\(d\)\{\n if\(!pode\('almSaida','e'\)\)throw/.test(app) && /const r=conferirS\(x\);if\(r\.erros\.length\)throw/.test(app), 'saída rápida confere a permissão e as mesmas regras da requisição');
+});
 
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;

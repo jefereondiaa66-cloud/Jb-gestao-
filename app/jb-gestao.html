@@ -22367,9 +22367,49 @@ posSalvarV=function(mod,rec,ant){
    JBNAV.ir(d===RE?(RE.id?'#/almEntrada/'+RE.id+'/editar':'#/almEntrada/nova'):(RS.id?'#/almSaida/'+RS.id+'/editar':'#/almSaida/nova'));return true}}
  return ps52?ps52(mod,rec,ant):false};
 
+/* ================= para o Estoque do Centro de Inventário (V138, 19/11/2026) =================
+   O Estoque de lá mostra e lança sobre os MESMOS itens, saldos e lançamentos daqui (nada em dobro).
+   Estas funções gravam com as mesmas regras das telas do almoxarifado, sem depender de nenhuma tela. */
+/* saída rápida: uma requisição de verdade (número, custo médio, histórico), com as conferências de conferirS */
+async function saidaRapidaAlm(d){
+ if(!pode('almSaida','e'))throw new Error('Seu perfil não lança saídas do estoque.');
+ const x={id:null,numero:null,data:d.data||hoje(),setor:String(d.setor||'').trim(),maquinaId:'',finalidade:String(d.finalidade||'').trim(),solicitante:String(d.solicitante||'').trim(),
+  autorizado:'',entregador:String(d.entregador||'').trim(),obs:String(d.obs||'').trim(),itens:(d.itens||[]).map(l=>({itemId:l.itemId,qtd:l.qtd}))};
+ const r=conferirS(x);if(r.erros.length)throw new Error(r.erros[0]);
+ let numero;try{numero=await reservarSeqV('numeracao/almSaidas',Math.max(0,...DATA.almSaidas.map(s=>+s.numero||0)))}catch(e){throw new Error('Não deu para reservar o número agora. Tente de novo. Nada foi gravado.')}
+ const r2b=conferirS(x);if(r2b.erros.length)throw new Error(r2b.erros[0]+' Nada foi gravado.');
+ const agora=agoraIso();
+ const itens=r2b.ls.map(l=>{const q=r3(numE(l.qtd));const cu=Math.round(estI(l.itemId).cm*10000)/10000;return{itemId:l.itemId,qtd:q,custoUnit:cu,custoTotal:r2(q*cu)}});
+ const rec={id:novoId(),criadoEm:agora,criadoPor:eu(),numero,data:x.data,setor:x.setor,maquinaId:'',finalidade:x.finalidade,solicitante:x.solicitante,autorizado:'',entregador:x.entregador,obs:x.obs,itens,alteradoEm:agora,alteradoPor:eu()};
+ await gravar('almSaidas',rec,null);await registrarLog('almSaidas',rec.id,'criou',null,rec,rotulosDe(MODS.almSaidas));return rec}
+/* contagem (inventário do estoque): os mesmos registros de almInventarios e os mesmos ajustes do fechamento daqui.
+   Fechar de novo depois de uma queda de conexão não repete ajuste já lançado. */
+const temCont=q=>q!==''&&q!=null&&!isNaN(+q);
+function itensDaContagem(v,cont){const c=cont||v.contagens||{};return DATA.almItens.filter(i=>(ativo(i)||c[i.id]!=null)&&(!v.categoria||i.categoria===v.categoria)).sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}))}
+function difsContagem(v,cont){const its=itensDaContagem(v,cont);
+ const difs=its.map(i=>{const q=cont[i.id];if(!temCont(q))return null;const d=r3(+q-estI(i.id).saldo);return Math.abs(d)>1e-9?{i,d}:null}).filter(Boolean);
+ return{its,difs,contados:its.filter(i=>temCont(cont[i.id])).length,sem:its.filter(i=>ativo(i)&&!temCont(cont[i.id])).length,valor:r2(soma(difs,x=>x.d*estI(x.i.id).cm))}}
+async function salvarContagemAlm(v,cont){
+ if(!pode('almInventarios','e'))throw new Error('Seu perfil não faz contagem do estoque.');
+ const atual=DATA.almInventarios.find(x=>x.id===v.id)||v;if(atual.status==='fechado')throw new Error('Esta contagem já foi fechada.');
+ const n={...clone(atual),contagens:Object.fromEntries(Object.entries(cont).filter(([,q])=>temCont(q)).map(([k,q])=>[k,r3(q)])),alteradoEm:agoraIso(),alteradoPor:eu()};
+ await gravar('almInventarios',n,atual);return n}
+async function fecharContagemAlm(v,cont){
+ if(Object.values(cont).some(q=>temCont(q)&&+q<0))throw new Error('Contagem negativa não vale.');
+ const atual=await salvarContagemAlm(v,cont);const R=difsContagem(atual,cont);const saldos={};R.its.forEach(i=>{saldos[i.id]=estI(i.id).saldo});
+ const motivo='Inventário de '+fData(atual.data);
+ for(const x of R.difs){
+  if(DATA.almAjustes.some(a=>a.inventarioId===atual.id&&a.itemId===x.i.id))continue;   /* já lançado numa tentativa anterior */
+  const aj={id:novoId(),itemId:x.i.id,data:atual.data,tipo:x.d>0?'entrada':'saida',qtd:r3(Math.abs(x.d)),motivo,inventarioId:atual.id,criadoEm:agoraIso(),criadoPor:eu()};
+  await gravar('almAjustes',aj,null);await registrarLog('almAjustes',aj.id,'criou',null,aj,rotulosDe(MODS.almAjustes))}
+ const n={...clone(atual),status:'fechado',fechadoEm:agoraIso(),resultado:{ajustes:R.difs.length,valor:R.valor,saldos,itens:Object.keys(atual.contagens||{}).length}};
+ await gravar('almInventarios',n,atual);await logV('almInventarios',v.id,'fechou o inventário',[{c:'Ajustes',de:'',para:String(R.difs.length)},{c:'Valor',de:'',para:fMoeda(R.valor)}]);return n}
+
 /* ================= para os testes e para as telas ================= */
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
  consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,
+ GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
+ saidaRapida:saidaRapidaAlm,contagem:{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm},
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almMov')},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 /* V65: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
@@ -40549,6 +40589,19 @@ button.inv-c{width:100%;font:inherit;text-align:left;cursor:pointer}
 .inv-arq .a button.v svg{width:26px;height:26px}
 .inv-arq .a small{display:block;font-size:11.5px;color:var(--inv-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 .inv-arq .a a,.inv-arq .a button.x{font:inherit;font-size:11.5px;color:#B00E17;background:none;border:0;padding:0;cursor:pointer}
+/* V138: fotografias à vista (grade, selo e visualizador) e Estoque de materiais */
+.inv-fts .a{width:132px}.inv-fts .a button.v{width:132px;height:100px}.inv-fts .a small b{font-weight:700;color:var(--inv-t)}
+.inv-ftn{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--inv-s);white-space:nowrap}.inv-ftn svg{width:15px;height:15px}
+.inv-bloco h3 #ftn{font-weight:400;color:var(--inv-s)}
+.inv-ver-i{position:relative;min-height:170px;display:grid;place-items:center;background:var(--linha2,#F1F0F5);border-radius:10px;overflow:hidden}
+.inv-ver-i img{display:block;max-width:100%;max-height:66vh;object-fit:contain}.inv-ver-i img.previa{width:100%;max-height:66vh;filter:blur(3px);opacity:.7}
+.inv-ver-i .inv-gir{position:absolute;width:28px;height:28px;margin:0;color:var(--inv-p)}
+.btn.inv-min{flex:none;padding:6px 10px;font-size:12.5px;min-height:0}.btn.inv-min svg{width:15px;height:15px}
+.inv-c a.tx,.inv-c button.tx{color:inherit;text-decoration:none}.inv-c button.tx{font:inherit;text-align:left;background:none;border:0;padding:0;cursor:pointer}
+.inv-c .tx b a{color:inherit;text-decoration:none}.inv-c .tx b a:hover{text-decoration:underline}
+.inv-cnt input{flex:none;width:112px;height:40px;padding:0 10px;font:inherit;font-size:15px;text-align:right;border:1px solid var(--inv-l);border-radius:10px;background:var(--inv-b);color:var(--inv-t)}
+.inv-cnt .vl{min-width:92px}
+@media (max-width:600px){.inv-fts .a{width:calc(50% - 5px)}.inv-fts .a button.v{width:100%}.inv-cnt input{flex:1 1 120px}}
 .inv-bar{height:8px;border-radius:99px;background:var(--linha2,#F1F0F5);overflow:hidden}.inv-bar i{display:block;height:100%;background:var(--inv-v);border-radius:99px}
 .inv-tree{display:flex;flex-direction:column;gap:6px}
 .inv-no{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--inv-b);border:1px solid var(--inv-l);border-radius:11px;min-width:0}
@@ -40599,7 +40652,9 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
 /* ================= Centro de Inventário =================
    Módulo independente dentro do JB Gestão. Os dados ficam no esquema próprio "inv" do banco
    e só passam pela função do servidor, que confere se a pessoa tem acesso (hoje, só o dono).
-   Para quem não tem acesso o setor nem aparece. Nada aqui lê ou grava dados dos outros setores.
+   Para quem não tem acesso o setor nem aparece. O patrimônio não lê nem grava dados dos outros setores.
+   A única ponte é a aba Estoque (V138, 19/11/2026): ela mostra e lança sobre os materiais do
+   almoxarifado (coleção alm), com as regras e as permissões de lá, para não existir estoque em dobro.
    18/11/2026 (pedido do dono): é um setor da cerâmica, igual aos outros. Não há cadastro nem escolha
    de empresa. O banco do módulo prende cada registro a uma empresa, então o programa usa uma só, a
    própria cerâmica, criada e atualizada sozinha com os dados da empresa das Configurações do JB. */
@@ -40613,6 +40668,7 @@ Object.assign(IC,{
  iPredio:'<path d="M4 21V5l8-3v19M12 9l8 3v9M2 21h20M8 8h.01M8 12h.01M8 16h.01M16 14h.01M16 18h.01"/>',
  iLista:'<path d="M9 5h11M9 12h11M9 19h11M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
  iCaixa:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+ iEstoque:'<path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-8h10v8M7 17h10"/>',
  iPastas:'<path d="M3 6h6l2 2h10v11H3z"/><path d="M3 11h18"/>',
  iOrg:'<path d="M9 3h6v5H9zM3 16h6v5H3zM15 16h6v5h-6z"/><path d="M12 8v4M6 16v-4h12v4"/>',
  iPino:'<path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -40629,7 +40685,7 @@ Object.assign(IC,{
  iAlerta:'<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
  iValor:'<path d="M3 7h18v12H3z"/><circle cx="12" cy="13" r="2.500"/><path d="M7 3h10"/>',
 });
-const TELAS=[['visao','Visão geral','iVisao'],['inventarios','Inventários','iLista'],['bens','Bens patrimoniais','iCaixa'],['grupos','Grupos e subgrupos','iPastas'],['departamentos','Departamentos e setores','iOrg'],['localizacoes','Localizações','iPino'],['conferencia','Conferência física','iCheck'],['etiquetas','Etiquetas e QR Code','iQr'],['movimentacoes','Movimentações','iSetas'],['responsaveis','Responsáveis','iPessoa'],['relatorios','Relatórios','iRel'],['config','Configurações','iCfg']];
+const TELAS=[['visao','Visão geral','iVisao'],['inventarios','Inventários','iLista'],['bens','Bens patrimoniais','iCaixa'],['estoque','Estoque','iEstoque'],['grupos','Grupos e subgrupos','iPastas'],['departamentos','Departamentos e setores','iOrg'],['localizacoes','Localizações','iPino'],['conferencia','Conferência física','iCheck'],['etiquetas','Etiquetas e QR Code','iQr'],['movimentacoes','Movimentações','iSetas'],['responsaveis','Responsáveis','iPessoa'],['relatorios','Relatórios','iRel'],['config','Configurações','iCfg']];
 const P=k=>!!INV.perms[k];
 const CONS=['Novo','Ótimo','Bom','Regular','Ruim','Danificado','Em manutenção','Inservível'];
 const SIT_INV=['Não iniciado','Em andamento','Em conferência','Aguardando validação','Concluído','Arquivado'];
@@ -40752,9 +40808,10 @@ const partes=()=>location.hash.replace(/^#\/?/,'').split('/').slice(1).map(decod
 const TELA={};
 async function telaInv(el){
  const h=location.hash;
- if(el.querySelector('#inv-raiz')&&INV.rota===h)return;   /* dados de outros setores mudaram: não refaz a tela (preserva o que está sendo digitado) */
+ if(el.querySelector('#inv-raiz')&&INV.rota===h){if(INV.aoDados){try{INV.aoDados()}catch(e){console.warn(e)}}return}   /* dados de outros setores mudaram: não refaz a tela (preserva o que está sendo digitado); só o Estoque, que mostra os materiais do almoxarifado, atualiza as listas dele */
  if(INV.sujo&&INV.rota&&INV.rota!==h){const volta=INV.rota;const ok=await confirmar('Sair sem salvar?','O que você preencheu neste formulário vai se perder.',{ok:'Sair sem salvar',perigo:true});if(!ok){JBNAV.ir(volta);return}INV.sujo=false}
- INV.rota=h;clearInterval(INV.timer);INV.timer=null;INV.sujo=false;
+ if(INV.aoSair){try{INV.aoSair()}catch(e){console.warn(e)}}
+ INV.rota=h;clearInterval(INV.timer);INV.timer=null;INV.sujo=false;INV.aoDados=null;INV.aoSair=null;
  if(!INV.pronto){el.innerHTML='<div class="carrega" role="status">Conferindo o acesso…</div>';await verAcesso();if(location.hash!==h)return}
  if(!INV.acesso){el.innerHTML='<div class="spot"><main class="spot-corpo spot-estreito"><div class="vazio"><b>Sem acesso a esta área</b>Este setor é restrito.</div></main></div>';return}
  if(typeof marcarSetor==='function')marcarSetor('inventario');
@@ -40777,13 +40834,15 @@ TELA.visao=async function(c){
  const rap=[['inventarios/novo','Criar inventário','iLista','criar_inventarios'],['bens/novo','Cadastrar patrimônio','iCaixa','cadastrar_bens'],['conferencia','Realizar conferência','iCheck','realizar_conferencias'],['relatorios','Gerar relatório','iRel','gerar_relatorios']].filter(x=>P(x[3]));
  const NT={empresas:'Empresa',bens:'Bem',inventarios:'Inventário',departamentos:'Departamento',localizacoes:'Localização',grupos:'Grupo',unidades:'Unidade',responsaveis:'Responsável',movimentacoes:'Movimentação',leituras:'Conferência de bem',conferencias:'Conferência',manutencoes:'Manutenção',termos:'Termo',etiquetas:'Etiqueta',arquivos:'Anexo'};
  const atv=d.atividades.filter(a=>a.tabela!=='empresas');   /* os dados da cerâmica se atualizam sozinhos: não contam como atividade */
+ const EK=(()=>{try{if(!APP.carregado||!pode('almEstoque')||!estOk())return null;const A=AX(),at=DATA.almItens.filter(A.ativo);return{v:soma(at,i=>A.estI(i.id).valor),n:at.length,cs:at.filter(i=>A.estI(i.id).saldo>0).length,ab:A.abaixoMin().length}}catch(e){return null}})();   /* estoque de materiais (os mesmos do almoxarifado) */
  c.innerHTML=`<section class="c2-home c2-acesso-inv"><div class="c2-ola"><div><h1>${esc(sd)}, ${esc(String(INV.nome||'').split(' ')[0]||'bem-vindo')}</h1><p>${esc(hj.charAt(0).toUpperCase()+hj.slice(1))} • Centro de Inventário</p></div></div></section>
  <div class="inv-kpis">
  ${kp('iValor','Valor total do patrimônio',fMoeda(d.valor),d.sem_valor?d.sem_valor+' bem(ns) sem valor informado':'','dest')}
  ${kp('iCaixa','Total de bens cadastrados',fNum(d.bens),'sem os baixados','',R('bens'))}
  ${kp('iLista','Inventários em andamento',fNum(d.em_andamento),'','',R('inventarios'))}${kp('iCheck','Inventários concluídos',fNum(d.concluidos),'','',R('inventarios'))}${kp('iAlerta','Inventários pendentes',fNum(d.pendentes),'não iniciados ou a validar','',R('inventarios'))}
- ${kp('iPino','Bens não localizados',fNum(d.nao_localizados),'','',R('conferencia'))}${kp('iQr','Bens aguardando conferência',fNum(d.aguardando),'','',R('conferencia'))}</div>
- <section class="c2-acesso"><div class="inv-tit" style="margin-top:0"><h2>Acesso rápido</h2></div><div class="inv-rap">${rap.map(x=>`<a href="${R(x[0])}"><span>${ic(x[2])}</span>${esc(x[1])}</a>`).join('')}</div></section>
+ ${kp('iPino','Bens não localizados',fNum(d.nao_localizados),'','',R('conferencia'))}${kp('iQr','Bens aguardando conferência',fNum(d.aguardando),'','',R('conferencia'))}
+ ${EK?kp('iEstoque','Estoque de materiais',esc(fMoeda(EK.v)),fNum(EK.cs)+' de '+fNum(EK.n)+' material(is) com saldo'+(EK.ab?' · '+fNum(EK.ab)+' abaixo do mínimo':''),'',R('estoque')):''}</div>
+ <section class="c2-acesso"><div class="inv-tit" style="margin-top:0"><h2>Acesso rápido</h2></div><div class="inv-rap">${rap.map(x=>`<a href="${R(x[0])}"><span>${ic(x[2])}</span>${esc(x[1])}</a>`).join('')}${EK?`<a href="${R('estoque')}"><span>${ic('iEstoque')}</span>Ver o estoque</a>`:''}</div></section>
  <div class="inv-duas"><section><div class="inv-tit"><h2>Inventários recentes</h2><a href="${R('inventarios')}">Ver todos</a></div><div class="inv-l">${d.recentes.length?d.recentes.map(i=>`<a class="inv-c" href="${R('inventarios/'+i.id)}"><div class="tx"><b>${esc(i.nome)}</b><small>${i.data_inicio?fData(i.data_inicio):'sem início'}${i.data_prevista?' a '+fData(i.data_prevista):''} · ${fNum(i.progresso.cadastrados)} bem(ns)</small></div>${tag(i.situacao,corInv(i.situacao))}</a>`).join(''):vazio('Nenhum inventário ainda','Crie o primeiro inventário para começar.')}</div></section>
  <section><div class="inv-tit"><h2>Atividades recentes</h2></div><div class="inv-l">${atv.length?atv.map(a=>`<div class="inv-c"><div class="tx"><b>${esc(a.operacao)}: ${esc(NT[a.tabela]||a.tabela)}${a.detalhe?' · '+esc(a.detalhe):''}</b><small>${esc([a.usuario,fDataHora(a.quando)].filter(Boolean).join(' · '))}</small></div></div>`).join(''):vazio('Sem atividade ainda','As operações aparecem aqui assim que forem feitas.')}</div></section></div>`;
 };
@@ -40826,13 +40885,15 @@ async function fichaInv(c,id){const inv=await lista('inventarios',{forcar:true})
  c.innerHTML=cab(v.nome,v.codigo,b.join(''),R('inventarios'))+`<div style="margin:-6px 0 14px">${tag(v.situacao,corInv(v.situacao))}</div>
  <div class="inv-kpis">${kp('Bens previstos',p.previstos==null?'—':fNum(p.previstos))}${kp('Bens cadastrados',fNum(p.cadastrados))}${kp('Bens conferidos',fNum(p.conferidos))}${kp('Bens pendentes',fNum(p.pendentes))}${kp('Divergências',fNum(p.divergencias+p.nao_localizados+p.sem_cadastro+p.danificados))}${kp('Conclusão',fNum(p.percentual,1)+'%','dest')}</div>
  <div class="inv-bloco"><h3>Dados do inventário</h3><dl class="inv-dl">${d('Tipo',v.tipo)}${d('Início',fData(v.data_inicio))}${d('Previsão',fData(v.data_prevista))}${d('Conclusão',fData(v.data_conclusao))}${d('Responsável',v.responsavel)}${d('Equipe',v.equipe)}${d('Aprovado por',v.aprovado_por)}${d('Descrição',v.descricao)}${d('Observações',v.observacoes)}</dl></div>
+ <div class="inv-bloco" id="ftc"><h3>Fotografias da conferência<span id="ftn"></span></h3><div id="ftg"></div><button type="button" class="btn inv-mais" id="ftm" hidden>Mostrar mais fotografias</button></div>
  <div class="inv-tit"><h2>Bens deste inventário</h2></div><div class="inv-filtros"><input type="search" id="fb" placeholder="Buscar por código ou descrição"><select id="fs"><option value="">Todas as situações</option>${SIT_CONF.map(s=>`<option>${s}</option>`).join('')}</select></div><div class="inv-l" id="lst"><div class="inv-carrega"><i></i></div></div><button class="btn inv-mais" id="mm" hidden>Mostrar mais</button>`;
  c.querySelectorAll('[data-st]').forEach(x=>x.onclick=async()=>{if(await acao(x,()=>chamar('inventario_mudar',{empresa_id:eid(),id,situacao:x.dataset.st}),'Situação atualizada.')){invalida('inventarios');redesenha()}});
  const ap=c.querySelector('#apr');if(ap)ap.onclick=async()=>{if(!await confirmar('Aprovar e concluir este inventário?','Depois de concluído, os dados dele ficam guardados como estão e não podem mais ser alterados.',{ok:'Aprovar e concluir'}))return;if(await acao(ap,()=>chamar('inventario_aprovar',{empresa_id:eid(),id}),'Inventário concluído.')){invalida('inventarios');redesenha()}};
  const ic2=c.querySelector('#inc');if(ic2)ic2.onclick=()=>modal('Incluir bens no inventário','<p class="ajuda">Inclui todos os bens ativos que ainda não estão neste inventário. Quem já está não é duplicado.</p>','Incluir',async()=>{const r=await chamar('inventario_incluir',{empresa_id:eid(),inventario_id:id,todos:true});toast(r.incluidos+' bem(ns) incluído(s).','ok');invalida('inventarios','itens');redesenha()});
  const its=await lista('itens',{inv:id,forcar:true});let qtd=40;
- const f=()=>{const b2=c.querySelector('#fb').value.toLowerCase(),s=c.querySelector('#fs').value;const l=its.filter(i=>(!s||i.situacao===s)&&(!b2||((i.retrato.codigo_patrimonial||'')+' '+(i.retrato.descricao||'')).toLowerCase().includes(b2))).sort((a,x)=>String(a.retrato.codigo_patrimonial||'zz').localeCompare(String(x.retrato.codigo_patrimonial||'zz'),'pt-BR'));
-  c.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(i=>`<${i.bem_id?`a href="${R('bens/'+i.bem_id)}"`:'div'} class="inv-c"><div class="tx"><b>${esc(i.retrato.codigo_patrimonial||'Sem cadastro')} · ${esc(i.retrato.descricao||'')}</b><small>${esc([i.retrato.departamento,i.retrato.setor,i.retrato.localizacao].filter(Boolean).join(' › ')||'Sem localização')}${i.divergencias?' · '+esc(i.divergencias):''}</small></div>${tag(i.situacao,corConf(i.situacao))}</${i.bem_id?'a':'div'}>`).join(''):vazio(its.length?'Nada encontrado':'Nenhum bem neste inventário',its.length?'':'Toque em “Incluir bens” ou cadastre bens vinculados a este inventário.');
+ let f=()=>{};const FT=fotosDe(id,()=>{pintaFotos(c,FT);f()});pintaFotos(c,FT);FT.carregar();
+ f=()=>{const b2=c.querySelector('#fb').value.toLowerCase(),s=c.querySelector('#fs').value;const l=its.filter(i=>(!s||i.situacao===s)&&(!b2||((i.retrato.codigo_patrimonial||'')+' '+(i.retrato.descricao||'')).toLowerCase().includes(b2))).sort((a,x)=>String(a.retrato.codigo_patrimonial||'zz').localeCompare(String(x.retrato.codigo_patrimonial||'zz'),'pt-BR'));
+  c.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(i=>`<${i.bem_id?`a href="${R('bens/'+i.bem_id)}"`:'div'} class="inv-c"><div class="tx"><b>${esc(i.retrato.codigo_patrimonial||'Sem cadastro')} · ${esc(i.retrato.descricao||'')}</b><small>${esc([i.retrato.departamento,i.retrato.setor,i.retrato.localizacao].filter(Boolean).join(' › ')||'Sem localização')}${i.divergencias?' · '+esc(i.divergencias):''}</small></div>${seloFt(FT.porItem[i.id])}${tag(i.situacao,corConf(i.situacao))}</${i.bem_id?'a':'div'}>`).join(''):vazio(its.length?'Nada encontrado':'Nenhum bem neste inventário',its.length?'':'Toque em “Incluir bens” ou cadastre bens vinculados a este inventário.');
   const m=c.querySelector('#mm');m.hidden=l.length<=qtd;m.onclick=()=>{qtd+=40;f()}};
  c.querySelector('#fb').oninput=()=>{qtd=40;f()};c.querySelector('#fs').onchange=()=>{qtd=40;f()};f();
 }
@@ -40851,7 +40912,8 @@ async function enviarArquivo(file,o){
  const a=await chamar('arquivo_iniciar',{empresa_id:eid(),entidade:o.entidade,registro_id:o.registro_id,categoria:o.categoria,nome,tipo,tamanho:blob.size,partes:n,miniatura:mini});
  for(let i=0;i<n;i++){progresso('Enviando '+nome+' ('+Math.round((i+1)*100/n)+'%)');await chamar('arquivo_parte',{empresa_id:eid(),id:a.id,n:i,b64:b64.slice(i*PARTE,(i+1)*PARTE)})}
  const r=await chamar('arquivo_concluir',{empresa_id:eid(),id:a.id});progresso('');return r}
-async function baixarArq(a){try{let s='';for(let i=0;i<a.partes;i++){progresso('Abrindo '+a.nome+' ('+Math.round((i+1)*100/a.partes)+'%)');const r=await chamar('arquivo_baixar',{empresa_id:eid(),id:a.id,n:i});s+=String(r.b64).replace(/\s/g,'')}progresso('');const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);await salvarArquivo(a.nome,new Blob([u],{type:a.tipo||'application/octet-stream'}))}catch(e){progresso('');toast(msg(e),'erro')}}
+async function blobArq(a){let s='';for(let i=0;i<a.partes;i++){progresso('Abrindo '+a.nome+' ('+Math.round((i+1)*100/a.partes)+'%)');const r=await chamar('arquivo_baixar',{empresa_id:eid(),id:a.id,n:i});s+=String(r.b64).replace(/\s/g,'')}progresso('');const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:a.tipo||'application/octet-stream'})}
+async function baixarArq(a){try{await salvarArquivo(a.nome,await blobArq(a))}catch(e){progresso('');toast(msg(e),'erro')}}
 function blocoAnexos(c,arqs,entidade,registro,aoMudar,cats){
  const pode=P('editar_patrimonios');const CT=cats||['Fotografia','Nota fiscal','Comprovante','Contrato','Manual','Complementar'];
  const el=c.querySelector('#anx');if(!el)return;
@@ -40860,6 +40922,80 @@ function blocoAnexos(c,arqs,entidade,registro,aoMudar,cats){
  el.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{if(!await confirmar('Excluir este anexo?','O arquivo será removido. O registro da exclusão fica na auditoria.',{ok:'Excluir',perigo:true}))return;if(await acao(b,()=>chamar('arquivo_excluir',{empresa_id:eid(),id:b.dataset.x}),'Anexo excluído.')){invalida('bens');aoMudar()}});
  const inp=el.querySelector('#anF');if(inp)inp.onchange=async()=>{const fs=[...inp.files];if(!fs.length)return;const cat=el.querySelector('#anC').value;try{for(const f of fs)await enviarArquivo(f,{entidade,registro_id:registro,categoria:cat});toast('Anexo enviado.','ok');invalida('bens');aoMudar()}catch(e){progresso('');toast(msg(e),'erro')}};
 }
+/* ---------- fotografias e documentos: ver na tela (V138, 19/11/2026) ----------
+   Pedido do dono: as fotos tiradas na conferência eram guardadas, mas nenhuma tela mostrava.
+   Cada foto fica presa à LEITURA (cada "Registrar" grava uma leitura). Com o banco atualizado
+   (migração inv_02) as fotos de um inventário vêm numa chamada só, em páginas; sem ela, a tela busca
+   leitura por leitura (mais lento, mas mostra do mesmo jeito). Nas listas vai só a miniatura; o
+   original só é buscado quando a pessoa toca na foto. */
+const FT_PAG=48;
+const ehImg=a=>/^image\//.test(a.tipo||'')||!!a.miniatura;
+const seloFt=n=>n?`<span class="inv-ftn" title="${esc(String(n))} fotografia(s)">${ic('iCam')}${esc(String(n))}</span>`:'';
+/* abre a fotografia na própria tela; o que não é imagem (PDF, planilha) é baixado */
+async function verArq(a,leg){
+ if(!a)return;if(!ehImg(a))return baixarArq(a);
+ let blob=null,url='';
+ const v=modalF(a.nome||'Fotografia',`<div class="inv-ver"><div class="inv-ver-i" id="vfI">${a.miniatura?`<img class="previa" src="${esc(a.miniatura)}" alt="">`:''}<span class="inv-gir"></span></div>${leg?`<p class="ajuda" style="margin:8px 0 0">${esc(leg)}</p>`:''}<p class="ajuda" style="margin:4px 0 0">${esc([a.enviado_por?'Enviada por '+a.enviado_por:'',a.criado_em?fDataHora(a.criado_em):''].filter(Boolean).join(' · '))}</p></div>`,'Baixar',async()=>{try{if(blob)await salvarArquivo(a.nome,blob);else await baixarArq(a)}catch(e){toast(msg(e),'erro')}return false});
+ const solta=new MutationObserver(()=>{if(!v.isConnected){solta.disconnect();if(url)URL.revokeObjectURL(url)}});solta.observe(document.body,{childList:true});
+ try{blob=await blobArq(a);if(!v.isConnected)return;url=URL.createObjectURL(blob);const cx=v.querySelector('#vfI');if(cx)cx.innerHTML=`<img src="${url}" alt="${esc(a.nome||'Fotografia')}">`}
+ catch(e){progresso('');const g=v.querySelector('#vfI .inv-gir');if(g)g.remove();toast('Não foi possível abrir a fotografia: '+msg(e),'erro')}
+}
+/* grade de miniaturas com a legenda de cada foto; ligarFotos faz o clique abrir */
+function htmlFotos(fs,semNada){
+ return fs.length?`<div class="inv-arq inv-fts">${fs.map((a,k)=>`<div class="a"><button type="button" class="v" data-vf="${k}" aria-label="Abrir ${esc(a.nome||'fotografia')}" ${a.miniatura?`style="background-image:url('${esc(a.miniatura)}')"`:''}>${a.miniatura?'':ic('iAnexo')}</button>${a.codigo||a.descricao?`<small title="${esc([a.codigo,a.descricao].filter(Boolean).join(' · '))}"><b>${esc(a.codigo||'Sem cadastro')}</b> ${esc(a.descricao||'')}</small>`:`<small title="${esc(a.nome||'')}">${esc(a.nome||'')}</small>`}<small>${esc([a.situacao||a.legenda,a.data_hora?fDataHora(a.data_hora):a.criado_em?fDataHora(a.criado_em):''].filter(Boolean).join(' · '))}</small></div>`).join('')}</div>`:`<p class="ajuda" style="margin:0">${esc(semNada||'Nenhuma fotografia.')}</p>`}
+function ligarFotos(raiz,fs){raiz.querySelectorAll('[data-vf]').forEach(b=>b.onclick=ev=>{ev.preventDefault();ev.stopPropagation();const a=fs[+b.dataset.vf];verArq(a,[a.codigo,a.descricao,a.situacao||a.legenda].filter(Boolean).join(' · '))})}
+/* fotos de um inventário, com o estado da tela: lista (em páginas), total e quantas cada item tem */
+function fotosDe(id,aoMudar){
+ const leg=(a,l,i)=>({...a,leitura_id:l.id,item_id:l.item_id,situacao:l.situacao,data_hora:l.data_hora,bem_id:i&&i.bem_id,codigo:i&&i.retrato&&i.retrato.codigo_patrimonial,descricao:i&&i.retrato&&i.retrato.descricao});
+ const avisa=()=>{try{aoMudar()}catch(e){console.warn(e)}};
+ const F={fotos:[],total:0,porItem:{},lote:null,pronto:false,erro:null,antigo:false,
+  /* lote: true = o banco devolve tudo de uma vez; false = banco antigo, busca leitura por leitura */
+  async carregar(mais){
+   try{
+    if(INV.fotosLote!==false){
+     const n=mais?FT_PAG:Math.min(200,Math.max(FT_PAG,F.fotos.length));
+     const r=await chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true,fotos_limite:n,fotos_pular:mais?F.fotos.length:0});
+     if(r&&Array.isArray(r.fotos)){INV.fotosLote=true;F.lote=true;
+      F.fotos=mais?F.fotos.concat(r.fotos.filter(a=>!F.fotos.some(x=>x.id===a.id))):r.fotos;
+      F.total=Math.max(+r.fotos_total||0,F.fotos.length);F.porItem=r.fotos_por_item||{};F.pronto=true;F.erro=null;avisa();return}
+     INV.fotosLote=false}
+    F.lote=false;F.pronto=true;F.erro=null;if(F.antigo)await F.tudoAntigo();else avisa()
+   }catch(e){F.erro=e;F.pronto=true;avisa()}},
+  async tudoAntigo(){
+   const [ls,its]=await Promise.all([lista('leituras',{inv:id,forcar:true}),lista('itens',{inv:id})]);
+   const alvo=[...ls].sort((a,b)=>String(b.data_hora).localeCompare(String(a.data_hora)));const out=[];let k=0;
+   for(const l of alvo){progresso('Buscando as fotografias ('+(++k)+' de '+alvo.length+')');
+    const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});const i=porId(its,l.item_id);as.forEach(a=>out.push(leg(a,l,i)))}
+   progresso('');const pi={};out.forEach(a=>{pi[a.item_id]=(pi[a.item_id]||0)+1});
+   F.fotos=out;F.total=out.length;F.porItem=pi;F.antigo=true;F.pronto=true;F.erro=null;avisa()},
+  /* só as fotos de um item (para a janela "Registrar") */
+  async doItem(itemId){
+   if(INV.fotosLote!==false){const r=await chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id,fotos:true,fotos_item:itemId,fotos_limite:120});
+    if(r&&Array.isArray(r.fotos)){INV.fotosLote=true;return r.fotos}INV.fotosLote=false}
+   const [ls,its]=await Promise.all([lista('leituras',{inv:id,forcar:true}),lista('itens',{inv:id})]);const out=[];const i=porId(its,itemId);
+   for(const l of ls.filter(x=>x.item_id===itemId).sort((a,b)=>String(b.data_hora).localeCompare(String(a.data_hora)))){
+    const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});as.forEach(a=>out.push(leg(a,l,i)))}
+   return out},
+  /* fotos que acabaram de ser enviadas nesta tela: aparecem na hora, sem nova consulta */
+  junta(arqs,leitura,item){const novos=arqs.filter(Boolean).map(a=>leg(a,leitura,item));if(!novos.length)return;
+   F.fotos=novos.concat(F.fotos);F.total+=novos.length;F.porItem={...F.porItem,[item.id]:(F.porItem[item.id]||0)+novos.length};avisa()}};
+ return F}
+/* pinta o quadro de fotografias (#ftg, com #ftn = total e #ftm = "mostrar mais") dentro de c */
+function pintaFotos(c,F,semNada){
+ const g=c.querySelector('#ftg');if(!g)return;const n=c.querySelector('#ftn'),m=c.querySelector('#ftm');
+ if(m)m.hidden=true;if(n)n.textContent='';
+ if(!F.pronto){g.innerHTML='<div class="inv-carrega" role="status" aria-label="Carregando"><i></i><i></i><i></i></div>';return}
+ if(F.erro){g.innerHTML=`<p class="ajuda" style="margin:0 0 8px">Não foi possível carregar as fotografias: ${esc(msg(F.erro))}</p><button type="button" class="btn" id="ftT">Tentar de novo</button>`;
+  g.querySelector('#ftT').onclick=()=>{F.pronto=false;F.erro=null;pintaFotos(c,F,semNada);F.carregar()};return}
+ if(F.lote===false&&!F.antigo){g.innerHTML=`<p class="ajuda" style="margin:0 0 8px">As fotografias ficam guardadas junto de cada conferência de bem. Carregar todas pode levar alguns instantes.</p><button type="button" class="btn" id="ftA">${ic('iCam')}Carregar as fotografias</button>`;
+  g.querySelector('#ftA').onclick=ev=>acao(ev.currentTarget,()=>F.tudoAntigo());return}
+ if(n)n.textContent=F.total?' ('+fNum(F.total)+')':'';
+ g.innerHTML=htmlFotos(F.fotos,semNada||'Nenhuma fotografia registrada nesta conferência.');ligarFotos(g,F.fotos);
+ if(m){m.hidden=F.fotos.length>=F.total;m.onclick=()=>acao(m,()=>F.carregar(true))}}
+/* documentos de um registro (movimentação): busca na hora e abre numa janela */
+async function verDocs(btn,entidade,registro,titulo){
+ const as=await acao(btn,()=>chamar('arquivos',{empresa_id:eid(),entidade,registro_id:registro}));if(!Array.isArray(as))return;
+ const v=modalF(titulo,htmlFotos(as,'Nenhum documento anexado.'),'',null);ligarFotos(v,as)}
 
 /* ---------- 4. Bens patrimoniais ---------- */
 async function estrutura(){return muitas(['grupos','departamentos','localizacoes','unidades','responsaveis'])}
@@ -40933,10 +41069,14 @@ async function fichaBem(c,id){
  ${dp?bloc('Valores calculados pelo sistema',d('Método',dp.metodo)+d('Meses decorridos',dp.meses)+d('Depreciação mensal',fm(dp.mensal))+d('Depreciação acumulada',fm(dp.acumulada))+d('Valor contábil líquido (unit.)',fm(dp.valor_liquido)),'inv-calc'):`<div class="inv-bloco inv-calc"><h3>Valores calculados pelo sistema</h3><p class="ajuda" style="margin:0">A depreciação não foi calculada: faltam valor de aquisição, data, valor residual e vida útil ou taxa.</p></div>`}
  ${bloc('Localização atual',d('Unidade',nomeId(E.unidades,b.unidade_id))+d('Departamento',nomeId(E.departamentos,b.departamento_id))+d('Setor',nomeId(E.departamentos,b.setor_id))+d('Sala / ambiente',nomeId(E.localizacoes,b.localizacao_id))+d('Localização específica',b.localizacao_especifica)+d('Responsável',nomeId(E.responsaveis,b.responsavel_id)))}
  <div class="inv-bloco"><h3>Fotografias e documentos</h3><div id="anx"></div></div>
+ ${h.leituras.length?`<div class="inv-bloco"><h3>Fotografias das conferências</h3><div id="ftb"><button type="button" class="btn" id="ftB">${ic('iCam')}Ver as fotografias das conferências</button></div></div>`:''}
  </div><aside><div class="inv-bloco" style="text-align:center"><h3>QR Code</h3><div id="qrb" style="display:inline-block"></div><div style="margin-top:8px"><a class="btn" href="${R('etiquetas')}" id="eti">${ic('iQr')}Etiqueta</a></div></div>
  <div class="inv-bloco"><h3>Inventários</h3>${h.inventarios.length?h.inventarios.map(i=>`<p style="margin:0 0 6px;font-size:13.5px"><b>${esc(i.nome)}</b><br>${tag(i.conferencia,corConf(i.conferencia))}</p>`).join(''):'<p class="ajuda" style="margin:0">Em nenhum inventário.</p>'}</div>
  <div class="inv-bloco"><h3>Histórico completo</h3><ul class="inv-tl">${tl.map(x=>`<li><i></i><div><b>${esc(x.t)}</b><small>${esc(fDataHora(x.q))}${x.s?' · '+esc(x.s):''}</small></div></li>`).join('')}</ul></div></aside></div>`;
  c.querySelector('#qrb').innerHTML=qrSvg(url,140);
+ const fB=c.querySelector('#ftB');if(fB)fB.onclick=()=>acao(fB,async()=>{const fs=[];   /* as fotos ficam presas a cada leitura deste bem */
+  for(const l of [...h.leituras].sort((x,y)=>String(y.data_hora).localeCompare(String(x.data_hora))).slice(0,30)){const as=await chamar('arquivos',{empresa_id:eid(),entidade:'leitura',registro_id:l.id});as.forEach(a=>fs.push({...a,codigo:b.codigo_patrimonial,descricao:l.inventario,situacao:l.situacao,data_hora:l.data_hora}))}
+  const g=c.querySelector('#ftb');if(g){g.innerHTML=htmlFotos(fs,'Nenhuma fotografia nas conferências deste bem.');ligarFotos(g,fs)}});
  const mv=c.querySelector('#mv');if(mv)mv.addEventListener('click',()=>{INV.prefill={bem:id}});
  c.querySelector('#eti').addEventListener('click',()=>{INV.prefill={etiqueta:[id]}});
  c.querySelector('#fi').onclick=()=>pdfFicha(b,E,h);
@@ -41008,10 +41148,12 @@ async function telaConf(c,id){
   const fs=[{k:'responsavel',l:'Responsável pela conferência',req:1,larga:1},{k:'observacoes',l:'Observações',t:'area',larga:1}];
   c.innerHTML=cab('Conferência física',v.nome,'',R('conferencia'))+`<div class="inv-bloco" style="max-width:620px"><h3>${confs.length?'Abrir nova rodada de conferência':'Iniciar a conferência'}</h3>${confs.length?`<p class="ajuda">Já houve ${confs.length} rodada(s). O histórico fica guardado.</p>`:''}<form id="fm" novalidate><div class="inv-grade">${fs.map(f=>campoHtml(f,f.k==='responsavel'?(v.responsavel||INV.nome):null)).join('')}</div><div class="inv-pe" style="position:static"><button class="btn pri" id="sv" ${!pode||['Concluído','Arquivado'].includes(v.situacao)?'disabled':''}>Iniciar conferência</button></div></form></div>`;
   const fm=c.querySelector('#fm');fm.onsubmit=async e=>{e.preventDefault();const d=lerForm(fm,fs);if(!d)return;if(await acao(fm.querySelector('#sv'),()=>chamar('conferencia_iniciar',{empresa_id:eid(),inventario_id:id,...d}),'Conferência iniciada.')){invalida('inventarios','conferencias');redesenha()}};return}
- let its=await lista('itens',{inv:id,forcar:true});let filtro='Pendente',busca='',qtd=30;
+ let its=await lista('itens',{inv:id,forcar:true});let filtro='Pendente',busca='',qtd=30,tique=0;
+ const FT=fotosDe(id,()=>{pintaFotos(c,FT);desenha()});   /* fotografias desta conferência: quadro no fim da tela e selo em cada bem */
  c.innerHTML=cab('Conferência física',v.nome+' · rodada '+aberta.numero+' · responsável: '+(aberta.responsavel||'—'),`<button class="btn" id="sc">${ic('iMais')}Encontrado sem cadastro</button><button class="btn pri" id="fim">Finalizar conferência</button>`,R('conferencia'))+
  `<div class="inv-ler"><button class="btn pri" id="cam">${ic('iCam')}Ler QR Code</button><form id="fc" style="display:flex;gap:8px;flex:1 1 240px;min-width:0"><input id="cod" placeholder="Código patrimonial ou leitor de código" autocomplete="off" aria-label="Código patrimonial"><button class="btn">Buscar</button></form></div><div class="inv-kpis" id="kp"></div><div class="inv-bar" style="margin:-8px 0 16px"><i id="bar" style="width:0"></i></div>
- <div class="inv-abas" id="ab"></div><div class="inv-filtros"><input type="search" id="fb" placeholder="Buscar por código ou descrição"></div><div class="inv-l" id="lst"></div><button class="btn inv-mais" id="mm" hidden>Mostrar mais</button><p class="ajuda" style="margin-top:12px">Atualiza sozinho a cada poucos segundos. Última atualização: <span id="at"></span></p>`;
+ <div class="inv-abas" id="ab"></div><div class="inv-filtros"><input type="search" id="fb" placeholder="Buscar por código ou descrição"></div><div class="inv-l" id="lst"></div><button class="btn inv-mais" id="mm" hidden>Mostrar mais</button><p class="ajuda" style="margin-top:12px">Atualiza sozinho a cada poucos segundos. Última atualização: <span id="at"></span></p>
+ <div class="inv-bloco" id="ftc" style="margin-top:14px"><h3>Fotografias desta conferência<span id="ftn"></span></h3><div id="ftg"></div><button type="button" class="btn inv-mais" id="ftm" hidden>Mostrar mais fotografias</button></div>`;
  const desenha=()=>{
   const n=s=>its.filter(i=>i.situacao===s).length;const t=its.length,conf=t-n('Pendente'),pct=Math.max(t,+v.bens_previstos||0)?conf*100/Math.max(t,+v.bens_previstos||0):0;
   const kp=(l,x,cl)=>`<div class="inv-kpi ${cl||''}"><div><small>${esc(l)}</small><b>${x}</b></div></div>`;
@@ -41020,7 +41162,7 @@ async function telaConf(c,id){
   c.querySelector('#ab').innerHTML=['Pendente','Todos',...SIT_CONF.filter(s=>s!=='Pendente')].map(s=>`<button type="button" data-f="${s}" class="${s===filtro?'on':''}">${s} (${s==='Todos'?t:n(s)})</button>`).join('');
   c.querySelectorAll('#ab [data-f]').forEach(b=>b.onclick=()=>{filtro=b.dataset.f;qtd=30;desenha()});
   const l=its.filter(i=>(filtro==='Todos'||i.situacao===filtro)&&(!busca||((i.retrato.codigo_patrimonial||'')+' '+(i.retrato.descricao||'')).toLowerCase().includes(busca))).sort((a,x)=>String(a.retrato.codigo_patrimonial||'zz').localeCompare(String(x.retrato.codigo_patrimonial||'zz'),'pt-BR'));
-  c.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(i=>`<button type="button" class="inv-c" data-i="${i.id}"><div class="tx"><b>${esc(i.retrato.codigo_patrimonial||'Sem cadastro')} · ${esc(i.retrato.descricao||'')}</b><small>${esc([i.retrato.departamento,i.retrato.setor,i.retrato.localizacao].filter(Boolean).join(' › ')||'Sem localização')}${i.conferido_em?' · '+esc(fDataHora(i.conferido_em)):''}${i.divergencias?' · '+esc(i.divergencias):''}</small></div>${tag(i.situacao,corConf(i.situacao))}</button>`).join(''):vazio('Nada nesta lista',filtro==='Pendente'?'Todos os bens já foram conferidos.':'');
+  c.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(i=>`<button type="button" class="inv-c" data-i="${i.id}"><div class="tx"><b>${esc(i.retrato.codigo_patrimonial||'Sem cadastro')} · ${esc(i.retrato.descricao||'')}</b><small>${esc([i.retrato.departamento,i.retrato.setor,i.retrato.localizacao].filter(Boolean).join(' › ')||'Sem localização')}${i.conferido_em?' · '+esc(fDataHora(i.conferido_em)):''}${i.divergencias?' · '+esc(i.divergencias):''}</small></div>${seloFt(FT.porItem[i.id])}${tag(i.situacao,corConf(i.situacao))}</button>`).join(''):vazio('Nada nesta lista',filtro==='Pendente'?'Todos os bens já foram conferidos.':'');
   c.querySelectorAll('#lst [data-i]').forEach(b=>b.onclick=()=>registrar(porId(its,b.dataset.i)));
   const m=c.querySelector('#mm');m.hidden=l.length<=qtd;m.onclick=()=>{qtd+=30;desenha()}};
  const atualizar=async()=>{const r=await lista('itens',{inv:id,forcar:true});its=r;desenha()};
@@ -41028,10 +41170,11 @@ async function telaConf(c,id){
  const fsReg=()=>[{k:'situacao',l:'Situação',t:'sel',semVazio:1,ops:SIT_CONF.filter(s=>s!=='Encontrado sem cadastro')},{k:'quantidade',l:'Quantidade encontrada',t:'num'},{k:'localizacao_id',l:'Localização encontrada',t:'sel',ops:opcoesArvore(locs,true)},{k:'condicao',l:'Condição física',t:'sel',ops:CONS},{k:'responsavel',l:'Responsável pela conferência'},{k:'data_hora',l:'Data e horário'},{k:'divergencias',l:'Divergências identificadas',t:'area',larga:1},{k:'observacoes',l:'Observações',t:'area',larga:1}];
  const agoraLocal=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
  function registrar(i){const fs=fsReg();const rt=i.retrato;const ini={situacao:i.situacao==='Pendente'?'Localizado e conferido':i.situacao,quantidade:i.quantidade_encontrada!=null?i.quantidade_encontrada:i.quantidade_prevista,localizacao_id:i.localizacao_id_encontrada||rt.localizacao_id,condicao:i.condicao||rt.conservacao,responsavel:aberta.responsavel,divergencias:i.divergencias,observacoes:i.observacoes};
-  modal(rt.descricao||'Conferir bem',`<p class="ajuda" style="margin:0 0 10px">${esc(rt.codigo_patrimonial||'Sem cadastro')} · Registrado em: ${esc([rt.departamento,rt.setor,rt.localizacao].filter(Boolean).join(' › ')||'sem localização')} · Quantidade: ${qt(i.quantidade_prevista)}</p><div class="inv-grade">${fs.map(f=>f.k==='data_hora'?`<div class="cmp"><label for="invf_dh">Data e horário</label><input id="invf_dh" name="data_hora" type="datetime-local" value="${agoraLocal()}"></div>`:campoHtml(f,ini[f.k])).join('')}<div class="cmp larga"><label>Fotografias</label><input type="file" id="fFoto" accept="image/*" capture="environment" multiple></div></div>${i.bem_id?`<div style="margin-top:8px"><button type="button" class="btn" id="mvE">Transferir para o local encontrado</button></div>`:P('cadastrar_bens')?`<div style="margin-top:8px"><button type="button" class="btn" id="rgz">Cadastrar este bem</button></div>`:''}`,'Registrar',async v=>{const d=lerForm(v,fs.filter(f=>f.k!=='data_hora'));if(!d)return false;const dh=v.querySelector('#invf_dh').value;
+  modal(rt.descricao||'Conferir bem',`<p class="ajuda" style="margin:0 0 10px">${esc(rt.codigo_patrimonial||'Sem cadastro')} · Registrado em: ${esc([rt.departamento,rt.setor,rt.localizacao].filter(Boolean).join(' › ')||'sem localização')} · Quantidade: ${qt(i.quantidade_prevista)}</p><div class="inv-grade">${fs.map(f=>f.k==='data_hora'?`<div class="cmp"><label for="invf_dh">Data e horário</label><input id="invf_dh" name="data_hora" type="datetime-local" value="${agoraLocal()}"></div>`:campoHtml(f,ini[f.k])).join('')}<div class="cmp larga"><label for="fFoto">Fotografias</label><input type="file" id="fFoto" accept="image/*" capture="environment" multiple></div><div class="cmp larga" id="ftI" hidden><label>Fotografias já registradas deste bem</label><div id="ftIg"></div></div></div>${i.bem_id?`<div style="margin-top:8px"><button type="button" class="btn" id="mvE">Transferir para o local encontrado</button></div>`:P('cadastrar_bens')?`<div style="margin-top:8px"><button type="button" class="btn" id="rgz">Cadastrar este bem</button></div>`:''}`,'Registrar',async v=>{const d=lerForm(v,fs.filter(f=>f.k!=='data_hora'));if(!d)return false;const dh=v.querySelector('#invf_dh').value;
     const r=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,item_id:i.id,...d,data_hora:dh?new Date(dh).toISOString():null});
-    const ff=v.querySelector('#fFoto');if(ff&&ff.files.length){try{for(const f of ff.files)await enviarArquivo(f,{entidade:'leitura',registro_id:r.leitura.id,categoria:'Fotografia'})}catch(e){progresso('');toast(msg(e),'erro')}}
-    aoGravar(r);toast(r.item.situacao==='Com divergência'&&ini.situacao!=='Com divergência'&&d.situacao!=='Com divergência'?'Registrado como divergência: '+r.item.divergencias:'Conferência registrada.','ok')},{depois:v=>{
+    const ff=v.querySelector('#fFoto');const env=[];if(ff&&ff.files.length){try{for(const f of ff.files)env.push(await enviarArquivo(f,{entidade:'leitura',registro_id:r.leitura.id,categoria:'Fotografia'}))}catch(e){progresso('');toast('A conferência foi registrada, mas uma fotografia não foi enviada: '+msg(e),'erro')}}
+    aoGravar(r);FT.junta(env,r.leitura,r.item);toast(r.item.situacao==='Com divergência'&&ini.situacao!=='Com divergência'&&d.situacao!=='Com divergência'?'Registrado como divergência: '+r.item.divergencias:'Conferência registrada.','ok')},{depois:v=>{
+     if(i.id&&(FT.lote===false||FT.porItem[i.id]))FT.doItem(i.id).then(fs=>{const bx=v.querySelector('#ftI');if(!bx||!fs.length)return;bx.hidden=false;const g=v.querySelector('#ftIg');g.innerHTML=htmlFotos(fs);ligarFotos(g,fs)}).catch(e=>console.warn(e));
      const m=v.querySelector('#mvE');if(m)m.onclick=()=>{INV.prefill={bem:i.bem_id,local:v.querySelector('[name=localizacao_id]').value};v.remove();ir(R('movimentacoes/nova'))};
      const g=v.querySelector('#rgz');if(g)g.onclick=()=>{v.remove();regularizar(i)}}})}
  function regularizar(i){const fs=[{k:'codigo_patrimonial',l:'Código patrimonial',aj:'Em branco: gera automaticamente'},{k:'descricao',l:'Descrição',req:1,larga:1}];modal('Cadastrar bem encontrado',`<div class="inv-grade">${fs.map(f=>campoHtml(f,f.k==='descricao'?i.retrato.descricao:null)).join('')}</div>`,'Cadastrar',async v=>{const d=lerForm(v,fs);if(!d)return false;await chamar('regularizar_item',{empresa_id:eid(),item_id:i.id,bem:d});toast('Bem cadastrado e conferido.','ok');invalida('bens','itens','inventarios');await atualizar()})}
@@ -41040,15 +41183,17 @@ async function telaConf(c,id){
    if(!r.achou){const nv=await confirmar('Código não encontrado','Nenhum bem cadastrado tem este código. Registrar como encontrado sem cadastro?',{ok:'Registrar'});if(nv)semCad(tk);return}
    let i=its.find(x=>x.bem_id===r.bem.id);if(!i){i={id:null,bem_id:r.bem.id,retrato:r.bem,situacao:'Pendente',quantidade_prevista:r.bem.quantidade};const x=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,bem_id:r.bem.id,situacao:'Pendente'});its.push(x.item);i=x.item}
    registrar(i)}catch(e){toast(msg(e),'erro')}};
- function semCad(ds){const fs=[{k:'descricao',l:'Descrição do bem',req:1,larga:1},{k:'quantidade',l:'Quantidade encontrada',t:'num'},{k:'localizacao_id',l:'Localização encontrada',t:'sel',ops:opcoesArvore(locs,true)},{k:'condicao',l:'Condição física',t:'sel',ops:CONS},{k:'observacoes',l:'Observações',t:'area',larga:1}];modal('Encontrado sem cadastro',`<div class="inv-grade">${fs.map(f=>campoHtml(f,f.k==='observacoes'&&ds?'Código lido: '+ds:null)).join('')}</div>`,'Registrar',async v=>{const d=lerForm(v,fs);if(!d)return false;const r=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,situacao:'Encontrado sem cadastro',...d});aoGravar(r);toast('Registrado.','ok')})}
+ function semCad(ds){const fs=[{k:'descricao',l:'Descrição do bem',req:1,larga:1},{k:'quantidade',l:'Quantidade encontrada',t:'num'},{k:'localizacao_id',l:'Localização encontrada',t:'sel',ops:opcoesArvore(locs,true)},{k:'condicao',l:'Condição física',t:'sel',ops:CONS},{k:'observacoes',l:'Observações',t:'area',larga:1}];modal('Encontrado sem cadastro',`<div class="inv-grade">${fs.map(f=>campoHtml(f,f.k==='observacoes'&&ds?'Código lido: '+ds:null)).join('')}<div class="cmp larga"><label for="fFotoS">Fotografias</label><input type="file" id="fFotoS" accept="image/*" capture="environment" multiple></div></div>`,'Registrar',async v=>{const d=lerForm(v,fs);if(!d)return false;const r=await chamar('conferencia_registrar',{empresa_id:eid(),inventario_id:id,situacao:'Encontrado sem cadastro',...d});
+   const ff=v.querySelector('#fFotoS');const env=[];if(ff&&ff.files.length){try{for(const f of ff.files)env.push(await enviarArquivo(f,{entidade:'leitura',registro_id:r.leitura.id,categoria:'Fotografia'}))}catch(e){progresso('');toast('O bem foi registrado, mas uma fotografia não foi enviada: '+msg(e),'erro')}}
+   aoGravar(r);FT.junta(env,r.leitura,r.item);toast('Registrado.','ok')})}
  c.querySelector('#fc').onsubmit=e=>{e.preventDefault();const x=c.querySelector('#cod');const v2=x.value;x.value='';buscar(v2)};
  c.querySelector('#fb').oninput=e=>{busca=e.target.value.toLowerCase();qtd=30;desenha()};
  c.querySelector('#sc').onclick=()=>semCad('');
  c.querySelector('#cam').onclick=()=>lerCamera(buscar);
  c.querySelector('#fim').onclick=async ev=>{const b=ev.currentTarget;const r=await acao(b,()=>chamar('conferencia_resumo',{empresa_id:eid(),inventario_id:id}));if(!r)return;const p=r.progresso;
   modal('Finalizar a conferência',`<p>Veja o que ficou em aberto. Finalizar <b>não</b> declara que todos os bens foram localizados: o que está aqui segue registrado assim, para validação.</p><dl class="inv-dl" style="margin:10px 0"><div><dt>Conferidos</dt><dd>${fNum(p.conferidos)} de ${fNum(p.cadastrados)}</dd></div><div><dt>Pendentes</dt><dd>${fNum(p.pendentes)}</dd></div><div><dt>Não localizados</dt><dd>${fNum(p.nao_localizados)}</dd></div><div><dt>Divergências</dt><dd>${fNum(p.divergencias)}</dd></div><div><dt>Sem cadastro</dt><dd>${fNum(p.sem_cadastro)}</dd></div><div><dt>Danificados</dt><dd>${fNum(p.danificados)}</dd></div></dl>${r.pendentes.length?`<h4 style="margin:10px 0 4px">Pendentes</h4><div class="inv-tab" style="max-height:150px"><table>${r.pendentes.slice(0,200).map(x=>`<tr><td>${esc(x.codigo||'')}</td><td>${esc(x.descricao||'')}</td></tr>`).join('')}</table></div>`:''}${r.ocorrencias.length?`<h4 style="margin:10px 0 4px">Ocorrências</h4><div class="inv-tab" style="max-height:150px"><table>${r.ocorrencias.slice(0,200).map(x=>`<tr><td>${esc(x.codigo||'—')}</td><td>${esc(x.descricao||'')}</td><td>${esc(x.situacao)}</td><td>${esc(x.divergencias||'')}</td></tr>`).join('')}</table></div>`:''}<label class="inv-ck" style="margin-top:12px"><input type="checkbox" id="cie"> Vi as pendências e divergências</label>`,'Finalizar',async v=>{if(!v.querySelector('#cie').checked){toast('Marque que viu as pendências e divergências.','erro');return false}await chamar('conferencia_finalizar',{empresa_id:eid(),conferencia_id:aberta.id,ciente:true});toast('Conferência finalizada. O inventário aguarda validação.','ok');invalida('inventarios','conferencias','itens');ir(R('inventarios/'+id))})};
- desenha();
- INV.timer=setInterval(()=>{if(document.hidden||document.querySelector('.veu'))return;atualizar().catch(()=>{})},8000);
+ desenha();pintaFotos(c,FT);FT.carregar();
+ INV.timer=setInterval(()=>{if(document.hidden||document.querySelector('.veu'))return;atualizar().catch(()=>{});if(++tique%5===0&&FT.lote)FT.carregar()},8000);
  const pre=INV.prefill&&INV.prefill.ler;if(pre){INV.prefill=null;buscar(pre)}
 }
 function tokenDe(x){x=String(x||'').trim();const m=/inventario\/q\/([0-9a-f-]{36})/i.exec(x);return m?m[1]:x}
@@ -41124,8 +41269,9 @@ TELA.movimentacoes=async function(c,p){
   const ult={};[...movs].sort((a,x)=>a.criado_em.localeCompare(x.criado_em)).forEach(m=>ult[m.bem_id]=m.id);const estor=new Set(movs.filter(m=>m.estorna_id).map(m=>m.estorna_id));
   const lc=l=>l?[l.unidade,l.departamento,l.setor,l.localizacao].filter(Boolean).join(' › ')||'Sem local':'—';
   const f=()=>{const b=cp.querySelector('#fb').value.toLowerCase(),t=cp.querySelector('#ft').value;const l=movs.filter(m=>(!t||m.tipo===t)&&(!b||(nb(m.bem_id)+' '+m.justificativa).toLowerCase().includes(b))).sort((a,x)=>x.criado_em.localeCompare(a.criado_em));
-   cp.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(m=>`<div class="inv-c"><div class="tx"><b>${m.estorna_id?'Estorno · ':''}${esc(m.tipo)}</b><small><a href="${R('bens/'+m.bem_id)}">${esc(nb(m.bem_id))}</a> · ${esc(fData(m.data))} · ${esc(m.usuario||'')}</small><small>${esc(lc(m.origem))} → ${esc(lc(m.destino))}${m.origem&&m.destino&&m.origem.responsavel!==m.destino.responsavel?' · Responsável: '+esc(m.origem.responsavel||'—')+' → '+esc(m.destino.responsavel||'—'):''}</small><small>${esc(m.justificativa)}</small></div>${estor.has(m.id)?tag('Estornada','at'):''}${pode&&ult[m.bem_id]===m.id&&!m.cadastro_inicial&&!m.estorna_id&&!estor.has(m.id)?`<button class="btn" data-e="${m.id}">Estornar</button>`:''}</div>`).join(''):vazio(movs.length?'Nada encontrado':'Nenhuma movimentação ainda','');
+   cp.querySelector('#lst').innerHTML=l.length?l.slice(0,qtd).map(m=>`<div class="inv-c"><div class="tx"><b>${m.estorna_id?'Estorno · ':''}${esc(m.tipo)}</b><small><a href="${R('bens/'+m.bem_id)}">${esc(nb(m.bem_id))}</a> · ${esc(fData(m.data))} · ${esc(m.usuario||'')}</small><small>${esc(lc(m.origem))} → ${esc(lc(m.destino))}${m.origem&&m.destino&&m.origem.responsavel!==m.destino.responsavel?' · Responsável: '+esc(m.origem.responsavel||'—')+' → '+esc(m.destino.responsavel||'—'):''}</small><small>${esc(m.justificativa)}</small></div><button type="button" class="btn inv-min" data-d="${m.id}" title="Documentos anexados a esta movimentação" aria-label="Documentos anexados a esta movimentação">${ic('iAnexo')}</button>${estor.has(m.id)?tag('Estornada','at'):''}${pode&&ult[m.bem_id]===m.id&&!m.cadastro_inicial&&!m.estorna_id&&!estor.has(m.id)?`<button class="btn" data-e="${m.id}">Estornar</button>`:''}</div>`).join(''):vazio(movs.length?'Nada encontrado':'Nenhuma movimentação ainda','');
    cp.querySelectorAll('[data-e]').forEach(x=>x.onclick=()=>modal('Estornar movimentação',`<p>Desfaz esta movimentação com um novo lançamento. A original continua no histórico.</p>${campoHtml({k:'j',l:'Motivo do estorno',t:'area',req:1,larga:1})}`,'Estornar',async v=>{const d=lerForm(v,[{k:'j',req:1}]);if(!d)return false;await chamar('estornar',{empresa_id:eid(),id:x.dataset.e,justificativa:d.j});toast('Movimentação estornada.','ok');invalida('movimentacoes','bens','manutencoes','itens');redesenha()},{perigo:true}));
+   cp.querySelectorAll('[data-d]').forEach(x=>x.onclick=()=>verDocs(x,'movimentacao',x.dataset.d,'Documentos da movimentação'));
    const m=cp.querySelector('#mm');m.hidden=l.length<=qtd;m.onclick=()=>{qtd+=40;f()}};
   cp.querySelector('#fb').oninput=f;cp.querySelector('#ft').onchange=f;f();
  }else{
@@ -41295,7 +41441,7 @@ TELA.config=async function(c){
  const aba=INV.abaCfg||'acesso';const ab=[['acesso','Acesso'],['auditoria','Auditoria'],['copias','Cópias e dados'],['codigos','Códigos']];
  c.innerHTML=cab('Configurações','Acesso, auditoria, cópias de segurança e regras do módulo.')+`<div class="inv-abas">${ab.map(([k,l])=>`<button type="button" data-a="${k}" class="${k===aba?'on':''}">${l}</button>`).join('')}</div><div id="cp"></div>`;
  c.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{INV.abaCfg=b.dataset.a;redesenha()});const cp=c.querySelector('#cp');
- if(aba==='acesso'){cp.innerHTML=`<div class="inv-bloco"><h3>Acesso exclusivo</h3><p class="ajuda" style="margin:0 0 10px">Só ${esc(INV.nome||'você')} entra no Centro de Inventário. A regra fica no servidor: nem administradores do JB ERP enxergam estes dados.</p><div class="inv-l">${Object.entries(NOME_PERM).map(([k,l])=>`<div class="inv-c" style="padding:9px 12px"><div class="tx"><b style="font-size:13.5px">${esc(l)}</b></div>${INV.perms[k]?tag('Permitido','ok'):tag('Não permitido')}</div>`).join('')}</div></div><div class="inv-bloco"><h3>Estoques e materiais</h3><p class="ajuda" style="margin:0">O banco já separa a natureza de cada inventário. Mercadorias, matérias-primas, consumo, insumos, acabados e auxiliares terão estruturas e relatórios próprios, sem misturar com o patrimônio.</p></div>`}
+ if(aba==='acesso'){cp.innerHTML=`<div class="inv-bloco"><h3>Acesso exclusivo</h3><p class="ajuda" style="margin:0 0 10px">Só ${esc(INV.nome||'você')} entra no Centro de Inventário. A regra fica no servidor: nem administradores do JB ERP enxergam os dados do patrimônio.</p><div class="inv-l">${Object.entries(NOME_PERM).map(([k,l])=>`<div class="inv-c" style="padding:9px 12px"><div class="tx"><b style="font-size:13.5px">${esc(l)}</b></div>${INV.perms[k]?tag('Permitido','ok'):tag('Não permitido')}</div>`).join('')}</div></div><div class="inv-bloco"><h3>Estoque de materiais</h3><p class="ajuda" style="margin:0">A aba Estoque mostra quanto tem de cada material e lança entradas, saídas e contagens. Ela usa o mesmo cadastro e os mesmos lançamentos do almoxarifado, para não existir estoque em dobro: a compra lançada lá soma aqui sozinha. Quem lança no almoxarifado enxerga esses mesmos materiais lá; o patrimônio continua só aqui.</p></div>`}
  if(aba==='auditoria'){let l=await chamar('auditoria',{empresa_id:eid(),limite:60});const NT={empresas:'Dados da cerâmica',bens:'Bem',inventarios:'Inventário',inventario_itens:'Item de inventário',departamentos:'Departamento',localizacoes:'Localização',grupos:'Grupo',unidades:'Unidade',responsaveis:'Responsável',movimentacoes:'Movimentação',leituras:'Leitura de conferência',conferencias:'Conferência',manutencoes:'Manutenção',termos:'Termo',etiquetas:'Etiqueta',arquivos:'Anexo'};const NO_K=['id','empresa_id','criado_em','qr_token'];
   const lin=a=>{const k=Object.keys(a.alteracao||{}).filter(x=>!NO_K.includes(x));const det=a.operacao==='Alteração'?k.map(x=>x+': '+txtV(a.alteracao[x].de)+' → '+txtV(a.alteracao[x].para)).join('; '):k.slice(0,6).map(x=>x+': '+txtV(a.alteracao[x])).join('; ');return `<div class="inv-c"><div class="tx"><b>${esc(a.operacao)} · ${esc(NT[a.tabela]||a.tabela)}</b><small>${esc(fDataHora(a.quando))} · ${esc(a.usuario||'')}</small><small>${esc(det.slice(0,500))}</small></div></div>`};const txtV=v=>v==null?'—':typeof v==='object'?'(dados)':String(v);
   cp.innerHTML=`<div class="inv-l" id="lst">${l.length?l.map(lin).join(''):vazio('Sem registros')}</div><button class="btn inv-mais" id="mm" ${l.length<60?'hidden':''}>Mostrar mais</button>`;
@@ -41305,11 +41451,248 @@ TELA.config=async function(c){
  if(aba==='codigos'){if(!exigeEmp(cp))return;const e=empAt();const fs=[{k:'prefixo_codigo',l:'Prefixo',req:1},{k:'digitos_codigo',l:'Quantidade de dígitos',t:'num',req:1},{k:'proximo_numero',l:'Próximo número',t:'num',req:1}];cp.innerHTML=`<form class="inv-form" id="fm" novalidate>${secao('Numeração automática dos códigos patrimoniais',fs,e)}<p class="ajuda" id="ex" style="margin:0"></p><div class="inv-pe"><button class="btn pri" id="sv">Salvar</button></div></form>`;const fm=cp.querySelector('#fm');const ex=()=>{const g=k=>fm.querySelector(`[name=${k}]`).value;fm.querySelector('#ex').textContent='Próximo código: '+g('prefixo_codigo')+String(g('proximo_numero')).padStart(+g('digitos_codigo')||1,'0')};fm.oninput=ex;ex();fm.onsubmit=async ev=>{ev.preventDefault();const d=lerForm(fm,fs);if(!d)return;d.id=e.id;if(await acao(fm.querySelector('#sv'),()=>chamar('salvar',{ent:'empresas',dados:d}),'Numeração salva.')){invalida('empresas');redesenha()}}}
 };
 
+/* ---------- 13. Estoque de materiais (V138, 19/11/2026, pedido do dono) ----------
+   O controle de estoque fica aqui dentro: quanto tem de cada material, o que entrou, o que saiu e a
+   contagem. Os materiais, os saldos e os lançamentos são os MESMOS do Setor do Almoxarifado (coleção
+   alm): a compra lançada lá soma aqui sozinha e a saída lançada aqui baixa lá. Nada é cadastrado em dobro.
+   Quem vê e lança é quem tem a permissão do almoxarifado (pode('almEstoque'), pode('almSaida','e')…);
+   o patrimônio continua só com quem o servidor autoriza. As regras de gravação são as do almoxarifado
+   (window.ALMOX_V52): esta parte só desenha as telas. */
+const AX=()=>window.ALMOX_V52;
+const estOk=()=>!!(AX()&&AX().contagem&&AX().saidaRapida&&DATA.almItens);
+const eItem=id=>DATA.almItens.find(x=>x.id===id)||null;
+const eUn=i=>AX().un((i||{}).unidade);
+const eQt=(q,i)=>fQtd(q)+' '+eUn(i);
+const eOrd=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true});
+const COR_SIT={'Com saldo':'ok','Sem saldo':'','Abaixo do mínimo':'er','Inativo':''};
+const eAgora=()=>new Date().toISOString(),eEu=()=>APP.uid||'local';
+const eVazio=x=>x==null?'':x;
+TELA.estoque=async function(c,p){
+ if(typeof APP!=='undefined'&&!APP.carregado){carregando(c);INV.aoDados=()=>{if(APP.carregado)redesenha()};return}
+ if(!pode('almEstoque')){c.innerHTML=vazio('Sem permissão para ver o estoque','O estoque de materiais usa as permissões do almoxarifado.');return}
+ if(!estOk()){c.innerHTML=vazio('O estoque não está disponível agora','Os dados do almoxarifado não carregaram. Recarregue a página.');return}
+ if(p[0]==='item'&&p[1])return estItem(c,p[1]);
+ if(p[0]==='contagem'&&p[1])return estContagem(c,p[1]);
+ return estInicio(c)};
+
+/* ----- tela principal: indicadores e as abas Saldo, Entradas e saídas, Grupos e Contagem ----- */
+function estInicio(c){
+ const A=AX();const edS=pode('almSaida','e'),edI=pode('almItens','e'),edA=pode('almAjustes','e'),edC=pode('almInventarios','e');
+ const U=INV.est||(INV.est={aba:'saldo',q:'',grp:'',sit:'',qm:'',tm:'',n:40,nm:40});
+ c.innerHTML=cab('Estoque de materiais','Quanto tem de cada material, o que entrou e o que saiu. O saldo muda sozinho a cada lançamento.',
+  `${edS?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eNovo">Novo material</button><button type="button" class="btn" id="eVar">Vários de uma vez</button>`:''}`)+
+  `<div class="inv-kpis" id="ekp"></div><div class="inv-abas" id="eab"></div><div id="ecp"></div>`;
+ const kp=(i,l,v,o,cls)=>`<div class="inv-kpi ${cls||''}"><span>${ic(i)}</span><div><small>${esc(l)}</small><b>${v}</b>${o?`<em>${esc(o)}</em>`:''}</div></div>`;
+ let ref=null,nG=-1;const cp=c.querySelector('#ecp');
+ const topo=()=>{
+  const at=DATA.almItens.filter(A.ativo),m=hoje().slice(0,7),mv=A.movsAlm();
+  const sai=mv.filter(x=>x.q<0&&x.tipo!=='Ajuste'&&String(x.data||'').startsWith(m)),ent=mv.filter(x=>x.tipo==='Entrada'&&String(x.data||'').startsWith(m));
+  const ab=A.abaixoMin().length,rp=A.aRepor().length,cs=at.filter(i=>A.estI(i.id).saldo>0).length;
+  c.querySelector('#ekp').innerHTML=kp('iValor','Valor em estoque',esc(fMoeda(soma(at,i=>A.estI(i.id).valor))),fNum(at.length)+' material(is) cadastrado(s)','dest')+
+   kp('iCaixa','Com saldo',fNum(cs),'de '+fNum(at.length)+' material(is)')+kp('iAlerta','Abaixo do mínimo',fNum(ab),ab?'precisa repor':'nenhum')+kp('iLista','Para repor agora',fNum(rp),'pelo consumo e pelo prazo')+
+   kp('iSetas','Saídas em '+fMes(m),esc(fMoeda(-soma(sai,x=>x.valor))),fNum(sai.length)+' lançamento(s)')+kp('iMais','Entradas em '+fMes(m),esc(fMoeda(soma(ent,x=>x.valor))),fNum(ent.length)+' lançamento(s)');
+  const abertas=DATA.almInventarios.filter(v=>v.status!=='fechado').length;
+  c.querySelector('#eab').innerHTML=[['saldo','Saldo ('+fNum(at.length)+')'],['mov','Entradas e saídas'],['grupos','Grupos ('+fNum(DATA.almGrupos.filter(A.ativo).length)+')'],['cont','Contagem'+(abertas?' ('+abertas+' em aberto)':'')]].map(([k,l])=>`<button type="button" data-a="${k}" class="${U.aba===k?'on':''}">${esc(l)}</button>`).join('');
+  c.querySelectorAll('#eab [data-a]').forEach(b=>b.onclick=()=>{if(U.aba===b.dataset.a)return;U.aba=b.dataset.a;topo();corpo()})};
+ /* --- Saldo --- */
+ const linhasSaldo=()=>{const q=semAcento(U.q||'');return DATA.almItens.filter(i=>{
+   if(U.sit==='Inativo'?A.ativo(i):!A.ativo(i))return false;
+   if(U.grp){if(U.grp.startsWith('c:')?i.categoria!==U.grp.slice(2):U.grp==='g:'?!!(i.grupoId&&A.GRUPO(i.grupoId)):i.grupoId!==U.grp.slice(2))return false}
+   if(U.sit&&U.sit!=='Inativo'){if(U.sit==='Repor agora'?!(A.repI(i).comprar>0):A.sitItem(i)!==U.sit)return false}
+   return !q||semAcento([i.codigo,i.nome,i.marca,i.local,i.refFab,i.especificacao,A.nomeGrupo(i.grupoId),i.categoria].filter(Boolean).join(' ')).includes(q)}).sort(eOrd)};
+ const listaSaldo=()=>{const el=cp.querySelector('#elst');if(!el)return;const l=linhasSaldo();
+  el.innerHTML=l.length?l.slice(0,U.n).map(i=>{const e=A.estI(i.id),sit=A.sitItem(i),rp=A.ativo(i)&&A.repI(i).comprar>0;
+   return `<div class="inv-c"><a class="tx" href="${R('estoque/item/'+encodeURIComponent(i.id))}"><b>${esc(i.nome)}</b><small>${esc([i.codigo,A.nomeGrupo(i.grupoId)||i.categoria,i.marca,i.local].filter(Boolean).join(' · '))}</small></a><div class="vl">${esc(eQt(e.saldo,i))}<small>${A.temMin(i)?'mín. '+esc(fQtd(i.minimo))+' · ':''}${esc(fMoeda(e.valor))}</small></div>${tag(sit,COR_SIT[sit])}${rp&&sit!=='Abaixo do mínimo'?tag('Repor','at'):''}${edS&&A.ativo(i)&&e.disp>0?`<button type="button" class="btn inv-min" data-sai="${esc(i.id)}">Saída</button>`:''}</div>`}).join('')
+   :vazio(DATA.almItens.length?'Nenhum material com estes filtros':'Nenhum material cadastrado ainda',DATA.almItens.length?'':'Use “Novo material” ou “Vários de uma vez” para começar.');
+  el.querySelectorAll('[data-sai]').forEach(b=>b.onclick=()=>estSaida(b.dataset.sai));
+  const m=cp.querySelector('#emm');m.hidden=l.length<=U.n;m.onclick=()=>{U.n+=40;listaSaldo()}};
+ /* --- Entradas e saídas --- */
+ const listaMov=()=>{const el=cp.querySelector('#elst');if(!el)return;const q=semAcento(U.qm||'');
+  const l=A.movsAlm().filter(m=>(!U.tm||m.tipo.startsWith(U.tm))&&(!q||semAcento(((eItem(m.itemId)||{}).nome||'')+' '+((eItem(m.itemId)||{}).codigo||'')+' '+(m.doc||'')).includes(q))).reverse();
+  el.innerHTML=l.length?l.slice(0,U.nm).map(m=>{const i=eItem(m.itemId);return `<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+eUn(i))} · ${i?`<a href="${R('estoque/item/'+encodeURIComponent(i.id))}">${esc(i.nome)}</a>`:'(material removido)'}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(m.doc):''}</small></div><div class="vl">${esc(fMoeda(Math.abs(m.valor)))}</div>${tag(m.tipo,m.q>0?'ok':m.tipo==='Saída'?'at':'er')}</div>`}).join('')
+   :vazio('Nenhum lançamento encontrado','As entradas e as saídas aparecem aqui assim que forem lançadas.');
+  const mm=cp.querySelector('#emm');mm.hidden=l.length<=U.nm;mm.onclick=()=>{U.nm+=40;listaMov()}};
+ /* --- Grupos --- */
+ const listaGrupos=()=>{const el=cp.querySelector('#elst');if(!el)return;const at=DATA.almItens.filter(A.ativo);
+  const gs=DATA.almGrupos.slice().sort((a,b)=>String(a.categoria+' '+a.nome).localeCompare(String(b.categoria+' '+b.nome),'pt-BR'));const sem=at.filter(i=>!i.grupoId||!A.GRUPO(i.grupoId));
+  const ln=(id,nome,sub,xs,ina)=>`<div class="inv-c"><button type="button" class="tx" data-g="${esc(id)}"><b>${esc(nome)}${ina?' '+tag('Inativo'):''}</b><small>${esc(sub)} · ${fNum(xs.length)} material(is), ${fNum(xs.filter(i=>A.estI(i.id).saldo>0).length)} com saldo</small></button><div class="vl">${esc(fMoeda(soma(xs,i=>A.estI(i.id).valor)))}</div>${id&&edI?`<button type="button" class="btn inv-min" data-ge="${esc(id)}">Editar</button><button type="button" class="btn inv-min" data-gv="${esc(id)}">Cadastrar materiais</button>`:''}</div>`;
+  el.innerHTML=(gs.length?gs.map(g=>ln(g.id,g.nome,g.categoria,at.filter(i=>i.grupoId===g.id),!A.ativo(g))).join(''):vazio('Nenhum grupo ainda','Grupo é a família do material: Rolamentos, Correias, Luvas, Lâmpadas…'))+(sem.length&&gs.length?ln('','Materiais sem grupo','Qualquer categoria',sem):'');
+  el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{U.grp='g:'+b.dataset.g;U.sit='';U.q='';U.n=40;U.aba='saldo';topo();corpo()});
+  el.querySelectorAll('[data-ge]').forEach(b=>b.onclick=()=>estGrupo(b.dataset.ge));
+  el.querySelectorAll('[data-gv]').forEach(b=>b.onclick=()=>A.variosItens(b.dataset.gv));
+  cp.querySelector('#emm').hidden=true};
+ /* --- Contagem --- */
+ const listaCont=()=>{const el=cp.querySelector('#elst');if(!el)return;
+  const L=DATA.almInventarios.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));
+  el.innerHTML=L.length?L.map(v=>{const f=v.status==='fechado',res=v.resultado||{},n=Object.keys(v.contagens||{}).length;
+   return `<a class="inv-c" href="${R('estoque/contagem/'+encodeURIComponent(v.id))}"><div class="tx"><b>Contagem de ${esc(fData(v.data))}</b><small>${esc(v.categoria||'Todos os materiais')} · responsável ${esc(v.responsavel||'—')} · ${fNum(n)} material(is) contado(s)</small></div>${f?`<div class="vl">${fNum(res.ajustes||0)} ajuste(s)<small>${esc(fMoeda(res.valor||0))}</small></div>`:''}${tag(f?'Fechada':'Em aberto',f?'ok':'at')}</a>`}).join('')
+   :vazio('Nenhuma contagem ainda','Contar o estoque de tempos em tempos acerta o saldo do sistema com o que existe de verdade.');
+  cp.querySelector('#emm').hidden=true};
+ const pinta=()=>({saldo:listaSaldo,mov:listaMov,grupos:listaGrupos,cont:listaCont}[U.aba]||listaSaldo)();
+ const corpo=()=>{const mais='<div class="inv-l" id="elst"></div><button type="button" class="btn inv-mais" id="emm" hidden>Mostrar mais</button>';
+  if(U.aba==='mov'){cp.innerHTML=`<div class="inv-filtros"><input type="search" id="eqm" placeholder="Buscar por material ou documento" value="${esc(U.qm)}" aria-label="Buscar lançamento"><select id="etm" aria-label="Tipo de lançamento"><option value="">Todos os tipos</option>${['Entrada','Saída','Devolução','Ajuste','EPI entregue','Ferramenta'].map(t=>`<option ${U.tm===t?'selected':''}>${t}</option>`).join('')}</select></div>`+mais;
+   cp.querySelector('#eqm').oninput=e=>{U.qm=e.target.value;U.nm=40;listaMov()};cp.querySelector('#etm').onchange=e=>{U.tm=e.target.value;U.nm=40;listaMov()}}
+  else if(U.aba==='grupos'){cp.innerHTML=`<div class="inv-filtros"><span class="ajuda" style="flex:1 1 240px">Toque num grupo para ver os materiais dele. Cada material fica dentro de um grupo.</span>${edI?`<button type="button" class="btn" id="egN">${ic('iMais')}Novo grupo</button>`:''}</div>`+mais;
+   const b=cp.querySelector('#egN');if(b)b.onclick=()=>estGrupo(null)}
+  else if(U.aba==='cont'){cp.innerHTML=`<div class="inv-filtros"><span class="ajuda" style="flex:1 1 240px">Conte o que existe na prateleira e digite. Ao fechar, cada diferença vira um ajuste e o saldo é corrigido.</span>${edC?`<button type="button" class="btn" id="ecN">${ic('iMais')}Nova contagem</button>`:''}</div>`+mais;
+   const b=cp.querySelector('#ecN');if(b)b.onclick=estNovaContagem}
+  else{const gs=A.optsGrupos();
+   cp.innerHTML=`<div class="inv-filtros"><input type="search" id="eq" placeholder="Buscar material, código, marca ou local" value="${esc(U.q)}" aria-label="Buscar material"><select id="eg" aria-label="Categoria ou grupo"><option value="">Todas as categorias e grupos</option><optgroup label="Categorias">${A.CAT_NOMES.map(x=>`<option value="c:${esc(x)}" ${U.grp==='c:'+x?'selected':''}>${esc(x)}</option>`).join('')}</optgroup>${gs.length?`<optgroup label="Grupos">${gs.map(([v,l])=>`<option value="g:${esc(v)}" ${U.grp==='g:'+v?'selected':''}>${esc(l)}</option>`).join('')}<option value="g:" ${U.grp==='g:'?'selected':''}>Sem grupo</option></optgroup>`:''}</select><select id="es" aria-label="Situação"><option value="">Todas as situações</option>${['Com saldo','Sem saldo','Abaixo do mínimo','Repor agora','Inativo'].map(x=>`<option ${U.sit===x?'selected':''}>${x}</option>`).join('')}</select></div>`+mais;
+   cp.querySelector('#eq').oninput=e=>{U.q=e.target.value;U.n=40;listaSaldo()};cp.querySelector('#eg').onchange=e=>{U.grp=e.target.value;U.n=40;listaSaldo()};cp.querySelector('#es').onchange=e=>{U.sit=e.target.value;U.n=40;listaSaldo()}}
+  nG=DATA.almGrupos.length;pinta()};
+ const tudo=()=>{ref=DATA.alm;topo();if(U.aba==='saldo'&&DATA.almGrupos.length!==nG&&!cp.contains(document.activeElement))corpo();else pinta()};
+ const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida('');
+ const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada('');
+ const b3=c.querySelector('#eNovo');if(b3)b3.onclick=()=>estMaterial(null,U.grp.startsWith('g:')&&U.grp.length>2?{grupoId:U.grp.slice(2),categoria:(A.GRUPO(U.grp.slice(2))||{}).categoria}:U.grp.startsWith('c:')?{categoria:U.grp.slice(2)}:null);
+ const b4=c.querySelector('#eVar');if(b4)b4.onclick=()=>A.variosItens(U.grp.startsWith('g:')&&U.grp.length>2?U.grp.slice(2):undefined);
+ ref=DATA.alm;topo();corpo();
+ INV.aoDados=()=>{if(DATA.alm!==ref)tudo()};
+}
+
+/* ----- ficha de um material: saldo, reposição, dados e tudo o que entrou e saiu ----- */
+function estItem(c,id){
+ const A=AX();const edS=pode('almSaida','e'),edI=pode('almItens','e'),edA=pode('almAjustes','e');let ref=null;
+ const desenha=()=>{ref=DATA.alm;const i=eItem(id);
+  if(!i){c.innerHTML=vazio('Material não encontrado','Confira na lista do estoque.',lk(R('estoque'),'Voltar ao estoque'));return}
+  const e=A.estI(id),at=A.ativo(i),p=at?A.repI(i):{mes:0,comprar:0,ponto:null,dias:null,abc:''},sit=A.sitItem(i),u=eUn(i);
+  const d=(l,x)=>x==null||x===''?'':`<div><dt>${esc(l)}</dt><dd>${esc(x)}</dd></div>`;
+  const kp=(l,x,o,cl)=>`<div class="inv-kpi ${cl||''}"><div><small>${esc(l)}</small><b>${x}</b>${o?`<em>${esc(o)}</em>`:''}</div></div>`;
+  let s=0;const mv=A.movsAlm().filter(m=>m.itemId===id).map(m=>{s=Math.round((s+m.q)*1000)/1000;return{...m,s}}).reverse();
+  const forn=i.fornecedorId?((DATA.almFornecedores||[]).find(f=>f.id===i.fornecedorId)||{}).nome:'';
+  c.innerHTML=cab(i.nome,i.codigo,`${edS&&at&&e.disp>0?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA&&at?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eEd">Editar</button>`:''}`,R('estoque'))+
+   `<div style="margin:-6px 0 14px;display:flex;gap:6px;flex-wrap:wrap">${tag(sit,COR_SIT[sit])}${p.comprar>0?tag('Repor: comprar '+fQtd(p.comprar)+' '+u,'at'):''}${p.abc?tag('Curva '+p.abc):''}</div>
+   <div class="inv-kpis">${kp('Saldo agora',esc(fQtd(e.saldo)+' '+u),e.emp?fQtd(e.emp)+' '+u+' emprestado(s)':'','dest')}${kp('Custo médio',esc(fMoeda(e.cm)),e.eq>0?'das compras lançadas':i.custoRef>0?'custo de referência':'sem compra lançada')}${kp('Valor em estoque',esc(fMoeda(e.valor)))}${kp('Consumo por mês',p.mes?esc(fQtd(p.mes)+' '+u):'—','média de 90 dias')}${p.dias!=null?kp('O saldo dura',fNum(p.dias)+' dia(s)','no ritmo de agora'):''}${p.ponto!=null?kp('Ponto de reposição',esc(fQtd(p.ponto)+' '+u),'abaixo disso, comprar'):''}</div>
+   <div class="inv-bloco"><h3>Dados do material</h3><dl class="inv-dl">${d('Categoria',i.categoria)}${d('Grupo',A.nomeGrupo(i.grupoId))}${d('Unidade',i.unidade)}${d('Marca',i.marca)}${d('Especificação',i.especificacao)}${d('Código do fabricante ou de barras',i.refFab)}${d('Local de guarda',i.local)}${d('Estoque mínimo',A.temMin(i)?fQtd(i.minimo)+' '+u:'')}${d('Estoque máximo',i.maximo>0?fQtd(i.maximo)+' '+u:'')}${d('Prazo de reposição',i.prazoRep>0?fNum(i.prazoRep)+' dia(s)':'')}${d('Fornecedor habitual',forn)}${d('Última entrada',e.ultEnt?fData(e.ultEnt):'')}${d('Última saída',e.ultSai?fData(e.ultSai):'')}${d('Observações',i.obs)}</dl></div>
+   <div class="inv-tit"><h2>Entradas e saídas deste material</h2></div><div class="inv-l">${mv.length?mv.slice(0,60).map(m=>`<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+u)} · ${esc(m.tipo)}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(m.doc):''}</small></div><div class="vl">${esc(fQtd(m.s)+' '+u)}<small>saldo depois</small></div></div>`).join(''):vazio('Nenhum lançamento ainda','O saldo começa em zero: lance a entrada ou faça a contagem.')}</div>${mv.length>60?'<p class="ajuda" style="margin-top:8px">Mostrando os 60 lançamentos mais recentes.</p>':''}`;
+  const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida(id);const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada(id);const b3=c.querySelector('#eEd');if(b3)b3.onclick=()=>estMaterial(id)};
+ desenha();INV.aoDados=()=>{if(DATA.alm!==ref)desenha()};
+}
+
+/* ----- janelas: saída, entrada, material e grupo ----- */
+function estSaida(itemId){
+ const A=AX();if(!pode('almSaida','e')){toast('Seu perfil não lança saídas do estoque.','erro');return}
+ const its=DATA.almItens.filter(i=>A.ativo(i)&&(A.estI(i.id).disp>0||i.id===itemId)).sort(eOrd);
+ if(!its.length){toast('Nenhum material com saldo para sair.','erro');return}
+ const fs=[{k:'itemId',l:'Material',t:'sel',req:1,larga:1,ops:its.map(i=>[i.id,i.nome+' · tem '+eQt(A.estI(i.id).disp,i)])},{k:'qtd',l:'Quantidade que sai',t:'num',req:1},{k:'data',l:'Data',t:'data',req:1},
+  {k:'setor',l:'Para onde vai (setor)',req:1,lista:'eSet',ph:'Ex.: Maromba, Fornos, Manutenção'},{k:'solicitante',l:'Quem retirou'},{k:'finalidade',l:'Para quê',larga:1,ph:'Opcional'}];
+ const ini={itemId:itemId||'',data:hoje(),setor:INV.estSetor||''};
+ modal('Lançar saída do estoque',`<div class="inv-grade">${fs.map(f=>campoHtml(f,ini[f.k])).join('')}</div><datalist id="eSet">${A.setoresAlm().map(s=>`<option value="${esc(s)}">`).join('')}</datalist><p class="ajuda" id="eDisp" style="margin:8px 0 0"></p>`,'Lançar saída',async v=>{
+   const d=lerForm(v,fs);if(!d)return false;if(!(d.qtd>0)){toast('Informe uma quantidade maior que zero.','erro');return false}
+   const rec=await A.saidaRapida({data:d.data,setor:d.setor,solicitante:eVazio(d.solicitante),finalidade:eVazio(d.finalidade),itens:[{itemId:d.itemId,qtd:d.qtd}]});
+   INV.estSetor=d.setor;const i=eItem(d.itemId);toast(A.fReq(rec.numero)+' registrada: saíram '+eQt(d.qtd,i)+' de '+(i?i.nome:'material')+'.','ok')},
+  {depois:v=>{const s=v.querySelector('[name=itemId]'),x=v.querySelector('#eDisp');const f=()=>{const i=eItem(s.value);x.textContent=i?'Disponível agora: '+eQt(A.estI(i.id).disp,i)+'. O saldo é baixado na hora, pelo custo médio.':''};s.onchange=f;f()}});
+}
+function estEntrada(itemId){
+ const A=AX();if(!pode('almAjustes','e')){toast('Seu perfil não lança entradas no estoque.','erro');return}
+ const its=DATA.almItens.filter(A.ativo).sort(eOrd);if(!its.length){toast('Cadastre um material antes.','erro');return}
+ const fs=[{k:'itemId',l:'Material',t:'sel',req:1,larga:1,ops:its.map(i=>[i.id,i.nome+' · tem '+eQt(A.estI(i.id).saldo,i)])},{k:'qtd',l:'Quantidade que entra',t:'num',req:1},{k:'data',l:'Data',t:'data',req:1},
+  {k:'motivo',l:'De onde veio',req:1,larga:1,lista:'eMot',ph:'Ex.: saldo inicial, sobra encontrada, devolução'}];
+ modal('Lançar entrada no estoque',`<p class="ajuda" style="margin:0 0 10px">Use para o que entra sem compra: saldo inicial, sobra encontrada, devolução. A compra com nota fiscal é lançada em Entradas do almoxarifado (ela gera a conta a pagar) e soma neste estoque sozinha.</p><div class="inv-grade">${fs.map(f=>campoHtml(f,{itemId:itemId||'',data:hoje()}[f.k])).join('')}</div><datalist id="eMot">${['Saldo inicial','Sobra encontrada','Devolução ao estoque','Material recuperado'].map(s=>`<option value="${s}">`).join('')}</datalist>`,'Lançar entrada',async v=>{
+   const d=lerForm(v,fs);if(!d)return false;
+   const st={...MODS.almAjustes.padrao(),id:novoId(),itemId:d.itemId,data:d.data,tipo:'entrada',qtd:d.qtd,motivo:d.motivo};
+   const r=conferirRegistro('almAjustes',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
+   await gravarRegistro('almAjustes',st,null,true);const i=eItem(d.itemId);toast('Entrada registrada: '+eQt(d.qtd,i)+' de '+(i?i.nome:'material')+'.','ok')});
+}
+function estMaterial(id,ini){
+ const A=AX();if(!pode('almItens','e')){toast('Seu perfil não cadastra materiais.','erro');return}
+ const ant=id?eItem(id):null;if(id&&!ant){toast('Material não encontrado.','erro');return}
+ const TXT=['nome','categoria','grupoId','unidade','local','marca','refFab','especificacao'],NUM=['minimo','maximo','prazoRep','custoRef'];
+ const fs=[{k:'nome',l:'Nome do material',req:1,larga:1,aj:'Comece pelo nome e depois a medida ou o tipo. Ex.: Rolamento 6205 2RS.'},{k:'categoria',l:'Categoria',t:'sel',req:1,ops:A.CAT_NOMES},{k:'grupoId',l:'Grupo',t:'sel',ops:A.optsGrupos()},
+  {k:'unidade',l:'Unidade',t:'sel',req:1,semVazio:1,ops:A.UNIDS},{k:'local',l:'Local de guarda',ph:'Ex.: prateleira B3'},{k:'marca',l:'Marca'},{k:'refFab',l:'Código do fabricante ou de barras'},{k:'especificacao',l:'Especificação',larga:1,ph:'Medidas, material, voltagem, aplicação'},
+  {k:'minimo',l:'Estoque mínimo',t:'num',aj:'Abaixo disso, o sistema avisa.'},{k:'maximo',l:'Estoque máximo',t:'num'},{k:'prazoRep',l:'Prazo de reposição (dias)',t:'num'},{k:'custoRef',l:'Custo de referência (R$)',t:'moeda',aj:'Vale enquanto o material não tem compra lançada.'}];
+ if(ant)fs.push({k:'ativo',l:'Situação',t:'sel',semVazio:1,ops:[['1','Ativo'],['0','Inativo']],aj:'Inativo some das listas; o histórico continua.'});
+ const v0=ant?{...ant,ativo:A.ativo(ant)?'1':'0'}:{unidade:'unidade',...(ini||{})};
+ modal(ant?'Editar material':'Novo material',`<div class="inv-grade">${fs.map(f=>campoHtml(f,v0[f.k])).join('')}</div>${ant?'':'<p class="ajuda" style="margin:8px 0 0">O código é gerado pela categoria. O saldo começa em zero: depois lance a entrada ou faça a contagem.</p>'}`,'Salvar',async v=>{
+   const d=lerForm(v,fs);if(!d)return false;
+   const st=ant?clone(ant):{...MODS.almItens.padrao(),id:novoId()};TXT.forEach(k=>{st[k]=eVazio(d[k])});NUM.forEach(k=>{st[k]=eVazio(d[k])});if(ant)st.ativo=d.ativo!=='0';
+   const r=conferirRegistro('almItens',st);const er=Object.entries(r.erros);
+   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=m});toast(er[0][1],'erro');return false}
+   const rec=await gravarRegistro('almItens',st,ant?clone(ant):null,!ant);toast(ant?'Material atualizado.':'Material '+(rec.codigo||'')+' cadastrado.','ok')},
+  {depois:v=>{const g=v.querySelector('[name=grupoId]'),ct=v.querySelector('[name=categoria]'),lc=v.querySelector('[name=local]');g.onchange=()=>{const x=A.GRUPO(g.value);if(x){ct.value=x.categoria;if(!lc.value&&x.local)lc.value=x.local}}}});
+}
+function estGrupo(id){
+ const A=AX();if(!pode('almGrupos','e')){toast('Seu perfil não cadastra grupos.','erro');return}
+ const ant=id?A.GRUPO(id):null;if(id&&!ant){toast('Grupo não encontrado.','erro');return}
+ const fs=[{k:'nome',l:'Nome do grupo',req:1,larga:1,aj:'No plural e sem medida. Ex.: Rolamentos; Parafusos e porcas; Luvas.'},{k:'categoria',l:'Categoria',t:'sel',req:1,ops:A.CAT_NOMES},{k:'local',l:'Local de guarda padrão',ph:'Os materiais novos já vêm com este local'}];
+ if(ant)fs.push({k:'ativo',l:'Situação',t:'sel',semVazio:1,ops:[['1','Ativo'],['0','Inativo']]});
+ modal(ant?'Editar grupo':'Novo grupo',`<div class="inv-grade">${fs.map(f=>campoHtml(f,ant?(f.k==='ativo'?(A.ativo(ant)?'1':'0'):ant[f.k]):null)).join('')}</div>`,'Salvar',async v=>{
+   const d=lerForm(v,fs);if(!d)return false;
+   const st=ant?clone(ant):{...MODS.almGrupos.padrao(),id:novoId()};st.nome=d.nome;st.categoria=d.categoria;st.local=eVazio(d.local);if(ant)st.ativo=d.ativo!=='0';
+   const r=conferirRegistro('almGrupos',st);const er=Object.entries(r.erros);
+   if(er.length){er.forEach(([k,m])=>{const e=v.querySelector(`[data-e="${k}"]`);if(e)e.textContent=m});toast(er[0][1],'erro');return false}
+   await gravarRegistro('almGrupos',st,ant?clone(ant):null,!ant);toast(ant?'Grupo atualizado.':'Grupo cadastrado. Agora coloque os materiais dentro dele.','ok')});
+}
+
+/* ----- contagem (inventário do estoque) ----- */
+function estNovaContagem(){
+ const A=AX();if(!pode('almInventarios','e')){toast('Seu perfil não faz contagem do estoque.','erro');return}
+ if(!DATA.almItens.some(A.ativo)){toast('Cadastre os materiais antes de contar.','erro');return}
+ const fs=[{k:'data',l:'Data da contagem',t:'data',req:1},{k:'responsavel',l:'Quem vai contar',req:1},{k:'categoria',l:'O que contar',t:'sel',larga:1,ops:[['','Todos os materiais'],...A.CAT_NOMES.filter(x=>DATA.almItens.some(i=>A.ativo(i)&&i.categoria===x)).map(x=>[x,'Só a categoria '+x])],semVazio:1,aj:'Conte uma categoria por vez se o estoque for grande.'}];
+ modal('Nova contagem do estoque',`<div class="inv-grade">${fs.map(f=>campoHtml(f,{data:hoje(),responsavel:INV.nome||APP.nome||''}[f.k])).join('')}</div>`,'Começar a contagem',async v=>{
+   const d=lerForm(v,fs);if(!d)return false;if(d.data>hoje()){toast('A data não pode ser futura.','erro');return false}
+   const cat=eVazio(d.categoria);const ab=DATA.almInventarios.find(x=>x.status!=='fechado'&&(x.categoria||'')===cat);
+   if(ab){toast('Já existe uma contagem em aberto para '+(cat||'todos os materiais')+'. Continue nela.','erro');return false}
+   const rec={id:novoId(),data:d.data,responsavel:d.responsavel,categoria:cat,status:'aberto',contagens:{},resultado:null,fechadoEm:'',criadoEm:eAgora(),criadoPor:eEu()};
+   await gravar('almInventarios',rec,null);await registrarLog('almInventarios',rec.id,'criou',null,rec,rotulosDe(MODS.almInventarios));ir(R('estoque/contagem/'+rec.id))});
+}
+function estContagem(c,id){
+ const A=AX(),K=A.contagem;const V=()=>DATA.almInventarios.find(x=>x.id===id)||null;
+ const v0=V();if(!v0){c.innerHTML=vazio('Contagem não encontrada','Confira na aba Contagem do estoque.',lk(R('estoque'),'Voltar ao estoque'));return}
+ const ed=pode('almInventarios','e');
+ if(!INV.rasc||INV.rasc.id!==id)INV.rasc={id,c:{...(v0.contagens||{})},sujo:false};
+ const cont=INV.rasc.c;let q='',modo='todos',n=60,ref=null,tSalvar=null,gravando=null,eraFechado=null;
+ const tem=x=>x!==''&&x!=null&&!isNaN(+x);
+ const guardar=()=>{clearTimeout(tSalvar);tSalvar=null;if(!INV.rasc||!INV.rasc.sujo||gravando)return gravando||Promise.resolve();
+  const v=V();if(!v||v.status==='fechado'||!ed)return Promise.resolve();INV.rasc.sujo=false;
+  gravando=K.salvar(v,cont).catch(e=>{if(INV.rasc)INV.rasc.sujo=true;console.warn(e);toast('A contagem digitada ainda não foi guardada: '+msg(e),'erro')}).then(()=>{gravando=null;if(INV.rasc&&INV.rasc.id===id&&INV.rasc.sujo){clearTimeout(tSalvar);tSalvar=setTimeout(guardar,600)}const s=c.querySelector('#cSt');if(s&&INV.rasc&&!INV.rasc.sujo)s.textContent='Contagem guardada às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'.'});return gravando};
+ const difTxt=i=>{const x=cont[i.id];if(!tem(x))return '<span class="ajuda">falta contar</span>';const d=Math.round((+x-A.estI(i.id).saldo)*1000)/1000;return Math.abs(d)<1e-9?tag('Confere','ok'):`<b style="color:${d<0?'#B00E17':'#16784A'}">${esc((d>0?'+':'−')+fQtd(Math.abs(d)))}</b><small>${esc(fMoeda(d*A.estI(i.id).cm))}</small>`};
+ const resumo=()=>{const v=V();if(!v)return;const f=v.status==='fechado',res=v.resultado||{};const kp=(l,x,cl)=>`<div class="inv-kpi ${cl||''}"><div><small>${esc(l)}</small><b>${x}</b></div></div>`;const el=c.querySelector('#ckp');if(!el)return;
+  if(f){el.innerHTML=kp('Materiais contados',fNum(Object.keys(v.contagens||{}).length),'dest')+kp('Ajustes lançados',fNum(res.ajustes||0))+kp('Valor das diferenças',esc(fMoeda(res.valor||0)));return}
+  const R0=K.difs(v,cont);el.innerHTML=kp('Contados',fNum(R0.contados)+' de '+fNum(R0.its.length),'dest')+kp('Faltam contar',fNum(R0.sem))+kp('Com diferença',fNum(R0.difs.length))+kp('Valor das diferenças',esc(fMoeda(R0.valor)))};
+ const linhas=()=>{const v=V();const f=v.status==='fechado';const qq=semAcento(q);
+  return K.itens(v,f?v.contagens||{}:cont).filter(i=>{if(qq&&!semAcento([i.codigo,i.nome,i.local,i.marca].filter(Boolean).join(' ')).includes(qq))return false;
+   if(f)return modo!=='dif'||(tem((v.contagens||{})[i.id])&&Math.abs(+(v.contagens||{})[i.id]-+(((v.resultado||{}).saldos||{})[i.id]||0))>1e-9);
+   if(modo==='falta')return !tem(cont[i.id]);if(modo==='dif')return tem(cont[i.id])&&Math.abs(+cont[i.id]-A.estI(i.id).saldo)>1e-9;return true}).sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||eOrd(a,b))};
+ const pinta=()=>{const v=V();const el=c.querySelector('#clst');if(!v||!el)return;const f=v.status==='fechado',pode2=ed&&!f;const l=linhas();
+  el.innerHTML=l.length?l.slice(0,n).map(i=>{const u=eUn(i);
+   if(f){const ct=(v.contagens||{})[i.id],sd=+(((v.resultado||{}).saldos||{})[i.id]||0),d=tem(ct)?Math.round((+ct-sd)*1000)/1000:null;
+    return `<div class="inv-c"><div class="tx"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.local].filter(Boolean).join(' · '))} · no sistema: ${esc(fQtd(sd)+' '+u)}</small></div><div class="vl">${tem(ct)?esc(fQtd(ct)+' '+u):'—'}<small>contado</small></div>${d==null?tag('Não contado'):Math.abs(d)<1e-9?tag('Confere','ok'):tag((d>0?'+':'−')+fQtd(Math.abs(d)),d<0?'er':'at')}</div>`}
+   return `<div class="inv-c inv-cnt"><div class="tx"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.local].filter(Boolean).join(' · '))} · no sistema: ${esc(fQtd(A.estI(i.id).saldo)+' '+u)}</small></div><input type="number" inputmode="decimal" step="any" min="0" data-cq="${esc(i.id)}" value="${tem(cont[i.id])?esc(cont[i.id]):''}" placeholder="Contagem" aria-label="Contagem de ${esc(i.nome)}" ${pode2?'':'disabled'}><div class="vl" data-cd="${esc(i.id)}">${difTxt(i)}</div></div>`}).join('')
+   :vazio('Nada nesta lista',modo==='falta'?'Todos os materiais já foram contados.':'');
+  el.querySelectorAll('[data-cq]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.cq;cont[k]=inp.value===''?'':+inp.value;INV.rasc.sujo=true;const i=eItem(k),cd=el.querySelector(`[data-cd="${CSS.escape(k)}"]`);if(i&&cd)cd.innerHTML=difTxt(i);resumo();
+   const s=c.querySelector('#cSt');if(s)s.textContent='Guardando o que foi digitado…';clearTimeout(tSalvar);tSalvar=setTimeout(guardar,1200)});
+  const m=c.querySelector('#cmm');m.hidden=l.length<=n;m.onclick=()=>{n+=60;pinta()}};
+ const tela=()=>{const v=V();if(!v){c.innerHTML=vazio('Contagem não encontrada','Ela pode ter sido excluída.',lk(R('estoque'),'Voltar ao estoque'));return}
+  const f=v.status==='fechado';eraFechado=f;ref=DATA.alm;
+  c.innerHTML=cab('Contagem de '+fData(v.data),(v.categoria||'Todos os materiais')+' · responsável: '+(v.responsavel||'—')+(f?' · fechada em '+fDataHora(v.fechadoEm):''),
+    `<button type="button" class="btn" id="cFo">${ic('baixar')}Folha de contagem</button>${ed&&!f?`<button type="button" class="btn pri" id="cFim">Fechar contagem</button><button type="button" class="btn" id="cExc">Excluir</button>`:''}`,R('estoque'))+
+   `<div style="margin:-6px 0 14px">${tag(f?'Fechada':'Em aberto',f?'ok':'at')}</div><div class="inv-kpis" id="ckp"></div>
+   ${f?'':'<p class="ajuda" style="margin:0 0 12px">Conte o que existe e digite ao lado de cada material. O que você digita fica guardado sozinho. Material sem contagem continua com o saldo do sistema. <span id="cSt"></span></p>'}
+   <div class="inv-filtros"><input type="search" id="cq" placeholder="Buscar material, código ou local" aria-label="Buscar material"><select id="cmo" aria-label="Mostrar"><option value="todos">Todos os materiais</option>${f?'':'<option value="falta">Só os que faltam contar</option>'}<option value="dif">Só os com diferença</option></select></div>
+   <div class="inv-l" id="clst"></div><button type="button" class="btn inv-mais" id="cmm" hidden>Mostrar mais</button>`;
+  c.querySelector('#cq').oninput=e=>{q=e.target.value;n=60;pinta()};c.querySelector('#cmo').onchange=e=>{modo=e.target.value;n=60;pinta()};
+  c.querySelector('#cFo').onclick=ev=>{const cols=[{k:'local',l:'Local'},{k:'codigo',l:'Código'},{k:'nome',l:'Material'},{k:'un',l:'Unidade'},{k:'cont',l:'Contagem'},{k:'obs',l:'Observação'}];
+   const rows=K.itens(v,f?v.contagens||{}:cont).sort((a,b)=>String(a.local||'~').localeCompare(String(b.local||'~'),'pt-BR',{numeric:true})||eOrd(a,b)).map(i=>({local:i.local||'',codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),un:eUn(i),cont:f&&tem((v.contagens||{})[i.id])?fQtd((v.contagens||{})[i.id]):'',obs:''}));
+   const fx=fmt=>exportar(fmt,'Folha_de_contagem_'+hoje(),cols,rows,'Folha de contagem · '+fData(v.data)+' · '+(v.categoria||'Todos os materiais'));
+   abrirMenuMais(ev.currentTarget,[{l:'Visualizar',sub:rows.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+  const bf=c.querySelector('#cFim');if(bf)bf.onclick=async()=>{await guardar();const at=V();if(!at||at.status==='fechado'){tela();return}const R0=K.difs(at,cont);
+   if(!R0.contados){toast('Digite a contagem de pelo menos um material.','erro');return}
+   if(!await confirmar('Fechar a contagem?',(R0.sem?'ATENÇÃO: '+R0.sem+' material(is) ficaram sem contagem e continuam com o saldo do sistema. ':'')+(R0.difs.length?R0.difs.length+' material(is) com diferença ('+fMoeda(R0.valor)+'). Cada diferença vira um ajuste e o saldo é corrigido. ':'Nenhuma diferença entre a contagem e o sistema. ')+'Depois de fechada, a contagem não muda.',{ok:'Fechar contagem'}))return;
+   if(await acao(bf,()=>K.fechar(V()||at,cont),'Contagem fechada. O saldo foi acertado.')){INV.rasc=null;tela()}};
+  const bx=c.querySelector('#cExc');if(bx)bx.onclick=async()=>{if(!await confirmar('Excluir esta contagem?','O que foi digitado nela se perde. Nenhum ajuste foi lançado ainda.',{ok:'Excluir',perigo:true}))return;clearTimeout(tSalvar);if(INV.rasc)INV.rasc.sujo=false;
+   if(await acao(bx,async()=>{const at=V();if(at){await apagar('almInventarios',at);await registrarLog('almInventarios',at.id,'excluiu')}},'Contagem excluída.')){INV.rasc=null;INV.est=Object.assign(INV.est||{},{aba:'cont'});ir(R('estoque'))}};
+  resumo();pinta()};
+ tela();
+ INV.aoDados=()=>{if(DATA.alm===ref)return;ref=DATA.alm;const v=V();if(!v||(v.status==='fechado')!==eraFechado){tela();return}
+  resumo();const el=c.querySelector('#clst');if(el&&el.contains(document.activeElement)){el.querySelectorAll('[data-cd]').forEach(cd=>{const i=eItem(cd.dataset.cd);if(i)cd.innerHTML=difTxt(i)});return}pinta()};
+ INV.aoSair=()=>{if(INV.rasc&&INV.rasc.sujo)guardar()};
+}
+
 /* ---------- ligação com o resto do JB (só acrescenta; só para quem o servidor autoriza) ---------- */
 async function verAcesso(){
  if(INV.verificando)return INV.verificando;
  INV.verificando=(async()=>{try{const r=await chamar('eu');INV.acesso=!!(r&&r.acesso);if(INV.acesso){INV.perms=r.permissoes||{};INV.nome=r.nome||'';
-  if(!SETORES.some(s=>s.id==='inventario'))SETORES.push({id:'inventario',nome:'Centro de Inventário',ic:'iCaixa',rota:'#/inventario',v:()=>INV.acesso,desc:'Inventário patrimonial da cerâmica: bens, conferência física, QR Code, movimentações, termos e relatórios.'})}}catch(e){INV.acesso=false}INV.pronto=true;return INV.acesso})();
+  if(!SETORES.some(s=>s.id==='inventario'))SETORES.push({id:'inventario',nome:'Centro de Inventário',ic:'iCaixa',rota:'#/inventario',v:()=>INV.acesso,desc:'Inventário patrimonial da cerâmica: bens, conferência física, QR Code, movimentações, termos e relatórios. E o estoque de materiais: quanto tem, entradas, saídas e contagem.'})}}catch(e){INV.acesso=false}INV.pronto=true;return INV.acesso})();
  return INV.verificando}
 PERM.inventario={v:Object.keys(PAPEIS),e:Object.keys(PAPEIS)};
 if(!ROTAS_SETOR.includes('inventario'))ROTAS_SETOR.push('inventario');
