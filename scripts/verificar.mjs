@@ -972,6 +972,29 @@ teste('inventario', 'programa (V139): fotos da conferência à vista e Estoque d
   assert.ok(cont.includes("if(!INV.rasc||INV.rasc.id!==id)INV.rasc={id,m:{}};") && cont.includes('const sinc=()=>{') && cont.includes('falhas<8'), 'rascunho só do que foi digitado, junção com o banco e fim das tentativas sem conexão');
 });
 
+teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, saída marcando os produtos, cupom e relatórios sobre os mesmos dados', () => {
+  const app = ler('app/jb-gestao.html'), ci = ler('.github/workflows/verificar.yml');
+  const i = app.indexOf('/* ================= Estoque / Produtos (V140'); assert.ok(i > 0, 'bloco do Estoque / Produtos');
+  const bloco = app.slice(i, app.indexOf('/* ================= para os testes e para as telas ================= */\nwindow.ALMOX_V52={', i));
+  const fn = (de, ate) => { const a = bloco.indexOf(de); assert.ok(a >= 0, 'não achei: ' + de); const b = bloco.indexOf(ate, a + de.length); assert.ok(b > a, 'não achei o fim: ' + ate); return bloco.slice(a, b); };
+  // rota, permissão, aba e o botão do início no lugar de "Grupos de materiais"
+  assert.ok(app.includes('almGrupos:{v:AV,e:AE},almProdutos:{v:AV,e:AE},') && app.includes("'almGrupos','almProdutos'];") && app.includes("almProdutos:naA('almProdutos',telaProdutos)"), 'rota e permissão');
+  assert.ok(app.includes("{r:'#/almProdutos',m:'almProdutos',ic:'caixa',l:'Estoque / Produtos',at:['almProdutos']}") && app.includes('href="#/almProdutos">${ic(\'caixa\')}Estoque / Produtos</a>'), 'aba e botão do início');
+  // nada de saldo próprio: a saída é a requisição de verdade e a entrada é o ajuste com as regras de lá
+  assert.ok(fn('function modalLancPr(tipo,pre){', 'function posLancPr(').includes('await saidaRapidaAlm({data,setor,') && !/gravar\('almSaidas'/.test(bloco), 'saída pela saída rápida do almoxarifado');
+  assert.ok(/if\(sai&&!pode\('almSaida','e'\)\)\{toast/.test(bloco) && /if\(!sai&&!pode\('almAjustes','e'\)\)\{toast/.test(bloco) && /if\(!pode\('almItens','e'\)\)\{toast\('Seu perfil não cadastra produtos/.test(bloco), 'cada lançamento exige a permissão dele');
+  assert.ok((bloco.match(/conferirRegistro\('almAjustes'/g) || []).length >= 4 && bloco.includes("conferirRegistro('almItens',st)") && bloco.includes("conferirRegistro('almGrupos',sg)"), 'ajustes, produtos e grupos passam pelas regras de cada cadastro');
+  // cadastro por foto: não duplica (código do fabricante, nome ou o que a IA reconheceu) e o leitor é o mesmo do lançamento por foto
+  const foto = fn('function modalFotoPr(ini){', '/* depois de salvar: limpa');
+  assert.ok(foto.includes('normT(i.refFab)===rf') && foto.includes('normT(i.nome)===nm') && foto.includes("name=\"fpModo\" value=\"somar\"") && foto.includes("name=\"fpModo\" value=\"total\""), 'produto que já existe: soma ou acerta, não duplica');
+  assert.ok(app.includes('window.ALM_IA_LER={motor:motorLeitura,semMotorTxt};') && foto.includes('window.ALM_IA_LER'), 'leitor da foto é o do lançamento por foto');
+  // excluir entrada que já saiu do estoque é barrado
+  assert.ok(fn('async function excluirAjPr(a){', '/* ---------- cadastrar por foto').includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9"), 'excluir entrada não deixa saldo negativo');
+  // cupom e relatórios: documentos de comprovante (ganham o cupom 80/58 mm) e de relatório
+  assert.ok(bloco.includes("baseRel(ent?'COMPROVANTE DE ENTRADA NO ESTOQUE':'COMPROVANTE DE SAÍDA DO ESTOQUE'") && bloco.includes("baseRel('RELATÓRIO DE POSIÇÃO DO ESTOQUE'") && bloco.includes("baseRel('RELATÓRIO DE LANÇAMENTOS DO ESTOQUE'"), 'comprovantes e relatórios');
+  assert.ok(ci.includes('node scripts/testar-almox-produtos.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

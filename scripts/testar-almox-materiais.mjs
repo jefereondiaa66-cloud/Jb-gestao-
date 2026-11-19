@@ -117,7 +117,7 @@ try {
   ok(!!(await page.evaluate((g) => preExcluirV51('almGrupos', DATA.almGrupos.find(x => x.id === g)), gid)).bloq, 'grupo com itens não é excluído');
   // inventário do almoxarifado continua funcionando + folha
   await ir('#/setor-almox', '.almp-hero'); await page.waitForTimeout(300); await foto('16-inicio');
-  ok(await page.locator('#svCorpo a[href="#/almGrupos"]').count() >= 1, 'início tem o atalho para Grupos de materiais');
+  ok(await page.locator('#svCorpo a[href="#/almProdutos"]').count() >= 1, 'início tem o atalho para o Estoque / Produtos (antes Grupos de materiais)');
   await ir('#/almInventarios', '#ivNovo'); await page.click('#ivNovo'); await page.waitForSelector('#ivD'); await page.locator('.veu .btn.pri').last().click();
   await page.waitForSelector('#ivFolha'); await page.click('#ivFolha'); await page.waitForTimeout(300); await foto('17-folha-contagem');
   ok(/Visualizar/.test(await page.evaluate(() => document.body.innerText)), 'folha de contagem abre o menu de exportar');

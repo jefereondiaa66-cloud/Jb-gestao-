@@ -20773,10 +20773,10 @@ const PV=['admin','gerente','vendedor','estoquista','financeiro'],PE=['admin','g
 Object.assign(PERM,{'setor-almox':{v:AV,e:[]},almItens:{v:AV,e:AE},almFornecedores:{v:AV,e:AE},almEntradas:{v:AV,e:AE},almEntrada:{v:AV,e:AE},almPagamentos:{v:AV,e:[]},
  almSaidas:{v:AV,e:AE},almSaida:{v:AV,e:AE},almLancSaida:{v:AV,e:AE},almDevolucoes:{v:AV,e:AE},almAjustes:{v:AV,e:AE},almEpis:{v:AV,e:AE},almEmprestimos:{v:AV,e:AE},almInventarios:{v:AV,e:AE},almInv:{v:AV,e:AE},
  almEstoque:{v:AV,e:[]},almMov:{v:AV,e:[]},almPagar:{v:AV,e:[]},almRel:{v:AV,e:[]},almResp:{v:AV,e:AE},
- almGrupos:{v:AV,e:AE},
+ almGrupos:{v:AV,e:AE},almProdutos:{v:AV,e:AE},
  'setor-paletes':{v:PV,e:[]},paleteMov:{v:PV,e:PE},paleteTipos:{v:PV,e:['admin','gerente']},paleteConfig:{v:PV,e:['admin','gerente']},paleteCompras:{v:PV,e:PC},
  pagamentosPaletes:{v:PV,e:[]},palClientes:{v:PV,e:[]},palEstoque:{v:PV,e:PC},palRel:{v:PV,e:[]},palResp:{v:PV,e:PC}});
-const ROTAS_A=['setor-almox','almLancSaida','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp','almGrupos'];
+const ROTAS_A=['setor-almox','almLancSaida','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp','almGrupos','almProdutos'];
 const ROTAS_P=['setor-paletes','paleteConfig','pagamentosPaletes','paleteMov','paleteTipos','paleteCompras','palClientes','palEstoque','palRel','palResp'];
 [...ROTAS_A,...ROTAS_P].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
 window.ROTAS_SETOR_V52={almox:ROTAS_A.slice(),paletes:ROTAS_P.slice()};
@@ -21209,11 +21209,12 @@ function modRespAba(aba){const B=MODS.responsaveis;if(!B)return null;
 const SETS={
  almox:{nome:'Setor do Almoxarifado / Cozinha',rota:'#/setor-almox',abas:()=>[
   {r:'#/setor-almox',m:'setor-almox',ic:'painel',l:'Início',at:['setor-almox']},
+  {r:'#/almProdutos',m:'almProdutos',ic:'caixa',l:'Estoque / Produtos',at:['almProdutos']},
   {r:'#/almEntrada/nova',m:'almEntrada',e:1,ic:'mais',l:'Nova entrada',at:['ent-nova']},
   {r:'#/almLancSaida',m:'almSaida',e:1,ic:'saida',l:'Lançar saída',at:['almLancSaida','sai-nova']},
   {r:'#/almEntradas',m:'almEntradas',ic:'entrada',l:'Entradas',at:['almEntradas','almEntrada']},
   {r:'#/almSaidas',m:'almSaidas',ic:'recibo',l:'Requisições',at:['almSaidas','almSaida']},
-  {r:'#/almEstoque',m:'almEstoque',ic:'caixa',l:'Estoque',at:['almEstoque']},
+  {r:'#/almEstoque',m:'almEstoque',ic:'planilha',l:'Saldo em tabela',at:['almEstoque']},
   {r:'#/almMov',m:'almMov',ic:'lupa',l:'Movimentações',at:['almMov']},
   {r:'#/almEpis',m:'almEpis',ic:'escudo',l:'EPIs',at:['almEpis']},
   {r:'#/almEmprestimos',m:'almEmprestimos',ic:'ferramenta',l:'Ferramentas emprestadas',at:['almEmprestimos']},
@@ -21314,7 +21315,7 @@ function inicioAlm(c){
  const k=(cls,ico,rot,val,sub,href)=>kpiV(cls,ico,rot,val,sub,href);
  const ed=pode('almEntrada','e');
  c.innerHTML=cab('cozinha','Setor do Almoxarifado / Cozinha','Peças, EPIs, ferramentas, material de produção, cozinha, limpeza e escritório: o que entrou, o que saiu, para onde foi e quanto vale o estoque.',
-  `${pode('almGrupos')?`<a class="btn" href="#/almGrupos">${ic('caixa')}Grupos de materiais</a>`:''}${pode('almSaida','e')?`<a class="btn" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
+  `${pode('almProdutos')?`<a class="btn" href="#/almProdutos">${ic('caixa')}Estoque / Produtos</a>`:''}${pode('almSaida','e')?`<a class="btn" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
   `${!its.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os itens e os fornecedores e lance a primeira entrada. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   ${ab.length?`<div class="jb-aviso-auto aviso pe" style="margin-bottom:10px"><span><b>${ab.length} item(ns) abaixo do estoque mínimo:</b> ${esc(ab.slice(0,6).map(i=>i.nome+' ('+fQtd(estI(i.id).saldo)+' de '+fQtd(i.minimo)+' '+un(i.unidade)+')').join('; '))}${ab.length>6?'…':''}. <a href="#/almEstoque" data-fab>Ver no estoque</a></span></div>`:''}
   ${atr.length?`<div class="jb-aviso-auto aviso at" style="margin-bottom:10px"><span><b>${atr.length} ferramenta(s) com devolução atrasada:</b> ${esc(atr.slice(0,5).map(x=>nomeItem(ITEM(x.itemId))+' com '+(nomeF(x.funcId)||'—')+' desde '+fData(x.data)).join('; '))}. <a href="#/almEmprestimos">Ver empréstimos</a></span></div>`:''}
@@ -21852,8 +21853,8 @@ function telaPagarAlm(c){
 }
 
 /* ================= almoxarifado: relatórios ================= */
-const REL_A=[['setor','Consumo por setor'],['maquina','Consumo por máquina'],['item','Consumo por item'],['forn','Compras por fornecedor'],['cat','Compras por categoria'],['cozinha','Cozinha: compras por mês e tipo'],['epi','EPIs entregues por funcionário'],['minimo','Itens abaixo do mínimo'],['repor','Sugestão de compra (ponto de reposição)'],['abc','Curva ABC (consumo de 12 meses)'],['grupo','Estoque por grupo de materiais']];
-const REL_SEM_PER=['minimo','repor','abc','grupo'];
+const REL_A=[['setor','Consumo por setor'],['maquina','Consumo por máquina'],['item','Consumo por item'],['forn','Compras por fornecedor'],['cat','Compras por categoria'],['cozinha','Cozinha: compras por mês e tipo'],['epi','EPIs entregues por funcionário'],['minimo','Itens abaixo do mínimo'],['repor','Sugestão de compra (ponto de reposição)'],['abc','Curva ABC (consumo de 12 meses)'],['grupo','Estoque por grupo de materiais'],['saldo','Posição do estoque (saldo de cada produto)']];
+const REL_SEM_PER=['minimo','repor','abc','grupo','saldo'];
 const URA={id:'setor',de:'',ate:''};
 function dadosRelAlm(){
  const de=URA.de||'0000',ate=URA.ate||'9999';const noP=d=>!!d&&d>=de&&d<=ate;
@@ -21884,6 +21885,8 @@ function dadosRelAlm(){
  if(id==='grupo'){const at=DATA.almItens.filter(ativo);const gs=[...DATA.almGrupos.map(g=>({rot:g.nome,cat:g.categoria,xs:at.filter(i=>i.grupoId===g.id)})),{rot:'(sem grupo)',cat:'—',xs:at.filter(i=>!i.grupoId||!GRUPO(i.grupoId))}].filter(x=>x.xs.length);
   return{cols:[{k:'rot',l:'Grupo'},{k:'cat',l:'Categoria'},{k:'n',l:'Itens',t:'num'},{k:'s',l:'Com saldo',t:'num'},{k:'r',l:'Para repor',t:'num'},{k:'v',l:'Valor em estoque',t:'moeda'}],
    rows:gs.map(x=>({rot:x.rot,cat:x.cat,n:x.xs.length,s:x.xs.filter(i=>estI(i.id).saldo>0).length,r:x.xs.filter(i=>repI(i).comprar>0).length,v:r2(soma(x.xs,i=>estI(i.id).valor))})).sort((a,b)=>b.v-a.v)}}
+ if(id==='saldo')return{cols:[{k:'codigo',l:'Código'},{k:'nome',l:'Produto'},{k:'grupo',l:'Grupo'},{k:'local',l:'Local'},{k:'saldo',l:'Saldo',t:'num'},{k:'un',l:'Unidade'},{k:'cm',l:'Custo médio',t:'moeda'},{k:'v',l:'Valor',t:'moeda'}],
+  rows:DATA.almItens.filter(ativo).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true})).map(i=>{const e=estI(i.id);return{codigo:i.codigo||'',nome:i.nome+(i.marca?' · '+i.marca:''),grupo:nomeGrupo(i.grupoId)||i.categoria||'',local:i.local||'',saldo:e.saldo,un:un(i.unidade),cm:r2(e.cm),v:e.valor}})};
  return{cols:[],rows:[]}}
 /* V120: a mesma tela de relatórios dos outros setores (lista, filtros, pesquisa, Visualizar, PDF, Imprimir, Compartilhar, Excel e CSV),
    com os mesmos relatórios e os mesmos cálculos de antes (dadosRelAlm, sem período: tudo), mais os Lançamentos do setor */
@@ -22269,7 +22272,7 @@ Object.assign(TELAS_V,{
  almAjustes:naA('almAjustes',c=>telaLista(c,'almAjustes')),almEpis:naA('almEpis',c=>telaLista(c,'almEpis')),almEmprestimos:naA('almEmprestimos',c=>telaLista(c,'almEmprestimos')),
  almInventarios:el=>{const r=lerRota();if(r.id&&r.id!=='novo'){JBNAV.subst('#/almInv/'+r.id);return}naA('almInventarios',telaInventarios)(el)},almInv:telaInv,almEstoque:naA('almEstoque',telaEstoqueAlm),almMov:naA('almMov',telaMovAlm),
  almPagar:naA('almPagar',telaPagarAlm),almRel:naA('almRel',telaRelAlm),
- almGrupos:naA('almGrupos',c=>telaLista(c,'almGrupos')),
+ almGrupos:naA('almGrupos',c=>telaLista(c,'almGrupos')),almProdutos:naA('almProdutos',telaProdutos),
  'setor-paletes':naP('setor-paletes',inicioPal),
  paleteMov:el=>{const r=lerRota();shellS(el,'paletes',r.id==='novo'?'pmov-novo':'paleteMov',c=>telaLista(c,'paleteMov'))},
  paleteCompras:naP('paleteCompras',c=>telaLista(c,'paleteCompras')),paleteTipos:naP('paleteTipos',c=>telaLista(c,'paleteTipos')),
@@ -22423,11 +22426,389 @@ async function fecharContagemAlm(v,mapa){
  await gravar('almInventarios',n,atual);await logV('almInventarios',v.id,'fechou o inventário',[{c:'Ajustes',de:'',para:String(todos.length)},{c:'Valor',de:'',para:fMoeda(valor)}]);
  delete RASC_INV[v.id];return n}
 
+/* ================= Estoque / Produtos (V140, 19/11/2026, pedido do Jeferson) =================
+   O antigo botão "Grupos de materiais" vira o estoque do almoxarifado: a lista de tudo o que tem, com a
+   quantidade de cada produto; os grupos viram só um filtro. Daqui se pesquisa, se lança a saída e a entrada
+   (marcando os produtos numa lista que filtra enquanto se digita), se cadastra o produto pela foto, se vê,
+   edita, exclui e imprime cada lançamento (cupom de 80 mm, 58 mm ou folha A4) e se imprime o relatório.
+   Nada aqui tem saldo próprio: tudo grava nos mesmos itens, requisições e ajustes do almoxarifado (coleção
+   alm), com as mesmas regras (conferirS, validar dos ajustes e dos itens). O saldo muda sozinho. */
+if(typeof IC==='object'){if(!IC.camera)IC.camera='<path d="M3.5 8.5h3.2l1.8-2.8h7l1.8 2.8h3.2v10.8h-17z"/><circle cx="12" cy="13.4" r="3.6"/>';
+ if(!IC.lixo)IC.lixo='<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M9 7V4h6v3"/>';
+ if(!IC.olho)IC.olho='<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+ if(!IC.imprimir)IC.imprimir='<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>'}
+const UPR={aba:'prod',q:'',grp:'',sit:'',n:60,qm:'',tm:'',de:'',ate:'',nm:50,ultSetor:'',ultQuem:'',ultMot:''};
+const ordNomePr=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true});
+const qtdUn=(q,i)=>fQtd(q)+' '+un((i||{}).unidade);
+const fotoPr=i=>i&&i.foto&&i.foto.id?`<img src="/_blob/${esc(i.foto.id)}" alt="" loading="lazy" onerror="this.remove()">`:'';
+const funcsPr=()=>[...new Set((DATA.funcionarios||[]).filter(f=>f&&f.nome&&!['Desligado','Inativo'].includes(f.situacao)).map(f=>String(f.nome).trim()))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+const textoItensPr=its=>(its||[]).map(l=>{const i=ITEM(l.itemId);return qtdUn(+l.qtd||0,i)+' '+nomeItem(i)}).join('; ');
+const ajLote=a=>a&&a.lote?DATA.almAjustes.filter(x=>x.lote===a.lote).sort((x,y)=>String(x.criadoEm||'').localeCompare(String(y.criadoEm||''))):a?[a]:[];
+const codAj=a=>{try{if(window.JB_DOCL&&JB_DOCL.codLanc)return JB_DOCL.codLanc('almAjustes',a)}catch(e){}return 'AJ-'+String(a.id||'').slice(-6).toUpperCase()};
+const custoAj=x=>+x.precoUnit>0?+x.precoUnit:estI(x.itemId).cm;
+/* a tela atrás das janelas acompanha o que foi gravado */
+const refrescaPr=()=>{try{if(lerRota().mod==='almProdutos')renderTela()}catch(e){}};
+/* janela que rola por dentro: no celular as maiores passam da altura da tela */
+function modalPr(t,corpo,okTxt,aoOk,opc){opc=opc||{};const dp=opc.depois;return H.modalF(t,corpo,okTxt,aoOk,{...opc,depois:v=>{const m=v.querySelector('.modal');if(m)m.classList.add('apr-modal');if(dp)dp(v)}})}
+const MOT_ENT=['Saldo inicial','Compra sem nota','Sobra encontrada','Devolução ao estoque','Doação','Material recuperado'];
+
+/* ---------- documentos: comprovante da entrada/saída por ajuste, posição do estoque e relação de lançamentos ---------- */
+function docAjusteAlm(a){
+ const L=ajLote(a);const ent=a.tipo!=='saida';const cont=!!a.inventarioId;
+ const D=baseRel(ent?'COMPROVANTE DE ENTRADA NO ESTOQUE':'COMPROVANTE DE SAÍDA DO ESTOQUE','Almoxarifado / Cozinha · '+fData(a.data),[]);D.numero=codAj(a);
+ D.meta=[['Data',fData(a.data)],['Tipo',cont?'Acerto de contagem':ent?'Entrada sem compra':'Saída por ajuste'],['Motivo',a.motivo||'—']];
+ D.quadros=[{rot:ent?'ORIGEM':'DESTINO',campos:[['Motivo',a.motivo||'—',1],[ent?'Quem trouxe':'Quem retirou',a.responsavel||'—'],['Lançado por',quem(a)||'—']]},quadroEmpresaDoc('ALMOXARIFADO / COZINHA')];
+ D.parteNome=a.responsavel||'';D.arquivo=(ent?'Entrada_estoque_':'Saida_estoque_')+String(a.data||'')+'_'+nomeArq(codAj(a));D.rodape=(ent?'Entrada':'Saída')+' no estoque · '+codAj(a)+' · '+fData(a.data);
+ const tot=r2(soma(L,x=>(+x.qtd||0)*custoAj(x)));
+ D.blocos.push({tipo:'tabela',head:['Item','Quantidade','Unidade','Custo unitário','Valor'],dir:[1,3,4],body:L.map(x=>{const i=ITEM(x.itemId)||{};return[rotItem(i),fQtd(x.qtd),un(i.unidade),fMoeda(custoAj(x)),fMoeda(r2((+x.qtd||0)*custoAj(x)))]}),foot:['Total','','','',fMoeda(tot)]});
+ if(a.obs)D.blocos.push({tipo:'p',texto:'Observações: '+a.obs});
+ D.blocos.push({tipo:'aviso',texto:'Valores pelo preço informado ou pelo custo médio. Documento de controle interno do almoxarifado.'});
+ const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(a.data)+'.';
+ D.assinaturas=ent?[{nome:a.responsavel||'',sub:'Entregue por'},{nome:'',sub:'Recebido e conferido por'}]:[{nome:a.responsavel||'',sub:'Retirado por · recebi o material acima'},{nome:'',sub:'Entregue por'}];
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
+function docPosicaoAlm(L,filtro){
+ const tot=r2(soma(L,i=>estI(i.id).valor));
+ const D=baseRel('RELATÓRIO DE POSIÇÃO DO ESTOQUE','Almoxarifado / Cozinha · '+fData(hoje()),[]);
+ D.meta=[['Data',fData(hoje())],['Produtos',String(L.length)],['Valor em estoque',fMoeda(tot)]];
+ D.blocos.push({tipo:'indicadores',itens:[['Produtos',String(L.length)],['Com saldo',String(L.filter(i=>estI(i.id).saldo>0).length)],['Abaixo do mínimo',String(L.filter(i=>sitItem(i)==='Abaixo do mínimo').length)],['Valor em estoque',fMoeda(tot)]]});
+ if(filtro)D.blocos.push({tipo:'p',texto:'Filtro: '+filtro+'.'});
+ D.blocos.push({tipo:'tabela',head:['Código','Produto','Grupo','Local','Saldo','Un.','Custo médio','Valor'],dir:[4,6,7],
+  body:L.map(i=>{const e=estI(i.id);return[i.codigo||'',i.nome+(i.marca?' · '+i.marca:''),nomeGrupo(i.grupoId)||i.categoria||'',i.local||'',fQtd(e.saldo),un(i.unidade),fMoeda(e.cm),fMoeda(e.valor)]}),foot:['Total','','','','','','',fMoeda(tot)]});
+ D.blocos.push({tipo:'aviso',texto:'Saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas. Valor = saldo × custo médio.'});
+ D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Posicao_do_estoque_'+hoje();D.rodape='Posição do estoque do almoxarifado · '+fData(hoje());
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
+function docLancsAlm(L,filtro){
+ const ent=L.filter(x=>x.sinal>0),sai=L.filter(x=>x.sinal<0);
+ const D=baseRel('RELATÓRIO DE LANÇAMENTOS DO ESTOQUE','Almoxarifado / Cozinha · entradas e saídas',[]);
+ D.meta=[['Emitido',fData(hoje())],['Lançamentos',String(L.length)],['Período',UPR.de||UPR.ate?(UPR.de?fData(UPR.de):'início')+' a '+(UPR.ate?fData(UPR.ate):'hoje'):'tudo']];
+ D.blocos.push({tipo:'indicadores',itens:[['Lançamentos',String(L.length)],['Entradas',fMoeda(r2(soma(ent,x=>x.valor)))],['Saídas',fMoeda(r2(soma(sai,x=>x.valor)))]]});
+ if(filtro)D.blocos.push({tipo:'p',texto:'Filtro: '+filtro+'.'});
+ D.blocos.push({tipo:'tabela',head:['Data','Tipo','Documento','Produtos','Valor'],dir:[4],body:L.map(x=>[fData(x.data),x.tipo,x.titulo,x.itensTxt,fMoeda(x.valor)])});
+ D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Lancamentos_do_estoque_'+hoje();D.rodape='Lançamentos do estoque do almoxarifado · '+fData(hoje());
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
+
+/* ---------- todos os lançamentos que mexem no estoque, um por documento (o lote de ajustes é um só) ---------- */
+function lancamentosPr(){
+ const L=[];const edS=pode('almSaida','e'),edE=pode('almEntrada','e'),edA=pode('almAjustes','e');
+ DATA.almSaidas.forEach(s=>L.push({k:'s'+s.id,data:s.data,ord:s.criadoEm||'',tipo:'Saída',cls:'sai',sinal:-1,titulo:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||''),
+  quem:s.solicitante||'',itens:s.itens||[],itensTxt:textoItensPr(s.itens),valor:valorSaida(s),href:'#/almSaida/'+s.id,doc:()=>docSaida(DATA.almSaidas.find(x=>x.id===s.id)||s),
+  editar:edS&&!s.cancelado?'#/almSaida/'+s.id+'/editar':'',excluir:edS?()=>excluirS(s):null}));
+ DATA.almEntradas.forEach(e=>L.push({k:'e'+e.id,data:e.data,ord:e.criadoEm||'',tipo:'Entrada (compra)',cls:'ent',sinal:1,titulo:nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),
+  quem:e.recebedor||'',itens:e.itens||[],itensTxt:textoItensPr(e.itens),valor:+e.total||0,href:'#/almEntrada/'+e.id,doc:()=>docEntrada(DATA.almEntradas.find(x=>x.id===e.id)||e),
+  editar:edE?'#/almEntrada/'+e.id+'/editar':'',excluir:null}));
+ const vistos=new Set();
+ DATA.almAjustes.forEach(a=>{const g=a.lote||a.id;if(vistos.has(g))return;vistos.add(g);const lt=ajLote(a);const ent=a.tipo!=='saida';const cont=!!a.inventarioId;
+  L.push({k:'a'+g,data:a.data,ord:a.criadoEm||'',tipo:cont?'Contagem':ent?'Entrada sem compra':'Saída por ajuste',cls:cont?'cnt':ent?'ent':'sai',sinal:ent?1:-1,titulo:(a.motivo||'Ajuste')+' · '+codAj(a),
+   quem:a.responsavel||'',itens:lt,itensTxt:textoItensPr(lt),valor:r2(soma(lt,x=>(+x.qtd||0)*custoAj(x))),href:'#/almAjustes/'+a.id,doc:()=>docAjusteAlm(DATA.almAjustes.find(x=>x.id===a.id)||a),
+   editar:edA&&!cont?()=>editarAjPr(a):'',excluir:edA&&!cont?()=>excluirAjPr(a):null})});
+ DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);L.push({k:'d'+d.id,data:d.data,ord:d.criadoEm||'',tipo:'Devolução',cls:'ent',sinal:1,titulo:'Devolução '+(s?fReq(s.numero):''),
+  quem:'',itens:d.itens||[],itensTxt:textoItensPr(d.itens),valor:r2(soma(d.itens||[],l=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);return(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm)})),
+  href:s?'#/almSaida/'+s.id:'',doc:s?()=>docSaida(s):null,editar:'',excluir:null})});
+ DATA.almEpis.forEach(x=>L.push({k:'p'+x.id,data:x.data,ord:x.criadoEm||'',tipo:'EPI entregue',cls:'sai',sinal:-1,titulo:'EPI para '+(nomeF(x.funcId)||'—'),quem:nomeF(x.funcId)||'',
+  itens:[x],itensTxt:textoItensPr([x]),valor:r2((+x.qtd||0)*estI(x.itemId).cm),href:'#/almEpis/'+x.id,doc:window.JB_DOCL&&JB_DOCL.docRegistro?()=>JB_DOCL.docRegistro('almEpis',x.id):null,editar:pode('almEpis','e')?'#/almEpis/'+x.id:'',excluir:null}));
+ return L.sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.ord).localeCompare(String(a.ord))||a.k.localeCompare(b.k))}
+
+/* ---------- a tela ---------- */
+function telaProdutos(c){
+ const U=UPR;const foco=document.activeElement&&['prQ','prQm'].includes(document.activeElement.id)?document.activeElement.id:'';
+ if(U.grp&&U.grp.startsWith('g:')&&!GRUPO(U.grp.slice(2)))U.grp='';
+ const edS=pode('almSaida','e'),edA=pode('almAjustes','e'),edI=pode('almItens','e');
+ const at=DATA.almItens.filter(ativo);const val=r2(soma(at,i=>estI(i.id).valor));
+ c.innerHTML=cab('caixa','Estoque / Produtos','Tudo o que tem no almoxarifado. Pesquise, marque e lance: a saída e a entrada mudam o saldo na hora.',
+  `${edI?`<button type="button" class="btn pri" id="prFoto">${ic('camera')}Cadastrar por foto</button>`:''}${edS?`<button type="button" class="btn" id="prSai">${ic('saida')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="prEnt">${ic('entrada')}Lançar entrada</button>`:''}<button type="button" class="btn" id="prImp">${ic('imprimir')}Imprimir relatório</button>`)+
+  resumo([[String(at.length),'Produtos'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Com saldo'],[fMoeda(val),'Valor em estoque'],[String(abaixoMin().length),'Abaixo do mínimo']])+
+  `<div class="apr-abas" role="tablist">${[['prod','Produtos'],['lanc','Lançamentos']].map(([k,l])=>`<button type="button" role="tab" data-aba="${k}" class="${U.aba===k?'on':''}" aria-selected="${U.aba===k}">${l}</button>`).join('')}</div><div id="prCp"></div>`;
+ const cp=$('#prCp',c);
+ $$('[data-aba]',c).forEach(b=>b.onclick=()=>{U.aba=b.dataset.aba;renderTela()});
+ if($('#prFoto',c))$('#prFoto',c).onclick=()=>modalFotoPr();
+ if($('#prSai',c))$('#prSai',c).onclick=()=>modalLancPr('saida');
+ if($('#prEnt',c))$('#prEnt',c).onclick=()=>modalLancPr('entrada');
+ if(U.aba==='lanc')abaLancPr(cp);else abaProdPr(cp,{edS,edA,edI});
+ $('#prImp',c).onclick=()=>{if(U.aba==='lanc'){const r=filtraLancPr();verDoc(docLancsAlm(r.L,r.f))}else{const r=filtraProdPr();verDoc(docPosicaoAlm(r.L,r.f))}};
+ if(foco){const i=$('#'+foco,c);if(i){i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(e){}}}
+}
+function filtraProdPr(){const U=UPR;const q=semAcento(U.q.trim());
+ const L=DATA.almItens.filter(i=>{if(U.sit==='Inativo'?ativo(i):!ativo(i))return false;
+  if(U.grp){if(U.grp.startsWith('c:')?i.categoria!==U.grp.slice(2):U.grp==='g:'?!!(i.grupoId&&GRUPO(i.grupoId)):i.grupoId!==U.grp.slice(2))return false}
+  if(U.sit&&U.sit!=='Inativo'&&(U.sit==='Repor agora'?!(repI(i).comprar>0):sitItem(i)!==U.sit))return false;
+  return !q||semAcento([i.codigo,i.nome,i.marca,i.refFab,i.especificacao,i.local,nomeGrupo(i.grupoId),i.categoria].filter(Boolean).join(' ')).includes(q)}).sort(ordNomePr);
+ const f=[U.q.trim()?'busca “'+U.q.trim()+'”':'',U.grp?(U.grp.startsWith('c:')?'categoria '+U.grp.slice(2):U.grp==='g:'?'sem grupo':'grupo '+nomeGrupo(U.grp.slice(2))):'',U.sit].filter(Boolean).join(' · ');
+ return{L,f}}
+function abaProdPr(cp,P){
+ const U=UPR;const gs=DATA.almGrupos.filter(ativo).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ cp.innerHTML=`<div class="apr-filtros"><input type="search" id="prQ" placeholder="Pesquisar produto, código, marca ou local" value="${esc(U.q)}" aria-label="Pesquisar produto" autocomplete="off">
+  <select id="prG" aria-label="Grupo ou categoria"><option value="">Todos os grupos</option>${gs.length?`<optgroup label="Grupos">${gs.map(g=>`<option value="g:${esc(g.id)}" ${U.grp==='g:'+g.id?'selected':''}>${esc(g.nome)}</option>`).join('')}<option value="g:" ${U.grp==='g:'?'selected':''}>Sem grupo</option></optgroup>`:''}<optgroup label="Categorias">${CAT_NOMES.map(x=>`<option value="c:${esc(x)}" ${U.grp==='c:'+x?'selected':''}>${esc(x)}</option>`).join('')}</optgroup></select>
+  <select id="prS" aria-label="Situação"><option value="">Todas as situações</option>${optH(['Com saldo','Sem saldo','Abaixo do mínimo','Repor agora','Inativo'],U.sit)}</select></div>
+  <div class="apr-lista" id="prL"></div><button type="button" class="btn apr-mais" id="prM" hidden>Mostrar mais</button>`;
+ const pinta=()=>{const {L}=filtraProdPr();const el=$('#prL',cp);
+  el.innerHTML=L.length?L.slice(0,U.n).map(i=>{const e=estI(i.id);const s=sitItem(i);
+   return `<div class="apr-card${s==='Abaixo do mínimo'?' baixo':e.saldo<=0?' zero':''}"><button type="button" class="apr-ft" data-ver="${esc(i.id)}" aria-label="Ver ${esc(i.nome)}">${fotoPr(i)||ic('caixa')}</button>
+    <button type="button" class="apr-tx" data-ver="${esc(i.id)}"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)||i.categoria,i.local].filter(Boolean).join(' · '))}</small>${s==='Abaixo do mínimo'?'<em class="apr-al">Abaixo do mínimo</em>':''}</button>
+    <div class="apr-sd"><b>${esc(fQtd(e.saldo))}</b><small>${esc(un(i.unidade))}</small><small>${esc(fMoeda(e.valor))}</small></div>
+    <div class="apr-bt">${P.edS&&ativo(i)?`<button type="button" class="btn min" data-sai="${esc(i.id)}" ${e.disp>0?'':'disabled title="Sem saldo"'}>${ic('saida')}Saída</button>`:''}${P.edA&&ativo(i)?`<button type="button" class="btn min" data-ent="${esc(i.id)}">${ic('entrada')}Entrada</button>`:''}</div></div>`}).join('')
+   :noNada(DATA.almItens.length?'Nenhum produto com estes filtros':'Nenhum produto cadastrado ainda',DATA.almItens.length?'':`<div class="vazio-acoes">${P.edI?`<button type="button" class="btn pri" data-foto>${ic('camera')}Cadastrar por foto</button>`:''}</div>`);
+  $$('[data-ver]',el).forEach(b=>b.onclick=()=>fichaPr(b.dataset.ver));
+  $$('[data-sai]',el).forEach(b=>b.onclick=()=>modalLancPr('saida',b.dataset.sai));
+  $$('[data-ent]',el).forEach(b=>b.onclick=()=>modalLancPr('entrada',b.dataset.ent));
+  const f=$('[data-foto]',el);if(f)f.onclick=()=>modalFotoPr();
+  const m=$('#prM',cp);m.hidden=L.length<=U.n;m.onclick=()=>{U.n+=60;pinta()}};
+ $('#prQ',cp).oninput=e=>{U.q=e.target.value;U.n=60;pinta()};
+ $('#prG',cp).onchange=e=>{U.grp=e.target.value;U.n=60;pinta()};
+ $('#prS',cp).onchange=e=>{U.sit=e.target.value;U.n=60;pinta()};
+ pinta()}
+function filtraLancPr(){const U=UPR;const q=semAcento(U.qm.trim());
+ const L=lancamentosPr().filter(x=>(!U.de||x.data>=U.de)&&(!U.ate||x.data<=U.ate)&&(!U.tm||(U.tm==='ent'?x.sinal>0&&x.tipo!=='Contagem':U.tm==='sai'?x.sinal<0&&x.tipo!=='Contagem':x.tipo===U.tm))&&
+  (!q||semAcento([x.tipo,x.titulo,x.quem,x.itensTxt,...x.itens.map(l=>(ITEM(l.itemId)||{}).codigo||'')].join(' ')).includes(q)));
+ const f=[U.qm.trim()?'busca “'+U.qm.trim()+'”':'',U.tm?({ent:'só entradas',sai:'só saídas'}[U.tm]||U.tm):''].filter(Boolean).join(' · ');return{L,f}}
+function abaLancPr(cp){
+ const U=UPR;
+ cp.innerHTML=`<div class="apr-filtros"><input type="search" id="prQm" placeholder="Pesquisar produto, setor, pessoa ou número" value="${esc(U.qm)}" aria-label="Pesquisar lançamento" autocomplete="off">
+  <select id="prTm" aria-label="Tipo"><option value="">Entradas e saídas</option>${optH([['ent','Só entradas'],['sai','Só saídas'],['Contagem','Acertos de contagem']],U.tm)}</select>
+  <label class="apr-dt">De <input type="date" id="prDe" value="${esc(U.de)}"></label><label class="apr-dt">Até <input type="date" id="prAte" value="${esc(U.ate)}"></label></div>
+  <div class="apr-lista" id="prLm"></div><button type="button" class="btn apr-mais" id="prMm" hidden>Mostrar mais</button>`;
+ const pinta=()=>{const {L}=filtraLancPr();const el=$('#prLm',cp);
+  el.innerHTML=L.length?L.slice(0,U.nm).map((x,k)=>`<div class="apr-lc ${x.cls}"><div class="apr-lc-t"><span class="apr-tp">${esc(x.tipo)}</span><b>${esc(x.titulo)}</b><small>${esc(fData(x.data))}${x.quem?' · '+esc(x.quem):''}</small><small class="apr-lc-i">${esc(x.itensTxt||'—')}</small></div>
+   <div class="apr-lc-v">${x.sinal<0?'−':'+'} ${esc(fMoeda(x.valor))}</div>
+   <div class="apr-lc-a">${x.href?`<button type="button" class="btn min" data-a="ver" data-k="${k}">${ic('olho')}Ver</button>`:''}${x.doc?`<button type="button" class="btn min" data-a="cupom" data-k="${k}">${ic('recibo')}Cupom</button><button type="button" class="btn min" data-a="a4" data-k="${k}">${ic('imprimir')}A4</button>`:''}${x.editar?`<button type="button" class="btn min" data-a="editar" data-k="${k}">${ic('editar')}Editar</button>`:''}${x.excluir?`<button type="button" class="btn min perigo" data-a="excluir" data-k="${k}" aria-label="Excluir">${ic('lixo')}</button>`:''}</div></div>`).join('')
+   :noNada('Nenhum lançamento encontrado','As entradas e as saídas aparecem aqui assim que forem lançadas.');
+  $$('[data-a]',el).forEach(b=>b.onclick=()=>{const x=L[+b.dataset.k];if(!x)return;const a=b.dataset.a;
+   if(a==='ver')JBNAV.ir(x.href);else if(a==='cupom'||a==='a4'){const D=x.doc();if(D)verDoc(D,{formato:a==='a4'?'a4':''})}
+   else if(a==='editar'){if(typeof x.editar==='function')x.editar();else JBNAV.ir(x.editar)}else if(a==='excluir')x.excluir()});
+  const m=$('#prMm',cp);m.hidden=L.length<=U.nm;m.onclick=()=>{U.nm+=50;pinta()}};
+ $('#prQm',cp).oninput=e=>{U.qm=e.target.value;U.nm=50;pinta()};
+ $('#prTm',cp).onchange=e=>{U.tm=e.target.value;U.nm=50;pinta()};
+ $('#prDe',cp).onchange=e=>{U.de=e.target.value;pinta()};$('#prAte',cp).onchange=e=>{U.ate=e.target.value;pinta()};
+ pinta()}
+
+/* ---------- ficha do produto: saldo, dados, últimos lançamentos e as ações ---------- */
+function fichaPr(id){
+ const i=ITEM(id);if(!i)return;const e=estI(id);const p=ativo(i)?repI(i):null;
+ const movs=movsAlm().filter(m=>m.itemId===id).slice(-8).reverse();
+ const kv=(l,v)=>v===''||v==null?'':`<div><small>${esc(l)}</small><b>${esc(v)}</b></div>`;
+ modalPr(i.nome,`<div class="apr-fi">${i.foto&&i.foto.id?`<div class="apr-fi-ft">${fotoPr(i)}</div>`:''}<div class="apr-fi-sd"><small>Tem agora</small><b>${esc(qtdUn(e.saldo,i))}</b>${e.emp?`<small>${esc(qtdUn(e.emp,i))} emprestado(s)</small>`:''}</div></div>
+  <div class="apr-kv">${kv('Código',i.codigo)}${kv('Grupo',nomeGrupo(i.grupoId)||'—')}${kv('Categoria',i.categoria)}${kv('Marca',i.marca)}${kv('Local',i.local)}${kv('Especificação',i.especificacao)}${kv('Código do fabricante',i.refFab)}
+   ${kv('Custo médio',fMoeda(e.cm))}${kv('Valor em estoque',fMoeda(e.valor))}${temMin(i)?kv('Mínimo',qtdUn(+i.minimo,i)):''}${p&&p.comprar>0?kv('Comprar',qtdUn(p.comprar,i)):''}</div>
+  <div class="apr-fi-ac">${pode('almSaida','e')&&ativo(i)&&e.disp>0?`<button type="button" class="btn pri" data-f="sai">${ic('saida')}Saída</button>`:''}${pode('almAjustes','e')&&ativo(i)?`<button type="button" class="btn" data-f="ent">${ic('entrada')}Entrada</button>`:''}<button type="button" class="btn" data-f="ed">${ic('editar')}Editar cadastro</button><button type="button" class="btn" data-f="mov">${ic('lupa')}Todas as movimentações</button></div>
+  <h4 class="apr-h4">Últimos lançamentos</h4>${movs.length?`<div class="apr-mv">${movs.map(m=>`<div><span>${esc(fData(m.data))}</span><b class="${m.q<0?'sai':'ent'}">${m.q<0?'−':'+'}${esc(qtdUn(Math.abs(m.q),i))}</b><small>${esc(m.tipo)}${m.doc?' · '+esc(m.doc):''}</small>${m.href?`<button type="button" class="btn min" data-go="${esc(m.href)}">Ver</button>`:''}</div>`).join('')}</div>`:'<p class="ajuda">Nenhum lançamento ainda.</p>'}`,'',null,
+  {depois:v=>{$$('[data-f]',v).forEach(b=>b.onclick=()=>{v.remove();const f=b.dataset.f;
+    if(f==='sai')modalLancPr('saida',id);else if(f==='ent')modalLancPr('entrada',id);else if(f==='ed')JBNAV.ir('#/almItens/'+id);else{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';JBNAV.ir('#/almMov')}});
+   $$('[data-go]',v).forEach(b=>b.onclick=()=>{v.remove();JBNAV.ir(b.dataset.go)})}});
+}
+
+/* ---------- lançar saída ou entrada: busca, marca os produtos e põe a quantidade ---------- */
+function modalLancPr(tipo,pre){
+ const sai=tipo==='saida';
+ if(sai&&!pode('almSaida','e')){toast('Seu perfil não lança saída do estoque.','erro');return}
+ if(!sai&&!pode('almAjustes','e')){toast('Seu perfil não lança entrada no estoque.','erro');return}
+ const its=DATA.almItens.filter(ativo).sort(ordNomePr);
+ if(!its.length){toast('Cadastre os produtos primeiro (pode ser por foto).','erro');return}
+ const sel=new Map();if(pre&&ITEM(pre))sel.set(pre,{q:'',p:''});let q='';
+ const freq={};DATA.almSaidas.forEach(s=>{if(s.setor)freq[s.setor]=(freq[s.setor]||0)+1});
+ const chipsSet=[...new Set([UPR.ultSetor,...Object.keys(freq).sort((a,b)=>freq[b]-freq[a]),...setoresAlm()].filter(Boolean))].slice(0,6);
+ const chipsMot=[...new Set([UPR.ultMot,...MOT_ENT].filter(Boolean))].slice(0,6);
+ const fs=funcsPr();
+ const corpo=`<p class="ajuda" style="margin:0 0 8px">${sai?'Digite o que está saindo, marque os produtos e coloque a quantidade de cada um.':'Para o que entra sem compra com nota: saldo inicial, sobra, devolução. A compra com nota é lançada em “Nova entrada” (ela gera a conta a pagar).'}</p>
+  <input type="search" id="lpQ" class="apr-pkq-b" placeholder="Digite o nome, o código ou a marca" autocomplete="off" aria-label="Procurar produto">
+  <div class="apr-pk" id="lpL"></div><div class="apr-pksel" id="lpS"></div>
+  ${sai?`${H.campoM('lpSet','Para onde vai (setor)<i> *</i>',`<div class="apr-chips">${chipsSet.map(s=>`<button type="button" data-chip="lpSet" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpSet" list="lpSetL" value="${esc(UPR.ultSetor)}" autocomplete="off"><datalist id="lpSetL">${setoresAlm().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}
+   ${H.campoM('lpQuem','Quem retirou',`<input id="lpQuem" list="lpQuemL" autocomplete="off" placeholder="Nome de quem pegou"><datalist id="lpQuemL">${fs.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}`
+  :`${H.campoM('lpMot','De onde veio<i> *</i>',`<div class="apr-chips">${chipsMot.map(s=>`<button type="button" data-chip="lpMot" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpMot" list="lpMotL" value="${esc(UPR.ultMot)}" autocomplete="off"><datalist id="lpMotL">${MOT_ENT.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}
+   ${H.campoM('lpQuem','Quem trouxe',`<input id="lpQuem" list="lpQuemL" autocomplete="off"><datalist id="lpQuemL">${fs.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}`}
+  <div class="duas">${H.campoM('lpData','Data<i> *</i>',`<input id="lpData" type="date" max="${hoje()}" value="${hoje()}">`)}${H.campoM('lpObs',sai?'Para que (opcional)':'Observação (opcional)',`<input id="lpObs" autocomplete="off" placeholder="${sai?'Ex.: troca do rolamento da maromba':''}">`)}</div>`;
+ const linha=i=>{const e=estI(i.id);const m=sel.get(i.id);const semS=sai&&!(e.disp>0);
+  return `<div class="apr-pki${m?' on':''}${semS&&!m?' off':''}"><label class="apr-pkc"><input type="checkbox" data-pk="${esc(i.id)}" ${m?'checked':''} ${semS&&!m?'disabled':''}><span class="apr-pkf">${fotoPr(i)||ic('caixa')}</span><span class="apr-pkn"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)].filter(Boolean).join(' · '))}</small></span><em>${semS?'sem saldo':'tem '+esc(qtdUn(sai?e.disp:e.saldo,i))}</em></label>
+   ${m?`<div class="apr-pkq"><button type="button" data-menos="${esc(i.id)}" aria-label="Menos um">−</button><input type="number" step="any" min="0" inputmode="decimal" data-pq="${esc(i.id)}" value="${esc(m.q)}" placeholder="Qtd." aria-label="Quantidade de ${esc(i.nome)}"><button type="button" data-mais="${esc(i.id)}" aria-label="Mais um">+</button><span>${esc(un(i.unidade))}</span>${sai?'':`<input type="number" step="any" min="0" inputmode="decimal" data-pp="${esc(i.id)}" value="${esc(m.p)}" placeholder="Preço un. (opcional)" aria-label="Preço de uma unidade" class="apr-pp">`}</div>`:''}</div>`};
+ const resumoSel=v=>{const s=$('#lpS',v);const n=sel.size;
+  s.innerHTML=n?`<b>${n} produto(s) marcado(s)</b>: ${esc([...sel.entries()].map(([id,m])=>{const i=ITEM(id);return (m.q?fQtd(+m.q)+' '+un(i.unidade)+' ':'')+nomeItem(i)}).join('; '))}`:'<span class="ajuda">Nenhum produto marcado ainda.</span>'};
+ const pinta=v=>{const qq=semAcento(q.trim());const bate=i=>!qq||semAcento([i.codigo,i.nome,i.marca,i.refFab,i.especificacao,i.local,nomeGrupo(i.grupoId)].filter(Boolean).join(' ')).includes(qq);
+  const marc=its.filter(i=>sel.has(i.id)),resto=its.filter(i=>!sel.has(i.id)&&bate(i));const lim=qq?80:40;
+  $('#lpL',v).innerHTML=marc.map(linha).join('')+resto.slice(0,lim).map(linha).join('')+(resto.length>lim?`<p class="ajuda" style="margin:6px 4px">Mais ${resto.length-lim} produto(s): continue digitando para achar.</p>`:'')+
+   (!resto.length&&qq&&!marc.some(bate)?`<p class="ajuda" style="margin:8px 4px">Nenhum produto com “${esc(q.trim())}”.${pode('almItens','e')?' <button type="button" class="btn min" data-novo>Cadastrar por foto</button>':''}</p>`:'');
+  resumoSel(v)};
+ modalPr(sai?'Lançar saída':'Lançar entrada no estoque',corpo,sai?'Confirmar saída':'Confirmar entrada',async v=>{
+  const ls=[...sel.entries()].map(([id,m])=>({itemId:id,qtd:m.q===''?NaN:+m.q,preco:m.p===''?'':+m.p}));
+  if(!ls.length){toast('Marque pelo menos um produto.','erro');return false}
+  const sq=ls.find(l=>!(l.qtd>0));if(sq){toast('Informe a quantidade de '+nomeItem(ITEM(sq.itemId))+'.','erro');return false}
+  const pr=ls.find(l=>l.preco!==''&&!(l.preco>=0));if(pr){toast('Preço inválido em '+nomeItem(ITEM(pr.itemId))+'.','erro');return false}
+  const data=H.valM(v,'lpData');if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  const quemT=String(H.valM(v,'lpQuem')||'').trim(),obs=String(H.valM(v,'lpObs')||'').trim();
+  if(sai){const setor=String(H.valM(v,'lpSet')||'').trim();if(!setor){toast('Diga para qual setor vai o material.','erro');return false}
+   let rec;try{rec=await saidaRapidaAlm({data,setor,solicitante:quemT,finalidade:obs,itens:ls.map(l=>({itemId:l.itemId,qtd:r3(l.qtd)}))})}catch(err){toast(err&&err.message||msgFalhaSalvar(err),'erro');return false}
+   UPR.ultSetor=setor;refrescaPr();toast(fReq(rec.numero)+' registrada. Estoque baixado.','ok');
+   setTimeout(()=>posLancPr('Saída registrada',fReq(rec.numero)+' · '+setor+' · '+textoItensPr(rec.itens),()=>docSaida(DATA.almSaidas.find(x=>x.id===rec.id)||rec)),80);return}
+  const mot=String(H.valM(v,'lpMot')||'').trim();if(!mot){toast('Diga de onde veio o material.','erro');return false}
+  const lote=ls.length>1?novoId():'';const sts=ls.map(l=>novoAjPr({itemId:l.itemId,tipo:'entrada',qtd:l.qtd,data,motivo:mot,resp:quemT,obs,lote,preco:l.preco}));
+  for(const st of sts){const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(nomeItem(ITEM(st.itemId))+': '+er[0],'erro');return false}}
+  let feitos=[];try{for(const st of sts)feitos.push(await gravarAjPr(st))}catch(err){toast((feitos.length?feitos.length+' produto(s) lançado(s) antes da falha. ':'')+msgFalhaSalvar(err),'erro');return false}
+  UPR.ultMot=mot;refrescaPr();toast('Entrada registrada: '+textoItensPr(feitos)+'.','ok');
+  setTimeout(()=>posLancPr('Entrada registrada',mot+' · '+textoItensPr(feitos),()=>docAjusteAlm(DATA.almAjustes.find(x=>x.id===feitos[0].id)||feitos[0])),80)},
+  {depois:v=>{const lst=$('#lpL',v);
+   $('#lpQ',v).oninput=e=>{q=e.target.value;pinta(v)};
+   lst.addEventListener('change',e=>{const b=e.target.closest('[data-pk]');if(!b)return;const id=b.dataset.pk;if(b.checked)sel.set(id,{q:'',p:''});else sel.delete(id);pinta(v);
+    if(b.checked){const i=lst.querySelector(`[data-pq="${CSS.escape(id)}"]`);if(i)i.focus()}});
+   lst.addEventListener('input',e=>{const t=e.target;const id=t.dataset.pq||t.dataset.pp;if(!id||!sel.has(id))return;if(t.dataset.pq)sel.get(id).q=t.value;else sel.get(id).p=t.value;resumoSel(v)});
+   lst.addEventListener('click',e=>{const b=e.target.closest('[data-menos],[data-mais],[data-novo]');if(!b)return;
+    if(b.hasAttribute('data-novo')){v.remove();modalFotoPr({nome:q.trim()});return}
+    const id=b.dataset.menos||b.dataset.mais;const m=sel.get(id);if(!m)return;const n=Math.max(0,r3((+m.q||0)+(b.dataset.mais?1:-1)));m.q=n?String(n):'';
+    const i=lst.querySelector(`[data-pq="${CSS.escape(id)}"]`);if(i)i.value=m.q;resumoSel(v)});
+   $$('[data-chip]',v).forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.chip,v);i.value=b.dataset.v;$$(`[data-chip="${b.dataset.chip}"]`,v).forEach(x=>x.classList.toggle('on',x===b))});
+   pinta(v);if(pre){const i=lst.querySelector('[data-pq]');if(i)setTimeout(()=>i.focus(),60)}}});
+}
+function posLancPr(tit,txt,fazer){
+ modalPr(tit,`<p class="ajuda" style="margin:0 0 12px">${esc(txt)}</p><p style="margin:0 0 8px"><b>Imprimir o comprovante?</b></p><div class="apr-cp"><button type="button" class="btn pri" data-fmt="c80">${ic('recibo')}Cupom 80 mm</button><button type="button" class="btn" data-fmt="c58">${ic('recibo')}Cupom 58 mm</button><button type="button" class="btn" data-fmt="a4">${ic('doc')}Folha A4</button></div>`,'',null,
+  {depois:v=>{$$('[data-fmt]',v).forEach(b=>b.onclick=()=>{v.remove();const D=fazer();if(D)verDoc(D,{formato:b.dataset.fmt})});const x=$('[data-r]',v);if(x)x.textContent='Pronto'}});
+}
+/* ajuste montado e gravado com as mesmas regras da tela de Ajustes */
+function novoAjPr(o){const st={...MODS.almAjustes.padrao(),id:novoId(),itemId:o.itemId,data:o.data||hoje(),tipo:o.tipo,qtd:r3(+o.qtd),motivo:String(o.motivo||'').trim(),origem:'estoque-produtos'};
+ if(o.lote)st.lote=o.lote;if(o.resp)st.responsavel=o.resp;if(o.obs)st.obs=o.obs;if(o.preco!==''&&o.preco!=null&&+o.preco>0)st.precoUnit=Math.round(+o.preco*10000)/10000;return st}
+async function gravarAjPr(st){
+ const rec=await gravarRegistro('almAjustes',st,null,true);
+ /* o preço informado vira o custo de referência enquanto o produto não tiver compra com preço */
+ if(st.tipo==='entrada'&&+st.precoUnit>0){const i=ITEM(st.itemId);if(i&&!(estI(i.id).eq>0)&&+i.custoRef!==+st.precoUnit){try{await gravarRegistro('almItens',{...clone(i),custoRef:+st.precoUnit},clone(i),false)}catch(e){console.warn('custo de referência',e)}}}
+ return rec}
+function editarAjPr(a){
+ const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const a0=L[0];const ent=a0.tipo!=='saida';
+ modalPr('Editar '+(ent?'entrada':'saída')+' · '+codAj(a0),`<p class="ajuda" style="margin:0 0 10px">Corrija a quantidade, a data ou o motivo. O saldo é recalculado na hora.</p>
+  ${tabela(['Produto',['Quantidade',1],['Un.',0]],L.map((x,k)=>{const i=ITEM(x.itemId);return `<tr>${td('Produto',esc(rotItem(i)))}<td class="num" data-l="Quantidade"><input type="number" step="any" min="0" data-eq="${k}" value="${esc(x.qtd)}" style="width:110px;text-align:right" aria-label="Quantidade"></td>${td('Un.',esc(un((i||{}).unidade)))}</tr>`}))}
+  <div class="duas">${H.campoM('eaD','Data<i> *</i>',`<input id="eaD" type="date" max="${hoje()}" value="${esc(a0.data)}">`)}${H.campoM('eaM','Motivo<i> *</i>',`<input id="eaM" value="${esc(a0.motivo||'')}">`)}</div>
+  <div class="duas">${H.campoM('eaR',ent?'Quem trouxe':'Quem retirou',`<input id="eaR" value="${esc(a0.responsavel||'')}">`)}${H.campoM('eaO','Observação',`<input id="eaO" value="${esc(a0.obs||'')}">`)}</div>`,'Salvar alterações',async v=>{
+  const data=H.valM(v,'eaD'),mot=String(H.valM(v,'eaM')||'').trim();if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}if(!mot){toast('Informe o motivo.','erro');return false}
+  const novos=L.map((x,k)=>{const qv=$(`[data-eq="${k}"]`,v).value;return{...clone(x),qtd:qv===''?NaN:r3(+qv),data,motivo:mot,responsavel:String(H.valM(v,'eaR')||'').trim(),obs:String(H.valM(v,'eaO')||'').trim()}});
+  for(const n of novos){if(!(n.qtd>0)){toast('Quantidade inválida em '+nomeItem(ITEM(n.itemId))+'. Para tirar o lançamento, use Excluir.','erro');return false}
+   const er=Object.values(conferirRegistro('almAjustes',n).erros);if(er.length){toast(nomeItem(ITEM(n.itemId))+': '+er[0],'erro');return false}}
+  for(let k=0;k<novos.length;k++){const n=novos[k],o=L[k];if(n.qtd===+o.qtd&&n.data===o.data&&n.motivo===o.motivo&&n.responsavel===(o.responsavel||'')&&n.obs===(o.obs||''))continue;await gravarRegistro('almAjustes',n,clone(o),false)}
+  refrescaPr();toast('Lançamento alterado.','ok')});
+}
+async function excluirAjPr(a){
+ const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const ent=L[0].tipo!=='saida';
+ if(ent){const neg=L.filter(x=>estI(x.itemId).saldo-(+x.qtd||0)<-1e-9);if(neg.length){toast('Não dá para excluir: parte de '+neg.map(x=>nomeItem(ITEM(x.itemId))).join(', ')+' já saiu do estoque.','erro');return}}
+ if(!await confirmar('Tem certeza que deseja excluir?',(ent?'A entrada':'A saída')+' '+codAj(L[0])+' ('+textoItensPr(L)+') será excluída e o saldo volta a ser o de antes. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true}))return;
+ try{for(const x of L){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu')}refrescaPr();toast('Lançamento excluído.','ok')}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
+
+/* ---------- cadastrar por foto: uma foto do produto + a frase ("tem 10 desse, marca tal"); a IA preenche, a pessoa confere ---------- */
+async function prepFotoPr(file,max,q){
+ let src=null,w=0,h=0;
+ try{src=await createImageBitmap(file,{imageOrientation:'from-image'});w=src.width;h=src.height}
+ catch(e){src=await new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=()=>no(new Error('Não foi possível abrir esta imagem. Tire a foto de novo (JPG ou PNG).'));im.src=URL.createObjectURL(file)});w=src.naturalWidth;h=src.naturalHeight}
+ const s=Math.min(1,max/Math.max(w,h));const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(w*s));cv.height=Math.max(1,Math.round(h*s));
+ const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(src,0,0,cv.width,cv.height);try{if(src.close)src.close()}catch(e){}
+ return await new Promise(ok=>cv.toBlob(b=>ok(b),'image/jpeg',q||.82))}
+const qtdDaFrase=t=>{const m=/(?:tem|t[eê]m|são|sao|há|ha|quantidade|qtd\.?)\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:un\b|unid|unidades?|peças?|pecas?|caixas?|pacotes?|rolos?|pares?|metros?|kg|litros?|desse|dessa|desses|dessas|deste|desta)/i.exec(String(t||''));return m?+String(m[1]||m[2]).replace(',','.'):''};
+function promptFotoPr(frase){
+ const gs=[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].slice(0,120);
+ const its=DATA.almItens.filter(ativo).slice(0,400).map(i=>[i.codigo,i.nome,i.marca,i.refFab].filter(Boolean).join(' | '));
+ return `Você ajuda a cadastrar o estoque do almoxarifado de uma cerâmica (fábrica de tijolos) no Brasil. ${frase?'A foto mostra UM produto (ou a etiqueta ou a embalagem dele). Junto vem a frase de quem está cadastrando.':'Não veio foto: use só a frase.'}
+FRASE DE QUEM CADASTRA: "${String(frase||'').replace(/"/g,"'")}"
+
+Responda SOMENTE com um objeto JSON numa linha, sem texto antes ou depois, com estas chaves:
+{"nome":texto,"marca":texto|null,"especificacao":texto|null,"refFab":texto|null,"categoria":texto,"grupo":texto|null,"unidade":texto,"quantidade":número|null,"preco":número|null,"local":texto|null,"existente":texto|null,"confianca":"alta"|"media"|"baixa","observacao":texto|null}
+
+REGRAS
+1. "nome": curto e claro em português, começando pelo que o produto é e depois a medida ou o tipo. Ex.: "Rolamento 6205 2RS", "Luva de raspa cano longo", "Disjuntor bipolar 32 A", "Detergente neutro 500 ml". Não ponha a marca no nome.
+2. "marca", "refFab" (código do fabricante ou código de barras) e "especificacao" (medidas, voltagem, material, aplicação): só o que estiver escrito na foto ou dito na frase. O que não der para ler fica null. Nunca invente.
+3. "quantidade" e "preco": só da FRASE (ex.: "tem 10 desse" → 10; "custa 25 reais cada" → 25). Se a frase não diz, null. "preco" é o preço de UMA unidade. Números com ponto decimal.
+4. "categoria": uma destas, exatamente como escrita: ${CAT_NOMES.join('; ')}.
+5. "unidade": uma destas, exatamente: ${UNIDS.join('; ')}. Na dúvida, "unidade".
+6. "grupo": a família do produto, no plural (ex.: Rolamentos, Correias, Luvas, Lâmpadas, Parafusos, Detergentes). Se servir, use um destes que já existem: ${gs.length?gs.join('; '):'(nenhum ainda)'}.
+7. "existente": se o produto da foto for CLARAMENTE o mesmo de um destes já cadastrados, devolva o código dele (a primeira parte); senão null.
+${its.length?its.join('\n'):'(nenhum produto cadastrado ainda)'}
+8. "local": só se a frase disser onde fica guardado.
+9. "confianca": "alta" se o produto está nítido e você tem certeza; "baixa" se a foto está borrada ou não dá para saber o que é. Em "observacao" diga em poucas palavras o que conferir.`}
+function modalFotoPr(ini){
+ ini=ini||{};if(!pode('almItens','e')){toast('Seu perfil não cadastra produtos.','erro');return}
+ let blob=null,url='',ctrl=null,exist='',n=0;
+ const gs=()=>[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ const corpo=`<div class="apr-foto"><label class="apr-fz" for="fpF"><input type="file" accept="image/*" capture="environment" id="fpF" hidden><span id="fpP">${ic('camera')}<b>Tirar foto do produto</b><small>ou escolher da galeria</small></span></label>
+  <div>${H.campoM('fpT','O que é e quanto tem',`<textarea id="fpT" rows="3" placeholder="Ex.: tem 10 desse, marca SKF, fica na prateleira B"></textarea>`)}
+  <div class="apr-ler"><button type="button" class="btn" id="fpLer">${ic('faisca')}Ler com IA</button><span class="ajuda" id="fpSt">Tire a foto e diga quanto tem. A IA preenche; você confere e salva.</span></div></div></div>
+  <div id="fpDup"></div>
+  ${H.campoM('fpNome','Nome do produto<i> *</i>',`<input id="fpNome" autocomplete="off" value="${esc(ini.nome||'')}" placeholder="Ex.: Rolamento 6205 2RS">`)}
+  <div class="duas">${H.campoM('fpMarca','Marca',`<input id="fpMarca" autocomplete="off" list="fpMarL"><datalist id="fpMarL">${[...new Set(DATA.almItens.map(i=>i.marca).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}${H.campoM('fpRef','Código do fabricante ou de barras',`<input id="fpRef" autocomplete="off">`)}</div>
+  ${H.campoM('fpEsp','Especificação',`<input id="fpEsp" autocomplete="off" placeholder="Medidas, voltagem, material, aplicação">`)}
+  <div class="duas">${H.campoM('fpCat','Categoria<i> *</i>',`<select id="fpCat"><option value="">Selecione…</option>${optH(CAT_NOMES,'')}</select>`)}${H.campoM('fpGrp','Grupo',`<input id="fpGrp" list="fpGrpL" autocomplete="off" placeholder="Ex.: Rolamentos"><datalist id="fpGrpL">${gs().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`,'Se o grupo não existir, ele é criado ao salvar.')}</div>
+  <div class="duas">${H.campoM('fpQtd','Quantidade que tem',`<input id="fpQtd" type="number" step="any" min="0" inputmode="decimal">`)}${H.campoM('fpUn','Unidade<i> *</i>',`<select id="fpUn">${optH(UNIDS,'unidade')}</select>`)}</div>
+  <div class="duas">${H.campoM('fpPreco','Preço de uma unidade (opcional)',`<input id="fpPreco" type="number" step="any" min="0" inputmode="decimal" placeholder="0,00">`)}${H.campoM('fpLoc','Local de guarda',`<input id="fpLoc" list="fpLocL" autocomplete="off" value="${esc(UPR.ultLocal||'')}"><datalist id="fpLocL">${locaisAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}</div>
+  <p class="ajuda" id="fpFeitos" style="margin:4px 0 0"></p>`;
+ modalPr('Cadastrar por foto',corpo,'Salvar produto',async v=>{
+  const g=id=>String(H.valM(v,id)||'').trim();
+  const nome=g('fpNome').replace(/\s+/g,' ');if(!nome){toast('Escreva o nome do produto.','erro');return false}
+  const qs=g('fpQtd');const qtd=qs===''?'':+qs;if(qs!==''&&!(qtd>=0)){toast('Quantidade inválida.','erro');return false}
+  const ps=g('fpPreco');const preco=ps===''?'':+ps;if(ps!==''&&!(preco>=0)){toast('Preço inválido.','erro');return false}
+  const modo=(v.querySelector('[name=fpModo]:checked')||{}).value||'';const ie=exist&&modo!=='novo'?ITEM(exist):null;
+  let fotoMeta=null;const subir=async()=>{if(!blob||!APP.assets||fotoMeta)return;try{const pq=await prepFotoPr(blob,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));fotoMeta={id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}}catch(e){console.warn('foto do produto',e);toast('A foto não foi guardada (o produto é salvo assim mesmo).','aviso')}};
+  if(ie){
+   if(qtd===''){toast('Informe a quantidade.','erro');return false}
+   const e=estI(ie.id);const d=r3(modo==='total'?qtd-e.saldo:qtd);
+   if(d<0&&-d>e.disp+1e-9){toast('O saldo não pode ficar menor que o emprestado ('+qtdUn(e.emp,ie)+').','erro');return false}
+   if(Math.abs(d)>1e-9){const st=novoAjPr({itemId:ie.id,tipo:d>0?'entrada':'saida',qtd:Math.abs(d),motivo:modo==='total'?'Contagem pelo cadastro por foto':'Entrada pelo cadastro por foto',preco:d>0?preco:''});
+    const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(er[0],'erro');return false}await gravarAjPr(st)}
+   await subir();const mud={};if(fotoMeta&&!(ie.foto&&ie.foto.id))mud.foto=fotoMeta;[['marca','fpMarca'],['refFab','fpRef'],['especificacao','fpEsp'],['local','fpLoc']].forEach(([k,id])=>{if(!ie[k]&&g(id))mud[k]=g(id)});
+   if(Object.keys(mud).length){const at=ITEM(ie.id);try{await gravarRegistro('almItens',{...clone(at),...mud},clone(at),false)}catch(e){console.warn(e)}}
+   n++;toast(nomeItem(ie)+': agora tem '+qtdUn(estI(ie.id).saldo,ie)+'.','ok');limpar(v,nomeItem(ie)+' atualizado: tem '+qtdUn(estI(ie.id).saldo,ie));return false}
+  const cat=g('fpCat');if(!cat){toast('Escolha a categoria.','erro');return false}
+  const gn=g('fpGrp');let gid='';
+  if(gn){let gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(gn)&&x.categoria===cat);
+   if(!gr){if(!pode('almGrupos','e')){toast('Seu perfil não cria grupos. Escolha um grupo que já existe ou deixe em branco.','erro');return false}
+    const sg={...MODS.almGrupos.padrao(),id:novoId(),nome:gn,categoria:cat,local:g('fpLoc')};const er=Object.values(conferirRegistro('almGrupos',sg).erros);if(er.length){toast('Grupo: '+er[0],'erro');return false}
+    gr=await gravarRegistro('almGrupos',sg,null,true)}
+   gid=gr.id}
+  const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:cat,grupoId:gid,unidade:g('fpUn')||'unidade',marca:g('fpMarca'),refFab:g('fpRef'),especificacao:g('fpEsp'),local:g('fpLoc')||(cat==='Cozinha'?'Cozinha':''),custoRef:preco>0?preco:''};
+  const r=conferirRegistro('almItens',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
+  await subir();if(fotoMeta)st.foto=fotoMeta;
+  const rec=await gravarRegistro('almItens',st,null,true);
+  for(let k=0;k<30&&!ITEM(rec.id);k++)await new Promise(ok=>setTimeout(ok,100));
+  if(qtd>0){const sa=novoAjPr({itemId:rec.id,tipo:'entrada',qtd,motivo:'Saldo inicial (cadastro por foto)',preco});const ea=Object.values(conferirRegistro('almAjustes',sa).erros);
+   if(ea.length)toast('Produto cadastrado, mas a quantidade não: '+ea[0],'erro');else await gravarAjPr(sa)}
+  UPR.ultLocal=g('fpLoc');n++;toast(rec.codigo+' · '+nome+' cadastrado'+(qtd>0?' com '+fQtd(qtd)+' '+un(st.unidade):'')+'.','ok');limpar(v,rec.codigo+' · '+nome+(qtd>0?' ('+fQtd(qtd)+' '+un(st.unidade)+')':''));return false},
+  {depois:v=>{
+   const st=$('#fpSt',v),fi=$('#fpF',v),pv=$('#fpP',v);
+   const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome')),rf=normT(H.valM(v,'fpRef'));
+    const d=(exist&&ITEM(exist)?ITEM(exist):null)||(rf?DATA.almItens.find(i=>normT(i.refFab)===rf):null)||(nm?DATA.almItens.find(i=>normT(i.nome)===nm):null);
+    const box=$('#fpDup',v);const ant=(v.querySelector('[name=fpModo]:checked')||{}).value||'somar';
+    if(!d){box.innerHTML='';exist='';return}exist=d.id;const e=estI(d.id);
+    box.innerHTML=`<div class="aviso at apr-dup"><span><b>Este produto já está cadastrado:</b> ${esc(rotItem(d))}${d.marca?' · '+esc(d.marca):''} — tem ${esc(qtdUn(e.saldo,d))}. O que fazer com a quantidade?</span>
+     <label><input type="radio" name="fpModo" value="somar" ${ant==='somar'?'checked':''}> Somar ao que já tem (chegou mais)</label>
+     <label><input type="radio" name="fpModo" value="total" ${ant==='total'?'checked':''}> É o total que tem agora (acerta o saldo)</label>
+     <label><input type="radio" name="fpModo" value="novo" ${ant==='novo'?'checked':''}> É outro produto: cadastrar novo</label></div>`};
+   ['fpNome','fpRef'].forEach(id=>$('#'+id,v).addEventListener('input',()=>{exist='';marcarDup()}));
+   $('#fpGrp',v).addEventListener('change',()=>{const gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(H.valM(v,'fpGrp')));const c=$('#fpCat',v);if(gr&&!c.value)c.value=gr.categoria;const l=$('#fpLoc',v);if(gr&&gr.local&&!l.value)l.value=gr.local});
+   const ler=async()=>{const frase=String(H.valM(v,'fpT')||'').trim();
+    if(!blob&&!frase){st.textContent='Tire a foto ou escreva o que é o produto.';return}
+    if(!$('#fpQtd',v).value){const q=qtdDaFrase(frase);if(q!=='')$('#fpQtd',v).value=q}
+    if(ctrl)ctrl.abort();ctrl=new AbortController();const meu=ctrl;const bt=$('#fpLer',v);bt.disabled=true;st.textContent='Lendo a foto…';
+    try{const L=window.ALM_IA_LER;const M=L&&await L.motor();if(!M){st.textContent=(L&&L.semMotorTxt?L.semMotorTxt():'A leitura por IA não está disponível agora.')+' Preencha à mão.';return}
+     const imgs=blob&&!M.semImagens&&M.maxImgs?[await prepFotoPr(blob,1568,.82)]:[];
+     if(blob&&!imgs.length&&!frase){st.textContent='Este acesso não envia fotos para a IA. Escreva o que é o produto e toque em “Ler com IA”, ou preencha à mão.';return}
+     const txt=await M.ler(promptFotoPr(frase),imgs,meu.signal);if(meu.signal.aborted)return;
+     const m=/\{[\s\S]*\}/.exec(String(txt||''));let o=null;try{o=m?JSON.parse(m[0]):null}catch(e){}
+     if(!o){st.textContent='A IA não entendeu a foto. Tire outra ou preencha à mão.';return}
+     const put=(id,x)=>{if(x!==null&&x!==undefined&&String(x).trim()!=='')$('#'+id,v).value=String(x).trim()};
+     put('fpNome',o.nome);put('fpMarca',o.marca);put('fpRef',o.refFab);put('fpEsp',o.especificacao);if(CAT_NOMES.includes(o.categoria))$('#fpCat',v).value=o.categoria;
+     put('fpGrp',o.grupo);if(UNIDS.includes(o.unidade))$('#fpUn',v).value=o.unidade;if(+o.quantidade>=0&&o.quantidade!==null&&o.quantidade!=='')put('fpQtd',+o.quantidade);if(+o.preco>0)put('fpPreco',+o.preco);put('fpLoc',o.local);
+     const gr=o.grupo&&DATA.almGrupos.find(x=>normT(x.nome)===normT(o.grupo));if(gr&&!CAT_NOMES.includes(o.categoria))$('#fpCat',v).value=gr.categoria;
+     const ex=o.existente&&DATA.almItens.find(i=>normT(i.codigo)===normT(o.existente));exist=ex?ex.id:'';marcarDup();
+     st.textContent=(o.confianca==='baixa'?'Leitura com dúvida: confira com atenção. ':'Pronto. Confira e toque em “Salvar produto”. ')+(o.observacao?String(o.observacao):'')}
+    catch(e){if(meu.signal.aborted)return;console.warn('cadastro por foto',e);st.textContent=(e&&e.message?e.message:'A leitura não deu certo agora.')+' Preencha à mão ou tente de novo.'}
+    finally{if(ctrl===meu){bt.disabled=false;ctrl=null}}};
+   $('#fpLer',v).onclick=ler;
+   fi.onchange=()=>{const f=fi.files&&fi.files[0];if(!f)return;blob=f;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);pv.innerHTML=`<img src="${url}" alt="Foto do produto"><small>Tocar para trocar a foto</small>`;ler()};
+   const vt=$('[data-r]',v);if(vt)vt.textContent='Fechar';
+   const obs=new MutationObserver(()=>{if(!document.body.contains(v)){if(ctrl)ctrl.abort();if(url)URL.revokeObjectURL(url);obs.disconnect();refrescaPr()}});obs.observe(document.body,{childList:true});
+   if(ini.nome)marcarDup()}});
+ /* depois de salvar: limpa para o próximo produto e mostra o que já foi feito */
+ function limpar(v,feito){if(ctrl)ctrl.abort();blob=null;exist='';if(url){URL.revokeObjectURL(url);url=''}
+  ['fpNome','fpMarca','fpRef','fpEsp','fpQtd','fpPreco','fpT','fpGrp'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
+  $('#fpP',v).innerHTML=`${ic('camera')}<b>Foto do próximo produto</b><small>ou escolher da galeria</small>`;$('#fpSt',v).textContent='Salvo. Tire a foto do próximo produto.';
+  const gl=$('#fpGrpL',v);if(gl)gl.innerHTML=gs().map(x=>`<option value="${esc(x)}">`).join('');
+  refrescaPr();const fe=$('#fpFeitos',v);fe.innerHTML=`✔ ${esc(feito)}${n>1?` · ${n} produto(s) nesta sessão`:''}`}
+}
+
 /* ================= para os testes e para as telas ================= */
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
  consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,
  GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
  saidaRapida:saidaRapidaAlm,contagem:{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm},
+ cadastroFoto:modalFotoPr,lancar:modalLancPr,fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almMov')},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 /* V65: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
@@ -22435,6 +22816,76 @@ window.ALM_IA_BASE={ITEM,FORNA,estI,un,rotItem,ativo,CAT_NOMES,UNIDS,normT,proxC
 window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,cfgPal,sugestaoPaletes,prazo:modalPrazoPal,inventario:modalInvPal,cobrar:k=>modalCobranca(calcPal().C[k])};
 })();
 </script>
+<style id="alm-produtos-estilos">
+/* ===== Estoque / Produtos do almoxarifado (V140) · só aparência ===== */
+.apr-abas{display:flex;gap:6px;margin:14px 0 10px;border-bottom:1px solid var(--linha,#E8E1DA)}
+.apr-abas button{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;font-weight:600;color:var(--fraco,#7a7068);cursor:pointer;min-height:44px}
+.apr-abas button.on{color:var(--brasa,#A3461F);border-bottom-color:var(--brasa,#A3461F)}
+.apr-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.apr-filtros input[type=search]{flex:1 1 260px;min-height:44px;font-size:16px}
+.apr-filtros select{flex:0 1 220px;min-height:44px}
+.apr-dt{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fraco,#7a7068)}
+.apr-dt input{min-height:40px}
+.apr-lista{display:flex;flex-direction:column;gap:8px}
+.apr-mais{margin:12px auto 0;display:block}
+.apr-card{display:grid;grid-template-columns:56px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;background:var(--branco,#fff);border:1px solid var(--linha,#E8E1DA);border-radius:14px}
+.apr-card.baixo{border-color:var(--pe,#c0392b);box-shadow:inset 3px 0 0 var(--pe,#c0392b)}
+.apr-card.zero .apr-sd b{color:var(--fraco,#7a7068)}
+.apr-ft{width:56px;height:56px;border-radius:12px;border:0;background:var(--suave,#F4EFEA);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;padding:0;color:var(--brasa,#A3461F)}
+.apr-ft img{width:100%;height:100%;object-fit:cover}.apr-ft svg{width:26px;height:26px}
+.apr-tx{background:none;border:0;text-align:left;padding:0;font:inherit;cursor:pointer;min-width:0;color:inherit}
+.apr-tx b{display:block;font-size:15px;line-height:1.25;overflow-wrap:anywhere}
+.apr-tx small{display:block;color:var(--fraco,#7a7068);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.apr-al{display:inline-block;margin-top:4px;font-style:normal;font-size:11.5px;font-weight:700;color:var(--pe,#c0392b)}
+.apr-sd{text-align:right;min-width:72px}.apr-sd b{display:block;font-size:22px;line-height:1.1}.apr-sd small{display:block;font-size:11.5px;color:var(--fraco,#7a7068)}
+.apr-bt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.apr-bt .btn,.apr-lc-a .btn{min-height:40px}
+@media (max-width:640px){.apr-card{grid-template-columns:48px minmax(0,1fr) auto}.apr-ft{width:48px;height:48px}.apr-bt{grid-column:1/-1;justify-content:stretch}.apr-bt .btn{flex:1 1 0;justify-content:center}}
+.apr-lc{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:10px 12px;background:var(--branco,#fff);border:1px solid var(--linha,#E8E1DA);border-radius:14px;border-left-width:4px}
+.apr-lc.ent{border-left-color:var(--ok,#2e7d32)}.apr-lc.sai{border-left-color:var(--at,#c77700)}.apr-lc.cnt{border-left-color:var(--fraco,#7a7068)}
+.apr-lc-t b{display:block;overflow-wrap:anywhere}.apr-lc-t small{display:block;color:var(--fraco,#7a7068);font-size:12.5px}.apr-lc-i{color:var(--tinta,#333)!important;margin-top:2px}
+.apr-tp{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--fraco,#7a7068);margin-bottom:2px}
+.apr-lc-v{font-weight:700;white-space:nowrap}
+.apr-lc-a{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.apr-pkq-b{width:100%;min-height:46px;font-size:16px;margin-bottom:8px}
+.apr-pk{max-height:min(46vh,380px);overflow:auto;border:1px solid var(--linha,#E8E1DA);border-radius:12px;padding:4px;background:var(--papel,#FAF8F5)}
+.apr-pki{border-radius:10px;padding:2px 4px;margin:2px 0}
+.apr-pki.on{background:var(--brasa-bg,#F8EDE7);outline:1px solid var(--brasa,#A3461F)}
+.apr-pki.off{opacity:.5}
+.apr-pkc{display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;min-height:48px}
+.apr-pkc input{width:22px;height:22px;flex:0 0 auto;accent-color:var(--brasa,#A3461F)}
+.apr-pkf{width:36px;height:36px;border-radius:8px;overflow:hidden;background:var(--suave,#F4EFEA);display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--brasa,#A3461F)}
+.apr-pkf img{width:100%;height:100%;object-fit:cover}.apr-pkf svg{width:18px;height:18px}
+.apr-pkn{flex:1;min-width:0}.apr-pkn b{display:block;font-size:14.5px;overflow-wrap:anywhere}.apr-pkn small{display:block;font-size:12px;color:var(--fraco,#7a7068)}
+.apr-pkc em{font-style:normal;font-size:12px;color:var(--fraco,#7a7068);white-space:nowrap}
+.apr-pkq{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 4px 8px 36px}
+.apr-pkq button{width:44px;height:44px;border-radius:10px;border:1px solid var(--linha,#E8E1DA);background:var(--branco,#fff);font-size:22px;font-weight:700;cursor:pointer}
+.apr-pkq input{width:96px;min-height:44px;text-align:center;font-size:17px}
+.apr-pkq input.apr-pp{width:150px;font-size:15px}
+.apr-pksel{margin:8px 2px 12px;font-size:13px}
+.apr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.apr-chips button{border:1px solid var(--linha,#E8E1DA);background:var(--branco,#fff);border-radius:999px;padding:6px 12px;min-height:36px;font:inherit;font-size:13px;cursor:pointer}
+.apr-chips button.on{background:var(--brasa,#A3461F);border-color:var(--brasa,#A3461F);color:#fff}
+.apr-cp{display:flex;flex-wrap:wrap;gap:8px}.apr-cp .btn{min-height:46px}
+.apr-fi{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.apr-fi-ft{width:96px;height:96px;border-radius:14px;overflow:hidden;flex:0 0 auto}.apr-fi-ft img{width:100%;height:100%;object-fit:cover}
+.apr-fi-sd small{display:block;color:var(--fraco,#7a7068);font-size:12.5px}.apr-fi-sd b{display:block;font-size:28px;line-height:1.15}
+.apr-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 14px;margin-bottom:12px}
+.apr-kv small{display:block;font-size:11.5px;color:var(--fraco,#7a7068)}.apr-kv b{font-size:14px;overflow-wrap:anywhere}
+.apr-fi-ac{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.apr-h4{margin:6px 0 6px;font-size:14px}
+.apr-mv>div{display:grid;grid-template-columns:80px auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--linha,#E8E1DA);font-size:13px}
+.apr-mv b.ent{color:var(--ok,#2e7d32)}.apr-mv b.sai{color:var(--at,#c77700)}.apr-mv small{color:var(--fraco,#7a7068);overflow-wrap:anywhere}
+.apr-foto{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;margin-bottom:10px}
+@media (max-width:560px){.apr-foto{grid-template-columns:1fr}}
+.apr-fz{border:2px dashed var(--linha,#E8E1DA);border-radius:14px;min-height:150px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;background:var(--papel,#FAF8F5);overflow:hidden;color:var(--brasa,#A3461F)}
+.apr-fz span{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px}.apr-fz svg{width:36px;height:36px}.apr-fz b{color:var(--tinta,#333)}.apr-fz small{color:var(--fraco,#7a7068);font-size:12px}
+.apr-fz img{max-width:100%;max-height:180px;border-radius:10px;object-fit:contain}
+.apr-ler{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.apr-modal{max-height:calc(100dvh - 24px);max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain}
+@supports (height:100dvh){.apr-modal{max-height:calc(100dvh - 24px)}}
+.apr-dup{flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:10px}.apr-dup label{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
+</style>
 <style id="lanc-ia-estilos">
 /* ===== Lançamento Inteligente por Foto (V65) · só aparência das telas novas ===== */
 .lia-zona{border:2px dashed var(--linha,#E8E1DA);border-radius:14px;padding:22px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--fundo2,#FAF8F5)}
@@ -22652,6 +23103,8 @@ function semMotorTxt(){
  if(APP.modo==='local')return 'A leitura por IA funciona na versão publicada (nuvem ou Claude). Nesta cópia local use a tela "Nova entrada".';
  return 'A conexão com o Claude não está disponível nesta sessão. Abra o JB ERP pelo aplicativo ou site do Claude, ou pela versão da nuvem.'}
 
+/* V140: o Cadastrar por foto do Estoque / Produtos usa o mesmo leitor */
+window.ALM_IA_LER={motor:motorLeitura,semMotorTxt};
 /* ================= o pedido de leitura (o mesmo nos dois caminhos) ================= */
 function promptLeitura(parte,total,texto){
  const cf=H.fcfg();
@@ -41537,7 +41990,7 @@ function estInicio(c){
  const A=AX();const edS=pode('almSaida','e'),edI=pode('almItens','e'),edA=pode('almAjustes','e'),edC=pode('almInventarios','e');
  const U=INV.est=Object.assign({aba:'saldo',q:'',grp:'',sit:'',qm:'',tm:'',n:40,nm:40},INV.est);
  c.innerHTML=cab('Estoque de materiais','Quanto tem de cada material, o que entrou e o que saiu. O saldo muda sozinho a cada lançamento.',
-  `${edS?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eNovo">Novo material</button><button type="button" class="btn" id="eVar">Vários de uma vez</button>`:''}`)+
+  `${edS?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI&&AX().cadastroFoto?`<button type="button" class="btn" id="eFoto">Cadastrar por foto</button>`:''}${edI?`<button type="button" class="btn" id="eNovo">Novo material</button><button type="button" class="btn" id="eVar">Vários de uma vez</button>`:''}`)+
   `<div class="inv-kpis" id="ekp"></div><div class="inv-abas" id="eab"></div><div id="ecp"></div>`;
  const kp=(i,l,v,o,cls)=>`<div class="inv-kpi ${cls||''}"><span>${ic(i)}</span><div><small>${esc(l)}</small><b>${v}</b>${o?`<em>${esc(o)}</em>`:''}</div></div>`;
  let ref=null,nG=-1;const cp=c.querySelector('#ecp');
@@ -41602,6 +42055,7 @@ function estInicio(c){
  const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida('');
  const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada('');
  const b3=c.querySelector('#eNovo');if(b3)b3.onclick=()=>estMaterial(null,U.grp.startsWith('g:')&&U.grp.length>2?{grupoId:U.grp.slice(2),categoria:(A.GRUPO(U.grp.slice(2))||{}).categoria}:U.grp.startsWith('c:')?{categoria:U.grp.slice(2)}:null);
+ const bF=c.querySelector('#eFoto');if(bF)bF.onclick=()=>A.cadastroFoto();
  const b4=c.querySelector('#eVar');if(b4)b4.onclick=()=>A.variosItens(U.grp.startsWith('g:')&&U.grp.length>2?U.grp.slice(2):undefined,true);
  ref=DATA.alm;topo();corpo();
  INV.aoDados=()=>{if(DATA.alm!==ref)tudo()};
