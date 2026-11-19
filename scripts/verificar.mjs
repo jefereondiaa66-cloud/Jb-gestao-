@@ -919,7 +919,7 @@ if (existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inve
   assert.ok(m.includes('unique (empresa_id,codigo_patrimonial)'), 'código único por empresa');
   assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261108233000_inv_01_centro_inventario.down.sql')), 'reversão descrita');
 });
-if (existsSync(join(RAIZ, 'supabase/migrations/20261119120000_inv_02_fotos_conferencia.sql'))) teste('inventario', 'banco (V138): fotos da conferência numa chamada só, só com create or replace, com reversão e sem mudar a resposta antiga', () => {
+if (existsSync(join(RAIZ, 'supabase/migrations/20261119120000_inv_02_fotos_conferencia.sql'))) teste('inventario', 'banco (V139): fotos da conferência numa chamada só, só com create or replace, com reversão e sem mudar a resposta antiga', () => {
   const m = ler('supabase/migrations/20261119120000_inv_02_fotos_conferencia.sql');
   const d = ler('supabase/migrations/20261119120000_inv_02_fotos_conferencia.down.sql');
   const o = ler('supabase/migrations/20261108233000_inv_01_centro_inventario.sql');
@@ -937,7 +937,7 @@ if (existsSync(join(RAIZ, 'supabase/migrations/20261119120000_inv_02_fotos_confe
   assert.equal(corpo(d), corpo(o), 'a reversão é a função original, letra por letra');
   for (const k of ["'progresso',inv.progresso(v_inv)", "'pendentes',(select coalesce(jsonb_agg(", "'ocorrencias',(select coalesce(jsonb_agg("]) assert.ok(m.includes(k), 'resposta antiga mantida: ' + k);
 });
-teste('inventario', 'programa (V138): fotos da conferência à vista e Estoque dentro do setor, sobre os dados do almoxarifado', () => {
+teste('inventario', 'programa (V139): fotos da conferência à vista e Estoque dentro do setor, sobre os dados do almoxarifado', () => {
   const app = ler('app/jb-gestao.html');
   const bloco = /<script id="inv-centro">([\s\S]*?)<\/script>/.exec(app)[1];
   assert.ok(bloco.includes("['estoque','Estoque','iEstoque']") && bloco.includes('TELA.estoque=async function(c,p){'), 'aba Estoque no Centro de Inventário');

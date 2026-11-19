@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Centro de Inventário (V138, 19/11/2026, pedido do dono): fotografias da conferência à vista e
+// Centro de Inventário (V139, 19/11/2026, pedido do dono): fotografias da conferência à vista e
 // Estoque de materiais dentro do setor. Abre o programa REAL (saida/claude.html) com o banco
 // simulado e um Centro de Inventário simulado (as mesmas ações de inv.api_ponte) e confere:
 //   A fotos da conferência: selo em cada bem, quadro de miniaturas, visualizador, fotos na janela

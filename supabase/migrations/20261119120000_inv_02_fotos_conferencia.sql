@@ -1,4 +1,4 @@
--- Centro de Inventário · fotografias da conferência à vista (V138, 19/11/2026)
+-- Centro de Inventário · fotografias da conferência à vista (V139, 19/11/2026)
 -- Pedido do dono: as fotos tiradas na conferência física eram guardadas, mas nenhuma tela mostrava.
 -- As fotos ficam presas à LEITURA (inv.arquivos.entidade = 'leitura'), e até aqui só dava para
 -- buscá-las uma leitura por vez. Esta migração faz inv.conferencia_resumo devolver também as

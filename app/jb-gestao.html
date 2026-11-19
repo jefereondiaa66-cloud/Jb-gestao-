@@ -22367,7 +22367,7 @@ posSalvarV=function(mod,rec,ant){
    JBNAV.ir(d===RE?(RE.id?'#/almEntrada/'+RE.id+'/editar':'#/almEntrada/nova'):(RS.id?'#/almSaida/'+RS.id+'/editar':'#/almSaida/nova'));return true}}
  return ps52?ps52(mod,rec,ant):false};
 
-/* ================= para o Estoque do Centro de Inventário (V138, 19/11/2026) =================
+/* ================= para o Estoque do Centro de Inventário (V139, 19/11/2026) =================
    O Estoque de lá mostra e lança sobre os MESMOS itens, saldos e lançamentos daqui (nada em dobro).
    Estas funções gravam com as mesmas regras das telas do almoxarifado, sem depender de nenhuma tela. */
 /* saída rápida: uma requisição de verdade (número, custo médio, histórico), com as conferências de conferirS */
@@ -40589,7 +40589,7 @@ button.inv-c{width:100%;font:inherit;text-align:left;cursor:pointer}
 .inv-arq .a button.v svg{width:26px;height:26px}
 .inv-arq .a small{display:block;font-size:11.5px;color:var(--inv-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 .inv-arq .a a,.inv-arq .a button.x{font:inherit;font-size:11.5px;color:#B00E17;background:none;border:0;padding:0;cursor:pointer}
-/* V138: fotografias à vista (grade, selo e visualizador) e Estoque de materiais */
+/* V139: fotografias à vista (grade, selo e visualizador) e Estoque de materiais */
 .inv-fts .a{width:132px}.inv-fts .a button.v{width:132px;height:100px}.inv-fts .a small b{font-weight:700;color:var(--inv-t)}
 .inv-ftn{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--inv-s);white-space:nowrap}.inv-ftn svg{width:15px;height:15px}
 .inv-bloco h3 #ftn{font-weight:400;color:var(--inv-s)}
@@ -40653,7 +40653,7 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
    Módulo independente dentro do JB Gestão. Os dados ficam no esquema próprio "inv" do banco
    e só passam pela função do servidor, que confere se a pessoa tem acesso (hoje, só o dono).
    Para quem não tem acesso o setor nem aparece. O patrimônio não lê nem grava dados dos outros setores.
-   A única ponte é a aba Estoque (V138, 19/11/2026): ela mostra e lança sobre os materiais do
+   A única ponte é a aba Estoque (V139, 19/11/2026): ela mostra e lança sobre os materiais do
    almoxarifado (coleção alm), com as regras e as permissões de lá, para não existir estoque em dobro.
    18/11/2026 (pedido do dono): é um setor da cerâmica, igual aos outros. Não há cadastro nem escolha
    de empresa. O banco do módulo prende cada registro a uma empresa, então o programa usa uma só, a
@@ -40805,6 +40805,14 @@ function casca(el,ativa){el.innerHTML=`<div class="spot sv inv" id="inv-raiz"><d
  <nav class="dir-abas sv-abas" aria-label="Telas do Centro de Inventário">${TELAS.map(([k,l,i])=>`<a class="dir-aba${k===ativa?' on':''}" href="${R(k)}"${k===ativa?' aria-current="page"':''}>${ic(i)}<span>${esc(l)}</span></a>`).join('')}</nav></div>
  <main class="sv-corpo" id="svCorpo"></main></div>`;return el.querySelector('#svCorpo')}
 const partes=()=>location.hash.replace(/^#\/?/,'').split('/').slice(1).map(decodeURIComponent);
+/* as telas de empresa saíram (18/11/2026): abas de trabalho guardadas daquela época (a lista e o
+   cadastro de empresas) continuavam na barra do alto deste navegador. Saem sozinhas ao abrir o setor. */
+function limparAbasEmpresa(){try{
+ if(typeof ABAS==='undefined'||!ABAS||!ABAS.carregou||!Array.isArray(ABAS.lista))return;
+ const velha=k=>/^#\/inventario\/empresas(\/|$)/.test(String(k||''));
+ if(!ABAS.lista.some(a=>velha(a.k)))return;
+ ABAS.lista=ABAS.lista.filter(a=>!velha(a.k));if(velha(ABAS.ativa))ABAS.ativa=null;
+ if(typeof guardarAbas==='function')guardarAbas();if(typeof renderBarraTrab==='function')renderBarraTrab()}catch(e){console.warn(e)}}
 const TELA={};
 async function telaInv(el){
  const h=location.hash;
@@ -40815,7 +40823,10 @@ async function telaInv(el){
  if(!INV.pronto){el.innerHTML='<div class="carrega" role="status">Conferindo o acesso…</div>';await verAcesso();if(location.hash!==h)return}
  if(!INV.acesso){el.innerHTML='<div class="spot"><main class="spot-corpo spot-estreito"><div class="vazio"><b>Sem acesso a esta área</b>Este setor é restrito.</div></main></div>';return}
  if(typeof marcarSetor==='function')marcarSetor('inventario');
- const p=partes();const t=TELA[p[0]]?p[0]:(p[0]==='q'?'q':'visao');const ativa=t==='q'?'bens':t;
+ setTimeout(limparAbasEmpresa,150);
+ const p=partes();
+ if(p[0]==='empresas'){JBNAV.subst('#/inventario');return}   /* endereço antigo das telas de empresa: abre o início do setor */
+ const t=TELA[p[0]]?p[0]:(p[0]==='q'?'q':'visao');const ativa=t==='q'?'bens':t;
  const c=casca(el,ativa);carregando(c);
  const de=()=>{INV.rota='';telaInv(el)};INV.redesenha=de;
  try{await empresas();await TELA[t](c,p.slice(1))}catch(e){console.warn(e);erroTela(c,e,de)}
@@ -40922,7 +40933,7 @@ function blocoAnexos(c,arqs,entidade,registro,aoMudar,cats){
  el.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{if(!await confirmar('Excluir este anexo?','O arquivo será removido. O registro da exclusão fica na auditoria.',{ok:'Excluir',perigo:true}))return;if(await acao(b,()=>chamar('arquivo_excluir',{empresa_id:eid(),id:b.dataset.x}),'Anexo excluído.')){invalida('bens');aoMudar()}});
  const inp=el.querySelector('#anF');if(inp)inp.onchange=async()=>{const fs=[...inp.files];if(!fs.length)return;const cat=el.querySelector('#anC').value;try{for(const f of fs)await enviarArquivo(f,{entidade,registro_id:registro,categoria:cat});toast('Anexo enviado.','ok');invalida('bens');aoMudar()}catch(e){progresso('');toast(msg(e),'erro')}};
 }
-/* ---------- fotografias e documentos: ver na tela (V138, 19/11/2026) ----------
+/* ---------- fotografias e documentos: ver na tela (V139, 19/11/2026) ----------
    Pedido do dono: as fotos tiradas na conferência eram guardadas, mas nenhuma tela mostrava.
    Cada foto fica presa à LEITURA (cada "Registrar" grava uma leitura). Com o banco atualizado
    (migração inv_02) as fotos de um inventário vêm numa chamada só, em páginas; sem ela, a tela busca
@@ -41451,7 +41462,7 @@ TELA.config=async function(c){
  if(aba==='codigos'){if(!exigeEmp(cp))return;const e=empAt();const fs=[{k:'prefixo_codigo',l:'Prefixo',req:1},{k:'digitos_codigo',l:'Quantidade de dígitos',t:'num',req:1},{k:'proximo_numero',l:'Próximo número',t:'num',req:1}];cp.innerHTML=`<form class="inv-form" id="fm" novalidate>${secao('Numeração automática dos códigos patrimoniais',fs,e)}<p class="ajuda" id="ex" style="margin:0"></p><div class="inv-pe"><button class="btn pri" id="sv">Salvar</button></div></form>`;const fm=cp.querySelector('#fm');const ex=()=>{const g=k=>fm.querySelector(`[name=${k}]`).value;fm.querySelector('#ex').textContent='Próximo código: '+g('prefixo_codigo')+String(g('proximo_numero')).padStart(+g('digitos_codigo')||1,'0')};fm.oninput=ex;ex();fm.onsubmit=async ev=>{ev.preventDefault();const d=lerForm(fm,fs);if(!d)return;d.id=e.id;if(await acao(fm.querySelector('#sv'),()=>chamar('salvar',{ent:'empresas',dados:d}),'Numeração salva.')){invalida('empresas');redesenha()}}}
 };
 
-/* ---------- 13. Estoque de materiais (V138, 19/11/2026, pedido do dono) ----------
+/* ---------- 13. Estoque de materiais (V139, 19/11/2026, pedido do dono) ----------
    O controle de estoque fica aqui dentro: quanto tem de cada material, o que entrou, o que saiu e a
    contagem. Os materiais, os saldos e os lançamentos são os MESMOS do Setor do Almoxarifado (coleção
    alm): a compra lançada lá soma aqui sozinha e a saída lançada aqui baixa lá. Nada é cadastrado em dobro.

@@ -1,4 +1,4 @@
-# V138 · Centro de Inventário: fotos da conferência à vista e Estoque de materiais (19/11/2026)
+# V139 · Centro de Inventário: fotos da conferência à vista e Estoque de materiais (19/11/2026)
 
 Pedidos do Jeferson: (1) as fotografias tiradas na conferência física eram guardadas, mas nenhuma
 tela mostrava; (2) o controle de estoque tem de ficar dentro do Centro de Inventário: ver quanto
