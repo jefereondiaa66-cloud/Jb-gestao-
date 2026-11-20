@@ -1005,7 +1005,8 @@ teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, s
   // V146 (20/11/2026, pedido do Jeferson): o lançamento não tem mais o campo de código de barras (os itens antigos não têm).
   const foto = fn('function modalFotoPr(ini){', '/* depois de salvar: limpa');
   assert.ok(!foto.includes('fpRef') && foto.includes('normT(i.nome)===nm') && foto.includes("name=\"fpModo\" value=\"somar\"") && foto.includes("name=\"fpModo\" value=\"total\""), 'produto que já existe: soma ou acerta, não duplica; sem código de barras no lançamento');
-  assert.ok(foto.includes("if(cat!=='Cozinha'&&!blob){toast('Tire a foto do produto"), 'no almoxarifado o produto novo é cadastrado com foto (na cozinha a foto é opcional)');
+  // V148: a limpeza também tem estoque próprio; a foto só é exigida no que fica no almoxarifado
+  assert.ok(foto.includes("if(escCat(cat)==='alm'&&!blob){toast('Tire a foto do produto"), 'no almoxarifado o produto novo é cadastrado com foto (na cozinha e na limpeza a foto é opcional)');
   assert.ok(app.includes('window.ALM_IA_LER={motor:motorLeitura,semMotorTxt};') && foto.includes('window.ALM_IA_LER'), 'leitor da foto é o do lançamento por foto');
   // excluir entrada que já saiu do estoque é barrado
   assert.ok(fn('async function excluirAjPr(a){', '/* ---------- cadastrar por foto').includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9"), 'excluir entrada não deixa saldo negativo');

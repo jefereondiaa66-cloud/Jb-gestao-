@@ -6,6 +6,7 @@
 //   - lançar sem valor (entrada sem compra e compra) + filtro "Sem valor" + "Pôr valor" (completa as saídas sem valor)
 //   - toda saída com a pessoa ou o setor; saída de EPI vira entrega de EPI
 //   - grupos clicáveis, movimentações revisadas, requisição semanal (ver, A4 e cupom), inventário fora do almoxarifado
+// A Limpeza (V148, terceiro estoque) tem o roteiro dela: scripts/testar-almox-limpeza.mjs
 // Uso: node scripts/construir.mjs && node scripts/testar-almox-cozinha.mjs [pasta-das-capturas]
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -70,7 +71,7 @@ try {
     const g = await gravarRegistro('almGrupos', { ...MODS.almGrupos.padrao(), id: novoId(), nome: 'Rolamentos', categoria: 'Peças e manutenção' }, null, true);
     await mk({ nome: 'Rolamento 6205 2RS', categoria: 'Peças e manutenção', unidade: 'unidade', grupoId: g.id });
     await mk({ nome: 'Luva de raspa cano longo', categoria: 'EPI', unidade: 'par' });
-    await mk({ nome: 'Detergente neutro 500 ml', categoria: 'Limpeza', unidade: 'unidade' });
+    await mk({ nome: 'Cola instantânea 20 g', categoria: 'Produtos em geral', unidade: 'unidade' });
     await mk({ nome: 'Arroz tipo 1 5 kg', categoria: 'Cozinha', tipoCoz: 'Mercearia', unidade: 'pacote' });
     await mk({ nome: 'Feijão carioca 1 kg', categoria: 'Cozinha', tipoCoz: 'Mercearia', unidade: 'pacote' });
     await gravar('almFornecedores', { id: 'fx1', nome: 'Mercadinho Exemplo', ativo: true, criadoEm: new Date().toISOString() }, null);
@@ -96,10 +97,10 @@ try {
   await ir('#/almProdutos', '#prEnt'); await page.click('#prEnt'); await page.waitForSelector('#lpQ'); await page.waitForTimeout(250);
   ok(/Sem o preço\?/.test(await page.innerText('.veu')), 'a entrada avisa que dá para lançar sem o preço');
   const idRol = await marcar('rolamento', 10); await page.fill(`[data-pp="${idRol}"]`, '25');
-  await marcar('luva', 20); await marcar('detergente', 6);
+  await marcar('luva', 20); await marcar('cola', 6);
   await page.locator('[data-chip="lpMot"]', { hasText: 'Saldo inicial' }).click();
   await okModal(); await page.waitForFunction(() => DATA.almAjustes.length === 3, null, { timeout: 10000 }); await fecharComprovante();
-  ok((await it('Luva de raspa cano longo')).sv && (await it('Detergente neutro 500 ml')).sv && !(await it('Rolamento 6205 2RS')).sv, 'sem preço o produto fica "sem valor"; com preço, não');
+  ok((await it('Luva de raspa cano longo')).sv && (await it('Cola instantânea 20 g')).sv && !(await it('Rolamento 6205 2RS')).sv, 'sem preço o produto fica "sem valor"; com preço, não');
   await ir('#/almProdutos', '[data-sv]');
   ok(/2\s*Sem valor/i.test(await page.innerText('[data-sv]')), 'o quadro "Sem valor" conta 2 produtos');
   await page.click('[data-sv]'); await page.waitForTimeout(300);
@@ -109,12 +110,12 @@ try {
 
   // 4. toda saída: pessoa ou setor
   await page.click('#prSai'); await page.waitForSelector('#lpQ'); await page.waitForTimeout(250);
-  await marcar('detergente', 2); await page.fill('#lpSet', ''); await page.fill('#lpQuem', '');
+  await marcar('cola', 2); await page.fill('#lpSet', ''); await page.fill('#lpQuem', '');
   await okModal(); await page.waitForTimeout(500);
   ok(await page.evaluate(() => DATA.almSaidas.length) === 0, 'saída sem a pessoa e sem o setor não é aceita');
-  await page.fill('#lpSet', 'Limpeza'); await okModal();
+  await page.fill('#lpSet', 'Manutenção'); await okModal();
   await page.waitForFunction(() => DATA.almSaidas.length === 1, null, { timeout: 10000 }); await fecharComprovante();
-  ok(await page.evaluate(() => DATA.almSaidas[0].setor === 'Limpeza' && DATA.almSaidas[0].itens[0].custoUnit === 0), 'saída só com o setor; o detergente saiu sem valor');
+  ok(await page.evaluate(() => DATA.almSaidas[0].setor === 'Manutenção' && DATA.almSaidas[0].itens[0].custoUnit === 0), 'saída só com o setor; a cola saiu sem valor');
   await page.click('#prSai'); await page.waitForSelector('#lpQ'); await page.waitForTimeout(250); await marcar('rolamento', 1);
   await page.fill('#lpSet', ''); await page.fill('#lpQuem', 'Funcionário Exemplo 1'); await page.dispatchEvent('#lpQuem', 'change'); await page.fill('#lpSet', '');
   await okModal(); await page.waitForFunction(() => DATA.almSaidas.length === 2, null, { timeout: 10000 }); await fecharComprovante();
@@ -133,11 +134,11 @@ try {
 
   // 6. pôr o valor depois: vira custo do produto e completa a saída que saiu sem valor
   await ir('#/almProdutos', '#prL'); await page.locator('[data-pv]').first().waitFor();
-  const alvo = await page.evaluate(() => { const b = [...document.querySelectorAll('[data-pv]')].find((x) => /Detergente/.test(x.closest('.apr-card').innerText)); return b ? b.dataset.pv : ''; });
+  const alvo = await page.evaluate(() => { const b = [...document.querySelectorAll('[data-pv]')].find((x) => /Cola instantânea/.test(x.closest('.apr-card').innerText)); return b ? b.dataset.pv : ''; });
   await page.click(`[data-pv="${alvo}"]`); await page.waitForSelector('[data-vl]'); await page.waitForTimeout(250); await page.fill('[data-vl]', '5,00'); await foto('04-por-valor'); await okModal();
-  await page.waitForFunction(() => DATA.almSaidas.some((s) => s.setor === 'Limpeza' && s.itens[0].custoUnit === 5), null, { timeout: 10000 });
-  const det = await it('Detergente neutro 500 ml');
-  ok(!det.sv && det.cm === 5 && await page.evaluate(() => DATA.almSaidas.find((s) => s.setor === 'Limpeza').itens[0].custoTotal === 10), 'valor posto: o detergente vale R$ 5,00 e a saída sem valor ficou R$ 10,00');
+  await page.waitForFunction(() => DATA.almSaidas.some((s) => s.setor === 'Manutenção' && s.itens[0].custoUnit === 5), null, { timeout: 10000 });
+  const det = await it('Cola instantânea 20 g');
+  ok(!det.sv && det.cm === 5 && await page.evaluate(() => DATA.almSaidas.find((s) => s.setor === 'Manutenção').itens[0].custoTotal === 10), 'valor posto: a cola vale R$ 5,00 e a saída sem valor ficou R$ 10,00');
 
   // 7. cadastro por foto: sem código de barras, foto obrigatória no almoxarifado, EPI e cozinha pela leitura
   await ir('#/almProdutos', '#prFoto'); await page.click('#prFoto'); await page.waitForSelector('#fpNome'); await page.waitForTimeout(250);
@@ -221,7 +222,7 @@ try {
   await foto('09-req-semanais');
   await page.locator('.apr-rs').first().click(); await page.waitForSelector('.apr-rs-g');
   tx = await textoTela();
-  ok(/Cozinha/.test(tx) && /Limpeza/.test(tx) && /Produção/.test(tx) && /Entrega de EPI/.test(tx), 'a requisição da semana separa cozinha, cada setor e EPI');
+  ok(/Cozinha/.test(tx) && /Manutenção/.test(tx) && /Produção/.test(tx) && /Entrega de EPI/.test(tx), 'a requisição da semana separa cozinha, cada setor e EPI');
   ok(/Cozinheira Exemplo/.test(tx) && /Funcionário Exemplo 1/.test(tx), 'cada saída da semana mostra para quem foi');
   await foto('10-req-semanal');
   await page.click('[data-rs="ver"]'); await page.waitForTimeout(700);
