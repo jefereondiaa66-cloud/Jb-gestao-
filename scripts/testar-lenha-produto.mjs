@@ -103,97 +103,213 @@ try {
   ok(ini.est === 10 && ini.cm === 80, `almoxarifado com 10 pares de bota a R$ 80 (saldo ${ini.est}, custo ${ini.cm})`);
   ok(ini.saldo === 600, `compra de lenha de R$ 600 a pagar (${ini.saldo})`);
 
-  /* 0b. onde aparece: tela da compra, janela de pagamento, início e menu (V142b) */
+  /* helpers da janela "Saída para fornecedor de lenha" */
+  await page.evaluate(() => {
+    window.PLT = {
+      marcar: async (id, q, p) => { const cb = document.querySelector(`.veu input[data-pk="${id}"]`); if (!cb) throw new Error('item não está na lista: ' + id); cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(120);
+        const iq = document.querySelector(`.veu [data-pq="${id}"]`); iq.value = String(q); iq.dispatchEvent(new Event('input', { bubbles: true }));
+        if (p != null) { const ip = document.querySelector(`.veu [data-pp="${id}"]`); ip.value = p; ip.dispatchEvent(new Event('input', { bubbles: true })) } await T.dorme(80) },
+      ok: async () => { document.querySelector('.veu [data-ok]').click(); await T.dorme(700) },
+      fechar: async () => { for (let k = 0; k < 4; k++) { const b = document.querySelector('.veu [data-r]'); if (!b) break; b.click(); await T.dorme(200) } },
+    };
+  });
+
+  /* 0b. onde aparece: tela da compra, janela de pagamento, início, menu e o Lançar saída do almoxarifado */
   const ach = await page.evaluate(async (cid) => {
     SV = 'lenha'; location.hash = '#/compra/' + cid; await T.dorme(900);
     const btn = !!document.querySelector('#vvProd142');
+    document.querySelector('#vvProd142').click(); await T.dorme(400);
+    const abreForn = (document.querySelector('.veu #plF') || {}).value === 'f_lenha'; await PLT.fechar();
     const pg = document.querySelector('#vvPag'); if (pg) pg.click(); await T.dorme(400);
     const aviso = !!document.querySelector('#mpProd142');
-    const a = document.querySelector('#mpProd142a'); if (a) a.click(); await T.dorme(900);
-    const form = /#\/clProd\/novo/.test(location.hash) && ((document.querySelector('#camada [data-k="fornecedorId"]') || {}).value === 'f_lenha');
-    fecharGaveta && fecharGaveta(); await T.dorme(300);
+    const a = document.querySelector('#mpProd142a'); if (a) a.click(); await T.dorme(500);
+    const form = !!document.querySelector('.veu #plF'); await PLT.fechar();
     location.hash = '#/setor-lenha'; await T.dorme(900);
     const ini = !!document.querySelector('a[href="#/clProd/novo"]');
-    const menu = [...document.querySelectorAll('a[href="#/clProd/novo"]')].some((a) => /Pagar fornecedor com produto/.test(a.textContent));
-    return { btn, aviso, form, ini, menu }; }, ini.id);
-  ok(ach.btn, 'a tela da compra de lenha mostra o botão “Pagar com produto”');
-  ok(ach.aviso, 'a janela “Registrar pagamento” avisa e leva para “Pagar com produto”');
-  ok(ach.form, 'o atalho abre o pagamento com produto já com o fornecedor da compra');
-  ok(ach.ini, 'o início do Setor da Lenha tem o botão “Pagar com produto”');
-  ok(ach.menu, 'o menu do Setor da Lenha tem “Pagar fornecedor com produto”');
+    const menu = [...document.querySelectorAll('a[href="#/clProd/novo"]')].some((x) => /Pagar fornecedor com produto/.test(x.textContent));
+    location.hash = '#/clProd/novo'; await T.dorme(900); const rota = !!document.querySelector('.veu #plF') && /#\/clComb/.test(location.hash); await PLT.fechar();
+    return { btn, abreForn, aviso, form, ini, menu, rota }; }, ini.id);
+  ok(ach.btn && ach.abreForn, 'a compra de lenha tem “Pagar com produto”, que abre a saída do almoxarifado com o fornecedor da compra');
+  ok(ach.aviso && ach.form, 'a janela “Registrar pagamento” avisa e leva para a saída do almoxarifado');
+  ok(ach.ini && ach.menu, 'o início e o menu do Setor da Lenha têm “Pagar fornecedor com produto”');
+  ok(ach.rota, 'o atalho #/clProd/novo abre a saída para fornecedor de lenha');
 
-  /* 1. pagamento com bota pela tela (Setor da Lenha) */
+  /* 1. bota do estoque: saída do almoxarifado (requisição) para o fornecedor */
   const p1 = await page.evaluate(async (cid) => {
-    await T.abrirNovo('clProd', 'lenha', { fornecedorId: 'f_lenha', forma: CB_LENHA.FORMA_P[0], itemId: 'it_bota', quantidade: 1 });
-    const sug = (document.querySelector('#camada [data-k="precoUnit"]') || {}).value;
-    T.escolher('precoUnit', '100'); await T.dorme(300);
-    const tela = document.querySelector('#camada').textContent;
-    await T.salvarGaveta(); await T.esperar(() => DATA.clProd.length === 1); await T.sincronizado();
-    const m = DATA.clProd[0]; const c = DATA.compras.find((x) => x.id === cid); const cr = CB_LENHA.credPorId('p:' + m.id);
-    const mov = ALMOX_V52.movsAlm().find((x) => x.tipo === 'Pagamento de lenha');
-    return { sug, tela: /Saldo no almoxarifado/.test(tela) && /Desconta de/.test(tela), valor: m.valor, custo: m.custoTotal, saldo: finVenda(c).saldo, est: ALMOX_V52.estI('it_bota').saldo, desc: cr && cr.desc,
-      mov: mov && mov.q === -1 && Math.round(mov.valor) === -80, banco: T.banco('clCtrl').some((x) => x.id === m.id && x.tipo === 'prod'), caixa: (c.pagamentos || []).length }; }, ini.id);
-  ok(p1.tela, 'o formulário mostra o saldo do almoxarifado e o desconto antes de salvar');
-  ok(/80/.test(String(p1.sug)), `o preço vem sugerido pelo custo médio do almoxarifado (${p1.sug})`);
-  ok(p1.valor === 100 && p1.custo === 80, `pagamento de R$ 100 com 1 par de bota (custo no estoque R$ ${p1.custo})`);
-  ok(p1.saldo === 500 && p1.desc === 100, `a compra de lenha ficou com R$ ${p1.saldo} a pagar`);
-  ok(p1.est === 9, `a bota saiu do almoxarifado (saldo ${p1.est})`);
-  ok(p1.mov, 'a saída aparece nas movimentações do almoxarifado como “Pagamento de lenha”, pelo custo');
-  ok(p1.banco, 'o pagamento chegou ao banco central');
-  ok(p1.caixa === 0, 'nada saiu do Caixa (não é pagamento em dinheiro)');
-
-  /* 2. item novo cadastrado na hora, comprado fora só para pagar (não mexe no estoque); Cozinha fora da lista */
-  const p2 = await page.evaluate(async (cid) => {
     const agora = new Date().toISOString();
     await gravar('almItens', { id: 'it_coz', codigo: 'COZ-001', nome: 'Arroz de teste', categoria: 'Cozinha', unidade: 'kg', ativo: true, criadoEm: agora }, null);
     await T.esperar(() => DATA.almItens.some((i) => i.id === 'it_coz'));
-    await T.abrirNovo('clProd', 'lenha', { fornecedorId: 'f_lenha' });
-    const semOutra = ![...document.querySelectorAll('#camada [data-k="forma"]')].some((x) => x.offsetParent !== null);
-    const semCoz = ![...document.querySelectorAll('#camada [data-k="itemId"] option')].some((o) => o.value === 'it_coz');
-    const bcad = document.querySelector('#camada [data-acao="cadItemAlmP"]'); if (!bcad) throw new Error('sem botão; campos: ' + [...document.querySelectorAll('#camada [data-campo]')].map((x) => x.dataset.campo).join(',') + ' | ' + location.hash);
-    bcad.click(); await T.dorme(300);
-    document.querySelector('#ciNome').value = 'Bota couro de teste nº 41'; document.querySelector('#ciCusto').value = '50,00';
-    document.querySelector('.veu .modal [data-ok]').click(); await T.esperar(() => DATA.almItens.some((i) => i.nome === 'Bota couro de teste nº 41')); await T.dorme(400);
-    const novo = DATA.almItens.find((i) => i.nome === 'Bota couro de teste nº 41');
-    const sel = (document.querySelector('#camada [data-k="itemId"]') || {}).value;
-    const orig = (document.querySelector('#camada [data-k="origemItem"]') || {}).value;
-    T.escolher('quantidade', '1'); await T.dorme(200);
-    const preco = (document.querySelector('#camada [data-k="precoUnit"]') || {}).value;
-    await T.salvarGaveta(); await T.esperar(() => DATA.clProd.length === 2); await T.sincronizado();
-    const m = DATA.clProd.find((x) => x.itemId === novo.id);
-    return { semOutra, semCoz, novo: !!novo && novo.categoria === 'EPI' && novo.origemCadastro === 'Setor da Lenha' && /^EPI-/.test(novo.codigo || ''), sel: sel === novo.id, orig, preco,
-      valor: m && m.valor, saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo, est: ALMOX_V52.estI('it_bota').saldo, estNovo: ALMOX_V52.estI(novo.id).saldo,
-      mov: ALMOX_V52.movsAlm().filter((x) => x.tipo === 'Pagamento de lenha').length }; }, ini.id);
-  ok(p2.semOutra, 'lançamento novo não tem mais “Outra coisa”: só item do almoxarifado');
-  ok(p2.semCoz, 'itens da Cozinha não aparecem na lista');
-  ok(p2.novo && p2.sel, 'o botão “+ Cadastrar item novo” cadastra no Almoxarifado (EPI, código automático) e já escolhe o item');
-  ok(/Comprado fora/.test(p2.orig) && /50/.test(String(p2.preco)), `item sem saldo vem como “comprado fora”, com o preço informado (${p2.orig}; ${p2.preco})`);
-  ok(p2.valor === 50 && p2.saldo === 450, `bota comprada fora de R$ 50 desconta (resta ${p2.saldo})`);
-  ok(p2.est === 9 && p2.estNovo === 0 && p2.mov === 1, 'comprado fora não mexe no estoque do almoxarifado');
+    const nS = DATA.almSaidas.length;
+    ALM_V148.abrirPagLenha({ fornecedorId: 'f_lenha' }); await T.dorme(300);
+    const semCoz = !document.querySelector('.veu input[data-pk="it_coz"]');
+    await PLT.marcar('it_bota', 1, null); const sug = (document.querySelector('.veu [data-pp="it_bota"]') || {}).value;
+    await PLT.marcar('it_bota', 1, '100,00');
+    await PLT.ok(); await T.esperar(() => DATA.almSaidas.length === nS + 1); await T.sincronizado(); await PLT.fechar();
+    const sd = DATA.almSaidas.find((x) => x.pagLenha); const c = DATA.compras.find((x) => x.id === cid); const cr = CB_LENHA.credPorId('a:' + sd.id);
+    return { semCoz, sug, setor: sd.setor, num: +sd.numero > 0, valor: sd.pagLenha.valor, custo: sd.itens[0].custoTotal, saldo: finVenda(c).saldo, est: ALMOX_V52.estI('it_bota').saldo, desc: cr && cr.desc,
+      mov: ALMOX_V52.movsAlm().some((x) => x.itemId === 'it_bota' && x.q === -1 && !/Pagamento de lenha/.test(x.tipo)), banco: T.banco('alm').some((x) => x.id === sd.id && x.pagLenha && x.pagLenha.fornecedorId === 'f_lenha'), caixa: (c.pagamentos || []).length }; }, ini.id);
+  ok(p1.semCoz, 'itens da Cozinha não aparecem na lista');
+  ok(/80/.test(String(p1.sug)), `o preço vem do custo médio do almoxarifado (${p1.sug})`);
+  ok(/Fornecedor de lenha/.test(p1.setor) && p1.num, `virou requisição do almoxarifado (destino “${p1.setor}”)`);
+  ok(p1.valor === 100 && p1.custo === 80, `R$ 100 combinados por 1 par de bota (custo no estoque R$ ${p1.custo})`);
+  ok(p1.saldo === 500 && p1.desc === 100, `a compra de lenha ficou com R$ ${p1.saldo} a pagar`);
+  ok(p1.est === 9 && p1.mov, `a bota saiu do almoxarifado como saída comum (saldo ${p1.est})`);
+  ok(p1.banco, 'a saída chegou ao banco central com o fornecedor');
+  ok(p1.caixa === 0, 'nada saiu do Caixa');
+
+  /* 2. sem saldo: comprar agora (sai do Caixa), entra e sai do almoxarifado */
+  const p2 = await page.evaluate(async (cid) => {
+    const agora = new Date().toISOString();
+    await gravar('almItens', { id: 'it_luva', codigo: 'EPI-002', nome: 'Luva de teste', categoria: 'EPI', unidade: 'par', ativo: true, criadoEm: agora }, null);
+    await gravar('almFornecedores', { id: 'lj1', nome: 'Loja de teste', ativo: true, criadoEm: agora }, null);
+    await T.esperar(() => DATA.almItens.some((i) => i.id === 'it_luva') && DATA.almFornecedores.some((x) => x.id === 'lj1'));
+    const nE = DATA.almEntradas.length, nS = DATA.almSaidas.length;
+    ALM_V148.abrirPagLenha({ fornecedorId: 'f_lenha' }); await T.dorme(300);
+    await PLT.marcar('it_luva', 2, '25,00');
+    const caixa = !document.querySelector('.veu #plCompra').hidden;
+    const sl = document.querySelector('.veu #plLoja'); sl.value = 'lj1';
+    const sc = document.querySelector('.veu #plConta'); sc.value = [...sc.options].map((o) => o.value).filter(Boolean)[0] || '';
+    await PLT.ok(); await T.esperar(() => DATA.almSaidas.length === nS + 1); await T.sincronizado(); await PLT.fechar();
+    const en = DATA.almEntradas.find((x) => x.paraFornLenha === 'f_lenha'); const sd = DATA.almSaidas.filter((x) => x.pagLenha).find((x) => (x.itens || []).some((l) => l.itemId === 'it_luva'));
+    await T.esperar(() => (DATA.almEntradas.find((x) => x.id === en.id).finTitulos || []).length > 0, 4000).catch(() => {});
+    const en2 = DATA.almEntradas.find((x) => x.id === en.id);
+    return { caixa, temConta: !!sc.value, ent: DATA.almEntradas.length === nE + 1 && en && en.forma === 'vista' && en.total === 50, fin: (en2.finTitulos || []).length > 0, sd: !!sd && sd.pagLenha.valor === 50,
+      est: ALMOX_V52.estI('it_luva').saldo, saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo }; }, ini.id);
+  ok(p2.caixa, 'item sem saldo mostra “Comprar agora” (loja, forma e de onde saiu o dinheiro)');
+  ok(p2.temConta && p2.ent, 'a compra entrou no almoxarifado, paga à vista (R$ 50)');
+  ok(p2.fin, 'a compra ficou ligada ao Financeiro (compromisso pago)');
+  ok(p2.sd && p2.est === 0, `e saiu na mesma hora para o fornecedor (saldo da luva ${p2.est})`);
+  ok(p2.saldo === 450, `desconto de R$ 50 na lenha (resta ${p2.saldo})`);
 
   /* 2b. Contas a pagar – Lenha: o que foi pago, discriminado */
   const p2b = await page.evaluate(async () => { const x = CPL_LENHA.conta('f_lenha');
     location.hash = '#/fLenha'; await T.dorme(900); const tela = (document.querySelector('#conteudo') || document.body).textContent;
-    return { prod: x.prod, comb: x.combSo, saldo: x.saldo, tela: /Produtos \(bota, EPI…\) R\$\s?150,00/.test(tela) }; });
+    return { prod: x.prod, saldo: x.saldo, tela: /Produtos \(bota, EPI…\) R\$\s?150,00/.test(tela) }; });
   ok(p2b.prod === 150 && p2b.saldo === 450, `Contas a pagar – Lenha separa os produtos (R$ ${p2b.prod}) e o saldo (R$ ${p2b.saldo})`);
   ok(p2b.tela, 'a lista do Contas a pagar – Lenha mostra o que foi pago com produto');
 
   /* 3. não deixa tirar mais do que tem no almoxarifado */
-  const p3 = await page.evaluate(() => { const st = { ...MODS.clProd.padrao(), id: 'x', fornecedorId: 'f_lenha', itemId: 'it_bota', quantidade: 20, precoUnit: 100 };
-    return conferirRegistro('clProd', st).erros.quantidade || ''; });
-  ok(/Estoque insuficiente/.test(p3), 'quantidade maior que o saldo do almoxarifado é recusada');
+  const p3 = await page.evaluate(async () => { const nS = DATA.almSaidas.length;
+    ALM_V148.abrirPagLenha({ fornecedorId: 'f_lenha' }); await T.dorme(300); await PLT.marcar('it_bota', 20, '100,00'); await PLT.ok();
+    const aberto = !!document.querySelector('.veu #plF'); await PLT.fechar(); return aberto && DATA.almSaidas.length === nS; });
+  ok(p3, 'quantidade maior que o saldo do almoxarifado é recusada');
+
+  /* 3b. cadastrar item novo pela janela */
+  const p3b = await page.evaluate(async () => {
+    ALM_V148.abrirPagLenha({ fornecedorId: 'f_lenha' }); await T.dorme(300);
+    document.querySelector('.veu [data-pln]').click(); await T.dorme(300);
+    document.querySelector('#ciNome').value = 'Capacete de teste'; const vs = [...document.querySelectorAll('.veu')]; vs[vs.length - 1].querySelector('[data-ok]').click();
+    await T.esperar(() => DATA.almItens.some((i) => i.nome === 'Capacete de teste')); await T.dorme(300);
+    const it = DATA.almItens.find((i) => i.nome === 'Capacete de teste'); const lista = !!document.querySelector(`.veu input[data-pk="${it.id}"]`); await PLT.fechar();
+    return it.origemCadastro === 'Setor da Lenha' && it.categoria === 'EPI' && lista; });
+  ok(p3b, '“Cadastrar item novo” cadastra no Almoxarifado e o item aparece na lista');
 
   /* 4. telas */
   const tl = await page.evaluate(async () => { const out = {};
-    for (const [r, t] of [['#/clComb', 'Produto · Bota de teste'], ['#/clProd', 'Bota de teste'], ['#/clAPagar', 'Combustível e produtos'], ['#/almMov', 'Pagamento de lenha']]) {
-      SV = r === '#/almMov' ? 'almox' : 'lenha'; location.hash = r; await T.dorme(900); out[r] = (document.querySelector('#conteudo') || document.body).textContent.includes(t); }
+    for (const [r, t, sv] of [['#/clComb', 'Bota de teste', 'lenha'], ['#/clAPagar', 'Combustível e produtos', 'lenha'], ['#/almSaidas', 'Fornecedor de lenha', 'almox']]) {
+      SV = sv; location.hash = r; await T.dorme(900); out[r] = (document.querySelector('#conteudo') || document.body).textContent.includes(t); }
     return out; });
-  Object.entries(tl).forEach(([r, v]) => ok(v, `a tela ${r} mostra o pagamento com produto`));
+  Object.entries(tl).forEach(([r, v]) => ok(v, `a tela ${r} mostra a saída para o fornecedor`));
 
-  /* 5. excluir devolve o estoque e o valor a pagar */
-  const p5 = await page.evaluate(async (cid) => { const m = DATA.clProd.find((x) => x.itemId === 'it_bota'); await apagar('clProd', m); await T.esperar(() => DATA.clProd.length === 1); await T.sincronizado();
-    return { saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo, est: ALMOX_V52.estI('it_bota').saldo }; }, ini.id);
-  ok(p5.saldo === 550 && p5.est === 10, `excluir o pagamento com bota do estoque: volta a R$ ${p5.saldo} a pagar e ${p5.est} pares no estoque`);
+  /* 5. Lançar saída do almoxarifado tem a opção do fornecedor de lenha */
+  const p5 = await page.evaluate(async () => { SV = 'almox'; location.hash = '#/almProdutos'; await T.dorme(900);
+    ALMOX_V52 && window.ALM_V146; const b = document.querySelector('#prSai'); if (b) b.click(); await T.dorme(400);
+    const tem = !!document.querySelector('.veu [data-plabre]'); if (tem) document.querySelector('.veu [data-plabre]').click(); await T.dorme(300);
+    const abriu = !!document.querySelector('.veu #plF'); await PLT.fechar(); return { tem, abriu, b: !!b }; });
+  ok(p5.b && p5.tem && p5.abriu, 'o “Lançar saída” do almoxarifado tem “Lançar saída para fornecedor de lenha”');
+
+  /* 6. Lançar lenha: o que o fornecedor levou nesta entrega (combustível e EPI), gravado junto com a compra */
+  const p6 = await page.evaluate(async () => {
+    SV = 'lenha'; RASC_V.compra = null; location.hash = '#/lenhaLancar'; await T.dorme(900);
+    const sel = document.querySelector('#lxForn'); sel.value = 'f_lenha'; sel.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(400);
+    const q = document.querySelector('#lxQtd'); q.value = '5'; q.dispatchEvent(new Event('input', { bubbles: true }));
+    const pr = document.querySelector('#lxPreco'); pr.value = '60,00'; pr.dispatchEvent(new Event('input', { bubbles: true })); await T.dorme(150);
+    const dep = document.querySelector('[data-dep]'); if (dep) dep.click(); await T.dorme(300);
+    document.querySelector('[data-pag="prazo"]').click(); await T.dorme(300);
+    const sv = document.querySelector('#lxSemVenc'); if (sv && !sv.checked) { sv.checked = true; sv.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(300) }
+    const passo = !!document.querySelector('#lxLevou');
+    document.querySelector('[data-lvadd="comb"]').click(); await T.dorme(300);
+    const op = document.querySelector('.veu #clcO'); op.value = 'fora';
+    document.querySelector('.veu #clcL').value = '10'; const cv = document.querySelector('.veu #clcV'); cv.value = '7,00';
+    document.querySelector('.veu [data-ok]').click(); await T.dorme(400);
+    document.querySelector('[data-lvadd="prod"]').click(); await T.dorme(300);
+    const trav = document.querySelector('.veu #plF').disabled;
+    await PLT.marcar('it_bota', 1, '90,00'); await PLT.ok(); await T.dorme(300);
+    const resumo = (document.querySelector('#lxLevou') || {}).textContent || '';
+    const nC = DATA.compras.length, nS = DATA.almSaidas.length, nM = DATA.clComb.length;
+    document.querySelector('#lxOk').click(); await T.dorme(500);
+    if (document.querySelector('.veu .modal [data-r="1"], .veu .modal [data-ok]')) await T.confirmarJanela();
+    await T.esperar(() => DATA.compras.length === nC + 1 && DATA.almSaidas.length === nS + 1 && DATA.clComb.length === nM + 1, 8000).catch(() => {}); await T.sincronizado();
+    const c = DATA.compras.filter((x) => x.setor === 'lenha').sort((a, b2) => (+b2.numero || 0) - (+a.numero || 0))[0];
+    const sd = DATA.almSaidas.filter((x) => x.pagLenha).find((x) => x.pagLenha.compraId === c.id);
+    const mc = DATA.clComb.find((x) => /Lançado junto com a compra/.test(x.obs || ''));
+    return { passo, trav, resumo: /10 L/.test(resumo) && /Bota de teste/.test(resumo) && /160,00/.test(resumo), compra: c && c.total === 300, sd: !!sd && sd.pagLenha.valor === 90, mc: !!mc && mc.valor === 70, est: ALMOX_V52.estI('it_bota').saldo, cid: c && c.id }; });
+  ok(p6.passo && p6.trav, 'o Lançar lenha tem o passo “O que o fornecedor levou” (fornecedor travado na saída)');
+  ok(p6.resumo, 'o resumo mostra o combustível e o EPI antes de salvar (R$ 160)');
+  ok(p6.compra, 'a compra da lenha foi gravada (R$ 300)');
+  ok(p6.sd && p6.est === 8, `o EPI saiu do almoxarifado ligado à compra (saldo da bota ${p6.est})`);
+  ok(p6.mc, 'o combustível foi lançado e desconta do fornecedor (R$ 70)');
+
+  /* 7. combustível na bomba: vira abastecimento do Setor de Combustível (baixa o estoque) */
+  const p7 = await page.evaluate(async () => {
+    const er0 = CB_LENHA.conferirComb({ onde: 'bomba', fornecedorId: 'f_lenha', produtoId: 'p_s10', litros: 12, preco: 7, data: hoje() });
+    await gravar('estoqueMov', { id: 'em_s10', data: hoje(), produtoId: 'p_s10', tipo: 'Entrada', delta: 500, quantidade: 500, valorEntrada: 3500, criadoEm: new Date().toISOString() }, null).catch(() => {});
+    await T.dorme(300);
+    const er = CB_LENHA.conferirComb({ onde: 'bomba', fornecedorId: 'f_lenha', produtoId: 'p_s10', litros: 12, preco: 7, data: hoje() });
+    let rec = null, msg = ''; if (!er.length) { try { rec = await CB_LENHA.gravarComb({ onde: 'bomba', fornecedorId: 'f_lenha', produtoId: 'p_s10', litros: 12, preco: 7, data: hoje(), quem: 'Motorista X' }) } catch (e) { msg = e.message } }
+    await T.sincronizado();
+    const c = rec && DATA.consumos.find((x) => x.id === rec.id);
+    return { er0, er, msg, ok: !!c && c.setor === 'combustivel' && c.abastecidoEm === 'Fornecedor de lenha' && c.combLenha && c.combLenha.valor === 84 && c.combLenhaForn === 'f_lenha', sv: SV }; });
+  console.log('    (bomba sem estoque: ' + JSON.stringify(p7.er0) + ' · depois: ' + JSON.stringify(p7.er) + ' ' + p7.msg + ')');
+  ok(p7.ok, 'combustível na bomba vira abastecimento do Setor de Combustível para o fornecedor (R$ 84)');
+  ok(p7.sv === 'lenha', 'a tela continua no Setor da Lenha depois do lançamento');
+
+  /* 8. Nova compra (tela completa): bloco "O fornecedor levou (já pago)" e o resumo com o que fica a pagar */
+  const p8 = await page.evaluate(async () => {
+    SV = 'lenha'; const R = novoRascunhoV(OP.compra, 'lenha'); Object.assign(R, { parteId: 'f_lenha', itens: [{ produtoId: 'p_lenha', qtd: 10, preco: 60 }], condicao: 'A prazo', vencimento: hoje(), forma: 'Boleto', lenhaLocal: 'chao' });
+    RASC_V.compra = R;
+    for (let k = 0; k < 4 && !(location.hash === '#/compra/nova' && document.querySelector('#vdOk')); k++) { location.hash = '#/compra/nova'; await T.dorme(900); }
+    const box = document.querySelector('#lx148'); const antesPag = box && box.nextElementSibling && /Pagamento/.test((box.nextElementSibling.querySelector('legend') || {}).textContent || '');
+    document.querySelector('#lx148 [data-lvadd="comb"]').click(); await T.dorme(300);
+    document.querySelector('.veu #clcO').value = 'fora'; document.querySelector('.veu #clcL').value = '20'; document.querySelector('.veu #clcV').value = '7,00';
+    document.querySelector('.veu [data-ok]').click(); await T.dorme(400);
+    document.querySelector('#lx148 [data-lvadd="prod"]').click(); await T.dorme(300);
+    await PLT.marcar('it_bota', 1, '100,00'); await PLT.ok(); await T.dorme(400);
+    const res = (document.querySelector('#vdResumo') || {}).textContent || '';
+    const nC = DATA.compras.length, nS = DATA.almSaidas.length, nM = DATA.clComb.length;
+    document.querySelector('#vdOk').click(); await T.dorme(500);
+    if (document.querySelector('.veu .modal [data-r="1"], .veu .modal [data-ok]')) await T.confirmarJanela();
+    await T.esperar(() => DATA.compras.length === nC + 1 && DATA.almSaidas.length === nS + 1 && DATA.clComb.length === nM + 1, 8000).catch(() => {}); await T.sincronizado(); await T.dorme(300);
+    const c = DATA.compras.filter((x) => x.setor === 'lenha').sort((a, b2) => (+b2.numero || 0) - (+a.numero || 0))[0];
+    return { box: !!box, antesPag, res: /Levou[^]*240,00/.test(res) && /Fica a pagar[^]*360,00/.test(res), saldo: finVenda(c).saldo, sd: DATA.almSaidas.some((x) => x.pagLenha && x.pagLenha.compraId === c.id), cb: DATA.clComb.length === nM + 1 }; });
+  ok(p8.box && p8.antesPag, 'a Nova compra da lenha tem o bloco “O fornecedor levou (já pago)” antes do pagamento');
+  ok(p8.res, 'o resumo mostra o que ele levou (R$ 240) e o que fica a pagar (R$ 360)');
+  ok(p8.sd && p8.cb, 'ao confirmar, o EPI sai do almoxarifado e o combustível é lançado');
+  ok(p8.saldo === 360, `a compra fica só com o resto a pagar (R$ ${p8.saldo})`);
+
+  /* 9. depois: na compra já lançada, "Combustível que ele levou" abate essa compra */
+  const p9 = await page.evaluate(async () => {
+    const c = DATA.compras.filter((x) => x.setor === 'lenha').sort((a, b2) => (+b2.numero || 0) - (+a.numero || 0))[0]; const s0 = finVenda(c).saldo;
+    SV = 'lenha'; location.hash = '#/compra/' + c.id; await T.dorme(900);
+    const b = document.querySelector('#vvComb148'); if (!b) return { b: false }; b.click(); await T.dorme(300);
+    document.querySelector('.veu #clcO').value = 'fora'; document.querySelector('.veu #clcL').value = '5'; document.querySelector('.veu #clcV').value = '8,00';
+    document.querySelector('.veu [data-ok]').click(); await T.dorme(700); await T.sincronizado();
+    return { b: true, s0, s1: finVenda(DATA.compras.find((x) => x.id === c.id)).saldo }; });
+  ok(p9.b && p9.s1 === Math.round((p9.s0 - 40) * 100) / 100, `na compra já lançada, “Combustível que ele levou” abate essa compra (${p9.s0} → ${p9.s1})`);
+
+  /* 10. lançado uma vez só: o repetido é bloqueado nos dois setores */
+  const p10 = await page.evaluate(async () => {
+    const lenhaBomba = CB_LENHA.conferirComb({ onde: 'bomba', fornecedorId: 'f_lenha', produtoId: 'p_s10', litros: 10, preco: 7, data: hoje() });
+    const lenhaFora = CB_LENHA.conferirComb({ onde: 'fora', fornecedorId: 'f_lenha', litros: 10, preco: 7, data: hoje() });
+    const s0 = SV; SV = 'combustivel'; const M = MODS.consumos; const st = { ...M.padrao(), id: 'dupx', data: hoje(), hora: '10:00' }; st.abastecidoEm = 'Fornecedor de lenha'; M.aoMudar(st, 'abastecidoEm');
+    st.produtoId = 'p_s10'; M.aoMudar(st, 'produtoId'); st.quantidade = 10; st.combLenhaForn = 'f_lenha'; st.combLenhaPreco = 7;
+    const comb = conferirRegistro('consumos', st).erros.quantidade || ''; SV = s0;
+    const outro = CB_LENHA.conferirComb({ onde: 'fora', fornecedorId: 'f_lenha', litros: 33, preco: 7, data: hoje() });
+    return { lenhaBomba, lenhaFora, comb, outro }; });
+  ok(p10.lenhaBomba.some((x) => /já foi lançado/.test(x)), 'Lenha: o mesmo abastecimento da bomba não é lançado duas vezes');
+  ok(p10.lenhaFora.some((x) => /já foi lançado/.test(x)), 'Lenha: o mesmo combustível lançado à mão também é bloqueado');
+  ok(/já foi lançado/.test(p10.comb), 'Setor de Combustível: o que a Lenha já lançou é bloqueado ali');
+  ok(!p10.outro.length, 'outro combustível (litros diferentes) continua livre');
 
   ok(!erros.length, 'sem erros de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) {
