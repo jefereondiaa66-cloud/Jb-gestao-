@@ -197,15 +197,31 @@ teste('programa', 'Setor do Barro (V124): o valor do barro entra junto da tonela
   const cust = trecho('function custoTonB(k,de,ate){', '\n/* ritmo:');
   assert.ok(/if\(k\.ton>0&&k\.total>0\)return\{real:true/.test(cust), 'com extração com custo, vale o custo real');
   assert.ok(cust.includes("txt:fRt(r.v),sub:'valor de referência"), 'sem extração com custo, o custo por tonelada é o R$/t vigente (nunca R$ 0,00)');
-  const ini = trecho('function inicioB(c){', '\n}\n');
-  for (const p of ["'Valor do barro consumido · '", 'custoTonB(km,', 'custoCarB(km,', 'valorEstB(est.ton)']) assert.ok(ini.includes(p), 'Início com a extração ligada sem ' + p);
-  assert.ok(!ini.includes('esc(fMoeda(km.porTon))'), 'o Início não pode voltar a mostrar só o custo das extrações (R$ 0,00 sem extração)');
+  // V143: o valor do barro consumido fica no painel principal (consumo); os custos e o estoque, no painel da extração
+  assert.ok(trecho('function inicioConsB(c){', '\n}\n').includes("'Valor do barro consumido · '"), 'painel do consumo sem o valor do barro consumido');
+  const ini = trecho('function painelExtB(c){', '\n}\n');
+  for (const p of ['custoTonB(km,', 'custoCarB(km,', 'valorEstB(est.ton)']) assert.ok(ini.includes(p), 'painel da extração sem ' + p);
+  assert.ok(!ini.includes('esc(fMoeda(km.porTon))'), 'o painel da extração não pode voltar a mostrar só o custo das extrações (R$ 0,00 sem extração)');
   assert.ok(trecho('function telaCusto(c){', '\n}\n').includes('custoTonB(k,UC.de,UC.ate)'), 'Custo do barro: custo por tonelada com o valor de referência');
   assert.ok(trecho('function telaEstoque(c){\n const e=estoqueB()', '\n}\n').includes('valorEstB(e.ton)'), 'Estoque de barro com o valor');
   assert.ok(trecho('function resumoMes(mes){', '\n}\n').includes('r.consV='), 'resumo do mês com o valor do barro consumido');
   // V124 só mostra: nada é gravado pelas funções novas
   const novo = trecho('/* ---------- V124 (14/11/2026)', '\n/* ritmo:');
   for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(']) assert.ok(!novo.includes(proibido), 'a V124 não grava nada: achou ' + proibido);
+});
+teste('programa', 'Setor do Barro (V143): painel principal só com o consumo (maromba) e a extração em painel próprio', () => {
+  const app = ler('app/jb-gestao.html');
+  const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
+  assert.ok(app.includes('function inicioB(c){inicioConsB(c)}'), 'o Início do Setor do Barro é sempre o painel do consumo (não muda com a chave da extração)');
+  const cons = trecho('function inicioConsB(c){', '\n}\n');
+  for (const p of ['linhasCons()', 'consMes(m)', "'Consumo do mês · '", "'Hoje · '", "'Ontem · '", "'Custo do barro por tonelada'", "'Acumulado em '", 'href="#/barroExtracao"', 'Extração do barro']) assert.ok(cons.includes(p), 'painel do consumo sem ' + p);
+  for (const p of ['Extraído hoje', 'Custo por carrada', 'Motoristas a pagar', 'estoqueB(', 'custoDe(', 'DATA.barroExt']) assert.ok(!cons.includes(p), 'o painel do consumo não pode mostrar a extração: achou ' + p);
+  const ext = trecho('function painelExtB(c){', '\n}\n');
+  for (const p of ["'Extraído hoje'", "'Motoristas a pagar'", "'Estoque de barro'", 'Lançar extração do dia', 'Cadastros da extração']) assert.ok(ext.includes(p), 'painel da extração sem ' + p);
+  assert.ok(!ext.includes("'Valor do barro consumido · '") && !ext.includes("'Consumo do mês · '"), 'os cartões do consumo ficam só no painel principal');
+  assert.ok(app.includes("barroExtracao:naB('barroExtracao',painelExtB)") && app.includes("barroExtracao:{v:BV,e:[]}"), 'rota e permissão do painel da extração');
+  assert.ok(app.includes("const ROTAS_EXT=['barroExtracao',") && app.includes('&&(!a.dentro||emExt)'), 'fora da extração, as telas de dentro dela ficam fora das abas');
+  for (const corpo of [cons, ext]) for (const proibido of ['gravar(', 'apagar(', 'bucketPut(', 'registrarLog(']) assert.ok(!corpo.includes(proibido), 'os painéis só mostram: achou ' + proibido);
 });
 teste('construcao', 'TESTE F: publicação com erro é barrada e a versão anterior continua válida', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'jb-f-'));

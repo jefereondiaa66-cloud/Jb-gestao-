@@ -4,6 +4,8 @@
 //  Setor do Barro: o valor do barro (toneladas × R$/t vigente, hoje R$ 6,1663) aparece junto da tonelada,
 //  também com a parte de extração ligada. Sem extração com custo, o custo por tonelada é o valor de
 //  referência (não R$ 0,00); com extração lançada, vale o custo real da extração.
+//  V143 (20/11/2026): o valor do barro consumido fica no painel principal (consumo) e os cartões de custo
+//  por tonelada, por carrada e do estoque ficam no painel da extração (#/barroExtracao).
 // Uso: node scripts/construir.mjs && node scripts/testar-barro-valor.mjs
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -79,9 +81,10 @@ try {
   { const { ctx, page, erros } = await abrir(base);
     const a = await page.evaluate(async () => { await T.ir('#/setor-barro');
       const B = window.BARRO_V57; const t = B.totCons(B.consMes(hoje().slice(0, 7)));
-      return { ton: Math.round(t.ton * 100) / 100, valor: Math.round(t.valor * 100) / 100, cons: T.kpi('Consumo do estoque em'), val: T.kpi('Valor do barro consumido'), ct: T.kpi('Custo por tonelada'), cc: T.kpi('Custo por carrada'), est: T.kpi('Estoque de barro'), rod: T.txt() }; });
+      const r = { ton: Math.round(t.ton * 100) / 100, valor: Math.round(t.valor * 100) / 100, cons: T.kpi('Consumo do mês'), val: T.kpi('Valor do barro consumido'), rod: T.txt() };
+      await T.ir('#/barroExtracao'); return { ...r, ct: T.kpi('Custo por tonelada'), cc: T.kpi('Custo por carrada'), est: T.kpi('Estoque de barro') }; });
     ok(a.ton === 222.5 && a.valor === 1372, `cálculo do consumo: 100.000 tijolos = ${a.ton} t = R$ ${a.valor}`);
-    ok(a.cons && a.cons.v === '222,50 t', `cartão "Consumo do estoque" com a tonelada (${a.cons && a.cons.v})`);
+    ok(a.cons && a.cons.v === '222,50 t', `cartão "Consumo do mês" com a tonelada (${a.cons && a.cons.v})`);
     ok(a.val && /1\.372,00/.test(a.val.v) && /222,50 t × R\$\s6,1663\/t/.test(a.val.s), `cartão "Valor do barro consumido" com o valor em R$ (${a.val && a.val.v} · ${a.val && a.val.s})`);
     ok(a.ct && /6,1663/.test(a.ct.v) && /valor de referência/.test(a.ct.s) && !/R\$\s0,00/.test(a.ct.v + a.ct.s), `sem extração, o custo por tonelada é o valor de referência, não R$ 0,00 (${a.ct && a.ct.v} · ${a.ct && a.ct.s})`);
     ok(a.cc && a.cc.v === '—', `custo por carrada sem extração aparece como "—", não R$ 0,00 (${a.cc && a.cc.v})`);
@@ -97,7 +100,8 @@ try {
 
   console.log('2. Extração lançada com custo e saldo inicial');
   { const { ctx, page, erros } = await abrir(comExtracao);
-    const a = await page.evaluate(async () => { await T.ir('#/setor-barro'); return { ct: T.kpi('Custo por tonelada'), cc: T.kpi('Custo por carrada'), val: T.kpi('Valor do barro consumido'), est: T.kpi('Estoque de barro') }; });
+    const a = await page.evaluate(async () => { await T.ir('#/setor-barro'); const val = T.kpi('Valor do barro consumido');
+      await T.ir('#/barroExtracao'); return { ct: T.kpi('Custo por tonelada'), cc: T.kpi('Custo por carrada'), val, est: T.kpi('Estoque de barro') }; });
     ok(a.ct && /15,00/.test(a.ct.v) && /custo real da extração/.test(a.ct.s) && /1\.800,00/.test(a.ct.s), `com extração, vale o custo real: ${a.ct && a.ct.v} (${a.ct && a.ct.s})`);
     ok(a.cc && /180,00/.test(a.cc.v), `custo por carrada real (${a.cc && a.cc.v})`);
     ok(a.val && /1\.372,00/.test(a.val.v), 'o valor do barro consumido continua pelo R$/t vigente (a troca pelo custo real é feita nas Configurações)');
