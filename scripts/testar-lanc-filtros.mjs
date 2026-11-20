@@ -101,6 +101,8 @@ try {
   await esperaLinhas(page, 2);
   ok(!(await vis(page, '.jbf-pop')) && await linhas(page) === 2, `Período "Este mês": ${await linhas(page)} de 3 vendas (a do mês passado sai)`);
   ok(/\d\d\/\d\d a \d\d\/\d\d\/\d{4}/.test(await page.textContent('#conteudo .jbf-per')), 'Período: o botão mostra as datas escolhidas');
+  // o Limpar é recriado pela barra de filtros logo depois da lista (temporizador próprio dela): espera aparecer
+  await page.waitForFunction(() => { const e = document.querySelector('#conteudo .jbf-lim'); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden'; }, null, { timeout: 3000 }).catch(() => {});
   ok(await vis(page, '#conteudo .jbf-lim'), 'Limpar aparece com filtro ligado');
 
   const ant = await page.evaluate(() => DATA.vendas.find((v) => v.id === 'tv3').data);
