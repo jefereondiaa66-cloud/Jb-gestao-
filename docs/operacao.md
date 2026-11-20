@@ -46,6 +46,10 @@ Claude Code edita app/jb-gestao.html ─► verificar ─► commit/PR ─► me
                                                        banco anota a versão nova em ≤10 min
 ```
 
+- Na nuvem (desde 20/11/2026), os blocos `<script>` grandes do programa vão para `dist/js/<impressão>.js`,
+  na mesma ordem: o navegador compila em segundo plano e guarda o código compilado, e a abertura ficou
+  cerca de duas vezes mais rápida. A verificação junta os arquivos de volta e confere que a página é
+  exatamente o programa + cabeçalho. O Claude continua recebendo o programa num arquivo só.
 - Backup do código: cada versão é um commit; o Netlify guarda os deploys anteriores.
 - Backup dos dados: cópia diária às 3h (30 dias) + botão "Fazer cópia de segurança".
 - Recuperação: GitHub → Actions → **Reverter publicação** (desfaz por commit novo, verifica e publica).

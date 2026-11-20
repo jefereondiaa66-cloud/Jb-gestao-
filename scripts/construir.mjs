@@ -25,6 +25,31 @@ export const sha256 = (t) => createHash('sha256').update(t).digest('hex');
 // (antes ela comparava com a primeira leitura do versao.json, que pode já ser a nova).
 export const metaSite = (site) => `<meta name="jb-site" content="${site}">\n`;
 
+/* 20/11/2026 (desempenho): na nuvem, cada bloco <script> grande do programa vai para um arquivo próprio
+   (js/<impressão digital>.js), no mesmo lugar e na mesma ordem. O navegador então compila o programa
+   em segundo plano e guarda o código já compilado entre uma abertura e outra: medido num tablet
+   simulado, a tela de login passou de ~3,2 s para ~1,6 s e as travadas da abertura de ~1,4 s para ~0,2 s.
+   O texto de cada arquivo é exatamente o do bloco (juntarScripts refaz a página e a verificação confere
+   que ela é igual à de antes, byte a byte). O Claude continua recebendo a página inteira, num arquivo só. */
+export const FORMATO_NUVEM = 'scripts-em-arquivos-1';
+const SCRIPT_MIN = 2000;   // blocos pequenos (como a configuração do cabeçalho) ficam na página
+export function separarScripts(html) {
+  const arquivos = [];
+  const pagina = html.replace(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi, (tudo, at, codigo) => {
+    at = at || '';
+    if (/\b(src|type)\s*=/i.test(at) || codigo.length < SCRIPT_MIN) return tudo;
+    /* o navegador terminaria o bloco antes ou leria de outro jeito: não separa (para a construção) */
+    if (/<\/script|<!--/i.test(codigo)) throw new Error('bloco <script' + at + '> tem "</script" ou "<!--" dentro: não dá para separar com segurança');
+    const nome = 'js/' + sha256(codigo).slice(0, 16) + '.js';
+    arquivos.push({ nome, codigo });
+    return '<script' + at + ' src="' + nome + '"></script>';
+  });
+  return { pagina, arquivos };
+}
+export function juntarScripts(pagina, ler) {
+  return pagina.replace(/<script((?:\s[^>]*?)?) src="(js\/[0-9a-f]{16}\.js)"><\/script>/g, (t, at, nome) => '<script' + at + '>' + ler(nome) + '</script>');
+}
+
 export function montarNuvem(app, cabecalho) {
   const i = app.indexOf(VIEWPORT);
   if (i < 0 || i > 400) throw new Error('app/jb-gestao.html: não achei a linha do viewport no início do <head>');
@@ -49,9 +74,14 @@ export function construir(saida = RAIZ) {
   const dist = join(saida, 'dist'), sai = join(saida, 'saida');
   rmSync(dist, { recursive: true, force: true }); mkdirSync(dist, { recursive: true }); mkdirSync(sai, { recursive: true });
 
-  const site = sha256(app + cab + ARQUIVOS_NUVEM.map((f) => readFileSync(join(RAIZ, 'nuvem', f), 'utf8')).join('\n')).slice(0, 12);
+  const site = sha256(FORMATO_NUVEM + app + cab + ARQUIVOS_NUVEM.map((f) => readFileSync(join(RAIZ, 'nuvem', f), 'utf8')).join('\n')).slice(0, 12);
   const nuvem = montarNuvem(app, metaSite(site) + cab);
-  writeFileSync(join(dist, 'index.html'), nuvem);
+  const sep = separarScripts(nuvem);
+  mkdirSync(join(dist, 'js'), { recursive: true });
+  for (const a of sep.arquivos) writeFileSync(join(dist, a.nome), a.codigo);
+  const lidos = new Map(sep.arquivos.map((a) => [a.nome, a.codigo]));
+  if (juntarScripts(sep.pagina, (n) => lidos.get(n)) !== nuvem) throw new Error('separar os scripts mudou a página da nuvem');
+  writeFileSync(join(dist, 'index.html'), sep.pagina);
   for (const f of ARQUIVOS_NUVEM) {
     if (f !== 'admin.html') { copyFileSync(join(RAIZ, 'nuvem', f), join(dist, f)); continue; }
     const adm = readFileSync(join(RAIZ, 'nuvem', f), 'utf8');   // o painel de administração também carrega o adaptador
@@ -66,7 +96,8 @@ export function construir(saida = RAIZ) {
     versao: sha256(app).slice(0, 12),
     site,
     programa_sha256: sha256(app),
-    nuvem_sha256: sha256(nuvem),
+    nuvem_sha256: sha256(nuvem),              // a página inteira (com os scripts dentro), como sempre
+    nuvem_arquivos: sep.arquivos.length,       // quantos blocos foram para js/
     claude_sha256: sha256(claude),
     ponte: ponte ? ponte[1] : null,
     commit: commitAtual(),

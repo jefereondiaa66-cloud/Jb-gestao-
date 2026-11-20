@@ -5,12 +5,12 @@
 //
 //   node scripts/verificar.mjs            tudo
 //   node scripts/verificar.mjs ponte      só os testes da ponte do Claude
-import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, existsSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, metaSite, ENVELOPE_CLAUDE, FIM_CLAUDE } from './construir.mjs';
+import { RAIZ, construir, montarNuvem, montarClaude, extrairDoClaude, metaSite, ENVELOPE_CLAUDE, FIM_CLAUDE, juntarScripts, sha256 } from './construir.mjs';
 import { criarServidorFalso } from './lib/servidor-falso.mjs';
 
 const filtro = process.argv[2] || '';
@@ -102,7 +102,18 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
   try {
     const v = construir(tmp);
     const app = ler('app/jb-gestao.html'), cab = ler('nuvem/cabecalho.html');
-    const nuvem = readFileSync(join(tmp, 'dist/index.html'), 'utf8');
+    /* 20/11/2026: os blocos <script> grandes vão para dist/js/ (desempenho). Juntando de volta, a página
+       precisa ser exatamente o programa + cabeçalho, como sempre foi. */
+    const pagina = readFileSync(join(tmp, 'dist/index.html'), 'utf8');
+    const usados = [...pagina.matchAll(/ src="(js\/[0-9a-f]{16}\.js)"/g)].map((m) => m[1]);
+    const nojs = readdirSync(join(tmp, 'dist/js')).map((f) => 'js/' + f);
+    assert.ok(usados.length > 50, 'os blocos do programa deveriam estar em dist/js (' + usados.length + ')');
+    assert.deepEqual([...new Set(usados)].sort(), nojs.sort(), 'dist/js tem que ter exatamente os arquivos que a página usa');
+    assert.equal(v.nuvem_arquivos, usados.length);
+    assert.ok(![...pagina.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)].some((m) => !/\bsrc=/.test(m[1] || '') && m[2].length >= 2000), 'sobrou bloco grande dentro da página');
+    for (const n of nojs) assert.equal(sha256(readFileSync(join(tmp, 'dist', n), 'utf8')).slice(0, 16), n.slice(3, 19), 'nome do arquivo não confere com o conteúdo: ' + n);
+    assert.ok(pagina.indexOf('jb-nuvem.js') < pagina.indexOf('<script id="spot-guarda"'), 'o adaptador da nuvem precisa carregar antes do programa (página separada)');
+    const nuvem = juntarScripts(pagina, (n) => readFileSync(join(tmp, 'dist', n), 'utf8'));
     const claude = readFileSync(join(tmp, 'saida/claude.html'), 'utf8');
     assert.match(v.site, /^[0-9a-f]{12}$/);
     assert.equal(nuvem, montarNuvem(app, metaSite(v.site) + cab));
