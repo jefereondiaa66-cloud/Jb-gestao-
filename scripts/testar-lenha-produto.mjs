@@ -311,6 +311,22 @@ try {
   ok(/já foi lançado/.test(p10.comb), 'Setor de Combustível: o que a Lenha já lançou é bloqueado ali');
   ok(!p10.outro.length, 'outro combustível (litros diferentes) continua livre');
 
+
+  /* 11. Nova compra começando sem fornecedor: os botões aparecem e funcionam depois de escolher o fornecedor */
+  const p11 = await page.evaluate(async () => {
+    SV = 'lenha'; RASC_V.compra = null;
+    for (let k = 0; k < 4 && !(location.hash === '#/compra/nova' && document.querySelector('#vdOk')); k++) { location.hash = '#/compra/nova'; await T.dorme(900); }
+    const semF = !!document.querySelector('#lx148 [data-lvadd="comb"]') && !!document.querySelector('#lx148 [data-lvadd="prod"]');
+    document.querySelector('#lx148 [data-lvadd="comb"]').click(); await T.dorme(250); const avisou = !document.querySelector('.veu #clcL');
+    const sel = document.querySelector('#vdCli'); sel.value = 'f_lenha'; sel.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(300);
+    const dica = /Escolha o fornecedor/.test(document.querySelector('#lx148').textContent);
+    document.querySelector('#lx148 [data-lvadd="comb"]').click(); await T.dorme(300); const abriu = !!document.querySelector('.veu #clcL');
+    const x = document.querySelector('.veu [data-x], .veu .fechar, .veu [data-r="0"]'); if (x) x.click(); else document.querySelector('.veu').remove(); await T.dorme(200);
+    RASC_V.compra = null; return { semF, avisou, dica, abriu }; });
+  ok(p11.semF, 'Nova compra: os botões “+ Combustível” e “+ EPI ou material” aparecem mesmo antes de escolher o fornecedor');
+  ok(p11.avisou, 'sem fornecedor, o botão avisa para escolher o fornecedor');
+  ok(!p11.dica && p11.abriu, 'escolhendo o fornecedor na lista, o botão abre o lançamento do combustível');
+
   ok(!erros.length, 'sem erros de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) {
   ok(false, 'o teste parou: ' + (e && e.message));

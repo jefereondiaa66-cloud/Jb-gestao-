@@ -44257,10 +44257,11 @@ function htmlLevou(d,f,modo){
  return `${modo==='form'?'<legend>O fornecedor levou (já pago)</legend><div>':'<div class="lx-c" id="lxLevou"><h3><span class="lx-n">6</span>O que o fornecedor levou (opcional)</h3>'}
   <p class="ajuda" style="margin:0 0 8px">Combustível, EPI ou material que ele levou nesta entrega. Desconta sozinho do que a cerâmica deve a ele. EPI e material saem do almoxarifado. Se ele pegar depois, lance pela compra (botão “Pagar com produto”).</p>
   ${li.length?`<ul style="margin:0 0 8px;padding-left:18px;line-height:1.9">${li.join('')}</ul><div class="lx-tot" style="margin-bottom:8px"><span>Levou (desconta do fornecedor)</span><b>${esc(fMoeda(levTot(L)))}</b></div>`:''}
-  ${f?`<div class="inline" style="gap:8px;flex-wrap:wrap">${podeC?`<button type="button" class="btn" data-lvadd="comb">${ic('bomba')}+ Combustível</button>`:''}${podeP?`<button type="button" class="btn" data-lvadd="prod">${ic('caixa')}${pr?'Mudar EPI ou material':'+ EPI ou material'}</button>`:''}</div>`:'<p class="ajuda" style="margin:0">Escolha o fornecedor primeiro.</p>'}</div>`}
+  <div class="inline" style="gap:8px;flex-wrap:wrap">${podeC?`<button type="button" class="btn" data-lvadd="comb">${ic('bomba')}+ Combustível</button>`:''}${podeP?`<button type="button" class="btn" data-lvadd="prod">${ic('caixa')}${pr?'Mudar EPI ou material':'+ EPI ou material'}</button>`:''}</div>${f?'':'<p class="ajuda" style="margin:6px 0 0">Escolha o fornecedor lá em cima antes de usar os botões.</p>'}</div>`}
 /* botões do bloco (Lançar lenha e Nova compra): devolve true quando tratou o clique */
 function levouClick(t,d,f,redesenha){
- if(!t||!f)return false;
+ if(!t)return false;
+ if(!f){if(t.dataset.lvadd){toast('Escolha o fornecedor primeiro.','erro');return true}return false}
  const abrirP=L=>ALM_V148.abrirPagLenha({fornecedorId:f.id,travarForn:true,coletar:true,data:d.data||hoje(),linhas:L.prod?L.prod.linhas:[],quem:L.prod?L.prod.quem:'',obs:L.prod?L.prod.obs:'',compra:L.prod?L.prod.compra:null,aoColetar:r=>{L.prod=r;redesenha()}});
  if(t.dataset.lvadd){const L=d.lxLevou||(d.lxLevou={comb:[],prod:null,_f:f.id});
   if(t.dataset.lvadd==='comb'){CB_LENHA.modalComb({fornecedorId:f.id,data:d.data||hoje(),coletar:true,aoColetar:o=>{(L.comb=L.comb||[]).push({...o});redesenha()}});return true}
@@ -44394,7 +44395,8 @@ function telaLancar(c){
   const redes=()=>{const h=htmlLevou(d,FORN(d.parteId),'form');box.innerHTML=h;box.hidden=!h;const r=$('#vdResumo',c);if(r){r.innerHTML=resumoOpV(O,d);r._h=r.innerHTML}};
   if(fsP)fsP.insertAdjacentElement('beforebegin',box);else frm.appendChild(box);redes();
   box.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(levouClick(t,d,FORN(d.parteId),redes)){e.preventDefault();e.stopPropagation()}});
-  const cli=$('#vdCli',c);if(cli)cli.addEventListener('change',()=>setTimeout(()=>{if(d.lxLevou&&d.lxLevou._f&&d.lxLevou._f!==d.parteId)d.lxLevou=null;if(d.lxLevou)d.lxLevou._f=d.parteId;redes()},0));
+  let fAnt=d.parteId||'';const vigia=()=>setTimeout(()=>{if(!box.isConnected){['change','input','click'].forEach(ev=>c.removeEventListener(ev,vigia,true));return}const fa=d.parteId||'';if(fa===fAnt)return;fAnt=fa;if(d.lxLevou&&d.lxLevou._f&&d.lxLevou._f!==fa)d.lxLevou=null;if(d.lxLevou)d.lxLevou._f=fa;redes()},0);
+  c.addEventListener('change',vigia,true);c.addEventListener('input',vigia,true);c.addEventListener('click',vigia,true);
  }catch(e){console.warn('V148 nova compra',e)}}}
 /* fornecedor novo cadastrado a partir do Lançar lenha: volta para cá, não para a Nova compra */
 {const ps0=typeof posSalvarV==='function'?posSalvarV:null;posSalvarV=function(mod,rec,ant){
