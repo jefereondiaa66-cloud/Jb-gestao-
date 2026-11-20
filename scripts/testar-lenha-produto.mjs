@@ -142,12 +142,41 @@ try {
   ok(p1.banco, 'o pagamento chegou ao banco central');
   ok(p1.caixa === 0, 'nada saiu do Caixa (não é pagamento em dinheiro)');
 
-  /* 2. outra coisa (fora do estoque) */
+  /* 2. item novo cadastrado na hora, comprado fora só para pagar (não mexe no estoque); Cozinha fora da lista */
   const p2 = await page.evaluate(async (cid) => {
-    await T.abrirNovo('clProd', 'lenha', { fornecedorId: 'f_lenha', forma: CB_LENHA.FORMA_P[1], descricao: 'Saco de cimento comprado fora', valor: 50 });
+    const agora = new Date().toISOString();
+    await gravar('almItens', { id: 'it_coz', codigo: 'COZ-001', nome: 'Arroz de teste', categoria: 'Cozinha', unidade: 'kg', ativo: true, criadoEm: agora }, null);
+    await T.esperar(() => DATA.almItens.some((i) => i.id === 'it_coz'));
+    await T.abrirNovo('clProd', 'lenha', { fornecedorId: 'f_lenha' });
+    const semOutra = ![...document.querySelectorAll('#camada [data-k="forma"]')].some((x) => x.offsetParent !== null);
+    const semCoz = ![...document.querySelectorAll('#camada [data-k="itemId"] option')].some((o) => o.value === 'it_coz');
+    const bcad = document.querySelector('#camada [data-acao="cadItemAlmP"]'); if (!bcad) throw new Error('sem botão; campos: ' + [...document.querySelectorAll('#camada [data-campo]')].map((x) => x.dataset.campo).join(',') + ' | ' + location.hash);
+    bcad.click(); await T.dorme(300);
+    document.querySelector('#ciNome').value = 'Bota couro de teste nº 41'; document.querySelector('#ciCusto').value = '50,00';
+    document.querySelector('.veu .modal [data-ok]').click(); await T.esperar(() => DATA.almItens.some((i) => i.nome === 'Bota couro de teste nº 41')); await T.dorme(400);
+    const novo = DATA.almItens.find((i) => i.nome === 'Bota couro de teste nº 41');
+    const sel = (document.querySelector('#camada [data-k="itemId"]') || {}).value;
+    const orig = (document.querySelector('#camada [data-k="origemItem"]') || {}).value;
+    T.escolher('quantidade', '1'); await T.dorme(200);
+    const preco = (document.querySelector('#camada [data-k="precoUnit"]') || {}).value;
     await T.salvarGaveta(); await T.esperar(() => DATA.clProd.length === 2); await T.sincronizado();
-    return { saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo, est: ALMOX_V52.estI('it_bota').saldo }; }, ini.id);
-  ok(p2.saldo === 450 && p2.est === 9, `“outra coisa” de R$ 50 desconta (resta ${p2.saldo}) e não mexe no estoque`);
+    const m = DATA.clProd.find((x) => x.itemId === novo.id);
+    return { semOutra, semCoz, novo: !!novo && novo.categoria === 'EPI' && novo.origemCadastro === 'Setor da Lenha' && /^EPI-/.test(novo.codigo || ''), sel: sel === novo.id, orig, preco,
+      valor: m && m.valor, saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo, est: ALMOX_V52.estI('it_bota').saldo, estNovo: ALMOX_V52.estI(novo.id).saldo,
+      mov: ALMOX_V52.movsAlm().filter((x) => x.tipo === 'Pagamento de lenha').length }; }, ini.id);
+  ok(p2.semOutra, 'lançamento novo não tem mais “Outra coisa”: só item do almoxarifado');
+  ok(p2.semCoz, 'itens da Cozinha não aparecem na lista');
+  ok(p2.novo && p2.sel, 'o botão “+ Cadastrar item novo” cadastra no Almoxarifado (EPI, código automático) e já escolhe o item');
+  ok(/Comprado fora/.test(p2.orig) && /50/.test(String(p2.preco)), `item sem saldo vem como “comprado fora”, com o preço informado (${p2.orig}; ${p2.preco})`);
+  ok(p2.valor === 50 && p2.saldo === 450, `bota comprada fora de R$ 50 desconta (resta ${p2.saldo})`);
+  ok(p2.est === 9 && p2.estNovo === 0 && p2.mov === 1, 'comprado fora não mexe no estoque do almoxarifado');
+
+  /* 2b. Contas a pagar – Lenha: o que foi pago, discriminado */
+  const p2b = await page.evaluate(async () => { const x = CPL_LENHA.conta('f_lenha');
+    location.hash = '#/fLenha'; await T.dorme(900); const tela = (document.querySelector('#conteudo') || document.body).textContent;
+    return { prod: x.prod, comb: x.combSo, saldo: x.saldo, tela: /Produtos \(bota, EPI…\) R\$\s?150,00/.test(tela) }; });
+  ok(p2b.prod === 150 && p2b.saldo === 450, `Contas a pagar – Lenha separa os produtos (R$ ${p2b.prod}) e o saldo (R$ ${p2b.saldo})`);
+  ok(p2b.tela, 'a lista do Contas a pagar – Lenha mostra o que foi pago com produto');
 
   /* 3. não deixa tirar mais do que tem no almoxarifado */
   const p3 = await page.evaluate(() => { const st = { ...MODS.clProd.padrao(), id: 'x', fornecedorId: 'f_lenha', itemId: 'it_bota', quantidade: 20, precoUnit: 100 };
@@ -164,7 +193,7 @@ try {
   /* 5. excluir devolve o estoque e o valor a pagar */
   const p5 = await page.evaluate(async (cid) => { const m = DATA.clProd.find((x) => x.itemId === 'it_bota'); await apagar('clProd', m); await T.esperar(() => DATA.clProd.length === 1); await T.sincronizado();
     return { saldo: finVenda(DATA.compras.find((x) => x.id === cid)).saldo, est: ALMOX_V52.estI('it_bota').saldo }; }, ini.id);
-  ok(p5.saldo === 550 && p5.est === 10, `excluir o pagamento com bota: volta a R$ ${p5.saldo} a pagar e ${p5.est} pares no estoque`);
+  ok(p5.saldo === 550 && p5.est === 10, `excluir o pagamento com bota do estoque: volta a R$ ${p5.saldo} a pagar e ${p5.est} pares no estoque`);
 
   ok(!erros.length, 'sem erros de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) {

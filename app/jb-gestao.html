@@ -8599,6 +8599,7 @@ function abrirRegistro(mod,id){
   if(a==='comprovante'){if(typeof COMP_LANC!=='undefined')COMP_LANC.emitir(mod,ant,!!(GAV&&GAV.sujo));return}
   if(a==='imprimirAdv'){imprimirAdvertencia(st);return}
   if(a==='aplicarAlt'){aplicarAlteracao(st,v);return}
+  if(a&&window.ACOES_FORM&&typeof window.ACOES_FORM[a]==='function'){await window.ACOES_FORM[a]({st,v,mod,M,refrescar,t});return}
   if(a==='salvar')salvarRegistro(mod,st,ant,novo,v,campos,t);
  });
  if(mod==='funcionarios'&&!novo)resolverNomes(DATA.log.filter(l=>l.recId===st.id).map(l=>l.uid));
@@ -34415,11 +34416,17 @@ Object.assign(PERM,{clProd:{v:PC,e:PC}});
 if(!ROTAS_SETOR.includes('clProd'))ROTAS_SETOR.push('clProd');
 const FORMA_P=['Produto do almoxarifado (EPI, ferramenta, material)','Outra coisa (fora do estoque)'];
 const ehAlmP=r=>!!r&&r.forma===FORMA_P[0];
+/* V147 (pedido do Jeferson, 20/11): só itens do almoxarifado (sem a Cozinha), com "cadastrar item novo"
+   na hora; o item pode ter saído do estoque ou ter sido comprado fora só para pagar (não mexe no estoque).
+   "Outra coisa" não aparece mais para lançamentos novos; os antigos continuam abrindo como estão. */
+const ORIG_P=['Saiu do estoque do almoxarifado','Comprado fora só para pagar (não estava no estoque)'];
+const doEstoqueP=r=>ehAlmP(r)&&r.origemItem!==ORIG_P[1];
+const itemOkP=i=>!!i&&i.categoria!=='Cozinha';
 const almI=id=>(DATA.almItens||[]).find(i=>i.id===id);
 const almEst=id=>{try{return window.ALMOX_V52&&ALMOX_V52.estI?ALMOX_V52.estI(id):null}catch(e){return null}};
 const unA=u=>u==='unidade'?'un':String(u||'');
 /* o que ainda dá para tirar do estoque (ao editar, devolve o que este lançamento já tirou) */
-function dispP(r){const e=almEst(r.itemId);if(!e)return null;let d=+e.disp||0;const ant=r.id?DATA.clProd.find(x=>x.id===r.id):null;if(ant&&ant.itemId===r.itemId&&ehAlmP(ant))d+=+ant.quantidade||0;return r3(d)}
+function dispP(r){const e=almEst(r.itemId);if(!e)return null;let d=+e.disp||0;const ant=r.id?DATA.clProd.find(x=>x.id===r.id):null;if(ant&&ant.itemId===r.itemId&&doEstoqueP(ant))d+=+ant.quantidade||0;return r3(d)}
 const valorP=r=>ehAlmP(r)?r2((+r.quantidade||0)*(+r.precoUnit||0)):r2(+r.valor||0);
 const rotProd=m=>ehAlmP(m)?(fQtd(+m.quantidade||0)+' '+unA(m.unidade)+' de '+(m.itemNome||'item')):(m.descricao||'Outra coisa');
 function efeitoP(r){
@@ -34431,17 +34438,45 @@ function estoqueP(r){
  if(!ehAlmP(r))return '';const i=almI(r.itemId);if(!i)return '<span class="ajuda">Escolha o item do almoxarifado.</span>';
  const e=almEst(i.id);if(!e)return '<span class="ajuda">O estoque do almoxarifado não está disponível para o seu perfil.</span>';
  const d=dispP(r);const q=+r.quantidade||0;
+ if(!doEstoqueP(r))return `Comprado fora: <b>não mexe no estoque</b> do almoxarifado (saldo continua ${esc(fQtd(d))} ${esc(unA(i.unidade))}).`;
  return `Saldo no almoxarifado: <b>${esc(fQtd(d))} ${esc(unA(i.unidade))}</b> · custo médio ${esc(fMoeda(e.cm||0))}`+(q>0?` → depois: <b>${esc(fQtd(r3(d-q)))} ${esc(unA(i.unidade))}</b>`:'')+
   (r.criadoEm?'':'<br><span class="ajuda">Ao salvar, o item sai do estoque do almoxarifado como “Pagamento de lenha” (fora do consumo da produção).</span>')}
+/* cadastrar item novo no almoxarifado sem sair do pagamento */
+window.ACOES_FORM=window.ACOES_FORM||{};
+window.ACOES_FORM.cadItemAlmP=async({st,v,M,refrescar})=>{
+ const cats=(window.ALMOX_V52&&ALMOX_V52.CAT_NOMES||['Peças e manutenção','EPI','Ferramentas','Elétrico','Material de produção','Produtos em geral','Limpeza','Escritório','Outros']).filter(c=>c!=='Cozinha');
+ const uns=['par','unidade','caixa','metro','kg','litro','rolo','jogo','pacote','fardo','saco','dúzia','lata'];
+ modalV('Cadastrar item no almoxarifado',`<p class="ajuda" style="margin:0 0 10px">O item entra na lista do Almoxarifado (sem a Cozinha) e já fica escolhido neste pagamento.</p>
+  <div class="campos" style="grid-template-columns:1fr 1fr"><div class="cmp w2" style="grid-column:1/-1"><label for="ciNome">Nome do item<i> *</i></label><input id="ciNome" placeholder="Ex.: Bota de segurança couro nº 41"></div>
+  <div class="cmp"><label for="ciCat">Categoria<i> *</i></label><select id="ciCat">${cats.map(c=>`<option ${c==='EPI'?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+  <div class="cmp"><label for="ciUn">Unidade<i> *</i></label><select id="ciUn">${uns.map(u=>`<option>${esc(u)}</option>`).join('')}</select></div>
+  <div class="cmp"><label for="ciCusto">Preço de uma unidade</label><input id="ciCusto" data-masc="moeda" inputmode="decimal" placeholder="0,00"></div></div>`,'Cadastrar item',async m=>{
+  const nome=String($('#ciNome',m).value||'').trim().replace(/\s+/g,' ');const cat=$('#ciCat',m).value;const un=$('#ciUn',m).value;const custo=r2(lerMoeda($('#ciCusto',m).value||'')||0);
+  if(nome.length<3){toast('Informe o nome do item.','erro');return false}
+  const ig=(DATA.almItens||[]).find(i=>semAcento(String(i.nome||'')).toLowerCase()===semAcento(nome).toLowerCase());
+  if(ig){toast('Já existe “'+ig.nome+'”'+(ig.codigo?' ('+ig.codigo+')':'')+'. Escolhido na lista.','ok');st.itemId=ig.id}
+  else{const agora=new Date().toISOString();const id=novoId();
+   const rec={id,data:hoje(),codigo:window.ALMOX_V52&&ALMOX_V52.proxCodigo?ALMOX_V52.proxCodigo(cat):'',nome,categoria:cat,unidade:un,ativo:true,custoRef:custo>0?custo:'',
+    minimo:'',maximo:'',prazoRep:'',marca:'',refFab:'',especificacao:'',ca:'',caValidade:'',tipoCoz:'',local:'',fornecedorId:'',grupoId:'',
+    origemCadastro:'Setor da Lenha',obs:'Cadastrado no Setor da Lenha, no pagamento de fornecedor com produto.',criadoEm:agora,criadoPor:APP.uid||'local',alteradoEm:agora,alteradoPor:APP.uid||'local'};
+   try{await gravar('almItens',rec,null)}catch(err){toast('Não foi possível cadastrar o item: '+motivoErro(err)+'.','erro');return false}
+   st.itemId=id;toast('Item '+(rec.codigo||nome)+' cadastrado no Almoxarifado.','ok')}
+  if(M.aoMudar)M.aoMudar(st,'itemId');if(custo>0&&!(+st.precoUnit>0))st.precoUnit=custo;
+  const f=M.fields.find(x=>x.k==='itemId');const cmp=v.querySelector('[data-k="itemId"]');const w=cmp&&cmp.closest('.cmp');if(w&&typeof htmlCampo==='function')w.outerHTML=htmlCampo(f,st,false);
+  refrescar();
+  {const ip=v.querySelector('[data-k="precoUnit"]');if(ip)ip.value=+st.precoUnit>0?fMoedaCampo(st.precoUnit):'';const io=v.querySelector('[data-k="origemItem"]');if(io)io.value=st.origemItem||''}
+  if(typeof GAV!=='undefined'&&GAV)GAV.sujo=true});
+ return true};
 MODS.clProd={titulo:'Pagamentos com produto',sing:'pagamento com produto',ic:'caixa',
  desc:'Fornecedor de lenha pago com bota, EPI, ferramenta, material do almoxarifado ou outra coisa. O valor desconta sozinho do que a cerâmica deve a ele, como o combustível. Produto do almoxarifado sai do estoque.',
  fields:[
   {k:'fornecedorId',l:'Fornecedor de lenha',t:'sel',req:1,op:()=>fornsDe('lenha').map(f=>[f.id,nomeFornecedor(f)]),s:'Pagamento'},
   {k:'data',l:'Data',t:'data',req:1,s:'Pagamento'},
-  {k:'forma',l:'O que ele recebeu',t:'sel',req:1,op:FORMA_P,s:'Pagamento',aj:'Produto do almoxarifado sai do estoque. “Outra coisa” é o que não está no almoxarifado (descreva o que foi).'},
-  {k:'itemId',l:'Item do almoxarifado',t:'sel',req:1,sh:ehAlmP,s:'Pagamento',
-   op:r=>(DATA.almItens||[]).filter(i=>(i.ativo!==false&&i.ativo!=='false')||(r&&r.itemId===i.id)).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'))
+  {k:'forma',l:'O que ele recebeu',t:'sel',req:1,op:FORMA_P,sh:r=>r.forma===FORMA_P[1],s:'Pagamento',aj:'Lançamento antigo. Os novos são sempre com item do almoxarifado.'},
+  {k:'itemId',l:'Item do almoxarifado',t:'sel',req:1,sh:ehAlmP,s:'Pagamento',botao:{txt:'+ Cadastrar item novo',fn:'cadItemAlmP'},aj:'Não achou o item? Cadastre na hora pelo botão: ele entra no Almoxarifado.',
+   op:r=>(DATA.almItens||[]).filter(i=>(itemOkP(i)&&i.ativo!==false&&i.ativo!=='false')||(r&&r.itemId===i.id)).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'))
     .map(i=>{const e=almEst(i.id);return[i.id,(i.codigo?i.codigo+' · ':'')+i.nome+(i.categoria?' ('+i.categoria+')':'')+(e?' · saldo '+fQtd(e.disp)+' '+unA(i.unidade):'')]})},
+  {k:'origemItem',l:'De onde saiu o item',t:'sel',req:1,op:ORIG_P,sh:ehAlmP,s:'Pagamento',aj:'Do estoque: baixa no almoxarifado. Comprado fora: só registra o pagamento, sem mexer no estoque.'},
   {k:'quantidade',l:'Quantidade',t:'num',req:1,sh:ehAlmP,s:'Pagamento'},
   {k:'precoUnit',l:'Preço combinado por unidade',t:'moeda',req:1,sh:ehAlmP,s:'Pagamento',aj:'Vem com o custo médio do almoxarifado. Mude se o combinado com o fornecedor for outro.'},
   {k:'_estoque',l:'Estoque',t:'html',vivo:1,w2:1,sh:ehAlmP,s:'Pagamento',calc:estoqueP},
@@ -34459,19 +34494,23 @@ MODS.clProd={titulo:'Pagamentos com produto',sing:'pagamento com produto',ic:'ca
   {k:'_u',l:'Registrado por',v:r=>esc(nomeUsuario(r.criadoPor)),o:r=>nomeUsuario(r.criadoPor)}],
  filtros:[{k:'fornecedorId',l:'Fornecedor',op:()=>fornsDe('lenha').map(f=>[f.id,nomeFornecedor(f)])},{k:'forma',l:'O que recebeu',op:FORMA_P},{k:'data',l:'Data',t:'periodo',campo:'data'}],
  ordem:['data','desc'],excluirLanc:true,
- padrao:()=>({data:hoje(),forma:FORMA_P[0],setor:'lenha'}),
+ padrao:()=>({data:hoje(),forma:FORMA_P[0],origemItem:ORIG_P[0],setor:'lenha'}),
  aoMudar(st,k){
+  if(k==='itemId'&&ehAlmP(st)&&!st.criadoEm){const e=almEst(st.itemId);st.origemItem=e&&+e.disp>0?ORIG_P[0]:ORIG_P[1]}
   if(k==='forma'){if(ehAlmP(st)){st.descricao=''}else{st.itemId='';st.quantidade='';st.precoUnit=''}}
-  if(k==='itemId'&&ehAlmP(st)){const e=almEst(st.itemId);st.precoUnit=e&&e.cm>0?r2(e.cm):''}
+  if(k==='itemId'&&ehAlmP(st)){const e=almEst(st.itemId);const i=almI(st.itemId);st.precoUnit=e&&e.cm>0?r2(e.cm):(i&&+i.custoRef>0?r2(+i.custoRef):'')}
   if(ehAlmP(st))st.valor=valorP(st)},
  validar(st){const e={};
   if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
   const f=FORN(st.fornecedorId);if(st.fornecedorId&&(!f||f.setor!=='lenha'))e.fornecedorId='Escolha um fornecedor do Setor da Lenha.';
   if(!FORMA_P.includes(st.forma))e.forma='Escolha o que ele recebeu.';
+  if(st.forma===FORMA_P[1]&&!DATA.clProd.some(x=>x.id===st.id))e.forma='Escolha um item do almoxarifado (ou cadastre um item novo).';
   if(ehAlmP(st)){const i=almI(st.itemId);
    if(st.itemId&&!i)e.itemId='Item não encontrado no almoxarifado.';
+   else if(i&&!itemOkP(i)&&!DATA.clProd.some(x=>x.id===st.id&&x.itemId===i.id))e.itemId='Item da Cozinha não entra aqui. Escolha um item do almoxarifado.';
+   if(!ORIG_P.includes(st.origemItem))e.origemItem='Diga de onde saiu o item.';
    if(!(+st.quantidade>0))e.quantidade='Informe a quantidade (maior que zero).';
-   else if(i){const d=dispP(st);if(d!=null&&+st.quantidade>d+1e-9)e.quantidade='Estoque insuficiente de '+i.nome+': disponível '+fQtd(d)+' '+unA(i.unidade)+'.'}
+   else if(i&&doEstoqueP(st)){const d=dispP(st);if(d!=null&&+st.quantidade>d+1e-9)e.quantidade='Estoque insuficiente de '+i.nome+': disponível '+fQtd(d)+' '+unA(i.unidade)+'. Se foi comprado fora só para pagar, mude “De onde saiu o item”.'}
    if(!(+st.precoUnit>0))e.precoUnit='Informe o preço combinado (maior que zero).'}
   else{if(!String(st.descricao||'').trim())e.descricao='Descreva o que ele recebeu.';if(!(+st.valor>0))e.valor='Informe o valor (maior que zero).'}
   const ant=DATA.clProd.find(x=>x.id===st.id);const cr=ant?credPorId('p:'+st.id):null;
@@ -34483,21 +34522,21 @@ MODS.clProd={titulo:'Pagamentos com produto',sing:'pagamento com produto',ic:'ca
  preparar(rec){rec.setor='lenha';const f=FORN(rec.fornecedorId);rec.fornecedorNome=nomeFornecedor(f);rec.fornecedorDoc=docFornecedor(f)||'';
   if(ehAlmP(rec)){const i=almI(rec.itemId)||{};const e=almEst(rec.itemId);rec.quantidade=r3(+rec.quantidade);rec.precoUnit=r2(+rec.precoUnit);rec.valor=valorP(rec);
    rec.itemNome=String(i.nome||'');rec.itemCodigo=String(i.codigo||'');rec.unidade=String(i.unidade||'');rec.categoria=String(i.categoria||'');
-   rec.custoUnit=e?Math.round((+e.cm||0)*10000)/10000:0;rec.custoTotal=r2(rec.quantidade*rec.custoUnit);delete rec.descricao}
-  else{rec.valor=r2(+rec.valor);rec.descricao=String(rec.descricao||'').trim();['itemId','quantidade','precoUnit','itemNome','itemCodigo','unidade','categoria','custoUnit','custoTotal'].forEach(k=>delete rec[k])}}};
+   if(doEstoqueP(rec)){rec.origemItem=ORIG_P[0];rec.custoUnit=e?Math.round((+e.cm||0)*10000)/10000:0;rec.custoTotal=r2(rec.quantidade*rec.custoUnit)}else{rec.origemItem=ORIG_P[1];rec.custoUnit=rec.precoUnit;rec.custoTotal=rec.valor}delete rec.descricao}
+  else{rec.valor=r2(+rec.valor);rec.descricao=String(rec.descricao||'').trim();['itemId','origemItem','quantidade','precoUnit','itemNome','itemCodigo','unidade','categoria','custoUnit','custoTotal'].forEach(k=>delete rec[k])}}};
 /* depois de salvar: aviso */
 {const ps0=posSalvarV;posSalvarV=function(mod,rec,ant){
- if(!ant&&rec&&mod==='clProd')setTimeout(()=>toast('Pagamento de '+fMoeda(rec.valor)+' para '+(rec.fornecedorNome||'o fornecedor')+' lançado. O que a cerâmica deve a ele já foi atualizado'+(ehAlmP(rec)?' e o item saiu do almoxarifado':'')+'.','ok'),400);
+ if(!ant&&rec&&mod==='clProd')setTimeout(()=>toast('Pagamento de '+fMoeda(rec.valor)+' para '+(rec.fornecedorNome||'o fornecedor')+' lançado. O que a cerâmica deve a ele já foi atualizado'+(doEstoqueP(rec)?' e o item saiu do almoxarifado':'')+'.','ok'),400);
  return ps0?ps0(mod,rec,ant):false}}
 /* excluir: o que já entrou em acerto fechado só sai com o estorno do acerto */
 {const pe0=window.preExcluirV51;window.preExcluirV51=function(mod,rec){
  if(rec&&mod==='clProd'){const cr=credPorId('p:'+rec.id);if(cr&&cr.acerto>0.004){const ns=[...new Set(cr.acertos.map(a=>fNumV(a.acertoNumero)))].join(', ');
   return{bloq:'Este pagamento já foi descontado no acerto de lenha nº '+ns+' (fechado). Para excluir, o administrador estorna o acerto antes.'}}}
  const r=pe0?pe0(mod,rec):null;
- if(rec&&mod==='clProd'&&r&&!r.bloq){const cr=credPorId('p:'+rec.id);r.texto=String(r.texto||'')+(cr?' O desconto de '+fMoeda(cr.valor)+' para '+(cr.fornecedorNome||'o fornecedor')+' sai junto: o valor volta a ficar a pagar.':'')+(ehAlmP(rec)?' O item volta para o estoque do almoxarifado.':'')}
+ if(rec&&mod==='clProd'&&r&&!r.bloq){const cr=credPorId('p:'+rec.id);r.texto=String(r.texto||'')+(cr?' O desconto de '+fMoeda(cr.valor)+' para '+(cr.fornecedorNome||'o fornecedor')+' sai junto: o valor volta a ficar a pagar.':'')+(doEstoqueP(rec)?' O item volta para o estoque do almoxarifado.':'')}
  return r}}
 /* para o almoxarifado: o que saiu do estoque como pagamento de lenha */
-function saidasProdAlm(){return DATA.clProd.filter(m=>ehAlmP(m)&&m.itemId&&+m.quantidade>0).map(m=>({id:m.id,data:m.data||'',itemId:m.itemId,qtd:+m.quantidade||0,custoUnit:m.custoUnit,
+function saidasProdAlm(){return DATA.clProd.filter(m=>doEstoqueP(m)&&m.itemId&&+m.quantidade>0).map(m=>({id:m.id,data:m.data||'',itemId:m.itemId,qtd:+m.quantidade||0,custoUnit:m.custoUnit,
  custoTotal:m.custoTotal,fornecedorNome:m.fornecedorNome||'',valor:+m.valor||0,em:m.criadoEm||'',href:'#/clProd/'+m.id}))}
 
 /* V142b (20/11): o Jeferson não achou a opção. Agora ela aparece onde se paga a lenha:
@@ -45019,11 +45058,17 @@ function calcConta(fid,ob,credsAll){
  const T={entregas:r2(soma(ents,e=>e.bruto)),outros:r2(soma(tits,x=>x.bruto)),comb:r2(soma(ents,e=>e.comb)),desc:r2(soma(ents,e=>e.desc)),
   pagoEnt:r2(soma(ents,e=>e.pago)),pagoTit:r2(soma(tits,x=>x.pago)),adtPago,saldo:r2(soma(ents,e=>e.saldo)+soma(tits,x=>x.saldo)),
   credAdt:r2(A.credito||0),credComb,qtd:porUnidade(ents.flatMap(e=>e.itens),i=>i.qtd,i=>i.unidade)};
+ /* V147: separa o que foi produto (bota, EPI…) do combustível; o total "comb" continua o mesmo */
+ {let cA=[];try{cA=((window.CB_LENHA&&window.CB_LENHA.aloc().porForn[fid])||{}).creds||[]}catch(e){}
+  /* o que de fato abateu as compras (aplicado agora + o que já entrou em acerto fechado); a sobra é crédito */
+  T.prod=r2(Math.min(T.comb,soma(cA.filter(cr=>cr.prodPag),cr=>(+cr.desc||0)+(+cr.acerto||0))));T.combSo=r2(Math.max(0,T.comb-T.prod))}
  T.bruto=r2(T.entregas+T.outros);T.abat=r2(T.comb+T.desc);T.devido=r2(T.bruto-T.abat);T.pago=r2(T.pagoEnt+T.pagoTit+T.adtPago);T.credito=r2(T.credAdt+T.credComb);
  const cta={fid,f,nome,doc:docForn(f)||((cs[0]&&parteSnap(cs[0]).doc)||''),tel:f?(f.whatsapp||f.telefone||''):'',ents,tits,adts,creds,
   hist:(DATA.compras||[]).filter(c=>c.tipoOp==='compra'&&c.setor==='lenha'&&c.historico&&!cancV(c)&&(c.fornecedorId||SEM)===fid),
   ...T,ult:ents.length?ents[ents.length-1].data:'',abertas:ents.filter(e=>e.saldo>0.004).length+tits.filter(x=>x.saldo>0.004).length};
  cta.pags=pagamentosDe(cta);
+ /* V147: o que foi pago, por forma (PIX, Dinheiro, Transferência…) */
+ {const M={};cta.pags.forEach(g=>{const v=r2(+g.valor||0);if(!(v>0.004))return;const k=String(g.forma||'').trim()||'Forma não informada';M[k]=r2((M[k]||0)+v)});cta.porForma=M}
  const ex=extratoDe(cta);cta.extrato=ex.linhas;cta.pagoCiclo=ex.pagoCiclo;cta.devidoCiclo=ex.devidoCiclo;
  cta.vencido=cta.saldo>0.004&&(ents.some(e=>e.saldo>0.004&&e.status==='Vencido')||tits.some(x=>x.saldo>0.004&&x.vencido));
  const progs=[...ents.filter(e=>e.saldo>0.004).map(e=>e.prog),...tits.filter(x=>x.saldo>0.004).map(x=>x.prog)].filter(Boolean).sort();
@@ -45070,7 +45115,7 @@ function extratoDe(cta){
  const ev=[];const E=(o)=>ev.push(o);
  cta.ents.forEach(e=>E({d:e.data,ts:e.c.criadoEm||'',k:'ent',txt:'Entrega nº '+fNumV(e.numero)+(e.qtdTxt?' · '+e.qtdTxt:'')+(e.preco!=null?' × '+fMoeda(e.preco)+(e.un?'/'+unCurta(e.un):''):''),deb:e.bruto,href:'#/compra/'+e.id}));
  cta.tits.forEach(x=>E({d:x.data,ts:x.t.criadoEm||'',k:'tit',txt:(x.desc||'Compromisso')+(x.numero?' (compromisso nº '+x.numero+')':''),deb:x.bruto}));
- cta.creds.forEach(cr=>E({d:cr.data,ts:cr.em||'',k:'comb',txt:'Combustível '+(cr.man?'lançado à mão ('+cr.origem+')':'na bomba da cerâmica')+(cr.qtd?' · '+fQtd(cr.qtd)+' '+cr.un+(cr.prod?' de '+cr.prod:''):''),cred:r2(cr.valor)}));
+ cta.creds.forEach(cr=>E({d:cr.data,ts:cr.em||'',k:'comb',txt:cr.prodPag?'Pago com produto · '+(cr.qtd?fQtd(cr.qtd)+' '+cr.un+' de ':'')+cr.prod:'Combustível '+(cr.man?'lançado à mão ('+cr.origem+')':'na bomba da cerâmica')+(cr.qtd?' · '+fQtd(cr.qtd)+' '+cr.un+(cr.prod?' de '+cr.prod:''):''),cred:r2(cr.valor)}));
  cta.ents.forEach(e=>{(e.c.pagamentos||[]).filter(p=>!p.estornado&&ehCombV62(p)).forEach(p=>E({d:p.data,ts:p.em||'',k:'comb',txt:'Pago com combustível (entrega nº '+fNumV(e.numero)+')',cred:r2(p.valor)}));
   (e.c.abatimentos||[]).filter(a=>!a.estornado&&!String(a.srcId||'').startsWith('cb:')).forEach(a=>E({d:a.data,ts:a.em||'',k:'desc',txt:'Desconto do acerto nº '+fNumV(a.acertoNumero)+(a.origem?' · '+a.origem:''),cred:r2(a.valor)}))});
  cta.pags.forEach(g=>{if(!(g.valor>0.004))return;
@@ -45357,6 +45402,12 @@ function quadros(L,sel,attr,rotulo){
  return `<div class="cpl-cards" role="tablist" aria-label="${esc(rotulo||'Escolha o que ver')}">${L.map(q=>{const on=sel===q.k;
   return `<button type="button" role="tab" ${attr}="${esc(q.k)}" aria-selected="${on}" class="${esc(q.cls||'')}"><span class="rot">${esc(q.rot)}</span><b>${esc(q.v)}</b>${q.sub?`<small>${esc(q.sub)}</small>`:''}<span class="ver" aria-hidden="true">›</span></button>`}).join('')}</div>`}
 const pl=(n,s,p)=>n+' '+(n===1?s:(p||s+'s'));
+/* V147: o que foi pago ao fornecedor, discriminado (combustível, produtos, descontos e cada forma de pagamento) */
+const ordForma=(a,b)=>{const P=['PIX','Dinheiro','Transferência','Boleto','Cheque'];const ia=P.indexOf(a),ib=P.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b,'pt-BR')};
+const formasDe=L=>[...new Set(L.flatMap(x=>Object.keys(x.porForma||{})))].sort(ordForma);
+function quebraPago(x){const L=[];if(x.combSo>0.004)L.push(['Combustível',x.combSo]);if(x.prod>0.004)L.push(['Produtos (bota, EPI…)',x.prod]);if(x.desc>0.004)L.push(['Descontos',x.desc]);
+ Object.keys(x.porForma||{}).sort(ordForma).forEach(k=>L.push([k,x.porForma[k]]));return L}
+const txtQuebra=L=>L.map(([k,v])=>k+' '+fMoeda(v)).join(' · ');
 function telaContas(c){
  if(!podeVer()){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Fale com o administrador.</div>';return}
  const todas=contas().filter(x=>x.ents.length||x.tits.length||x.pags.length||x.credito>0.004);
@@ -45379,8 +45430,8 @@ function telaContas(c){
   (L.length?`<div class="painel tabwrap"><table class="tbl cartao cpl-tab"><thead><tr><th>Fornecedor</th><th class="num">Lenha recebida</th><th class="num">Valor das entregas</th><th class="num">Combustível e descontos</th><th class="num">Já pago</th><th>Última entrega</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
    ${L.map(x=>`<tr class="clic" data-go="#/${ROTA}/${esc(x.fid)}" tabindex="0">
     <td data-l="Fornecedor"><b>${esc(x.nome)}</b><span class="cpl-sub">${esc([pl(x.ents.length,'entrega'),x.abertas?x.abertas+' em aberto':'',x.doc].filter(Boolean).join(' · '))}</span></td>
-    <td data-l="Lenha recebida" class="num">${esc(txtUnid(x.qtd,true))}</td><td data-l="Valor das entregas" class="num">${esc(fMoeda(x.bruto))}</td><td data-l="Combustível e descontos" class="num">${esc(fMoeda(x.abat))}</td>
-    <td data-l="Já pago" class="num">${esc(fMoeda(x.pago))}</td><td data-l="Última entrega">${x.ult?esc(fData(x.ult)):'—'}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(x.saldo))}</b></td>
+    <td data-l="Lenha recebida" class="num">${esc(txtUnid(x.qtd,true))}</td><td data-l="Valor das entregas" class="num">${esc(fMoeda(x.bruto))}</td><td data-l="Combustível e descontos" class="num">${esc(fMoeda(x.abat))}${x.abat>0.004?`<span class="cpl-sub">${esc(txtQuebra(quebraPago({...x,porForma:{}})))}</span>`:''}</td>
+    <td data-l="Já pago" class="num">${esc(fMoeda(x.pago))}${x.pago>0.004?`<span class="cpl-sub">${esc(txtQuebra(Object.entries(x.porForma||{}).sort((a,b)=>ordForma(a[0],b[0]))))}</span>`:''}</td><td data-l="Última entrega">${x.ult?esc(fData(x.ult)):'—'}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(x.saldo))}</b></td>
     <td data-l="Situação">${tagsConta(x)}</td>
     <td class="acs">${ed&&x.fid!==SEM?`<button type="button" class="btn min${x.saldo>0.004?' pri':''} cpl-btn-pagar" data-cplpagar="${esc(x.fid)}">${esc(BTN_PAGAR)}</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:
    `<div class="vazio"><b>${todas.length?'Nenhum fornecedor neste filtro':'Nenhuma conta de lenha'}</b>${todas.length?'Toque em “Todos” para ver os demais.':'As contas aparecem aqui quando a lenha for lançada no Setor da Lenha.'}</div>`)}
@@ -45405,8 +45456,13 @@ function telaContas(c){
    const fx=f=>exportar(f,'Pagamentos_lenha_'+hoje(),cols,rows,'Pagamentos feitos – Lenha');
    abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:pl(rows.length,'pagamento'),fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}]);return}
   const L=todas.filter(x=>passa(x,UI.sit)&&(!q||normTxtL(x.nome+' '+x.doc).includes(q)));
-  const cols=[{k:'nome',l:'Fornecedor'},{k:'doc',l:'CPF/CNPJ'},{k:'qtd',l:'Lenha recebida'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},{k:'abat',l:'Combustível e descontos',t:'moeda'},{k:'pago',l:'Já pago',t:'moeda'},{k:'saldo',l:'Falta pagar',t:'moeda'},{k:'credito',l:'Crédito',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}];
-  const rows=L.map(x=>({nome:x.nome,doc:x.doc,qtd:txtUnid(x.qtd,true),n:x.ents.length,bruto:x.bruto,abat:x.abat,pago:x.pago,saldo:x.saldo,credito:x.credito,ult:x.ult,sit:x.sit}));
+  /* V147: discriminado — o que foi pago com combustível, produto (bota, EPI…), desconto e cada forma (PIX, dinheiro…) */
+  const FM=formasDe(L);
+  const cols=[{k:'nome',l:'Fornecedor'},{k:'doc',l:'CPF/CNPJ'},{k:'qtd',l:'Lenha recebida'},{k:'n',l:'Entregas',t:'num'},{k:'bruto',l:'Valor das entregas',t:'moeda'},
+   {k:'comb',l:'Combustível',t:'moeda'},{k:'prod',l:'Produtos (bota, EPI…)',t:'moeda'},{k:'desc',l:'Descontos',t:'moeda'},
+   ...FM.map((f,i)=>({k:'f'+i,l:f,t:'moeda'})),{k:'pagoTot',l:'Total pago e abatido',t:'moeda'},{k:'saldo',l:'Saldo (falta pagar)',t:'moeda'},{k:'credito',l:'Crédito',t:'moeda'},{k:'ult',l:'Última entrega',t:'data'},{k:'sit',l:'Situação'}];
+  const rows=L.map(x=>({nome:x.nome,doc:x.doc,qtd:txtUnid(x.qtd,true),n:x.ents.length,bruto:x.bruto,comb:x.combSo,prod:x.prod,desc:x.desc,
+   ...Object.fromEntries(FM.map((f,i)=>['f'+i,(x.porForma||{})[f]||0])),pagoTot:r2(x.abat+x.pago),saldo:x.saldo,credito:x.credito,ult:x.ult,sit:x.sit}));
   const fx=f=>exportar(f,'Contas_a_pagar_lenha_'+hoje(),cols,rows,'Contas a pagar – Lenha');
   abrirMenuMais($('#cplExp',c),[{l:'Visualizar',sub:pl(rows.length,'fornecedor','fornecedores'),fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
 }
@@ -45554,6 +45610,7 @@ function docExtrato(fid){
  D.setor=nomeSetorDoc('financeiro');D.parteNome=x.nome;D.numero='';
  D.meta=[['Saldo pendente',fMoeda(x.saldo)],['Situação',x.sit]];
  D.blocos.push({tipo:'indicadores',itens:[['Entregas',fMoeda(x.bruto)],['Abatimentos',fMoeda(x.abat)],['Já pago',fMoeda(x.pago),'ok'],['Saldo pendente',fMoeda(x.saldo),x.saldo>0.004?'at':'']]});
+ {const Q=quebraPago(x);if(Q.length)D.blocos.push({tipo:'secao',titulo:'O que foi pago ao fornecedor',tabela:{head:['Como foi pago','Valor'],dir:[1],body:[['Valor das entregas',fMoeda(x.bruto)],...Q.map(([k,v])=>['− '+k,fMoeda(v)]),['Saldo (falta pagar)',fMoeda(x.saldo)]]}})}
  D.blocos.push({tipo:'tabela',head:['Data','Descrição','Valor gerado','Abatido ou pago','Saldo'],dir:[2,3,4],body:x.extrato.map(l=>[fData(l.d),l.txt,l.deb?fMoeda(l.deb):'',l.cred?fMoeda(-l.cred):'',l.saldo<-0.004?fMoeda(-l.saldo)+' crédito':fMoeda(l.saldo)])});
  if(x.credito>0.004)D.blocos.push({tipo:'p',texto:'Crédito do fornecedor: '+fMoeda(x.credito)+' (desconta sozinho das próximas entregas).'});
  D.notaFinal='Extrato interno da conta do fornecedor de lenha no Financeiro. Compras importadas do controle antigo, já pagas antes do sistema, não entram.';
