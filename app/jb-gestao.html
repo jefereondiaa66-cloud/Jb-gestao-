@@ -38308,6 +38308,12 @@ async function garantirBibliotecas(){
  else if(!(window.jspdf.jsPDF.API&&window.jspdf.jsPDF.API.autoTable))t.push(tabela());
  if(t.length){await Promise.all(t);graficosNoToque();if(window.Chart&&lerRota().mod==='painel')renderTela()}
 }
+/* V151: a página inteira foi lida quando todos os blocos de script já rodaram (document.readyState deixa de ser
+   "loading"). Não espera fontes, imagens nem bibliotecas de fora; no pior caso desiste em 5 segundos. */
+function paginaLida(){
+ if(document.readyState!=='loading')return Promise.resolve();
+ return new Promise(r=>{let t=0;const fim=()=>{if(document.readyState==='loading')return;document.removeEventListener('readystatechange',fim);clearTimeout(t);r()};
+  t=setTimeout(()=>{document.removeEventListener('readystatechange',fim);r()},5000);document.addEventListener('readystatechange',fim)})}
 async function iniciar(){
  let db=null,user=null,assets=null,dl=null,sp=null,mcp=null;
  const w=window.claude;
@@ -38326,6 +38332,12 @@ async function iniciar(){
  else if(APP.modo==='local'){APP.uid='local';APP.nome='Usuário local';APP.isOwner=true;APP.canEdit=true}
  else{APP.uid=null;APP.nome='';APP.isOwner=false;APP.canEdit=false}
  definirPapel();await carregarAcesso();
+ /* V151: a primeira tela só é desenhada com o programa inteiro registrado. Os blocos de script que vêm depois deste
+    acrescentam setores, telas e ajustes (resumo do dia, pendências, saudação, desfazer, Setor de Fichas…). Quando os
+    dados chegavam antes de a página terminar de ser lida, a primeira tela saía sem essas partes (a tela Setores abria
+    sem o cartão do Setor de Fichas) e só se completava no redesenho seguinte. Com a página já lida, que é o normal
+    na nuvem e no Claude, não espera nada. */
+ if(document.readyState==='loading')await paginaLida();
  if(acessoOk()){assinar();ASSINOU_DADOS=true}
  if(acessoOk()&&(!location.hash||location.hash==='#'||location.hash==='#/'))history.replaceState(null,'','#/setores');
  if(acessoOk()&&typeof rtRecuperar==='function'){try{rtRecuperar()}catch(e){console.warn('rascunhos',e)}}

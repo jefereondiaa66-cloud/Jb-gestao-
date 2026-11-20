@@ -151,6 +151,10 @@ const est = () => page.evaluate(() => JBNAV.estado()); const hash = () => page.e
 const w = (ms = 170) => page.waitForTimeout(ms);
 const desligado = () => page.evaluate(() => { const l = [...document.querySelectorAll('[data-jb-voltar]')]; return l.length > 0 && l.every(b => b.disabled); });
 const setores = await page.evaluate(() => [...document.querySelectorAll('[data-setor]')].map(b => b.dataset.setor));
+// a primeira tela precisa sair completa: todos os setores liberados, na ordem, já no primeiro desenho
+const liberados = await page.evaluate(() => SETORES.filter(setorVisivel).map(s => s.id));
+const faltou = liberados.filter(x => !setores.includes(x));
+ok(JSON.stringify(setores) === JSON.stringify(liberados), `a tela Setores abre completa, com os ${liberados.length} setores liberados` + (faltou.length ? ' · faltou: ' + faltou.join(', ') : ''));
 let total = 0;
 for (const s of setores) {
   await page.evaluate((s) => document.querySelector(`[data-setor="${s}"]`).click(), s); await w(350);
@@ -186,9 +190,11 @@ await t.fim();
 let falhas = 0; const ok = (c, m) => { console.log(`  ${c ? '✔' : '✘'} ${m}`); if (!c) falhas++; };
 for (const [nome, opc] of [['computador', {}], ['celular', { mobile: true }], ['página embutida sem histórico gravável', { semEstado: true }]]) {
   console.log(`\n===== ${nome} =====`);
-  await roteiro(opc);
-  console.log('Varredura · todas as telas de todos os setores');
-  await varredura(opc);
+  try {
+    await roteiro(opc);
+    console.log('Varredura · todas as telas de todos os setores');
+    await varredura(opc);
+  } catch (e) { ok(false, `o teste parou no ambiente "${nome}": ${String((e && e.message) || e).split('\n')[0]}`); }
 }
 console.log(falhas ? `\n${falhas} FALHA(S) na navegação` : '\nNavegação: todos os testes passaram nos três ambientes.');
 process.exit(falhas ? 1 : 0);
