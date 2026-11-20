@@ -103,6 +103,25 @@ try {
   ok(ini.est === 10 && ini.cm === 80, `almoxarifado com 10 pares de bota a R$ 80 (saldo ${ini.est}, custo ${ini.cm})`);
   ok(ini.saldo === 600, `compra de lenha de R$ 600 a pagar (${ini.saldo})`);
 
+  /* 0b. onde aparece: tela da compra, janela de pagamento, início e menu (V142b) */
+  const ach = await page.evaluate(async (cid) => {
+    SV = 'lenha'; location.hash = '#/compra/' + cid; await T.dorme(900);
+    const btn = !!document.querySelector('#vvProd142');
+    const pg = document.querySelector('#vvPag'); if (pg) pg.click(); await T.dorme(400);
+    const aviso = !!document.querySelector('#mpProd142');
+    const a = document.querySelector('#mpProd142a'); if (a) a.click(); await T.dorme(900);
+    const form = /#\/clProd\/novo/.test(location.hash) && ((document.querySelector('#camada [data-k="fornecedorId"]') || {}).value === 'f_lenha');
+    fecharGaveta && fecharGaveta(); await T.dorme(300);
+    location.hash = '#/setor-lenha'; await T.dorme(900);
+    const ini = !!document.querySelector('a[href="#/clProd/novo"]');
+    const menu = [...document.querySelectorAll('a[href="#/clProd/novo"]')].some((a) => /Pagar fornecedor com produto/.test(a.textContent));
+    return { btn, aviso, form, ini, menu }; }, ini.id);
+  ok(ach.btn, 'a tela da compra de lenha mostra o botão “Pagar com produto”');
+  ok(ach.aviso, 'a janela “Registrar pagamento” avisa e leva para “Pagar com produto”');
+  ok(ach.form, 'o atalho abre o pagamento com produto já com o fornecedor da compra');
+  ok(ach.ini, 'o início do Setor da Lenha tem o botão “Pagar com produto”');
+  ok(ach.menu, 'o menu do Setor da Lenha tem “Pagar fornecedor com produto”');
+
   /* 1. pagamento com bota pela tela (Setor da Lenha) */
   const p1 = await page.evaluate(async (cid) => {
     await T.abrirNovo('clProd', 'lenha', { fornecedorId: 'f_lenha', forma: CB_LENHA.FORMA_P[0], itemId: 'it_bota', quantidade: 1 });
