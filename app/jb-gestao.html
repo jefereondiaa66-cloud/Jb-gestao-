@@ -17482,7 +17482,10 @@ function htmlLenhaF(r){
   ${ehNovaF(r)||!fConf(DATA.pfornadas.find(x=>x.id===r.id))?`Ao confirmar a enforna, o sistema lança sozinho <b>${fNum(lenhaDaEnforna(r),1)} m³</b> de consumo de lenha deste forno (só da quantidade deste lançamento) e tira do estoque.<br>`:''}
   Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>${l.difRef!=null?` · ${l.difRef>0?'<span class="tag pe">'+fNum(l.difRef,1)+' acima da referência</span>':'<span class="tag ok">dentro da referência</span>'}`:''}`;
  return `Referência pelo carregado: <b>${l.est==null?'—':fNum(l.est,1)}</b>${l.estB!=null?` · pelos tijolos bons (${fT(l.bons)}): <b>${fNum(l.estB,1)}</b>`:''} unidades de lenha <span class="tag at">estimativa</span> <span class="ajuda">(${fNum(ref.lenha)} para ${fNum(ref.carregado)} milheiros carregados; unidade ainda a confirmar entre m³ e st)</span><br>
-  Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>`;
+  Lenha lançada no Setor da Lenha para este forno ${l.ate?'de '+fData(r.data)+' até antes de '+fData(l.ate):'desde '+fData(r.data)}: <b>${l.n?esc(l.real):'nenhum lançamento'}</b>${(()=>{
+   const cg=r.id&&window.LENHA_V50&&LENHA_V50.cargaDaFornada?LENHA_V50.cargaDaFornada(r.id):null;if(!cg||!cg.lenha)return '';
+   const f2=v=>v==null||!isFinite(v)?'—':fNum(v,2);
+   return `<br>Carga deste forno: <b>${esc(fNum(cg.lenha,2))} m³</b> de lenha · <b>${esc(f2(cg.m3Enf))}</b> m³ por milheiro enfornado (${esc(cg.enf?fNum(cg.enf,1):'—')} mil) · <b>${esc(f2(cg.m3Bom))}</b> m³ por milheiro bom (${esc(cg.bons!=null?fNum(cg.bons,1)+' mil bons':'sem desenforna ainda')})${cg.sit==='Desenforna em andamento'?' <span class="tag at">desenforna em andamento</span>':''}`})()}`;
 }
 MODS.pfornadas={titulo:'Fornos e fornadas',sing:'fornada',ic:'chama',
  desc:'Enforna por forno. Se o forno não foi enchido de uma vez, lance cada dia: os lançamentos somam na mesma carga. A saída do secador é lançada à parte (em grades); a diferença entre o que saiu do secador e o que foi enfornado no dia é a perda na enforna.',
@@ -20416,7 +20419,100 @@ function calcLenha(){
  const v={inicio,rows,comps,queimas,movs,est0,C};MEMO={k,v};return v;
 }
 function custoMesLenha(mes){const R=calcLenha().rows.find(r=>r.m===mes);return R?R.cm:0}
-window.LENHA_V50={calcLenha,custoMesLenha};
+
+/* ---------- lenha por milheiro enfornado e por milheiro bom (V141, pedido do Jeferson em 20/11/2026) ----------
+   Exemplo dele: 60 m³ para queimar 58 milheiros enfornados = 1,03 por milheiro enfornado; saíram 55 milheiros
+   bons na desenforna = 60 ÷ 55 = 1,09 por milheiro bom.
+   · Forno abóbada: "carga" = o que entra no forno até a desenforna. A enforna pode ser lançada em partes
+     (vários registros) e a desenforna também; tudo isso é uma carga só. A próxima enforna (ou lenha) depois
+     de uma desenforna abre outra carga. Desenforna ligada a uma fornada vai para a carga dessa fornada;
+     sem fornada, vai para a carga que está no forno. A lenha ligada a uma enforna (enfornaId) vai para a carga dela.
+   · Milheiros bons = 1ª + 2ª qualidade da desenforna confirmada. Enfornados = soma das enfornas da carga
+     (sem enforna lançada, usa os milheiros enfornados gravados na baixa da lenha).
+   · Forno contínuo não fecha carga: conta por mês (lenha do mês ÷ enfornado do mês e ÷ bons desenfornados no mês).
+   Só lê os lançamentos; não grava nada. */
+const confDes=d=>d&&d.situacao==='Confirmado';
+const bonsDes=d=>(+d.primeira||0)+(+d.segunda||0);
+const perdasDes=d=>(+d.quebrados||0)+(+d.trincados||0)+(+d.outras||0);
+let MEMOC={k:null,v:null};
+function cargasLenha(){
+ const k=[DATA.consumos,DATA.pfornadas,DATA.pdesenf,DATA.locais,DATA.produtos];if(MEMOC.k&&MEMOC.k.every((x,i)=>x===k[i]))return MEMOC.v;
+ const ids=new Set(prodsM3().map(p=>p.id));
+ const fornos=(DATA.locais||[]).filter(l=>l.setor===LS&&l.tipo==='Forno');
+ const FD={};(DATA.pfornadas||[]).forEach(f=>{FD[f.id]=f});
+ const cargas=[],cont=[];
+ const div=(a,b)=>a>0&&b>0?a/b:null;
+ fornos.forEach(fo=>{
+  const ev=[];
+  (DATA.pfornadas||[]).filter(f=>f.fornoId===fo.id).forEach(f=>ev.push({t:'E',o:1,data:String(f.data||''),r:f}));
+  (DATA.consumos||[]).filter(c=>ids.has(c.produtoId)&&c.localId===fo.id).forEach(c=>ev.push({t:'L',o:2,data:String(c.data||''),r:c}));
+  (DATA.pdesenf||[]).filter(d=>confDes(d)&&!d.totalDoMes&&(d.fornadaId&&FD[d.fornadaId]?FD[d.fornadaId].fornoId===fo.id:d.fornoId===fo.id))
+   .forEach(d=>ev.push({t:'D',o:d.fornadaId&&FD[d.fornadaId]?3:0,data:String(d.data||''),r:d}));
+  if(fo.continuo){
+   const g={};const M=m=>g[m]||(g[m]={lenha:0,enfE:0,enfL:0,bons:0,perdas:0});
+   ev.forEach(e=>{const o=M(e.data.slice(0,7));
+    if(e.t==='E')o.enfE+=(+e.r.quantidade||0)/1000;
+    else if(e.t==='L'){o.lenha+=+e.r.quantidade||0;o.enfL+=+(e.r.milheirosEnfornados!=null?e.r.milheirosEnfornados:0)||0}
+    else{o.bons+=bonsDes(e.r)/1000;o.perdas+=perdasDes(e.r)/1000}});
+   Object.keys(g).filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().forEach(m=>{const o=g[m];const enf=o.enfE>0?o.enfE:(o.enfL>0?o.enfL:null);
+    cont.push({forno:fo,fornoId:fo.id,mes:m,lenha:o.lenha,enf,bons:o.bons,perdas:o.perdas,m3Enf:div(o.lenha,enf),m3Bom:div(o.lenha,o.bons)})});
+   return}
+  ev.sort((a,b)=>a.data.localeCompare(b.data)||a.o-b.o||String(a.r.hora||'').localeCompare(String(b.r.hora||'')));
+  const de={};const lista=[];let cur=null;
+  const nova=()=>{cur={forno:fo,fornoId:fo.id,E:[],L:[],D:[]};lista.push(cur);return cur};
+  ev.forEach(e=>{
+   if(e.t==='D'){const alvo=(e.r.fornadaId&&de[e.r.fornadaId])||cur;if(alvo)alvo.D.push(e.r);return}
+   let alvo=e.t==='L'&&e.r.enfornaId?de[e.r.enfornaId]:null;
+   if(!alvo)alvo=(!cur||cur.D.length)?nova():cur;
+   if(e.t==='E'){alvo.E.push(e.r);de[e.r.id]=alvo}else alvo.L.push(e.r)});
+  lista.forEach((c,i)=>{
+   const lenha=soma(c.L,x=>+x.quantidade||0);
+   const enfE=soma(c.E,x=>+x.quantidade||0)/1000;
+   const enfL=c.L.some(x=>x.milheirosEnfornados!=null&&x.milheirosEnfornados!=='')?soma(c.L,x=>+x.milheirosEnfornados||0):null;
+   const enf=enfE>0?enfE:enfL;
+   const bons=c.D.length?soma(c.D,bonsDes)/1000:null;const perdas=c.D.length?soma(c.D,perdasDes)/1000:null;
+   const datas=[...c.E,...c.L].map(x=>String(x.data||'')).filter(Boolean).sort();
+   const datasD=c.D.map(x=>String(x.data||'')).filter(Boolean).sort();
+   const nums=c.E.map(x=>x.numero).filter(x=>x!=null&&x!=='');
+   const nome=nums.length?'nº '+[...new Set(nums)].join(', '):(c.L.map(x=>x.fornada).filter(Boolean)[0]||'—');
+   const sit=!c.D.length?'No forno':i<lista.length-1?'Desenfornada':'Desenforna em andamento';
+   cargas.push({...c,lenha,enf,bons,perdas,nome,ini:datas[0]||'',fimD:datasD[datasD.length-1]||'',iniD:datasD[0]||'',
+    mes:datasD.length?datasD[datasD.length-1].slice(0,7):'',sit,m3Enf:div(lenha,enf),m3Bom:div(lenha,bons)})});
+ });
+ cargas.sort((a,b)=>String(b.ini).localeCompare(String(a.ini)));
+ /* resumo por mês (fornos abóbada): cargas com lenha, enfornado e bons, no mês da última desenforna.
+    O contínuo fica à parte: a desenforna dele não acompanha a lenha do mesmo dia e misturar distorce a conta. */
+ const g={};const M=m=>g[m]||(g[m]={m,lenha:0,enf:0,bons:0,n:0,parcial:0});
+ cargas.filter(c=>c.mes&&c.lenha>0&&c.enf>0&&c.bons>0).forEach(c=>{const o=M(c.mes);o.lenha+=c.lenha;o.enf+=c.enf;o.bons+=c.bons;o.n++;if(c.sit!=='Desenfornada')o.parcial++});
+ const meses=Object.values(g).sort((a,b)=>a.m.localeCompare(b.m)).map(o=>({...o,m3Enf:div(o.lenha,o.enf),m3Bom:div(o.lenha,o.bons)}));
+ const v={cargas,cont,meses};MEMOC={k,v};return v;
+}
+const cargaDaFornada=fid=>{try{return cargasLenha().cargas.find(c=>c.E.some(e=>e.id===fid))||null}catch(e){return null}};
+const fM3Mil=v=>v==null||!isFinite(v)?'—':fNum(v,2);
+function secMilheiroBom(){
+ const R=cargasLenha();if(!R.cargas.length&&!R.cont.length)return '';
+ const pct=(a,b)=>a>0&&b!=null?fNum((a-b)/a*100,1)+'%':'—';
+ const sitTag=s=>tag(s,{'Desenfornada':'ok','Desenforna em andamento':'at','No forno':'in'}[s]);
+ return `<h3 class="grupo-t">Lenha por milheiro enfornado e por milheiro bom</h3>
+  <p class="ajuda" style="margin:-4px 2px 10px">Calculado sozinho pela enforna, pela lenha lançada e pela desenforna confirmada. Exemplo: 60 m³ para queimar 58 milheiros enfornados = 1,03 por milheiro enfornado; se a desenforna deu 55 milheiros bons (1ª + 2ª), fica 60 ÷ 55 = 1,09 por milheiro bom.</p>
+  ${R.meses.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Mês (da desenforna) · fornos abóbada</th><th class="num">Lenha (m³)</th><th class="num">Milheiros enfornados</th><th class="num">m³ por milheiro enfornado</th><th class="num">Milheiros bons</th><th class="num">m³ por milheiro bom</th><th class="num">Não saiu bom</th></tr></thead><tbody>
+   ${R.meses.slice().reverse().map(o=>`<tr><td data-l="Mês"><b>${esc(fMesL(o.m))}</b>${o.parcial?' '+tag('parcial','at'):''}</td><td data-l="Lenha" class="num">${esc(fNum(o.lenha,2))}</td><td data-l="Enfornados" class="num">${esc(fNum(o.enf,1))}</td><td data-l="m³ por milheiro enfornado" class="num"><b>${esc(fM3Mil(o.m3Enf))}</b></td><td data-l="Bons" class="num">${esc(fNum(o.bons,1))}</td><td data-l="m³ por milheiro bom" class="num"><b>${esc(fM3Mil(o.m3Bom))}</b></td><td data-l="Não saiu bom" class="num">${esc(pct(o.enf,o.bons))}</td></tr>`).join('')}</tbody></table></div>
+   <p class="ajuda" style="margin:6px 2px 12px">Fornos abóbada: entram as cargas com lenha, enforna e desenforna, no mês da última desenforna. O forno contínuo fica na tabela dele, mais abaixo. “Parcial”: alguma carga do mês ainda pode estar sendo desenfornada.</p>`:'<p class="ajuda">Ainda não há carga com lenha, enforna e desenforna para calcular.</p>'}
+  ${R.cargas.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Forno</th><th>Fornada</th><th>Enforna</th><th>Desenforna</th><th>Situação</th><th class="num">Lenha (m³)</th><th class="num">Enfornados</th><th class="num">m³ por milheiro enfornado</th><th class="num">Bons</th><th class="num">m³ por milheiro bom</th></tr></thead><tbody>
+   ${R.cargas.map(c=>`<tr><td data-l="Forno">${esc(nomeLocal(c.forno))}</td><td data-l="Fornada">${esc(c.nome)}</td><td data-l="Enforna">${esc(fData(c.ini)||'—')}</td><td data-l="Desenforna">${c.iniD?esc(fData(c.iniD)+(c.fimD!==c.iniD?' a '+fData(c.fimD):'')):'—'}</td><td data-l="Situação">${sitTag(c.sit)}</td>
+    <td data-l="Lenha" class="num">${c.lenha?esc(fNum(c.lenha,2)):'—'}</td><td data-l="Enfornados" class="num">${c.enf?esc(fNum(c.enf,1)):'—'}</td><td data-l="m³ por milheiro enfornado" class="num"><b>${esc(fM3Mil(c.m3Enf))}</b></td><td data-l="Bons" class="num">${c.bons!=null?esc(fNum(c.bons,1)):'—'}</td><td data-l="m³ por milheiro bom" class="num"><b>${esc(fM3Mil(c.m3Bom))}</b></td></tr>`).join('')}</tbody></table></div>`:''}
+  ${R.cont.length?`<p class="ajuda" style="margin:10px 2px 6px"><b>Forno contínuo</b> (enforna e desenforna todo dia): conta por mês. A desenforna dele não acompanha a lenha do mesmo dia, então o “por milheiro bom” do mês é só uma referência.</p><div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Forno</th><th>Mês</th><th class="num">Lenha (m³)</th><th class="num">Enfornados</th><th class="num">m³ por milheiro enfornado</th><th class="num">Bons desenfornados</th><th class="num">m³ por milheiro bom</th></tr></thead><tbody>
+   ${R.cont.slice().reverse().map(c=>`<tr><td data-l="Forno">${esc(nomeLocal(c.forno))}</td><td data-l="Mês">${esc(fMesL(c.mes))}</td><td data-l="Lenha" class="num">${esc(fNum(c.lenha,2))}</td><td data-l="Enfornados" class="num">${c.enf?esc(fNum(c.enf,1)):'—'}</td><td data-l="m³ por milheiro enfornado" class="num"><b>${esc(fM3Mil(c.m3Enf))}</b></td><td data-l="Bons" class="num">${esc(fNum(c.bons,1))}</td><td data-l="m³ por milheiro bom" class="num"><b>${esc(fM3Mil(c.m3Bom))}</b></td></tr>`).join('')}</tbody></table></div>`:''}`;
+}
+function exportarCargas(f){
+ const R=cargasLenha();
+ const cols=[{k:'forno',l:'Forno'},{k:'fornada',l:'Fornada'},{k:'enf',l:'Enforna'},{k:'des',l:'Desenforna'},{k:'sit',l:'Situação'},{k:'lenha',l:'Lenha (m³)',t:'num'},{k:'mil',l:'Milheiros enfornados',t:'num'},{k:'pe',l:'m³ por milheiro enfornado',t:'num'},{k:'bons',l:'Milheiros bons',t:'num'},{k:'pb',l:'m³ por milheiro bom',t:'num'}];
+ const r3=v=>v==null?'':Math.round(v*1000)/1000;
+ const dados=[...R.cargas.map(c=>({forno:nomeLocal(c.forno),fornada:c.nome,enf:fData(c.ini),des:c.iniD?fData(c.iniD)+(c.fimD!==c.iniD?' a '+fData(c.fimD):''):'',sit:c.sit,lenha:r3(c.lenha),mil:r3(c.enf),pe:r3(c.m3Enf),bons:r3(c.bons),pb:r3(c.m3Bom)})),
+  ...R.cont.map(c=>({forno:nomeLocal(c.forno),fornada:'Mês '+fMesL(c.mes),enf:'',des:'',sit:'Forno contínuo (por mês)',lenha:r3(c.lenha),mil:r3(c.enf),pe:r3(c.m3Enf),bons:r3(c.bons),pb:r3(c.m3Bom)}))];
+ exportar(f,'Lenha_por_milheiro_bom_'+hoje(),cols,dados,'Lenha por milheiro enfornado e por milheiro bom');
+}
+window.LENHA_V50={calcLenha,custoMesLenha,cargasLenha,cargaDaFornada};
 
 /* ---------- configuração (administrador) ---------- */
 function editarCfgLenha(){
@@ -20444,6 +20540,7 @@ function telaCustoLenha(c){
  const sem=R.comps.filter(x=>x.p==null);const alertas=rows.filter(r=>r.alerta);
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Custo da lenha</h1><p>Custo médio ponderado móvel, mês a mês: (valor no início + valor das compras) ÷ (m³ no início + m³ comprados). Cada carga pesa pelo seu tamanho. Lenha queimada × custo médio; estoque no fim × custo médio.</p></div></div>
   <div class="acoes"><button type="button" class="btn" id="lcExp">${ic('baixar')}Exportar ▾</button>${adm?`<button type="button" class="btn" id="lcCfg">${ic('engrenagem')}Configuração</button>`:''}</div></div>
+  ${(()=>{const MB=cargasLenha().meses;const u=MB[MB.length-1];return u?`<div class="resumo">${[[fM3Mil(u.m3Enf)+' m³','Lenha por milheiro enfornado ('+fMesL(u.m)+')'],[fM3Mil(u.m3Bom)+' m³','Lenha por milheiro bom ('+fMesL(u.m)+')'],[fNum(u.bons,1),'Milheiros bons desenfornados ('+fMesL(u.m)+')']].map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>`:''})()}
   <div class="resumo">${[[fMoeda(T.mil?T.custo/T.mil:0),'Custo da lenha por milheiro'],[fMoeda(T.qq?T.custo/T.qq:0),'Custo da lenha queimada por m³'],[fNum(T.mil?T.qq/T.mil:0,2)+' m³','Lenha por milheiro'],[fMoeda(T.custo),'Custo da lenha queimada'],
    [fMoeda(T.cq?T.cv/T.cq:0),'Preço médio das compras'],[fM3(T.qq),'Lenha queimada'],[fNum(T.mil,2),'Milheiros'],[fM3(ult.fim),'Estoque no fim de '+fMesL(ult.m)],[fMoeda(ult.vf),'Valor do estoque no fim']].map(([v,l])=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
   <div class="aviso in" style="margin-bottom:14px"><span><b>Configuração:</b> mês inicial ${esc(fMesL(R.inicio))} · estoque inicial ${esc(fM3(R.est0.q))} valendo ${esc(fMoeda(R.est0.v))}${R.est0.q?' ('+esc(fMoeda(R.est0.q?R.est0.v/R.est0.q:0))+' por m³)':''} · perda normal ${esc(fNum(C.perdaNormal,1))}% · carga cara acima de ${esc(fMoeda(C.limiteCaro))}/m³ · base de consumo ${esc(fNum(C.baseM3,0))} m³ por fornada de ${esc(fNum(C.baseMilheiros,0))} milheiros (${esc(fNum(base,4))} m³ por milheiro).${R.est0.motivo?' <br>'+esc(R.est0.motivo):''}</span></div>
@@ -20460,13 +20557,15 @@ function telaCustoLenha(c){
   ${R.queimas.length?`<div class="painel tabwrap"><table class="tbl cartao fi-tbl"><thead><tr><th>Data</th><th>Forno</th><th>Fornada</th><th class="num">Lenha (m³)</th><th class="num">Milheiros</th><th class="num">Custo final do m³</th><th class="num">Custo da lenha</th><th class="num">R$ por milheiro</th></tr></thead><tbody>
    ${R.queimas.slice().sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(x=>{const cm=custoMesLenha(x.mes);const cu=x.q*cm;return `<tr class="clic" data-go="#/consumos/${esc(x.c.id)}"><td data-l="Data">${esc(fData(x.data))}</td><td data-l="Forno">${esc(nomeLocal(LOCAL(x.c.localId))||'—')}</td><td data-l="Fornada">${esc(x.c.fornada||'—')}</td>
     <td data-l="Lenha" class="num">${esc(fNum(x.q,2))}</td><td data-l="Milheiros" class="num">${x.mil?esc(fNum(x.mil,0)):'—'}</td><td data-l="Custo final" class="num">${esc(fMoeda(cm))}</td><td data-l="Custo" class="num">${esc(fMoeda(cu))}</td><td data-l="R$ por milheiro" class="num">${x.mil?esc(fMoeda(cu/x.mil)):'—'}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="vazio">Nenhuma queima lançada.</div>'}
+  ${secMilheiroBom()}
   ${porForno(R)}`;
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>JBNAV.ir(tr.dataset.go));
  if($('#lcCfg',c))$('#lcCfg',c).onclick=editarCfgLenha;
  $('#lcExp',c).onclick=()=>{const cols=[{k:'mes',l:'Mês'},{k:'ini',l:'Estoque início (m³)',t:'num'},{k:'val',l:'Valor início',t:'moeda'},{k:'cq',l:'Compras m³',t:'num'},{k:'cv',l:'Compras R$',t:'moeda'},{k:'cm',l:'Custo médio do m³',t:'moeda'},{k:'qq',l:'Queimado m³',t:'num'},{k:'mil',l:'Milheiros',t:'num'},{k:'custo',l:'Custo da lenha queimada',t:'moeda'},{k:'rpm',l:'R$ por milheiro',t:'moeda'},{k:'fim',l:'Estoque fim (m³)',t:'num'},{k:'vf',l:'Valor fim',t:'moeda'}];
   const dados=rows.map(r=>({mes:fMesL(r.m),ini:r2(r.ini),val:r2(r.val),cq:r2(r.cq),cv:r2(r.cv),cm:r2(r.cm),qq:r2(r.qq),mil:r.mil,custo:r2(r.custo),rpm:r.rpm==null?'':r2(r.rpm),fim:r2(r.fim),vf:r2(r.vf)}));
   const fx=f=>exportar(f,'Custo_da_lenha_'+hoje(),cols,dados,'Custo da lenha mês a mês');
-  abrirMenuMais($('#lcExp',c),[{l:'Visualizar',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])};
+  abrirMenuMais($('#lcExp',c),[{l:'Visualizar',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')},
+   {l:'Lenha por milheiro bom: PDF',fn:()=>exportarCargas('pdf')},{l:'Lenha por milheiro bom: Excel',fn:()=>exportarCargas('xlsx')}])};
 }
 function porForno(R){const g={};R.queimas.forEach(x=>{const k=nomeLocal(LOCAL(x.c.localId))||'Forno não informado';const o=g[k]||(g[k]={q:0,mil:0,n:0,custo:0});o.q+=x.q;o.mil+=x.mil;o.n++;o.custo+=x.q*custoMesLenha(x.mes)});
  const L=Object.entries(g).sort((a,b)=>b[1].q-a[1].q);if(!L.length)return '';
