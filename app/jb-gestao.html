@@ -13020,16 +13020,21 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(reposAbas);
 
 /* ---------- 16. indicadores sem cartão sobrando ---------- */
 function balancearGrades(c){
- c.querySelectorAll('.hero,.kpis,.resumo').forEach(g=>{
-  if(g.dataset.grade)return;g.dataset.grade='1';
-  const itens=[...g.children].filter(x=>x.offsetParent!==null||getComputedStyle(x).display!=='none');const n=itens.length;
-  g.style.gridTemplateColumns='';itens.forEach(x=>x.style.gridColumn='');
-  if(n<2)return;
-  const trilhas=getComputedStyle(g).gridTemplateColumns.split(' ').filter(x=>x&&x!=='0px').length;
-  const max=Math.max(1,Math.min(n,trilhas));if(n<=max){g.style.gridTemplateColumns=`repeat(${n},minmax(0,1fr))`;return}
-  const linhas=Math.ceil(n/max),cols=Math.ceil(n/linhas);g.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
-  const r=n%cols;if(r)itens[n-1].style.gridColumn='span '+(cols-r+1);
- });
+ /* 20/11/2026 (desempenho): antes cada grade lia a medida, escrevia e a próxima lia de novo (um recálculo da
+    tela inteira por grade). Agora vai por camadas: as grades de fora todas juntas (limpa, mede, escreve) e
+    depois as de dentro, porque a de fora muda a largura da de dentro. Mesmo resultado, poucos recálculos. */
+ let gs=[...c.querySelectorAll('.hero,.kpis,.resumo')].filter(g=>!g.dataset.grade);
+ while(gs.length){
+  const camada=gs.filter(g=>!gs.some(o=>o!==g&&o.contains(g)));gs=gs.filter(g=>!camada.includes(g));
+  camada.forEach(g=>{g.dataset.grade='1'});
+  const vis=camada.map(g=>[...g.children].filter(x=>x.offsetParent!==null||getComputedStyle(x).display!=='none'));
+  camada.forEach((g,k)=>{g.style.gridTemplateColumns='';vis[k].forEach(x=>x.style.gridColumn='')});
+  const tr=camada.map((g,k)=>vis[k].length<2?0:getComputedStyle(g).gridTemplateColumns.split(' ').filter(x=>x&&x!=='0px').length);
+  camada.forEach((g,k)=>{const itens=vis[k],n=itens.length;if(n<2)return;
+   const max=Math.max(1,Math.min(n,tr[k]));if(n<=max){g.style.gridTemplateColumns=`repeat(${n},minmax(0,1fr))`;return}
+   const linhas=Math.ceil(n/max),cols=Math.ceil(n/linhas);g.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
+   const r=n%cols;if(r)itens[n-1].style.gridColumn='span '+(cols-r+1)});
+ }
 }
 
 /* ---------- 7. troca de tela suave ---------- */
@@ -13037,7 +13042,12 @@ let ROTA_VISTA='';
 function animarTela(c){
  const r=lerRota();const chave=MODS[r.mod]?r.mod:location.hash;
  if(chave===ROTA_VISTA)return;ROTA_VISTA=chave;
- if(SEM_MOV())return;c.classList.remove('pg-entra');void c.offsetWidth;c.classList.add('pg-entra');
+ if(SEM_MOV())return;
+ /* 20/11/2026 (desempenho): o mesmo esmaecer pela animação do navegador, sem o "void offsetWidth", que
+    obrigava a recalcular a tela inteira a cada troca de tela (até no tablet, onde o efeito nem aparece) */
+ if(typeof c.animate==='function'){if(matchMedia('(hover:none),(pointer:coarse)').matches)return;
+  try{c.animate([{opacity:.25},{opacity:1}],{duration:170,easing:'ease-out'});return}catch(e){}}
+ c.classList.remove('pg-entra');void c.offsetWidth;c.classList.add('pg-entra');
 }
 
 /* ---------- 8. lembrar onde você estava ---------- */
@@ -31867,7 +31877,7 @@ padTrilha=function(c,r){
   nav.innerHTML='<a href="#/painel">Início</a><i>›</i>'+mio;
   c.insertBefore(nav,c.firstChild);let ap=nav;
   if(barra){const d=document.createElement('nav');d.className='ms-area';d.dataset.k=barra.k;d.setAttribute('aria-label','Telas de '+barra.g);d.innerHTML=barra.html;ap.after(d);ap=d;
-   const on=d.querySelector('a.on');if(on)d.scrollLeft=Math.max(0,on.offsetLeft-24)}
+   const on=d.querySelector('a.on');if(on)requestAnimationFrame(()=>{if(on.isConnected)d.scrollLeft=Math.max(0,on.offsetLeft-24)})}   /* no quadro seguinte: medir na hora recalculava a tela no meio do desenho */
   if(sec){const d=document.createElement('div');d.className='ms-secoes';d.dataset.k=sec.k;d.innerHTML=sec.html;ap.after(d);
    d.querySelectorAll('[data-ms-sec]').forEach(b=>b.onclick=()=>msIrSecao(b.dataset.msSec))}
  }
@@ -37670,18 +37680,24 @@ function rtChips(){
 function renderBarraTrab(){
  const main=document.querySelector('#app .main');if(!main)return;
  let b=document.getElementById('jbBarra');
- if(!b){b=document.createElement('div');b.id='jbBarra';b.className='jb-barra';b.setAttribute('role','navigation');b.setAttribute('aria-label','Área de trabalho: telas abertas e janelas minimizadas');main.insertBefore(b,main.firstChild);ligarBarraTrab(b)}
+ if(!b){b=document.createElement('div');b.id='jbBarra';b.className='jb-barra';b.setAttribute('role','navigation');b.setAttribute('aria-label','Área de trabalho: telas abertas e janelas minimizadas');main.insertBefore(b,main.firstChild);ligarBarraTrab(b)
+  /* 20/11/2026 (desempenho): a altura da barra (--abas-h) é acompanhada pelo navegador depois de desenhar,
+     em vez de medida na hora (cada medida recalculava a tela inteira, duas vezes por troca de tela) */
+  if(typeof ResizeObserver==='function')try{new ResizeObserver(()=>document.documentElement.style.setProperty('--abas-h',b.hidden?'0px':b.offsetHeight+'px')).observe(b);b._ro=true}catch(e){}}
  const vis=APP.pronto&&acessoOk()&&ABAS.lista.length>0;
- b.hidden=!vis;document.documentElement.style.setProperty('--abas-h',vis?b.offsetHeight+'px':'0px');
- if(!vis)return;
+ b.hidden=!vis;
+ if(!vis){b._html='';document.documentElement.style.setProperty('--abas-h','0px');return}
  const rec=Object.entries(rascunhosJan()).filter(([k])=>!JAN.min.some(g=>g.chave===k)&&!(GAV&&GAV.chave===k));
  const abas=ABAS.lista.map(a=>{const on=a.k===ABAS.ativa;const dot=temJanelaNaAba(a.k);
   return `<div class="aba-t${on?' on':''}" role="tab" tabindex="0" aria-selected="${on}" data-aba-k="${esc(a.k)}" title="${esc(a.titulo||'')}">${ic(a.ic||'doc')}<span class="aba-nm">${esc(a.titulo||'…')}</span>${dot?'<span class="aba-dot" title="Tem lançamento não salvo"></span>':''}<button type="button" class="aba-x" data-aba-fecha="${esc(a.k)}" aria-label="Fechar a aba ${esc(a.titulo||'')}">${ic('fechar')}</button></div>`}).join('');
  const mins=JAN.min.map((g,i)=>`<button type="button" class="jan-chip" data-jan-i="${i}" title="Restaurar: ${esc(g.titulo)}${g.sujo?' (não salvo)':''}">${ic(icMod(g.mod))}<span class="nm">${esc(g.titulo)}</span>${g.sujo?'<i aria-label="não salvo"></i>':''}<span class="aba-x" role="button" tabindex="0" data-jan-fecha="${i}" aria-label="Fechar ${esc(g.titulo)}">${ic('fechar')}</span></button>`).join('')
   +rtChips()+rec.map(([k,r])=>`<button type="button" class="jan-chip rec" data-rasc="${esc(k)}" title="Rascunho guardado em ${esc(fDataHora(r.ts))}: ainda não foi salvo">${ic(icMod(r.mod))}<span class="nm">Rascunho: ${esc(r.titulo||'')}</span><span class="aba-x" role="button" tabindex="0" data-rasc-fecha="${esc(k)}" aria-label="Descartar o rascunho">${ic('fechar')}</span></button>`).join('');
- b.innerHTML=`<div class="abas-trab" role="tablist" aria-label="Telas abertas">${abas}</div>${mins?`<div class="jan-min" aria-label="Janelas minimizadas"><span class="jan-min-rot">Minimizadas</span>${mins}</div>`:''}<button type="button" class="jb-pref" data-pref aria-label="Preferências de trabalho (sons)" title="Preferências de trabalho (sons)">${ic('engrenagem')}</button>`;
- document.documentElement.style.setProperty('--abas-h',b.offsetHeight+'px');
- const on=b.querySelector('.aba-t.on');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}
+ const html=`<div class="abas-trab" role="tablist" aria-label="Telas abertas">${abas}</div>${mins?`<div class="jan-min" aria-label="Janelas minimizadas"><span class="jan-min-rot">Minimizadas</span>${mins}</div>`:''}<button type="button" class="jb-pref" data-pref aria-label="Preferências de trabalho (sons)" title="Preferências de trabalho (sons)">${ic('engrenagem')}</button>`;
+ /* nada mudou desde o último desenho (acontece em quase toda troca de tela e a cada 2 s): não refaz */
+ if(b._html===html)return;b._html=html;b.innerHTML=html;
+ if(!b._ro)document.documentElement.style.setProperty('--abas-h',b.offsetHeight+'px');
+ /* rolar até a aba ativa no próximo quadro, junto com o desenho dele (na hora, forçava um recálculo da tela) */
+ const on=b.querySelector('.aba-t.on');if(on&&on.scrollIntoView)requestAnimationFrame(()=>{if(on.isConnected)try{on.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}});
 }
 function ligarBarraTrab(b){
  b.addEventListener('click',async e=>{
@@ -41364,22 +41380,36 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
   t.style.setProperty('--lc-cols',c);
   let col=2+cols;const cv=M.val>=0?col++:0;const cg={};tagc.forEach(i=>cg[i]=col++);const ca={};M.aco.forEach(i=>ca[i]=col++);
   const sp=`1/span ${R}`;const pos=(td,x)=>{td.style.gridColumn=x;td.style.gridRow=sp};
+  /* 20/11/2026 (desempenho): antes cada linha alternava "mudar a célula" e "ler o texto" (innerText), e cada
+     leitura fazia o navegador recalcular a página inteira: numa lista de 70 linhas eram centenas de recálculos
+     (era a maior travada ao abrir listas, salvar e receber mudança). Agora vai em blocos: todas as mudanças,
+     depois todas as leituras. Cada célula é lida no mesmo estado de antes: metadados ainda sem lc-m, valor já
+     com lc-v, detalhes já com lc-d e o primeiro detalhe já com lc-d1. O resultado na tela é o mesmo. */
+  const L=[];
   rows.forEach(r=>{
    r.dataset.lc='1';
    if(r.cells.length!==M.h.length){r.classList.add('lc-msg');return}
    const clic=r.matches('.clic,[data-id],[data-go],[data-href]');r.classList.toggle('lc-sem-s',M.s<0);
    [...r.cells].forEach((td,i)=>{if(!td.dataset.l&&M.h[i])td.dataset.l=M.h[i]});
    const tt=r.cells[M.tit];tt.classList.add('lc-t');pos(tt,'1');
-   tt.dataset.lcSub=M.met.map(i=>{const v=txt(r.cells[i]);return vazio(v)?'':subTxt(M.h[i],v)}).filter(Boolean).join(', ');
-   M.met.forEach(i=>r.cells[i].classList.add('lc-m'));
    if(M.s>=0){r.cells[M.s].classList.add('lc-s');pos(r.cells[M.s],String(cg[M.s]))}
-   if(M.val>=0){const tv=r.cells[M.val];tv.classList.add('lc-v');tv.classList.toggle('lc-vz',vazio(txt(tv)));pos(tv,String(cv))}
+   if(M.val>=0){const tv=r.cells[M.val];tv.classList.add('lc-v');pos(tv,String(cv))}
    M.tag.forEach((i,k)=>{const td=r.cells[i];td.classList.add('lc-g');if(!k)td.classList.add('lc-g1');pos(td,String(cg[i]))});
    M.aco.forEach(i=>{r.cells[i].classList.add('lc-a');pos(r.cells[i],String(ca[i]))});
-   let prim=null;const mais=[];
-   M.det.forEach(i=>{const td=r.cells[i];td.classList.add('lc-d');const v=txt(td);if(vazio(v))return;if(!prim){prim=td;return}mais.push(/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(v)?M.h[i]+' '+v:v)});
-   if(prim){prim.classList.add('lc-d1');const pv=txt(prim);prim.classList.toggle('lc-d1n',/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(pv));const m=clic?(pv.length>24?[]:mais.slice(0,2)):mais;prim.dataset.lcMais=m.length?', '+m.join(', '):''}
+   M.det.forEach(i=>r.cells[i].classList.add('lc-d'));
+   L.push({r,clic,tt});
   });
+  L.forEach(x=>{const c=x.r.cells;x.tm=M.met.map(i=>txt(c[i]));x.tv=M.val>=0?txt(c[M.val]):'';x.td=M.det.map(i=>txt(c[i]))});
+  L.forEach(x=>{const r=x.r;
+   x.tt.dataset.lcSub=M.met.map((i,k)=>{const v=x.tm[k];return vazio(v)?'':subTxt(M.h[i],v)}).filter(Boolean).join(', ');
+   M.met.forEach(i=>r.cells[i].classList.add('lc-m'));
+   if(M.val>=0)r.cells[M.val].classList.toggle('lc-vz',vazio(x.tv));
+   let prim=null;const mais=[];
+   M.det.forEach((i,k)=>{const v=x.td[k];if(vazio(v))return;if(!prim){prim=r.cells[i];return}mais.push(/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(v)?M.h[i]+' '+v:v)});
+   x.prim=prim;x.mais=mais;if(prim)prim.classList.add('lc-d1');
+  });
+  L.forEach(x=>{if(x.prim)x.pv=txt(x.prim)});
+  L.forEach(x=>{const prim=x.prim;if(!prim)return;const pv=x.pv;prim.classList.toggle('lc-d1n',/^[\d.,]+( ?[a-zA-Z%/]{0,3})?$|^R\$/.test(pv));const m=x.clic?(pv.length>24?[]:x.mais.slice(0,2)):x.mais;prim.dataset.lcMais=m.length?', '+m.join(', '):''});
   if(t.tFoot&&t.tFoot.rows[0]&&t.tFoot.rows[0].cells.length===M.h.length)[...t.tFoot.rows[0].cells].forEach((td,i)=>{if(i&&td.textContent.trim())td.dataset.lcL=M.h[i]});
  }
 

@@ -26,6 +26,15 @@
     if (p.length < 2 || p.length % 2) throw erro('invalid_argument', 'caminho inválido: ' + caminho);
     return { colecao: p.slice(0, -1).join('/'), id: p[p.length - 1] };
   }
+  /* igualdade de conteúdo sem depender da ordem das chaves (o banco devolve o jsonb em outra ordem) */
+  function igual(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    var ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    for (var i = 0; i < ka.length; i++) { if (!Object.prototype.hasOwnProperty.call(b, ka[i]) || !igual(a[ka[i]], b[ka[i]])) return false; }
+    return true;
+  }
   function novoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   function mesclar(a, b) {
     var o = Object.assign({}, a || {});
@@ -159,7 +168,11 @@
   async function recarregarDoc(colecao, id) {
     var r = await sb.from('docs').select('colecao,id,dados').eq('colecao', colecao).eq('id', id).maybeSingle();
     if (r.error) throw traduzErro(r.error);
-    guardar(colecao, id, r.data ? r.data.dados : null);
+    /* 20/11/2026 (desempenho): o tempo real também avisa das gravações feitas por esta própria aba, que já
+       estão no cache. Igual ao que já está aqui: não redesenha a tela de novo (antes cada salvar redesenhava duas vezes). */
+    var novo = r.data ? r.data.dados : null, ant = cache.get(colecao + '/' + id);
+    if (ant ? (novo !== null && igual(ant.dados, novo)) : novo === null) return;
+    guardar(colecao, id, novo);
     avisar(colecao, id);
   }
 
