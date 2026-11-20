@@ -20872,10 +20872,10 @@ const PV=['admin','gerente','vendedor','estoquista','financeiro'],PE=['admin','g
 Object.assign(PERM,{'setor-almox':{v:AV,e:[]},almItens:{v:AV,e:AE},almFornecedores:{v:AV,e:AE},almEntradas:{v:AV,e:AE},almEntrada:{v:AV,e:AE},almPagamentos:{v:AV,e:[]},
  almSaidas:{v:AV,e:AE},almSaida:{v:AV,e:AE},almLancSaida:{v:AV,e:AE},almDevolucoes:{v:AV,e:AE},almAjustes:{v:AV,e:AE},almEpis:{v:AV,e:AE},almEmprestimos:{v:AV,e:AE},almInventarios:{v:AV,e:AE},almInv:{v:AV,e:AE},
  almEstoque:{v:AV,e:[]},almMov:{v:AV,e:[]},almPagar:{v:AV,e:[]},almRel:{v:AV,e:[]},almResp:{v:AV,e:AE},
- almGrupos:{v:AV,e:AE},almProdutos:{v:AV,e:AE},
+ almGrupos:{v:AV,e:AE},almProdutos:{v:AV,e:AE},almCozinha:{v:AV,e:AE},almReqSemana:{v:AV,e:[]},
  'setor-paletes':{v:PV,e:[]},paleteMov:{v:PV,e:PE},paleteTipos:{v:PV,e:['admin','gerente']},paleteConfig:{v:PV,e:['admin','gerente']},paleteCompras:{v:PV,e:PC},
  pagamentosPaletes:{v:PV,e:[]},palClientes:{v:PV,e:[]},palEstoque:{v:PV,e:PC},palRel:{v:PV,e:[]},palResp:{v:PV,e:PC}});
-const ROTAS_A=['setor-almox','almLancSaida','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp','almGrupos','almProdutos'];
+const ROTAS_A=['setor-almox','almLancSaida','almPagamentos','almDevolucoes','almItens','almFornecedores','almEntradas','almEntrada','almSaidas','almSaida','almAjustes','almEpis','almEmprestimos','almInventarios','almInv','almEstoque','almMov','almPagar','almRel','almResp','almCozinha','almReqSemana','almGrupos','almProdutos'];
 const ROTAS_P=['setor-paletes','paleteConfig','pagamentosPaletes','paleteMov','paleteTipos','paleteCompras','palClientes','palEstoque','palRel','palResp'];
 [...ROTAS_A,...ROTAS_P].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
 window.ROTAS_SETOR_V52={almox:ROTAS_A.slice(),paletes:ROTAS_P.slice()};
@@ -20885,6 +20885,15 @@ const CATS=[['Peças e manutenção','PEC'],['EPI','EPI'],['Ferramentas','FER'],
 const PREF=Object.fromEntries(CATS);const CAT_NOMES=CATS.map(c=>c[0]);
 const UNIDS=['unidade','par','caixa','metro','kg','litro','rolo','jogo','pacote','fardo','saco','botijão','dúzia','lata','maço','bandeja'];
 const TIPOS_COZ=['Mercearia','Carnes','Alimentos em geral','Gás e outros'];
+/* V146 (20/11/2026, pedido do Jeferson): a cozinha tem estoque próprio, separado do almoxarifado. A separação é pela
+   categoria do item (Cozinha): nada muda nos registros, só onde cada um aparece e como o valor é somado. */
+const ehCoz=i=>!!i&&i.categoria==='Cozinha';
+const doEsc=(i,e)=>e==='coz'?ehCoz(i):!ehCoz(i);
+/* classificação pelo nome (reforço da leitura por foto): EPI sempre vira EPI; alimento e gás, cozinha */
+const RX_EPI=/\b(luvas?|botas?|botinas?|capacetes?|oculos de (protecao|seguranca)|protetor(es)? (auricular(es)?|facial)|abafador(es)?|mascaras?|respirador(es)?|aventa(l|is)|perneiras?|mangotes?|cinto de seguranca|cinturao|talabarte|creme de protecao|creme protetor)\b/;
+const RX_EPI_NAO=/\bluvas? (de )?(pvc|soldavel|roscavel|emenda|reducao|correr|eletroduto|\d)/;
+const RX_COZ=/\b(arroz|feijao|macarrao|oleo de soja|acucar|cafe|sal refinado|farinha|flocao|cuscuz|carnes?|frango|linguica|charque|temperos?|alho|cebolas?|tomates?|leite|margarina|manteiga|biscoitos?|bolachas?|botijao|gas de cozinha|gas p13|agua mineral|refrigerantes?|sucos?|ovos?|verduras?|legumes?|frutas?|bananas?|batatas?|mandioca|macaxeira|milho|sardinha|salsicha|queijo|paes|pao|vinagre|colorau|cominho|extrato de tomate|leite em po|achocolatado|tapioca|goma)\b/;
+function catAuto(nome,cat){const n=semAcento(nome);if(RX_EPI.test(n)&&!RX_EPI_NAO.test(n))return 'EPI';if(cat&&CAT_NOMES.includes(cat))return cat;return RX_COZ.test(n)?'Cozinha':''}
 const un=u=>u==='unidade'?'un':String(u||'');
 const ativo=x=>!!x&&x.ativo!==false&&x.ativo!=='false';
 const ITEM=id=>DATA.almItens.find(x=>x.id===id);
@@ -20904,15 +20913,17 @@ function proxCodigo(cat,excl){const p=PREF[cat]||'OUT';const re=new RegExp('^'+p
    Custo médio = valor das entradas (com o frete rateado pelo valor de cada linha) ÷ quantidade que entrou.
    Item sem nenhuma entrada (saldo inicial que veio da contagem): vale o custo de referência do cadastro. */
 let MA={b:null,v:null};
-const VZ={eq:0,ev:0,sq:0,dq:0,aq:0,epi:0,perda:0,pl:0,emp:0,saldo:0,cm:0,valor:0,disp:0,ultEnt:'',ultSai:''};
+const VZ={eq:0,eqc:0,sv:0,ev:0,sq:0,dq:0,aq:0,epi:0,perda:0,pl:0,emp:0,saldo:0,cm:0,valor:0,disp:0,ultEnt:'',ultSai:''};
 /* V142: item dado a fornecedor de lenha como pagamento (lançado no Setor da Lenha) também sai do estoque */
 const pagLenhaAlm=()=>{try{return window.CB_LENHA&&CB_LENHA.saidasProd?CB_LENHA.saidasProd():[]}catch(e){return []}};
+/* V146: linha de compra sem preço = "sem valor" (preço ainda em pesquisa): entra no saldo, mas não no custo médio */
+const semPreco=l=>!l||l.preco===''||l.preco==null||(typeof l.preco==='number'&&isNaN(l.preco));
 function fretesDe(e){const ls=(e.itens||[]).filter(l=>l&&l.itemId);const base=soma(ls,l=>(+l.qtd||0)*(+l.preco||0));const fr=+e.frete||0;const qt=soma(ls,l=>+l.qtd||0);
  return ls.map(l=>{const q=+l.qtd||0,v=q*(+l.preco||0);return{l,q,v,fr:fr?(base>0?fr*v/base:(qt>0?fr*q/qt:0)):0}})}
 function calcAlm(){
  if(MA.b===DATA[CA]&&MA.c===DATA.clCtrl)return MA.v;
  const it={};const g=id=>it[id]||(it[id]={...VZ});
- DATA.almEntradas.forEach(e=>fretesDe(e).forEach(x=>{const o=g(x.l.itemId);o.eq+=x.q;o.ev+=x.v+x.fr;if(String(e.data||'')>o.ultEnt)o.ultEnt=String(e.data||'')}));
+ DATA.almEntradas.forEach(e=>fretesDe(e).forEach(x=>{const o=g(x.l.itemId);o.eq+=x.q;if(semPreco(x.l))o.sv+=x.q;else{o.eqc+=x.q;o.ev+=x.v+x.fr}if(String(e.data||'')>o.ultEnt)o.ultEnt=String(e.data||'')}));
  DATA.almSaidas.forEach(s=>(s.itens||[]).forEach(l=>{if(!l||!l.itemId)return;const o=g(l.itemId);o.sq+=+l.qtd||0;if(String(s.data||'')>o.ultSai)o.ultSai=String(s.data||'')}));
  DATA.almDevolucoes.forEach(d=>(d.itens||[]).forEach(l=>{if(l&&l.itemId)g(l.itemId).dq+=+l.qtd||0}));
  DATA.almAjustes.forEach(a=>{if(!a.itemId)return;const q=+a.qtd||0;g(a.itemId).aq+=a.tipo==='saida'?-q:q});
@@ -20920,10 +20931,12 @@ function calcAlm(){
  DATA.almEmprestimos.forEach(x=>{if(!x.itemId)return;const o=g(x.itemId);const q=+x.qtd||0;if(x.devData){if(x.devEstado==='Danificada'||x.devEstado==='Perdida')o.perda+=q}else o.emp+=q});
  pagLenhaAlm().forEach(x=>{const o=g(x.itemId);o.pl+=x.qtd;if(String(x.data||'')>o.ultSai)o.ultSai=String(x.data||'')});
  DATA.almItens.forEach(i=>{if(+i.custoRef>0)g(i.id).ref=+i.custoRef});
- Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda-o.pl);o.cm=o.eq>0?o.ev/o.eq:(o.ref||0);o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
+ Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda-o.pl);o.cm=o.eqc>0?o.ev/o.eqc:(o.ref||0);o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
  MA={b:DATA[CA],c:DATA.clCtrl,v:it};return it;
 }
 const estI=id=>calcAlm()[id]||VZ;
+/* V146: produto "sem valor": nenhuma compra com preço e nenhum custo de referência (o valor ainda vai ser pesquisado) */
+const semValorI=i=>{if(!i)return false;const e=estI(i.id);return !(e.eqc>0)&&!(+e.ref>0)};
 const temMin=i=>i&&i.minimo!==''&&i.minimo!=null&&!isNaN(+i.minimo);
 function sitItem(i){if(!ativo(i))return 'Inativo';const e=estI(i.id);if(temMin(i)&&e.saldo<+i.minimo)return 'Abaixo do mínimo';return e.saldo>0?'Com saldo':'Sem saldo'}
 const COR_IT={'Inativo':'','Abaixo do mínimo':'pe','Com saldo':'ok','Sem saldo':''};
@@ -21286,9 +21299,9 @@ const nomeMaq=id=>{if(!id)return '';const l=typeof LOCAL==='function'?LOCAL(id):
 MODS.almSaidas={titulo:'Requisições (saídas)',sing:'requisição',ic:'saida',
  desc:'O que saiu do almoxarifado, para qual setor ou máquina, quem pediu, quem autorizou e quem entregou. Baixa o estoque pelo custo médio.',
  fields:[{k:'numero',l:'Número',t:'num',s:'Saída'},{k:'data',l:'Data',t:'data',s:'Saída'},{k:'setor',l:'Setor',t:'txt',s:'Saída'},{k:'maquinaId',l:'Máquina',t:'txt',s:'Saída'},{k:'finalidade',l:'Finalidade',t:'txt',s:'Saída'},
-  {k:'solicitante',l:'Solicitante',t:'txt',s:'Saída'},{k:'autorizado',l:'Autorizado por',t:'txt',s:'Saída'},{k:'entregador',l:'Entregue por',t:'txt',s:'Saída'},{k:'obs',l:'Observações',t:'area',s:'Saída'},{k:'itens',l:'Itens',t:'txt',s:'Saída'}],
+  {k:'solicitante',l:'Entregue para',t:'txt',s:'Saída'},{k:'autorizado',l:'Autorizado por',t:'txt',s:'Saída'},{k:'entregador',l:'Entregue por',t:'txt',s:'Saída'},{k:'obs',l:'Observações',t:'area',s:'Saída'},{k:'itens',l:'Itens',t:'txt',s:'Saída'}],
  cols:[{k:'numero',l:'Req.',v:r=>'<b>'+esc(fReq(r.numero))+'</b>',o:r=>+r.numero||0},{k:'data',l:'Data',t:'data'},{k:'setor',l:'Setor'},{k:'_m',l:'Máquina',v:r=>esc(nomeMaq(r.maquinaId)||'—'),o:r=>nomeMaq(r.maquinaId)},
-  {k:'finalidade',l:'Finalidade'},{k:'solicitante',l:'Solicitante'},{k:'_n',l:'Itens',v:r=>String((r.itens||[]).length),o:r=>(r.itens||[]).length},
+  {k:'finalidade',l:'Finalidade'},{k:'solicitante',l:'Entregue para'},{k:'_n',l:'Itens',v:r=>String((r.itens||[]).length),o:r=>(r.itens||[]).length},
   {k:'_v',l:'Valor (custo)',t:'moeda',v:r=>esc(fMoeda(valorSaida(r))),o:valorSaida},{k:'_d',l:'Devoluções',v:r=>{const n=devDe(r.id).length;return n?tag(n+' devolução(ões)','in'):'—'},o:r=>devDe(r.id).length}],
  filtros:[{k:'data',l:'Data',t:'periodo',campo:'data'},{k:'setor',l:'Setor',op:()=>[...new Set(DATA.almSaidas.map(s=>s.setor).filter(Boolean))].sort()},{k:'maquinaId',l:'Máquina',op:()=>LOCAIS_MAQ().map(l=>[l.id,nomeLocal(l)])}],
  ordem:['numero','desc'],semExcluir:true,imutavel:true,padrao:()=>({}),rotaItem:'#/almSaida/',rotaNovo:'#/almSaida/nova',
@@ -21313,15 +21326,15 @@ const SETS={
  almox:{nome:'Setor do Almoxarifado / Cozinha',rota:'#/setor-almox',abas:()=>[
   {r:'#/setor-almox',m:'setor-almox',ic:'painel',l:'Início',at:['setor-almox']},
   {r:'#/almProdutos',m:'almProdutos',ic:'caixa',l:'Estoque / Produtos',at:['almProdutos']},
+  {r:'#/almCozinha',m:'almCozinha',ic:'cozinha',l:'Cozinha',at:['almCozinha']},
   {r:'#/almEntrada/nova',m:'almEntrada',e:1,ic:'mais',l:'Nova entrada',at:['ent-nova']},
   {r:'#/almLancSaida',m:'almSaida',e:1,ic:'saida',l:'Lançar saída',at:['almLancSaida','sai-nova']},
   {r:'#/almEntradas',m:'almEntradas',ic:'entrada',l:'Entradas',at:['almEntradas','almEntrada']},
-  {r:'#/almSaidas',m:'almSaidas',ic:'recibo',l:'Requisições',at:['almSaidas','almSaida']},
+  {r:'#/almReqSemana',m:'almSaidas',ic:'recibo',l:'Requisições',at:['almReqSemana','almSaidas','almSaida']},
   {r:'#/almEstoque',m:'almEstoque',ic:'planilha',l:'Saldo em tabela',at:['almEstoque']},
   {r:'#/almMov',m:'almMov',ic:'lupa',l:'Movimentações',at:['almMov']},
   {r:'#/almEpis',m:'almEpis',ic:'escudo',l:'EPIs',at:['almEpis']},
   {r:'#/almEmprestimos',m:'almEmprestimos',ic:'ferramenta',l:'Ferramentas emprestadas',at:['almEmprestimos']},
-  {r:'#/almInventarios',m:'almInventarios',ic:'planilha',l:'Inventários',at:['almInventarios','almInv']},
   {r:'#/almAjustes',m:'almAjustes',ic:'engrenagem',l:'Ajustes',at:['almAjustes']},
   {r:'#/almPagar',m:'almPagar',ic:'moeda',l:'Contas a pagar',at:['almPagar']},
   {r:'#/almItens',m:'almItens',ic:'livro',l:'Itens',at:['almItens']},
@@ -21366,7 +21379,7 @@ const valorEpi=x=>r2((+x.qtd||0)*estI(x.itemId).cm);
 const quandoR=r=>String(r.criadoEm||r.lancadoEm||r.createdAt||'');
 function saidasDe(pred){
  const rq=DATA.almSaidas.filter(s=>!s.cancelado&&pred(String(s.data||''))).map(s=>({k:'req',r:s,v:valorSaida(s),href:'#/almSaida/'+s.id,ic:'saida',cls:'a-at',
-  t:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||'Setor'),s:[fData(s.data),(s.itens||[]).length+' item(ns)',s.solicitante?'pediu: '+s.solicitante:'',s.finalidade||''].filter(Boolean).join(' · ')}));
+  t:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||'Setor'),s:[fData(s.data),(s.itens||[]).length+' item(ns)',s.solicitante?'para: '+s.solicitante:'',s.finalidade||''].filter(Boolean).join(' · ')}));
  const ep=DATA.almEpis.filter(x=>!x.cancelado&&pred(String(x.data||''))).map(x=>{const i=ITEM(x.itemId);return{k:'epi',r:x,v:valorEpi(x),href:'#/almEpis/'+x.id,ic:'escudo',cls:'a-ok',
   t:'EPI · '+(nomeF(x.funcId)||'—'),s:[fData(x.data),fQtd(x.qtd)+' '+un((i||{}).unidade)+' de '+nomeItem(i),x.motivo||''].filter(Boolean).join(' · ')}});
  return [...rq,...ep].sort((a,b)=>String(b.r.data||'').localeCompare(String(a.r.data||''))||quandoR(b.r).localeCompare(quandoR(a.r)))}
@@ -21409,6 +21422,7 @@ function telaLancSaida(c){
 function inicioAlm(c){
  const h=hoje(),m=JB_MES.de('almox');const its=DATA.almItens;const at=its.filter(ativo);
  const comSaldo=at.filter(i=>estI(i.id).saldo>0);const valor=r2(soma(at,i=>estI(i.id).valor));const ab=abaixoMin();
+ const atA=at.filter(i=>!ehCoz(i)),atC=at.filter(ehCoz);const valA=r2(soma(atA,i=>estI(i.id).valor)),valC=r2(soma(atC,i=>estI(i.id).valor));
  const entM=DATA.almEntradas.filter(e=>String(e.data||'').startsWith(m));const saiM=saidasDe(d=>d.startsWith(m));
  const entH=comprasDia(h),saiH=saidasDe(d=>d===h);
  const fs=DATA.almEntradas.map(e=>({e,f:finDe(e)}));const aberto=fs.filter(x=>x.f.saldo>0.004);const venc=aberto.filter(x=>x.f.st==='Vencido');
@@ -21418,22 +21432,22 @@ function inicioAlm(c){
  const k=(cls,ico,rot,val,sub,href)=>kpiV(cls,ico,rot,val,sub,href);
  const ed=pode('almEntrada','e');
  c.innerHTML=cab('cozinha','Setor do Almoxarifado / Cozinha','Peças, EPIs, ferramentas, material de produção, cozinha, limpeza e escritório: o que entrou, o que saiu, para onde foi e quanto vale o estoque.',
-  `${pode('almProdutos')?`<a class="btn" href="#/almProdutos">${ic('caixa')}Estoque / Produtos</a>`:''}${pode('almSaida','e')?`<a class="btn" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
+  `${pode('almProdutos')?`<a class="btn" href="#/almProdutos">${ic('caixa')}Estoque / Produtos</a>`:''}${pode('almCozinha')?`<a class="btn" href="#/almCozinha">${ic('cozinha')}Cozinha</a>`:''}${pode('almSaida','e')?`<a class="btn" href="#/almLancSaida">${ic('saida')}Lançar saída</a>`:''}${ed?`<a class="btn pri" href="#/almEntrada/nova">${ic('mais')}Nova entrada</a>`:''}`)+
   `${!its.length?`<div class="aviso in" style="margin-bottom:14px"><span><b>Primeiros passos.</b> Cadastre os itens e os fornecedores e lance a primeira entrada. Nenhum número abaixo é inventado: tudo aparece conforme for lançado.</span></div>`:''}
   ${ab.length?`<div class="jb-aviso-auto aviso pe" style="margin-bottom:10px"><span><b>${ab.length} item(ns) abaixo do estoque mínimo:</b> ${esc(ab.slice(0,6).map(i=>i.nome+' ('+fQtd(estI(i.id).saldo)+' de '+fQtd(i.minimo)+' '+un(i.unidade)+')').join('; '))}${ab.length>6?'…':''}. <a href="#/almEstoque" data-fab>Ver no estoque</a></span></div>`:''}
   ${atr.length?`<div class="jb-aviso-auto aviso at" style="margin-bottom:10px"><span><b>${atr.length} ferramenta(s) com devolução atrasada:</b> ${esc(atr.slice(0,5).map(x=>nomeItem(ITEM(x.itemId))+' com '+(nomeF(x.funcId)||'—')+' desde '+fData(x.data)).join('; '))}. <a href="#/almEmprestimos">Ver empréstimos</a></span></div>`:''}
   ${caV.length?`<div class="jb-aviso-auto aviso at" style="margin-bottom:10px"><span><b>CA vencido em ${caV.length} EPI(s):</b> ${esc(caV.map(i=>i.nome+' ('+fData(i.caValidade)+')').join('; '))}.</span></div>`:''}
-  ${invAb.length?`<div class="aviso in" style="margin-bottom:10px"><span>Há ${invAb.length} inventário(s) em aberto. <a href="#/almInv/${esc(invAb[0].id)}">Continuar a contagem</a></span></div>`:''}
   ${JB_MES.barra('almox')}
   <div class="hero almp-hero">
    ${k('c1','carrinho','Compras de hoje',fMoeda(soma(entH,e=>e.total)),entH.length?entH.length+(entH.length===1?' compra · toque para ver':' compras · toque para ver'):'nenhuma compra hoje','javascript:void 0').replace('<a class="kpi','<a data-almhoje="compras" class="kpi')}
    ${k('c4','saida','Saídas de hoje',fMoeda(soma(saiH,x=>x.v)),saiH.length?contaSaidas(saiH)+' · toque para ver':'nenhuma saída hoje','javascript:void 0').replace('<a class="kpi','<a data-almhoje="saidas" class="kpi')}
-   ${k('c3','caixa','Valor em estoque',fMoeda(valor),comSaldo.length+' de '+at.length+' item(ns) com saldo','#/almEstoque')}
+   ${k('c3','caixa','Estoque do almoxarifado',fMoeda(valA),atA.filter(i=>estI(i.id).saldo>0).length+' de '+atA.length+' item(ns) com saldo','#/almProdutos')}
+   ${k('c2','cozinha','Estoque da cozinha',fMoeda(valC),atC.filter(i=>estI(i.id).saldo>0).length+' de '+atC.length+' item(ns) com saldo','#/almCozinha')}
    ${k('c1','entrada','Entradas em '+fMes(m),fMoeda(soma(entM,e=>e.total)),entM.length+' entrada(s)','#/almEntradas')}
    ${k('c4','saida','Saídas em '+fMes(m)+' (custo)',fMoeda(soma(saiM,x=>x.v)),saiM.length?contaSaidas(saiM):'nenhuma saída','#/almSaidas')}
    ${k('c5','moeda','Contas a pagar',fMoeda(soma(aberto,x=>x.f.saldo)),venc.length?venc.length+' vencida(s)':aberto.length+' em aberto','#/almPagar')}
    ${k(ab.length?'c6':'c2','aviso','Abaixo do mínimo',String(ab.length),ab.length?'repor':'nenhum item','#/almEstoque')}
-   ${k('c2','cozinha','Cozinha em '+fMes(m),fMoeda(coz),'compras de alimentos e gás','#/almRel')}
+   ${k('c2','carrinho','Compras da cozinha em '+fMes(m),fMoeda(coz),'alimentos e gás comprados','#/almRel')}
   </div>
   <div class="ex2">
    <div class="bloco"><h3>Últimas entradas<a href="#/almEntradas">Ver todas</a></h3>${lstV(DATA.almEntradas.slice().sort((a,b)=>String(b.data+(b.createdAt||b.criadoEm||'')).localeCompare(String(a.data+(a.createdAt||a.criadoEm||'')))).slice(0,6).map(e=>{const f=finDe(e);return{href:'#/almEntrada/'+e.id,ic:'entrada',cls:f.st==='Pago'?'a-ok':f.st==='Vencido'?'a-pe':'a-at',t:nomeFornA(e.fornecedorId),s:fData(e.data)+' · '+(e.itens||[]).length+' item(ns) · '+f.st.toLowerCase(),v:fMoeda(e.total)}}),'Nenhuma entrada lançada.')}</div>
@@ -21461,10 +21475,11 @@ function rascunhoE(e){
  return{id:null,data:hoje(),fornecedorId:'',nota:'',itens:[{itemId:'',qtd:'',preco:''}],frete:'',forma:'prazo',pagoVia:'PIX',contaId:'',nParc:1,venc1:addDias(hoje(),30),recebedor:respP(ABA_ALM),obs:'',totalNota:'',anexo:null}}
 /* V56: o mesmo item em duas linhas vira uma linha só (quantidades somadas, preço médio ponderado) */
 function juntarLinhasE(ls){const m=new Map();const difs=[];
- ls.forEach(l=>{const q=numE(l.qtd),p=numE(l.preco);const a=m.get(l.itemId);
-  if(!a){m.set(l.itemId,{itemId:l.itemId,qtd:q,valor:q*p,precos:new Set([r2(p)])});return}
-  a.qtd+=q;a.valor+=q*p;a.precos.add(r2(p))});
- const out=[...m.values()].map(a=>{if(a.precos.size>1)difs.push(a.itemId);return{itemId:a.itemId,qtd:r3(a.qtd),preco:a.qtd>0?Math.round(a.valor/a.qtd*10000)/10000:0}});
+ /* V146: linha sem preço fica sem preço (null); junto com linha de preço, vale o preço das que têm */
+ ls.forEach(l=>{const q=numE(l.qtd),sp=semPreco(l),p=numE(l.preco);const a=m.get(l.itemId);
+  if(!a){m.set(l.itemId,{itemId:l.itemId,qtd:q,qp:sp?0:q,valor:sp?0:q*p,precos:new Set(sp?[]:[r2(p)]),sp});return}
+  a.qtd+=q;if(sp)a.sp=true;else{a.qp+=q;a.valor+=q*p;a.precos.add(r2(p))}});
+ const out=[...m.values()].map(a=>{if(a.precos.size>1)difs.push(a.itemId);return{itemId:a.itemId,qtd:r3(a.qtd),preco:a.qp>0?Math.round(a.valor/a.qp*10000)/10000:(a.sp?'':0)}});
  return{ls:out,difs,juntou:out.length<ls.length}}
 const ehDiversos=i=>!!i&&/itens\s+diversos/i.test(String(i.nome||''));
 function itemDiversos(){return DATA.almItens.filter(i=>ativo(i)&&ehDiversos(i)).sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo)))[0]||null}
@@ -21479,7 +21494,8 @@ function modalNovoItem(nomeIni,depois){
   if(!st.nome){toast('Informe a descrição.','erro');return false}if(!st.categoria){toast('Escolha a categoria.','erro');return false}
   const r=conferirRegistro('almItens',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
   const rec=await gravarRegistro('almItens',st,null,true);toast('Item '+rec.codigo+' cadastrado.','ok');if(depois)depois(rec)},
-  {depois:v=>{const c=$('#niC',v),o=$('#niCod',v);const at=()=>{o.textContent=c.value?'Código: '+proxCodigo(c.value):''};c.onchange=at;at()}});
+  {depois:v=>{const c=$('#niC',v),o=$('#niCod',v),nn=$('#niN',v);const at=()=>{o.textContent=c.value?'Código: '+proxCodigo(c.value):''};c.onchange=at;
+   const auto=()=>{if(c.dataset.mexeu)return;const k=catAuto(nn.value,'');if(k&&c.value!==k){c.value=k;at()}};c.addEventListener('change',()=>{c.dataset.mexeu='1'});nn.addEventListener('input',auto);auto();at()}});
 }
 window.ALM_V56={ITEM,estI,un,rotItem,valorEpi,saidasDe,ativo,ehDiversos,itemDiversos,modalNovoItem,nomeFornA,
  itensSel:()=>DATA.almItens.filter(i=>ativo(i)).map(i=>({id:i.id,cod:i.codigo||'',nome:String(i.nome||''),un:un(i.unidade),saldo:estI(i.id).saldo}))};
@@ -21491,9 +21507,10 @@ function conferirE(d){
  if(!d.data)e.push('Informe a data.');else if(d.data>hoje())e.push('A data não pode ser futura.');
  if(!d.fornecedorId)e.push('Escolha o fornecedor.');else if(!FORNA(d.fornecedorId))e.push('Fornecedor não encontrado.');else if(!ativo(FORNA(d.fornecedorId)))a.push('O fornecedor está inativo no cadastro.');
  if(!c.ls.length)e.push('Inclua pelo menos um item com quantidade.');
- d.itens.forEach((l,k)=>{if(!l.itemId)return;const i=ITEM(l.itemId);const n='Linha '+(k+1)+(i?' ('+i.nome+')':'');
+ let nsv=0;d.itens.forEach((l,k)=>{if(!l.itemId)return;const i=ITEM(l.itemId);const n='Linha '+(k+1)+(i?' ('+i.nome+')':'');
   if(!i){e.push(n+': item não encontrado.');return}if(!(numE(l.qtd)>0))e.push(n+': informe a quantidade.');
-  if(l.preco===''||l.preco==null||isNaN(+l.preco)||+l.preco<0)e.push(n+': informe o preço unitário.');if(!ativo(i))a.push(n+': item inativo no cadastro.')});
+  if(semPreco(l)){if(numE(l.qtd)>0)nsv++}else if(isNaN(+l.preco)||+l.preco<0)e.push(n+': preço unitário inválido.');if(!ativo(i))a.push(n+': item inativo no cadastro.')});
+ if(nsv)a.push(nsv+(nsv===1?' item fica':' itens ficam')+' “sem valor”: '+(nsv===1?'entra':'entram')+' no estoque e o preço pode ser posto depois (filtro “Sem valor”).');
  if(d.frete!==''&&(isNaN(+d.frete)||+d.frete<0))e.push('Frete: valor inválido.');
  if(d.forma==='vista'&&!d.pagoVia)e.push('Informe como foi pago.');
  if(d.forma==='prazo'){const n=+d.nParc;if(!(Number.isInteger(n)&&n>=1&&n<=12))e.push('Parcelas: de 1 a 12.');if(!d.venc1)e.push('Informe o 1º vencimento.');else if(d.data&&d.venc1<=d.data&&c.total>0)a.push('O vencimento é '+(d.venc1===d.data?'hoje mesmo':'antes da data da entrada')+'? A conta já vai nascer vencida.')}
@@ -21515,8 +21532,8 @@ function linhasE(d){
   return `<tr data-li="${k}"><td data-l="Item"><div class="cmp"><select data-ei="itemId" aria-label="Item da linha ${k+1}">${opI(l.itemId)}</select></div>${i?`<small class="vd-saldo">Saldo ${esc(fQtd(e.saldo)+' '+un(i.unidade))} · custo médio ${esc(fMoeda(e.cm))}</small>`:''}${!i&&pode('almItens','e')?`<button type="button" class="btn min v56-novoit" data-enovo="${k}">${ic('mais')}novo item</button>`:''}</td>
    <td data-l="Quantidade" class="num"><div class="cmp"><input data-ei="qtd" type="number" step="any" min="0" inputmode="decimal" value="${esc(l.qtd)}" aria-label="Quantidade da linha ${k+1}"></div></td>
    <td data-l="Un.">${esc(i?un(i.unidade):'—')}</td>
-   <td data-l="Preço unitário" class="num"><div class="cmp"><input data-ei="preco" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(l.preco===''||l.preco==null?'':fMoedaCampo(l.preco))}" aria-label="Preço da linha ${k+1}"></div></td>
-   <td data-l="Total" class="num" data-et="${k}">${esc(fMoeda(tot))}</td>
+   <td data-l="Preço unitário" class="num"><div class="cmp"><input data-ei="preco" data-masc="moeda" inputmode="decimal" placeholder="sem valor" value="${esc(l.preco===''||l.preco==null?'':fMoedaCampo(l.preco))}" aria-label="Preço da linha ${k+1}"></div></td>
+   <td data-l="Total" class="num" data-et="${k}">${l.itemId&&semPreco(l)?'<span class="tag at">sem valor</span>':esc(fMoeda(tot))}</td>
    <td>${d.itens.length>1?`<button type="button" class="ib" data-erm="${k}" aria-label="Tirar a linha ${k+1}">${ic('fechar')}</button>`:''}</td></tr>`}).join('')}
 function resumoE(d){
  const r=conferirE(d);const c=r.c;const ln=(l,v,cls)=>`<div class="${cls||''}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
@@ -21545,7 +21562,7 @@ function formE(c){
     ${pode('almFornecedores','e')?`<div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="eNovoF">${ic('mais')}Cadastrar fornecedor novo</button></div>`:''}</fieldset>
    <fieldset class="sec"><legend>Itens recebidos</legend>
     <div class="tabwrap"><table class="tbl cartao vd-itens"><thead><tr><th>Item</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Preço unit.</th><th class="num">Total</th><th></th></tr></thead><tbody id="eItens">${linhasE(d)}</tbody></table></div>
-    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="eAdd">${ic('mais')}Adicionar item</button>${pode('almItens','e')?`<button type="button" class="btn min" id="eNovoI">${ic('livro')}Cadastrar item novo</button>`:''}</div></fieldset>
+    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="eAdd">${ic('mais')}Adicionar item</button>${pode('almItens','e')?`<button type="button" class="btn min" id="eNovoI">${ic('livro')}Cadastrar item novo</button>`:''}</div><p class="ajuda" style="margin:6px 0 0">Ainda sem o preço? Deixe em branco: o item entra no estoque como “sem valor” e o preço é posto depois.</p></fieldset>
    <fieldset class="sec"><legend>Frete e pagamento</legend><div class="campos">
     <div class="cmp"><label for="eFrete">Frete</label><input id="eFrete" data-ev="frete" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.frete===''?'':fMoedaCampo(d.frete))}"><span class="ajuda">Rateado entre os itens no custo médio.</span></div>
     <div class="cmp"><label for="eForma">Pagamento<i> *</i></label><select id="eForma" data-ev="forma">${optH([['prazo','A prazo'],['vista','À vista (já pago)']],d.forma)}</select></div>
@@ -21561,7 +21578,7 @@ function formE(c){
  c.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.ev){const k=t.dataset.ev;d[k]=k==='frete'||k==='totalNota'?(k==='totalNota'&&t.value.trim()===''?'':lerMoeda(t.value)):k==='nParc'?(t.value===''?'':+t.value):t.value;if(k==='forma')vis();if(k==='data'&&novo&&d.forma==='prazo'&&!d._v1){d.venc1=addDias(d.data,30);const v=$('#eV1',c);if(v)v.value=d.venc1}if(k==='venc1')d._v1=1;atuRes();return}
   const li=t.closest('[data-li]');if(li&&t.dataset.ei&&t.dataset.ei!=='itemId'){const k=+li.dataset.li;const l=d.itens[k];if(!l)return;l[t.dataset.ei]=t.dataset.ei==='preco'?lerMoeda(t.value):(t.value===''?'':+t.value);
-   const cel=$(`[data-et="${k}"]`,c);if(cel)cel.textContent=fMoeda(r2(numE(l.qtd)*numE(l.preco)));atuRes()}});
+   const cel=$(`[data-et="${k}"]`,c);if(cel){if(l.itemId&&semPreco(l))cel.innerHTML='<span class="tag at">sem valor</span>';else cel.textContent=fMoeda(r2(numE(l.qtd)*numE(l.preco)))}atuRes()}});
  c.addEventListener('change',e=>{const t=e.target;
   if(t.dataset.efoto!==undefined){const f=t.files&&t.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Arquivo maior que 20 MB.','erro');return}
    toast('Enviando o arquivo…');APP.assets.upload(f).then(r=>{d.anexo={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes};const w=$('#eFotoW',c);if(w)w.innerHTML=fotoE(d);toast('Arquivo anexado. Ele é gravado quando você confirmar a entrada.','ok')}).catch(err=>toast(err&&err.code==='unsupported_type'?'Tipo de arquivo não aceito. Use PDF ou imagem.':'Não foi possível enviar o arquivo.','erro'));return}
@@ -21590,7 +21607,7 @@ async function salvarE(btn){
  if(!await confirmar(ant?'Salvar as alterações da entrada?':'Confirmar a entrada?',txt,{ok:ant?'Salvar':'Confirmar entrada'}))return;
  btn.disabled=true;const agora=agoraIso();
  const rec={...(ant?clone(ant):{id:novoId(),criadoEm:agora,criadoPor:eu(),milheiros:null,precoMilheiro:null}),
-  data:d.data,fornecedorId:d.fornecedorId,nota:String(d.nota||'').trim(),itens:J.ls.map(l=>({itemId:l.itemId,qtd:r3(numE(l.qtd)),preco:J.difs.includes(l.itemId)?l.preco:r2(numE(l.preco))})),frete:c.fr,total:c.total,
+  data:d.data,fornecedorId:d.fornecedorId,nota:String(d.nota||'').trim(),itens:J.ls.map(l=>({itemId:l.itemId,qtd:r3(numE(l.qtd)),preco:semPreco(l)?null:J.difs.includes(l.itemId)?l.preco:r2(numE(l.preco))})),frete:c.fr,total:c.total,
   totalNota:d.totalNota===''||d.totalNota==null||isNaN(+d.totalNota)?null:r2(+d.totalNota),anexo:d.anexo||null,
   forma:d.forma,pagoVia:d.forma==='vista'?d.pagoVia:'',parcelas:c.parcelas,recebedor:String(d.recebedor||'').trim(),obs:String(d.obs||'').trim(),alteradoEm:agora,alteradoPor:eu()};
  if(!ant)rec.finTitulos=[];
@@ -21625,7 +21642,7 @@ function detalheE(c,e){
    <section class="bloco"><h3>Conta a pagar no Financeiro${pode('fpagar')?'<a href="#/fpagar">Contas a pagar</a>':''}</h3>${kvV([['Situação',tagFin(f)],['Total',esc(fMoeda(e.total))],['Pago',esc(fMoeda(f.pago))],['Saldo',esc(fMoeda(f.saldo))],f.venc?['Próximo vencimento',esc(fData(f.venc))]:null])}
     ${tabTitulos(f)}${!podePagarFin()&&f.saldo>0?'<p class="ajuda" style="margin:0 17px 14px">O pagamento é registrado no Setor Financeiro.</p>':''}</section>
    <section class="bloco w2"><h3>Itens recebidos</h3>${tabela(['Item','Categoria',['Quantidade',1],'Un.',['Preço unit.',1],['Frete rateado',1],['Total',1]],
-     ls.map(x=>{const i=ITEM(x.l.itemId);return `<tr>${td('Item',i&&pode('almItens')?`<a href="#/almItens/${esc(i.id)}">${esc(rotItem(i))}</a>`:esc(rotItem(i)))}${td('Categoria',esc((i||{}).categoria||''))}${td('Quantidade',esc(fQtd(x.q)),1)}${td('Un.',esc(un((i||{}).unidade)))}${td('Preço unit.',esc(fMoeda(x.l.preco)),1)}${td('Frete rateado',esc(fMoeda(x.fr)),1)}${td('Total',esc(fMoeda(x.v+x.fr)),1)}</tr>`}))}</section>
+     ls.map(x=>{const i=ITEM(x.l.itemId);return `<tr>${td('Item',i&&pode('almItens')?`<a href="#/almItens/${esc(i.id)}">${esc(rotItem(i))}</a>`:esc(rotItem(i)))}${td('Categoria',esc((i||{}).categoria||''))}${td('Quantidade',esc(fQtd(x.q)),1)}${td('Un.',esc(un((i||{}).unidade)))}${td('Preço unit.',semPreco(x.l)?'<span class="tag at">sem valor</span>':esc(fMoeda(x.l.preco)),1)}${td('Frete rateado',esc(fMoeda(x.fr)),1)}${td('Total',esc(fMoeda(x.v+x.fr)),1)}</tr>`}))}</section>
    ${pgsAnt.length?`<section class="bloco w2"><h3>Pagamento registrado no controle antigo</h3>${tabela(['Data','Forma',['Valor',1],'Observação'],pgsAnt.map(p=>`<tr>${td('Data',esc(fData(p.data)))}${td('Forma',esc(p.forma||'—'))}${td('Valor',esc(fMoeda(p.valor)),1)}${td('Observação',esc((p.obs||'')+(p.auto?' (gerado sozinho, à vista)':'')))}</tr>`))}<p class="ajuda" style="margin:8px 17px 14px">O mesmo pagamento está no compromisso do Financeiro acima. Ele vale uma vez só.</p></section>`:''}
    <section class="bloco w2"><h3>Histórico de alterações</h3><div class="vv-hist">${historicoHtml('almEntradas',e.id)}</div></section>
   </div>`;
@@ -21651,7 +21668,7 @@ function docEntrada(e){
  D.meta=[['Data',fData(e.data)],['Nota',e.nota||'—'],['Situação',f.st]];
  D.quadros=[{rot:'FORNECEDOR',campos:[['Nome / razão social',forn.nome||'—',1],['CPF/CNPJ',fmtDoc(forn.doc)||'—'],['Cidade',forn.cidade||'—']]},quadroEmpresaDoc('RECEBEDOR · ALMOXARIFADO / COZINHA')];
  D.parteNome=forn.nome||'';D.arquivo='Entrada_almoxarifado_'+String(e.data||'')+'_'+nomeArq(forn.nome||'fornecedor');D.rodape='Registro de entrada do almoxarifado · '+fData(e.data)+' · '+(forn.nome||'');
- D.blocos.push({tipo:'tabela',head:['Item','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:(e.itens||[]).map(l=>{const i=ITEM(l.itemId)||{};return[rotItem(i),fQtd(l.qtd),un(i.unidade),fMoeda(l.preco),fMoeda((+l.qtd||0)*(+l.preco||0))]}),foot:['Itens','','','',fMoeda(r2(soma(e.itens||[],l=>(+l.qtd||0)*(+l.preco||0))))]});
+ D.blocos.push({tipo:'tabela',head:['Item','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:(e.itens||[]).map(l=>{const i=ITEM(l.itemId)||{};return[rotItem(i),fQtd(l.qtd),un(i.unidade),semPreco(l)?'sem valor':fMoeda(l.preco),semPreco(l)?'sem valor':fMoeda((+l.qtd||0)*(+l.preco||0))]}),foot:['Itens','','','',fMoeda(r2(soma(e.itens||[],l=>(+l.qtd||0)*(+l.preco||0))))]});
  D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[['Itens',fMoeda(r2(soma(e.itens||[],l=>(+l.qtd||0)*(+l.preco||0))))],['(+) Frete',fMoeda(e.frete)]],foot:['Total da entrada',fMoeda(e.total)]});
  D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],body:[['Forma',formaTxt(e)],...(e.parcelas||[]).map(p=>['Parcela '+p.n+' · vence '+fData(p.venc),fMoeda(p.valor)]),['Pago',fMoeda(f.pago)],['Saldo a pagar',fMoeda(f.saldo)]]});
  if(e.obs)D.blocos.push({tipo:'p',texto:'Observações: '+e.obs});
@@ -21685,7 +21702,7 @@ function dispParaSaida(itemId,d){/* disponível + o que esta própria requisiç�
 function conferirS(d){
  const e=[],a=[];const ls=d.itens.filter(l=>l.itemId&&numE(l.qtd)>0);
  if(!d.data)e.push('Informe a data.');else if(d.data>hoje())e.push('A data não pode ser futura.');
- if(!String(d.setor||'').trim()&&!d.maquinaId)e.push('Informe o setor ou a máquina que recebeu.');
+ if(!String(d.setor||'').trim()&&!d.maquinaId&&!String(d.solicitante||'').trim())e.push('Informe para quem foi entregue (a pessoa) ou, se não souber a pessoa, o setor.');
  if(!ls.length)e.push('Inclua pelo menos um item com quantidade.');
  const porI={};ls.forEach(l=>{porI[l.itemId]=r3((porI[l.itemId]||0)+numE(l.qtd))});
  Object.entries(porI).forEach(([id,q])=>{const i=ITEM(id);if(!i){e.push('Item não encontrado.');return}const disp=dispParaSaida(id,d);
@@ -21696,7 +21713,7 @@ function conferirS(d){
  if(d.maquinaId&&!nomeMaq(d.maquinaId))a.push('Máquina não encontrada.');
  return{erros:e,avisos:a,ls}}
 function linhasS(d){
- const opI=sel=>`<option value="">Selecione…</option>`+optsItens(i=>estI(i.id).saldo>0,sel).map(([v,l])=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
+ const opI=sel=>`<option value="">Selecione…</option>`+optsItens(i=>estI(i.id).saldo>0&&i.categoria!=='EPI',sel).map(([v,l])=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
  return d.itens.map((l,k)=>{const i=ITEM(l.itemId);const e=i?estI(i.id):null;const disp=i?dispParaSaida(i.id,d):0;
   return `<tr data-li="${k}"><td data-l="Item"><div class="cmp"><select data-si="itemId" aria-label="Item da linha ${k+1}">${opI(l.itemId)}</select></div>${i?`<small class="vd-saldo">Disponível ${esc(fQtd(disp)+' '+un(i.unidade))}${e.emp?' ('+esc(fQtd(e.emp))+' emprestado)':''}</small>`:''}</td>
    <td data-l="Quantidade" class="num"><div class="cmp"><input data-si="qtd" type="number" step="any" min="0" inputmode="decimal" value="${esc(l.qtd)}" aria-label="Quantidade da linha ${k+1}"></div></td>
@@ -21706,7 +21723,7 @@ function linhasS(d){
 function resumoS(d){
  const r=conferirS(d);const ln=(l,v,cls)=>`<div class="${cls||''}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;const val=r2(soma(r.ls,l=>numE(l.qtd)*estI(l.itemId).cm));
  const er=d.tentou?r.erros:r.erros.filter(x=>/insuficiente|voltaram|não pode/.test(x));
- return `<h3>Resumo da requisição</h3><div class="vd-tot">${ln('Itens',String(r.ls.length))}${ln('Valor pelo custo médio',fMoeda(val),'vd-grande')}${ln('Setor',d.setor||'—')}${ln('Solicitante',d.solicitante||'—')}</div>
+ return `<h3>Resumo da requisição</h3><div class="vd-tot">${ln('Itens',String(r.ls.length))}${ln('Valor pelo custo médio',fMoeda(val),'vd-grande')}${ln('Setor',d.setor||'—')}${ln('Entregue para',d.solicitante||'—')}</div>
   ${er.length||r.avisos.length?`<ul class="vd-avisos">${er.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}</ul>`:''}
   <button type="button" class="btn pri vd-ok" id="sOk" ${pode('almSaida','e')?'':'disabled'}>${ic('saida')}${d.id?'Salvar alterações':'Confirmar requisição'}</button>
   <ol class="vd-passos"><li>${d.id?'Mantém o número '+esc(fReq(d.numero)):'Recebe número próprio (Req. 0001, 0002…)'}</li><li>Baixa o estoque pelo custo médio</li><li>Gera a requisição para assinar</li></ol>`}
@@ -21716,14 +21733,14 @@ function formS(c){
   `<div class="vd-grade"><form id="frmS" class="vd-form" novalidate>
    <fieldset class="sec"><legend>Destino</legend><div class="campos">
     <div class="cmp"><label for="sData">Data<i> *</i></label><input id="sData" data-sv="data" type="date" max="${hoje()}" value="${esc(d.data)}"></div>
-    <div class="cmp"><label for="sSetor">Setor<i> *</i></label><input id="sSetor" data-sv="setor" list="dlSetA" value="${esc(d.setor)}"><datalist id="dlSetA">${setoresAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist><span class="ajuda">Ou escolha só a máquina: basta um dos dois.</span></div>
+    <div class="cmp"><label for="sSetor">Setor</label><input id="sSetor" data-sv="setor" list="dlSetA" value="${esc(d.setor)}"><datalist id="dlSetA">${setoresAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist><span class="ajuda">Se não souber a pessoa, informe o setor (ou a máquina).</span></div>
     <div class="cmp"><label for="sMaq">Máquina, veículo ou forno</label><select id="sMaq" data-sv="maquinaId"><option value="">— nenhum —</option>${optH(maqs.map(l=>[l.id,nomeLocal(l)+' · '+(l.setor==='lenha'?'Lenha':'Combustível')]),d.maquinaId)}</select><span class="ajuda">Para saber quanto cada máquina gasta em peças.</span></div>
     <div class="cmp"><label for="sFin">Finalidade</label><input id="sFin" data-sv="finalidade" value="${esc(d.finalidade)}" placeholder="Ex.: troca do rolamento da maromba"></div></div></fieldset>
    <fieldset class="sec"><legend>Itens</legend>
     <div class="tabwrap"><table class="tbl cartao vd-itens"><thead><tr><th>Item</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Custo médio</th><th class="num">Valor</th><th></th></tr></thead><tbody id="sItens">${linhasS(d)}</tbody></table></div>
-    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="sAdd">${ic('mais')}Adicionar item</button><span class="ajuda">Só aparecem os itens com saldo.</span></div></fieldset>
+    <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="sAdd">${ic('mais')}Adicionar item</button><span class="ajuda">Só aparecem os itens com saldo. EPI sai pela <a href="#/almEpis/novo">Entrega de EPI</a>, com o funcionário.</span></div></fieldset>
    <fieldset class="sec"><legend>Quem</legend><div class="campos">
-    <div class="cmp"><label for="sSol">Solicitante</label><input id="sSol" data-sv="solicitante" list="dlFunA" value="${esc(d.solicitante)}"><datalist id="dlFunA">${optsFuncAlm().map(([,n])=>`<option value="${esc(String(n).split(' · ')[0].replace(/ \(desligado\)$/,''))}">`).join('')}</datalist></div>
+    <div class="cmp"><label for="sSol">Entregue para (quem recebeu)</label><input id="sSol" data-sv="solicitante" list="dlFunA" value="${esc(d.solicitante)}"><datalist id="dlFunA">${optsFuncAlm().map(([,n])=>`<option value="${esc(String(n).split(' · ')[0].replace(/ \(desligado\)$/,''))}">`).join('')}</datalist></div>
     <div class="cmp"><label for="sAut">Autorizado por</label><input id="sAut" data-sv="autorizado" value="${esc(d.autorizado)}"></div>
     <div class="cmp"><label for="sEnt">Entregue por</label><input id="sEnt" data-sv="entregador" value="${esc(d.entregador)}"></div>
     <div class="cmp w2"><label for="sObs">Observações</label><textarea id="sObs" data-sv="obs">${esc(d.obs)}</textarea></div></div></fieldset>
@@ -21743,14 +21760,14 @@ async function salvarS(btn){
  const d=RS;if(!d)return;const r=conferirS(d);
  if(r.erros.length){d.tentou=true;const rs=$('#sResumo');if(rs)rs.innerHTML=resumoS(d);toast(r.erros[0],'erro');return}
  const ant=d.id?DATA.almSaidas.find(x=>x.id===d.id):null;
- if(!await confirmar(ant?'Salvar as alterações da requisição?':'Confirmar a requisição?',r.ls.length+' item(ns) para '+[d.setor,d.maquinaId?nomeMaq(d.maquinaId):''].filter(Boolean).join(' · ')+(String(d.solicitante||'').trim()?' · solicitante '+d.solicitante:'')+'. O estoque é baixado pelo custo médio.',{ok:ant?'Salvar':'Confirmar requisição'}))return;
+ if(!await confirmar(ant?'Salvar as alterações da requisição?':'Confirmar a requisição?',r.ls.length+' item(ns) para '+[d.setor,d.maquinaId?nomeMaq(d.maquinaId):''].filter(Boolean).join(' · ')+(String(d.solicitante||'').trim()?' · entregue para '+d.solicitante:'')+'. O estoque é baixado pelo custo médio.',{ok:ant?'Salvar':'Confirmar requisição'}))return;
  btn.disabled=true;let numero=ant?ant.numero:null;
  if(!ant){try{numero=await reservarSeqV('numeracao/almSaidas',Math.max(0,...DATA.almSaidas.map(s=>+s.numero||0)))}catch(e){btn.disabled=false;toast('Não deu para reservar o número agora. Tente de novo. Nada foi gravado.','erro');return}}
  const r2b=conferirS(d);if(r2b.erros.length){btn.disabled=false;toast(r2b.erros[0]+' Nada foi gravado.','erro');renderTela();return}
  const agora=agoraIso();
  const itens=r2b.ls.map(l=>{const q=r3(numE(l.qtd));const velho=ant&&(ant.itens||[]).find(x=>x.itemId===l.itemId&&ig(x.qtd,q));
   const cu=velho&&velho.custoUnit!=null?+velho.custoUnit:Math.round(estI(l.itemId).cm*10000)/10000;return{itemId:l.itemId,qtd:q,custoUnit:cu,custoTotal:r2(q*cu)}});
- const setorS=String(d.setor||'').trim()||String(((typeof LOCAL==='function'&&d.maquinaId?LOCAL(d.maquinaId):null)||{}).setorTrabalho||'').trim();
+ const setorS=String(d.setor||'').trim()||String(((typeof LOCAL==='function'&&d.maquinaId?LOCAL(d.maquinaId):null)||{}).setorTrabalho||'').trim()||setorDaPessoa(d.solicitante);
  const rec={...(ant?clone(ant):{id:novoId(),criadoEm:agora,criadoPor:eu()}),numero,data:d.data,setor:setorS,maquinaId:d.maquinaId||'',finalidade:String(d.finalidade||'').trim(),
   solicitante:String(d.solicitante||'').trim(),autorizado:String(d.autorizado||'').trim(),entregador:String(d.entregador||'').trim(),obs:String(d.obs||'').trim(),itens,alteradoEm:agora,alteradoPor:eu()};
  try{await gravar('almSaidas',rec,ant);await registrarLog('almSaidas',rec.id,ant?'alterou':'criou',ant,rec,rotulosDe(MODS.almSaidas))}
@@ -21764,7 +21781,7 @@ function detalheS(c,s){
   `<a class="btn" href="#/almSaidas">${ic('esquerda')}Requisições</a><button type="button" class="btn" id="sdDoc">${ic('doc')}Requisição para assinar</button>${pode_dev?`<button type="button" class="btn" id="sdDev">${ic('entrada')}Registrar devolução</button>`:''}${ed?`<a class="btn" href="#/almSaida/${esc(s.id)}/editar">${ic('editar')}Editar</a><button type="button" class="btn perigo" id="sdExc">${ic('lixo')}Excluir</button>`:''}`)+
   `<div class="vv-grade">
    <section class="bloco"><h3>Dados da requisição</h3>${kvV([['Número',esc(fReq(s.numero))],['Data',esc(fData(s.data))],['Setor',esc(s.setor||'—')],['Máquina',esc(nomeMaq(s.maquinaId)||'—')],['Finalidade',esc(s.finalidade||'—'),1],
-    ['Solicitante',esc(s.solicitante||'—')],['Autorizado por',esc(s.autorizado||'—')],['Entregue por',esc(s.entregador||'—')],['Lançado por',esc(quem(s)||'—')],s.obs?['Observações',esc(s.obs),1]:null])}</section>
+    ['Entregue para',esc(s.solicitante||'—')],['Autorizado por',esc(s.autorizado||'—')],['Entregue por',esc(s.entregador||'—')],['Lançado por',esc(quem(s)||'—')],s.obs?['Observações',esc(s.obs),1]:null])}</section>
    <section class="bloco"><h3>Valor</h3>${kvV([['Valor pelo custo médio',esc(fMoeda(valorSaida(s)))],['Devoluções',esc(String(devs.length))],['Valor devolvido',esc(fMoeda(r2(soma(devs,x=>soma(x.itens||[],l=>{const o=(s.itens||[]).find(i=>i.itemId===l.itemId);return(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm)})))))]])}</section>
    <section class="bloco w2"><h3>Itens</h3>${tabela(['Item',['Saiu',1],['Voltou',1],'Un.',['Custo unit.',1],['Valor',1]],(s.itens||[]).map(l=>{const i=ITEM(l.itemId);return `<tr>${td('Item',esc(rotItem(i)))}${td('Saiu',esc(fQtd(l.qtd)),1)}${td('Voltou',esc(dv[l.itemId]?fQtd(dv[l.itemId]):'—'),1)}${td('Un.',esc(un((i||{}).unidade)))}${td('Custo unit.',esc(fMoeda(l.custoUnit!=null?l.custoUnit:estI(l.itemId).cm)),1)}${td('Valor',esc(fMoeda(l.custoTotal!=null?l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm)),1)}</tr>`}))}</section>
    ${devs.length?`<section class="bloco w2"><h3>Devoluções</h3>${tabela(['Data','Itens','Observação',''],devs.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(x=>`<tr>${td('Data',esc(fData(x.data)))}${td('Itens',esc((x.itens||[]).map(l=>fQtd(l.qtd)+' '+un((ITEM(l.itemId)||{}).unidade)+' '+nomeItem(ITEM(l.itemId))).join('; ')))}${td('Observação',esc(x.obs||'—'))}<td class="acs">${ed?`<button type="button" class="btn min perigo" data-devx="${esc(x.id)}">Excluir</button>`:''}</td></tr>`))}</section>`:''}
@@ -21799,13 +21816,13 @@ async function excluirS(s){
 function docSaida(s){
  const D=baseRel('REQUISIÇÃO DE MATERIAIS','Almoxarifado / Cozinha · '+fReq(s.numero),[]);D.numero=fReq(s.numero);
  D.meta=[['Requisição',fReq(s.numero)],['Data',fData(s.data)],['Setor',s.setor||'—']];
- D.quadros=[{rot:'DESTINO',campos:[['Setor',s.setor||'—'],['Máquina, veículo ou forno',nomeMaq(s.maquinaId)||'—'],['Finalidade',s.finalidade||'—',1]]},quadroEmpresaDoc('ALMOXARIFADO / COZINHA')];
- D.parteNome=s.setor||'';D.arquivo='Requisicao_'+String(+s.numero||0).padStart(4,'0')+'_'+nomeArq(s.setor||'setor');D.rodape='Requisição de materiais '+fReq(s.numero)+' · '+(s.setor||'');
+ D.quadros=[{rot:'DESTINO',campos:[['Entregue para',s.solicitante||'—'],['Setor',s.setor||'—'],['Máquina, veículo ou forno',nomeMaq(s.maquinaId)||'—'],['Finalidade',s.finalidade||'—',1]]},quadroEmpresaDoc('ALMOXARIFADO / COZINHA')];
+ D.parteNome=s.solicitante||s.setor||'';D.arquivo='Requisicao_'+String(+s.numero||0).padStart(4,'0')+'_'+nomeArq(s.setor||'setor');D.rodape='Requisição de materiais '+fReq(s.numero)+' · '+(s.setor||'');
  D.blocos.push({tipo:'tabela',head:['Item','Quantidade','Unidade','Custo unitário','Valor'],dir:[1,3,4],body:(s.itens||[]).map(l=>{const i=ITEM(l.itemId)||{};return[rotItem(i),fQtd(l.qtd),un(i.unidade),fMoeda(l.custoUnit!=null?l.custoUnit:estI(l.itemId).cm),fMoeda(l.custoTotal!=null?l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm)]}),foot:['Total','','','',fMoeda(valorSaida(s))]});
  if(s.obs)D.blocos.push({tipo:'p',texto:'Observações: '+s.obs});
  D.blocos.push({tipo:'aviso',texto:'Valores pelo custo médio das compras. Documento de controle interno do almoxarifado.'});
  const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(s.data)+'.';
- D.assinaturas=[{nome:s.solicitante||'',sub:'Solicitante · recebi o material acima'},{nome:s.autorizado||'',sub:'Autorizado por'},{nome:s.entregador||'',sub:'Entregue por'}];
+ D.assinaturas=[{nome:s.solicitante||'',sub:'Recebido por · recebi o material acima'},{nome:s.autorizado||'',sub:'Autorizado por'},{nome:s.entregador||'',sub:'Entregue por'}];
  D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
 function telaSaida(el){
  const r=lerRota();
@@ -21817,65 +21834,74 @@ function telaSaida(el){
   detalheS(c,s)})}
 
 /* ================= almoxarifado: estoque ================= */
-const UE={cat:'',grp:'',sit:'',q:''};
+const UE={cat:'',grp:'',sit:'',q:'',esc:''};
 function telaEstoqueAlm(c){
  if(UE.grp&&!GRUPO(UE.grp))UE.grp='';
- let L=DATA.almItens.slice();if(UE.cat)L=L.filter(i=>i.categoria===UE.cat);if(UE.grp)L=L.filter(i=>i.grupoId===UE.grp);if(UE.sit)L=L.filter(i=>UE.sit==='Repor agora'?ativo(i)&&repI(i).comprar>0:sitItem(i)===UE.sit);
+ let L=DATA.almItens.slice();if(UE.esc)L=L.filter(i=>doEsc(i,UE.esc));if(UE.cat)L=L.filter(i=>i.categoria===UE.cat);if(UE.grp)L=L.filter(i=>i.grupoId===UE.grp);if(UE.sit)L=L.filter(i=>UE.sit==='Repor agora'?ativo(i)&&repI(i).comprar>0:UE.sit==='Sem valor'?ativo(i)&&semValorI(i):sitItem(i)===UE.sit);
  if(UE.q){const q=semAcento(UE.q);L=L.filter(i=>semAcento([i.codigo,i.nome,i.local,i.marca,i.refFab,i.especificacao,nomeGrupo(i.grupoId)].filter(Boolean).join(' ')).includes(q))}
  L.sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true}));
- const at=DATA.almItens.filter(ativo);const val=r2(soma(at,i=>estI(i.id).valor));
- c.innerHTML=cab('caixa','Estoque do almoxarifado','Saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas ou danificadas − itens dados como pagamento de lenha. Valor = saldo × custo médio das compras (com o frete rateado).',
-  `<button type="button" class="btn" id="aeExp">${ic('baixar')}Exportar ▾</button>${pode('almInventarios','e')?`<a class="btn" href="#/almInventarios">${ic('planilha')}Inventário</a>`:''}`)+
-  resumo([[fMoeda(val),'Valor em estoque'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Itens com saldo'],[String(at.length),'Itens ativos'],[String(abaixoMin().length),'Abaixo do mínimo'],[String(aRepor().length),'Para repor agora'],[String(at.filter(i=>estI(i.id).emp>0).length),'Com ferramenta emprestada']])+
-  `<div class="fi-filtros"><input type="search" id="aeQ" placeholder="Pesquisar código, nome, marca, grupo ou local" value="${esc(UE.q)}" aria-label="Pesquisar">
+ const at=DATA.almItens.filter(ativo);const val=r2(soma(at,i=>estI(i.id).valor));const valC=r2(soma(at.filter(ehCoz),i=>estI(i.id).valor)),valA=r2(val-valC);
+ c.innerHTML=cab('caixa','Estoque do almoxarifado e da cozinha','Saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas ou danificadas − itens dados como pagamento de lenha. Valor = saldo × custo médio das compras (com o frete rateado).',
+  `<button type="button" class="btn" id="aeExp">${ic('baixar')}Exportar ▾</button>`)+
+  resumo([[fMoeda(valA),'Valor do almoxarifado'],[fMoeda(valC),'Valor da cozinha'],[fMoeda(val),'Valor total'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Itens com saldo'],[String(at.length),'Itens ativos'],[String(abaixoMin().length),'Abaixo do mínimo'],[String(aRepor().length),'Para repor agora'],[String(at.filter(i=>estI(i.id).emp>0).length),'Com ferramenta emprestada']])+
+  `<div class="apr-chips apr-esc" role="group" aria-label="Estoque">${[['','Tudo'],['alm','Almoxarifado'],['coz','Cozinha']].map(([k,l])=>`<button type="button" data-ue="${k}" class="${UE.esc===k?'on':''}" aria-pressed="${UE.esc===k}">${l}</button>`).join('')}</div>
+  <div class="fi-filtros"><input type="search" id="aeQ" placeholder="Pesquisar código, nome, marca, grupo ou local" value="${esc(UE.q)}" aria-label="Pesquisar">
    <select id="aeC" aria-label="Categoria"><option value="">Categoria: todas</option>${optH(CAT_NOMES,UE.cat)}</select>
    ${DATA.almGrupos.length?`<select id="aeG" aria-label="Grupo"><option value="">Grupo: todos</option>${optH(optsGrupos().filter(g=>!UE.cat||(GRUPO(g[0])||{}).categoria===UE.cat),UE.grp)}</select>`:''}
-   <select id="aeS" aria-label="Situação"><option value="">Situação: todas</option>${optH(['Com saldo','Sem saldo','Abaixo do mínimo','Repor agora','Inativo'],UE.sit)}</select></div>`+
+   <select id="aeS" aria-label="Situação"><option value="">Situação: todas</option>${optH(['Com saldo','Sem saldo','Sem valor','Abaixo do mínimo','Repor agora','Inativo'],UE.sit)}</select></div>`+
   (L.length?tabela(['Código','Item','Categoria',['Saldo',1],['Emprestado',1],['Mínimo',1],['Consumo/mês',1],['Comprar',1],['Custo médio',1],['Valor',1],'Situação'],L.map(i=>{const e=estI(i.id);const p=ativo(i)?repI(i):{mes:0,comprar:0,abc:''};
    return `<tr class="clic" data-go="#/almItens/${esc(i.id)}">${td('Código',esc(i.codigo||''))}${td('Item','<b>'+esc(i.nome)+'</b>'+(i.local||i.marca?'<span class="sub">'+esc([i.marca,i.local].filter(Boolean).join(' · '))+'</span>':''))}${td('Categoria',esc(i.categoria||'')+(i.grupoId&&GRUPO(i.grupoId)?'<span class="sub">'+esc(nomeGrupo(i.grupoId))+'</span>':''))}
-    ${td('Saldo','<b>'+esc(fQtd(e.saldo))+'</b> '+esc(un(i.unidade)),1)}${td('Emprestado',e.emp?esc(fQtd(e.emp)):'—',1)}${td('Mínimo',temMin(i)?esc(fQtd(i.minimo)):'—',1)}${td('Consumo/mês',p.mes?esc(fQtd(p.mes)):'—',1)}${td('Comprar',p.comprar>0?'<b style="color:var(--pe)">'+esc(fQtd(p.comprar))+'</b>':'—',1)}${td('Custo médio',esc(fMoeda(e.cm)),1)}${td('Valor',esc(fMoeda(e.valor)),1)}${td('Situação',tagIt(i)+(p.abc?' <span class="ajuda" title="Curva ABC pelo valor consumido em 12 meses">curva '+esc(p.abc)+'</span>':''))}</tr>`})):noNada('Nenhum item com estes filtros',''))+
+    ${td('Saldo','<b>'+esc(fQtd(e.saldo))+'</b> '+esc(un(i.unidade)),1)}${td('Emprestado',e.emp?esc(fQtd(e.emp)):'—',1)}${td('Mínimo',temMin(i)?esc(fQtd(i.minimo)):'—',1)}${td('Consumo/mês',p.mes?esc(fQtd(p.mes)):'—',1)}${td('Comprar',p.comprar>0?'<b style="color:var(--pe)">'+esc(fQtd(p.comprar))+'</b>':'—',1)}${td('Custo médio',ativo(i)&&semValorI(i)?'<span class="tag at">sem valor</span>':esc(fMoeda(e.cm)),1)}${td('Valor',esc(fMoeda(e.valor)),1)}${td('Situação',tagIt(i)+(p.abc?' <span class="ajuda" title="Curva ABC pelo valor consumido em 12 meses">curva '+esc(p.abc)+'</span>':''))}</tr>`})):noNada('Nenhum item com estes filtros',''))+
   (DATA.almGrupos.length?`<h3 class="grupo-t">Valor por grupo</h3>`+tabela(['Grupo','Categoria',['Itens',0],['Com saldo',0],['Valor',1]],[...DATA.almGrupos.filter(ativo).map(g=>({g,xs:at.filter(i=>i.grupoId===g.id)})),{g:{nome:'(sem grupo)',categoria:'—'},xs:at.filter(i=>!i.grupoId||!GRUPO(i.grupoId))}].filter(x=>x.xs.length).sort((a,b)=>soma(b.xs,i=>estI(i.id).valor)-soma(a.xs,i=>estI(i.id).valor)).map(x=>`<tr>${td('Grupo',esc(x.g.nome))}${td('Categoria',esc(x.g.categoria))}${td('Itens',String(x.xs.length))}${td('Com saldo',String(x.xs.filter(i=>estI(i.id).saldo>0).length))}${td('Valor',esc(fMoeda(soma(x.xs,i=>estI(i.id).valor))),1)}</tr>`)):'')+
   `<h3 class="grupo-t">Valor por categoria</h3>`+tabela(['Categoria',['Itens',0],['Com saldo',0],['Valor',1]],CAT_NOMES.map(cn=>{const xs=at.filter(i=>i.categoria===cn);if(!xs.length)return '';return `<tr>${td('Categoria',esc(cn))}${td('Itens',String(xs.length))}${td('Com saldo',String(xs.filter(i=>estI(i.id).saldo>0).length))}${td('Valor',esc(fMoeda(soma(xs,i=>estI(i.id).valor))),1)}</tr>`}).filter(Boolean));
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>JBNAV.ir(tr.dataset.go));
  $('#aeQ',c).oninput=e=>{UE.q=e.target.value;clearTimeout(telaEstoqueAlm.t);telaEstoqueAlm.t=setTimeout(()=>{renderTela();const i=$('#aeQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)};
- $('#aeC',c).onchange=e=>{UE.cat=e.target.value;if(UE.grp&&(GRUPO(UE.grp)||{}).categoria!==UE.cat&&UE.cat)UE.grp='';renderTela()};$('#aeS',c).onchange=e=>{UE.sit=e.target.value;renderTela()};if($('#aeG',c))$('#aeG',c).onchange=e=>{UE.grp=e.target.value;renderTela()};
+ $('#aeC',c).onchange=e=>{UE.cat=e.target.value;if(UE.grp&&(GRUPO(UE.grp)||{}).categoria!==UE.cat&&UE.cat)UE.grp='';renderTela()};$('#aeS',c).onchange=e=>{UE.sit=e.target.value;renderTela()};$$('[data-ue]',c).forEach(b=>b.onclick=()=>{UE.esc=b.dataset.ue;renderTela()});if($('#aeG',c))$('#aeG',c).onchange=e=>{UE.grp=e.target.value;renderTela()};
  $('#aeExp',c).onclick=()=>exportarMenu($('#aeExp',c),'Estoque_almoxarifado','Estoque do almoxarifado',[{k:'codigo',l:'Código'},{k:'nome',l:'Item'},{k:'categoria',l:'Categoria'},{k:'grupo',l:'Grupo'},{k:'marca',l:'Marca'},{k:'local',l:'Local'},{k:'un',l:'Unidade'},{k:'saldo',l:'Saldo',t:'num'},{k:'emp',l:'Emprestado',t:'num'},{k:'min',l:'Mínimo',t:'num'},{k:'mes',l:'Consumo/mês',t:'num'},{k:'comprar',l:'Comprar',t:'num'},{k:'cm',l:'Custo médio',t:'moeda'},{k:'valor',l:'Valor',t:'moeda'},{k:'abc',l:'Curva'},{k:'sit',l:'Situação'}],
   L.map(i=>{const e=estI(i.id);const p=ativo(i)?repI(i):{mes:0,comprar:0,abc:''};return{codigo:i.codigo||'',nome:i.nome,categoria:i.categoria,grupo:nomeGrupo(i.grupoId),marca:i.marca||'',local:i.local||'',un:un(i.unidade),saldo:e.saldo,emp:e.emp,min:temMin(i)?+i.minimo:'',mes:p.mes||'',comprar:p.comprar||'',cm:r2(e.cm),valor:e.valor,abc:p.abc,sit:sitItem(i)}}));
 }
 
 /* ================= almoxarifado: movimentações (kardex) ================= */
-const UM2={item:'',cat:'',tipo:'',de:'',ate:''};
+const UM2={item:'',cat:'',tipo:'',de:'',ate:'',esc:''};
 function movsAlm(){
+ /* V146 (revisão das movimentações): cada linha guarda também o nome certo do lançamento (rot) — compra, entrada sem
+    compra, requisição, saída por ajuste, acerto de contagem — e a pessoa da saída. "tipo" continua o mesmo de antes
+    (os indicadores e o setor de Inventário contam por ele). A entrada sem compra vale o preço informado nela. */
  const L=[];const add=x=>L.push(x);
- DATA.almEntradas.forEach(e=>fretesDe(e).forEach((x,k)=>add({k:'e'+e.id+k,data:e.data,tipo:'Entrada',itemId:x.l.itemId,q:x.q,valor:r2(x.v+x.fr),doc:'Entrada · '+nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),href:'#/almEntrada/'+e.id,ord:e.createdAt||e.criadoEm||''})));
- DATA.almSaidas.forEach(s=>(s.itens||[]).forEach((l,k)=>add({k:'s'+s.id+k,data:s.data,tipo:'Saída',itemId:l.itemId,q:-(+l.qtd||0),valor:-(l.custoTotal!=null?+l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm),doc:fReq(s.numero)+' · '+(s.setor||'')+(s.maquinaId?' · '+nomeMaq(s.maquinaId):''),href:'#/almSaida/'+s.id,ord:s.criadoEm||''})));
+ DATA.almEntradas.forEach(e=>fretesDe(e).forEach((x,k)=>add({k:'e'+e.id+k,data:e.data,tipo:'Entrada',rot:'Entrada (compra)',itemId:x.l.itemId,q:x.q,valor:r2(x.v+x.fr),sv:semPreco(x.l),doc:'Entrada · '+nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),href:'#/almEntrada/'+e.id,ord:e.createdAt||e.criadoEm||''})));
+ DATA.almSaidas.forEach(s=>(s.itens||[]).forEach((l,k)=>add({k:'s'+s.id+k,data:s.data,tipo:'Saída',rot:'Saída (requisição)',itemId:l.itemId,q:-(+l.qtd||0),valor:-(l.custoTotal!=null&&l.custoTotal!==''?+l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm),doc:fReq(s.numero)+' · '+([s.solicitante?'para '+s.solicitante:'',s.setor||'',s.maquinaId?nomeMaq(s.maquinaId):''].filter(Boolean).join(' · ')||'—'),href:'#/almSaida/'+s.id,ord:s.criadoEm||''})));
  DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);(d.itens||[]).forEach((l,k)=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);
-  add({k:'d'+d.id+k,data:d.data,tipo:'Devolução',itemId:l.itemId,q:+l.qtd||0,valor:(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm),doc:'Devolução '+(s?fReq(s.numero):''),href:s?'#/almSaida/'+s.id:'',ord:d.criadoEm||''})})});
- DATA.almAjustes.forEach(a=>add({k:'a'+a.id,data:a.data,tipo:'Ajuste',itemId:a.itemId,q:(a.tipo==='saida'?-1:1)*(+a.qtd||0),valor:(a.tipo==='saida'?-1:1)*(+a.qtd||0)*estI(a.itemId).cm,doc:a.motivo||'',href:'#/almAjustes/'+a.id,ord:a.criadoEm||''}));
- DATA.almEpis.forEach(x=>add({k:'p'+x.id,data:x.data,tipo:'EPI entregue',itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:(nomeF(x.funcId)||'—')+(x.motivo?' · '+x.motivo:''),href:'#/almEpis/'+x.id,ord:x.criadoEm||''}));
- pagLenhaAlm().forEach(x=>add({k:'l'+x.id,data:x.data,tipo:'Pagamento de lenha',itemId:x.itemId,q:-x.qtd,valor:-(x.custoTotal!=null&&x.custoTotal!==''?+x.custoTotal:x.qtd*estI(x.itemId).cm),doc:'Pago ao fornecedor '+x.fornecedorNome+' ('+fMoeda(x.valor)+' descontado da lenha)',href:x.href,ord:x.em}));
- DATA.almEmprestimos.forEach(x=>{if(x.devData&&(x.devEstado==='Danificada'||x.devEstado==='Perdida'))add({k:'m'+x.id,data:x.devData,tipo:'Ferramenta '+String(x.devEstado).toLowerCase(),itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:(nomeF(x.funcId)||'—')+(x.devObs?' · '+x.devObs:''),href:'#/almEmprestimos/'+x.id,ord:x.criadoEm||''})});
+  add({k:'d'+d.id+k,data:d.data,tipo:'Devolução',rot:'Devolução',itemId:l.itemId,q:+l.qtd||0,valor:(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm),doc:'Devolução '+(s?fReq(s.numero)+(s.solicitante||s.setor?' · de '+(s.solicitante||s.setor):''):''),href:s?'#/almSaida/'+s.id:'',ord:d.criadoEm||''})})});
+ DATA.almAjustes.forEach(a=>{const ent=a.tipo!=='saida';const cont=!!a.inventarioId;const cu=ent&&+a.precoUnit>0?+a.precoUnit:estI(a.itemId).cm;
+  add({k:'a'+a.id,data:a.data,tipo:'Ajuste',rot:cont?'Acerto de contagem':ent?'Entrada sem compra':'Saída por ajuste',itemId:a.itemId,q:(ent?1:-1)*(+a.qtd||0),valor:(ent?1:-1)*(+a.qtd||0)*cu,
+   doc:[a.motivo||'',a.responsavel?(ent?'trazido por ':'retirado por ')+a.responsavel:''].filter(Boolean).join(' · '),href:'#/almAjustes/'+a.id,ord:a.criadoEm||''})});
+ DATA.almEpis.forEach(x=>add({k:'p'+x.id,data:x.data,tipo:'EPI entregue',rot:'EPI entregue',itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:'para '+(nomeF(x.funcId)||'—')+(x.motivo?' · '+x.motivo:''),href:'#/almEpis/'+x.id,ord:x.criadoEm||''}));
+ pagLenhaAlm().forEach(x=>add({k:'l'+x.id,data:x.data,tipo:'Pagamento de lenha',rot:'Pagamento de lenha',itemId:x.itemId,q:-x.qtd,valor:-(x.custoTotal!=null&&x.custoTotal!==''?+x.custoTotal:x.qtd*estI(x.itemId).cm),doc:'Pago ao fornecedor '+x.fornecedorNome+' ('+fMoeda(x.valor)+' descontado da lenha)',href:x.href,ord:x.em}));
+ DATA.almEmprestimos.forEach(x=>{if(x.devData&&(x.devEstado==='Danificada'||x.devEstado==='Perdida'))add({k:'m'+x.id,data:x.devData,tipo:'Ferramenta '+String(x.devEstado).toLowerCase(),rot:'Ferramenta '+String(x.devEstado).toLowerCase(),itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:'com '+(nomeF(x.funcId)||'—')+(x.devObs?' · '+x.devObs:''),href:'#/almEmprestimos/'+x.id,ord:x.criadoEm||''})});
  return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||String(a.ord).localeCompare(String(b.ord))||a.k.localeCompare(b.k))}
 function telaMovAlm(c){
  const U=UM2;let L=movsAlm();
- if(U.item)L=L.filter(m=>m.itemId===U.item);if(U.cat)L=L.filter(m=>(ITEM(m.itemId)||{}).categoria===U.cat);if(U.tipo)L=L.filter(m=>m.tipo.startsWith(U.tipo));
- const run={};if(U.item){let s=0;L.forEach(m=>{s=r3(s+m.q);run[m.k]=s})}
+ if(U.item)L=L.filter(m=>m.itemId===U.item);if(U.esc)L=L.filter(m=>doEsc(ITEM(m.itemId),U.esc));if(U.cat)L=L.filter(m=>(ITEM(m.itemId)||{}).categoria===U.cat);
+ if(U.tipo)L=L.filter(m=>U.tipo==='+'?m.q>0:U.tipo==='-'?m.q<0:(m.rot||m.tipo).startsWith(U.tipo));
+ const run={};if(U.item){let s=0;movsAlm().filter(m=>m.itemId===U.item).forEach(m=>{s=r3(s+m.q);run[m.k]=s})}
  if(U.de)L=L.filter(m=>m.data>=U.de);if(U.ate)L=L.filter(m=>m.data<=U.ate);
- const V=L.slice().reverse();const it=U.item?ITEM(U.item):null;
- c.innerHTML=cab('lupa','Movimentações do almoxarifado','Tudo o que entrou e saiu, item por item, com o documento de origem. Escolha um item para ver o saldo depois de cada movimento.',`<button type="button" class="btn" id="amExp">${ic('baixar')}Exportar ▾</button>`)+
-  `<div class="fi-filtros"><select id="amI" aria-label="Item"><option value="">Item: todos</option>${optH(optsItens(null,U.item),U.item)}</select>
+ const V=L.slice().reverse();const it=U.item?ITEM(U.item):null;const en=L.filter(m=>m.q>0),sa=L.filter(m=>m.q<0);
+ c.innerHTML=cab('lupa','Movimentações do almoxarifado e da cozinha','Tudo o que entrou e saiu, item por item, com o documento de origem e para quem foi. Escolha um item para ver o saldo depois de cada movimento.',`<button type="button" class="btn" id="amExp">${ic('baixar')}Exportar ▾</button>`)+
+  `<div class="apr-chips apr-esc" role="group" aria-label="Estoque">${[['','Tudo'],['alm','Almoxarifado'],['coz','Cozinha']].map(([k,l])=>`<button type="button" data-um="${k}" class="${U.esc===k?'on':''}" aria-pressed="${U.esc===k}">${l}</button>`).join('')}</div>
+  <div class="fi-filtros"><select id="amI" aria-label="Item"><option value="">Item: todos</option>${optH(optsItens(null,U.item),U.item)}</select>
    <select id="amC" aria-label="Categoria"><option value="">Categoria: todas</option>${optH(CAT_NOMES,U.cat)}</select>
-   <select id="amT" aria-label="Tipo"><option value="">Tipo: todos</option>${optH(['Entrada','Saída','Devolução','Ajuste','EPI entregue','Ferramenta','Pagamento de lenha'],U.tipo)}</select>
+   <select id="amT" aria-label="Tipo"><option value="">Tipo: todos</option>${optH([['+','Todas as entradas'],['-','Todas as saídas'],['Entrada (compra)','Entrada (compra)'],['Entrada sem compra','Entrada sem compra'],['Devolução','Devolução'],['Saída (requisição)','Saída (requisição)'],['EPI entregue','EPI entregue'],['Saída por ajuste','Saída por ajuste'],['Acerto de contagem','Acerto de contagem'],['Ferramenta','Ferramenta perdida ou danificada'],['Pagamento de lenha','Pagamento de lenha']],U.tipo)}</select>
    <input type="date" id="amDe" value="${esc(U.de)}" aria-label="De" title="De"><input type="date" id="amAte" value="${esc(U.ate)}" aria-label="Até" title="Até"></div>`+
-  (it?resumo([[fQtd(estI(it.id).saldo)+' '+un(it.unidade),'Saldo de '+it.nome],[fMoeda(estI(it.id).cm),'Custo médio'],[fMoeda(estI(it.id).valor),'Valor em estoque']]):'')+
+  (it?resumo([[fQtd(estI(it.id).saldo)+' '+un(it.unidade),'Saldo de '+it.nome],[semValorI(it)?'sem valor':fMoeda(estI(it.id).cm),'Custo médio'],[fMoeda(estI(it.id).valor),'Valor em estoque']])
+   :resumo([[String(en.length),'Entradas'],[fMoeda(r2(soma(en,m=>m.valor))),'Valor que entrou'],[String(sa.length),'Saídas'],[fMoeda(r2(-soma(sa,m=>m.valor))),'Valor que saiu']]))+
   (V.length?tabela(['Data','Tipo','Item',['Quantidade',1],'Un.',...(U.item?[['Saldo após',1]]:[]),['Valor',1],'Documento'],V.slice(0,500).map(m=>{const i=ITEM(m.itemId)||{};
-   return `<tr${m.href?` class="clic" data-go="${esc(m.href)}"`:''}>${td('Data',esc(fData(m.data)))}${td('Tipo',tag(m.tipo,m.q>0?'ok':m.tipo==='Saída'?'at':'pe'))}${td('Item',esc(rotItem(i)))}${td('Quantidade',esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))),1)}${td('Un.',esc(un(i.unidade)))}
-    ${U.item?td('Saldo após',esc(fQtd(run[m.k])),1):''}${td('Valor',esc(fMoeda(m.valor)),1)}${td('Documento',esc(m.doc))}</tr>`})):noNada('Nenhuma movimentação com estes filtros',''))+
+   return `<tr${m.href?` class="clic" data-go="${esc(m.href)}"`:''}>${td('Data',esc(fData(m.data)))}${td('Tipo',tag(m.rot||m.tipo,m.q>0?'ok':m.tipo==='Saída'?'at':'pe'))}${td('Item',esc(rotItem(i)))}${td('Quantidade',esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))),1)}${td('Un.',esc(un(i.unidade)))}
+    ${U.item?td('Saldo após',esc(fQtd(run[m.k])),1):''}${td('Valor',m.sv||(!(Math.abs(m.valor)>0)&&semValorI(ITEM(m.itemId)))?'<span class="tag at">sem valor</span>':esc(fMoeda(m.valor)),1)}${td('Documento',esc(m.doc))}</tr>`})):noNada('Nenhuma movimentação com estes filtros',''))+
   (V.length>500?'<p class="ajuda">Mostrando as 500 mais recentes. Use os filtros.</p>':'');
  $$('tr[data-go]',c).forEach(tr=>tr.onclick=()=>JBNAV.ir(tr.dataset.go));
- const set=(id,k)=>{$(id,c).onchange=e=>{U[k]=e.target.value;renderTela()}};set('#amI','item');set('#amC','cat');set('#amT','tipo');set('#amDe','de');set('#amAte','ate');
- $('#amExp',c).onclick=()=>exportarMenu($('#amExp',c),'Movimentacoes_almoxarifado','Movimentações do almoxarifado',[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo'},{k:'item',l:'Item'},{k:'q',l:'Quantidade',t:'num'},{k:'un',l:'Unidade'},{k:'valor',l:'Valor',t:'moeda'},{k:'doc',l:'Documento'}],
-  V.map(m=>{const i=ITEM(m.itemId)||{};return{data:m.data,tipo:m.tipo,item:rotItem(i),q:r3(m.q),un:un(i.unidade),valor:r2(m.valor),doc:m.doc}}));
+ const set=(id,k)=>{$(id,c).onchange=e=>{U[k]=e.target.value;renderTela()}};set('#amI','item');$$('[data-um]',c).forEach(b=>b.onclick=()=>{U.esc=b.dataset.um;renderTela()});set('#amC','cat');set('#amT','tipo');set('#amDe','de');set('#amAte','ate');
+ $('#amExp',c).onclick=()=>exportarMenu($('#amExp',c),'Movimentacoes_almoxarifado','Movimentações do almoxarifado e da cozinha',[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo'},{k:'item',l:'Item'},{k:'q',l:'Quantidade',t:'num'},{k:'un',l:'Unidade'},{k:'valor',l:'Valor',t:'moeda'},{k:'doc',l:'Documento'}],
+  V.map(m=>{const i=ITEM(m.itemId)||{};return{data:m.data,tipo:m.rot||m.tipo,item:rotItem(i),q:r3(m.q),un:un(i.unidade),valor:r2(m.valor),doc:m.doc}}));
 }
 
 /* ================= almoxarifado: inventário (contagem física) ================= */
@@ -22376,7 +22402,7 @@ Object.assign(TELAS_V,{
  almAjustes:naA('almAjustes',c=>telaLista(c,'almAjustes')),almEpis:naA('almEpis',c=>telaLista(c,'almEpis')),almEmprestimos:naA('almEmprestimos',c=>telaLista(c,'almEmprestimos')),
  almInventarios:el=>{const r=lerRota();if(r.id&&r.id!=='novo'){JBNAV.subst('#/almInv/'+r.id);return}naA('almInventarios',telaInventarios)(el)},almInv:telaInv,almEstoque:naA('almEstoque',telaEstoqueAlm),almMov:naA('almMov',telaMovAlm),
  almPagar:naA('almPagar',telaPagarAlm),almRel:naA('almRel',telaRelAlm),
- almGrupos:naA('almGrupos',c=>telaLista(c,'almGrupos')),almProdutos:naA('almProdutos',telaProdutos),
+ almGrupos:naA('almGrupos',c=>telaLista(c,'almGrupos')),almProdutos:naA('almProdutos',telaProdutos),almCozinha:naA('almCozinha',telaCozinha),almReqSemana:naA('almReqSemana',telaReqSemana),
  'setor-paletes':naP('setor-paletes',inicioPal),
  paleteMov:el=>{const r=lerRota();shellS(el,'paletes',r.id==='novo'?'pmov-novo':'paleteMov',c=>telaLista(c,'paleteMov'))},
  paleteCompras:naP('paleteCompras',c=>telaLista(c,'paleteCompras')),paleteTipos:naP('paleteTipos',c=>telaLista(c,'paleteTipos')),
@@ -22388,7 +22414,7 @@ if(MODS.palResp)TELAS_V.palResp=naP('palResp',c=>telaLista(c,'palResp'));
 /* o prazo de devolução fica na tela dos tipos */
 const av0=avisosModulo;
 avisosModulo=function(mod){if(mod==='paleteTipos'){const P=cfgPal();return `<div class="aviso in"><span>Prazo para o cliente devolver os paletes: <b>${esc(String(P.prazoDias))} dias</b> depois da saída.${pode('paleteConfig','e')?' <a href="javascript:void 0" onclick="PALETES_V52.prazo()">Alterar o prazo</a>':''}</span></div>`}
- if(mod==='almEntradas'||mod==='almSaidas'){return ''}
+ if(mod==='almSaidas')return abasReq('lanc');if(mod==='almEntradas'){return ''}
  if(mod==='almItens'&&pode('almItens','e'))return `<div class="aviso in"><span>Muitos itens para cadastrar? <a href="javascript:void 0" onclick="ALMOX_V52.variosItens()">Cadastre vários de uma vez</a> (um por linha) ou organize por família em <a href="#/almGrupos">Grupos de materiais</a>.</span></div>`+(av0.apply(this,arguments)||'');
  return av0.apply(this,arguments)};
 
@@ -22397,7 +22423,7 @@ avisosModulo=function(mod){if(mod==='paleteTipos'){const P=cfgPal();return `<div
 {const BR=FS.BREVE||{};const BA=BR.almox;if(BR.almox)delete BR.almox;
  const i=SETORES.findIndex(s=>s.id==='almox');
  const novoA={id:'almox',nome:'Setor do Almoxarifado / Cozinha',ic:'cozinha',rota:'#/setor-almox',v:()=>pode('setor-almox'),
-  desc:'Peças, EPIs, ferramentas, cozinha, limpeza e escritório: entradas, requisições, estoque com custo médio, inventário e contas a pagar.'};
+  desc:'Peças, EPIs, ferramentas, limpeza e escritório, e a cozinha com estoque próprio: entradas, requisições semanais, estoque com custo médio e contas a pagar.'};
  const novoP={id:'paletes',nome:'Setor de Paletes',ic:'palete',rota:'#/setor-paletes',v:()=>pode('setor-paletes'),
   desc:'Paletes livres, carregados no pátio, aguardando conserto e com os clientes; prazo de devolução, cobrança, compras e consertos.'};
  if(i>=0){SETORES.splice(i,1,novoA);SETORES.splice(i+1,0,novoP)}else SETORES.push(novoA,novoP);
@@ -22542,6 +22568,11 @@ if(typeof IC==='object'){if(!IC.camera)IC.camera='<path d="M3.5 8.5h3.2l1.8-2.8h
  if(!IC.olho)IC.olho='<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
  if(!IC.imprimir)IC.imprimir='<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>'}
 const UPR={aba:'prod',q:'',grp:'',sit:'',n:60,qm:'',tm:'',de:'',ate:'',nm:50,ultSetor:'',ultQuem:'',ultMot:''};
+/* V146: a Cozinha usa a mesma tela, com os próprios filtros e a própria memória */
+const UPZ={aba:'prod',q:'',grp:'',sit:'',n:60,qm:'',tm:'',de:'',ate:'',nm:50,ultSetor:'Cozinha',ultQuem:'',ultMot:''};
+let ESC='alm';const UXP=e=>(e||ESC)==='coz'?UPZ:UPR;
+const escDe=id=>{const i=ITEM(id);return i?(ehCoz(i)?'coz':'alm'):ESC};
+const NOME_ESC={alm:'Almoxarifado',coz:'Cozinha'};
 const ordNomePr=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true});
 const qtdUn=(q,i)=>fQtd(q)+' '+un((i||{}).unidade);
 const fotoPr=i=>i&&i.foto&&i.foto.id?`<img src="/_blob/${esc(i.foto.id)}" alt="" loading="lazy" onerror="this.remove()">`:'';
@@ -22551,7 +22582,7 @@ const ajLote=a=>a&&a.lote?DATA.almAjustes.filter(x=>x.lote===a.lote).sort((x,y)=
 const codAj=a=>{try{if(window.JB_DOCL&&JB_DOCL.codLanc)return JB_DOCL.codLanc('almAjustes',a)}catch(e){}return 'AJ-'+String(a.id||'').slice(-6).toUpperCase()};
 const custoAj=x=>+x.precoUnit>0?+x.precoUnit:estI(x.itemId).cm;
 /* a tela atrás das janelas acompanha o que foi gravado */
-const refrescaPr=()=>{try{if(lerRota().mod==='almProdutos')renderTela()}catch(e){}};
+const refrescaPr=()=>{try{if(['almProdutos','almCozinha','almReqSemana'].includes(lerRota().mod))renderTela()}catch(e){}};
 /* janela que rola por dentro: no celular as maiores passam da altura da tela */
 function modalPr(t,corpo,okTxt,aoOk,opc){opc=opc||{};const dp=opc.depois;return H.modalF(t,corpo,okTxt,aoOk,{...opc,depois:v=>{const m=v.querySelector('.modal');if(m)m.classList.add('apr-modal');if(dp)dp(v)}})}
 const MOT_ENT=['Saldo inicial','Compra sem nota','Sobra encontrada','Devolução ao estoque','Doação','Material recuperado'];
@@ -22570,113 +22601,159 @@ function docAjusteAlm(a){
  const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(a.data)+'.';
  D.assinaturas=ent?[{nome:a.responsavel||'',sub:'Entregue por'},{nome:'',sub:'Recebido e conferido por'}]:[{nome:a.responsavel||'',sub:'Retirado por · recebi o material acima'},{nome:'',sub:'Entregue por'}];
  D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
-function docPosicaoAlm(L,filtro){
+function docPosicaoAlm(L,filtro,sc){
  const tot=r2(soma(L,i=>estI(i.id).valor));
- const D=baseRel('RELATÓRIO DE POSIÇÃO DO ESTOQUE','Almoxarifado / Cozinha · '+fData(hoje()),[]);
+ const D=baseRel('RELATÓRIO DE POSIÇÃO DO ESTOQUE',(sc?NOME_ESC[sc]:'Almoxarifado / Cozinha')+' · '+fData(hoje()),[]);
  D.meta=[['Data',fData(hoje())],['Produtos',String(L.length)],['Valor em estoque',fMoeda(tot)]];
- D.blocos.push({tipo:'indicadores',itens:[['Produtos',String(L.length)],['Com saldo',String(L.filter(i=>estI(i.id).saldo>0).length)],['Abaixo do mínimo',String(L.filter(i=>sitItem(i)==='Abaixo do mínimo').length)],['Valor em estoque',fMoeda(tot)]]});
+ D.blocos.push({tipo:'indicadores',itens:[['Produtos',String(L.length)],['Com saldo',String(L.filter(i=>estI(i.id).saldo>0).length)],['Sem valor',String(L.filter(i=>ativo(i)&&semValorI(i)).length)],['Abaixo do mínimo',String(L.filter(i=>sitItem(i)==='Abaixo do mínimo').length)],['Valor em estoque',fMoeda(tot)]]});
  if(filtro)D.blocos.push({tipo:'p',texto:'Filtro: '+filtro+'.'});
  D.blocos.push({tipo:'tabela',head:['Código','Produto','Grupo','Local','Saldo','Un.','Custo médio','Valor'],dir:[4,6,7],
-  body:L.map(i=>{const e=estI(i.id);return[i.codigo||'',i.nome+(i.marca?' · '+i.marca:''),nomeGrupo(i.grupoId)||i.categoria||'',i.local||'',fQtd(e.saldo),un(i.unidade),fMoeda(e.cm),fMoeda(e.valor)]}),foot:['Total','','','','','','',fMoeda(tot)]});
+  body:L.map(i=>{const e=estI(i.id);return[i.codigo||'',i.nome+(i.marca?' · '+i.marca:''),nomeGrupo(i.grupoId)||i.categoria||'',i.local||'',fQtd(e.saldo),un(i.unidade),ativo(i)&&semValorI(i)?'sem valor':fMoeda(e.cm),fMoeda(e.valor)]}),foot:['Total','','','','','','',fMoeda(tot)]});
  D.blocos.push({tipo:'aviso',texto:'Saldo = entradas − saídas + devoluções ± ajustes − EPIs entregues − ferramentas perdidas. Valor = saldo × custo médio.'});
- D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Posicao_do_estoque_'+hoje();D.rodape='Posição do estoque do almoxarifado · '+fData(hoje());
+ D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Posicao_do_estoque_'+hoje();D.rodape='Posição do estoque '+(sc==='coz'?'da cozinha':'do almoxarifado')+' · '+fData(hoje());
  D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
-function docLancsAlm(L,filtro){
- const ent=L.filter(x=>x.sinal>0),sai=L.filter(x=>x.sinal<0);
- const D=baseRel('RELATÓRIO DE LANÇAMENTOS DO ESTOQUE','Almoxarifado / Cozinha · entradas e saídas',[]);
- D.meta=[['Emitido',fData(hoje())],['Lançamentos',String(L.length)],['Período',UPR.de||UPR.ate?(UPR.de?fData(UPR.de):'início')+' a '+(UPR.ate?fData(UPR.ate):'hoje'):'tudo']];
+function docLancsAlm(L,filtro,sc){
+ const ent=L.filter(x=>x.sinal>0),sai=L.filter(x=>x.sinal<0);const U=UXP(sc);
+ const D=baseRel('RELATÓRIO DE LANÇAMENTOS DO ESTOQUE',(sc?NOME_ESC[sc]:'Almoxarifado / Cozinha')+' · entradas e saídas',[]);
+ D.meta=[['Emitido',fData(hoje())],['Lançamentos',String(L.length)],['Período',U.de||U.ate?(U.de?fData(U.de):'início')+' a '+(U.ate?fData(U.ate):'hoje'):'tudo']];
  D.blocos.push({tipo:'indicadores',itens:[['Lançamentos',String(L.length)],['Entradas',fMoeda(r2(soma(ent,x=>x.valor)))],['Saídas',fMoeda(r2(soma(sai,x=>x.valor)))]]});
  if(filtro)D.blocos.push({tipo:'p',texto:'Filtro: '+filtro+'.'});
- D.blocos.push({tipo:'tabela',head:['Data','Tipo','Documento','Produtos','Valor'],dir:[4],body:L.map(x=>[fData(x.data),x.tipo,x.titulo,x.itensTxt,fMoeda(x.valor)])});
- D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Lancamentos_do_estoque_'+hoje();D.rodape='Lançamentos do estoque do almoxarifado · '+fData(hoje());
+ D.blocos.push({tipo:'tabela',head:['Data','Tipo','Documento','Para quem / setor','Produtos','Valor'],dir:[5],body:L.map(x=>[fData(x.data),x.tipo,x.titulo,x.para||x.quem||'—',x.itensTxt,x.semValor&&!(x.valor>0)?'sem valor':fMoeda(x.valor)])});
+ D.assinaturas=[{nome:'',sub:'Conferido por'}];D.arquivo='Lancamentos_do_estoque_'+hoje();D.rodape='Lançamentos do estoque '+(sc==='coz'?'da cozinha':'do almoxarifado')+' · '+fData(hoje());
  D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';return D}
 
-/* ---------- todos os lançamentos que mexem no estoque, um por documento (o lote de ajustes é um só) ---------- */
-function lancamentosPr(){
+/* ---------- todos os lançamentos que mexem no estoque, um por documento (o lote de ajustes é um só) ----------
+   V146: "sc" separa almoxarifado e cozinha (sem "sc", tudo, como antes). Cada lançamento diz para quem foi
+   (pessoa ou setor) e se ficou "sem valor" (produto ainda sem preço), com o caminho para pôr o valor. */
+function lancamentosPr(sc){
  const L=[];const edS=pode('almSaida','e'),edE=pode('almEntrada','e'),edA=pode('almAjustes','e');
- DATA.almSaidas.forEach(s=>L.push({k:'s'+s.id,data:s.data,ord:s.criadoEm||'',tipo:'Saída',cls:'sai',sinal:-1,titulo:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||''),
-  quem:s.solicitante||'',itens:s.itens||[],itensTxt:textoItensPr(s.itens),valor:valorSaida(s),href:'#/almSaida/'+s.id,doc:()=>docSaida(DATA.almSaidas.find(x=>x.id===s.id)||s),
-  editar:edS&&!s.cancelado?'#/almSaida/'+s.id+'/editar':'',excluir:edS?()=>excluirS(s):null}));
- DATA.almEntradas.forEach(e=>L.push({k:'e'+e.id,data:e.data,ord:e.criadoEm||'',tipo:'Entrada (compra)',cls:'ent',sinal:1,titulo:nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),
-  quem:e.recebedor||'',itens:e.itens||[],itensTxt:textoItensPr(e.itens),valor:+e.total||0,href:'#/almEntrada/'+e.id,doc:()=>docEntrada(DATA.almEntradas.find(x=>x.id===e.id)||e),
-  editar:edE?'#/almEntrada/'+e.id+'/editar':'',excluir:null}));
+ const noE=id=>!sc||doEsc(ITEM(id),sc);
+ const svI=id=>{const i=ITEM(id);return !!i&&ativo(i)&&semValorI(i)};
+ DATA.almSaidas.forEach(s=>{const ls=(s.itens||[]).filter(l=>l&&l.itemId&&noE(l.itemId));if(!ls.length)return;
+  const vl=l=>l.custoTotal!=null&&l.custoTotal!==''?+l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm;const sv=ls.some(l=>!(vl(l)>0)&&svI(l.itemId));
+  L.push({k:'s'+s.id,data:s.data,ord:s.criadoEm||'',tipo:'Saída',cls:'sai',sinal:-1,titulo:fReq(s.numero)+' · '+(s.setor||nomeMaq(s.maquinaId)||s.solicitante||''),
+   quem:s.solicitante||'',para:[s.solicitante?'entregue a '+s.solicitante:'',s.setor||''].filter(Boolean).join(' · '),itens:ls,itensTxt:textoItensPr(ls),valor:r2(soma(ls,vl)),
+   semValor:sv,porValor:sv?()=>modalValorPr(ls.map(l=>l.itemId).filter(svI)):null,href:'#/almSaida/'+s.id,doc:()=>docSaida(DATA.almSaidas.find(x=>x.id===s.id)||s),
+   editar:edS&&!s.cancelado?'#/almSaida/'+s.id+'/editar':'',excluir:edS?()=>excluirS(s):null})});
+ DATA.almEntradas.forEach(e=>{const xs=fretesDe(e).filter(x=>noE(x.l.itemId));if(!xs.length)return;const sv=xs.some(x=>semPreco(x.l));
+  L.push({k:'e'+e.id,data:e.data,ord:e.criadoEm||'',tipo:'Entrada (compra)',cls:'ent',sinal:1,titulo:nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),
+   quem:e.recebedor||'',para:e.recebedor?'recebido por '+e.recebedor:'',itens:xs.map(x=>x.l),itensTxt:textoItensPr(xs.map(x=>x.l)),valor:r2(soma(xs,x=>x.v+x.fr)),
+   semValor:sv,porValor:sv&&edE?'#/almEntrada/'+e.id+'/editar':null,href:'#/almEntrada/'+e.id,doc:()=>docEntrada(DATA.almEntradas.find(x=>x.id===e.id)||e),
+   editar:edE?'#/almEntrada/'+e.id+'/editar':'',excluir:null})});
  const vistos=new Set();
- DATA.almAjustes.forEach(a=>{const g=a.lote||a.id;if(vistos.has(g))return;vistos.add(g);const lt=ajLote(a);const ent=a.tipo!=='saida';const cont=!!a.inventarioId;
+ DATA.almAjustes.forEach(a=>{const g=a.lote||a.id;if(vistos.has(g))return;vistos.add(g);const lt=ajLote(a).filter(x=>noE(x.itemId));if(!lt.length)return;const ent=a.tipo!=='saida';const cont=!!a.inventarioId;
+  const sv=!cont&&lt.some(x=>!(+x.precoUnit>0)&&svI(x.itemId));
   L.push({k:'a'+g,data:a.data,ord:a.criadoEm||'',tipo:cont?'Contagem':ent?'Entrada sem compra':'Saída por ajuste',cls:cont?'cnt':ent?'ent':'sai',sinal:ent?1:-1,titulo:(a.motivo||'Ajuste')+' · '+codAj(a),
-   quem:a.responsavel||'',itens:lt,itensTxt:textoItensPr(lt),valor:r2(soma(lt,x=>(+x.qtd||0)*custoAj(x))),href:'#/almAjustes/'+a.id,doc:()=>docAjusteAlm(DATA.almAjustes.find(x=>x.id===a.id)||a),
+   quem:a.responsavel||'',para:a.responsavel?(ent?'trazido por ':'retirado por ')+a.responsavel:'',itens:lt,itensTxt:textoItensPr(lt),valor:r2(soma(lt,x=>(+x.qtd||0)*custoAj(x))),
+   semValor:sv,porValor:sv?()=>modalValorPr(lt.map(x=>x.itemId).filter(svI),lt):null,href:'#/almAjustes/'+a.id,doc:()=>docAjusteAlm(DATA.almAjustes.find(x=>x.id===a.id)||a),
    editar:edA&&!cont?()=>editarAjPr(a):'',excluir:edA&&!cont?()=>excluirAjPr(a):null})});
- DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);L.push({k:'d'+d.id,data:d.data,ord:d.criadoEm||'',tipo:'Devolução',cls:'ent',sinal:1,titulo:'Devolução '+(s?fReq(s.numero):''),
-  quem:'',itens:d.itens||[],itensTxt:textoItensPr(d.itens),valor:r2(soma(d.itens||[],l=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);return(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm)})),
-  href:s?'#/almSaida/'+s.id:'',doc:s?()=>docSaida(s):null,editar:'',excluir:null})});
- DATA.almEpis.forEach(x=>L.push({k:'p'+x.id,data:x.data,ord:x.criadoEm||'',tipo:'EPI entregue',cls:'sai',sinal:-1,titulo:'EPI para '+(nomeF(x.funcId)||'—'),quem:nomeF(x.funcId)||'',
-  itens:[x],itensTxt:textoItensPr([x]),valor:r2((+x.qtd||0)*estI(x.itemId).cm),href:'#/almEpis/'+x.id,doc:window.JB_DOCL&&JB_DOCL.docRegistro?()=>JB_DOCL.docRegistro('almEpis',x.id):null,editar:pode('almEpis','e')?'#/almEpis/'+x.id:'',excluir:null}));
+ DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);const ls=(d.itens||[]).filter(l=>l&&l.itemId&&noE(l.itemId));if(!ls.length)return;
+  L.push({k:'d'+d.id,data:d.data,ord:d.criadoEm||'',tipo:'Devolução',cls:'ent',sinal:1,titulo:'Devolução '+(s?fReq(s.numero):''),
+  quem:'',para:s&&(s.solicitante||s.setor)?'voltou de '+(s.solicitante||s.setor):'',itens:ls,itensTxt:textoItensPr(ls),valor:r2(soma(ls,l=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);return(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm)})),
+  semValor:false,porValor:null,href:s?'#/almSaida/'+s.id:'',doc:s?()=>docSaida(s):null,editar:'',excluir:null})});
+ DATA.almEpis.forEach(x=>{if(!x||!noE(x.itemId))return;const sv=svI(x.itemId);
+  L.push({k:'p'+x.id,data:x.data,ord:x.criadoEm||'',tipo:'EPI entregue',cls:'sai',sinal:-1,titulo:'EPI para '+(nomeF(x.funcId)||'—'),quem:nomeF(x.funcId)||'',para:'entregue a '+(nomeF(x.funcId)||'—'),
+  itens:[x],itensTxt:textoItensPr([x]),valor:r2((+x.qtd||0)*estI(x.itemId).cm),semValor:sv,porValor:sv?()=>modalValorPr([x.itemId]):null,
+  href:'#/almEpis/'+x.id,doc:window.JB_DOCL&&JB_DOCL.docRegistro?()=>JB_DOCL.docRegistro('almEpis',x.id):null,editar:pode('almEpis','e')?'#/almEpis/'+x.id:'',excluir:null})});
  return L.sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(b.ord).localeCompare(String(a.ord))||a.k.localeCompare(b.k))}
 
-/* ---------- a tela ---------- */
-function telaProdutos(c){
- const U=UPR;const foco=document.activeElement&&['prQ','prQm'].includes(document.activeElement.id)?document.activeElement.id:'';
- if(U.grp&&U.grp.startsWith('g:')&&!GRUPO(U.grp.slice(2)))U.grp='';
+/* ---------- a tela ----------
+   V146: a mesma tela serve ao Estoque / Produtos (almoxarifado, sem a cozinha) e à Cozinha. Cada uma tem os
+   próprios filtros, a aba de grupos (tocou no grupo, aparece tudo dele) e o atalho para os produtos sem valor. */
+function telaProdutos(c){telaEstPr(c,'alm')}
+function telaCozinha(c){telaEstPr(c,'coz')}
+function telaEstPr(c,sc){
+ ESC=sc;const U=UXP(sc);const coz=sc==='coz';const foco=document.activeElement&&['prQ','prQm'].includes(document.activeElement.id)?document.activeElement.id:'';
+ if(U.grp&&U.grp.startsWith('g:')&&U.grp.length>2&&!GRUPO(U.grp.slice(2)))U.grp='';
  const edS=pode('almSaida','e'),edA=pode('almAjustes','e'),edI=pode('almItens','e');
- const at=DATA.almItens.filter(ativo);const val=r2(soma(at,i=>estI(i.id).valor));
- c.innerHTML=cab('caixa','Estoque / Produtos','Tudo o que tem no almoxarifado. Pesquise, marque e lance: a saída e a entrada mudam o saldo na hora.',
-  `${edI?`<button type="button" class="btn pri" id="prFoto">${ic('camera')}Cadastrar por foto</button>`:''}${edS?`<button type="button" class="btn" id="prSai">${ic('saida')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="prEnt">${ic('entrada')}Lançar entrada</button>`:''}<button type="button" class="btn" id="prImp">${ic('imprimir')}Imprimir relatório</button>`)+
-  resumo([[String(at.length),'Produtos'],[String(at.filter(i=>estI(i.id).saldo>0).length),'Com saldo'],[fMoeda(val),'Valor em estoque'],[String(abaixoMin().length),'Abaixo do mínimo']])+
-  `<div class="apr-abas" role="tablist">${[['prod','Produtos'],['lanc','Lançamentos']].map(([k,l])=>`<button type="button" role="tab" data-aba="${k}" class="${U.aba===k?'on':''}" aria-selected="${U.aba===k}">${l}</button>`).join('')}</div><div id="prCp"></div>`;
+ const at=DATA.almItens.filter(i=>ativo(i)&&doEsc(i,sc));const val=r2(soma(at,i=>estI(i.id).valor));const nsv=at.filter(semValorI).length;const nab=abaixoMin().filter(i=>doEsc(i,sc)).length;
+ c.innerHTML=cab(coz?'cozinha':'caixa',coz?'Cozinha':'Estoque / Produtos',coz?'O estoque da cozinha: alimentos, gás e o que se consome na cozinha. O que for cadastrado ou comprado como cozinha aparece aqui sozinho.':'Tudo o que tem no almoxarifado (a cozinha tem a tela dela). Pesquise, marque e lance: a saída e a entrada mudam o saldo na hora.',
+  `${edI?`<button type="button" class="btn pri" id="prFoto">${ic('camera')}${coz?'Cadastrar produto':'Cadastrar por foto'}</button>`:''}${edS?`<button type="button" class="btn" id="prSai">${ic('saida')}Lançar saída</button>`:''}${edA?`<button type="button" class="btn" id="prEnt">${ic('entrada')}Lançar entrada</button>`:''}${coz&&pode('almEntrada','e')?`<a class="btn" href="#/almEntrada/nova">${ic('carrinho')}Nova compra</a>`:''}<button type="button" class="btn" id="prImp">${ic('imprimir')}Imprimir relatório</button>`)+
+  `<div class="resumo apr-res"><div><b>${esc(String(at.length))}</b><span>Produtos</span></div><div><b>${esc(String(at.filter(i=>estI(i.id).saldo>0).length))}</b><span>Com saldo</span></div><div><b>${esc(fMoeda(val))}</b><span>${coz?'Valor do estoque da cozinha':'Valor do estoque do almoxarifado'}</span></div>`+
+  `<div class="apr-res-b${nsv?' tem':''}" role="button" tabindex="0" data-sv aria-label="Ver os produtos sem valor"><b>${esc(String(nsv))}</b><span>Sem valor${nsv?' · ver':''}</span></div><div><b>${esc(String(nab))}</b><span>Abaixo do mínimo</span></div></div>`+
+  `<div class="apr-abas" role="tablist">${[['prod','Produtos'],['grp',coz?'Tipos e grupos':'Grupos'],['lanc','Lançamentos']].map(([k,l])=>`<button type="button" role="tab" data-aba="${k}" class="${U.aba===k?'on':''}" aria-selected="${U.aba===k}">${l}</button>`).join('')}</div><div id="prCp"></div>`;
  const cp=$('#prCp',c);
  $$('[data-aba]',c).forEach(b=>b.onclick=()=>{U.aba=b.dataset.aba;renderTela()});
- if($('#prFoto',c))$('#prFoto',c).onclick=()=>modalFotoPr();
+ {const sv=$('[data-sv]',c);sv.onclick=()=>{U.aba='prod';U.sit='Sem valor';U.grp='';U.n=60;renderTela()};sv.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sv.onclick()}}}
+ if($('#prFoto',c))$('#prFoto',c).onclick=()=>modalFotoPr({sc});
  if($('#prSai',c))$('#prSai',c).onclick=()=>modalLancPr('saida');
  if($('#prEnt',c))$('#prEnt',c).onclick=()=>modalLancPr('entrada');
- if(U.aba==='lanc')abaLancPr(cp);else abaProdPr(cp,{edS,edA,edI});
- $('#prImp',c).onclick=()=>{if(U.aba==='lanc'){const r=filtraLancPr();verDoc(docLancsAlm(r.L,r.f))}else{const r=filtraProdPr();verDoc(docPosicaoAlm(r.L,r.f))}};
+ if(U.aba==='lanc')abaLancPr(cp,sc);else if(U.aba==='grp')abaGrpPr(cp,sc);else abaProdPr(cp,{edS,edA,edI},sc);
+ $('#prImp',c).onclick=()=>{if(U.aba==='lanc'){const r=filtraLancPr(sc);verDoc(docLancsAlm(r.L,r.f,sc))}else{const r=filtraProdPr(sc);verDoc(docPosicaoAlm(r.L,r.f,sc))}};
  if(foco){const i=$('#'+foco,c);if(i){i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(e){}}}
 }
-function filtraProdPr(){const U=UPR;const q=semAcento(U.q.trim());
- const L=DATA.almItens.filter(i=>{if(U.sit==='Inativo'?ativo(i):!ativo(i))return false;
-  if(U.grp){if(U.grp.startsWith('c:')?i.categoria!==U.grp.slice(2):U.grp==='g:'?!!(i.grupoId&&GRUPO(i.grupoId)):i.grupoId!==U.grp.slice(2))return false}
-  if(U.sit&&U.sit!=='Inativo'&&(U.sit==='Repor agora'?!(repI(i).comprar>0):sitItem(i)!==U.sit))return false;
-  return !q||semAcento([i.codigo,i.nome,i.marca,i.refFab,i.especificacao,i.local,nomeGrupo(i.grupoId),i.categoria].filter(Boolean).join(' ')).includes(q)}).sort(ordNomePr);
- const f=[U.q.trim()?'busca “'+U.q.trim()+'”':'',U.grp?(U.grp.startsWith('c:')?'categoria '+U.grp.slice(2):U.grp==='g:'?'sem grupo':'grupo '+nomeGrupo(U.grp.slice(2))):'',U.sit].filter(Boolean).join(' · ');
+const SIT_PR=['Com saldo','Sem saldo','Sem valor','Sem foto','Abaixo do mínimo','Repor agora','Inativo'];
+const temFotoI=i=>!!(i&&i.foto&&i.foto.id);
+function rotGrpPr(g){if(!g)return '';if(g.startsWith('c:'))return 'categoria '+g.slice(2);if(g.startsWith('t:'))return g==='t:'?'sem tipo':'tipo '+g.slice(2);return g==='g:'?'sem grupo':'grupo '+nomeGrupo(g.slice(2))}
+function bateGrpPr(i,g){if(!g)return true;if(g.startsWith('c:'))return i.categoria===g.slice(2);if(g.startsWith('t:'))return g==='t:'?!i.tipoCoz:i.tipoCoz===g.slice(2);return g==='g:'?!(i.grupoId&&GRUPO(i.grupoId)):i.grupoId===g.slice(2)}
+function filtraProdPr(sc){const U=UXP(sc);const q=semAcento(U.q.trim());
+ const L=DATA.almItens.filter(i=>{if(!doEsc(i,sc))return false;if(U.sit==='Inativo'?ativo(i):!ativo(i))return false;
+  if(!bateGrpPr(i,U.grp))return false;
+  if(U.sit&&U.sit!=='Inativo'&&(U.sit==='Repor agora'?!(repI(i).comprar>0):U.sit==='Sem valor'?!semValorI(i):U.sit==='Sem foto'?temFotoI(i):sitItem(i)!==U.sit))return false;
+  return !q||semAcento([i.codigo,i.nome,i.marca,i.refFab,i.especificacao,i.local,nomeGrupo(i.grupoId),i.categoria,i.tipoCoz].filter(Boolean).join(' ')).includes(q)}).sort(ordNomePr);
+ const f=[U.q.trim()?'busca “'+U.q.trim()+'”':'',rotGrpPr(U.grp),U.sit].filter(Boolean).join(' · ');
  return{L,f}}
-function abaProdPr(cp,P){
- const U=UPR;const gs=DATA.almGrupos.filter(ativo).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+function abaProdPr(cp,P,sc){
+ const U=UXP(sc);const coz=sc==='coz';
+ const gs=DATA.almGrupos.filter(g=>ativo(g)&&(coz?g.categoria==='Cozinha':g.categoria!=='Cozinha')).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ const cats=coz?[]:CAT_NOMES.filter(x=>x!=='Cozinha');
  cp.innerHTML=`<div class="apr-filtros"><input type="search" id="prQ" placeholder="Pesquisar produto, código, marca ou local" value="${esc(U.q)}" aria-label="Pesquisar produto" autocomplete="off">
-  <select id="prG" aria-label="Grupo ou categoria"><option value="">Todos os grupos</option>${gs.length?`<optgroup label="Grupos">${gs.map(g=>`<option value="g:${esc(g.id)}" ${U.grp==='g:'+g.id?'selected':''}>${esc(g.nome)}</option>`).join('')}<option value="g:" ${U.grp==='g:'?'selected':''}>Sem grupo</option></optgroup>`:''}<optgroup label="Categorias">${CAT_NOMES.map(x=>`<option value="c:${esc(x)}" ${U.grp==='c:'+x?'selected':''}>${esc(x)}</option>`).join('')}</optgroup></select>
-  <select id="prS" aria-label="Situação"><option value="">Todas as situações</option>${optH(['Com saldo','Sem saldo','Abaixo do mínimo','Repor agora','Inativo'],U.sit)}</select></div>
+  <select id="prG" aria-label="Grupo"><option value="">${coz?'Todos os tipos e grupos':'Todos os grupos'}</option>${coz?`<optgroup label="Tipos">${TIPOS_COZ.map(x=>`<option value="t:${esc(x)}" ${U.grp==='t:'+x?'selected':''}>${esc(x)}</option>`).join('')}<option value="t:" ${U.grp==='t:'?'selected':''}>Sem tipo</option></optgroup>`:''}${gs.length?`<optgroup label="Grupos">${gs.map(g=>`<option value="g:${esc(g.id)}" ${U.grp==='g:'+g.id?'selected':''}>${esc(g.nome)}</option>`).join('')}<option value="g:" ${U.grp==='g:'?'selected':''}>Sem grupo</option></optgroup>`:''}${cats.length?`<optgroup label="Categorias">${cats.map(x=>`<option value="c:${esc(x)}" ${U.grp==='c:'+x?'selected':''}>${esc(x)}</option>`).join('')}</optgroup>`:''}</select>
+  <select id="prS" aria-label="Situação"><option value="">Todas as situações</option>${optH(SIT_PR,U.sit)}</select></div>
+  ${U.grp||U.sit?`<div class="apr-ativos">${U.grp?`<button type="button" class="apr-chip" data-xg aria-label="Tirar o filtro">${esc(rotGrpPr(U.grp).replace(/^./,x=>x.toUpperCase()))}${ic('fechar')}</button>`:''}${U.sit?`<button type="button" class="apr-chip" data-xs aria-label="Tirar o filtro">${esc(U.sit)}${ic('fechar')}</button>`:''}</div>`:''}
   <div class="apr-lista" id="prL"></div><button type="button" class="btn apr-mais" id="prM" hidden>Mostrar mais</button>`;
- const pinta=()=>{const {L}=filtraProdPr();const el=$('#prL',cp);
-  el.innerHTML=L.length?L.slice(0,U.n).map(i=>{const e=estI(i.id);const s=sitItem(i);
-   return `<div class="apr-card${s==='Abaixo do mínimo'?' baixo':e.saldo<=0?' zero':''}"><button type="button" class="apr-ft" data-ver="${esc(i.id)}" aria-label="Ver ${esc(i.nome)}">${fotoPr(i)||ic('caixa')}</button>
-    <button type="button" class="apr-tx" data-ver="${esc(i.id)}"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)||i.categoria,i.local].filter(Boolean).join(' · '))}</small>${s==='Abaixo do mínimo'?'<em class="apr-al">Abaixo do mínimo</em>':''}</button>
-    <div class="apr-sd"><b>${esc(fQtd(e.saldo))}</b><small>${esc(un(i.unidade))}</small><small>${esc(fMoeda(e.valor))}</small></div>
-    <div class="apr-bt">${P.edS&&ativo(i)?`<button type="button" class="btn min" data-sai="${esc(i.id)}" ${e.disp>0?'':'disabled title="Sem saldo"'}>${ic('saida')}Saída</button>`:''}${P.edA&&ativo(i)?`<button type="button" class="btn min" data-ent="${esc(i.id)}">${ic('entrada')}Entrada</button>`:''}</div></div>`}).join('')
-   :noNada(DATA.almItens.length?'Nenhum produto com estes filtros':'Nenhum produto cadastrado ainda',DATA.almItens.length?'':`<div class="vazio-acoes">${P.edI?`<button type="button" class="btn pri" data-foto>${ic('camera')}Cadastrar por foto</button>`:''}</div>`);
+ const pinta=()=>{const {L}=filtraProdPr(sc);const el=$('#prL',cp);const tem=DATA.almItens.some(i=>doEsc(i,sc));
+  el.innerHTML=L.length?L.slice(0,U.n).map(i=>{const e=estI(i.id);const s=sitItem(i);const sv=ativo(i)&&semValorI(i);
+   return `<div class="apr-card${s==='Abaixo do mínimo'?' baixo':e.saldo<=0?' zero':''}"><button type="button" class="apr-ft" data-ver="${esc(i.id)}" aria-label="Ver ${esc(i.nome)}">${fotoPr(i)||ic(coz?'cozinha':'caixa')}</button>
+    <button type="button" class="apr-tx" data-ver="${esc(i.id)}"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)||(coz?i.tipoCoz:i.categoria),i.local].filter(Boolean).join(' · '))}</small>${s==='Abaixo do mínimo'?'<em class="apr-al">Abaixo do mínimo</em>':''}${sv?'<em class="apr-sv">Sem valor</em>':''}</button>
+    <div class="apr-sd"><b>${esc(fQtd(e.saldo))}</b><small>${esc(un(i.unidade))}</small><small>${sv?'sem valor':esc(fMoeda(e.valor))}</small></div>
+    <div class="apr-bt">${sv&&P.edI?`<button type="button" class="btn min apr-pv" data-pv="${esc(i.id)}">${ic('moeda')}Pôr valor</button>`:''}${P.edS&&ativo(i)?`<button type="button" class="btn min" data-sai="${esc(i.id)}" ${e.disp>0?'':'disabled title="Sem saldo"'}>${ic('saida')}Saída</button>`:''}${P.edA&&ativo(i)?`<button type="button" class="btn min" data-ent="${esc(i.id)}">${ic('entrada')}Entrada</button>`:''}</div></div>`}).join('')
+   :noNada(tem?'Nenhum produto com estes filtros':(coz?'Nenhum produto da cozinha cadastrado ainda':'Nenhum produto cadastrado ainda'),tem?(U.sit==='Sem valor'?'Todos os produtos daqui já têm valor.':''):`<div class="vazio-acoes">${P.edI?`<button type="button" class="btn pri" data-foto>${ic('camera')}${coz?'Cadastrar produto':'Cadastrar por foto'}</button>`:''}</div>`);
   $$('[data-ver]',el).forEach(b=>b.onclick=()=>fichaPr(b.dataset.ver));
   $$('[data-sai]',el).forEach(b=>b.onclick=()=>modalLancPr('saida',b.dataset.sai));
   $$('[data-ent]',el).forEach(b=>b.onclick=()=>modalLancPr('entrada',b.dataset.ent));
-  const f=$('[data-foto]',el);if(f)f.onclick=()=>modalFotoPr();
+  $$('[data-pv]',el).forEach(b=>b.onclick=()=>modalValorPr([b.dataset.pv]));
+  const f=$('[data-foto]',el);if(f)f.onclick=()=>modalFotoPr({sc});
   const m=$('#prM',cp);m.hidden=L.length<=U.n;m.onclick=()=>{U.n+=60;pinta()}};
  $('#prQ',cp).oninput=e=>{U.q=e.target.value;U.n=60;pinta()};
- $('#prG',cp).onchange=e=>{U.grp=e.target.value;U.n=60;pinta()};
- $('#prS',cp).onchange=e=>{U.sit=e.target.value;U.n=60;pinta()};
+ $('#prG',cp).onchange=e=>{U.grp=e.target.value;U.n=60;renderTela()};
+ $('#prS',cp).onchange=e=>{U.sit=e.target.value;U.n=60;renderTela()};
+ const xg=$('[data-xg]',cp);if(xg)xg.onclick=()=>{U.grp='';renderTela()};
+ const xs=$('[data-xs]',cp);if(xs)xs.onclick=()=>{U.sit='';renderTela()};
  pinta()}
-function filtraLancPr(){const U=UPR;const q=semAcento(U.qm.trim());
- const L=lancamentosPr().filter(x=>(!U.de||x.data>=U.de)&&(!U.ate||x.data<=U.ate)&&(!U.tm||(U.tm==='ent'?x.sinal>0&&x.tipo!=='Contagem':U.tm==='sai'?x.sinal<0&&x.tipo!=='Contagem':x.tipo===U.tm))&&
-  (!q||semAcento([x.tipo,x.titulo,x.quem,x.itensTxt,...x.itens.map(l=>(ITEM(l.itemId)||{}).codigo||'')].join(' ')).includes(q)));
- const f=[U.qm.trim()?'busca “'+U.qm.trim()+'”':'',U.tm?({ent:'só entradas',sai:'só saídas'}[U.tm]||U.tm):''].filter(Boolean).join(' · ');return{L,f}}
-function abaLancPr(cp){
- const U=UPR;
+/* grupos: um cartão por grupo (e "Sem grupo"); tocou, aparece tudo daquele grupo. Na cozinha, também os tipos. */
+function abaGrpPr(cp,sc){
+ const U=UXP(sc);const coz=sc==='coz';const its=DATA.almItens.filter(i=>ativo(i)&&doEsc(i,sc));
+ const card=(k,nome,sub,xs,ico)=>{const v=r2(soma(xs,i=>estI(i.id).valor));const cs=xs.filter(i=>estI(i.id).saldo>0).length;const sv=xs.filter(semValorI).length;
+  return `<button type="button" class="apr-gc" data-g="${esc(k)}"><span class="apr-gc-ic">${ic(ico||'caixa')}</span><span class="apr-gc-tx"><b>${esc(nome)}</b><small>${esc(xs.length+(xs.length===1?' produto':' produtos')+' · '+cs+' com saldo'+(sub?' · '+sub:''))}</small>${sv?`<em class="apr-sv">${esc(sv+' sem valor')}</em>`:''}</span><span class="apr-gc-v">${esc(fMoeda(v))}</span></button>`};
+ const gs=DATA.almGrupos.filter(g=>ativo(g)&&(coz?g.categoria==='Cozinha':g.categoria!=='Cozinha')).map(g=>({g,xs:its.filter(i=>i.grupoId===g.id)})).sort((a,b)=>String(a.g.nome).localeCompare(String(b.g.nome),'pt-BR'));
+ const semG=its.filter(i=>!(i.grupoId&&GRUPO(i.grupoId)));
+ let h='';
+ if(coz){const tps=TIPOS_COZ.map(t=>({t,xs:its.filter(i=>i.tipoCoz===t)}));const semT=its.filter(i=>!i.tipoCoz);
+  h+=`<h4 class="apr-h4">Tipos da cozinha</h4><div class="apr-gl">${tps.map(x=>card('t:'+x.t,x.t,'',x.xs,'cozinha')).join('')}${semT.length?card('t:','Sem tipo','',semT,'cozinha'):''}</div><h4 class="apr-h4">Grupos</h4>`}
+ h+=`<div class="apr-gl">${gs.map(x=>card('g:'+x.g.id,x.g.nome,coz?'':x.g.categoria||'',x.xs)).join('')}${semG.length?card('g:','Sem grupo','',semG):''}</div>`;
+ if(!gs.length)h+=`<p class="ajuda" style="margin:10px 2px 0">Os grupos nascem sozinhos no cadastro por foto (Rolamentos, Luvas, Parafusos…), também nos produtos antigos quando forem fotografados de novo.${pode('almGrupos','e')?' Também dá para criar em <a href="#/almGrupos">Grupos de materiais</a>.':''}</p>`;
+ cp.innerHTML=h;
+ $$('[data-g]',cp).forEach(b=>b.onclick=()=>{U.grp=b.dataset.g;U.aba='prod';U.n=60;renderTela()});
+}
+function filtraLancPr(sc){const U=UXP(sc);const q=semAcento(U.qm.trim());
+ const L=lancamentosPr(sc).filter(x=>(!U.de||x.data>=U.de)&&(!U.ate||x.data<=U.ate)&&(!U.tm||(U.tm==='ent'?x.sinal>0&&x.tipo!=='Contagem':U.tm==='sai'?x.sinal<0&&x.tipo!=='Contagem':U.tm==='semvalor'?x.semValor:x.tipo===U.tm))&&
+  (!q||semAcento([x.tipo,x.titulo,x.quem,x.para,x.itensTxt,...x.itens.map(l=>(ITEM(l.itemId)||{}).codigo||'')].join(' ')).includes(q)));
+ const f=[U.qm.trim()?'busca “'+U.qm.trim()+'”':'',U.tm?({ent:'só entradas',sai:'só saídas',semvalor:'só os sem valor'}[U.tm]||U.tm):''].filter(Boolean).join(' · ');return{L,f}}
+function abaLancPr(cp,sc){
+ const U=UXP(sc);
  cp.innerHTML=`<div class="apr-filtros"><input type="search" id="prQm" placeholder="Pesquisar produto, setor, pessoa ou número" value="${esc(U.qm)}" aria-label="Pesquisar lançamento" autocomplete="off">
-  <select id="prTm" aria-label="Tipo"><option value="">Entradas e saídas</option>${optH([['ent','Só entradas'],['sai','Só saídas'],['Contagem','Acertos de contagem']],U.tm)}</select>
+  <select id="prTm" aria-label="Tipo"><option value="">Entradas e saídas</option>${optH([['ent','Só entradas'],['sai','Só saídas'],['semvalor','Sem valor (para pôr o preço)'],['Contagem','Acertos de contagem']],U.tm)}</select>
   <label class="apr-dt">De <input type="date" id="prDe" value="${esc(U.de)}"></label><label class="apr-dt">Até <input type="date" id="prAte" value="${esc(U.ate)}"></label></div>
   <div class="apr-lista" id="prLm"></div><button type="button" class="btn apr-mais" id="prMm" hidden>Mostrar mais</button>`;
- const pinta=()=>{const {L}=filtraLancPr();const el=$('#prLm',cp);
-  el.innerHTML=L.length?L.slice(0,U.nm).map((x,k)=>`<div class="apr-lc ${x.cls}"><div class="apr-lc-t"><span class="apr-tp">${esc(x.tipo)}</span><b>${esc(x.titulo)}</b><small>${esc(fData(x.data))}${x.quem?' · '+esc(x.quem):''}</small><small class="apr-lc-i">${esc(x.itensTxt||'—')}</small></div>
-   <div class="apr-lc-v">${x.sinal<0?'−':'+'} ${esc(fMoeda(x.valor))}</div>
-   <div class="apr-lc-a">${x.href?`<button type="button" class="btn min" data-a="ver" data-k="${k}">${ic('olho')}Ver</button>`:''}${x.doc?`<button type="button" class="btn min" data-a="cupom" data-k="${k}">${ic('recibo')}Cupom</button><button type="button" class="btn min" data-a="a4" data-k="${k}">${ic('imprimir')}A4</button>`:''}${x.editar?`<button type="button" class="btn min" data-a="editar" data-k="${k}">${ic('editar')}Editar</button>`:''}${x.excluir?`<button type="button" class="btn min perigo" data-a="excluir" data-k="${k}" aria-label="Excluir">${ic('lixo')}</button>`:''}</div></div>`).join('')
-   :noNada('Nenhum lançamento encontrado','As entradas e as saídas aparecem aqui assim que forem lançadas.');
+ const pinta=()=>{const {L}=filtraLancPr(sc);const el=$('#prLm',cp);
+  el.innerHTML=L.length?L.slice(0,U.nm).map((x,k)=>`<div class="apr-lc ${x.cls}"><div class="apr-lc-t"><span class="apr-tp">${esc(x.tipo)}</span>${x.semValor?'<em class="apr-sv">Sem valor</em>':''}<b>${esc(x.titulo)}</b><small>${esc(fData(x.data))}${x.para?' · '+esc(x.para):x.quem?' · '+esc(x.quem):''}</small><small class="apr-lc-i">${esc(x.itensTxt||'—')}</small></div>
+   <div class="apr-lc-v">${x.semValor&&!(x.valor>0)?'sem valor':(x.sinal<0?'−':'+')+' '+esc(fMoeda(x.valor))}</div>
+   <div class="apr-lc-a">${x.semValor&&x.porValor?`<button type="button" class="btn min apr-pv" data-a="valor" data-k="${k}">${ic('moeda')}Pôr valor</button>`:''}${x.href?`<button type="button" class="btn min" data-a="ver" data-k="${k}">${ic('olho')}Ver</button>`:''}${x.doc?`<button type="button" class="btn min" data-a="cupom" data-k="${k}">${ic('recibo')}Cupom</button><button type="button" class="btn min" data-a="a4" data-k="${k}">${ic('imprimir')}A4</button>`:''}${x.editar?`<button type="button" class="btn min" data-a="editar" data-k="${k}">${ic('editar')}Editar</button>`:''}${x.excluir?`<button type="button" class="btn min perigo" data-a="excluir" data-k="${k}" aria-label="Excluir">${ic('lixo')}</button>`:''}</div></div>`).join('')
+   :noNada(U.tm==='semvalor'?'Nenhum lançamento sem valor':'Nenhum lançamento encontrado',U.tm==='semvalor'?'Tudo o que foi lançado aqui já tem valor.':'As entradas e as saídas aparecem aqui assim que forem lançadas.');
   $$('[data-a]',el).forEach(b=>b.onclick=()=>{const x=L[+b.dataset.k];if(!x)return;const a=b.dataset.a;
-   if(a==='ver')JBNAV.ir(x.href);else if(a==='cupom'||a==='a4'){const D=x.doc();if(D)verDoc(D,{formato:a==='a4'?'a4':''})}
+   if(a==='valor'){if(typeof x.porValor==='function')x.porValor();else if(x.porValor)JBNAV.ir(x.porValor)}
+   else if(a==='ver')JBNAV.ir(x.href);else if(a==='cupom'||a==='a4'){const D=x.doc();if(D)verDoc(D,{formato:a==='a4'?'a4':''})}
    else if(a==='editar'){if(typeof x.editar==='function')x.editar();else JBNAV.ir(x.editar)}else if(a==='excluir')x.excluir()});
   const m=$('#prMm',cp);m.hidden=L.length<=U.nm;m.onclick=()=>{U.nm+=50;pinta()}};
  $('#prQm',cp).oninput=e=>{U.qm=e.target.value;U.nm=50;pinta()};
@@ -22684,67 +22761,92 @@ function abaLancPr(cp){
  $('#prDe',cp).onchange=e=>{U.de=e.target.value;pinta()};$('#prAte',cp).onchange=e=>{U.ate=e.target.value;pinta()};
  pinta()}
 
-/* ---------- ficha do produto: saldo, dados, últimos lançamentos e as ações ---------- */
+/* ---------- ficha do produto: saldo, dados, últimos lançamentos e as ações ----------
+   V146: produto sem valor mostra "Pôr valor"; produto sem foto mostra "Tirar foto" (no almoxarifado todo material tem foto). */
 function fichaPr(id){
- const i=ITEM(id);if(!i)return;const e=estI(id);const p=ativo(i)?repI(i):null;
+ const i=ITEM(id);if(!i)return;const e=estI(id);const p=ativo(i)?repI(i):null;const sv=ativo(i)&&semValorI(i);const edI=pode('almItens','e');
  const movs=movsAlm().filter(m=>m.itemId===id).slice(-8).reverse();
  const kv=(l,v)=>v===''||v==null?'':`<div><small>${esc(l)}</small><b>${esc(v)}</b></div>`;
- modalPr(i.nome,`<div class="apr-fi">${i.foto&&i.foto.id?`<div class="apr-fi-ft">${fotoPr(i)}</div>`:''}<div class="apr-fi-sd"><small>Tem agora</small><b>${esc(qtdUn(e.saldo,i))}</b>${e.emp?`<small>${esc(qtdUn(e.emp,i))} emprestado(s)</small>`:''}</div></div>
-  <div class="apr-kv">${kv('Código',i.codigo)}${kv('Grupo',nomeGrupo(i.grupoId)||'—')}${kv('Categoria',i.categoria)}${kv('Marca',i.marca)}${kv('Local',i.local)}${kv('Especificação',i.especificacao)}${kv('Código do fabricante',i.refFab)}
-   ${kv('Custo médio',fMoeda(e.cm))}${kv('Valor em estoque',fMoeda(e.valor))}${temMin(i)?kv('Mínimo',qtdUn(+i.minimo,i)):''}${p&&p.comprar>0?kv('Comprar',qtdUn(p.comprar,i)):''}</div>
-  <div class="apr-fi-ac">${pode('almSaida','e')&&ativo(i)&&e.disp>0?`<button type="button" class="btn pri" data-f="sai">${ic('saida')}Saída</button>`:''}${pode('almAjustes','e')&&ativo(i)?`<button type="button" class="btn" data-f="ent">${ic('entrada')}Entrada</button>`:''}<button type="button" class="btn" data-f="ed">${ic('editar')}Editar cadastro</button><button type="button" class="btn" data-f="mov">${ic('lupa')}Todas as movimentações</button></div>
-  <h4 class="apr-h4">Últimos lançamentos</h4>${movs.length?`<div class="apr-mv">${movs.map(m=>`<div><span>${esc(fData(m.data))}</span><b class="${m.q<0?'sai':'ent'}">${m.q<0?'−':'+'}${esc(qtdUn(Math.abs(m.q),i))}</b><small>${esc(m.tipo)}${m.doc?' · '+esc(m.doc):''}</small>${m.href?`<button type="button" class="btn min" data-go="${esc(m.href)}">Ver</button>`:''}</div>`).join('')}</div>`:'<p class="ajuda">Nenhum lançamento ainda.</p>'}`,'',null,
+ modalPr(i.nome,`<div class="apr-fi">${temFotoI(i)?`<div class="apr-fi-ft">${fotoPr(i)}</div>`:''}<div class="apr-fi-sd"><small>Tem agora</small><b>${esc(qtdUn(e.saldo,i))}</b>${e.emp?`<small>${esc(qtdUn(e.emp,i))} emprestado(s)</small>`:''}${sv?'<em class="apr-sv">Sem valor</em>':''}</div></div>
+  <div class="apr-kv">${kv('Código',i.codigo)}${kv('Estoque',ehCoz(i)?'Cozinha':'Almoxarifado')}${kv('Grupo',nomeGrupo(i.grupoId)||'—')}${kv('Categoria',i.categoria)}${ehCoz(i)?kv('Tipo',i.tipoCoz||'—'):''}${kv('Marca',i.marca)}${kv('Local',i.local)}${kv('Especificação',i.especificacao)}${i.categoria==='EPI'?kv('Nº do CA',i.ca||'—'):''}
+   ${kv('Custo médio',sv?'sem valor':fMoeda(e.cm))}${kv('Valor em estoque',sv?'sem valor':fMoeda(e.valor))}${temMin(i)?kv('Mínimo',qtdUn(+i.minimo,i)):''}${p&&p.comprar>0?kv('Comprar',qtdUn(p.comprar,i)):''}</div>
+  <div class="apr-fi-ac">${sv&&edI?`<button type="button" class="btn pri apr-pv" data-f="valor">${ic('moeda')}Pôr valor</button>`:''}${!temFotoI(i)&&edI&&APP.assets?`<label class="btn" style="cursor:pointer">${ic('camera')}Tirar foto<input type="file" accept="image/*" capture="environment" hidden data-ffoto></label>`:''}${pode('almSaida','e')&&ativo(i)&&e.disp>0?`<button type="button" class="btn${sv?'':' pri'}" data-f="sai">${ic('saida')}Saída</button>`:''}${pode('almAjustes','e')&&ativo(i)?`<button type="button" class="btn" data-f="ent">${ic('entrada')}Entrada</button>`:''}<button type="button" class="btn" data-f="ed">${ic('editar')}Editar cadastro</button><button type="button" class="btn" data-f="mov">${ic('lupa')}Todas as movimentações</button></div>
+  <h4 class="apr-h4">Últimos lançamentos</h4>${movs.length?`<div class="apr-mv">${movs.map(m=>`<div><span>${esc(fData(m.data))}</span><b class="${m.q<0?'sai':'ent'}">${m.q<0?'−':'+'}${esc(qtdUn(Math.abs(m.q),i))}</b><small>${esc(m.rot||m.tipo)}${m.doc?' · '+esc(m.doc):''}</small>${m.href?`<button type="button" class="btn min" data-go="${esc(m.href)}">Ver</button>`:''}</div>`).join('')}</div>`:'<p class="ajuda">Nenhum lançamento ainda.</p>'}`,'',null,
   {depois:v=>{$$('[data-f]',v).forEach(b=>b.onclick=()=>{v.remove();const f=b.dataset.f;
-    if(f==='sai')modalLancPr('saida',id);else if(f==='ent')modalLancPr('entrada',id);else if(f==='ed')JBNAV.ir('#/almItens/'+id);else{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';JBNAV.ir('#/almMov')}});
-   $$('[data-go]',v).forEach(b=>b.onclick=()=>{v.remove();JBNAV.ir(b.dataset.go)})}});
+    if(f==='sai')modalLancPr('saida',id);else if(f==='ent')modalLancPr('entrada',id);else if(f==='valor')modalValorPr([id]);else if(f==='ed')JBNAV.ir('#/almItens/'+id);else{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';UM2.esc='';JBNAV.ir('#/almMov')}});
+   $$('[data-go]',v).forEach(b=>b.onclick=()=>{v.remove();JBNAV.ir(b.dataset.go)});
+   const ff=$('[data-ffoto]',v);if(ff)ff.onchange=async()=>{const fl=ff.files&&ff.files[0];if(!fl)return;ff.disabled=true;toast('Guardando a foto…');
+    try{const pq=await prepFotoPr(fl,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));const at=ITEM(id);
+     await gravarRegistro('almItens',{...clone(at),foto:{id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}},clone(at),false);
+     toast('Foto guardada.','ok');v.remove();refrescaPr();setTimeout(()=>fichaPr(id),60)}
+    catch(err){console.warn('foto do produto',err);ff.disabled=false;toast('A foto não foi guardada agora. Tente de novo.','erro')}}}});
 }
 
-/* ---------- lançar saída ou entrada: busca, marca os produtos e põe a quantidade ---------- */
+/* ---------- lançar saída ou entrada: busca, marca os produtos e põe a quantidade ----------
+   V146: a lista é a do estoque da tela (almoxarifado ou cozinha). Toda saída diz para quem foi entregue (a pessoa)
+   ou, sem a pessoa, o setor. EPI não vira requisição: vai para a Entrega de EPI, com o funcionário que recebeu. */
 function modalLancPr(tipo,pre){
  const sai=tipo==='saida';
  if(sai&&!pode('almSaida','e')){toast('Seu perfil não lança saída do estoque.','erro');return}
  if(!sai&&!pode('almAjustes','e')){toast('Seu perfil não lança entrada no estoque.','erro');return}
- const its=DATA.almItens.filter(ativo).sort(ordNomePr);
- if(!its.length){toast('Cadastre os produtos primeiro (pode ser por foto).','erro');return}
- const sel=new Map();if(pre&&ITEM(pre))sel.set(pre,{q:'',p:''});let q='';
+ const sc=pre&&ITEM(pre)?escDe(pre):ESC;const U=UXP(sc);const coz=sc==='coz';
+ const its=DATA.almItens.filter(i=>ativo(i)&&doEsc(i,sc)).sort(ordNomePr);
+ if(!its.length){toast(coz?'Cadastre os produtos da cozinha primeiro.':'Cadastre os produtos primeiro (pode ser por foto).','erro');return}
+ const sel=new Map();if(pre&&ITEM(pre))sel.set(pre,{q:'',p:''});let q='';let setTocado=false;
  const freq={};DATA.almSaidas.forEach(s=>{if(s.setor)freq[s.setor]=(freq[s.setor]||0)+1});
- const chipsSet=[...new Set([UPR.ultSetor,...Object.keys(freq).sort((a,b)=>freq[b]-freq[a]),...setoresAlm()].filter(Boolean))].slice(0,6);
- const chipsMot=[...new Set([UPR.ultMot,...MOT_ENT].filter(Boolean))].slice(0,6);
- const fs=funcsPr();
- const corpo=`<p class="ajuda" style="margin:0 0 8px">${sai?'Digite o que está saindo, marque os produtos e coloque a quantidade de cada um.':'Para o que entra sem compra com nota: saldo inicial, sobra, devolução. A compra com nota é lançada em “Nova entrada” (ela gera a conta a pagar).'}</p>
+ const chipsSet=[...new Set([...(coz?['Cozinha']:[]),U.ultSetor,...Object.keys(freq).sort((a,b)=>freq[b]-freq[a]),...setoresAlm()].filter(Boolean))].slice(0,6);
+ const chipsMot=[...new Set([U.ultMot,...MOT_ENT].filter(Boolean))].slice(0,6);
+ const fs=funcsPr();const ehEpi=id=>(ITEM(id)||{}).categoria==='EPI';
+ const corpo=`<p class="ajuda" style="margin:0 0 8px">${sai?'Digite o que está saindo, marque os produtos e coloque a quantidade de cada um. Diga para quem foi entregue; se não souber a pessoa, o setor.':'Para o que entra sem compra com nota: saldo inicial, sobra, devolução. A compra com nota é lançada em “Nova entrada” (ela gera a conta a pagar). Sem o preço? Deixe em branco: fica “sem valor” e o preço é posto depois.'}</p>
   <input type="search" id="lpQ" class="apr-pkq-b" placeholder="Digite o nome, o código ou a marca" autocomplete="off" aria-label="Procurar produto">
   <div class="apr-pk" id="lpL"></div><div class="apr-pksel" id="lpS"></div>
-  ${sai?`${H.campoM('lpSet','Para onde vai (setor)<i> *</i>',`<div class="apr-chips">${chipsSet.map(s=>`<button type="button" data-chip="lpSet" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpSet" list="lpSetL" value="${esc(UPR.ultSetor)}" autocomplete="off"><datalist id="lpSetL">${setoresAlm().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}
-   ${H.campoM('lpQuem','Quem retirou',`<input id="lpQuem" list="lpQuemL" autocomplete="off" placeholder="Nome de quem pegou"><datalist id="lpQuemL">${fs.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}`
-  :`${H.campoM('lpMot','De onde veio<i> *</i>',`<div class="apr-chips">${chipsMot.map(s=>`<button type="button" data-chip="lpMot" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpMot" list="lpMotL" value="${esc(UPR.ultMot)}" autocomplete="off"><datalist id="lpMotL">${MOT_ENT.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}
+  ${sai?`<div class="apr-epi" id="lpEpi" hidden>${ic('escudo')}<span>EPI vai para a <b>Entrega de EPI</b>: escolha na lista o funcionário que recebeu.</span></div>
+   ${H.campoM('lpQuem','Entregue para (quem recebeu)',`<input id="lpQuem" list="lpQuemL" autocomplete="off" placeholder="Nome de quem pegou"><datalist id="lpQuemL">${fs.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
+   ${H.campoM('lpSet','Setor (se não souber a pessoa)',`<div class="apr-chips">${chipsSet.map(s=>`<button type="button" data-chip="lpSet" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpSet" list="lpSetL" value="${esc(coz?'Cozinha':U.ultSetor)}" autocomplete="off"><datalist id="lpSetL">${setoresAlm().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}`
+  :`${H.campoM('lpMot','De onde veio<i> *</i>',`<div class="apr-chips">${chipsMot.map(s=>`<button type="button" data-chip="lpMot" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div><input id="lpMot" list="lpMotL" value="${esc(U.ultMot)}" autocomplete="off"><datalist id="lpMotL">${MOT_ENT.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`)}
    ${H.campoM('lpQuem','Quem trouxe',`<input id="lpQuem" list="lpQuemL" autocomplete="off"><datalist id="lpQuemL">${fs.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}`}
-  <div class="duas">${H.campoM('lpData','Data<i> *</i>',`<input id="lpData" type="date" max="${hoje()}" value="${hoje()}">`)}${H.campoM('lpObs',sai?'Para que (opcional)':'Observação (opcional)',`<input id="lpObs" autocomplete="off" placeholder="${sai?'Ex.: troca do rolamento da maromba':''}">`)}</div>`;
+  <div class="duas">${H.campoM('lpData','Data<i> *</i>',`<input id="lpData" type="date" max="${hoje()}" value="${hoje()}">`)}${H.campoM('lpObs',sai?'Para que (opcional)':'Observação (opcional)',`<input id="lpObs" autocomplete="off" placeholder="${sai?(coz?'Ex.: almoço de sexta':'Ex.: troca do rolamento da maromba'):''}">`)}</div>`;
  const linha=i=>{const e=estI(i.id);const m=sel.get(i.id);const semS=sai&&!(e.disp>0);
-  return `<div class="apr-pki${m?' on':''}${semS&&!m?' off':''}"><label class="apr-pkc"><input type="checkbox" data-pk="${esc(i.id)}" ${m?'checked':''} ${semS&&!m?'disabled':''}><span class="apr-pkf">${fotoPr(i)||ic('caixa')}</span><span class="apr-pkn"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)].filter(Boolean).join(' · '))}</small></span><em>${semS?'sem saldo':'tem '+esc(qtdUn(sai?e.disp:e.saldo,i))}</em></label>
+  return `<div class="apr-pki${m?' on':''}${semS&&!m?' off':''}"><label class="apr-pkc"><input type="checkbox" data-pk="${esc(i.id)}" ${m?'checked':''} ${semS&&!m?'disabled':''}><span class="apr-pkf">${fotoPr(i)||ic(coz?'cozinha':'caixa')}</span><span class="apr-pkn"><b>${esc(i.nome)}${sai&&i.categoria==='EPI'?' <i class="apr-epi-t">EPI</i>':''}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)].filter(Boolean).join(' · '))}</small></span><em>${semS?'sem saldo':'tem '+esc(qtdUn(sai?e.disp:e.saldo,i))}</em></label>
    ${m?`<div class="apr-pkq"><button type="button" data-menos="${esc(i.id)}" aria-label="Menos um">−</button><input type="number" step="any" min="0" inputmode="decimal" data-pq="${esc(i.id)}" value="${esc(m.q)}" placeholder="Qtd." aria-label="Quantidade de ${esc(i.nome)}"><button type="button" data-mais="${esc(i.id)}" aria-label="Mais um">+</button><span>${esc(un(i.unidade))}</span>${sai?'':`<input type="number" step="any" min="0" inputmode="decimal" data-pp="${esc(i.id)}" value="${esc(m.p)}" placeholder="Preço un. (opcional)" aria-label="Preço de uma unidade" class="apr-pp">`}</div>`:''}</div>`};
  const resumoSel=v=>{const s=$('#lpS',v);const n=sel.size;
-  s.innerHTML=n?`<b>${n} produto(s) marcado(s)</b>: ${esc([...sel.entries()].map(([id,m])=>{const i=ITEM(id);return (m.q?fQtd(+m.q)+' '+un(i.unidade)+' ':'')+nomeItem(i)}).join('; '))}`:'<span class="ajuda">Nenhum produto marcado ainda.</span>'};
+  s.innerHTML=n?`<b>${n} produto(s) marcado(s)</b>: ${esc([...sel.entries()].map(([id,m])=>{const i=ITEM(id);return (m.q?fQtd(+m.q)+' '+un(i.unidade)+' ':'')+nomeItem(i)}).join('; '))}`:'<span class="ajuda">Nenhum produto marcado ainda.</span>';
+  const ep=$('#lpEpi',v);if(ep)ep.hidden=![...sel.keys()].some(ehEpi)};
  const pinta=v=>{const qq=semAcento(q.trim());const bate=i=>!qq||semAcento([i.codigo,i.nome,i.marca,i.refFab,i.especificacao,i.local,nomeGrupo(i.grupoId)].filter(Boolean).join(' ')).includes(qq);
   const marc=its.filter(i=>sel.has(i.id)),resto=its.filter(i=>!sel.has(i.id)&&bate(i));const lim=qq?80:40;
   $('#lpL',v).innerHTML=marc.map(linha).join('')+resto.slice(0,lim).map(linha).join('')+(resto.length>lim?`<p class="ajuda" style="margin:6px 4px">Mais ${resto.length-lim} produto(s): continue digitando para achar.</p>`:'')+
-   (!resto.length&&qq&&!marc.some(bate)?`<p class="ajuda" style="margin:8px 4px">Nenhum produto com “${esc(q.trim())}”.${pode('almItens','e')?' <button type="button" class="btn min" data-novo>Cadastrar por foto</button>':''}</p>`:'');
+   (!resto.length&&qq&&!marc.some(bate)?`<p class="ajuda" style="margin:8px 4px">Nenhum produto com “${esc(q.trim())}”.${pode('almItens','e')?` <button type="button" class="btn min" data-novo>${coz?'Cadastrar produto':'Cadastrar por foto'}</button>`:''}</p>`:'');
   resumoSel(v)};
- modalPr(sai?'Lançar saída':'Lançar entrada no estoque',corpo,sai?'Confirmar saída':'Confirmar entrada',async v=>{
+ modalPr(sai?(coz?'Lançar saída da cozinha':'Lançar saída'):(coz?'Lançar entrada na cozinha':'Lançar entrada no estoque'),corpo,sai?'Confirmar saída':'Confirmar entrada',async v=>{
   const ls=[...sel.entries()].map(([id,m])=>({itemId:id,qtd:m.q===''?NaN:+m.q,preco:m.p===''?'':+m.p}));
   if(!ls.length){toast('Marque pelo menos um produto.','erro');return false}
   const sq=ls.find(l=>!(l.qtd>0));if(sq){toast('Informe a quantidade de '+nomeItem(ITEM(sq.itemId))+'.','erro');return false}
   const pr=ls.find(l=>l.preco!==''&&!(l.preco>=0));if(pr){toast('Preço inválido em '+nomeItem(ITEM(pr.itemId))+'.','erro');return false}
   const data=H.valM(v,'lpData');if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
   const quemT=String(H.valM(v,'lpQuem')||'').trim(),obs=String(H.valM(v,'lpObs')||'').trim();
-  if(sai){const setor=String(H.valM(v,'lpSet')||'').trim();if(!setor){toast('Diga para qual setor vai o material.','erro');return false}
-   let rec;try{rec=await saidaRapidaAlm({data,setor,solicitante:quemT,finalidade:obs,itens:ls.map(l=>({itemId:l.itemId,qtd:r3(l.qtd)}))})}catch(err){toast(err&&err.message||msgFalhaSalvar(err),'erro');return false}
-   UPR.ultSetor=setor;refrescaPr();toast(fReq(rec.numero)+' registrada. Estoque baixado.','ok');
-   setTimeout(()=>posLancPr('Saída registrada',fReq(rec.numero)+' · '+setor+' · '+textoItensPr(rec.itens),()=>docSaida(DATA.almSaidas.find(x=>x.id===rec.id)||rec)),80);return}
+  if(sai){let setor=String(H.valM(v,'lpSet')||'').trim();
+   if(!quemT&&!setor){toast('Diga para quem foi entregue ou, se não souber a pessoa, para qual setor.','erro');return false}
+   const epis=ls.filter(l=>ehEpi(l.itemId)),outros=ls.filter(l=>!ehEpi(l.itemId));const fp=funcPorNome(quemT);
+   if(epis.length&&!fp){toast('EPI vai para a Entrega de EPI: escolha na lista o funcionário que recebeu ('+epis.map(l=>nomeItem(ITEM(l.itemId))).join(', ')+').','erro');return false}
+   if(!setor&&fp)setor=setorDaPessoa(quemT);
+   const stE=epis.map(l=>{const i=ITEM(l.itemId)||{};return{...MODS.almEpis.padrao(),id:novoId(),data,funcId:fp.id,itemId:l.itemId,qtd:r3(l.qtd),ca:i.ca||''}});
+   for(const st of stE){const r=conferirRegistro('almEpis',st);const er=Object.values(r.erros);if(er.length){toast(nomeItem(ITEM(st.itemId))+': '+er[0],'erro');return false}
+    if(r.aviso&&!await confirmar('Entregar assim mesmo?',nomeItem(ITEM(st.itemId))+': '+r.aviso,{ok:'Entregar'}))return false}
+   let rec=null;const feitosE=[];
+   try{if(outros.length)rec=await saidaRapidaAlm({data,setor,solicitante:quemT,finalidade:obs,itens:outros.map(l=>({itemId:l.itemId,qtd:r3(l.qtd)}))});
+    for(const st of stE)feitosE.push(await gravarRegistro('almEpis',st,null,true))}
+   catch(err){toast((rec||feitosE.length?'Parte foi lançada antes da falha. ':'')+(err&&err.message||msgFalhaSalvar(err)),'erro');return false}
+   if(setor)U.ultSetor=setor;refrescaPr();
+   const txt=[rec?fReq(rec.numero)+' · '+[quemT,setor].filter(Boolean).join(' · '):'',feitosE.length?(feitosE.length===1?'EPI entregue a ':feitosE.length+' EPIs entregues a ')+fp.nome+' (na Entrega de EPI)':''].filter(Boolean).join(' · ');
+   toast((rec?fReq(rec.numero)+' registrada. ':'')+(feitosE.length?'EPI lançado na Entrega de EPI. ':'')+'Estoque baixado.','ok');
+   const docF=rec?()=>docSaida(DATA.almSaidas.find(x=>x.id===rec.id)||rec):(window.JB_DOCL&&JB_DOCL.docRegistro&&feitosE[0]?()=>JB_DOCL.docRegistro('almEpis',feitosE[0].id):null);
+   if(docF)setTimeout(()=>posLancPr('Saída registrada',txt+' · '+textoItensPr(ls),docF),80);return}
   const mot=String(H.valM(v,'lpMot')||'').trim();if(!mot){toast('Diga de onde veio o material.','erro');return false}
   const lote=ls.length>1?novoId():'';const sts=ls.map(l=>novoAjPr({itemId:l.itemId,tipo:'entrada',qtd:l.qtd,data,motivo:mot,resp:quemT,obs,lote,preco:l.preco}));
   for(const st of sts){const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(nomeItem(ITEM(st.itemId))+': '+er[0],'erro');return false}}
   let feitos=[];try{for(const st of sts)feitos.push(await gravarAjPr(st))}catch(err){toast((feitos.length?feitos.length+' produto(s) lançado(s) antes da falha. ':'')+msgFalhaSalvar(err),'erro');return false}
-  UPR.ultMot=mot;refrescaPr();toast('Entrada registrada: '+textoItensPr(feitos)+'.','ok');
+  U.ultMot=mot;refrescaPr();const nsv=feitos.filter(x=>!(+x.precoUnit>0)&&semValorI(ITEM(x.itemId))).length;
+  toast('Entrada registrada: '+textoItensPr(feitos)+'.'+(nsv?' '+nsv+(nsv===1?' produto ficou':' produtos ficaram')+' sem valor: ponha o preço depois.':''),'ok');
   setTimeout(()=>posLancPr('Entrada registrada',mot+' · '+textoItensPr(feitos),()=>docAjusteAlm(DATA.almAjustes.find(x=>x.id===feitos[0].id)||feitos[0])),80)},
   {depois:v=>{const lst=$('#lpL',v);
    $('#lpQ',v).oninput=e=>{q=e.target.value;pinta(v)};
@@ -22752,10 +22854,13 @@ function modalLancPr(tipo,pre){
     if(b.checked){const i=lst.querySelector(`[data-pq="${CSS.escape(id)}"]`);if(i)i.focus()}});
    lst.addEventListener('input',e=>{const t=e.target;const id=t.dataset.pq||t.dataset.pp;if(!id||!sel.has(id))return;if(t.dataset.pq)sel.get(id).q=t.value;else sel.get(id).p=t.value;resumoSel(v)});
    lst.addEventListener('click',e=>{const b=e.target.closest('[data-menos],[data-mais],[data-novo]');if(!b)return;
-    if(b.hasAttribute('data-novo')){v.remove();modalFotoPr({nome:q.trim()});return}
+    if(b.hasAttribute('data-novo')){v.remove();modalFotoPr({nome:q.trim(),sc});return}
     const id=b.dataset.menos||b.dataset.mais;const m=sel.get(id);if(!m)return;const n=Math.max(0,r3((+m.q||0)+(b.dataset.mais?1:-1)));m.q=n?String(n):'';
     const i=lst.querySelector(`[data-pq="${CSS.escape(id)}"]`);if(i)i.value=m.q;resumoSel(v)});
-   $$('[data-chip]',v).forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.chip,v);i.value=b.dataset.v;$$(`[data-chip="${b.dataset.chip}"]`,v).forEach(x=>x.classList.toggle('on',x===b))});
+   $$('[data-chip]',v).forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.chip,v);i.value=b.dataset.v;if(b.dataset.chip==='lpSet')setTocado=true;$$(`[data-chip="${b.dataset.chip}"]`,v).forEach(x=>x.classList.toggle('on',x===b))});
+   /* a pessoa escolhida da lista traz o setor dela (se ninguém mexeu no setor nesta janela) */
+   const ls_=$('#lpSet',v),lq=$('#lpQuem',v);if(sai&&ls_&&lq){ls_.addEventListener('input',()=>{setTocado=true});
+    lq.addEventListener('change',()=>{const s=setorDaPessoa(lq.value);if(s&&!setTocado&&!coz)ls_.value=s})}
    pinta(v);if(pre){const i=lst.querySelector('[data-pq]');if(i)setTimeout(()=>i.focus(),60)}}});
 }
 function posLancPr(tit,txt,fazer){
@@ -22768,7 +22873,7 @@ function novoAjPr(o){const st={...MODS.almAjustes.padrao(),id:novoId(),itemId:o.
 async function gravarAjPr(st){
  const rec=await gravarRegistro('almAjustes',st,null,true);
  /* o preço informado vira o custo de referência enquanto o produto não tiver compra com preço */
- if(st.tipo==='entrada'&&+st.precoUnit>0){const i=ITEM(st.itemId);if(i&&!(estI(i.id).eq>0)&&+i.custoRef!==+st.precoUnit){try{await gravarRegistro('almItens',{...clone(i),custoRef:+st.precoUnit},clone(i),false)}catch(e){console.warn('custo de referência',e)}}}
+ if(st.tipo==='entrada'&&+st.precoUnit>0){const i=ITEM(st.itemId);if(i&&!(estI(i.id).eqc>0)&&+i.custoRef!==+st.precoUnit){try{await gravarRegistro('almItens',{...clone(i),custoRef:+st.precoUnit},clone(i),false)}catch(e){console.warn('custo de referência',e)}}}
  return rec}
 function editarAjPr(a){
  const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const a0=L[0];const ent=a0.tipo!=='saida';
@@ -22798,20 +22903,20 @@ async function prepFotoPr(file,max,q){
  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(src,0,0,cv.width,cv.height);try{if(src.close)src.close()}catch(e){}
  return await new Promise(ok=>cv.toBlob(b=>ok(b),'image/jpeg',q||.82))}
 const qtdDaFrase=t=>{const m=/(?:tem|t[eê]m|são|sao|há|ha|quantidade|qtd\.?)\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:un\b|unid|unidades?|peças?|pecas?|caixas?|pacotes?|rolos?|pares?|metros?|kg|litros?|desse|dessa|desses|dessas|deste|desta)/i.exec(String(t||''));return m?+String(m[1]||m[2]).replace(',','.'):''};
-function promptFotoPr(frase){
+function promptFotoPr(frase,sc){
  const gs=[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].slice(0,120);
  const its=DATA.almItens.filter(ativo).slice(0,400).map(i=>[i.codigo,i.nome,i.marca,i.refFab].filter(Boolean).join(' | '));
- return `Você ajuda a cadastrar o estoque do almoxarifado de uma cerâmica (fábrica de tijolos) no Brasil. ${frase?'A foto mostra UM produto (ou a etiqueta ou a embalagem dele). Junto vem a frase de quem está cadastrando.':'Não veio foto: use só a frase.'}
+ return `Você ajuda a cadastrar o estoque ${sc==='coz'?'da COZINHA':'do almoxarifado'} de uma cerâmica (fábrica de tijolos) no Brasil. ${frase?'A foto mostra UM produto (ou a etiqueta ou a embalagem dele). Junto vem a frase de quem está cadastrando.':'Não veio foto: use só a frase.'}
 FRASE DE QUEM CADASTRA: "${String(frase||'').replace(/"/g,"'")}"
 
 Responda SOMENTE com um objeto JSON numa linha, sem texto antes ou depois, com estas chaves:
-{"nome":texto,"marca":texto|null,"especificacao":texto|null,"refFab":texto|null,"categoria":texto,"grupo":texto|null,"unidade":texto,"quantidade":número|null,"preco":número|null,"local":texto|null,"existente":texto|null,"confianca":"alta"|"media"|"baixa","observacao":texto|null}
+{"nome":texto,"marca":texto|null,"especificacao":texto|null,"ca":texto|null,"categoria":texto,"tipoCozinha":texto|null,"grupo":texto|null,"unidade":texto,"quantidade":número|null,"preco":número|null,"local":texto|null,"existente":texto|null,"confianca":"alta"|"media"|"baixa","observacao":texto|null}
 
 REGRAS
 1. "nome": curto e claro em português, começando pelo que o produto é e depois a medida ou o tipo. Ex.: "Rolamento 6205 2RS", "Luva de raspa cano longo", "Disjuntor bipolar 32 A", "Detergente neutro 500 ml". Não ponha a marca no nome.
-2. "marca", "refFab" (código do fabricante ou código de barras) e "especificacao" (medidas, voltagem, material, aplicação): só o que estiver escrito na foto ou dito na frase. O que não der para ler fica null. Nunca invente.
+2. "marca" e "especificacao" (medidas, voltagem, material, aplicação): só o que estiver escrito na foto ou dito na frase. O que não der para ler fica null. Nunca invente. Não leia código de barras. "ca": só para EPI, o número do Certificado de Aprovação (CA) se estiver escrito; senão null.
 3. "quantidade" e "preco": só da FRASE (ex.: "tem 10 desse" → 10; "custa 25 reais cada" → 25). Se a frase não diz, null. "preco" é o preço de UMA unidade. Números com ponto decimal.
-4. "categoria": uma destas, exatamente como escrita: ${CAT_NOMES.join('; ')}.
+4. "categoria": uma destas, exatamente como escrita: ${CAT_NOMES.join('; ')}. EPI (equipamento de proteção individual usado no corpo do trabalhador: luva, bota, botina, capacete, óculos de proteção, protetor auricular, máscara, respirador, avental, perneira, mangote, cinto de segurança) é SEMPRE "EPI". Alimento, tempero, bebida, gás de cozinha e material de copa são "Cozinha".${sc==='coz'?' Este cadastro é da cozinha: use "Cozinha" e diga em "tipoCozinha" um destes: '+TIPOS_COZ.join('; ')+'.':''}
 5. "unidade": uma destas, exatamente: ${UNIDS.join('; ')}. Na dúvida, "unidade".
 6. "grupo": a família do produto, no plural (ex.: Rolamentos, Correias, Luvas, Lâmpadas, Parafusos, Detergentes). Se servir, use um destes que já existem: ${gs.length?gs.join('; '):'(nenhum ainda)'}.
 7. "existente": se o produto da foto for CLARAMENTE o mesmo de um destes já cadastrados, devolva o código dele (a primeira parte); senão null.
@@ -22820,20 +22925,20 @@ ${its.length?its.join('\n'):'(nenhum produto cadastrado ainda)'}
 9. "confianca": "alta" se o produto está nítido e você tem certeza; "baixa" se a foto está borrada ou não dá para saber o que é. Em "observacao" diga em poucas palavras o que conferir.`}
 function modalFotoPr(ini){
  ini=ini||{};if(!pode('almItens','e')){toast('Seu perfil não cadastra produtos.','erro');return}
- let blob=null,url='',ctrl=null,exist='',n=0;
+ const sc=ini.sc||ESC;const coz=sc==='coz';const U=UXP(sc);
+ let blob=null,url='',ctrl=null,exist='',n=0,caLido='';
  const gs=()=>[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
- const corpo=`<div class="apr-foto"><label class="apr-fz" for="fpF"><input type="file" accept="image/*" capture="environment" id="fpF" hidden><span id="fpP">${ic('camera')}<b>Tirar foto do produto</b><small>ou escolher da galeria</small></span></label>
+ const corpo=`<div class="apr-foto"><label class="apr-fz" for="fpF"><input type="file" accept="image/*" capture="environment" id="fpF" hidden><span id="fpP">${ic('camera')}<b>Tirar foto do produto</b><small>${coz?'opcional na cozinha · ou da galeria':'obrigatória no almoxarifado · ou da galeria'}</small></span></label>
   <div>${H.campoM('fpT','O que é e quanto tem',`<textarea id="fpT" rows="3" placeholder="Ex.: tem 10 desse, marca SKF, fica na prateleira B"></textarea>`)}
   <div class="apr-ler"><button type="button" class="btn" id="fpLer">${ic('faisca')}Ler com IA</button><span class="ajuda" id="fpSt">Tire a foto e diga quanto tem. A IA preenche; você confere e salva.</span></div></div></div>
   <div id="fpDup"></div>
   ${H.campoM('fpNome','Nome do produto<i> *</i>',`<input id="fpNome" autocomplete="off" value="${esc(ini.nome||'')}" placeholder="Ex.: Rolamento 6205 2RS">`)}
-  <div class="duas">${H.campoM('fpMarca','Marca',`<input id="fpMarca" autocomplete="off" list="fpMarL"><datalist id="fpMarL">${[...new Set(DATA.almItens.map(i=>i.marca).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}${H.campoM('fpRef','Código do fabricante ou de barras',`<input id="fpRef" autocomplete="off">`)}</div>
-  ${H.campoM('fpEsp','Especificação',`<input id="fpEsp" autocomplete="off" placeholder="Medidas, voltagem, material, aplicação">`)}
-  <div class="duas">${H.campoM('fpCat','Categoria<i> *</i>',`<select id="fpCat"><option value="">Selecione…</option>${optH(CAT_NOMES,'')}</select>`)}${H.campoM('fpGrp','Grupo',`<input id="fpGrp" list="fpGrpL" autocomplete="off" placeholder="Ex.: Rolamentos"><datalist id="fpGrpL">${gs().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`,'Se o grupo não existir, ele é criado ao salvar.')}</div>
+  <div class="duas">${H.campoM('fpMarca','Marca',`<input id="fpMarca" autocomplete="off" list="fpMarL"><datalist id="fpMarL">${[...new Set(DATA.almItens.map(i=>i.marca).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}${H.campoM('fpEsp','Especificação',`<input id="fpEsp" autocomplete="off" placeholder="${coz?'Peso, sabor, embalagem':'Medidas, voltagem, material, aplicação'}">`)}</div>
+  <div class="duas">${coz?`<input type="hidden" id="fpCat" value="Cozinha">${H.campoM('fpTipo','Tipo (cozinha)',`<select id="fpTipo"><option value="">Selecione…</option>${optH(TIPOS_COZ,'')}</select>`)}`:H.campoM('fpCat','Categoria<i> *</i>',`<select id="fpCat"><option value="">Selecione…</option>${optH(CAT_NOMES,'')}</select>`,'Cozinha vai para a tela da Cozinha. EPI vai para a Entrega de EPI na saída.')}${H.campoM('fpGrp','Grupo',`<input id="fpGrp" list="fpGrpL" autocomplete="off" placeholder="Ex.: Rolamentos"><datalist id="fpGrpL">${gs().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`,'Se o grupo não existir, ele é criado ao salvar.')}</div>
   <div class="duas">${H.campoM('fpQtd','Quantidade que tem',`<input id="fpQtd" type="number" step="any" min="0" inputmode="decimal">`)}${H.campoM('fpUn','Unidade<i> *</i>',`<select id="fpUn">${optH(UNIDS,'unidade')}</select>`)}</div>
-  <div class="duas">${H.campoM('fpPreco','Preço de uma unidade (opcional)',`<input id="fpPreco" type="number" step="any" min="0" inputmode="decimal" placeholder="0,00">`)}${H.campoM('fpLoc','Local de guarda',`<input id="fpLoc" list="fpLocL" autocomplete="off" value="${esc(UPR.ultLocal||'')}"><datalist id="fpLocL">${locaisAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}</div>
+  <div class="duas">${H.campoM('fpPreco','Preço de uma unidade (opcional)',`<input id="fpPreco" type="number" step="any" min="0" inputmode="decimal" placeholder="0,00">`)}${H.campoM('fpLoc','Local de guarda',`<input id="fpLoc" list="fpLocL" autocomplete="off" value="${esc(U.ultLocal||(coz?'Cozinha':''))}"><datalist id="fpLocL">${locaisAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}</div>
   <p class="ajuda" id="fpFeitos" style="margin:4px 0 0"></p>`;
- modalPr('Cadastrar por foto',corpo,'Salvar produto',async v=>{
+ modalPr(coz?'Cadastrar produto da cozinha':'Cadastrar por foto',corpo,'Salvar produto',async v=>{
   const g=id=>String(H.valM(v,id)||'').trim();
   const nome=g('fpNome').replace(/\s+/g,' ');if(!nome){toast('Escreva o nome do produto.','erro');return false}
   const qs=g('fpQtd');const qtd=qs===''?'':+qs;if(qs!==''&&!(qtd>=0)){toast('Quantidade inválida.','erro');return false}
@@ -22846,36 +22951,42 @@ function modalFotoPr(ini){
    if(d<0&&-d>e.disp+1e-9){toast('O saldo não pode ficar menor que o emprestado ('+qtdUn(e.emp,ie)+').','erro');return false}
    if(Math.abs(d)>1e-9){const st=novoAjPr({itemId:ie.id,tipo:d>0?'entrada':'saida',qtd:Math.abs(d),motivo:modo==='total'?'Contagem pelo cadastro por foto':'Entrada pelo cadastro por foto',preco:d>0?preco:''});
     const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(er[0],'erro');return false}await gravarAjPr(st)}
-   await subir();const mud={};if(fotoMeta&&!(ie.foto&&ie.foto.id))mud.foto=fotoMeta;[['marca','fpMarca'],['refFab','fpRef'],['especificacao','fpEsp'],['local','fpLoc']].forEach(([k,id])=>{if(!ie[k]&&g(id))mud[k]=g(id)});
+   await subir();const mud={};if(fotoMeta&&!(ie.foto&&ie.foto.id))mud.foto=fotoMeta;[['marca','fpMarca'],['especificacao','fpEsp'],['local','fpLoc']].forEach(([k,id])=>{if(!ie[k]&&g(id))mud[k]=g(id)});
+   if(catAuto(ie.nome,'')==='EPI'&&ie.categoria!=='EPI')mud.categoria='EPI';if(ehCoz(ie)&&!ie.tipoCoz&&g('fpTipo'))mud.tipoCoz=g('fpTipo');
+   /* V146: o produto antigo fotografado de novo entra no grupo que a leitura achou */
+   const gn2=g('fpGrp');const cat2=mud.categoria||ie.categoria;if(gn2&&!(ie.grupoId&&GRUPO(ie.grupoId))){let gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(gn2)&&x.categoria===cat2);
+    if(!gr&&pode('almGrupos','e')){const sg2={...MODS.almGrupos.padrao(),id:novoId(),nome:gn2,categoria:cat2,local:ie.local||''};if(!Object.values(conferirRegistro('almGrupos',sg2).erros).length){try{gr=await gravarRegistro('almGrupos',sg2,null,true)}catch(e){console.warn('grupo',e)}}}
+    if(gr)mud.grupoId=gr.id}
    if(Object.keys(mud).length){const at=ITEM(ie.id);try{await gravarRegistro('almItens',{...clone(at),...mud},clone(at),false)}catch(e){console.warn(e)}}
    n++;toast(nomeItem(ie)+': agora tem '+qtdUn(estI(ie.id).saldo,ie)+'.','ok');limpar(v,nomeItem(ie)+' atualizado: tem '+qtdUn(estI(ie.id).saldo,ie));return false}
   const cat=g('fpCat');if(!cat){toast('Escolha a categoria.','erro');return false}
+  if(cat!=='Cozinha'&&!blob){toast('Tire a foto do produto: no almoxarifado todo material é cadastrado com foto.','erro');return false}
   const gn=g('fpGrp');let gid='';
   if(gn){let gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(gn)&&x.categoria===cat);
    if(!gr){if(!pode('almGrupos','e')){toast('Seu perfil não cria grupos. Escolha um grupo que já existe ou deixe em branco.','erro');return false}
     const sg={...MODS.almGrupos.padrao(),id:novoId(),nome:gn,categoria:cat,local:g('fpLoc')};const er=Object.values(conferirRegistro('almGrupos',sg).erros);if(er.length){toast('Grupo: '+er[0],'erro');return false}
     gr=await gravarRegistro('almGrupos',sg,null,true)}
    gid=gr.id}
-  const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:cat,grupoId:gid,unidade:g('fpUn')||'unidade',marca:g('fpMarca'),refFab:g('fpRef'),especificacao:g('fpEsp'),local:g('fpLoc')||(cat==='Cozinha'?'Cozinha':''),custoRef:preco>0?preco:''};
+  const st={...MODS.almItens.padrao(),id:novoId(),nome,categoria:cat,grupoId:gid,unidade:g('fpUn')||'unidade',marca:g('fpMarca'),especificacao:g('fpEsp'),local:g('fpLoc')||(cat==='Cozinha'?'Cozinha':''),custoRef:preco>0?preco:'',tipoCoz:cat==='Cozinha'?g('fpTipo'):'',ca:cat==='EPI'?caLido:''};
   const r=conferirRegistro('almItens',st);const er=Object.values(r.erros);if(er.length){toast(er[0],'erro');return false}
   await subir();if(fotoMeta)st.foto=fotoMeta;
   const rec=await gravarRegistro('almItens',st,null,true);
   for(let k=0;k<30&&!ITEM(rec.id);k++)await new Promise(ok=>setTimeout(ok,100));
   if(qtd>0){const sa=novoAjPr({itemId:rec.id,tipo:'entrada',qtd,motivo:'Saldo inicial (cadastro por foto)',preco});const ea=Object.values(conferirRegistro('almAjustes',sa).erros);
    if(ea.length)toast('Produto cadastrado, mas a quantidade não: '+ea[0],'erro');else await gravarAjPr(sa)}
-  UPR.ultLocal=g('fpLoc');n++;toast(rec.codigo+' · '+nome+' cadastrado'+(qtd>0?' com '+fQtd(qtd)+' '+un(st.unidade):'')+'.','ok');limpar(v,rec.codigo+' · '+nome+(qtd>0?' ('+fQtd(qtd)+' '+un(st.unidade)+')':''));return false},
+  U.ultLocal=g('fpLoc');n++;toast(rec.codigo+' · '+nome+' cadastrado'+(qtd>0?' com '+fQtd(qtd)+' '+un(st.unidade):'')+'.'+(cat==='Cozinha'&&!coz?' Foi para a Cozinha.':'')+(!(preco>0)?' Ficou sem valor: ponha o preço depois.':''),'ok');limpar(v,rec.codigo+' · '+nome+(qtd>0?' ('+fQtd(qtd)+' '+un(st.unidade)+')':''));return false},
   {depois:v=>{
    const st=$('#fpSt',v),fi=$('#fpF',v),pv=$('#fpP',v);
-   const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome')),rf=normT(H.valM(v,'fpRef'));
-    const d=(exist&&ITEM(exist)?ITEM(exist):null)||(rf?DATA.almItens.find(i=>normT(i.refFab)===rf):null)||(nm?DATA.almItens.find(i=>normT(i.nome)===nm):null);
+   const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome'));
+    const d=(exist&&ITEM(exist)?ITEM(exist):null)||(nm?DATA.almItens.find(i=>normT(i.nome)===nm):null);
     const box=$('#fpDup',v);const ant=(v.querySelector('[name=fpModo]:checked')||{}).value||'somar';
     if(!d){box.innerHTML='';exist='';return}exist=d.id;const e=estI(d.id);
     box.innerHTML=`<div class="aviso at apr-dup"><span><b>Este produto já está cadastrado:</b> ${esc(rotItem(d))}${d.marca?' · '+esc(d.marca):''} — tem ${esc(qtdUn(e.saldo,d))}. O que fazer com a quantidade?</span>
      <label><input type="radio" name="fpModo" value="somar" ${ant==='somar'?'checked':''}> Somar ao que já tem (chegou mais)</label>
      <label><input type="radio" name="fpModo" value="total" ${ant==='total'?'checked':''}> É o total que tem agora (acerta o saldo)</label>
      <label><input type="radio" name="fpModo" value="novo" ${ant==='novo'?'checked':''}> É outro produto: cadastrar novo</label></div>`};
-   ['fpNome','fpRef'].forEach(id=>$('#'+id,v).addEventListener('input',()=>{exist='';marcarDup()}));
-   $('#fpGrp',v).addEventListener('change',()=>{const gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(H.valM(v,'fpGrp')));const c=$('#fpCat',v);if(gr&&!c.value)c.value=gr.categoria;const l=$('#fpLoc',v);if(gr&&gr.local&&!l.value)l.value=gr.local});
+   ['fpNome'].forEach(id=>$('#'+id,v).addEventListener('input',()=>{exist='';marcarDup()}));
+   $('#fpGrp',v).addEventListener('change',()=>{const gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(H.valM(v,'fpGrp')));const c=$('#fpCat',v);if(gr&&!c.value&&!coz)c.value=gr.categoria;const l=$('#fpLoc',v);if(gr&&gr.local&&!l.value)l.value=gr.local});
    const ler=async()=>{const frase=String(H.valM(v,'fpT')||'').trim();
     if(!blob&&!frase){st.textContent='Tire a foto ou escreva o que é o produto.';return}
     if(!$('#fpQtd',v).value){const q=qtdDaFrase(frase);if(q!=='')$('#fpQtd',v).value=q}
@@ -22883,13 +22994,14 @@ function modalFotoPr(ini){
     try{const L=window.ALM_IA_LER;const M=L&&await L.motor();if(!M){st.textContent=(L&&L.semMotorTxt?L.semMotorTxt():'A leitura por IA não está disponível agora.')+' Preencha à mão.';return}
      const imgs=blob&&!M.semImagens&&M.maxImgs?[await prepFotoPr(blob,1568,.82)]:[];
      if(blob&&!imgs.length&&!frase){st.textContent='Este acesso não envia fotos para a IA. Escreva o que é o produto e toque em “Ler com IA”, ou preencha à mão.';return}
-     const txt=await M.ler(promptFotoPr(frase),imgs,meu.signal);if(meu.signal.aborted)return;
+     const txt=await M.ler(promptFotoPr(frase,sc),imgs,meu.signal);if(meu.signal.aborted)return;
      const m=/\{[\s\S]*\}/.exec(String(txt||''));let o=null;try{o=m?JSON.parse(m[0]):null}catch(e){}
      if(!o){st.textContent='A IA não entendeu a foto. Tire outra ou preencha à mão.';return}
      const put=(id,x)=>{if(x!==null&&x!==undefined&&String(x).trim()!=='')$('#'+id,v).value=String(x).trim()};
-     put('fpNome',o.nome);put('fpMarca',o.marca);put('fpRef',o.refFab);put('fpEsp',o.especificacao);if(CAT_NOMES.includes(o.categoria))$('#fpCat',v).value=o.categoria;
+     put('fpNome',o.nome);put('fpMarca',o.marca);put('fpEsp',o.especificacao);caLido=String(o.ca||'').trim();
+     if(coz){if(TIPOS_COZ.includes(o.tipoCozinha))$('#fpTipo',v).value=o.tipoCozinha}else{const ca=catAuto(o.nome,CAT_NOMES.includes(o.categoria)?o.categoria:'');if(ca)$('#fpCat',v).value=ca}
      put('fpGrp',o.grupo);if(UNIDS.includes(o.unidade))$('#fpUn',v).value=o.unidade;if(+o.quantidade>=0&&o.quantidade!==null&&o.quantidade!=='')put('fpQtd',+o.quantidade);if(+o.preco>0)put('fpPreco',+o.preco);put('fpLoc',o.local);
-     const gr=o.grupo&&DATA.almGrupos.find(x=>normT(x.nome)===normT(o.grupo));if(gr&&!CAT_NOMES.includes(o.categoria))$('#fpCat',v).value=gr.categoria;
+     const gr=o.grupo&&DATA.almGrupos.find(x=>normT(x.nome)===normT(o.grupo));if(gr&&!coz&&!CAT_NOMES.includes(o.categoria)&&!$('#fpCat',v).value)$('#fpCat',v).value=gr.categoria;
      const ex=o.existente&&DATA.almItens.find(i=>normT(i.codigo)===normT(o.existente));exist=ex?ex.id:'';marcarDup();
      st.textContent=(o.confianca==='baixa'?'Leitura com dúvida: confira com atenção. ':'Pronto. Confira e toque em “Salvar produto”. ')+(o.observacao?String(o.observacao):'')}
     catch(e){if(meu.signal.aborted)return;console.warn('cadastro por foto',e);st.textContent=(e&&e.message?e.message:'A leitura não deu certo agora.')+' Preencha à mão ou tente de novo.'}
@@ -22901,7 +23013,7 @@ function modalFotoPr(ini){
    if(ini.nome)marcarDup()}});
  /* depois de salvar: limpa para o próximo produto e mostra o que já foi feito */
  function limpar(v,feito){if(ctrl)ctrl.abort();blob=null;exist='';if(url){URL.revokeObjectURL(url);url=''}
-  ['fpNome','fpMarca','fpRef','fpEsp','fpQtd','fpPreco','fpT','fpGrp'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
+  ['fpNome','fpMarca','fpEsp','fpQtd','fpPreco','fpT','fpGrp'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});caLido='';$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
   $('#fpP',v).innerHTML=`${ic('camera')}<b>Foto do próximo produto</b><small>ou escolher da galeria</small>`;$('#fpSt',v).textContent='Salvo. Tire a foto do próximo produto.';
   const gl=$('#fpGrpL',v);if(gl)gl.innerHTML=gs().map(x=>`<option value="${esc(x)}">`).join('');
   refrescaPr();const fe=$('#fpFeitos',v);fe.innerHTML=`✔ ${esc(feito)}${n>1?` · ${n} produto(s) nesta sessão`:''}`}
@@ -22912,11 +23024,107 @@ window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,confer
  consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,
  GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
  saidaRapida:saidaRapidaAlm,contagem:{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm},
- cadastroFoto:modalFotoPr,lancar:modalLancPr,fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,
+ cadastroFoto:ini=>modalFotoPr({sc:'alm',...(ini||{})}),lancar:(tipo,pre)=>{if(!pre&&!['almProdutos','almCozinha'].includes(lerRota().mod))ESC='alm';return modalLancPr(tipo,pre)},fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almMov')},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 /* V65: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
-window.ALM_IA_BASE={ITEM,FORNA,estI,un,rotItem,ativo,CAT_NOMES,UNIDS,normT,proxCodigo,sincFinEntrada,catAlm,juntarLinhasE,conferirE,calcE,finDe,tagFin,TIT,shellS,cab,ABA_ALM,respP,fmtDoc,nomeFornA,SETS};
+window.ALM_IA_BASE={catAuto,ITEM,FORNA,estI,un,rotItem,ativo,CAT_NOMES,UNIDS,normT,proxCodigo,sincFinEntrada,catAlm,juntarLinhasE,conferirE,calcE,finDe,tagFin,TIT,shellS,cab,ABA_ALM,respP,fmtDoc,nomeFornA,SETS};
+/* ================= V146 (20/11/2026, pedido do Jeferson): valor depois, saída para a pessoa e requisição semanal =================
+   · Produto "sem valor" (preço ainda em pesquisa): o valor posto depois vira o custo de referência do produto (vale
+     enquanto ele não tiver compra com preço) e completa as saídas que saíram sem valor. A compra lançada sem preço
+     continua esperando o preço na própria compra (Editar entrada), porque é ela que gera a conta a pagar.
+   · Saída: a pessoa que recebeu (da lista de funcionários) traz o setor dela.
+   · Requisição semanal: uma por semana (segunda a domingo) com tudo o que saiu — cozinha, cada setor, entregas de EPI,
+     saídas por ajuste e produtos dados como pagamento de lenha —, separado por destino. Nada novo é gravado: ela é
+     montada na hora a partir dos mesmos lançamentos. */
+const funcPorNome=n=>{const k=normT(String(n||'').trim());if(!k)return null;return (DATA.funcionarios||[]).find(f=>f&&normT(f.nome)===k&&!['Desligado','Inativo'].includes(f.situacao))||null};
+const setorDaPessoa=n=>{const f=funcPorNome(n);return f?String(f.setor||f.departamento||'').trim():''};
+function modalValorPr(ids,ajs){
+ if(!pode('almItens','e')){toast('Seu perfil não altera o valor dos produtos.','erro');return}
+ const its=[...new Set(ids||[])].map(ITEM).filter(Boolean);if(!its.length){toast('Este lançamento já tem valor.','ok');return}
+ const compras=id=>DATA.almEntradas.filter(e=>(e.itens||[]).some(l=>l.itemId===id&&semPreco(l)));
+ const sug=id=>{const a=(ajs||[]).concat(DATA.almAjustes).find(x=>x.itemId===id&&+x.precoUnit>0);return a?+a.precoUnit:''};
+ modalPr(its.length>1?'Pôr o valor dos produtos':'Pôr o valor · '+its[0].nome,`<p class="ajuda" style="margin:0 0 10px">O preço de uma unidade (pela pesquisa ou pela nota). Ele passa a valer no estoque, nos lançamentos e nas saídas que ficaram sem valor.</p>
+  ${its.map(i=>{const e=estI(i.id);const cs=compras(i.id);const s=sug(i.id);return `<div class="apr-vl"><div><b>${esc(i.nome)}</b><small>${esc([i.codigo,fQtd(e.saldo)+' '+un(i.unidade)+' no estoque'].filter(Boolean).join(' · '))}</small>${cs.length?`<small class="apr-vl-c">Compra sem preço: ${cs.map(x=>`<a href="#/almEntrada/${esc(x.id)}/editar">${esc(fData(x.data)+' · '+nomeFornA(x.fornecedorId))}</a>`).join(', ')}. O preço da compra é posto nela.</small>`:''}</div>
+   <label class="apr-vl-in"><span>R$ por ${esc(un(i.unidade))}</span><input data-vl="${esc(i.id)}" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(s===''?'':fMoedaCampo(s))}" aria-label="Valor de uma unidade de ${esc(i.nome)}"></label></div>`}).join('')}`,'Salvar valor',async v=>{
+  const vals=[];for(const inp of $$('[data-vl]',v)){const s=String(inp.value||'').trim();if(!s)continue;const p=+lerMoeda(s);if(!(p>0)){toast('Valor inválido em '+nomeItem(ITEM(inp.dataset.vl))+'.','erro');return false}vals.push([inp.dataset.vl,Math.round(p*10000)/10000])}
+  if(!vals.length){toast('Informe o valor de pelo menos um produto.','erro');return false}
+  let ns=0,feitos=0;try{for(const[id,p]of vals){ns+=await porValorItem(id,p);feitos++}}catch(err){toast((feitos?feitos+' produto(s) já com valor. ':'')+(err&&err.message||msgFalhaSalvar(err)),'erro');return false}
+  refrescaPr();toast(feitos+(feitos===1?' produto com valor':' produtos com valor')+(ns?' · '+ns+(ns===1?' saída completada':' saídas completadas'):'')+'.','ok')});
+}
+async function porValorItem(id,p){
+ const i=ITEM(id);if(!i)return 0;
+ const st={...clone(i),custoRef:p};const er=Object.values(conferirRegistro('almItens',st).erros);if(er.length)throw new Error(nomeItem(i)+': '+er[0]);
+ await gravarRegistro('almItens',st,clone(i),false);
+ /* as saídas deste produto que saíram sem valor (custo zero) ganham o valor agora */
+ const zero=l=>l&&l.itemId===id&&!(+l.custoUnit>0)&&!(+l.custoTotal>0);let n=0;
+ for(const s of DATA.almSaidas.filter(x=>(x.itens||[]).some(zero))){const agora=agoraIso();
+  const novo={...clone(s),itens:(s.itens||[]).map(l=>zero(l)?{...l,custoUnit:p,custoTotal:r2((+l.qtd||0)*p)}:l),alteradoEm:agora,alteradoPor:eu()};
+  await gravar('almSaidas',novo,s);await logV('almSaidas',s.id,'pôs o valor que faltava',[{c:nomeItem(i),de:'sem valor',para:fMoeda(p)+' por '+un(i.unidade)}]);n++}
+ return n}
+
+/* ---------- requisição semanal ---------- */
+const abasReq=k=>`<div class="apr-abas apr-abas-l" role="tablist" aria-label="Requisições"><a role="tab" href="#/almReqSemana" class="${k==='sem'?'on':''}"${k==='sem'?' aria-current="page"':''}>Semanais</a><a role="tab" href="#/almSaidas" class="${k==='lanc'?'on':''}"${k==='lanc'?' aria-current="page"':''}>Uma por saída</a></div>`;
+const segDe=d=>{const x=new Date(String(d).slice(0,10)+'T12:00:00');x.setDate(x.getDate()-(x.getDay()+6)%7);return isoDe(x)};
+const semNum=seg=>{const q=new Date(seg+'T12:00:00');q.setDate(q.getDate()+3);const y=q.getFullYear();const j=new Date(y,0,4,12);j.setDate(j.getDate()-(j.getDay()+6)%7);return[y,Math.round((q-j)/864e5/7-3/7)+1]};
+const nRS=seg=>{const[y,n]=semNum(seg);return String(n).padStart(2,'0')+'/'+y};
+const US={n:12};
+function saidasSemana(seg){
+ const fim=addDias(seg,6);const den=d=>{d=String(d||'').slice(0,10);return d>=seg&&d<=fim};const L=[];const svI=id=>{const i=ITEM(id);return !!i&&semValorI(i)};
+ DATA.almSaidas.filter(s=>!s.cancelado&&den(s.data)).forEach(s=>{const ls=(s.itens||[]).filter(l=>l&&l.itemId);
+  L.push({k:'s'+s.id,data:s.data,ord:quandoR(s),dest:String(s.setor||nomeMaq(s.maquinaId)||'').trim()||'Sem setor',doc:fReq(s.numero),para:s.solicitante||'',fin:[s.maquinaId&&s.setor?nomeMaq(s.maquinaId):'',s.finalidade].filter(Boolean).join(' · '),
+   itens:ls,valor:valorSaida(s),href:'#/almSaida/'+s.id,sv:ls.some(l=>!(+l.custoTotal>0)&&svI(l.itemId))})});
+ DATA.almEpis.filter(x=>!x.cancelado&&den(x.data)).forEach(x=>L.push({k:'p'+x.id,data:x.data,ord:quandoR(x),dest:'Entrega de EPI',doc:'EPI',para:nomeF(x.funcId)||'—',fin:x.motivo||'',itens:[x],valor:valorEpi(x),href:'#/almEpis/'+x.id,sv:svI(x.itemId)}));
+ DATA.almAjustes.filter(a=>a.tipo==='saida'&&!a.inventarioId&&den(a.data)).forEach(a=>L.push({k:'a'+a.id,data:a.data,ord:quandoR(a),dest:'Saída por ajuste',doc:codAj(a),para:a.responsavel||'',fin:a.motivo||'',itens:[a],valor:r2((+a.qtd||0)*estI(a.itemId).cm),href:'#/almAjustes/'+a.id,sv:svI(a.itemId)}));
+ pagLenhaAlm().filter(x=>den(x.data)).forEach(x=>L.push({k:'l'+x.id,data:x.data,ord:x.em||'',dest:'Pagamento de lenha',doc:'Lenha',para:x.fornecedorNome||'',fin:'',itens:[{itemId:x.itemId,qtd:x.qtd}],valor:r2(x.custoTotal!=null&&x.custoTotal!==''?+x.custoTotal:x.qtd*estI(x.itemId).cm),href:x.href||'',sv:false}));
+ return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||String(a.ord).localeCompare(String(b.ord))||a.k.localeCompare(b.k))}
+function gruposSemana(L){const m=new Map();L.forEach(x=>{if(!m.has(x.dest))m.set(x.dest,[]);m.get(x.dest).push(x)});
+ const ord=d=>d==='Cozinha'?0:d==='Entrega de EPI'?2:d==='Saída por ajuste'?3:d==='Pagamento de lenha'?4:d==='Sem setor'?5:1;
+ return [...m.entries()].map(([dest,xs])=>({dest,L:xs,tot:r2(soma(xs,x=>x.valor))})).sort((a,b)=>ord(a.dest)-ord(b.dest)||a.dest.localeCompare(b.dest,'pt-BR'))}
+const vSem=x=>x.sv&&!(x.valor>0)?'sem valor':fMoeda(x.valor);
+function docReqSemana(seg){
+ const L=saidasSemana(seg);const G=gruposSemana(L);const fim=addDias(seg,6);const fech=fim<hoje();const tot=r2(soma(L,x=>x.valor));
+ const D=baseRel('REQUISIÇÃO SEMANAL DE MATERIAIS','Almoxarifado / Cozinha · semana de '+fData(seg)+' a '+fData(fim),[]);D.numero='RS '+nRS(seg);
+ D.meta=[['Semana',fData(seg)+' a '+fData(fim)],['Situação',fech?'Fechada':'Em andamento'],['Saídas',String(L.length)]];
+ D.blocos.push({tipo:'indicadores',itens:[['Saídas',String(L.length)],['Destinos',String(G.length)],['Valor total',fMoeda(tot)]]});
+ G.forEach((g,k)=>D.blocos.push({tipo:'secao',n:String(k+1),titulo:g.dest+' · '+fMoeda(g.tot),tabela:{head:['Data','Documento','Para quem','O que saiu','Valor'],dir:[4],
+  body:g.L.map(x=>[fData(x.data),x.doc,x.para||'—',textoItensPr(x.itens)+(x.fin?' · '+x.fin:''),vSem(x)]),foot:['Subtotal','','','',fMoeda(g.tot)]}}));
+ if(!L.length)D.blocos.push({tipo:'p',texto:'Nenhuma saída nesta semana.'});
+ D.blocos.push({tipo:'tabela',head:['Resumo por destino','Valor'],dir:[1],body:G.map(g=>[g.dest+' ('+g.L.length+(g.L.length===1?' saída)':' saídas)'),fMoeda(g.tot)]),foot:['Total da semana',fMoeda(tot)]});
+ D.blocos.push({tipo:'aviso',texto:'Valores pelo custo médio. Junta as requisições, as entregas de EPI, as saídas por ajuste e os produtos dados como pagamento de lenha da semana (segunda a domingo). Documento de controle interno.'});
+ const emp=CFG.empresa||{};D.local=(emp.cidade?emp.cidade+', ':'')+dataExtenso(fech?fim:hoje())+'.';
+ D.assinaturas=[{nome:respP(ABA_ALM)||'',sub:'Responsável pelo almoxarifado'},{nome:'',sub:'Conferido por'}];
+ D.parteNome='Semana '+nRS(seg);D.arquivo='Requisicao_semanal_'+seg;D.rodape='Requisição semanal RS '+nRS(seg)+' · '+fData(seg)+' a '+fData(fim);
+ D.notaFinal='Emitido em '+fDataHora(agoraIso())+' pelo '+SPOT_NOME+'.';
+ /* cupom: um bloco por destino, uma linha por saída (montado do próprio documento, como os outros cupons) */
+ try{const D2={...D,blocos:[...G.map(g=>({tipo:'secao',titulo:g.dest,tabela:{head:['Saída','Valor'],body:g.L.map(x=>[fData(x.data).slice(0,5)+' · '+x.doc+(x.para?' · '+x.para:'')+' · '+textoItensPr(x.itens),vSem(x)]),foot:['Subtotal',fMoeda(g.tot)]}})),{tipo:'tabela',head:['Destino','Valor'],body:[],foot:['Total da semana',fMoeda(tot)]}]};
+  D.cupom=cupomDeDoc(D2)}catch(e){console.warn('cupom da requisição semanal',e)}
+ return D}
+function telaReqSemana(c){
+ const r=lerRota();if(r.id&&/^\d{4}-\d{2}-\d{2}$/.test(r.id))return detalheReqSemana(c,segDe(r.id));
+ const h=hoje(),atual=segDe(h);
+ const datas=[...DATA.almSaidas.map(s=>s.data),...DATA.almEpis.map(x=>x.data),...DATA.almAjustes.filter(a=>a.tipo==='saida'&&!a.inventarioId).map(a=>a.data),...pagLenhaAlm().map(x=>x.data)].filter(Boolean).map(x=>String(x).slice(0,10));
+ const segs=new Set([atual]);datas.forEach(d=>{if(d<=h)segs.add(segDe(d))});
+ const todas=[...segs].sort().reverse();const L=todas.slice(0,US.n);
+ c.innerHTML=cab('recibo','Requisições','Uma requisição por semana (segunda a domingo), com tudo o que saiu: cozinha, cada setor e as entregas de EPI. Toque na semana para ver os lançamentos, imprimir, tirar o cupom ou compartilhar.','')+abasReq('sem')+
+  `<div class="apr-lista">${L.map(seg=>{const xs=saidasSemana(seg);const G=gruposSemana(xs);const and=addDias(seg,6)>=h;const tot=r2(soma(xs,x=>x.valor));const[y,n]=semNum(seg);
+   return `<a class="apr-rs${and?' and':''}" href="#/almReqSemana/${esc(seg)}"><span class="apr-rs-n"><b>${esc(String(n).padStart(2,'0'))}</b><small>${esc(String(y))}</small></span><span class="apr-rs-t"><b>Semana de ${esc(fData(seg).slice(0,5))} a ${esc(fData(addDias(seg,6)))}</b><small>${esc((and?'Em andamento':'Fechada')+' · '+xs.length+(xs.length===1?' saída':' saídas'))}</small><small class="apr-rs-d">${esc(G.length?G.map(g=>g.dest+' '+fMoeda(g.tot)).join(' · '):'Nenhuma saída')}</small></span><span class="apr-rs-v">${esc(fMoeda(tot))}</span></a>`}).join('')}</div>`+
+  (todas.length>L.length?`<button type="button" class="btn apr-mais" id="rsM">Mostrar mais semanas</button>`:'');
+ const m=$('#rsM',c);if(m)m.onclick=()=>{US.n+=12;renderTela()};
+}
+function detalheReqSemana(c,seg){
+ const xs=saidasSemana(seg);const G=gruposSemana(xs);const fim=addDias(seg,6);const h=hoje();const and=fim>=h;const tot=r2(soma(xs,x=>x.valor));
+ const ant=addDias(seg,-7),prox=addDias(seg,7);
+ c.innerHTML=cab('recibo','Requisição semanal nº '+nRS(seg),esc('Semana de '+fData(seg)+' (segunda) a '+fData(fim)+' (domingo) · '+(and?'em andamento: entra tudo o que sair até domingo':'fechada')),
+  `<a class="btn" href="#/almReqSemana">${ic('esquerda')}Semanas</a><button type="button" class="btn" data-rs="ver">${ic('olho')}Visualizar</button><button type="button" class="btn" data-rs="imprimir">${ic('imprimir')}Imprimir</button><button type="button" class="btn" data-rs="cupom">${ic('recibo')}Cupom</button><button type="button" class="btn" data-rs="compartilhar">${ic('enviar')}Compartilhar</button>`)+
+  `<div class="apr-rs-nav"><a class="btn min" href="#/almReqSemana/${esc(ant)}">${ic('esquerda')}Semana anterior</a>${prox<=h?`<a class="btn min" href="#/almReqSemana/${esc(prox)}">Próxima semana ${ic('direita')}</a>`:''}</div>`+
+  resumo([[String(xs.length),'Saídas na semana'],[String(G.length),'Destinos'],[fMoeda(tot),'Valor total (custo)'],[and?'Em andamento':'Fechada','Situação']])+
+  (G.length?G.map(g=>`<section class="bloco apr-rs-g"><h3>${esc(g.dest)}<span>${esc(fMoeda(g.tot))}</span></h3>${g.L.map(x=>`<div class="apr-rs-l"><span class="apr-rs-dt">${esc(fData(x.data).slice(0,5))}</span><span class="apr-rs-tx"><b>${esc(x.doc)}${x.para?' · '+esc(x.para):''}</b><small>${esc(textoItensPr(x.itens))}${x.fin?' · '+esc(x.fin):''}</small></span><span class="apr-rs-vl">${x.sv&&!(x.valor>0)?'<em class="apr-sv">sem valor</em>':esc(fMoeda(x.valor))}</span>${x.href?`<a class="btn min" href="${esc(x.href)}">Ver</a>`:'<span></span>'}</div>`).join('')}</section>`).join('')
+   :noNada('Nenhuma saída nesta semana',and?'O que sair até domingo aparece aqui sozinho.':''));
+ const fazer=()=>docReqSemana(seg);
+ $$('[data-rs]',c).forEach(b=>b.onclick=()=>{const a=b.dataset.rs;if(a==='cupom')verDoc(fazer(),{formato:'c80'});else if(a==='ver')verDoc(fazer(),{formato:'a4'});else acaoDocumento(fazer,a)});
+}
+window.ALM_V146={segDe,semNum,saidasSemana,gruposSemana,docReqSemana,porValorItem,funcPorNome,setorDaPessoa,catAuto,semValorI,ehCoz};
 window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,cfgPal,sugestaoPaletes,prazo:modalPrazoPal,inventario:modalInvPal,cobrar:k=>modalCobranca(calcPal().C[k])};
 })();
 </script>
@@ -22989,6 +23197,48 @@ window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,
 .apr-modal{max-height:calc(100dvh - 24px);max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain}
 @supports (height:100dvh){.apr-modal{max-height:calc(100dvh - 24px)}}
 .apr-dup{flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:10px}.apr-dup label{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
+/* ===== V146 · cozinha, sem valor, grupos, saída de EPI e requisição semanal ===== */
+.apr-sv{display:inline-block;margin:4px 6px 0 0;font-style:normal;font-size:11.5px;font-weight:700;color:var(--at,#b26a00);background:var(--at-bg,#FFF3DF);border-radius:999px;padding:1px 8px;line-height:1.5}
+.apr-lc-t .apr-sv{margin:0 0 2px 6px;vertical-align:1px}
+.apr-pv{border-color:var(--at,#b26a00)!important;color:var(--at,#b26a00)!important;background:var(--branco,#fff)!important}
+.apr-pv svg{color:inherit}
+.apr-res{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.resumo>div.apr-res-b{cursor:pointer}
+html .resumo>div.apr-res-b.tem{border-color:var(--at,#b26a00)!important}html .resumo>div.apr-res-b.tem b,html .resumo>div.apr-res-b.tem span{color:var(--at,#b26a00)!important}
+.apr-res-b:focus-visible{outline:2px solid var(--brasa,#A3461F);outline-offset:2px}
+.apr-ativos{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px}
+.apr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--brasa,#A3461F);background:var(--brasa-bg,#F8EDE7);color:var(--brasa,#A3461F);border-radius:999px;padding:5px 8px 5px 12px;min-height:34px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.apr-chip svg{width:14px;height:14px}
+.apr-abas a{display:inline-flex;align-items:center;border-bottom:3px solid transparent;padding:10px 14px;font-weight:600;color:var(--fraco,#7a7068);text-decoration:none;min-height:44px}
+.apr-abas a.on{color:var(--brasa,#A3461F);border-bottom-color:var(--brasa,#A3461F)}
+.apr-abas-l{margin-top:0}
+.apr-gl{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.apr-gc{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;font:inherit;color:inherit;cursor:pointer;background:var(--branco,#fff);border:1px solid var(--linha,#E8E1DA);border-radius:14px;padding:10px 12px;min-height:64px}
+.apr-gc:hover{border-color:var(--brasa,#A3461F)}
+.apr-gc-ic{width:40px;height:40px;border-radius:10px;background:var(--suave-bg,#F4EFEA);display:flex;align-items:center;justify-content:center;color:var(--brasa,#A3461F)}.apr-gc-ic svg{width:20px;height:20px}
+.apr-gc-tx{min-width:0}.apr-gc-tx b{display:block;font-size:15px;overflow-wrap:anywhere}.apr-gc-tx small{display:block;font-size:12px;color:var(--fraco,#7a7068)}
+.apr-gc-v{font-weight:700;white-space:nowrap;font-size:14px}
+.apr-epi{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;margin:0 0 10px;border-radius:12px;background:var(--brasa-bg,#F8EDE7);color:var(--tinta,#333);font-size:13.5px}
+.apr-epi[hidden]{display:none}.apr-epi svg{width:18px;height:18px;flex:0 0 auto;color:var(--brasa,#A3461F);margin-top:1px}
+.apr-epi-t{font-style:normal;font-size:10.5px;font-weight:700;color:#fff;background:var(--brasa,#A3461F);border-radius:5px;padding:1px 5px;vertical-align:2px}
+.apr-vl{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--linha,#E8E1DA)}
+.apr-vl b{display:block;overflow-wrap:anywhere}.apr-vl small{display:block;font-size:12px;color:var(--fraco,#7a7068)}.apr-vl-c{margin-top:3px}
+.apr-vl-in{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--fraco,#7a7068)}.apr-vl-in input{min-height:44px;font-size:16px;text-align:right}
+@media (max-width:520px){.apr-vl{grid-template-columns:1fr}}
+.apr-rs{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;background:var(--branco,#fff);border:1px solid var(--linha,#E8E1DA);border-radius:14px;color:inherit;text-decoration:none}
+.apr-rs:hover{border-color:var(--brasa,#A3461F)}.apr-rs.and{box-shadow:inset 3px 0 0 var(--brasa,#A3461F)}
+.apr-rs-n{width:56px;height:56px;border-radius:12px;background:var(--suave-bg,#F4EFEA);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05}
+.apr-rs-n b{font-size:20px}.apr-rs-n small{font-size:11px;color:var(--fraco,#7a7068)}
+.apr-rs-t{min-width:0}.apr-rs-t b{display:block;font-size:15px}.apr-rs-t small{display:block;font-size:12.5px;color:var(--fraco,#7a7068);overflow-wrap:anywhere}.apr-rs-d{color:var(--tinta,#333)!important;margin-top:2px}
+.apr-rs-v{font-weight:700;white-space:nowrap;font-size:15px}
+.apr-esc{margin:0 0 10px}
+.apr-rs-nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin:0 0 12px}
+.apr-rs-g{margin-bottom:12px}.apr-rs-g h3{display:flex;justify-content:space-between;gap:10px}.apr-rs-g h3 span{font-weight:700;white-space:nowrap}
+.apr-rs-l{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 17px;border-top:1px solid var(--linha2,#F0EBE6)}
+.apr-rs-dt{font-size:12.5px;color:var(--fraco,#7a7068)}.apr-rs-tx{min-width:0}.apr-rs-tx b{display:block;font-size:14px;overflow-wrap:anywhere}.apr-rs-tx small{display:block;font-size:12.5px;color:var(--fraco,#7a7068);overflow-wrap:anywhere}
+.apr-rs-vl{font-weight:600;white-space:nowrap}
+@media (max-width:640px){.apr-rs{grid-template-columns:48px minmax(0,1fr)}.apr-rs-n{width:48px;height:48px}.apr-rs-v{grid-column:2}
+ .apr-rs-l{grid-template-columns:44px minmax(0,1fr) auto;padding:9px 12px}.apr-rs-l .btn{grid-column:2/-1;justify-self:start}}
 </style>
 <style id="lanc-ia-estilos">
 /* ===== Lançamento Inteligente por Foto (V65) · só aparência das telas novas ===== */
@@ -23350,7 +23600,7 @@ function montarConf(job){
   const total=it.total!=null?it.total:(qtd!=null&&it.unit!=null?r2(qtd*it.unit-(it.desc$||0)):null);
   const v=vincular(it,F.docOk?F.docLido:'');const un=unSistema(it);
   return{k,cod:it.cod,desc:it.desc,qtd,un:it.un,total,unit:it.unit,descL:it.desc$,conf:it.conf,alvo:v.id||'novo',como:v.como,score:v.score,
-   nomeNovo:it.desc,catNovo:it.cat||'',unNovo:un||'unidade',unLida:un}});
+   nomeNovo:it.desc,catNovo:(B.catAuto?B.catAuto(it.desc,it.cat):it.cat)||'',unNovo:un||'unidade',unLida:un}});
  /* forma: o que o documento diz; sem informação, a pergunta única */
  let pag;
  if(L.pag.sit==='pago'&&L.pag.forma)pag={fonte:'documento',sit:'pago',forma:L.pag.forma,data:L.pag.data||'',evid:L.pag.evid};
@@ -38354,7 +38604,7 @@ parte('almox',d=>{
  const sa=L('almSaidas').filter(s=>s.data===d&&!s.cancelado);
  const enL=en.map(e=>it(colO('almEntradas','_f',e)||'Fornecedor',juntar(e.nota?'nota '+e.nota:'',(e.itens||[]).length+' item(ns)',e.forma==='prazo'?'a prazo':e.forma==='vista'?'à vista':''),fM(e.total),'#/almEntradas/'+e.id,'entrada'));
  const vS=s=>n(colO('almSaidas','_v',s));
- const saL=sa.map(s=>it(juntar(s.setor,colO('almSaidas','_m',s))||'Requisição',juntar(s.solicitante?'pediu: '+s.solicitante:'',s.finalidade,(s.itens||[]).length+' item(ns)'),fM(vS(s)),'#/almSaida/'+s.id,'saida'));
+ const saL=sa.map(s=>it(juntar(s.setor,colO('almSaidas','_m',s))||'Requisição',juntar(s.solicitante?'para: '+s.solicitante:'',s.finalidade,(s.itens||[]).length+' item(ns)'),fM(vS(s)),'#/almSaida/'+s.id,'saida'));
  /* V84: EPI entregue também é saída do almoxarifado */
  const ep=L('almEpis').filter(x=>x.data===d&&!x.cancelado);const vE=x=>{try{return n(window.ALM_V56.valorEpi(x))}catch(e){return 0}};
  saL.push(...ep.map(x=>it('EPI · '+(colO('almEpis','_f',x)||'funcionário'),juntar(colO('almEpis','_i',x),colO('almEpis','_q',x),x.motivo),fM(vE(x)),'#/almEpis/'+x.id,'escudo')));
@@ -42342,7 +42592,7 @@ function estItem(c,id){
   const forn=i.fornecedorId?((DATA.almFornecedores||[]).find(f=>f.id===i.fornecedorId)||{}).nome:'';
   c.innerHTML=cab(i.nome,i.codigo,`${edS&&at&&e.disp>0?`<button type="button" class="btn pri" id="eSai">${ic('iSetas')}Lançar saída</button>`:''}${edA&&at?`<button type="button" class="btn" id="eEnt">${ic('iMais')}Lançar entrada</button>`:''}${edI?`<button type="button" class="btn" id="eEd">Editar</button>`:''}`,R('estoque'))+
    `<div style="margin:-6px 0 14px;display:flex;gap:6px;flex-wrap:wrap">${tag(sit,COR_SIT[sit])}${p.comprar>0?tag('Repor: comprar '+fQtd(p.comprar)+' '+u,'at'):''}${p.abc?tag('Curva '+p.abc):''}</div>
-   <div class="inv-kpis">${kp('Saldo agora',esc(fQtd(e.saldo)+' '+u),e.emp?fQtd(e.emp)+' '+u+' emprestado(s)':'','dest')}${kp('Custo médio',esc(fMoeda(e.cm)),e.eq>0?'das compras lançadas':i.custoRef>0?'custo de referência':'sem compra lançada')}${kp('Valor em estoque',esc(fMoeda(e.valor)))}${kp('Consumo por mês',p.mes?esc(fQtd(p.mes)+' '+u):'—','média de 90 dias')}${p.dias!=null?kp('O saldo dura',fNum(p.dias)+' dia(s)','no ritmo de agora'):''}${p.ponto!=null?kp('Ponto de reposição',esc(fQtd(p.ponto)+' '+u),'abaixo disso, comprar'):''}</div>
+   <div class="inv-kpis">${kp('Saldo agora',esc(fQtd(e.saldo)+' '+u),e.emp?fQtd(e.emp)+' '+u+' emprestado(s)':'','dest')}${kp('Custo médio',esc(fMoeda(e.cm)),e.eqc>0?'das compras lançadas':i.custoRef>0?'custo de referência':'sem compra lançada')}${kp('Valor em estoque',esc(fMoeda(e.valor)))}${kp('Consumo por mês',p.mes?esc(fQtd(p.mes)+' '+u):'—','média de 90 dias')}${p.dias!=null?kp('O saldo dura',fNum(p.dias)+' dia(s)','no ritmo de agora'):''}${p.ponto!=null?kp('Ponto de reposição',esc(fQtd(p.ponto)+' '+u),'abaixo disso, comprar'):''}</div>
    <div class="inv-bloco"><h3>Dados do material</h3><dl class="inv-dl">${d('Categoria',i.categoria)}${d('Grupo',A.nomeGrupo(i.grupoId))}${d('Unidade',i.unidade)}${d('Marca',i.marca)}${d('Especificação',i.especificacao)}${d('Código do fabricante ou de barras',i.refFab)}${d('Local de guarda',i.local)}${d('Estoque mínimo',A.temMin(i)?fQtd(i.minimo)+' '+u:'')}${d('Estoque máximo',i.maximo>0?fQtd(i.maximo)+' '+u:'')}${d('Prazo de reposição',i.prazoRep>0?fNum(i.prazoRep)+' dia(s)':'')}${d('Fornecedor habitual',forn)}${d('Última entrada',e.ultEnt?fData(e.ultEnt):'')}${d('Última saída',e.ultSai?fData(e.ultSai):'')}${d('Observações',i.obs)}</dl></div>
    <div class="inv-tit"><h2>Entradas e saídas deste material</h2></div><div class="inv-l">${mv.length?mv.slice(0,60).map(m=>`<div class="inv-c"><div class="tx"><b>${esc((m.q>0?'+':'−')+fQtd(Math.abs(m.q))+' '+u)} · ${esc(eRot(m,S))}</b><small>${esc(fData(m.data))}${m.doc?' · '+esc(eDoc(m.doc)):''}</small></div><div class="vl">${esc(fQtd(m.s)+' '+u)}<small>saldo depois</small></div></div>`).join(''):vazio('Nenhum lançamento ainda','O saldo começa em zero: lance a entrada ou faça a contagem.')}</div>${mv.length>60?'<p class="ajuda" style="margin-top:8px">Mostrando os 60 lançamentos mais recentes.</p>':''}`;
   const b1=c.querySelector('#eSai');if(b1)b1.onclick=()=>estSaida(id);const b2=c.querySelector('#eEnt');if(b2)b2.onclick=()=>estEntrada(id);const b3=c.querySelector('#eEd');if(b3)b3.onclick=()=>estMaterial(id)};

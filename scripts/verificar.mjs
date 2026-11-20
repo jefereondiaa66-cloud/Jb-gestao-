@@ -1001,9 +1001,11 @@ teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, s
   assert.ok(fn('function modalLancPr(tipo,pre){', 'function posLancPr(').includes('await saidaRapidaAlm({data,setor,') && !/gravar\('almSaidas'/.test(bloco), 'saída pela saída rápida do almoxarifado');
   assert.ok(/if\(sai&&!pode\('almSaida','e'\)\)\{toast/.test(bloco) && /if\(!sai&&!pode\('almAjustes','e'\)\)\{toast/.test(bloco) && /if\(!pode\('almItens','e'\)\)\{toast\('Seu perfil não cadastra produtos/.test(bloco), 'cada lançamento exige a permissão dele');
   assert.ok((bloco.match(/conferirRegistro\('almAjustes'/g) || []).length >= 4 && bloco.includes("conferirRegistro('almItens',st)") && bloco.includes("conferirRegistro('almGrupos',sg)"), 'ajustes, produtos e grupos passam pelas regras de cada cadastro');
-  // cadastro por foto: não duplica (código do fabricante, nome ou o que a IA reconheceu) e o leitor é o mesmo do lançamento por foto
+  // cadastro por foto: não duplica (nome ou o que a IA reconheceu) e o leitor é o mesmo do lançamento por foto.
+  // V146 (20/11/2026, pedido do Jeferson): o lançamento não tem mais o campo de código de barras (os itens antigos não têm).
   const foto = fn('function modalFotoPr(ini){', '/* depois de salvar: limpa');
-  assert.ok(foto.includes('normT(i.refFab)===rf') && foto.includes('normT(i.nome)===nm') && foto.includes("name=\"fpModo\" value=\"somar\"") && foto.includes("name=\"fpModo\" value=\"total\""), 'produto que já existe: soma ou acerta, não duplica');
+  assert.ok(!foto.includes('fpRef') && foto.includes('normT(i.nome)===nm') && foto.includes("name=\"fpModo\" value=\"somar\"") && foto.includes("name=\"fpModo\" value=\"total\""), 'produto que já existe: soma ou acerta, não duplica; sem código de barras no lançamento');
+  assert.ok(foto.includes("if(cat!=='Cozinha'&&!blob){toast('Tire a foto do produto"), 'no almoxarifado o produto novo é cadastrado com foto (na cozinha a foto é opcional)');
   assert.ok(app.includes('window.ALM_IA_LER={motor:motorLeitura,semMotorTxt};') && foto.includes('window.ALM_IA_LER'), 'leitor da foto é o do lançamento por foto');
   // excluir entrada que já saiu do estoque é barrado
   assert.ok(fn('async function excluirAjPr(a){', '/* ---------- cadastrar por foto').includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9"), 'excluir entrada não deixa saldo negativo');
