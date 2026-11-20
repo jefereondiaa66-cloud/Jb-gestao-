@@ -144,9 +144,9 @@ try {
   await ir('#/almLimpeza', '#prL'); await page.locator('#prL [data-ver]', { hasText: 'Detergente' }).first().click(); await page.waitForSelector('.apr-kv');
   ok(/Estoque\s*Limpeza/i.test(await page.innerText('.apr-kv')), 'a ficha do produto diz que o estoque é a Limpeza');
   await fecharModal();
-  await ir('#/almMov', '#amT'); await page.click('[data-um="lim"]'); await page.waitForTimeout(300);
+  await ir('#/almMov', '[data-mvgr]'); await page.click('[data-mvesc="lim"]');   /* V151: tela nova das movimentações */ await page.waitForTimeout(300);
   tx = await page.innerText('#svCorpo table'); ok(/Detergente/.test(tx) && /Vassoura/.test(tx) && !/Rolamento|Arroz/.test(tx), 'o botão Limpeza das movimentações mostra só a limpeza');
-  await page.click('[data-um=""]');
+  await page.click('[data-mvesc=""]');
   await ir('#/almEstoque', '#aeQ'); tx = await textoTela();
   ok(/Valor do almoxarifado/i.test(tx) && /Valor da cozinha/i.test(tx) && /Valor da limpeza/i.test(tx), 'saldo em tabela separa os três valores');
   await page.click('[data-ue="lim"]'); await page.waitForTimeout(300);

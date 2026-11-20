@@ -17728,6 +17728,7 @@ function telaLancarP(c){
 function abasP(){return [
  {r:'#/setor-producao',m:'setor-producao',ic:'painel',l:'Início',at:['setor-producao']},
  {r:'#/plancar',m:'setor-producao',ic:'mais',l:'Lançar',at:['plancar','pm-novo']},
+ {r:'#/movProducao',m:'setor-producao',ic:'lupa',l:'Movimentações',at:['movProducao']},   /* V151: tudo o que aconteceu no setor, com comprovante */
  {r:'#/pmaromba',m:'pmaromba',ic:'caixa',l:'Maromba',at:['pmaromba','pparadas'],sub:[['#/pmaromba','pmaromba','Lançamentos',['pmaromba']],['#/pparadas','pparadas','Paradas',['pparadas']]]},
  {r:'#/psecagem',m:'psecagem',ic:'calendario',l:'Secador',at:['psecagem','psecmov'],sub:[['#/psecagem','psecagem','Saldo e lotes',['psecagem']],['#/psecmov','psecmov','Entradas, saídas e perdas',['psecmov']]]},
  {r:'#/pfornadas',m:'pfornadas',ic:'chama',l:'Fornos',at:['pfornadas','pdesenf','plenha'],sub:[['#/pfornadas','pfornadas','Enforna',['pfornadas']],['#/pdesenf','pdesenf','Desenforna',['pdesenf']],['#/plenha','plenha','Lenha por fornada',['plenha']]]},
@@ -18354,7 +18355,7 @@ function resumoSetorProd(){
 }
 const ts0=telaSetores;
 telaSetores=function(el){ts0(el);const b=el.querySelector('[data-setor="producao"]');if(!b)return;const card=b.closest('.spot-card');if(card&&!card.querySelector('.spot-info')){const sp=document.createElement('span');sp.className='spot-info';sp.textContent=resumoSetorProd();b.before(sp)}};
-window.PRODUCAO_SETOR={secagem,calcMar,estimativaDia,numerosProd,pronto,linhasLenha,indicMes,RELS_P,pc,conf,CONF,PEND,ehRefeicao,n0};
+window.PRODUCAO_SETOR={secagem,calcMar,estimativaDia,numerosProd,pronto,linhasLenha,indicMes,RELS_P,pc,conf,CONF,PEND,ehRefeicao,n0,shellP};   /* V151: shellP para a tela Movimentações */
 })();
 </script>
 
@@ -33810,6 +33811,7 @@ function acoesCentral(s){const cb=ehCb(s);const A=[];const add=(ok,r,i,t,d,pri)=
   add(pode('consumos','e'),'#/consLote','planilha','Lançar vários','Uma linha por abastecimento (ficha do dia).');
   add(pode('clProg','e'),'#/clProg/novo','calendario','Programar abastecimento','Previsto por veículo, máquina ou setor. Não mexe no estoque.');
   add(pode('consumos'),'#/consumos','livro','Consultar lançamentos','Todos os abastecimentos, com filtros.');
+  add(pode('movCombustivel'),'#/movCombustivel','lupa','Movimentações do setor','Tudo o que entrou e saiu, com o comprovante de cada lançamento.');
  }else{
   add(pode('compra','e'),'#/compra/nova','entrada','Registrar entrada','Carga do fornecedor: quantidade, preço e conta a pagar.',1);
   add(pode('consumos','e'),'#/consumos/novo','chama','Registrar consumo','Forno, quantidade, fornada e responsável.',1);
@@ -33820,7 +33822,8 @@ function acoesCentral(s){const cb=ehCb(s);const A=[];const add=(ok,r,i,t,d,pri)=
   add(pode('clComb','e'),'#/clComb/novo','bomba','Combustível do fornecedor','Lançar à mão o combustível que ele recebeu fora da bomba. Desconta sozinho do que a cerâmica deve.');
   add(pode('clProd','e'),'#/clProd/novo','caixa','Pagar fornecedor com produto','Bota, EPI, ferramenta ou outra coisa. Sai do almoxarifado e desconta do que a cerâmica deve.');
   add(pode('clAcerto','e'),'#/clAcerto/novo','ctlBalanca','Fazer acerto','Valor bruto, descontos autorizados, pagamentos e líquido.');
-  add(pode('consumos'),'#/consumos','livro','Consultar movimentações','Consumos lançados, com filtros.');
+  add(pode('movLenha'),'#/movLenha','lupa','Movimentações do setor','Tudo o que entrou e saiu, com o comprovante de cada lançamento.');
+  add(pode('consumos'),'#/consumos','livro','Consumo nos fornos','Consumos lançados, com filtros.');
  }
  return A}
 window.CL112_mov=null;
@@ -34254,12 +34257,12 @@ function gruposMenu(s){
  const G=cb?[
   {g:'Operações',it:[['#/setor-combustivel','painel','Início',['setor-combustivel'],'setor-combustivel'],['#/clLanc','mais','Central de lançamentos',['clLanc'],'clLanc'],['#/consumos/novo','bomba','Novo abastecimento',['consumo-novo'],'consumos',1],['#/compra/nova','entrada','Nova entrada (compra)',[],'compra',1],
    ['javascript:window.CL112.mov("Saída")','saida','Nova saída',[],'estoqueMov',1],['javascript:window.CL112.mov("Transferência")','transf','Transferência',[],'estoqueMov',1],['#/clFoto','camera','Fotografar comprovante',['clFoto'],'clFoto',1],['#/consLote','planilha','Lançar manualmente (vários)',['consLote'],'consumos',1],['javascript:window.CB_LENHA.novoAbast()','pessoas','Abastecer fornecedor de lenha',[],'consumos',1]]},
-  {g:'Controle',it:[['#/consumos','livro','Movimentações (abastecimentos)',['consumos'],'consumos'],['#/combLenha','bomba','Combustível para lenha',['combLenha'],'combLenha'],['#/combEntrega','moeda','Despesa com combustível',['combEntrega'],'combEntrega'],['#/estoque','caixa','Estoque',['estoque','estoqueMov'],'estoque'],['#/locais','mapa','Veículos e máquinas',['locais'],'locais'],['#/responsaveis','pessoas','Motoristas e responsáveis',['responsaveis'],'responsaveis'],
+  {g:'Controle',it:[['#/movCombustivel','lupa','Movimentações',['movCombustivel'],'movCombustivel'],['#/consumos','livro','Abastecimentos',['consumos'],'consumos'],['#/combLenha','bomba','Combustível para lenha',['combLenha'],'combLenha'],['#/combEntrega','moeda','Despesa com combustível',['combEntrega'],'combEntrega'],['#/estoque','caixa','Estoque',['estoque','estoqueMov'],'estoque'],['#/locais','mapa','Veículos e máquinas',['locais'],'locais'],['#/responsaveis','pessoas','Motoristas e responsáveis',['responsaveis'],'responsaveis'],
    ['#/cTerceiros','pessoas','Terceiros que abastecem',['cTerceiros'],'cTerceiros'],['#/clProg','calendario','Programações',['clProg'],'clProg'],['#/bombasConf','bomba','Conferência das bombas',['bombasConf'],'consumos'],['#/produtos','livro',S.prodTit,['produtos'],'produtos']]},
   {g:'Gestão',it:[['#/compras','carrinho','Compras',['compras','compra'],'compras'],['#/pagar','moeda','Contas a pagar',['pagar'],'pagar'],['#/fornecedores','predio','Fornecedores',['fornecedores'],'fornecedores'],['#/clRel','grafico','Relatórios',['clRel'],'clRel'],
    ['#/clConf','check','Conferência de lançamentos',['clConf'],'clConf',0,nP],['#/relvendas','grafico','Relatórios gerais',['relvendas'],'relvendas']]}]:[
   {g:'Operações',it:[['#/setor-lenha','painel','Início',['setor-lenha'],'setor-lenha'],['#/clLanc','mais','Central de lançamentos',['clLanc'],'clLanc'],['#/compra/nova','entrada','Registrar entrada',[],'compra',1],['#/consumos/novo','chama','Registrar consumo',['consumo-novo'],'consumos',1],['#/clComb/novo','bomba','Lançar combustível do fornecedor',[],'clComb',1],['#/clProd/novo','caixa','Pagar fornecedor com produto',[],'clProd',1],
-   ['#/clFoto','camera','Lançar por fotografia',['clFoto'],'clFoto',1],['#/consumos','livro','Consultar movimentações',['consumos'],'consumos'],['#/clConf','check','Conferência de lançamentos',['clConf'],'clConf',0,nP]]},
+   ['#/clFoto','camera','Lançar por fotografia',['clFoto'],'clFoto',1],['#/movLenha','lupa','Movimentações',['movLenha'],'movLenha'],['#/consumos','livro','Consumo nos fornos',['consumos'],'consumos'],['#/clConf','check','Conferência de lançamentos',['clConf'],'clConf',0,nP]]},
   {g:'Controle',it:[['#/estoque','caixa','Estoque de lenha',['estoque','estoqueMov'],'estoque'],['#/fornecedores','predio','Fornecedores',['fornecedores'],'fornecedores'],['#/locais','mapa','Fornos',['locais'],'locais'],['#/clRel/consumo','chama','Consumo por período',[],'clRel'],
    ['#/clProg','calendario','Programações',['clProg'],'clProg'],['#/produtos','livro',S.prodTit,['produtos'],'produtos'],['#/maoLenha','pessoas','Mão de obra',['maoLenha'],'maoLenha']]},
   {g:'Financeiro',it:[['#/clAcerto','ctlBalanca','Acerto de lenha',['clAcerto'],'clAcerto'],['#/clAPagar','carteira','Valores a pagar',['clAPagar'],'clAPagar'],['#/clComb','bomba','Combustível e produtos dos fornecedores',['clComb'],'clComb'],['#/clDesc','escudo','Descontos autorizados',['clDesc'],'clDesc'],['#/clPag','moeda','Pagamentos',['clPag'],'clPag'],
@@ -34273,7 +34276,7 @@ function gruposMenu(s){
  if(outras.length)R.push({g:'Outras funções',it:outras});
  return R;
 }
-const FIXOS={combustivel:['Início','Central de lançamentos','Movimentações (abastecimentos)','Estoque','Programações'],lenha:['Início','Central de lançamentos','Consultar movimentações','Estoque de lenha','Acerto de lenha','Pagar fornecedor com produto']};
+const FIXOS={combustivel:['Início','Central de lançamentos','Movimentações','Abastecimentos','Estoque','Programações'],lenha:['Início','Central de lançamentos','Movimentações','Consumo nos fornos','Estoque de lenha','Acerto de lenha','Pagar fornecedor com produto']};   /* V151: Movimentações = o setor inteiro (#/movCombustivel, #/movLenha) */
 const MENU112={aberto:false,q:'',s:''};
 function menuAgrupado(el,s,ativa){
  const nav=el.querySelector('.sv-abas');if(!nav||nav.dataset.cl57)return;nav.dataset.cl57='1';
@@ -47527,6 +47530,524 @@ html.casca2 .fd-corpo>.fd-home{margin-bottom:22px}
 
  /* para os testes */
  window.JB_FICHAS_DOC=Object.freeze({ID,ROTA,NOME,EST,MODULOS,CATEGORIAS,EM_BREVE});
+})();
+</script>
+<style id="movimentacoes-v151-css">
+/* ================= V151 · Movimentações dos setores (20/11/2026) · só aparência =================
+   Botões de tipo no alto (atualizam na hora), pesquisa e lista em cartões do padrão do sistema. */
+.mv-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.mv-chips button{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:6px 13px;border:1px solid var(--linha,#E2E0EC);border-radius:999px;background:var(--branco,#fff);color:var(--tinta,#1C1C1E);font:inherit;font-size:13px;font-weight:600;line-height:1.2;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mv-chips button:hover{border-color:var(--fraco,#9A9AA5)}
+.mv-chips button:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:2px}
+.mv-chips button em{font-style:normal;font-size:11.5px;font-weight:700;min-width:18px;padding:1px 6px;border-radius:999px;background:var(--fundo,#F2F2F5);color:var(--suave,#6B6B75);text-align:center;font-variant-numeric:tabular-nums}
+.mv-chips button.zero{color:var(--fraco,#9A9AA5);font-weight:500}
+.mv-chips button.on{background:var(--brasa,#D3121C);border-color:var(--brasa,#D3121C);color:#fff}
+.mv-chips button.on em{background:rgba(255,255,255,.25);color:#fff}
+.mv-chips.mv-esc button{min-height:32px;padding:4px 12px;font-weight:500}
+.mv-chips.mv-esc button.on{background:var(--tinta,#1C1C1E);border-color:var(--tinta,#1C1C1E)}
+.mv-filtros .mv-q{flex:1 1 280px;min-width:200px}
+.mv-dica{margin:8px 2px 0;font-size:12.5px;color:var(--suave,#6B6B75)}
+.mv-mais{display:flex;justify-content:center;margin:14px 0 4px}
+.mv-acoes{white-space:nowrap}
+.mv-acoes .btn{padding:4px 7px;min-height:30px}
+.mv-acoes .btn svg{width:15px;height:15px;margin:0}
+tr.mv-ln{cursor:pointer}
+tr.mv-ln:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:-2px}
+.mv-qtd{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.mv-qtd.e{color:var(--ok,#1E8E3E)}
+.mv-qtd.s{color:var(--pe,#C62828)}
+@media (max-width:600px){.mv-chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.mv-chips::-webkit-scrollbar{display:none}.mv-chips button{flex:none}}
+@media print{.mv-chips,.mv-mais,.mv-acoes,.mv-dica{display:none!important}}
+</style>
+<script id="movimentacoes-v151">
+"use strict";
+/* ================= V151 · Movimentações dos setores (20/11/2026) =================
+   Pedido do Jeferson: no Almoxarifado, na Lenha, no Combustível e na Produção, o módulo "Movimentações"
+   mostra a movimentação do setor ao longo do tempo, não só o consumo, as entradas ou as saídas: tudo o que
+   entrou, o que saiu e como saiu (abastecimentos, consumo nos fornos, despesas, pagamentos, ajustes, perdas,
+   levadas, produção…), com quem lançou.
+   · Filtro de tipo no alto (botões que atualizam na hora), pesquisa (item, fornecedor, veículo, pessoa, nº do
+     documento…), período, item e quem lançou. A lista é a de cartões, como todas as do sistema.
+   · Tocar num lançamento emite o COMPROVANTE DE MOVIMENTAÇÃO, o mesmo modelo nos quatro setores, no padrão
+     dos documentos do sistema (cupom 80/58 mm ou folha A4): o movimento (tipo, item, quantidade, valor e o
+     saldo antes e depois), a origem ou o destino, os detalhes do lançamento de origem e o registro no sistema.
+     Na tela do documento: imprimir, PDF, Word e compartilhar. Os três pontinhos da linha têm também
+     "Ir para o lançamento" (para corrigir, quem pode).
+   · Só leitura: a lista é montada dos lançamentos que já existem (as mesmas fontes do estoque, do
+     almoxarifado, da produção e do Financeiro). Nada é gravado, recalculado ou apagado aqui.
+   Rotas: #/almMov (Almoxarifado, a mesma de antes), #/movCombustivel, #/movLenha e #/movProducao. */
+(()=>{
+if(typeof DATA==='undefined'||typeof TELAS_V==='undefined'||typeof PERM==='undefined'||typeof baseRel!=='function'||typeof verDoc!=='function')return;
+
+/* ---------- 0. peças ---------- */
+const PAG=120;
+const r2=v=>Math.round((+v||0)*100)/100,r3=v=>Math.round((+v||0)*1000)/1000;
+const seguro=(f,pad)=>{try{const v=f();return v==null?pad:v}catch(e){return pad}};
+const vz=v=>v==null||v===''||(typeof v==='number'&&isNaN(v));
+const num=v=>vz(v)||isNaN(+v)?0:+v;
+const p2=n=>String(n).padStart(2,'0');
+const dia=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||''))?String(v).slice(0,10):'';
+const diaIso=iso=>{const d=new Date(iso||'');return isNaN(d)?'':d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())};
+const hora=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?p2(m[1])+':'+m[2]:''};
+const quem=uid=>uid?(seguro(()=>nomeUsuario(uid),'')||''):'';
+const podeV=m=>!!PERM[m]&&pode(m);
+const N=s=>semAcento(String(s==null?'':s)).toLowerCase();
+const lim=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
+const cap=s=>{s=lim(s).toLowerCase();return s.charAt(0).toUpperCase()+s.slice(1)};
+const fQ=(q,un)=>fQtd(Math.abs(+q||0))+(un?' '+un:'');
+const sinal=(q,un)=>(q>0?'+':q<0?'−':'')+fQ(q,un);
+const codDe=(sig,id)=>{const s=String(id||'');const t=(s.length>8?s.slice(-6):s).toUpperCase().replace(/[^A-Z0-9]/g,'');return (sig?sig+'-':'')+(t||'—')};
+const SENT_T={e:'Entrada',s:'Saída',p:'Saída (perda)',t:'Transferência entre locais',f:'Movimento financeiro',n:'Registro'};
+const TAG_S={e:'ok',s:'at',p:'pe',t:'in',f:'in',n:''};
+
+/* ---------- 1. os quatro setores ---------- */
+const SETS={
+ almox:{nome:'Almoxarifado',doc:'almox',entrada:'setor-almox',rota:'almMov',tit:'Movimentações do almoxarifado, da cozinha e da limpeza',
+  desc:'Tudo o que entrou e saiu, item por item: compras, entradas sem compra, requisições, EPIs, devoluções, acertos de contagem, ferramentas e pagamentos de lenha.',
+  grupos:[['ent','Entradas'],['sai','Saídas'],['req','Requisições'],['epi','EPIs'],['dev','Devoluções'],['aju','Acertos de contagem'],['fer','Ferramentas'],['lenha','Pagamento de lenha']],
+  itemRot:'Item',busca:'Pesquisar: item, fornecedor, pessoa, setor, nº da requisição…'},
+ combustivel:{nome:'Setor de Combustível',doc:'combustivel',entrada:'setor-combustivel',rota:'movCombustivel',tit:'Movimentações do Setor de Combustível',
+  desc:'Tudo o que entrou e saiu: entradas de combustível, abastecimentos, combustível dos fornecedores de lenha, saídas, despesas com combustível e pagamentos.',
+  grupos:[['ent','Entradas'],['abast','Abastecimentos'],['lenha','Para fornecedor de lenha'],['sai','Saídas e perdas'],['trf','Transferências'],['aju','Ajustes'],['desp','Despesas'],['pag','Pagamentos']],
+  itemRot:'Combustível',busca:'Pesquisar: veículo, motorista, fornecedor, posto, combustível, nº…'},
+ lenha:{nome:'Setor da Lenha',doc:'lenha',entrada:'setor-lenha',rota:'movLenha',tit:'Movimentações do Setor da Lenha',
+  desc:'Tudo o que entrou e saiu: entregas de lenha, consumo nos fornos, levadas entre os locais, pagamentos, combustível e produtos dados aos fornecedores, descontos e acertos.',
+  grupos:[['ent','Entradas'],['cons','Consumo nos fornos'],['lev','Levadas'],['sai','Saídas e perdas'],['aju','Ajustes'],['pag','Pagamentos'],['comb','Combustível e produtos'],['desc','Descontos e acertos']],
+  itemRot:'Tipo de lenha',busca:'Pesquisar: fornecedor, forno, fornada, caminhão, nº da compra…'},
+ producao:{nome:'Setor de Produção',doc:'producao',entrada:'setor-producao',rota:'movProducao',tit:'Movimentações do Setor de Produção',
+  desc:'Tudo o que aconteceu na produção: maromba, paradas, secador, enforna, desenforna, tijolo pronto e perdas.',
+  grupos:[['mar','Maromba'],['par','Paradas'],['sec','Secador'],['enf','Enforna'],['des','Desenforna'],['pro','Tijolo pronto'],['per','Perdas']],
+  itemRot:'',busca:'Pesquisar: forno, fornada, turno, motivo, destino, operador…'}};
+
+/* uma linha da lista: o que aconteceu, quanto, com quem e de onde veio (o lançamento de origem) */
+function L(o){
+ const r={uid:'',setor:'',data:'',hora:'',reg:'',g:'',g2:null,tipo:'',sent:'n',est:false,pid:'',item:'',qtd:null,un:'',qtdTxt:'',valor:null,semValor:false,
+  parte:'',parteRot:'',quem:'',doc:'',cod:'',num:'',sit:'',ref:'',kind:'',mod:'',id:'',rec:null,extra:[],cancelado:false,esc:'',perda:0,...o};
+ if(!r.qtdTxt&&r.qtd!=null&&!isNaN(+r.qtd))r.qtdTxt=r.est?sinal(+r.qtd,r.un):fQ(r.qtd,r.un);
+ if(r.valor!=null&&r.valor!==''&&!isNaN(+r.valor))r.valor=r2(Math.abs(+r.valor));else r.valor=null;
+ r.extra=(r.extra||[]).filter(x=>x&&!vz(x[1])&&lim(x[1])!=='—').map(([l,v])=>[l,lim(v)]);
+ r.ord=(r.data||'')+'|'+(r.hora||'')+'|'+(r.reg||'')+'|'+r.uid;
+ return r;
+}
+
+/* ---------- 2. Combustível e Lenha: o estoque (compras, entradas, saídas, ajustes, consumo e abastecimentos) ----------
+   A lista de movimentos de estoque é a do próprio setor (CL_MOVS, a mesma das telas e dos relatórios da V112). */
+const alvoC=c=>c.abastecidoEm==='Veículo de terceiro'?(lim(seguro(()=>window.TERCEIROS_V56.nome(c),''))||lim(c.terceiroNome)||'Terceiro')+(c.terceiroPlaca?' · '+c.terceiroPlaca:''):(nomeLocal(LOCAL(c.localId))||'—');
+function linhasEstoqueCL(s){
+ const out=[];if(typeof window.CL_MOVS!=='function')return out;
+ const vC=podeV('compras')||podeV('compra'),vU=podeV('consumos'),vM=podeV('estoqueMov')||podeV('estoque');
+ seguro(()=>window.CL_MOVS(s),[]).forEach(m=>{try{
+  const rec=m.rec||{};const p=PROD(m.produtoId)||{};const un=m.unidade||p.unidade||'';const nomeP=nomeProduto(p)||'';const uid=String(m.uid||'');
+  const base={setor:s,data:dia(m.data)||diaIso(rec.criadoEm),hora:hora(m.hora),reg:rec.criadoEm||'',pid:m.produtoId||'',un,item:nomeP||'—'};
+  if(uid.indexOf('c:')===0){if(!vC)return;const v=rec;const k=+uid.split(':')[2]||0;const it=(v.itens||[])[k]||{};const f=seguro(()=>finVenda(v),{});
+   const classe=lim(it.lenhaClasse||v.lenhaClasse);const noEst=!it.baixaEstoque;
+   out.push(L({...base,uid,g:'ent',sent:'e',est:!noEst,qtd:r3(m.qtdInf),qtdTxt:noEst?fQ(m.qtdInf,un)+' (fora do estoque)':'',
+    tipo:s==='lenha'?(v.historico?'Entrada de lenha (antes do sistema)':'Entrada de lenha'):'Entrada de combustível',
+    item:(it.nome||nomeP||'—')+(classe&&!N(it.nome).includes(N(classe))?' · '+classe:''),valor:m.valor,parte:lim(m.parte),parteRot:'Fornecedor',
+    quem:lim(v.responsavelNome)||quem(v.criadoPor),doc:'Compra nº '+fNumV(v.numero),cod:'Compra nº '+fNumV(v.numero),num:fNumV(v.numero),
+    sit:v.historico?'Antes do sistema':lim(f.status),ref:'#/compra/'+v.id,kind:'compra',id:v.id,rec:v,
+    extra:[['Preço por unidade',+it.preco>0?fMoeda(+it.preco)+(un?' por '+un:''):''],['Forma de pagamento',v.forma],['Condição',v.condicao],['Vencimento',v.vencimento?fData(v.vencimento):''],
+     ['Caminhão',(v.lenhaMedicao||{}).caminhao],['Nota do fornecedor',(v.fiscal||{}).numero]]}));return}
+  if(uid.indexOf('m:')===0){if(!vM)return;const mv=rec;const destino=/:d$/.test(uid);const t=lim(mv.tipo||m.tipo);const q=r3(m.qtd);
+   let g='aju',tipo=t||'Movimentação de estoque',sent=q>=0?'e':'s';
+   if(t==='Entrada'){g='ent';tipo='Entrada sem compra';sent='e'}
+   else if(t==='Saída'){g='sai';tipo='Saída';sent='s'}
+   else if(t==='Perda'){g='sai';tipo='Perda';sent='p'}
+   else if(t==='Ajuste'){g='aju';tipo='Ajuste de estoque'}
+   else if(/^transfer/i.test(t)){g=s==='lenha'?'aju':'trf';tipo=destino?'Transferência (entrada)':'Transferência (saída)';sent=destino?'e':'s'}
+   const outroP=destino?PROD(mv.produtoId):PROD(mv.produtoDestinoId);
+   out.push(L({...base,uid,g,tipo,sent,est:true,qtd:q,parte:lim(mv.destino)||(outroP?(destino?'Veio de ':'Foi para ')+nomeProduto(outroP):''),parteRot:t==='Saída'?'Destino':'',
+    quem:quem(mv.criadoPor)||lim(mv.responsavel),doc:lim(mv.motivo),ref:'#/estoqueMov/'+mv.id,kind:'mod',mod:'estoqueMov',id:mv.id,rec:mv,
+    extra:[['Motivo',mv.motivo],['Responsável',mv.responsavel]]}));return}
+  if(uid.indexOf('u:')===0){if(!vU)return;const c=rec;const q=r3(+c.quantidade||0);const posto=c.origem==='Posto externo';
+   const comum={...base,uid,quem:quem(c.criadoPor)||lim(c.responsavelNome),ref:'#/consumos/'+c.id,kind:'mod',mod:'consumos',id:c.id,rec:c,cod:codDe('CS',c.id)};
+   if(s==='lenha'){
+    out.push(L({...comum,g:'cons',tipo:c.enfornaId?'Consumo na enforna (automático)':'Consumo nos fornos',sent:'s',est:true,qtd:-q,valor:+c.custoTotal||null,
+     parte:nomeLocal(LOCAL(c.localId))||'',parteRot:'Forno',doc:lim(c.fornada),
+     extra:[['Fornada',c.fornada],['Milheiros',vz(c.milheiros)?'':fNum(+c.milheiros,Number.isInteger(+c.milheiros)?0:3)],['Operador',c.operador]]}));return}
+   if(c.combLenha||c.pagLenha){const fl=c.combLenha||c.pagLenha;
+    out.push(L({...comum,g:'lenha',tipo:c.combLenha?'Combustível para fornecedor de lenha':'Combustível pago a fornecedor de lenha',sent:'s',est:true,qtd:-q,
+     valor:+fl.valor||+c.custoTotal||null,parte:lim(fl.fornecedorNome),parteRot:'Fornecedor de lenha',
+     extra:[['Preço combinado',+(fl.precoUnit||c.combLenhaPreco||c.pagLenhaPreco)>0?fMoeda(+(fl.precoUnit||c.combLenhaPreco||c.pagLenhaPreco))+(un?' por '+un:''):''],['Compra de lenha paga',c.pagLenha?'nº '+fNumV(c.pagLenha.compraNumero):''],['Motorista',c.operador]]}));return}
+   if(posto){
+    out.push(L({...comum,g:'abast',g2:['desp'],tipo:'Abastecimento em posto',sent:'f',est:false,qtd:q,qtdTxt:fQ(q,un)+' no posto',valor:+c.valorPosto||+c.custoTotal||null,
+     parte:alvoC(c),parteRot:c.abastecidoEm==='Veículo de terceiro'?'Terceiro':'Veículo ou máquina',doc:c.cupom?'Cupom '+c.cupom:'',
+     extra:[['Posto',c.postoNome],['Cupom',c.cupom],['Condição',c.condPosto],['Vencimento',c.vencPosto?fData(c.vencPosto):''],['Motorista',c.operador],['Km ou horímetro',c.medidor],['Estoque da fábrica','não muda (abastecido fora)']]}));return}
+   const terc=c.abastecidoEm==='Veículo de terceiro';
+   out.push(L({...comum,g:'abast',tipo:terc?'Abastecimento de terceiro':'Abastecimento',sent:'s',est:true,qtd:-q,valor:+c.custoTotal||null,
+    parte:alvoC(c),parteRot:terc?'Terceiro':'Veículo ou máquina',doc:lim(c.tipoServico),
+    extra:[['Motorista',c.operador],['Km ou horímetro',c.medidor],['Quem abasteceu',c.quemAbasteceu],['Finalidade',c.terceiroFinalidade],['Serviço',c.tipoServico]]}));return}
+ }catch(e){console.warn('movimentações: linha do estoque',e)}});
+ return out;
+}
+/* pagamentos feitos nas compras do setor (posto, distribuidora, madeireira) */
+function linhasPagCompras(s){
+ const out=[];if(!(podeV('compras')||podeV('pagar')||podeV('clPag')))return out;
+ (DATA.compras||[]).forEach(v=>{if(!v||v.setor!==s||cancV(v))return;const c=seguro(()=>parteSnap(v),{});
+  (v.pagamentos||[]).forEach((p,i)=>{if(!p||p.estornado)return;const tot=r2((+p.valor||0)+(+p.multa||0)+(+p.juros||0));
+   out.push(L({setor:s,uid:'pg:'+v.id+':'+(p.id||i),data:dia(p.data)||diaIso(p.em),reg:p.em||'',g:'pag',tipo:'Pagamento ao fornecedor',sent:'f',
+    item:'Compra nº '+fNumV(v.numero)+(v.historico?' (antes do sistema)':''),valor:tot,parte:lim(c.nome),parteRot:'Fornecedor',quem:quem(p.por),
+    doc:[p.forma,p.recibo?'recibo nº '+fNumV(p.recibo):''].filter(Boolean).join(' · '),cod:codDe('PG',p.id||(v.id+i)),
+    ref:'#/compra/'+v.id,kind:'pagamento',id:v.id,rec:v,pag:p,
+    extra:[['Forma',p.forma],['Valor da compra',fMoeda(+v.total||0)],['Multa e juros',(+p.multa||0)+(+p.juros||0)?fMoeda((+p.multa||0)+(+p.juros||0)):'']]}))})});
+ return out;
+}
+/* despesas com combustível lançadas no Financeiro (posto da cidade para as entregas e as outras): as mesmas da tela
+   "Despesa com combustível". A conta do abastecimento em posto já aparece no próprio abastecimento (não repete). */
+function linhasDespComb(){
+ const out=[];if(!(podeV('combEntrega')||podeV('fTitulos')))return out;
+ const cons=new Set((DATA.consumos||[]).map(c=>c.id));
+ const ob=new Map(seguro(()=>window.FINANCEIRO_SETOR.obrigacoes(),[]).map(o=>[o.ref,o]));
+ (DATA.fTitulos||[]).forEach(t=>{if(!t||t.cancelado)return;
+  if(!(/combust/i.test(String(t.categoria||''))||!!(t.enc&&t.enc.setor==='combustivel')))return;if(t.consumoId&&cons.has(t.consumoId))return;
+  const o=ob.get('t:'+t.id);const ent=t.categoria==='Combustível para entrega';
+  out.push(L({setor:'combustivel',uid:'t:'+t.id,data:dia(t.data)||dia(t.vencimento)||diaIso(t.criadoEm),reg:t.criadoEm||'',g:'desp',
+   tipo:ent?'Despesa com combustível · entrega':'Despesa com combustível',sent:'f',item:lim(t.descricao)||lim(t.categoria)||'Despesa com combustível',valor:+t.valor||0,
+   parte:lim(t.motorista||t.beneficiarioNome||t.beneficiario),parteRot:'Motorista ou quem recebeu',quem:quem(t.criadoPor)||lim(t.responsavelNome),
+   doc:t.numero?'Compromisso nº '+t.numero:'',cod:t.numero?'Nº '+t.numero:codDe('CF',t.id),num:t.numero?String(t.numero):'',sit:o&&o.s?lim(o.s.st):'',
+   ref:'#/fTitulos/'+t.id,kind:'titulo',id:t.id,rec:t,extra:[['Categoria',t.categoria],['Vencimento',t.vencimento?fData(t.vencimento):''],['Forma prevista',t.formaPrevista]]}))});
+ return out;
+}
+/* ---------- 3. Lenha: levadas, combustível e produtos dos fornecedores, descontos, acertos e o que o Financeiro encaminhou ---------- */
+function nomeDep(id){const L0=seguro(()=>window.LENHA_V111.depositos(true),[]);const x=(Array.isArray(L0)?L0:[]).find(d=>d&&(d.id===id||d.k===id));
+ return x?lim(x.nome||x.rot||id):({chao:'Chão da fábrica',fora:'Estoque de fora'}[id]||lim(id)||'—')}
+function linhasLenhaExtra(){
+ const out=[];
+ if(podeV('lenhaMov'))(DATA.lenhaMov||[]).forEach(m=>{if(!m)return;const ini=m.tipo==='saldoInicial';const q=r3(+m.quantidade||0);
+  out.push(L({setor:'lenha',uid:'lv:'+m.id,data:dia(m.data)||diaIso(m.criadoEm),hora:hora(m.hora),reg:m.criadoEm||'',g:ini?'aju':'lev',
+   tipo:ini?'Saldo inicial por local':'Levada de lenha',sent:ini?'n':'t',qtd:q,un:m.unidade||'m³',qtdTxt:fQ(q,m.unidade||'m³'),item:lim(m.classe)||'Lenha',
+   parte:ini?nomeDep(m.deposito):nomeDep(m.de)+' → '+nomeDep(m.para),parteRot:ini?'Local':'De → para',quem:quem(m.criadoPor),doc:lim(m.obs),
+   cod:codDe(ini?'SI':'LV',m.id),sit:m.cancelado?'Cancelada':'Registrada',cancelado:!!m.cancelado,ref:ini?'#/lenhaLocais':'#/lenhaLevar',kind:'levada',id:m.id,rec:m,
+   extra:[['Quem levou',m.quem],['Viagens',m.viagens?String(m.viagens):''],['m³ por viagem',+m.m3Viagem>0?fQtd(+m.m3Viagem):''],['Total do estoque','não muda (só troca de local)'],['Observação',m.obs]]}))});
+ /* combustível que passou pela bomba da cerâmica e foi dado ao fornecedor (desconta do que se deve a ele) */
+ if(podeV('clComb')||podeV('clFin'))(DATA.consumos||[]).forEach(c=>{if(!c||c.setor!=='combustivel'||!(c.combLenha||c.pagLenha))return;const fl=c.combLenha||c.pagLenha;const p=PROD(c.produtoId)||{};
+  out.push(L({setor:'lenha',uid:'cb:'+c.id,data:dia(c.data)||diaIso(c.criadoEm),hora:hora(c.hora),reg:c.criadoEm||'',g:'comb',
+   tipo:c.combLenha?'Combustível dado ao fornecedor':'Pagamento em combustível',sent:'f',item:(nomeProduto(p)||'Combustível')+' · '+fQ(c.quantidade,c.unidade||p.unidade||'L'),
+   valor:+fl.valor||+c.custoTotal||0,parte:lim(fl.fornecedorNome),parteRot:'Fornecedor de lenha',quem:quem(c.criadoPor),doc:c.pagLenha?'Compra nº '+fNumV(c.pagLenha.compraNumero):'Bomba da cerâmica',
+   cod:codDe('CS',c.id),ref:'#/clComb',kind:'mod',mod:'consumos',id:c.id,rec:c,extra:[['Onde recebeu','Bomba da cerâmica (Setor de Combustível)'],['Motorista',c.operador]]}))});
+ if(podeV('clComb'))(DATA.clComb||[]).forEach(m=>{if(!m)return;
+  out.push(L({setor:'lenha',uid:'cm:'+m.id,data:dia(m.data)||diaIso(m.criadoEm),reg:m.criadoEm||'',g:'comb',tipo:'Combustível do fornecedor (à mão)',sent:'f',
+   item:(+m.quantidade>0?fQ(m.quantidade,m.unidade||'L')+' · ':'')+(lim(m.onde)||'Combustível'),valor:+m.valor||0,parte:lim(m.fornecedorNome)||nomeFornecedor(FORN(m.fornecedorId)),parteRot:'Fornecedor de lenha',
+   quem:quem(m.criadoPor),doc:lim(m.obs),cod:codDe('CBL',m.id),ref:'#/clComb',kind:'mod',mod:'clComb',id:m.id,rec:m,extra:[['Onde recebeu',m.onde],['Motorista',m.operador]]}))});
+ if(podeV('clProd'))(DATA.clProd||[]).forEach(m=>{if(!m)return;const alm=/almoxarifado/i.test(String(m.forma||''));
+  const oque=alm?fQ(m.quantidade,m.unidade==='unidade'?'un':m.unidade)+' de '+(lim(m.itemNome)||'item'):(lim(m.descricao)||'Outra coisa');
+  out.push(L({setor:'lenha',uid:'pp:'+m.id,data:dia(m.data)||diaIso(m.criadoEm),reg:m.criadoEm||'',g:'comb',tipo:'Pagamento com produto',sent:'f',item:oque,
+   valor:alm?r2((+m.quantidade||0)*(+m.precoUnit||0)):+m.valor||0,parte:lim(m.fornecedorNome)||nomeFornecedor(FORN(m.fornecedorId)),parteRot:'Fornecedor de lenha',
+   quem:quem(m.criadoPor),doc:lim(m.origemItem),cod:codDe('PP',m.id),ref:'#/clProd/'+m.id,kind:'mod',mod:'clProd',id:m.id,rec:m,
+   extra:[['De onde saiu',m.origemItem],['Quem recebeu',m.recebedor],['Entregue por',m.entregador],['Observação',m.obs]]}))});
+ if(podeV('clDesc'))(DATA.clDesc||[]).forEach(d=>{if(!d)return;
+  out.push(L({setor:'lenha',uid:'dl:'+d.id,data:dia(d.data)||diaIso(d.criadoEm),reg:d.criadoEm||'',g:'desc',tipo:'Desconto de lenha',sent:'f',
+   item:lim(String(d.origemTipo||'').replace(/ \(.*\)$/,''))||'Desconto',valor:+d.valor||0,parte:lim(d.fornecedorNome)||nomeFornecedor(FORN(d.fornecedorId)),parteRot:'Fornecedor',
+   quem:quem(d.criadoPor),doc:d.compraNumero?'Compra nº '+fNumV(d.compraNumero):lim(d.docRef),cod:codDe('DL',d.id),sit:lim(d.situacao),cancelado:d.situacao==='Cancelado',
+   ref:'#/clDesc/'+d.id,kind:'mod',mod:'clDesc',id:d.id,rec:d,extra:[['Motivo',d.motivo],['Autorizado por',d.autorizacao?lim(d.autorizacao.porNome)+(d.autorizacao.em?' em '+fDataHora(d.autorizacao.em):''):'']]}))});
+ if(podeV('clAcerto'))(DATA.clAcerto||[]).forEach(a=>{if(!a)return;const T=a.totais||{};
+  out.push(L({setor:'lenha',uid:'ac:'+a.id,data:dia(a.ate)||diaIso(a.criadoEm),reg:a.criadoEm||'',g:'desc',tipo:'Acerto de lenha',sent:'f',
+   item:'Acerto nº '+fNumV(a.numero)+' · '+(a.de?fData(a.de):'início')+' a '+fData(a.ate),valor:+T.liquido||+T.saldo||0,parte:lim(a.fornecedorNome),parteRot:'Fornecedor',
+   quem:quem(a.criadoPor),doc:'Acerto nº '+fNumV(a.numero),cod:'Acerto nº '+fNumV(a.numero),num:fNumV(a.numero),sit:lim(a.situacao),ref:'#/clAcerto',kind:'acerto',id:a.id,rec:a,
+   extra:[['Valor bruto',vz(T.bruto)?'':fMoeda(+T.bruto)],['Descontos',vz(T.descontos)?'':fMoeda(+T.descontos)]]}))});
+ /* o que a Central de Pagamentos do Financeiro encaminhou ao Setor da Lenha (adiantamentos, outros pagamentos) */
+ if(pode('setor-financeiro')&&window.CPG_FIN&&typeof CPG_FIN.encaminhadosAo==='function')seguro(()=>CPG_FIN.encaminhadosAo('lenha'),[]).forEach(o=>{const t=o.rec||{};const id=String(o.ref||'').replace(/^\w:/,'');
+  out.push(L({setor:'lenha',uid:'fe:'+o.ref,data:dia(o.lanc)||dia(o.venc)||diaIso(t.criadoEm),reg:t.criadoEm||'',g:'pag',tipo:'Pagamento pelo Financeiro',sent:'f',
+   item:lim(o.descricao)||'Pagamento',valor:+o.valor||0,parte:lim(o.benef),parteRot:'Para quem',quem:quem(o.resp),doc:o.num?'Compromisso '+o.num:'',cod:o.num||codDe('CF',id),
+   sit:seguro(()=>CPG_FIN.sitU(o),''),ref:/^t:/.test(String(o.ref||''))?'#/fTitulos/'+id:'',kind:'obrig',id,rec:t,oref:o.ref,extra:[['Vencimento',o.venc?fData(o.venc):'']]}))});
+ return out;
+}
+
+/* ---------- 4. Almoxarifado: os mesmos movimentos da tela de antes (movsAlm), com quem lançou, o estoque e o
+   empréstimo e a devolução das ferramentas (que não mudam o saldo, só mostram com quem estão) ---------- */
+const escCat=c=>c==='Cozinha'?'coz':c==='Limpeza'?'lim':'alm';
+function linhasAlm(){
+ const out=[];const A=window.ALMOX_V52,B=window.ALM_V56;if(!A||typeof A.movsAlm!=='function')return out;
+ const ITEM=id=>seguro(()=>A.ITEM(id),null)||{};const unI=i=>seguro(()=>A.un(i.unidade),lim(i.unidade));const rot=i=>seguro(()=>A.rotItem(i),lim(i.nome))||'Item';
+ const achar=(col,pre,k)=>(DATA[col]||[]).find(x=>x&&x.id&&k.indexOf(pre+x.id)===0)||null;
+ seguro(()=>A.movsAlm(),[]).forEach(m=>{try{
+  const k=String(m.k||'');const pre=k.charAt(0);const it=ITEM(m.itemId);const un=unI(it);const q=r3(m.q);const nome=lim(m.rot||m.tipo);
+  let g='aju',rec=null,kind='mod',mod='',parte='',parteRot='',ex=[];
+  if(pre==='e'){rec=achar('almEntradas','e',k);g='ent';kind='almEntrada';parte=rec?seguro(()=>B.nomeFornA(rec.fornecedorId),''):'';parteRot='Fornecedor';if(rec)ex=[['Nota',rec.nota]]}
+  else if(pre==='s'){rec=achar('almSaidas','s',k);g='req';kind='almSaida';if(rec){parte=lim(rec.solicitante)||lim(rec.setor);parteRot=rec.solicitante?'Entregue para':'Setor';ex=[['Setor',rec.setor],['Finalidade',rec.finalidade]]}}
+  else if(pre==='d'){rec=achar('almDevolucoes','d',k);g='dev';mod='almDevolucoes';parteRot='Devolvido por'}
+  else if(pre==='a'){rec=achar('almAjustes','a',k);mod='almAjustes';if(rec){g=rec.inventarioId?'aju':rec.tipo!=='saida'?'ent':'sai';parte=lim(rec.responsavel);parteRot=rec.tipo==='saida'?'Retirado por':'Trazido por';ex=[['Motivo',rec.motivo]]}}
+  else if(pre==='p'){rec=achar('almEpis','p',k);g='epi';mod='almEpis';if(rec){parte=nomeF(rec.funcId)||'';parteRot='Entregue para';ex=[['Motivo',rec.motivo]]}}
+  else if(pre==='m'){rec=achar('almEmprestimos','m',k);g='fer';mod='almEmprestimos';if(rec){parte=nomeF(rec.funcId)||'';parteRot='Estava com';ex=[['Observação',rec.devObs]]}}
+  else if(pre==='l'){rec=achar('clProd','l',k);g='lenha';mod='clProd';if(rec){parte=lim(rec.fornecedorNome);parteRot='Fornecedor de lenha'}}
+  if(pre==='d'&&!parte){const sd=rec&&(DATA.almSaidas||[]).find(x=>x.id===rec.saidaId);parte=sd?lim(sd.solicitante||sd.setor):''}
+  out.push(L({setor:'almox',uid:'a:'+k,data:dia(m.data),hora:hora(rec&&rec.hora),reg:(rec&&(rec.criadoEm||rec.createdAt))||lim(m.ord),g,g2:[q>0?'ent':'sai'].filter(x=>x!==g),
+   tipo:nome,sent:q>0?'e':/perdid|danific/i.test(nome)?'p':'s',est:true,pid:m.itemId||'',item:rot(it),un,qtd:q,valor:m.sv||!(Math.abs(+m.valor)>0)?null:m.valor,semValor:!!m.sv||!(Math.abs(+m.valor)>0),
+   parte,parteRot,quem:rec?quem(rec.criadoPor||rec.lancadoPor):'',doc:lim(m.doc),cod:rec?codDe({e:'EN',s:'RQ',d:'DV',a:'AJ',p:'EPI',m:'EF',l:'PP'}[pre]||'',rec.id):'',
+   ref:lim(m.href),kind:mod?'mod':kind,mod,id:rec?rec.id:'',rec,esc:escCat(it.categoria),extra:[['Categoria',it.categoria],...ex]}))
+ }catch(e){console.warn('movimentações: linha do almoxarifado',e)}});
+ if(podeV('almEmprestimos'))(DATA.almEmprestimos||[]).forEach(x=>{if(!x)return;const it=ITEM(x.itemId);const un=unI(it);const com=nomeF(x.funcId)||lim(x.setor)||'—';
+  const base={setor:'almox',g:'fer',sent:'n',pid:x.itemId||'',item:rot(it),un,qtd:+x.qtd||0,quem:quem(x.criadoPor),ref:'#/almEmprestimos/'+x.id,kind:'mod',mod:'almEmprestimos',id:x.id,rec:x,esc:escCat(it.categoria),cod:codDe('EF',x.id)};
+  out.push(L({...base,uid:'fe:'+x.id,data:dia(x.data),reg:x.criadoEm||'',tipo:'Ferramenta emprestada',qtdTxt:fQ(x.qtd,un)+' emprestada(s)',parte:com,parteRot:'Com quem',
+   extra:[['Devolver até',x.previsao?fData(x.previsao):''],['Setor',x.setor],['Saldo do estoque','não muda (a ferramenta volta)']]}));
+  if(x.devData&&!(x.devEstado==='Danificada'||x.devEstado==='Perdida'))out.push(L({...base,uid:'fd:'+x.id,data:dia(x.devData),reg:x.alteradoEm||'',tipo:'Ferramenta devolvida',
+   qtdTxt:fQ(x.qtd,un)+' devolvida(s)',parte:com,parteRot:'Devolvida por',extra:[['Estado',x.devEstado],['Observação',x.devObs]]}))});
+ return out;
+}
+
+/* ---------- 5. Produção: maromba, paradas, secador, enforna, desenforna e tijolo pronto ---------- */
+function linhasProd(){
+ const out=[];const P=window.PRODUCAO_SETOR||{};const T='tijolos';
+ const forno=id=>nomeLocal(LOCAL(id))||'Forno';const fornada=id=>(DATA.pfornadas||[]).find(f=>f.id===id)||null;
+ const minDe=h=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(h||''));return m?+m[1]*60+ +m[2]:null};
+ const durM=(a,b)=>{const x=minDe(a),y=minDe(b);return x==null||y==null?0:(y>=x?y-x:y+1440-x)};
+ const com=(r,o)=>({setor:'producao',data:dia(r.data)||diaIso(r.criadoEm),reg:r.criadoEm||'',quem:quem(r.criadoPor),id:r.id,rec:r,kind:'mod',sit:lim(r.situacao),...o});
+ if(podeV('pmaromba'))(DATA.pmaromba||[]).forEach(r=>{if(!r)return;const c=seguro(()=>P.calcMar(r),{})||{};
+  const liq=num(c.liquida!=null?c.liquida:r.liquida),br=num(c.bruta!=null?c.bruta:r.bruta),pe=num(r.perdas);
+  out.push(L(com(r,{uid:'ma:'+r.id,hora:hora(r.horaFim)||hora(r.horaInicio),g:'mar',g2:pe>0?['per']:null,tipo:'Produção da maromba',sent:'e',qtd:liq,un:T,qtdTxt:'+'+fQ(liq,T),
+   item:(lim(r.turno)||'Turno')+' · '+fQtd(num(r.grades))+' grade(s)',parte:lim(r.operador),parteRot:'Operador',perda:pe,mod:'pmaromba',ref:'#/pmaromba/'+r.id,cod:codDe('MA',r.id),
+   extra:[['Produção bruta',fQ(br,T)],['Perdas na maromba',pe?fQ(pe,T)+(r.motivoPerda?' · '+r.motivoPerda:''):''],['Tijolos por grade',num(r.porGrade)?fQtd(num(r.porGrade)):''],['Horário',r.horaInicio&&r.horaFim?r.horaInicio+' às '+r.horaFim:'']]})))});
+ if(podeV('pparadas'))(DATA.pparadas||[]).forEach(p=>{if(!p)return;const d=num(p.duracao)||durM(p.inicio,p.fim);const ref=!!p.refeicao||/refei|almo[cç]o|jantar|intervalo/i.test(String(p.motivo||''));
+  out.push(L(com(p,{uid:'pa:'+p.id,hora:hora(p.inicio),g:'par',tipo:ref?'Intervalo de refeição':'Parada da maromba',sent:'n',qtdTxt:fHm(d),item:lim(p.motivo)||'Parada',
+   parte:lim(p.turno),parteRot:'Turno',mod:'pparadas',ref:'#/pparadas/'+p.id,cod:codDe('PA',p.id),extra:[['Início',p.inicio],['Fim',p.fim],['Duração',fHm(d)],['Observação',p.obs]]})))});
+ if(podeV('psecmov'))(DATA.psecmov||[]).forEach(m=>{if(!m)return;const gr=num(m.grades)*num(m.porGrade);let tipo=lim(m.mov)||'Secador',sent='n',q=null,qt='',pe=0;
+  if(m.mov==='Entrada no secador'){sent='e';q=gr;qt='+'+fQ(gr,T)}
+  else if(m.mov==='Saída do secador'){sent='s';q=-gr;qt='−'+fQ(gr,T)}
+  else if(m.mov==='Perda'){sent='p';pe=num(m.quantidade);q=-pe;qt='−'+fQ(pe,T);tipo='Perda na secagem'}
+  else if(m.mov==='Ajuste'){q=num(m.delta);sent=q>=0?'e':'s';qt=sinal(q,T);tipo='Ajuste da secagem'}
+  else if(m.mov==='Contagem inicial'){qt=fQ(m.contado,T)+' contados';tipo='Contagem inicial da secagem'}
+  out.push(L(com(m,{uid:'sc:'+m.id,hora:hora(m.hora),g:'sec',g2:pe>0?['per']:null,tipo,sent,qtd:q,un:T,qtdTxt:qt,perda:pe,
+   item:gr?fQtd(num(m.grades))+' grade(s) × '+fQtd(num(m.porGrade)):(lim(m.motivo)||lim(m.justificativa)||'Secador'),parte:lim(m.responsavel),parteRot:'Responsável',
+   mod:'psecmov',ref:'#/psecmov/'+m.id,cod:codDe('SC',m.id),extra:[['Motivo',m.motivo],['Justificativa',m.justificativa],['Contado',vz(m.contado)?'':fQ(m.contado,T)],
+    ['Saldo antes',vz(m.anterior)?'':fQ(m.anterior,T)],['Saldo depois',vz(m.atual)?'':fQ(m.atual,T)]]})))});
+ if(podeV('pfornadas'))(DATA.pfornadas||[]).forEach(f=>{if(!f)return;const q=num(f.quantidade);
+  out.push(L(com(f,{uid:'fn:'+f.id,hora:hora(f.hora),g:'enf',tipo:'Enforna',sent:'t',qtd:q,un:T,qtdTxt:fQ(q,T)+' ('+fNum(q/1000,1)+' mil)',
+   item:forno(f.fornoId)+' · fornada nº '+(f.numero||'—'),parte:lim(f.responsavel),parteRot:'Responsável',sit:f.confirmacao==='Confirmada'?lim(f.situacao)||'Confirmada':lim(f.confirmacao),
+   mod:'pfornadas',ref:'#/pfornadas/'+f.id,cod:'Fornada nº '+(f.numero||'—'),num:String(f.numero||''),extra:[['Forno',forno(f.fornoId)],['Enforna',f.confirmacao]]})))});
+ if(podeV('pdesenf'))(DATA.pdesenf||[]).forEach(d=>{if(!d)return;const fo=fornada(d.fornadaId);
+  const pe=num(d.quebrados)+num(d.trincados)+num(d.outras);const tot=num(d.total)||(num(d.primeira)+num(d.segunda)+pe);
+  out.push(L(com(d,{uid:'df:'+d.id,hora:hora(d.hora),g:'des',g2:pe>0?['per']:null,tipo:'Desenforna',sent:'e',qtd:tot,un:T,qtdTxt:fQ(tot,T),perda:pe,
+   item:forno(d.fornoId||(fo&&fo.fornoId))+(fo?' · fornada nº '+(fo.numero||'—'):''),parte:lim(d.responsavel),parteRot:'Responsável',mod:'pdesenf',ref:'#/pdesenf/'+d.id,cod:codDe('DF',d.id),
+   extra:[['1ª qualidade',vz(d.primeira)?'':fQ(d.primeira,T)],['2ª qualidade',vz(d.segunda)?'':fQ(d.segunda,T)],['Perdas (quebrados, trincados e outras)',pe?fQ(pe,T):''],
+    ['O forno ficou vazio',d.fimDes==='sim'?'sim':d.fimDes==='nao'?'não':''],['Observação',d.obs]]})))});
+ if(podeV('pprontomov'))(DATA.pprontomov||[]).forEach(m=>{if(!m)return;let tipo='Tijolo pronto · '+lim(m.mov),sent='n',q=null,qt='',pe=0;const qq=num(m.quantidade);
+  if(m.mov==='Saída'){sent='s';q=-qq;qt='−'+fQ(qq,T);tipo='Saída do tijolo pronto'}
+  else if(m.mov==='Perda posterior'){sent='p';pe=qq;q=-qq;qt='−'+fQ(qq,T);tipo='Perda no pátio'}
+  else if(m.mov==='Ajuste'){q=num(m.delta);sent=q>=0?'e':'s';qt=sinal(q,T);tipo='Ajuste do tijolo pronto'}
+  else if(m.mov==='Contagem inicial'){qt='1ª '+fQtd(num(m.contado1))+' · 2ª '+fQtd(num(m.contado2));tipo='Contagem inicial do tijolo pronto'}
+  out.push(L(com(m,{uid:'tp:'+m.id,hora:hora(m.hora),g:'pro',g2:pe>0?['per']:null,tipo,sent,qtd:q,un:T,qtdTxt:qt,perda:pe,item:lim(m.qualidade)||'Tijolo pronto',
+   parte:lim(m.destino)||lim(m.responsavel),parteRot:m.destino?'Destino':'Responsável',mod:'pprontomov',ref:'#/pprontomov/'+m.id,cod:codDe('TP',m.id),
+   extra:[['Motivo',m.motivo],['Justificativa',m.justificativa],['Contado',vz(m.contado)?'':fQ(m.contado,T)]]})))});
+ return out;
+}
+
+/* ---------- 6. a lista de cada setor, com o saldo antes e depois de cada movimento de estoque ----------
+   O saldo corre na ordem dos lançamentos; só aparece quando a soma bate com o saldo de hoje do item. */
+const FONTES={
+ almox:()=>linhasAlm(),
+ combustivel:()=>[...linhasEstoqueCL('combustivel'),...linhasPagCompras('combustivel'),...linhasDespComb()],
+ lenha:()=>[...linhasEstoqueCL('lenha'),...linhasPagCompras('lenha'),...linhasLenhaExtra()],
+ producao:()=>linhasProd()};
+function saldoHoje(s,pid){return s==='almox'?seguro(()=>window.ALMOX_V52.estI(pid).saldo,null):seguro(()=>saldoP(pid),null)}
+function saldosCorridos(s,rows){
+ const por={};rows.forEach(r=>{if(r.est&&r.pid&&r.qtd!=null&&!isNaN(+r.qtd))(por[r.pid]=por[r.pid]||[]).push(r)});
+ Object.keys(por).forEach(pid=>{const xs=por[pid].sort((a,b)=>a.ord<b.ord?-1:a.ord>b.ord?1:0);let sd=0;
+  xs.forEach(r=>{r.sAntes=sd;sd=r3(sd+(+r.qtd||0));r.sDepois=sd});
+  const h=saldoHoje(s,pid);if(h==null||Math.abs(r3(h)-sd)>0.0015)xs.forEach(r=>{delete r.sAntes;delete r.sDepois})});
+}
+function montar(s){
+ let rows=[];try{rows=(FONTES[s]||(()=>[]))()}catch(e){console.warn('movimentações',e)}
+ if(s!=='producao')saldosCorridos(s,rows);
+ rows.forEach(r=>{r._b=N([r.tipo,r.item,r.parte,r.quem,r.doc,r.cod,r.sit,r.qtdTxt,r.valor!=null?fMoeda(r.valor):'',fData(r.data),...r.extra.map(x=>x[1])].join(' '))});
+ return rows.sort((a,b)=>a.ord<b.ord?1:a.ord>b.ord?-1:0);
+}
+
+/* ---------- 7. o comprovante da movimentação: um modelo só para todos os setores ---------- */
+function docOrigem(r){
+ const J=window.JB_DOCL;
+ try{switch(r.kind){
+  case 'mod':return J&&r.mod&&r.id?J.fazerDoc(r.mod,r.id)():null;
+  case 'compra':return r.setor==='lenha'&&typeof docEntregaLenhaV==='function'?docEntregaLenhaV(r.rec):typeof docOpV==='function'?docOpV(r.rec):null;
+  case 'pagamento':return typeof docRecebimentoV==='function'?docRecebimentoV(r.rec,r.pag):null;
+  case 'titulo':return J?J.docObrigF('t:'+r.id):null;
+  case 'obrig':return J&&r.oref?J.docObrigF(r.oref):null;
+  case 'almEntrada':return window.ALMOX_V52&&ALMOX_V52.docEntrada&&r.rec?ALMOX_V52.docEntrada(r.rec):null;
+  case 'almSaida':return window.ALMOX_V52&&ALMOX_V52.docSaida&&r.rec?ALMOX_V52.docSaida(r.rec):null;
+  case 'acerto':return window.CL112&&CL112.docAcerto&&r.rec?CL112.docAcerto(r.rec):null;
+ }}catch(e){console.warn('movimentações: documento de origem',e)}
+ return null;
+}
+/* detalhes do lançamento de origem: os quadros e as seções do documento dele, sem a empresa, sem o histórico e sem o registro (que o comprovante já tem) */
+function detalhes(O){
+ if(!O)return [];const e=(typeof CFG!=='undefined'&&CFG&&CFG.empresa)||{};const out=[];
+ const emp=new Set([e.razao,e.fantasia,e.cnpj,e.cnpj?'CNPJ '+e.cnpj:''].filter(Boolean).map(N));
+ const vazioT=v=>!lim(v)||lim(v)==='—';
+ (O.quadros||[]).forEach(q=>{const rot=lim(q&&q.rot);if(!q||/^PAR[AÂ]METROS$/i.test(rot))return;const cs=(q.campos||[]).filter(c=>c&&!vazioT(c[1]));
+  if(!cs.length||cs.some(c=>emp.has(N(c[1]))))return;out.push({tipo:'secao',titulo:cap(rot),campos:cs.map(c=>[lim(c[0]),lim(c[1]),c[2]?1:0])})});
+ (O.blocos||[]).forEach(b=>{if(!b)return;
+  if(b.tipo==='secao'){if(/registro no sistema|hist[oó]rico/i.test(lim(b.titulo)))return;out.push({...b});return}
+  if(b.tipo==='tabela'){if(/hist[oó]rico/i.test(lim((b.head||[]).join(' '))))return;out.push({...b});return}
+  if(b.tipo==='p'&&lim(b.texto))out.push({...b})});
+ return out;
+}
+function cupomMov(r,O,x){
+ let C0=null;try{C0=O?(O.cupom||(typeof cupomDeDoc==='function'?cupomDeDoc(O):null)):null}catch(e){C0=null}
+ const chave=(l,v)=>N(l)+'|'+N(v);const ja=new Set();
+ const mov=x.mov.filter(c=>c[0]!=='Tipo'&&c[0]!=='Sentido').map(c=>[c[0],lim(c[1])]);
+ const blocos=[{rot:'Movimentação',linhas:[...mov,...r.extra.map(([l,v])=>[l,v]),...(r.doc?[['Documento',lim(r.doc)]]:[])]}];
+ blocos[0].linhas.forEach(l=>ja.add(chave(l[0],l[1])));
+ if(C0){
+  if(C0.parte&&lim(C0.parte.nome)&&N(C0.parte.nome)!==N(r.parte))blocos.push({rot:lim(C0.parte.rot),linhas:[[lim(C0.parte.nome)],...(C0.parte.linhas||[]).filter(Boolean).map(l=>[lim(l)])]});
+  (C0.blocos||[]).forEach(b=>{if(!b||/registro no sistema|hist[oó]rico/i.test(lim(b.rot)))return;
+   const Ls=(b.linhas||[]).filter(l=>l&&!(l.length>1&&l[1]!=null&&ja.has(chave(l[0],l[1]))));if(Ls.length)blocos.push({rot:b.rot,linhas:Ls,...(b.nota?{nota:b.nota}:{})})});
+ }
+ blocos.push({rot:'Registro no sistema',linhas:[['Lançado por',r.quem||'—'],...(r.reg?[['Registrado em',fDataHora(r.reg)]]:[]),['Código',x.cod]]});
+ const C={kind:'movimentacao',para:'responsavel',tipo:'COMPROVANTE DE MOVIMENTAÇÃO',titulo:r.tipo,numero:r.num||x.cod,
+  id:[['Data',fData(r.data)+(r.hora?' '+r.hora:'')],['Setor',x.setor],['Sentido',x.sent]],cancelado:r.cancelado?'Lançamento cancelado':'',
+  parte:r.parte?{rot:r.parteRot||'Origem / destino',nome:r.parte,linhas:[]}:null,blocos,total:x.val?['VALOR',x.val]:null,obs:C0&&C0.obs?lim(C0.obs):'',
+  assinaturas:[{rot:'Responsável pelo lançamento',nome:r.quem||''},{rot:'Conferido por',sub:'Nome e assinatura'}],
+  mensagem:'Via de controle do setor',aviso:'Comprovante interno · não é documento fiscal',rodape:typeof agoraCp==='function'?agoraCp():''};
+ if(C0&&Array.isArray(C0.itens)&&C0.itens.length){C.itens=C0.itens;C.itensCab=C0.itensCab;C.itensCab2=C0.itensCab2;C.itensCabV=C0.itensCabV;if(C0.semValor)C.semValor=true}
+ return C;
+}
+function docMov(r){
+ const S=SETS[r.setor]||{};const e=(typeof CFG!=='undefined'&&CFG&&CFG.empresa)||{};const setor=nomeSetorDoc(S.doc)||S.nome||'';
+ const O=docOrigem(r);const cod=r.cod||codDe('MV',r.id||r.uid);const quando=r.data?fData(r.data)+(r.hora?' às '+r.hora:''):'';
+ const sent=SENT_T[r.sent]||'Registro';const qtd=r.qtdTxt||'';const val=r.valor!=null?fMoeda(r.valor):'';
+ const mov=[['Tipo',r.tipo],['Sentido',sent],['Item',r.item||'—',1],...(qtd?[['Quantidade',qtd]]:[]),...(val?[['Valor',val]]:[]),
+  ...(r.sAntes!=null?[['Saldo antes',fQ(r.sAntes,r.un)],['Saldo depois',fQ(r.sDepois,r.un)]]:[])];
+ const D=baseRel('COMPROVANTE DE MOVIMENTAÇÃO',setor+' · '+r.tipo,[]);
+ D.setor=setor;D.classe='comprovante';D.numero=r.num?'Nº '+r.num:cod;D.parteNome=r.parte||'';
+ D.meta=[['Data da movimentação',quando||'—'],['Tipo',r.tipo],['Situação',r.cancelado?'Cancelado':(r.sit||'Registrado')]];
+ D.quadros=[{rot:'MOVIMENTAÇÃO',campos:mov.filter(c=>c[0]!=='Tipo')},...(r.parte?[{rot:(r.parteRot||'Origem / destino').toUpperCase(),campos:[[r.parteRot||'Origem / destino',r.parte,1]]}]:[])];
+ const ind=[...(qtd?[['Quantidade',qtd,r.est?(r.qtd>0?'ok':r.qtd<0?'at':''):'']]:[]),...(val?[['Valor',val]]:[]),...(r.sDepois!=null?[['Saldo depois',fQ(r.sDepois,r.un)]]:[])];
+ if(ind.length>1)D.blocos.push({tipo:'indicadores',itens:ind.slice(0,4)});
+ if(r.cancelado)D.blocos.push({tipo:'aviso',texto:'LANÇAMENTO CANCELADO.'});
+ let n=0;const sec=(titulo,o)=>D.blocos.push({tipo:'secao',n:String(++n),titulo,...o});
+ sec('Movimentação',{campos:[...mov.map(c=>[c[0],lim(c[1]),c[2]||0]),...(r.parte?[[r.parteRot||'Origem / destino',r.parte,1]]:[]),...r.extra.map(([l,v])=>[l,v,v.length>40?1:0]),...(r.doc?[['Documento de origem',lim(r.doc),1]]:[])]});
+ const det=detalhes(O);
+ if(det.length){D.blocos.push({tipo:'p',texto:'Detalhes do lançamento de origem'+(O&&O.tipo?' ('+cap(O.tipo)+')':'')+', como estão gravados no sistema:'});
+  det.forEach(b=>D.blocos.push(b.tipo==='secao'?{...b,n:String(++n)}:b))}
+ sec('Registro no sistema',{campos:[['Lançado por',r.quem||'—'],...(r.reg?[['Registrado em',fDataHora(r.reg)]]:[]),['Código',cod],['Setor',setor]]});
+ D.assinaturas=[{nome:r.quem||'',sub:'Responsável pelo lançamento'},{nome:'',sub:'Conferido por (nome e assinatura)'}];
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(r.data||hoje())+'.';
+ D.notaFinal='Comprovante interno de movimentação, sem valor fiscal. Montado na hora a partir do lançamento gravado no '+(typeof SPOT_NOME!=='undefined'?SPOT_NOME:'sistema')+'; emitir este comprovante não altera nenhum dado.';
+ D.rodape='Comprovante de movimentação · '+r.tipo+' · '+cod;
+ D.arquivo='Movimentacao_'+nomeArq(S.doc||'setor')+'_'+nomeArq(r.data||'')+'_'+nomeArq(String(r.id||r.uid).slice(-6));
+ D.cupom=cupomMov(r,O,{cod,sent,val,mov,setor});
+ return D;
+}
+try{if(typeof FMT_PAD_DOC!=='undefined'&&!FMT_PAD_DOC.movimentacao)FMT_PAD_DOC.movimentacao='c80'}catch(e){}
+
+/* ---------- 8. a tela ---------- */
+const UI={};
+const est=s=>UI[s]||(UI[s]={g:'',q:'',de:'',ate:'',item:'',quem:'',esc:'',lim:PAG,rows:[]});
+const noGrupo=(r,g)=>!g||r.g===g||(!!r.g2&&r.g2.includes(g));
+const termos=q=>N(q).split(/\s+/).filter(Boolean);
+function filtrar(s,semGrupo){const U=est(s);const t=termos(U.q);
+ return U.rows.filter(r=>(!U.de||r.data>=U.de)&&(!U.ate||r.data<=U.ate)&&(!U.item||r.pid===U.item)&&(!U.quem||r.quem===U.quem)&&(!U.esc||r.esc===U.esc)
+  &&(!t.length||t.every(x=>r._b.includes(x)))&&(semGrupo||noGrupo(r,U.g)))}
+const BT=(a,i,l)=>`<button type="button" class="btn min" data-mva="${a}" data-tip="${esc(l)}" aria-label="${esc(l)}" title="${esc(l)}">${ic(i)}</button>`;
+const podeIr=r=>{const m=/^#\/([^/?#]+)/.exec(r.ref||'');return !!m&&!!PERM[m[1]]&&pode(m[1])};
+function linhaHtml(r,kardex){
+ const qc=r.est?(r.qtd>0?'e':r.qtd<0?'s':''):'';
+ return `<tr class="clic mv-ln" tabindex="0" data-mv="${esc(r.uid)}"><td data-l="Data">${esc(fData(r.data))}${r.hora?' · '+esc(r.hora):''}</td><td data-l="Tipo">${tag(r.tipo,TAG_S[r.sent]||'')}</td>
+  <td data-l="Item"><b>${esc(r.item||'—')}</b></td><td data-l="Quantidade" class="num"><span class="mv-qtd ${qc}">${esc(r.qtdTxt||'—')}</span></td>
+  ${kardex?`<td data-l="Saldo depois" class="num">${r.sDepois!=null?esc(fQ(r.sDepois,r.un)):'—'}</td>`:''}
+  <td data-l="Valor" class="num">${r.valor!=null?esc(fMoeda(r.valor)):r.semValor?'sem valor':'—'}</td><td data-l="Origem / destino">${esc(r.parte||'—')}</td>
+  <td data-l="Lançado por">${esc(r.quem||'—')}</td><td data-l="Documento">${esc(r.doc||r.cod||'—')}</td>
+  <td data-l="Ações" class="mv-acoes">${BT('ver','doc','Ver comprovante')}${BT('imp','imprimir','Imprimir comprovante')}${BT('pdf','baixar','Gerar PDF do comprovante')}${BT('comp','enviar','Compartilhar comprovante')}${podeIr(r)?BT('ir','direita','Ir para o lançamento'):''}</td></tr>`;
+}
+const somaUn=xs=>{const m={};xs.forEach(r=>{const k=r.un||'';m[k]=r3((m[k]||0)+Math.abs(+r.qtd||0))});return Object.entries(m).filter(([,q])=>q).map(([k,q])=>fQtd(q)+(k?' '+k:'')).join(' · ')||'0'};
+const somaV=xs=>r2(xs.reduce((a,r)=>a+(+r.valor||0),0));
+function resumoHtml(s,V){
+ const U=est(s);const b=(v,l)=>`<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`;const out=[];
+ if(s==='producao'){const q=g=>V.filter(r=>r.g===g);
+  out.push(b(fQtd(r3(q('mar').reduce((a,r)=>a+(+r.qtd||0),0))),'Produzido na maromba (tijolos)'),b(fQtd(r3(q('enf').reduce((a,r)=>a+(+r.qtd||0),0))),'Enfornado'),
+   b(fQtd(r3(q('des').reduce((a,r)=>a+(+r.qtd||0),0))),'Desenfornado'),b(fQtd(r3(V.reduce((a,r)=>a+(+r.perda||0),0))),'Perdas'),
+   b(fQtd(r3(-q('pro').filter(r=>r.sent==='s').reduce((a,r)=>a+(+r.qtd||0),0))),'Saiu do tijolo pronto'));
+  return `<div class="resumo">${out.join('')}</div>`}
+ if(U.item){const r0=V.find(r=>r.pid===U.item)||U.rows.find(r=>r.pid===U.item);const h=saldoHoje(s,U.item);if(r0&&h!=null)out.push(b(fQ(h,r0.un),'Saldo de hoje · '+r0.item))}
+ const ent=V.filter(r=>r.est&&+r.qtd>0),sai=V.filter(r=>r.est&&+r.qtd<0),fin=V.filter(r=>r.sent==='f');
+ out.push(b(String(V.length),'Lançamentos'),b(somaUn(ent),'Entrou'+(somaV(ent)?' · '+fMoeda(somaV(ent)):'')),b(somaUn(sai),'Saiu'+(somaV(sai)?' · '+fMoeda(somaV(sai)):'')));
+ if(s!=='almox')out.push(b(fMoeda(somaV(fin)),s==='combustivel'?'Despesas e pagamentos':'Pagamentos, descontos e acertos'));
+ return `<div class="resumo">${out.join('')}</div>`;
+}
+function desenhar(c,s){
+ const S=SETS[s],U=est(s);const base=filtrar(s,true);const V=base.filter(r=>noGrupo(r,U.g));
+ const gEl=c.querySelector('[data-mvg]');
+ if(gEl)gEl.innerHTML=[['','Tudo'],...S.grupos].map(([k,l])=>{const n=k?base.filter(r=>noGrupo(r,k)).length:base.length;const on=U.g===k;
+  return `<button type="button" data-mvgr="${k}" class="${on?'on':''}${n||on?'':' zero'}" aria-pressed="${on}">${esc(l)}<em>${n}</em></button>`}).join('');
+ const res=c.querySelector('[data-mvres]');if(!res)return;
+ const kardex=!!U.item&&s!=='producao';const vis=V.slice(0,U.lim);const resto=V.length-vis.length;
+ res.innerHTML=resumoHtml(s,V)+(V.length?`<div class="painel tabwrap"><table class="tbl cartao mv-tab" data-sem-total><thead><tr><th>Data</th><th>Tipo</th><th>Item</th><th class="num">Quantidade</th>${kardex?'<th class="num">Saldo depois</th>':''}<th class="num">Valor</th><th>Origem / destino</th><th>Lançado por</th><th>Documento</th><th>Ações</th></tr></thead>
+  <tbody>${vis.map(r=>linhaHtml(r,kardex)).join('')}</tbody></table></div>${resto>0?`<div class="mv-mais"><button type="button" class="btn" data-mvmais>Mostrar mais ${Math.min(PAG,resto)} (faltam ${resto})</button></div>`:''}
+  <p class="mv-dica">Toque num lançamento para ver o comprovante, com imprimir e PDF. Mais recentes primeiro.</p>`
+  :`<div class="vazio"><b>Nenhuma movimentação com estes filtros</b>${U.q||U.de||U.ate||U.item||U.quem||U.g||U.esc?'Mude ou limpe os filtros para ver as outras.':'As movimentações aparecem aqui assim que forem lançadas.'}</div>`);
+ try{if(typeof resolverNomes==='function')resolverNomes([...new Set(vis.map(r=>r.rec&&(r.rec.criadoPor||r.rec.lancadoPor)).filter(Boolean))])}catch(e){}
+}
+function exportarMov(btn,s){
+ const S=SETS[s],U=est(s);const V=filtrar(s,false);const G=S.grupos.find(g=>g[0]===U.g);
+ const cols=[{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'tipo',l:'Tipo'},{k:'item',l:'Item'},{k:'qtd',l:'Quantidade'},{k:'valor',l:'Valor',t:'moeda'},{k:'parte',l:'Origem / destino'},{k:'quem',l:'Lançado por'},{k:'doc',l:'Documento'},{k:'sit',l:'Situação'}];
+ const rows=V.map(r=>({data:r.data,hora:r.hora,tipo:r.tipo,item:r.item,qtd:r.qtdTxt,valor:r.valor==null?'':r.valor,parte:r.parte,quem:r.quem,doc:r.doc||r.cod,sit:r.sit}));
+ const per=U.de||U.ate?(U.de?fData(U.de):'início')+' a '+(U.ate?fData(U.ate):'hoje'):'todo o período';
+ const filtros=[G?'Tipo: '+G[1]:'',U.q?'Pesquisa: '+U.q:'',U.quem?'Lançado por: '+U.quem:'',U.item?(S.itemRot||'Item')+': '+((V[0]||{}).item||''):'','Período: '+per].filter(Boolean).join(' · ');
+ const fx=f=>exportar(f,'Movimentacoes_'+nomeArq(S.doc)+'_'+hoje(),cols,rows,'Movimentações · '+(nomeSetorDoc(S.doc)||S.nome),{filtros});
+ abrirMenuMais(btn,[{l:'Visualizar',sub:rows.length+' movimentação(ões), com os filtros da tela',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'no modelo dos documentos',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha para conferir',fn:()=>fx('xlsx')}]);
+}
+function acao(s,uid,a){
+ const r=est(s).rows.find(x=>x.uid===uid);if(!r){toast('Lançamento não encontrado: a lista foi atualizada. Toque de novo.','erro');return}
+ if(a==='ir'){if(r.ref&&podeIr(r))JBNAV.ir(r.ref);return}
+ const m={ver:'ver',imp:'imprimir',pdf:'pdf',comp:'compartilhar'}[a]||'ver';
+ if(typeof acaoDocumento==='function')acaoDocumento(()=>docMov(r),m);else verDoc(docMov(r));
+}
+function tela(c,s){
+ const S=SETS[s];const U=est(s);
+ if(!S||!pode(S.entrada)){c.innerHTML=`<div class="vazio"><b>Sem acesso a esta área</b>Seu perfil não inclui o ${esc(S?S.nome:'setor')}. Fale com o administrador.</div>`;return}
+ U.rows=montar(s);
+ const itens=[...new Map(U.rows.filter(r=>r.pid&&r.item).map(r=>[r.pid,r.item])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
+ const quems=[...new Set(U.rows.map(r=>r.quem).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ if(U.item&&!itens.some(x=>x[0]===U.item))U.item='';if(U.quem&&!quems.includes(U.quem))U.quem='';
+ c.innerHTML=`<div class="sec-cab mv-cab"><div class="sec-id"><span class="sec-ic">${ic('lupa')}</span><div><h1>${esc(S.tit)}</h1><p>${esc(S.desc)} Toque num lançamento para ver o comprovante.</p></div></div>
+  <div class="acoes"><button type="button" class="btn" data-mvexp>${ic('baixar')}Exportar ▾</button></div></div>
+  ${s==='almox'?`<div class="mv-chips mv-esc" role="group" aria-label="Estoque">${[['','Tudo'],['alm','Almoxarifado'],['coz','Cozinha'],['lim','Limpeza']].map(([k,l])=>`<button type="button" data-mvesc="${k}" class="${U.esc===k?'on':''}" aria-pressed="${U.esc===k}">${l}</button>`).join('')}</div>`:''}
+  <div class="mv-chips" data-mvg role="group" aria-label="Tipo de movimentação"></div>
+  <div class="fi-filtros mv-filtros"><input type="search" id="mvQ" class="mv-q" placeholder="${esc(S.busca)}" value="${esc(U.q)}" aria-label="Pesquisar nas movimentações" autocomplete="off">
+   <input type="date" id="mvDe" value="${esc(U.de)}" aria-label="De" title="De"><input type="date" id="mvAte" value="${esc(U.ate)}" aria-label="Até" title="Até">
+   ${S.itemRot?`<select id="mvI" aria-label="${esc(S.itemRot)}"><option value="">${esc(S.itemRot)}: todos</option>${itens.map(([v,l])=>`<option value="${esc(v)}"${v===U.item?' selected':''}>${esc(l)}</option>`).join('')}</select>`:''}
+   <select id="mvU" aria-label="Lançado por"><option value="">Lançado por: todos</option>${quems.map(q=>`<option value="${esc(q)}"${q===U.quem?' selected':''}>${esc(q)}</option>`).join('')}</select></div>
+  <div data-mvres></div>`;
+ const redesenhar=()=>{U.lim=PAG;desenhar(c,s)};
+ c.querySelectorAll('[data-mvesc]').forEach(b=>b.onclick=()=>{U.esc=b.dataset.mvesc;c.querySelectorAll('[data-mvesc]').forEach(x=>{const on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on)});redesenhar()});
+ const g=c.querySelector('[data-mvg]');g.onclick=e=>{const b=e.target.closest('[data-mvgr]');if(!b)return;U.g=b.dataset.mvgr;redesenhar()};
+ const q=c.querySelector('#mvQ');let tm=null;q.oninput=()=>{U.q=q.value;clearTimeout(tm);tm=setTimeout(redesenhar,150)};
+ const de=c.querySelector('#mvDe'),ate=c.querySelector('#mvAte');const per=()=>{U.de=de.value||'';U.ate=ate.value||'';redesenhar()};de.onchange=per;ate.onchange=per;
+ const si=c.querySelector('#mvI');if(si)si.onchange=()=>{U.item=si.value;redesenhar()};
+ const su=c.querySelector('#mvU');su.onchange=()=>{U.quem=su.value;redesenhar()};
+ const ex=c.querySelector('[data-mvexp]');ex.onclick=()=>exportarMov(ex,s);
+ const res=c.querySelector('[data-mvres]');
+ res.addEventListener('click',e=>{
+  if(e.target.closest('[data-mvmais]')){U.lim+=PAG;desenhar(c,s);return}
+  const a=e.target.closest('[data-mva]');if(a){e.preventDefault();e.stopPropagation();const tr=a.closest('tr[data-mv]');if(tr)acao(s,tr.dataset.mv,a.dataset.mva);return}
+  if(e.target.closest('.jbl-m,.lc-a,button,a,input,select,label'))return;
+  const tr=e.target.closest('tr[data-mv]');if(tr)acao(s,tr.dataset.mv,'ver')});
+ res.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('tr[data-mv]')){e.preventDefault();acao(s,e.target.dataset.mv,'ver')}});
+ desenhar(c,s);
+}
+
+/* ---------- 9. rotas, permissões e ligação com o que já existia ---------- */
+const acessoDe=k=>({v:((PERM[k]||{}).v||[]).slice(),e:[]});
+['movCombustivel','movLenha','movProducao'].forEach(k=>{if(typeof ROTAS_SETOR!=='undefined'&&!ROTAS_SETOR.includes(k))ROTAS_SETOR.push(k)});
+Object.assign(PERM,{movCombustivel:acessoDe('setor-combustivel'),movLenha:acessoDe('setor-lenha'),movProducao:acessoDe('setor-producao')});
+const naCL=(s,rota)=>el=>{if(typeof SV!=='undefined')SV=s;if(typeof marcarSetor==='function'&&typeof liberadoV==='function'&&liberadoV(s))marcarSetor(s);
+ shellV(el,rota,c=>{if(!APP.carregado){carregandoV(c);return}tela(c,s)},{setor:s})};
+TELAS_V.movCombustivel=naCL('combustivel','movCombustivel');
+TELAS_V.movLenha=naCL('lenha','movLenha');
+TELAS_V.movProducao=el=>{const P=window.PRODUCAO_SETOR;if(P&&typeof P.shellP==='function'){P.shellP(el,'movProducao',c=>tela(c,'producao'));return}
+ el.innerHTML='<div class="vazio"><b>Setor de Produção indisponível</b>Atualize a página.</div>'};
+/* Almoxarifado: a rota de sempre (#/almMov) monta a casca do setor e a tela nova entra no lugar da antiga.
+   O item escolhido em "Ver as movimentações deste item" (ficha do item e Estoque / Produtos) continua valendo. */
+if(typeof TELAS_V.almMov==='function'){const t0=TELAS_V.almMov;let ultItem='';
+ TELAS_V.almMov=function(el){const r=t0.apply(this,arguments);
+  try{const c=el.querySelector('#svCorpo');if(c&&APP.carregado){const si=c.querySelector('#amI');const it=si?si.value:'';
+   if(it!==ultItem){ultItem=it;const U=est('almox');U.item=it;if(it){U.g='';U.q='';U.de='';U.ate='';U.esc=''}}
+   tela(c,'almox')}}catch(e){console.error(e)}
+  return r}}
+/* "Ver as movimentações deste item" (ficha do item): abre a tela nova já filtrada no item, mesmo estando nela */
+if(window.ALMOX_V52&&typeof ALMOX_V52.verMov==='function'){const vm0=ALMOX_V52.verMov;
+ ALMOX_V52.verMov=function(id){const U=est('almox');Object.assign(U,{item:id||'',g:'',q:'',de:'',ate:'',esc:'',quem:'',lim:PAG});
+  const ja=typeof lerRota==='function'&&lerRota().mod==='almMov';const r=vm0.apply(this,arguments);if(ja){try{renderTela()}catch(e){}}return r}}
+window.JB_MOV=Object.freeze({SETS,montar,docMov,tela,linhas:s=>montar(s),estado:s=>est(s)});
 })();
 </script>
 </body>

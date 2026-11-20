@@ -203,14 +203,14 @@ try {
   await page.click('[data-xg]'); await page.waitForTimeout(200);
 
   // 11. movimentações
-  await ir('#/almMov', '#amT'); tx = await textoTela();
+  await ir('#/almMov', '[data-mvgr]'); tx = await textoTela();   /* V151: tela nova das movimentações */
   ok(/Entrada sem compra/.test(tx) && /Entrada \(compra\)/.test(tx) && /Saída \(requisição\)/.test(tx) && /EPI entregue/.test(tx), 'movimentações mostram compra, entrada sem compra, requisição e EPI entregue');
   ok(/para Funcionário Exemplo 1/.test(tx), 'a saída mostra para quem foi');
-  await page.selectOption('#amT', '+'); await page.waitForTimeout(300);
+  await page.click('[data-mvgr="ent"]'); await page.waitForTimeout(300);
   ok(!/Saída \(requisição\)|EPI entregue/.test(await page.innerText('#svCorpo table')), '"Todas as entradas" só mostra entradas');
-  await page.selectOption('#amT', ''); await page.click('[data-um="coz"]'); await page.waitForTimeout(300);
+  await page.click('[data-mvgr=""]'); await page.click('[data-mvesc="coz"]'); await page.waitForTimeout(300);
   tx = await page.innerText('#svCorpo table'); ok(/Feijão/.test(tx) && !/Rolamento|Luva/.test(tx), 'o botão Cozinha das movimentações mostra só a cozinha');
-  await foto('08-movimentacoes'); await page.click('[data-um=""]');
+  await foto('08-movimentacoes'); await page.click('[data-mvesc=""]');
 
   // 12. saldo em tabela: almoxarifado x cozinha, sem botão de inventário
   await ir('#/almEstoque', '#aeQ'); tx = await textoTela();

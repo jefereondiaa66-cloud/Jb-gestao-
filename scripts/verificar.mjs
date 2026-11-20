@@ -620,6 +620,23 @@ teste('lancamentos', 'V129: filtros e ações dos lançamentos num componente s�
   assert.ok(/@media print\{[^}]*\.jbl-m[^}]*display:none/.test(css), 'botões e menus do V129 não saem na impressão');
 });
 
+/* ---------- V151: Movimentações dos setores ---------- */
+teste('movimentacoes', 'V151: Movimentações do Almoxarifado, da Lenha, do Combustível e da Produção, só leitura e com o comprovante padrão', () => {
+  const app = ler('app/jb-gestao.html');
+  const m = /<script id="movimentacoes-v151">([\s\S]*?)<\/script>/.exec(app); assert.ok(m, 'bloco das movimentações');
+  assert.ok(app.includes('<style id="movimentacoes-v151-css">'), 'aparência');
+  const b = m[1];
+  for (const proibido of ['gravar(', 'apagar(', 'gravarRegistro(', 'bucketPut(', 'registrarLog(', 'salvarCfg(', 'localStorage']) assert.ok(!b.includes(proibido), 'o bloco é só leitura: não pode usar ' + proibido);
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  for (const r of ['TELAS_V.movCombustivel=', 'TELAS_V.movLenha=', 'TELAS_V.movProducao=', 'TELAS_V.almMov=function']) assert.ok(b.includes(r), 'rota ' + r);
+  assert.ok(b.includes("baseRel('COMPROVANTE DE MOVIMENTAÇÃO'") && b.includes("kind:'movimentacao'") && b.includes('acaoDocumento('), 'comprovante no gerador de documentos do sistema, com visualizar, imprimir, PDF e compartilhar');
+  assert.ok(app.includes("['#/movCombustivel','lupa','Movimentações',['movCombustivel'],'movCombustivel']") && app.includes("['#/movLenha','lupa','Movimentações',['movLenha'],'movLenha']"), 'Movimentações no menu da Lenha e do Combustível');
+  assert.ok(app.includes("{r:'#/movProducao',m:'setor-producao',ic:'lupa',l:'Movimentações',at:['movProducao']}") && /window\.PRODUCAO_SETOR=\{[^}]*shellP\}/.test(app), 'aba Movimentações na Produção');
+  assert.ok(app.indexOf('<script id="movimentacoes-v151">') > app.indexOf('<script id="lanc-filtros-v129">'), 'vem depois do padrão de lançamentos (V129)');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-movimentacoes.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
 teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
