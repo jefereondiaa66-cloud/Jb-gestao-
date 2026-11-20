@@ -1012,6 +1012,32 @@ teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, s
   if (ci) assert.ok(ci.includes('node scripts/testar-almox-produtos.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('fichas', 'Setor de Fichas e Documentação (V145): só a estrutura, sem ficha inventada, sem banco e sem painel', () => {
+  /* a pasta .github não vai para a publicação da nuvem: lá esta conferência do CI é pulada */
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  const m = /<script id="fichas-doc-v145">([\s\S]*?)<\/script>/.exec(app); assert.ok(m, 'bloco do setor');
+  assert.ok(app.includes('<style id="fichas-doc-v145-css">'), 'aparência do setor');
+  const b = m[1];
+  // setor no menu principal, rota de setor, tela e acesso só de leitura (não há o que editar)
+  assert.ok(b.includes("const ID='fichas',ROTA='setor-fichas',H='#/'+ROTA;") && b.includes("const NOME='Setor de Fichas e Documentação';"), 'nome e rota');
+  assert.ok(b.includes('PERM[ROTA]={v:[...TODOS,...PAP_NOVOS],e:[]};') && b.includes('if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);') && b.includes('TELAS_V[ROTA]=el=>telaFichas(el);'), 'acesso, rota e tela');
+  assert.ok(b.includes('SETORES.splice(i+1,0,card)') && b.includes('telaSetores=function(el){tsFD.apply(this,arguments);'), 'cartão na seleção de setores');
+  // nenhuma ficha, categoria, campo ou modelo por suposição
+  assert.ok(/\n const MODULOS=\[\];\n/.test(b) && /\n const CATEGORIAS=\[\];\n/.test(b) && !/(MODULOS|CATEGORIAS)\.(push|unshift|splice|concat)\(/.test(b), 'nenhuma ficha nem categoria cadastrada por suposição');
+  // EM BREVE: exatamente a lista do dono
+  const eb = /const EM_BREVE=\[([\s\S]*?)\];/.exec(b); assert.ok(eb, 'lista do que vem em breve');
+  assert.deepEqual(eb[1].match(/'[^']+'/g).map((x) => x.slice(1, -1)), ['Emissão e impressão de fichas', 'Preenchimento de fichas', 'Digitalização por scanner ou fotografia',
+    'Importação de arquivos e documentos', 'Leitura automática por OCR e inteligência artificial', 'Identificação de informações das fichas',
+    'Atualização automática dos setores correspondentes', 'Histórico e armazenamento digital', 'Integração com Produção, Lenha, Combustível, Vendas e demais setores']);
+  // não lê nem grava no banco, não guarda nada no navegador, não tem automação nem painel
+  assert.ok(!/\b(gravar|apagar|atualizar|gravarRegistro|salvarCfg|salvarPrefs|chamar|fetch)\s*\(/.test(b) && !/jbcore|execute_sql|localStorage|indexedDB|\bDATA\b/.test(b), 'o setor não lê nem grava dados');
+  assert.ok(!/\b(canvas|Chart|kpi|hero|setInterval)\b/.test(b), 'sem gráfico, indicador, painel ou rotina automática');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  // a página da ficha: as três partes; Emitir ficha em breve (só avisa)
+  assert.ok(b.includes('<h3>Últimas emitidas</h3>') && b.includes('<h3>Informações</h3>') && b.includes('aria-disabled="true" data-fd-emitir') && b.includes("b.onclick=()=>toast('Emitir ficha: em breve."), 'últimas emitidas, informações e Emitir ficha (em breve)');
+  if (ci) assert.ok(ci.includes('node scripts/testar-fichas.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

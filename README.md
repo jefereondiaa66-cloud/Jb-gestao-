@@ -39,6 +39,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-comprovante-lancamento.mjs` | V120: botão "Comprovante" em todo lançamento fora do Setor Pessoal (cupom 80/58 mm e folha A4), ficha dos cadastros e comprovante do compromisso do Financeiro ([docs/comprovante-lancamento-v120.md](docs/comprovante-lancamento-v120.md)) |
 | `node scripts/testar-contratos.mjs` | V125/V127: Contratos com IA de ponta a ponta (IA simulada): pedido livre direto para a redação, civil e trabalhista, edição, comandos na hora sem IA, pontos de atenção, tela fixa, PDF, assinatura, versões, renovar, aditivo, distrato e modelos ([docs/contratos-ia-v125.md](docs/contratos-ia-v125.md)) |
 | `node scripts/testar-acesso-setores.mjs` | nuvem com permissão por setor: quem só tem o Combustível vê os terceiros (guardados no Financeiro), quem só tem o Almoxarifado vê funcionários (só nome e função) e máquinas, e cada um só vê os setores dele ([docs/acesso-setores-2026-11-16.md](docs/acesso-setores-2026-11-16.md)) |
+| `node scripts/testar-fichas.mjs` | V145: Setor de Fichas e Documentação (estrutura inicial): cartão no menu principal, módulos em cartões, página da ficha (Últimas emitidas, Informações, Emitir ficha em breve), funções previstas EM BREVE, banco intacto ([docs/fichas-documentacao-v145.md](docs/fichas-documentacao-v145.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
@@ -54,4 +55,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/contas-pagar-lenha-2026-11-17.md`](docs/contas-pagar-lenha-2026-11-17.md) (Financeiro › Contas a pagar – Lenha) ·
 [`docs/financeiro-central-pagamentos-2026-11-17.md`](docs/financeiro-central-pagamentos-2026-11-17.md) (Financeiro: auditoria, Central de pagamentos e módulos) ·
 [`docs/comprovante-lenha-conta-2026-11-18.md`](docs/comprovante-lenha-conta-2026-11-18.md) (comprovante de entrega de lenha com o total devido ao fornecedor) ·
+[`docs/fichas-documentacao-v145.md`](docs/fichas-documentacao-v145.md) (Setor de Fichas e Documentação, estrutura inicial) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

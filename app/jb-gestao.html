@@ -46760,5 +46760,178 @@ html.casca2 .fi-filtros.cl-periodo.jbf>[data-per]{display:none!important}
  window.JB_LANC_FILTROS=Object.freeze({varrer,abrirCal,rotuloPer,rotuloMes});
 })();
 </script>
+<style id="fichas-doc-v145-css">
+/* ================= V145 · Setor de Fichas e Documentação: estrutura inicial (20/11/2026) =================
+   Só aparência das telas novas do setor. Usa as mesmas peças do início dos outros setores (c2-home,
+   c2-blk, c2-tiles) e das telas internas (sec-cab, bloco, vv-kv), nas cores do tema escolhido.
+   Sem painel, gráfico ou indicador. */
+/* no layout novo aparece a saudação do início do setor; no layout anterior, o cabeçalho da tela */
+html.casca2 .fd-corpo>.fd-cab-ini{display:none}
+html:not(.casca2) .fd-corpo>.fd-home{display:none}
+html.casca2 .fd-corpo>.fd-home{margin-bottom:22px}
+/* módulos: enquanto nenhuma ficha foi cadastrada, um aviso no lugar dos cartões */
+.fd-vazio{display:flex;gap:16px;align-items:flex-start;padding:20px 22px;border-radius:22px;background:var(--branco,#fff);border:1.5px dashed var(--linha,#E2E0EC);color:var(--tinta)}
+.fd-vz-ic{flex:none;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--brasa-bg,#FDECEC);color:var(--brasa,#D3121C)}
+.fd-vz-ic svg{width:26px;height:26px}
+.fd-vz-tx{min-width:0}
+.fd-vz-tx b{display:block;font-size:15.5px;font-weight:700;margin:3px 0 4px;color:var(--tinta)}
+.fd-vz-tx p{margin:0 0 14px;font-size:13.5px;line-height:1.55;color:var(--suave);max-width:760px}
+/* funções previstas: só a lista, marcada como EM BREVE */
+.fd-breve .c2-st{margin-bottom:6px}
+.fd-breve .c2-st h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fd-sub{margin:0 0 12px;font-size:13px;color:var(--suave)}
+.fd-chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.fd-chips li{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 13px 6px 10px;border-radius:16px;border:1px solid var(--linha);background:var(--branco);color:var(--suave);font-size:12.8px;font-weight:600;line-height:1.3}
+.fd-chips li svg{width:15px;height:15px;flex:none;color:var(--fraco)}
+/* página de cada ficha: últimas emitidas e informações lado a lado; Emitir ficha no alto */
+.fd-pag{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;align-items:start}
+.fd-pag>section.bloco,html.casca2 .fd-pag>section.bloco+section.bloco{margin:0}
+.fd-ult .ex-vazio small{display:block;color:var(--fraco);font-size:12.5px}
+.fd-info .vv-kv{grid-template-columns:minmax(0,1fr)}
+.fd-def{color:var(--fraco)}
+.btn.fd-emitir[aria-disabled="true"]{opacity:.55;cursor:not-allowed;box-shadow:none}
+.fd-tag{margin-left:6px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.24);color:inherit}
+@media (max-width:900px){.fd-pag{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){.fd-vazio{flex-direction:column;gap:12px;padding:18px}.fd-vz-tx .btn{width:100%;justify-content:center}}
+</style>
+<script id="fichas-doc-v145">
+"use strict";
+/* ================= V145 · Setor de Fichas e Documentação: estrutura inicial (20/11/2026) =================
+   Pedido do dono: um setor para as fichas, os documentos e os controles das operações da cerâmica,
+   construído por etapas. Nesta etapa só a estrutura e a navegação:
+   - acesso no menu principal (cartão na seleção de setores), na troca de setor e na pesquisa;
+   - página inicial simples, sem painel, gráfico, indicador ou resumo: os módulos de fichas em cartões,
+     no mesmo desenho do início dos outros setores;
+   - página de cada ficha: Últimas emitidas, Informações e o botão Emitir ficha;
+   - o que foi listado como possível no futuro aparece como EM BREVE, sem nenhuma função ligada.
+   Nenhuma ficha, categoria, campo ou modelo foi criado por suposição: uma ficha só entra na lista
+   MODULOS depois que o dono apresentar a finalidade, os campos, os movimentos e o setor responsável.
+   Este bloco não lê, não grava e não apaga nada no banco, não cria coleção e não mexe em outro setor. */
+(function(){
+ if(typeof SETORES==='undefined'||typeof TELAS_V==='undefined'||typeof PERM==='undefined'||typeof ROTAS_SETOR==='undefined')return;
+ const ID='fichas',ROTA='setor-fichas',H='#/'+ROTA;
+ const NOME='Setor de Fichas e Documentação';
+ const DESC='Central das fichas, documentos e controles usados nas operações da cerâmica.';
+ const EST='estrutura';   /* mostra como fica a página de cada ficha, enquanto nenhuma foi cadastrada */
+
+ /* ---------- fichas do setor: cada uma vira um módulo (cartão) no início do setor ----------
+    Vazia de propósito: as fichas serão apresentadas uma a uma pelo dono. Quando uma for definida,
+    entra aqui assim: {id, nome, ic, cor, cat, desc, identificacao, finalidade, campos:[], movimentos:[], setor} */
+ const MODULOS=[];
+ /* categorias (opcional): quando o dono definir, viram os filtros acima dos cartões, como no Setor Pessoal.
+    Vazia de propósito. Formato: {id, nome, cor} */
+ const CATEGORIAS=[];
+
+ /* ---------- possibilidades para o futuro, listadas pelo dono: só aparecem, como EM BREVE ---------- */
+ const EM_BREVE=['Emissão e impressão de fichas','Preenchimento de fichas','Digitalização por scanner ou fotografia',
+  'Importação de arquivos e documentos','Leitura automática por OCR e inteligência artificial','Identificação de informações das fichas',
+  'Atualização automática dos setores correspondentes','Histórico e armazenamento digital','Integração com Produção, Lenha, Combustível, Vendas e demais setores'];
+
+ Object.assign(IC,{fdFicha:'<rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h1.5A1.5 1.5 0 0 1 19 6v13.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5V6a1.5 1.5 0 0 1 1.5-1.5H8"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/>'});
+
+ /* ---------- acesso: o mesmo de um setor novo (todos os perfis dos setores enxergam; nada para editar ainda) ---------- */
+ PERM[ROTA]={v:[...TODOS,...PAP_NOVOS],e:[]};
+ if(!ROTAS_SETOR.includes(ROTA))ROTAS_SETOR.push(ROTA);
+ try{if(typeof ICONE_TELA==='object'&&ICONE_TELA)ICONE_TELA[ROTA]='fdFicha'}catch(e){}
+ if(!SETORES.some(s=>s.id===ID)){
+  const card={id:ID,nome:NOME,ic:'fdFicha',rota:H,v:()=>pode(ROTA),desc:DESC};
+  const i=SETORES.findIndex(s=>s.id==='control');if(i>=0)SETORES.splice(i+1,0,card);else SETORES.push(card);
+ }
+ const resumo=()=>MODULOS.length?MODULOS.length+(MODULOS.length===1?' ficha disponível':' fichas disponíveis'):'Nenhuma ficha cadastrada ainda';
+ const tsFD=telaSetores;
+ telaSetores=function(el){tsFD.apply(this,arguments);
+  try{const b=el.querySelector(`[data-setor="${ID}"]`);if(!b)return;const card=b.closest('.spot-card');
+   if(card&&!card.querySelector('.spot-info')){const sp=document.createElement('span');sp.className='spot-info';sp.textContent=resumo();b.before(sp)}}catch(e){console.warn('fichas: cartão do setor',e)}};
+
+ /* ---------- pesquisa do topo: o setor (e, depois, cada ficha) aparece em Telas ---------- */
+ if(typeof pqEntradas==='function'&&typeof pqN==='function'){
+  const pq0=pqEntradas;
+  pqEntradas=function(){const E=pq0.apply(this,arguments);
+   try{if(pode(ROTA)&&!E.some(e=>e.h===H)){
+    E.push({g:'Telas',t:NOME,s:'Setor · fichas, documentos e controles',ic:'fdFicha',k:pqN(NOME+' setor ficha fichas documento documentos documentacao controles'),h:H,ir:()=>JBNAV.ir(H),ix:E.length});
+    MODULOS.forEach(m=>{const h=H+'/'+encodeURIComponent(m.id);E.push({g:'Telas',t:m.nome,s:NOME,ic:m.ic||'fdFicha',k:pqN(m.nome+' ficha '+NOME),h,ir:()=>JBNAV.ir(h),ix:E.length})})}}
+   catch(e){console.warn('fichas: pesquisa',e)}
+   return E};
+ }
+
+ /* ---------- textos do início (os mesmos dos outros setores) ---------- */
+ const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+ const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+ const hojeTxt=()=>{const d=new Date();const t=DIAS[d.getDay()]+', '+d.getDate()+' de '+MESES[d.getMonth()];return t.charAt(0).toUpperCase()+t.slice(1)};
+ const saud=()=>{const h=new Date().getHours();return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite'};
+ const primeiro=n=>String(n||'').trim().split(/\s+/)[0]||'';
+ const comSaud=()=>!(typeof CFG!=='undefined'&&CFG&&CFG.inicioDP&&CFG.inicioDP.saudacao===false);
+ const hrefMod=m=>H+'/'+encodeURIComponent(m.id);
+ const lista=v=>Array.isArray(v)?v.filter(Boolean).join(', '):String(v||'');
+
+ /* ---------- casca do setor: o mesmo envelope dos outros setores (o topo novo lê o nome e as telas daqui) ---------- */
+ function casca(el,ativa){
+  const abas=[{h:H,l:'Início',i:'c2casa',on:ativa===''},...MODULOS.map(m=>({h:hrefMod(m),l:m.nome,i:m.ic||'fdFicha',on:m.id===ativa}))];
+  el.innerHTML=`<div class="spot sv fd" id="fd-raiz"><div class="sv-topo">${cabSpot(NOME,razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores">${ic('esquerda')}<span>Setores</span></a>`)}
+  <nav class="dir-abas sv-abas" aria-label="Telas do ${esc(NOME)}">${abas.map(a=>`<a class="dir-aba${a.on?' on':''}" href="${a.h}"${a.on?' aria-current="page"':''}>${ic(a.i)}<span>${esc(a.l)}</span></a>`).join('')}</nav></div>
+  <main class="sv-corpo fd-corpo" id="svCorpo"></main></div>`;
+  return el.querySelector('#svCorpo');
+ }
+
+ /* ---------- início do setor: só os módulos de fichas (e o que vem em breve) ---------- */
+ function inicio(c){
+  const nm=primeiro(typeof APP!=='undefined'&&APP?APP.nome:'');
+  const cartoes=MODULOS.map(m=>`<a class="c2-tile c2-c-${esc(m.cor||'ind')}" href="${hrefMod(m)}" data-k="${esc(m.id)}"${m.cat?` data-fdcat="${esc(m.cat)}"`:''} data-tip2="${esc(m.nome)}"><span class="c2-ti">${ic(m.ic||'fdFicha')}</span><b>${esc(m.nome)}</b></a>`).join('');
+  const cats=CATEGORIAS.filter(k=>MODULOS.some(m=>m.cat===k.id));
+  const chips=cats.length?`<div class="c2-chips" role="group" aria-label="Categorias de fichas"><button type="button" class="c2-chip on" data-fdcat="">Todas</button>${cats.map(k=>`<button type="button" class="c2-chip c2-c-${esc(k.cor||'ind')}" data-fdcat="${esc(k.id)}"><i></i>${esc(k.nome)}</button>`).join('')}</div>`:'';
+  const vazio=`<div class="fd-vazio"><span class="fd-vz-ic">${ic('fdFicha')}</span><div class="fd-vz-tx"><b>Nenhuma ficha cadastrada ainda</b>
+    <p>Cada ficha entra aqui como um módulo quando o modelo dela for apresentado: finalidade, campos, movimentos e setor responsável. Ao abrir o módulo, aparecem as últimas emitidas, as informações da ficha e o botão Emitir ficha.</p>
+    <a class="btn" href="${H}/${EST}">${ic('olho')}Ver como fica a página de uma ficha</a></div></div>`;
+  c.innerHTML=`<div class="sec-cab fd-cab-ini"><div class="sec-id"><span class="sec-ic">${ic('fdFicha')}</span><div><h1>${esc(NOME)}</h1><p>${esc(DESC)}</p></div></div></div>
+  <section class="c2-home c2-home-set fd-home"><div class="c2-ola"><div><h1>${comSaud()?esc(saud())+', '+esc(nm&&nm!=='Você'?nm:'bem-vindo'):esc(NOME)}</h1><p>${esc(hojeTxt())} • ${esc(NOME)} hoje</p><p class="c2-desc">${esc(DESC)}</p></div></div></section>
+  <section class="c2-blk c2-acesso fd-mods" aria-label="Módulos de fichas"><div class="c2-st"><h2>Módulos</h2>${chips}</div>
+   ${MODULOS.length?`<div class="c2-tiles">${cartoes}</div>`:vazio}</section>
+  <section class="c2-blk fd-breve" aria-label="Funções previstas"><div class="c2-st"><h2>Funções previstas <span class="fi-breve-tag">Em breve</span></h2></div>
+   <p class="fd-sub">Possibilidades para este setor no futuro. Nenhuma está ativa por enquanto.</p>
+   <ul class="fd-chips">${EM_BREVE.map(t=>`<li>${ic('relogio')}<span>${esc(t)}</span></li>`).join('')}</ul></section>`;
+  /* filtro por categoria: só esconde e mostra os cartões */
+  c.querySelectorAll('.fd-mods .c2-chip[data-fdcat]').forEach(b=>b.onclick=()=>{const k=b.dataset.fdcat;
+   c.querySelectorAll('.fd-mods .c2-chip').forEach(x=>x.classList.toggle('on',x===b));
+   c.querySelectorAll('.fd-mods .c2-tile').forEach(t=>t.classList.toggle('c2-oculto',!!k&&t.dataset.fdcat!==k))});
+ }
+
+ /* ---------- página de uma ficha: Últimas emitidas, Informações e Emitir ficha ----------
+    Sem ficha (M nulo) é a página de estrutura: as mesmas partes, vazias, só para ver como fica. */
+ function paginaFicha(c,M){
+  const nome=M?M.nome:'Como fica a página de uma ficha';
+  const desc=M?(M.desc||''):'Quando uma ficha for cadastrada, a página dela terá estas três partes: as últimas emitidas, as informações da ficha e o botão Emitir ficha. Nada aqui é registrado.';
+  const info=[['Identificação',M&&(M.identificacao||M.nome)],['Finalidade',M&&M.finalidade],['Campos',M&&lista(M.campos)],['Movimentos',M&&lista(M.movimentos)],['Setor responsável',M&&M.setor]];
+  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(M&&M.ic||'fdFicha')}</span><div><h1>${esc(nome)}</h1>${desc?`<p>${esc(desc)}</p>`:''}</div></div>
+   <div class="acoes"><button type="button" class="btn pri fd-emitir" aria-disabled="true" data-fd-emitir>${ic('mais')}Emitir ficha<span class="fd-tag">Em breve</span></button></div></div>
+  <div class="fd-pag">
+   <section class="bloco fd-ult" aria-label="Últimas emitidas"><h3>Últimas emitidas</h3><div class="ex-vazio">Nenhuma ficha emitida.<small>As fichas emitidas aparecem aqui, da mais recente para a mais antiga.</small></div></section>
+   <section class="bloco fd-info" aria-label="Informações"><h3>Informações</h3><dl class="vv-kv">${info.map(([t,v])=>`<div><dt>${esc(t)}</dt><dd>${v?esc(v):'<span class="fd-def">A definir</span>'}</dd></div>`).join('')}</dl></section>
+  </div>`;
+  const b=c.querySelector('[data-fd-emitir]');
+  if(b)b.onclick=()=>toast('Emitir ficha: em breve. A emissão vai ser feita quando o modelo desta ficha for definido.');
+ }
+ function naoEncontrada(c){
+  c.innerHTML=`<div class="vazio"><b>Ficha não encontrada</b>Este endereço não corresponde a nenhuma ficha do setor.<div class="vazio-acoes"><a class="btn pri" href="${H}">${ic('esquerda')}Voltar ao início do setor</a></div></div>`;
+ }
+
+ /* ---------- rota: #/setor-fichas, #/setor-fichas/<ficha> e #/setor-fichas/estrutura ---------- */
+ let ULT='';
+ function telaFichas(el){
+  const h=location.hash,chave=h+'|'+((typeof APP!=='undefined'&&APP&&APP.nome)||'')+'|'+comSaud();
+  if(ULT===chave&&el.querySelector('#fd-raiz'))return;   /* dados de outros setores mudaram: esta tela não depende deles */
+  if(typeof marcarSetor==='function')marcarSetor(ID);
+  const r=lerRota();let id='';try{id=r.id?decodeURIComponent(r.id):''}catch(e){id=String(r.id||'')}
+  if(id===EST&&MODULOS.length){JBNAV.subst(H);return}   /* com fichas cadastradas, a página de estrutura não é mais necessária */
+  const M=id?MODULOS.find(m=>m.id===id)||null:null;
+  ULT=chave;
+  const c=casca(el,id?(M?M.id:null):'');
+  if(!id)inicio(c);else if(M||id===EST)paginaFicha(c,M);else naoEncontrada(c);
+ }
+ TELAS_V[ROTA]=el=>telaFichas(el);
+
+ /* para os testes */
+ window.JB_FICHAS_DOC=Object.freeze({ID,ROTA,NOME,EST,MODULOS,CATEGORIAS,EM_BREVE});
+})();
+</script>
 </body>
 </html>
