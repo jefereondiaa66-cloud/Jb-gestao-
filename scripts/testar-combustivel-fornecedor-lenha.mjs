@@ -136,7 +136,7 @@ try {
     SV = 'lenha'; location.hash = '#/clAPagar'; await T.esperar(() => /Valores a pagar/.test((document.querySelector('.sec-cab h1') || {}).textContent || ''));
     const apagar = document.querySelector('#svCorpo').textContent;
     location.hash = '#/setor-lenha'; await T.esperar(() => document.querySelector('.cbl-ini'));
-    const ini = document.querySelector('.cbl-ini').textContent; const kpiL = [...document.querySelectorAll('.kpi')].some((k) => /Combustível dos fornecedores/.test(k.textContent));
+    const ini = document.querySelector('.cbl-ini').textContent; const kpiL = [...document.querySelectorAll('.kpi')].some((k) => /Combustível e produtos dos fornecedores/.test(k.textContent));
     location.hash = '#/compra/' + DATA.compras.find((x) => x.tipoOp === 'compra' && x.setor === 'lenha').id; await T.esperar(() => document.querySelector('.cbl-compra'), 6000).catch(() => {});
     const compra = (document.querySelector('.cbl-compra') || {}).textContent || '';
     return { kpi: kpi ? kpi.textContent : '', bloco, tela, apagar, ini, kpiL, compra };
@@ -146,7 +146,7 @@ try {
   ok(/Fornecedor Lenha A/.test(telas.tela) && /Descontado/.test(telas.tela), 'tela “Combustível para lenha” com o abastecimento e a situação do desconto');
   ok(/1\.600,00/.test(telas.apagar) && /500,00/.test(telas.apagar) && /1\.100,00/.test(telas.apagar), 'Valores a pagar: compras R$ 1.600,00 − combustível R$ 500,00 = resta R$ 1.100,00');
   ok(telas.kpiL && /Resta R\$\s?1\.100,00/.test(telas.ini), 'início do Setor da Lenha: painel “Combustível dos fornecedores” com o que resta a pagar');
-  ok(/Combustível do fornecedor/.test(telas.compra) && /1\.100,00/.test(telas.compra), 'a compra mostra o combustível descontado e quanto falta');
+  ok(/Combustível e produtos do fornecedor/.test(telas.compra) && /1\.100,00/.test(telas.compra), 'a compra mostra o combustível descontado e quanto falta');
 
   /* 4. passou do que está em aberto: vira crédito e desconta sozinho da próxima compra */
   const cred = await page.evaluate(async () => {
@@ -205,10 +205,10 @@ try {
     return { tComb: R.T.comb, tSaldo: R.T.saldo, combs: R.combs.length, tela, liq: a.totais.liquido, comb: a.totais.comb, lista: (a.combustivel || []).length, fixo, docTxt, trava, saldo, depois, apagar, id: a.id };
   });
   ok(ac.tComb === 1700 && ac.tSaldo === 900 && ac.combs === 2, `acerto: combustível R$ ${ac.tComb} já descontado, saldo R$ ${ac.tSaldo}`);
-  ok(/Combustível do fornecedor/.test(ac.tela), 'tela do acerto mostra o combustível do fornecedor');
+  ok(/Combustível e produtos do fornecedor/.test(ac.tela), 'tela do acerto mostra o combustível do fornecedor');
   ok(ac.liq === 900 && ac.comb === 1700 && ac.lista === 2, `acerto fechado: líquido R$ ${ac.liq}, combustível guardado no acerto`);
   ok(ac.fixo === 1700 && ac.saldo === 900, 'o combustível virou abatimento fixo das compras, sem contar duas vezes');
-  ok(/Combustível do fornecedor/.test(ac.docTxt) && /1\.700,00/.test(ac.docTxt), 'demonstrativo do acerto com o combustível (data, quantidade e valor)');
+  ok(/Combustível e produtos do fornecedor/.test(ac.docTxt) && /1\.700,00/.test(ac.docTxt), 'demonstrativo do acerto com o combustível (data, quantidade e valor)');
   ok(/acerto de lenha nº/.test(ac.trava), 'abastecimento que entrou em acerto fechado não pode ser excluído');
   ok(ac.depois.saldo === 400 && ac.depois.credito === 0 && ac.depois.liq === 900, `combustível depois do acerto fechado desconta do que falta pagar: R$ 900 − R$ 500 = R$ ${ac.depois.saldo} (o acerto continua com líquido R$ ${ac.depois.liq})`);
   ok(/500,00/.test(ac.apagar) && /400,00/.test(ac.apagar), 'Valores a pagar mostra o combustível descontado e o que resta (R$ 400,00)');
