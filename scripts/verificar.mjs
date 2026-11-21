@@ -650,6 +650,24 @@ teste('movimentacoes', 'V151: Movimentações do Almoxarifado, da Lenha, do Comb
   if (ci) assert.ok(ci.includes('node scripts/testar-movimentacoes.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+/* ---------- V152: variação de vendas por vendedor ---------- */
+teste('variacoes', 'V152: variação de vendas por vendedor na aba Variações de Vendas, só leitura e sem mexer nas variações (V73) nem no Setor de Vendas', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['<style id="variacoes-vendedor-v152-css">', '<script id="variacoes-vendedor-v152">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const m = /<script id="variacoes-vendedor-v152">([\s\S]*?)<\/script>/.exec(app); const b = m[1];
+  assert.ok(app.indexOf('<script id="variacoes-vendedor-v152">') > app.indexOf('<script id="variacoes-v73">'), 'vem depois das variações (V73), que ele completa');
+  for (const proibido of ['gravar(', 'apagar(', 'atualizar(', 'gravarRegistro(', 'bucketPut(', 'registrarLog(', 'salvarCfg(', 'salvarPrefs(', 'localStorage', 'APP.db', 'jbcore', 'execute_sql', 'fetch(']) assert.ok(!b.includes(proibido), 'a seção só lê: não pode usar ' + proibido);
+  assert.ok(!/\bDATA\b/.test(b), 'a seção não mexe nos dados carregados (lê as vendas por vendasFatV)');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  assert.ok(b.includes("const ROTA='setor-variacoes',SETOR='vendas',TITULO='Variação de vendas por vendedor';") && b.includes('const t0=TELAS_V[ROTA];') && b.includes('vendasFatV({ini:P.A.ini,fim:P.A.fim})'), 'na aba Variações de Vendas, com as mesmas vendas faturadas do cartão Faturamento');
+  // as variações (V73) continuam com a mesma rota, as mesmas peças e o mesmo acesso (V85), sem nada da seção nova
+  const v73 = /<script id="variacoes-v73">([\s\S]*?)<\/script>/.exec(app); assert.ok(v73, 'bloco das variações (V73)');
+  assert.ok(v73[1].includes("const ROTA='setor-variacoes',ROTA_DP='dpvariacoes';") && v73[1].includes('window.VARIACOES_V73={SETS,ORDEM,setorVisivel,setoresVisiveis,val,comparar,fmt,VR,veVariacoes};') && v73[1].includes("const SO_ESTES=['u_FZmOBZqQYLD0VE7xkGL8AA','u_IUQfnrH8QROQdTs42EhcUQ'];"), 'variações (V73/V85) com a mesma rota, as mesmas peças e o mesmo acesso');
+  assert.ok(!v73[1].includes('vvd') && !v73[1].includes('V152'), 'o bloco das variações (V73) não foi mexido para a seção nova');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-variacoes-vendedor.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
 teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
