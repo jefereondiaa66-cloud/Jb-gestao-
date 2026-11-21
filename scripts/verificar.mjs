@@ -113,6 +113,8 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     assert.ok(![...pagina.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)].some((m) => !/\bsrc=/.test(m[1] || '') && m[2].length >= 2000), 'sobrou bloco grande dentro da página');
     for (const n of nojs) assert.equal(sha256(readFileSync(join(tmp, 'dist', n), 'utf8')).slice(0, 16), n.slice(3, 19), 'nome do arquivo não confere com o conteúdo: ' + n);
     assert.ok(pagina.indexOf('jb-nuvem.js') < pagina.indexOf('<script id="spot-guarda"'), 'o adaptador da nuvem precisa carregar antes do programa (página separada)');
+    /* o vigia de arquivo faltando (nuvem/cabecalho.html) fica dentro da página e antes de todos os arquivos js/ */
+    assert.ok(pagina.indexOf("K='jb_recarga_js'") > 0 && pagina.indexOf("K='jb_recarga_js'") < pagina.indexOf(' src="js/'), 'o vigia de arquivo faltando precisa estar na página, antes dos arquivos js/');
     const nuvem = juntarScripts(pagina, (n) => readFileSync(join(tmp, 'dist', n), 'utf8'));
     const claude = readFileSync(join(tmp, 'saida/claude.html'), 'utf8');
     assert.match(v.site, /^[0-9a-f]{12}$/);

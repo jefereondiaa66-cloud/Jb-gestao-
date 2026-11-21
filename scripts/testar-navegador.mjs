@@ -156,7 +156,33 @@ try {
   ok(await p2.$('#jbl') !== null, 'versão da nuvem abre na tela de login');
   ok(await p2.evaluate(() => !(window.JB_CORE_PONTE && window.JB_CORE_PONTE.api.estado().modo === 'central')), 'na nuvem a ponte do Claude fica desligada');
   ok(await p2.evaluate(() => !!window.JB_NUVEM_API && typeof window.JB_NUVEM_API.fiscal === 'function'), 'na nuvem o Setor Fiscal tem a ligação com a função jb-fiscal');
+  /* 21/11/2026: na nuvem o programa vem em arquivos js/; confere que todos carregaram e rodaram */
+  await p2.waitForFunction(() => typeof iniciar === 'function' && typeof APP !== 'undefined', null, { timeout: 15000 }).catch(() => {});
+  ok(await p2.evaluate(() => typeof iniciar === 'function' && typeof APP !== 'undefined' && !document.getElementById('jbfaltou')), 'na nuvem o programa inteiro carregou (arquivos js/)');
+  const relevantes2 = erros2.filter((m) => !/Chart|XLSX|jspdf|jsPDF|Failed to fetch|NetworkError|net::|supabase/i.test(m));
+  ok(relevantes2.length === 0, `na nuvem, sem erros de JavaScript${relevantes2.length ? ': ' + relevantes2.slice(0, 3).join(' | ') : ''}`);
   await ctx2.close();
+
+  /* arquivo do programa faltando na abertura (ex.: versão nova publicada no meio): recarrega uma vez e abre inteiro */
+  const jsNuvem = [...readFileSync(join(RAIZ, 'dist/index.html'), 'utf8').matchAll(/ src="(js\/[0-9a-f]{16}\.js)"/g)].map((m) => m[1]);
+  const alvoJs = jsNuvem[Math.floor(jsNuvem.length / 2)];
+  for (const sempre of [false, true]) {
+    const c3 = await browser.newContext();
+    await c3.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
+    let falhou = 0;
+    await c3.route('**/dist/' + alvoJs, (r) => { if (sempre || !falhou) { falhou++; return r.fulfill({ status: 404, contentType: 'text/html', body: 'Not found' }); } return r.continue(); });
+    const p3 = await c3.newPage(); let navs = 0; p3.on('request', (q) => { if (q.isNavigationRequest() && q.frame() === p3.mainFrame()) navs++; });   // aberturas da página (não conta troca de #)
+    await p3.goto(base + '/dist/index.html');
+    if (!sempre) {
+      await p3.waitForFunction(() => typeof iniciar === 'function' && typeof APP !== 'undefined', null, { timeout: 20000 }).catch(() => {});
+      ok(falhou === 1 && navs === 2 && await p3.evaluate(() => typeof iniciar === 'function' && !document.getElementById('jbfaltou')), `arquivo faltando na abertura: recarregou uma vez e abriu inteiro (falhas ${falhou}, aberturas ${navs})`);
+    } else {
+      await p3.waitForSelector('#jbfaltou', { timeout: 20000 }).catch(() => {});
+      await p3.waitForTimeout(1500);
+      ok(navs === 2 && await p3.$('#jbfaltou') !== null, `arquivo faltando sempre: recarrega só uma vez e mostra o aviso (aberturas ${navs})`);
+    }
+    await c3.close();
+  }
 } finally {
   await browser.close(); http.close();
 }
