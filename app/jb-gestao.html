@@ -31877,7 +31877,7 @@ padTrilha=function(c,r){
   nav.innerHTML='<a href="#/painel">Início</a><i>›</i>'+mio;
   c.insertBefore(nav,c.firstChild);let ap=nav;
   if(barra){const d=document.createElement('nav');d.className='ms-area';d.dataset.k=barra.k;d.setAttribute('aria-label','Telas de '+barra.g);d.innerHTML=barra.html;ap.after(d);ap=d;
-   const on=d.querySelector('a.on');if(on)requestAnimationFrame(()=>{if(on.isConnected)d.scrollLeft=Math.max(0,on.offsetLeft-24)})}   /* no quadro seguinte: medir na hora recalculava a tela no meio do desenho */
+   const on=d.querySelector('a.on');if(on)requestAnimationFrame(()=>{if(on.isConnected&&!d.scrollLeft)d.scrollLeft=Math.max(0,on.offsetLeft-24)})}   /* só se ninguém posicionou: o redesenho de dados devolve antes a rolagem da pessoa (21/11/2026) */   /* no quadro seguinte: medir na hora recalculava a tela no meio do desenho */
   if(sec){const d=document.createElement('div');d.className='ms-secoes';d.dataset.k=sec.k;d.innerHTML=sec.html;ap.after(d);
    d.querySelectorAll('[data-ms-sec]').forEach(b=>b.onclick=()=>msIrSecao(b.dataset.msSec))}
  }
@@ -37686,7 +37686,9 @@ function renderBarraTrab(){
   if(typeof ResizeObserver==='function')try{new ResizeObserver(()=>document.documentElement.style.setProperty('--abas-h',b.hidden?'0px':b.offsetHeight+'px')).observe(b);b._ro=true}catch(e){}}
  const vis=APP.pronto&&acessoOk()&&ABAS.lista.length>0;
  b.hidden=!vis;
- if(!vis){b._html='';document.documentElement.style.setProperty('--abas-h','0px');return}
+ /* com ResizeObserver, é ele que grava a altura (inclusive 0 quando a barra some de fato): se a barra sumir e voltar
+    antes do próximo quadro, gravar 0 aqui deixava --abas-h em 0px com a barra visível (achado da revisão, 21/11/2026) */
+ if(!vis){b._html='';if(!b._ro)document.documentElement.style.setProperty('--abas-h','0px');return}
  const rec=Object.entries(rascunhosJan()).filter(([k])=>!JAN.min.some(g=>g.chave===k)&&!(GAV&&GAV.chave===k));
  const abas=ABAS.lista.map(a=>{const on=a.k===ABAS.ativa;const dot=temJanelaNaAba(a.k);
   return `<div class="aba-t${on?' on':''}" role="tab" tabindex="0" aria-selected="${on}" data-aba-k="${esc(a.k)}" title="${esc(a.titulo||'')}">${ic(a.ic||'doc')}<span class="aba-nm">${esc(a.titulo||'…')}</span>${dot?'<span class="aba-dot" title="Tem lançamento não salvo"></span>':''}<button type="button" class="aba-x" data-aba-fecha="${esc(a.k)}" aria-label="Fechar a aba ${esc(a.titulo||'')}">${ic('fechar')}</button></div>`}).join('');
