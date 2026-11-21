@@ -198,7 +198,10 @@ try {
     }
     return r;
   });
-  ok(conv.almox.n === 9 && conv.paletes.n === 5 && conv.barro.n >= 4 && conv.almox.vazioOk, `Almoxarifado (${conv.almox.n}), Paletes (${conv.paletes.n}) e Barro (${conv.barro.n}) na tela padrão de relatórios, com todos os relatórios de antes`);
+  // o Almoxarifado ganhou relatórios depois (reposição, curva ABC, grupos, posição do estoque): os de antes precisam continuar todos lá
+  const ANTES_ALM = ['Consumo por setor', 'Consumo por máquina', 'Consumo por item', 'Compras por fornecedor', 'Compras por categoria', 'Cozinha: compras por mês e tipo', 'EPIs entregues por funcionário', 'Itens abaixo do mínimo', 'Lançamentos do setor'];
+  const faltamAlm = ANTES_ALM.filter((n) => !conv.almox.res.some((x) => x.includes(n)));
+  ok(!faltamAlm.length && conv.almox.n >= ANTES_ALM.length && conv.paletes.n === 5 && conv.barro.n >= 4 && conv.almox.vazioOk, `Almoxarifado (${conv.almox.n}), Paletes (${conv.paletes.n}) e Barro (${conv.barro.n}) na tela padrão de relatórios, com todos os relatórios de antes` + (faltamAlm.length ? ' · sumiu: ' + faltamAlm.join(', ') : ''));
 
   /* ---------- 4. Financeiro, Fiscal, Controladoria e ficha do funcionário ---------- */
   const fin = await page.evaluate(async () => {

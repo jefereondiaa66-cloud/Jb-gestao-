@@ -116,7 +116,7 @@ try {
   const a = nv.indexOf('  var aquecido = 0;'), b = nv.indexOf('  /* serviço fiscal');
   ok(a > 0 && b > a, 'bloco do leitor encontrado no adaptador');
   const montar = (buscar) => {
-    const caixa = { fetch: buscar, TextDecoder, Object, Date, JSON, Promise, Error, LEITOR: 'http://leitor.teste/', SB_CHAVE: 'anon', sessao: { access_token: 'sessao-de-teste' }, pronto: Promise.resolve(),
+    const caixa = { fetch: buscar, TextDecoder, Object, Date, JSON, Promise, Error, LEITOR: 'http://leitor.teste/', SB_URL: 'http://supabase.teste', SB_CHAVE: 'anon', sessao: { access_token: 'sessao-de-teste' }, pronto: Promise.resolve(),
       atividade: () => {}, erro: (code, message) => { const e = new Error(message || code); e.code = code; return e; }, saida: null };
     vm.runInNewContext(nv.slice(a, b) + '\nsaida = leitor;', caixa);
     return caixa.saida;
