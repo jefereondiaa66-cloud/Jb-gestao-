@@ -1132,7 +1132,7 @@ teste('vidro', 'Produção no visual "Vidro claro" em teste (V155): só com a ch
   const css = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g, '$1');
   const partes = (sel) => { const out = []; let n = 0, a = ''; for (const ch of sel) { if (ch === '(') n++; if (ch === ')') n--; if (ch === ',' && n === 0) { out.push(a); a = ''; } else a += ch; } out.push(a); return out.map((x) => x.trim()).filter(Boolean); };
   const regras = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]; assert.ok(regras.length > 60, 'regras lidas');
-  for (const r of regras) for (const sel of partes(r[1])) assert.ok(/^html(\.vis-vc)+ body\.vc-prod(\s|$|:)/.test(sel), 'regra fora da chave e da Produção: ' + sel);
+  for (const r of regras) for (const sel of partes(r[1])) assert.ok(/^html(\.vis-vc)+ body\.vc-prod(\.vc-r-pcfg)?(\s|$|:)/.test(sel), 'regra fora da chave e da Produção: ' + sel);
   assert.ok(!/visibility\s*:|pointer-events|opacity\s*:|url\(|@import/.test(css), 'nada travado nem buscado de fora');
   /* o que some da vista é só enfeite: as barrinhas do gráfico antigo (trocadas pelo gráfico novo), ícones repetidos e a saudação duplicada */
   const somem = regras.filter((r) => /display\s*:\s*none/.test(r[2])).flatMap((r) => partes(r[1]).map((x) => x.replace(/^html(\.vis-vc)+ body\.vc-prod\s*/, '')));

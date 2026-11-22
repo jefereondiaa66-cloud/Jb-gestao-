@@ -111,6 +111,15 @@ try {
   await page.click('.vc-rapido [data-vcir="#/pfornadas/novo"]'); await page.waitForTimeout(900);
   ok(await page.evaluate(() => location.hash === '#/pfornadas/novo'), '"Nova fornada" abre o formulário de enforna de sempre');
   await page.evaluate(() => JBNAV.voltar()); await page.waitForTimeout(600);
+  await ir('plancar');
+  ok(await page.evaluate(() => [...document.querySelectorAll('.hero.pm-lanc>.kpi')].every((k) => /^hoje: \d+ lançamento/.test(k.dataset.vch || '')) && !!document.querySelector('[data-vcmov]') && document.querySelectorAll('.vc-ult [data-vcu]').length === 3), 'Lançar: cartões com o que foi lançado hoje, "Ver movimentações" e os últimos lançamentos');
+  await page.click('.hero.pm-lanc>.kpi'); await page.waitForTimeout(900);
+  ok(await page.evaluate(() => location.hash === '#/pmaromba/novo' && !!document.querySelector('.gaveta')), 'Lançar: o cartão abre o formulário de sempre');
+  await page.evaluate(() => JBNAV.voltar()); await page.waitForTimeout(700);
+  await ir('pfornadas');
+  ok(await page.evaluate(() => { const s = document.querySelector('.vc-fornos'); return !!s && s.querySelectorAll('.vc-fo').length === 1 && /Forno Exemplo/.test(s.textContent) && /55\.000 tijolos/.test(s.textContent); }), 'Fornos: "Fornos agora" com a carga aberta de cada forno');
+  await ir('pcfg');
+  ok(await page.evaluate(() => document.body.classList.contains('vc-r-pcfg')), 'Configurações: grupos em cartões');
   await ir('pmaromba');
   ok(await page.evaluate(() => /Setor de Produção/.test((document.querySelector('.vc-trilha') || {}).textContent || '') && /Lançamentos da maromba/.test((document.querySelector('.vc-tcab') || {}).textContent || '')), 'Maromba: trilha e título da lista');
   ok(await page.evaluate(() => document.querySelectorAll('.vc-graf .vc-gc').length === 2), 'Maromba: gráficos por dia e por turno');

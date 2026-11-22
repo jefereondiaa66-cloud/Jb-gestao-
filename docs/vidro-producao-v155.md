@@ -25,6 +25,15 @@ Testes: `scripts/testar-vidro-producao.mjs` (navegador) e a conferência `[vidro
   filtro "Situação" de sempre). Na **Maromba**, os gráficos "Produção líquida por dia" (30 dias) e "Por turno"
   (mês), dos lançamentos confirmados.
 
+Segunda entrega (mesmo dia):
+
+- **Lançar**: cartões grandes com ícone de cor, quantos lançamentos de cada tipo já foram feitos hoje, botão
+  "Ver movimentações" e os três últimos lançamentos do setor (tocar abre o comprovante).
+- **Fornos**: quadro "Fornos agora" com a carga aberta de cada forno (fase, tijolos no forno e desde quando).
+- **Configurações**: cada grupo num cartão. **Janela de lançamento**: ícone de cor ao lado do título.
+- **Barras do alto** (todas as telas, V154): fundo cheio, para a tela não aparecer passando por baixo ao rolar.
+- **Celular**: indicadores do Início em uma coluna.
+
 ## 2. O que não muda
 
 Nenhum título, botão, aba, coluna, campo, filtro, cálculo, permissão ou endereço de tela sai ou muda: as peças
