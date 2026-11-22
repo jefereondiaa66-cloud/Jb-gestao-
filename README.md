@@ -42,6 +42,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-fichas.mjs` | V145: Setor de Fichas e Documentação (estrutura inicial): cartão no menu principal, módulos em cartões, página da ficha (Últimas emitidas, Informações, Emitir ficha em breve), funções previstas EM BREVE, banco intacto ([docs/fichas-documentacao-v145.md](docs/fichas-documentacao-v145.md)) |
 | `node scripts/testar-variacoes-vendedor.mjs` | V152: Variação de vendas por vendedor na aba Variações do Setor de Vendas (R$, milheiros, preço médio, participação, TOTAL GERAL, filtros, gráficos e celular) e as outras telas iguais às da versão sem ela ([docs/variacoes-vendedor-v152.md](docs/variacoes-vendedor-v152.md)) |
 | `node scripts/testar-vidro-claro.mjs` | V154: visual "Vidro claro" em teste, só para o dono que ligar a chave em Configurações › Aparência; outro administrador e usuário comum nunca veem (Claude e página real da nuvem), mesmos botões nas telas e só a preferência do usuário gravada ([docs/vidro-claro-teste-v154.md](docs/vidro-claro-teste-v154.md)) |
+| `node scripts/testar-vidro-producao.mjs` | V155: Setor de Produção no visual "Vidro claro" (só com a chave): barra de módulos, Início novo, Lançamentos do setor, listas; nada some das 15 telas e nada é gravado ([docs/vidro-producao-v155.md](docs/vidro-producao-v155.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
@@ -60,4 +61,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/fichas-documentacao-v145.md`](docs/fichas-documentacao-v145.md) (Setor de Fichas e Documentação, estrutura inicial) ·
 [`docs/variacoes-vendedor-v152.md`](docs/variacoes-vendedor-v152.md) (Variação de vendas por vendedor, V152) ·
 [`docs/vidro-claro-teste-v154.md`](docs/vidro-claro-teste-v154.md) (visual "Vidro claro" em teste, só para o dono, V154) ·
+[`docs/vidro-producao-v155.md`](docs/vidro-producao-v155.md) (Setor de Produção no visual novo, V155) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

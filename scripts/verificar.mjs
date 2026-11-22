@@ -1126,6 +1126,28 @@ teste('vidro', 'Visual "Vidro claro" em teste (V154): só aparência, só com a 
   if (ci) assert.ok(ci.includes('node scripts/testar-vidro-claro.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('vidro', 'Produção no visual "Vidro claro" em teste (V155): só com a chave, só nas telas da Produção, sem gravar nada', () => {
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  const m = /<style id="v155-vidro-producao">([\s\S]*?)<\/style>/.exec(app); assert.ok(m, 'aparência da V155');
+  const css = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g, '$1');
+  const partes = (sel) => { const out = []; let n = 0, a = ''; for (const ch of sel) { if (ch === '(') n++; if (ch === ')') n--; if (ch === ',' && n === 0) { out.push(a); a = ''; } else a += ch; } out.push(a); return out.map((x) => x.trim()).filter(Boolean); };
+  const regras = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]; assert.ok(regras.length > 60, 'regras lidas');
+  for (const r of regras) for (const sel of partes(r[1])) assert.ok(/^html(\.vis-vc)+ body\.vc-prod(\s|$|:)/.test(sel), 'regra fora da chave e da Produção: ' + sel);
+  assert.ok(!/visibility\s*:|pointer-events|opacity\s*:|url\(|@import/.test(css), 'nada travado nem buscado de fora');
+  /* o que some da vista é só enfeite: as barrinhas do gráfico antigo (trocadas pelo gráfico novo), ícones repetidos e a saudação duplicada */
+  const somem = regras.filter((r) => /display\s*:\s*none/.test(r[2])).flatMap((r) => partes(r[1]).map((x) => x.replace(/^html(\.vis-vc)+ body\.vc-prod\s*/, '')));
+  assert.deepEqual([...new Set(somem)].sort(), ['.pp-fluxo .pp-eti', '.pp-fluxo .pp-et:after', '.pp-fo .pp-foi', '.pp-hero .pp-spark', '.pp-ind2 .pp-k .pp-ki', '.spot.sv>.sv-topo>.spot-cab', '.sv-abas .aba-ind', '.sv-abas::-webkit-scrollbar', 'p.v83-saud', '.vc-tab .vc-ocm'].sort(), 'só enfeites somem da vista');
+  const j = /<script id="v155-vidro-producao">([\s\S]*?)<\/script>/.exec(app); assert.ok(j, 'bloco da V155'); const b = j[1];
+  assert.ok(b.includes("const ligado=()=>document.documentElement.matches('.vis-vc');") && b.includes("const on=ligado()&&doProd();") && b.includes("document.body.classList.toggle('vc-prod',on);"), 'só com a chave e só nas telas da Produção');
+  assert.ok(!/classList\.(add|toggle|remove)\(\s*['"]vis-vc|className\s*\+?=[^;\n]*vis-vc/.test(b), 'não liga a chave por conta própria');
+  assert.ok(!/\b(gravar|apagar|atualizar|gravarRegistro|salvarCfg|salvarPrefs|gravarVersao|chamar|fetch)\s*\(/.test(b) && !/\.set\(|localStorage|jbcore|execute_sql/.test(b), 'não grava nada');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  assert.ok(b.includes("const RAPIDO=[['pparadas','#/pparadas/novo','relogio','Registrar parada'],['pfornadas','#/pfornadas/novo','chama','Nova fornada'],['pdesenf','#/pdesenf/novo','saida','Desenforna']];") && b.includes("const rp=RAPIDO.filter(([m])=>pode(m,'e'));"), 'atalhos só para quem pode lançar, nos formulários de sempre');
+  assert.ok(b.includes("acaoDocumento(doc,modo)") && b.includes("window.JB_MOV.montar('producao')") && b.includes("if(m&&PERM[m[1]]&&pode(m[1]))JBNAV.ir(r.ref)"), 'lançamentos do setor: os movimentos e comprovantes da V151, com a mesma permissão');
+  assert.ok(b.includes("if(a!==ligado()&&typeof APP!=='undefined'&&APP.pronto&&typeof renderTela==='function')"), 'ligar ou desligar redesenha a tela inteira');
+  if (ci) assert.ok(ci.includes('node scripts/testar-vidro-producao.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

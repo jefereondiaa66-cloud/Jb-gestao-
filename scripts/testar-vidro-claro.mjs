@@ -57,7 +57,7 @@ const iniciar = ({ codigo, uid, dono, docs }) => {
 };
 
 const ROTAS = ['setores', 'setor-producao', 'pmaromba', 'setor-vendas', 'setor-financeiro', 'fcentral', 'setor-lenha', 'setor-combustivel', 'setor-almox', 'setor-barro', 'setor-paletes', 'setor-control', 'jbc', 'painel', 'funcionarios', 'folha'];
-const botoes = () => [...document.querySelectorAll('.conteudo button,.conteudo a.btn,main button,main a.btn')].filter((e) => e.offsetParent !== null && !e.closest('.abas-trab')).map((e) => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).sort().join('|');
+const botoes = () => [...document.querySelectorAll('.conteudo button,.conteudo a.btn,main button,main a.btn')].filter((e) => e.offsetParent !== null && !e.closest('.abas-trab')).map((e) => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).sort();
 const temClasse = (page) => page.evaluate(() => document.documentElement.classList.contains('vis-vc'));
 const lembra = (page) => page.evaluate(() => localStorage.getItem('jb_vidro'));
 const nuncaLigou = (page) => page.evaluate(() => !window.__vc.hist.includes(true) && window.__vc.primeira === false);
@@ -103,8 +103,8 @@ try {
   ok(await page.evaluate(() => { const d = window.__srv.estado.docs.get('data/users/u_DONO/prefs'); return !!(d && d.dados && d.dados.vidroClaro === true); }), 'a preferência foi guardada no banco, no usuário dele');
   ok((await lembra(page)) === 'u_DONO', 'o aparelho lembra quem ligou');
   let iguais = true, dif = '';
-  for (const r of ROTAS) { await page.evaluate((x) => JBNAV.ir('#/' + x), r); await page.waitForTimeout(500); const d = await page.evaluate(botoes); if (d !== antes[r]) { iguais = false; dif = r; } }
-  ok(iguais, 'as mesmas telas mostram os mesmos botões com o visual novo' + (dif ? ' (diferente em ' + dif + ')' : ''));
+  for (const r of ROTAS) { await page.evaluate((x) => JBNAV.ir('#/' + x), r); await page.waitForTimeout(500); const d = await page.evaluate(botoes); const falta = antes[r].filter((x) => !d.includes(x)); if (falta.length) { iguais = false; dif = r + ': ' + falta.slice(0, 3).join(', '); } }
+  ok(iguais, 'as mesmas telas mostram todos os botões de antes com o visual novo (V155 acrescenta atalhos na Produção)' + (dif ? ' (diferente em ' + dif + ')' : ''));
   ok(page.erros.length === 0, 'nenhum erro de página' + (page.erros.length ? ': ' + page.erros[0] : ''));
 
   console.log('\n4. desligar');
