@@ -41,6 +41,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-acesso-setores.mjs` | nuvem com permissão por setor: quem só tem o Combustível vê os terceiros (guardados no Financeiro), quem só tem o Almoxarifado vê funcionários (só nome e função) e máquinas, e cada um só vê os setores dele ([docs/acesso-setores-2026-11-16.md](docs/acesso-setores-2026-11-16.md)) |
 | `node scripts/testar-fichas.mjs` | V145: Setor de Fichas e Documentação (estrutura inicial): cartão no menu principal, módulos em cartões, página da ficha (Últimas emitidas, Informações, Emitir ficha em breve), funções previstas EM BREVE, banco intacto ([docs/fichas-documentacao-v145.md](docs/fichas-documentacao-v145.md)) |
 | `node scripts/testar-variacoes-vendedor.mjs` | V152: Variação de vendas por vendedor na aba Variações do Setor de Vendas (R$, milheiros, preço médio, participação, TOTAL GERAL, filtros, gráficos e celular) e as outras telas iguais às da versão sem ela ([docs/variacoes-vendedor-v152.md](docs/variacoes-vendedor-v152.md)) |
+| `node scripts/testar-vidro-claro.mjs` | V154: visual "Vidro claro" em teste, só para o dono que ligar a chave em Configurações › Aparência; outro administrador e usuário comum nunca veem (Claude e página real da nuvem), mesmos botões nas telas e só a preferência do usuário gravada ([docs/vidro-claro-teste-v154.md](docs/vidro-claro-teste-v154.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
 | `node scripts/testar-leitura-rapida.mjs` | testa a leitura por foto aos poucos: função do servidor (precisa do Deno) e adaptador da nuvem, com a IA simulada |
 | `node scripts/testar-fiscal.mjs` | testa o JB Fiscal (tradução da nota para a Focus NFe, envio sem duplicar, produção bloqueada) sem rede |
@@ -58,4 +59,5 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/comprovante-lenha-conta-2026-11-18.md`](docs/comprovante-lenha-conta-2026-11-18.md) (comprovante de entrega de lenha com o total devido ao fornecedor) ·
 [`docs/fichas-documentacao-v145.md`](docs/fichas-documentacao-v145.md) (Setor de Fichas e Documentação, estrutura inicial) ·
 [`docs/variacoes-vendedor-v152.md`](docs/variacoes-vendedor-v152.md) (Variação de vendas por vendedor, V152) ·
+[`docs/vidro-claro-teste-v154.md`](docs/vidro-claro-teste-v154.md) (visual "Vidro claro" em teste, só para o dono, V154) ·
 agente: [`.claude/agents/jb-core.md`](.claude/agents/jb-core.md).

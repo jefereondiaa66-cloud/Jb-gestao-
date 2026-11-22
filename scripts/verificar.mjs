@@ -1089,6 +1089,43 @@ teste('fichas', 'Setor de Fichas e Documentação (V145): só a estrutura, sem f
   if (ci) assert.ok(ci.includes('node scripts/testar-fichas.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('vidro', 'Visual "Vidro claro" em teste (V154): só aparência, só com a classe vis-vc e só para o dono que ligar a chave', () => {
+  /* a pasta .github não vai para a publicação da nuvem: lá esta conferência do CI é pulada */
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  const m = /<style id="v154-vidro-claro">([\s\S]*?)<\/style>/.exec(app); assert.ok(m, 'bloco de aparência');
+  const css = m[1].replace(/\/\*[\s\S]*?\*\//g, '');
+  // toda regra só vale com a classe vis-vc no <html>: sem a classe, ninguém vê nada diferente
+  const semMedia = css.replace(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g, '$1');
+  assert.ok(!semMedia.includes('@'), 'só regras comuns e @media');
+  const regras = [...semMedia.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  assert.ok(regras.length >= 60, 'regras lidas (' + regras.length + ')');
+  const partes = (sel) => { const out = []; let n = 0, a = ''; for (const ch of sel) { if (ch === '(') n++; if (ch === ')') n--; if (ch === ',' && n === 0) { out.push(a); a = ''; } else a += ch; } out.push(a); return out.map((x) => x.trim()).filter(Boolean); };
+  for (const r of regras) for (const sel of partes(r[1])) assert.ok(/^html(\.vis-vc)+(\s|$)/.test(sel), 'regra fora da classe vis-vc: ' + sel);
+  // só aparência: nada some, nada deixa de ser clicável, nada muda de lugar na pilha e nada vem de fora
+  assert.ok(!/display\s*:\s*none|visibility\s*:|pointer-events|opacity\s*:|content\s*:|position\s*:|z-index|url\(|@import/.test(css), 'o visual não esconde, não trava e não busca nada de fora');
+  // a classe só liga e desliga num lugar (aplicarVidro), que confere quem entrou; nada liga antes de saber quem é
+  assert.equal(app.split("classList.toggle('vis-vc'").length - 1, 1, 'um lugar só liga e desliga a classe');
+  assert.ok(!app.includes("classList.add('vis-vc')") && !/class(Name|List)[^;\n]{0,40}['"]vis-vc['"]/.test(app.replace("classList.toggle('vis-vc'", '')), 'nenhum outro caminho liga a classe');
+  const j = /\/\* V154 · "Vidro claro" em teste[\s\S]*?(?=const _ligarAparenciaJB=ligarAparencia;)/.exec(app); assert.ok(j, 'bloco da chave');
+  const b = j[0];
+  // quem pode: o dono da aparência (config/aparencia → dono) e, no Claude, o dono do artifact; na nuvem ser administrador não basta
+  assert.ok(b.includes("const vidroPode=()=>{try{ if(APP.modo==='local')return true; if(APP.uid&&APARENCIA&&APARENCIA.dono&&APARENCIA.dono===APP.uid)return true; return !vidroNuvem()&&!!APP.isOwner; }catch(e){return false}};"), 'regra de quem pode');
+  assert.ok(b.includes('const vidroNuvem=()=>!!(window.JB_NUVEM||window.JB_NUVEM_API);'), 'reconhece a nuvem');
+  assert.ok(b.includes("if(typeof forcar==='boolean')on=forcar&&vidroPode(); else if(sabe)on=vidroLigado(); else on=!!eu&&localStorage.getItem('jb_vidro')===eu;"), 'antes de o banco responder, só a mesma pessoa que ligou neste aparelho');
+  assert.ok(b.includes('async function definirVidro(on){ if(!vidroPode())return;') && b.includes('if(!vidroPode())return base;'), 'quem não pode não liga nem vê a chave');
+  // não há nome, login nem identificador de pessoa no código (repositório público)
+  assert.ok(!/['"]u_[A-Za-z0-9]{6,}['"]|usuario\s*===?\s*['"]/.test(b), 'sem login nem identificador de pessoa no código');
+  // o único dado gravado é a preferência do próprio usuário; o padrão de todos (config/aparencia) não é tocado
+  assert.ok(!/\b(gravar|apagar|atualizar|gravarRegistro|salvarCfg|gravarVersao|chamar|fetch)\s*\(/.test(b) && !/\.set\(|VERSAO_LER/.test(b), 'não grava dados nem mexe no padrão de todos');
+  assert.equal((b.match(/salvarPrefs\(/g) || []).length, 1); assert.ok(b.includes('salvarPrefs({vidroClaro:!!on})'), 'só a preferência vidroClaro do próprio usuário');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  // confere quem entrou antes de desenhar a primeira tela, e de novo quando chegam o dono da aparência e a preferência
+  assert.ok(app.includes("if(document.readyState==='loading')await paginaLida();\n try{if(typeof aplicarVidro==='function')aplicarVidro()}catch(e){console.warn('vidro',e)}"), 'confere antes da primeira tela');
+  assert.ok(app.includes("PREFS_OK=true;agendarVersao();atualizarSino();try{if(typeof aplicarVidro==='function')aplicarVidro()}catch(e){console.warn('vidro',e)}"), 'confere quando a preferência chega');
+  assert.ok(b.includes("receberAparencia=function(){ const r=_receberAparenciaV154.apply(this,arguments); VIDRO_AP=true; try{aplicarVidro()}catch(e){console.warn('vidro',e)} return r; };"), 'confere quando o dono da aparência chega');
+  if (ci) assert.ok(ci.includes('node scripts/testar-vidro-claro.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();
