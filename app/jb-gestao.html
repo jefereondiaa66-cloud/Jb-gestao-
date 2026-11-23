@@ -538,7 +538,8 @@
 <script>/* visual escolhido (Concretiza, Branco e laranja ou JB): aplicado antes de desenhar a tela, para não piscar */try{var vj=localStorage.getItem('jb_visual3');if(vj==='nv')document.documentElement.classList.add('vis-nv');else if(vj!=='jb')document.documentElement.classList.add('vis-cc')}catch(e){document.documentElement.classList.add('vis-cc')}</script>
 <script>/* V68 · tema de cores escolhido pela pessoa (Personalizar aparência): aplicado antes de desenhar a tela, para não piscar */try{var tj=JSON.parse(localStorage.getItem('jb_tema3')||'null');if(tj&&tj.css){document.documentElement.setAttribute('data-jbtema',tj.id||'');document.documentElement.setAttribute('data-jbtema-modo',tj.modo||'');if(tj.cores)document.documentElement.setAttribute('data-jbcores','');if(tj.modo==='claro')document.documentElement.setAttribute('data-theme','light');var tst=document.createElement('style');tst.id='jb-tema-tokens';tst.textContent=tj.css;document.head.appendChild(tst)}else if(tj&&tj.claro)document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Sora:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onload="try{if(typeof APP!=='undefined'&&APP.pronto&&document.querySelector('#conteudo canvas')&&typeof renderTela==='function')renderTela()}catch(e){}"></script>
 <!-- Excel e PDF (cerca de 1,3 MB) carregam depois que a tela abre: ver garantirBibliotecas() -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
@@ -3442,7 +3443,13 @@ const pad=n=>String(n).padStart(2,'0');
 const isoDe=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const hoje=()=>isoDe(new Date());
 const mesAtual=()=>hoje().slice(0,7);
-const dt=iso=>iso?new Date(String(iso).slice(0,10)+'T12:00:00'):null;
+/* 22/11/2026 (desempenho): as contas com datas eram ~10% de todo o tempo de script (férias, alertas, painéis).
+   Data comum (AAAA-MM-DD, dia até 28) é montada direto pelos números, sem interpretar texto: mesmo instante de antes.
+   Qualquer outro formato segue pelo caminho antigo, sem mudar nada. */
+const DT_RE=/^\d{4}-\d\d-\d\d/;
+const dt=iso=>{if(!iso)return null;const s=String(iso);
+ if(DT_RE.test(s)){const y=+s.slice(0,4),m=+s.slice(5,7),d=+s.slice(8,10);if(y>=1000&&m>=1&&m<=12&&d>=1&&d<=28)return new Date(y,m-1,d,12)}
+ return new Date(s.slice(0,10)+'T12:00:00')};
 const fData=iso=>{if(!iso)return '';const s=String(iso);if(s.length===7)return s.slice(5,7)+'/'+s.slice(0,4);return s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4)};
 const fDataHora=iso=>{if(!iso)return '';const d=new Date(iso);return fData(isoDe(d))+' '+pad(d.getHours())+':'+pad(d.getMinutes())};
 const fMes=m=>{if(!m)return '';const n=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];return n[+m.slice(5,7)-1]+'/'+m.slice(2,4)};
@@ -3455,7 +3462,10 @@ const fNum=(v,d=0)=>(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maxi
 const fHm=min=>{min=Math.round(+min||0);const s=min<0?'-':'';min=Math.abs(min);return s+pad(Math.floor(min/60))+':'+pad(min%60)};
 const minutos=hm=>{if(!hm||!/^\d{1,2}:\d{2}$/.test(hm))return null;const[a,b]=hm.split(':').map(Number);return a*60+b};
 const addDias=(iso,n)=>{const d=dt(iso);d.setDate(d.getDate()+n);return isoDe(d)};
-const addMeses=(iso,n)=>{const d=dt(iso);const dia=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);const ult=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(dia,ult));return isoDe(d)};
+const addMeses=(iso,n)=>{
+ if(typeof iso==='string'&&Number.isInteger(n)&&DT_RE.test(iso)){const y=+iso.slice(0,4),m=+iso.slice(5,7),dia=+iso.slice(8,10);
+  if(y>=1000&&y<=9000&&m>=1&&m<=12&&dia>=1&&dia<=28&&n>-12000&&n<12000){const t=y*12+(m-1)+n,ny=Math.floor(t/12),nm=t-ny*12+1;if(ny>=1000&&ny<=9999)return ny+'-'+pad(nm)+'-'+pad(dia)}}
+ const d=dt(iso);const dia=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);const ult=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(dia,ult));return isoDe(d)};
 const diasEntre=(a,b)=>Math.round((dt(b)-dt(a))/86400000);
 const mesesRange=(ini,fim)=>{const r=[];let [y,m]=ini.split('-').map(Number);const [fy,fm]=fim.split('-').map(Number);let g=0;while((y<fy||(y===fy&&m<=fm))&&g<240){r.push(y+'-'+pad(m));m++;if(m>12){m=1;y++}g++}return r};
 const mesMenos=(mes,n)=>{let [y,m]=mes.split('-').map(Number);m-=n;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return y+'-'+pad(m)};
@@ -8534,7 +8544,8 @@ function telaLista(el,mod){
    return `<select data-f="${fl.k}" aria-label="${fl.l}"><option value="">${fl.l}: todos</option>${fl.pad==='ativos'?`<option value="__ativos" ${st.f[fl.k]==='__ativos'?'selected':''}>Todos exceto desligados</option>`:''}${opcoes(fl).map(([v,l])=>`<option value="${esc(v)}" ${st.f[fl.k]===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`}).join('')}
   </div><div id="chipsLista"></div><div id="corpoLista"></div></div>`;
  const atual=()=>{st.pag=0;corpo()};
- $('#fq').oninput=e=>{st.q=e.target.value;atual()};
+ /* 22/11/2026 (desempenho): a lista é refeita quando a pessoa para de digitar (antes era a cada letra, e no celular a digitação engasgava) */
+ let tFq=null;$('#fq').oninput=e=>{st.q=e.target.value;clearTimeout(tFq);const cp=e.target;tFq=setTimeout(()=>{if(cp.isConnected)atual()},130)};
  $$('[data-f]',el).forEach(s=>s.onchange=()=>{st.f[s.dataset.f]=s.value;atual()});
  if($('#bNovo'))$('#bNovo').onclick=()=>JBNAV.ir(M.rotaNovo||'#/'+mod+'/novo');
  if($('#bFab'))$('#bFab').onclick=()=>JBNAV.ir(M.rotaNovo||'#/'+mod+'/novo');
@@ -37469,10 +37480,12 @@ html.casca2 .filtros input[type=month]:invalid::-webkit-datetime-edit{color:#9a9
   const box=document.getElementById('c2alertas');if(!box)return;
   const q=document.getElementById('qtSino');const pdb=document.querySelector('#top .pd-bt b');const n=pdb?pdb.textContent.trim():(q&&!q.hidden?q.textContent:'');
   let pend=0;try{if(APP.carregado&&pode('meusPend')&&typeof pendentes==='function')pend=pendentes(false).length}catch(e){}
-  const b=document.getElementById('c2qt');if(b){b.hidden=!n;b.textContent=n}
-  $$('.c2-rqt,.c2-qtal').forEach(x=>{x.hidden=!n;x.textContent=n});
-  box.innerHTML=`<div class="c2-pt">Avisos</div>${pode('alertas')?`<a class="c2-op" href="#/alertas">${ic('sino')}<span>Alertas e pendências<small>${n?n+' não lido(s)':'Nada novo'}</small></span>${n?`<em>${esc(n)}</em>`:''}</a>`:''}
+  const b=document.getElementById('c2qt');if(b){b.hidden=!n;if(b.textContent!==n)b.textContent=n}
+  $$('.c2-rqt,.c2-qtal').forEach(x=>{x.hidden=!n;if(x.textContent!==n)x.textContent=n});
+  /* 22/11/2026 (desempenho): o quadro de avisos só é refeito quando muda (antes era refeito a cada 10 s) */
+  const hAv=`<div class="c2-pt">Avisos</div>${pode('alertas')?`<a class="c2-op" href="#/alertas">${ic('sino')}<span>Alertas e pendências<small>${n?n+' não lido(s)':'Nada novo'}</small></span>${n?`<em>${esc(n)}</em>`:''}</a>`:''}
    ${pode('meusPend')?`<a class="c2-op" href="#/meusPend">${ic('aviso')}<span>Meus pendentes<small>Lançamentos seus com campo importante faltando</small></span>${pend?`<em>${pend}</em>`:''}</a>`:''}`;
+  if(box._hAv!==hAv||!box.firstChild){box._hAv=hAv;box.innerHTML=hAv}
   const wa=$('[data-c2=alertas]');if(wa)wa.classList.toggle('c2-oculto',!pode('alertas')&&!pode('meusPend'));
  }
 
@@ -41554,7 +41567,15 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
   c.querySelectorAll('table.tbl').forEach(t=>{try{const b=t.tBodies[0];if(!b||!b.querySelector('tr:not([data-lc])'))return;if(t.classList.contains('lc')||alvo(t))aplicar(t)}catch(e){console.warn('listas em cartões',e)}});
   try{barra(c)}catch(e){console.warn('listas em cartões',e)}
  }
- let tm=null;const agendar=()=>{clearTimeout(tm);tm=setTimeout(varrer,20)};
+ /* 22/11/2026 (desempenho): os cartões são montados na mesma hora em que a lista é desenhada, antes de aparecer na tela
+    (antes a lista aparecia como tabela e 20 ms depois virava cartões: dois desenhos e um "pulo" visível) */
+ /* o rodapé de totais entra um instante depois da lista: ele ganha o nome de cada coluna numa segunda passada, como antes */
+ function rodapes(){
+  if(!document.documentElement.classList.contains('casca2'))return;const c=document.getElementById('conteudo');if(!c)return;
+  c.querySelectorAll('table.lc').forEach(t=>{try{const f=t.tFoot&&t.tFoot.rows[0];if(!f||!t.tHead||!t.tHead.rows[0])return;const h=[...t.tHead.rows[0].cells].map(x=>so(x.textContent));
+   if(f.cells.length===h.length)[...f.cells].forEach((td,i)=>{if(i&&!td.dataset.lcL&&td.textContent.trim())td.dataset.lcL=h[i]})}catch(e){console.warn('listas em cartões',e)}});
+ }
+ let tm=null,tr2=null;const agendar=()=>{clearTimeout(tr2);tr2=setTimeout(()=>{varrer();rodapes()},20);if(tm)return;tm=1;queueMicrotask(()=>{tm=null;varrer()})};
  function ligar(){const c=document.getElementById('conteudo');if(!c)return setTimeout(ligar,200);new MutationObserver(agendar).observe(c,{childList:true,subtree:true});agendar()}
  ligar();
 })();
