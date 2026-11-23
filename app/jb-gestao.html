@@ -12461,6 +12461,7 @@ function normalizarTabela(t){
    th.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})});
 }
 function ordenarTabela(t,i,th){
+ if(typeof pagTudo==='function'&&t._pgResto&&t._pgResto.length){t._pgLivre=true;pagMais(t,Infinity)}
  const dir=th.getAttribute('aria-sort')==='ascending'?-1:1;
  [...th.parentElement.cells].forEach(x=>{if(x.classList.contains('ord-auto')){x.setAttribute('aria-sort','none');const s=x.querySelector('.ord-seta');if(s)s.remove()}});
  th.setAttribute('aria-sort',dir===1?'ascending':'descending');th.insertAdjacentHTML('beforeend',`<span class="ord-seta" aria-hidden="true">${dir===1?' ↑':' ↓'}</span>`);
@@ -12479,8 +12480,46 @@ function padronizar(){
  try{padCab(c,r)}catch(e){console.warn('padrão: cabeçalho',e)}
  try{padTrilha(c,r)}catch(e){console.warn('padrão: trilha',e)}
  try{c.querySelectorAll('table.tbl:not([data-pad])').forEach(normalizarTabela)}catch(e){console.warn('padrão: tabela',e)}
+ try{pagListas(c)}catch(e){}
  if(typeof acabamento==='function')acabamento(c);
 }
+/* ---------- 22/11/2026 (desempenho, autorizado pelo dono): listas grandes abrem com 50 linhas e "Mostrar mais" ----------
+   Só tabelas com mais de 80 linhas. As linhas de fora ficam guardadas junto da tabela (t._pgResto), já padronizadas, e voltam
+   na ordem certa ao tocar em "Mostrar mais", ao ordenar por uma coluna, ao pesquisar dentro da tabela e ao imprimir.
+   Os totais automáticos contam todas. Desligar: localStorage jb_sem_paginas = '1'. */
+const PAG_MIN=80,PAG_PASSO=50;
+function pagLigado(){try{return localStorage.getItem('jb_sem_paginas')!=='1'}catch(e){return true}}
+function pagBotao(t){
+ const resto=(t._pgResto||[]).length;let bt=t._pgBt;
+ if(!resto){if(bt){bt.remove();t._pgBt=null}return}
+ if(!bt||!bt.isConnected){const ancora=t.closest('.tabwrap')||t;bt=document.createElement('div');bt.className='pg-mais';bt.innerHTML='<button type="button" class="btn"></button>';
+  bt.firstChild.onclick=()=>pagMais(t,PAG_PASSO);ancora.insertAdjacentElement('afterend',bt);t._pgBt=bt}
+ const tot=t.tBodies[0].rows.length+resto;bt.firstChild.textContent=`Mostrar mais ${Math.min(PAG_PASSO,resto)} (faltam ${resto} de ${tot})`;
+}
+function pagMais(t,n){
+ const r=t._pgResto;if(!r||!r.length)return;const tb=t.tBodies[0];if(!tb)return;
+ const antes=t.style.getPropertyValue('--lc-cols');
+ const vai=n===Infinity?r.splice(0):r.splice(0,n);const fr=document.createDocumentFragment();vai.forEach(x=>fr.appendChild(x));tb.appendChild(fr);
+ pagBotao(t);
+ /* os cartões medem as colunas de novo; cada coluna fica com a maior largura entre a medida anterior e a nova */
+ if(antes)queueMicrotask(()=>queueMicrotask(()=>{try{const agora=t.style.getPropertyValue('--lc-cols');if(!agora||agora===antes)return;
+  const a=antes.split(/\s+(?![^(]*\))/),b=agora.split(/\s+(?![^(]*\))/);if(a.length!==b.length)return;
+  const m=b.map((x,i)=>{const pa=/^(\d+(?:\.\d+)?)px$/.exec(a[i]),pb=/^(\d+(?:\.\d+)?)px$/.exec(x);return pa&&pb?Math.max(+pa[1],+pb[1])+'px':x}).join(' ');
+  if(m!==agora)t.style.setProperty('--lc-cols',m)}catch(e){}}));
+}
+function pagTudo(raiz){(raiz||document).querySelectorAll('table.tbl').forEach(t=>{if(t._pgResto&&t._pgResto.length){t._pgLivre=true;pagMais(t,Infinity)}})}
+function pagListas(c){
+ if(!pagLigado())return;
+ c.querySelectorAll('table.tbl').forEach(t=>{try{
+  if(t._pgFeito||t._pgLivre)return;const tb=t.tBodies[0];if(!tb)return;
+  if(tb.rows.length<=PAG_MIN)return;t._pgFeito=true;
+  const rs=[...tb.rows];if(rs.some(r=>r.hidden))return;
+  try{if(typeof zerosTabela==='function')zerosTabela(t)}catch(e){}   /* o acabamento ("R$ 0,00" vira "—") vale também para as linhas guardadas */
+  t._pgResto=rs.slice(PAG_PASSO);t._pgResto.forEach(r=>r.remove());pagBotao(t);
+ }catch(e){console.warn('listas em páginas',e)}});
+}
+addEventListener('beforeprint',()=>{try{pagTudo(document.getElementById('conteudo'))}catch(e){}});
+(function(){const st=document.createElement('style');st.id='jb-paginas';st.textContent='.pg-mais{display:flex;justify-content:center;margin:12px 0 4px}@media print{.pg-mais{display:none!important}}';document.head.appendChild(st)})();
 function ligarPadrao(){
  const c=document.getElementById('conteudo');if(!c||PAD_MO)return;
  PAD_MO=new MutationObserver(()=>{padronizar();PAD_MO.takeRecords()});
@@ -20902,7 +20941,7 @@ function totalizar(tab){
  if(meu&&SIG.get(tab)===sig)return;
  if(meu)tab.tFoot.remove();
  SIG.set(tab,sig);
- const linhas=[...tb.rows].filter(r=>!r.classList.contains('vv-estornado')&&r.cells.length>1);
+ const linhas=[...tb.rows,...(tab._pgResto||[])].filter(r=>!r.classList.contains('vv-estornado')&&r.cells.length>1);
  if(!linhas.length)return;
  const ths=tab.tHead&&tab.tHead.rows.length?[...tab.tHead.rows[tab.tHead.rows.length-1].cells]:[];
  const ncol=Math.max(...linhas.map(r=>r.cells.length));
@@ -26910,7 +26949,7 @@ function buscaInv(tbl){
  if(tbl.dataset.v56b)return;tbl.dataset.v56b='1';const pai=tbl.closest('.painel')||tbl;
  const d=document.createElement('div');d.className='v56-inv-busca';d.innerHTML='<input type="search" placeholder="Buscar item na contagem: código ou nome" aria-label="Buscar item na contagem">';pai.before(d);
  d.querySelector('input').addEventListener('input',e=>{const toks=norm(e.target.value).split(' ').filter(Boolean);
-  tbl.querySelectorAll('tbody tr').forEach(tr=>{const tx=norm(tr.textContent);tr.hidden=!toks.every(t=>tx.includes(t))})});
+  if(typeof pagTudo==='function')pagTudo(tbl.parentElement||tbl);tbl.querySelectorAll('tbody tr').forEach(tr=>{const tx=norm(tr.textContent);tr.hidden=!toks.every(t=>tx.includes(t))})});
 }
 const ALM_ITEM_MODS=['almEpis','almEmprestimos','almAjustes'];
 let tObs=null;
@@ -41478,7 +41517,8 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
   return reg;
  }
  function mapa(t){
-  const h=[...t.tHead.rows[0].cells].map(x=>so(x.textContent));const rows=[...t.tBodies[0].rows].filter(r=>r.cells.length===h.length);
+  /* 22/11/2026: numa lista em páginas, o tipo de cada coluna é decidido olhando todas as linhas, também as guardadas */
+  const h=[...t.tHead.rows[0].cells].map(x=>so(x.textContent));const rows=[...t.tBodies[0].rows,...(t._pgResto||[])].filter(r=>r.cells.length===h.length);
   const usados=new Set();const n=h.length;
   const temTag=i=>rows.filter(r=>r.cells[i].querySelector('.tag')).length>=rows.length/2;
   const aco=[];for(let i=0;i<n;i++)if(ACO.test(h[i])||rows.some(r=>r.cells[i].querySelector('button,.acoes-li,input[type=checkbox]')&&!r.cells[i].querySelector('.tag'))){aco.push(i);usados.add(i)}
@@ -41506,7 +41546,7 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
   const larg=i=>{let w=0;lin.forEach(r=>{const e=r.cells[i].firstElementChild||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width)});return Math.ceil(w)||110};
   const tagc=[];if(M.s>=0)tagc.push(M.s);tagc.push(...M.tag);
   /* coluna de botões: cabe TODOS os botões da célula (antes media só o primeiro e os demais cobriam o valor e a situação) */
-  const largA=i=>{let w=0;lin.forEach(r=>{const ks=[...r.cells[i].children].filter(e=>e.getBoundingClientRect().width>0);if(ks.length<2){const e=ks[0]||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width);return}
+  const largA=i=>{let w=0;lin.forEach(r=>{const ks=[...r.cells[i].children].filter(e=>e.getBoundingClientRect().width>0);if(!ks.length&&t._pgFeito&&t.style.getPropertyValue('--lc-cols'))return; /* lista em páginas: célula vazia de linha já em cartão não é medida (daria a largura do cartão) */ if(ks.length<2){const e=ks[0]||r.cells[i];w=Math.max(w,e.getBoundingClientRect().width);return}
     let s=0;ks.forEach(e=>{const cs=getComputedStyle(e);s+=e.getBoundingClientRect().width+(parseFloat(cs.marginLeft)||0)+(parseFloat(cs.marginRight)||0)});w=Math.max(w,s+(ks.length-1)*5)});return Math.ceil(w)||110};
   const lg=tagc.map(larg),la=M.aco.map(largA);
   t.classList.add('lc');t.classList.toggle('lc-sem-ord',!t.tHead.querySelector('.ord,.ord-auto,[data-o]'));
