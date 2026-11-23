@@ -17913,7 +17913,7 @@ function abasP(){return [
  {r:'#/pfornadas',m:'pfornadas',ic:'chama',l:'Fornos',at:['pfornadas','pdesenf','plenha'],sub:[['#/pfornadas','pfornadas','Enforna',['pfornadas']],['#/pdesenf','pdesenf','Desenforna',['pdesenf']],['#/plenha','plenha','Lenha por fornada',['plenha']]]},
  {r:'#/ppronto',m:'ppronto',ic:'caixa',l:'Tijolo pronto',at:['ppronto','pprontomov'],sub:[['#/ppronto','ppronto','Estoque',['ppronto']],['#/pprontomov','pprontomov','Movimentações',['pprontomov']]]},
  {r:'#/prel',m:'prel',ic:'grafico',l:'Relatórios',at:['prel','pmes'],sub:[['#/prel','prel','Relatório do período',['prel']],['#/pmes','pmes','Produção por mês',['pmes']]]},
- {r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']}].filter(a=>pode(a.m,a.e?'e':'v'))}
+ {r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']},...(window.PROD_ABAS_EXTRA||[])].filter(a=>pode(a.m,a.e?'e':'v'))}   /* V156: abas novas (Controle por grade) entram no fim */
 function shellP(el,ativa,corpo){
  if(typeof marcarSetor==='function')marcarSetor('producao');
  el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot('Setor de Produção',razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
@@ -25888,8 +25888,9 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const listaAgentes=()=>[...new Set([...Object.keys(AG_PAD),...Object.keys(AG.docs)])].filter(id=>!AG_REMOVIDOS.has(id)).map(agente);
 
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
- const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg'];
- const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta'];
+ const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg',
+  'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */
+ const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta','fGrade'];   /* V156: Pagamento por grade */
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
   'admissoes','desligamentos','afastamentos','alteracoes','exames','dependentes','importar','advertencias','disciplinar','central','termos','doc','feriasctrl','conferencia'];
@@ -41665,9 +41666,9 @@ const IGNORAR=new Set(['log','uso','diagnostico','ws','data','iaPedidos','iaVers
 /* valem fora do programa ou mexem em acesso: a ação fica no histórico, mas não volta */
 const IRREVERSIVEIS={nfe:'nota fiscal',nfeXml:'nota fiscal',nfeTrava:'nota fiscal',nfePayload:'nota fiscal',nfeImport:'nota fiscal',fiscalCfg:'configuração fiscal',acesso:'acesso de usuário',ccPolitica:'política do Controle Central',ccAgentes:'agente do Controle Central'};
 /* pedem confirmação antes de desfazer ou refazer */
-const IMPORTANTES=new Set(['folhas','quinzenas','funcionarios','sensivel','desligamentos','admissoes','contratos','docsEmitidos','comprovantes','dependentes','config','vendas','compras','estoqueMov','fin']);
+const IMPORTANTES=new Set(['folhas','quinzenas','funcionarios','sensivel','desligamentos','admissoes','contratos','docsEmitidos','comprovantes','dependentes','config','vendas','compras','estoqueMov','fin','prodGrade','prodGradeTrab']);
 const COLS_DA_FOLHA=new Set(['diario','horasExtras','producao','alimentacao','diarias','vales','adicionais','despesas']);
-const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas'};
+const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',prodGrade:'Controle por grade',prodGradeTrab:'Trabalhadores por grade',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas'};
 IC.desfazer='<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>';
 IC.refazer='<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>';
 
@@ -48927,6 +48928,1092 @@ aplicarVidro=function(){const a=ligado();const r=av0.apply(this,arguments);
  if(a!==ligado()&&typeof APP!=='undefined'&&APP.pronto&&typeof renderTela==='function')setTimeout(()=>{try{renderTela()}catch(e){console.warn('V155',e)}agendar()},0);else agendar();
  return r};
 window.JB_VIDRO_PROD=Object.freeze({rotas:ROTAS.slice(),vestir:agendar});
+})();
+</script>
+<style id="grade-v156-css">
+/* ===== V156 · Controle por grade (Produção) e Pagamento por grade (Financeiro) · só aparência das telas novas ===== */
+/* período: Dia · Semana · Mês · Período · Tudo, com setas para andar */
+.pg-per{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 14px}
+.pg-per-tipos{display:inline-flex;flex-wrap:wrap;gap:4px}
+.pg-per-tipos button{all:unset;box-sizing:border-box;cursor:pointer;height:32px;padding:0 13px;display:inline-flex;align-items:center;border-radius:99px;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-b,#fff);color:var(--pn-s,#565A63);font-size:13px;font-weight:600}
+.pg-per-tipos button[aria-pressed=true]{background:var(--c2-preto,#0B0B0D);border-color:var(--c2-preto,#0B0B0D);color:#fff}
+.pg-per-tipos button:focus-visible,.pg-seg button:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:2px}
+.pg-per-nav{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13.5px;color:var(--pn-t,#17181B)}
+.pg-per-nav b{font-weight:700;white-space:nowrap;padding:0 4px}
+.pg-per-nav .btn.min{min-width:34px;justify-content:center}
+.pg-per-nav label{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--pn-s,#565A63)}
+.pg-per-nav input[type=date],.pg-cab-dia input[type=date]{height:34px;padding:0 9px;border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:13.5px}
+/* indicadores por setor: uma tabela só, sem cartões repetidos */
+.pg-ind-w{overflow-x:auto;margin:0 0 18px}
+.pg-ind{width:100%;min-width:420px;border-collapse:separate;border-spacing:0;background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;font-variant-numeric:tabular-nums}
+.pg-ind th,.pg-ind td{padding:11px 16px;text-align:right;border-bottom:1px solid var(--pn-l,#DDE0E3);font-size:14.5px;white-space:nowrap}
+.pg-ind th:first-child,.pg-ind td:first-child{text-align:left;white-space:normal}
+.pg-ind thead th{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63)}
+.pg-ind tbody tr:last-child td{border-bottom:0}
+.pg-ind td small{display:block;font-size:12px;color:var(--pn-s,#565A63);font-weight:400;margin-top:1px}
+.pg-ind td:last-child,.pg-ind th:last-child{font-weight:800;background:var(--pn-l2,#F4F5F6)}
+.pg-ind tr.pg-forte td{font-weight:800}
+.pg-ind tr.pg-forte td:first-child{font-weight:700}
+@media(max-width:560px){
+ .pg-ind-w{overflow:visible}
+ .pg-ind{min-width:0;display:block}
+ .pg-ind thead{display:none}
+ .pg-ind tbody{display:block}
+ .pg-ind tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 10px;padding:10px 14px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+ .pg-ind tbody tr:last-child{border-bottom:0}
+ .pg-ind td{display:block;padding:0;border:0!important;text-align:left;font-size:14.5px;background:none!important;overflow:hidden;text-overflow:ellipsis}
+ .pg-ind td:first-child{grid-column:1/-1;font-size:13.5px;font-weight:600;margin:0 0 4px}
+ .pg-ind td:first-child small{display:inline;margin-left:6px;font-size:12px}
+ .pg-ind td[data-l]::before{content:attr(data-l);display:block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63)}
+ .pg-ind tr.pg-forte{background:var(--pn-l2,#F4F5F6);border-radius:0 0 12px 12px}
+}
+.pg-nota{font-size:12.5px;color:var(--pn-s,#565A63);margin:6px 2px 0;line-height:1.5}
+.pg-neg{color:#16794A;font-weight:700}
+.cpl-conta .pg-cred{border-color:#BFE3CC;background:#EEF8F1}.cpl-conta .pg-cred b{color:#16794A}
+.pg-neg small{display:inline!important;font-size:inherit!important;color:inherit!important;font-weight:600;margin:0!important}
+.pg-sub{display:block;font-size:12px;color:var(--pn-s,#565A63);font-weight:400;margin-top:2px}
+.pg-frase{font-size:15px;line-height:1.5;margin:0 2px 14px}
+.pg-frase .at{color:#B42318}
+.pg-busca{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.pg-busca input[type=search]{flex:1 1 220px;min-width:0}
+/* primeiro uso: três passos */
+.pg-passos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 18px}
+.pg-passos>div{border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;padding:14px 16px;background:var(--pn-b,#fff)}
+.pg-passos b{display:block;font-size:14.5px;margin-bottom:4px}
+.pg-passos span{font-size:13px;color:var(--pn-s,#565A63);line-height:1.45}
+.pg-passos i{font-style:normal;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--c2-preto,#0B0B0D);color:#fff;font-size:12px;font-weight:700;margin-right:6px}
+.pg-passos .btn{margin-top:10px}
+@media(max-width:760px){.pg-passos{grid-template-columns:1fr}}
+/* lançar o dia: uma linha por trabalhador */
+.pg-cab-dia{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 18px;margin:0 0 12px}
+.pg-cab-dia>label,.pg-cab-dia>.pg-f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--pn-s,#565A63)}
+.pg-cab-dia>.pg-f>label{font:inherit;color:inherit}
+.pg-seg{display:inline-flex;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px;overflow:hidden;background:var(--pn-b,#fff)}
+.pg-seg button{all:unset;box-sizing:border-box;cursor:pointer;height:34px;padding:0 18px;display:inline-flex;align-items:center;font-weight:600;font-size:14px;color:var(--pn-s,#565A63)}
+.pg-seg button+button{border-left:1px solid var(--pn-l,#DDE0E3)}
+.pg-seg button[aria-pressed=true]{background:var(--c2-preto,#0B0B0D);color:#fff}
+.pg-todos{display:inline-flex;align-items:center;gap:6px}
+.pg-todos input{width:120px;height:34px;box-sizing:border-box;padding:0 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:14px;text-align:right}
+.pg-grade{border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff);overflow:hidden}
+.pg-lin{display:grid;grid-template-columns:minmax(170px,1.7fr) minmax(96px,.7fr) minmax(120px,.8fr) minmax(110px,.8fr);gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+.pg-lin:last-child{border-bottom:0}
+.pg-lin.pg-th{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63);padding-top:9px;padding-bottom:9px;background:var(--pn-l2,#F4F5F6)}
+.pg-lin.pg-th span:nth-child(n+2){text-align:right}
+.pg-lin .nm{font-weight:600;font-size:14.5px;min-width:0;overflow-wrap:anywhere}
+.pg-lin .nm small{display:block;font-weight:400;font-size:12px;color:var(--pn-s,#565A63);margin-top:2px}
+.pg-lin .nm small.ja{color:#B54708}
+.pg-lin input{width:100%;box-sizing:border-box;height:38px;padding:0 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.pg-lin input:focus{outline:2px solid var(--brasa,#D3121C);outline-offset:-1px;border-color:transparent}
+.pg-lin .tt{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pg-lin.erro{background:#FEF3F2}
+.pg-lin.erro input.vz{border-color:#B42318}
+.pg-rod{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--pn-l2,#F4F5F6);border-top:1px solid var(--pn-l,#DDE0E3)}
+.pg-rod b{font-variant-numeric:tabular-nums}
+.pg-fora{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;margin:12px 0 0;font-size:13px;color:var(--pn-s,#565A63)}
+.pg-fora select{height:34px;max-width:100%}
+.pg-ok{border:1px solid #ABEFC6;background:#ECFDF3;border-radius:12px;padding:12px 16px;margin:0 0 14px;font-size:14px;line-height:1.5}
+.pg-ok .btn{margin:6px 6px 0 0}
+@media(max-width:640px){
+ .pg-lin{grid-template-columns:1fr 1fr;grid-template-areas:"n n" "g v" "t t";gap:6px 10px;padding:10px 12px}
+ .pg-lin .nm{grid-area:n}.pg-lin .g{grid-area:g}.pg-lin .v{grid-area:v}.pg-lin .tt{grid-area:t}
+ .pg-lin.pg-th{display:none}
+ .pg-lin .g::before,.pg-lin .v::before{content:attr(data-l);display:block;font-size:11.5px;font-weight:600;color:var(--pn-s,#565A63);margin:0 0 3px}
+}
+/* extrato: tabela com saldo corrido (não vira cartão: é um extrato) */
+.pg-tbw{border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff);overflow-x:auto}
+.pg-tb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13.5px}
+.pg-tb th{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63);text-align:left;padding:9px 12px;border-bottom:1px solid var(--pn-l,#DDE0E3);background:var(--pn-l2,#F4F5F6);white-space:nowrap}
+.pg-tb td{padding:9px 12px;border-bottom:1px solid var(--pn-l,#DDE0E3);vertical-align:top}
+.pg-tb tbody tr:last-child td{border-bottom:0}
+.pg-tb .n{text-align:right;white-space:nowrap}
+.pg-tb tr[data-pgabre]{cursor:pointer}
+.pg-tb tr[data-pgabre]:hover td{background:var(--pn-l2,#F4F5F6)}
+.pg-tb tr[data-pgabre]:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:-2px}
+.pg-tb tr.pg-x td{color:var(--pn-s,#565A63)}
+.pg-tb tr.pg-x td .v{text-decoration:line-through}
+.pg-tb tr.pg-ini td,.pg-tb tr.pg-fim td{font-weight:700;background:var(--pn-l2,#F4F5F6)}
+.pg-tag{display:inline-block;font-size:11px;font-weight:700;line-height:1.5;padding:0 8px;border-radius:99px;background:#FEE4E2;color:#B42318;margin-left:6px;white-space:nowrap;vertical-align:1px}
+.pg-tag.in{background:#EFF8FF;color:#175CD3}
+.pg-tb small{display:block;font-size:12px;color:var(--pn-s,#565A63)}
+@media(max-width:700px){
+ .pg-tb thead{display:none}
+ .pg-tb,.pg-tb tbody{display:block}
+ .pg-tb tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"d s" "t t" "a b";gap:2px 10px;padding:10px 12px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+ .pg-tb tbody tr:last-child{border-bottom:0}
+ .pg-tb td{display:block;padding:0;border:0;text-align:left}
+ .pg-tb td.d{grid-area:d;font-size:12px;color:var(--pn-s,#565A63)}
+ .pg-tb td.h{grid-area:t;font-size:13.5px}
+ .pg-tb td.c{grid-area:a;font-size:12.5px}
+ .pg-tb td.p{grid-area:b;font-size:12.5px;text-align:right}
+ .pg-tb td.s{grid-area:s;text-align:right;font-weight:700}
+ .pg-tb td.c:empty,.pg-tb td.p:empty{display:none}
+ .pg-tb td.c::before{content:"A receber ";color:var(--pn-s,#565A63)}
+ .pg-tb td.p::before{content:"Pago ";color:var(--pn-s,#565A63)}
+ .pg-tb td.s::before{content:"Saldo ";font-weight:400;color:var(--pn-s,#565A63);font-size:12px}
+ .pg-tb td.g{display:none}
+ .pg-tb tr.pg-ini,.pg-tb tr.pg-fim{background:var(--pn-l2,#F4F5F6)}
+ .pg-tb tr.pg-ini td,.pg-tb tr.pg-fim td{background:none}
+ .pg-rel .pg-tb tr{grid-template-columns:1fr;grid-template-areas:none;gap:3px}
+ .pg-rel .pg-tb td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;text-align:right}
+ .pg-rel .pg-tb td[data-l]::before{content:attr(data-l);color:var(--pn-s,#565A63);font-size:12.5px;font-weight:400;text-align:left}
+ .pg-rel .pg-tb td:first-child{display:block;text-align:left;font-weight:700;font-size:14.5px;margin-bottom:2px}
+ .pg-rel .pg-tb td:first-child::before{content:none}
+ .pg-rel .pg-tb td:empty{display:none}
+}
+/* janela de pagamento e de lançamento */
+.pg-mod .duas{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:520px){.pg-mod .duas{grid-template-columns:1fr}}
+.pg-prev{border:1px dashed var(--pn-l,#DDE0E3);border-radius:10px;padding:9px 12px;margin:2px 0 10px;font-size:13.5px;line-height:1.5}
+.pg-prev.at{border-color:#FEC84B;background:#FFFAEB}
+.pg-hist{font-size:12.5px;color:var(--pn-s,#565A63);margin:-2px 0 10px}
+.pg-chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0 8px;font-size:13.5px}
+.pg-chk input{margin-top:3px;flex:none}
+.pg-acoes-ok{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+/* relatórios */
+.pg-rel-esc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.pg-rel-f{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.pg-rel-f select{height:34px}
+.pg-rel h3.grupo-t{margin-top:16px}
+/* Financeiro: o módulo no painel (fora de "A pagar por módulo", que soma o Total pendente) */
+.pg-fmods{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin:0 0 16px}
+.pg-fmods a{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:1px solid var(--linha,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);color:inherit;text-decoration:none}
+.pg-fmods a:hover{border-color:var(--c2-preto,#0B0B0D)}
+.pg-fmods a>span:first-child{display:flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px}
+.pg-fmods a svg{width:17px;height:17px}
+.pg-fmods b{font-size:18px;font-variant-numeric:tabular-nums}
+.pg-fmods small{font-size:12px;color:var(--suave,#5B6168)}
+/* sub-abas do controle: no celular, uma fileira que rola para o lado */
+@media(max-width:760px){
+ nav.pm-sub[aria-label="Controle por grade"]{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+ nav.pm-sub[aria-label="Controle por grade"]::-webkit-scrollbar{display:none}
+ nav.pm-sub[aria-label="Controle por grade"] a{white-space:nowrap;flex:none}
+}
+@media(max-width:560px){.pg-fmods{grid-template-columns:1fr 1fr}.pg-fmods b{font-size:16px}}
+@media print{.pg-per,.pg-busca,.pg-rel-esc,.pg-rel-f,.pg-fora{display:none!important}}
+</style>
+<script id="grade-v156">
+"use strict";
+/* ================= V156 · Controle de Produção por Grade (23/11/2026) =================
+   Pedido do Jeferson: dentro da Produção, o controle de quem recebe por grade trabalhada na Enforna e na
+   Desenforna: cadastro do trabalhador (sem valor fixo), lançamento do dia com o valor por grade digitado em cada
+   lançamento, extrato de cada um, pagamentos inteiros ou parciais, painel separado por setor e relatórios. E no
+   Setor Financeiro o módulo "Pagamento por grade": o mesmo controle, visto e pago de lá (pedido do mesmo dia).
+   Regras:
+   · duas coleções novas, só deste controle: prodGradeTrab (cadastro, um documento por trabalhador) e prodGrade
+     (lançamentos e pagamentos, agrupados por mês). Nenhuma coleção, lançamento ou cálculo que já existia é tocado;
+   · cada lançamento guarda o próprio valor por grade: lançar outro valor depois nunca muda os anteriores.
+     Total do lançamento = grades × valor por grade (arredondado ao centavo);
+   · saldo do trabalhador = lançado − pago. Os pagamentos quitam primeiro os lançamentos mais antigos (é isso que
+     separa o pago por setor e mostra no recibo o que foi pago). Pago a mais vira crédito e desconta do que vier;
+   · nada é apagado: lançamento errado é cancelado com motivo, pagamento é estornado com motivo; os dois ficam no
+     extrato sem somar. Tudo entra no histórico do sistema e na auditoria do banco;
+   · os valores ficam só neste controle e no módulo do Financeiro: não entram sozinhos em custo, despesa, contas a
+     pagar, folha, Controladoria nem nos totais da Central de Pagamentos;
+   · repetição: lançamento do mesmo trabalhador, dia e setor pede confirmação; pagamento igual no mesmo dia, ou outro
+     pagamento ao mesmo trabalhador há menos de 5 minutos, pede confirmação; pagar mais do que ele tem a receber pede
+     confirmação e motivo; os botões ficam travados durante a gravação. */
+(()=>{
+if(typeof MODS==='undefined'||typeof DATA==='undefined'||typeof TELAS_V==='undefined'||typeof PERM==='undefined'||typeof gravar!=='function'){console.warn('Controle por grade: programa incompleto');return}
+const COL='prodGrade',COL_T='prodGradeTrab';
+const TIPO={pgLanc:'lanc',pgPag:'pag'};
+const SETORES_G=['Enforna','Desenforna'],AMBOS='Enforna e Desenforna';
+const FORMAS_G=['PIX','Dinheiro','Transferência bancária','Depósito bancário','Cheque','Outra'];
+const ORIG_PROD='Produção · Controle por grade',ORIG_FIN='Financeiro · Pagamento por grade';
+IC.pgGrade='<rect x="4" y="3" width="16" height="15" rx="1.5"/><path d="M4 8h16M4 13h16M9 3v15M15 3v15"/><circle cx="8" cy="20.6" r="1.4"/><circle cx="16" cy="20.6" r="1.4"/>';
+
+/* ---------- 1. banco: duas coleções só deste controle ---------- */
+Object.assign(DATA,{[COL]:[],[COL_T]:[]});
+Object.assign(BUCKET,{[COL]:'mes'});Object.assign(PARTES,{[COL]:6});Object.assign(CAMPO_DATA,{[COL]:'data'});
+if(typeof SEM_JANELA!=='undefined')SEM_JANELA.add(COL);   /* o saldo de cada um soma tudo desde o primeiro lançamento */
+const MEMO={};
+Object.keys(TIPO).forEach(m=>Object.defineProperty(DATA,m,{enumerable:false,configurable:true,
+ get(){const base=DATA[COL];const c=MEMO[m];if(c&&c.b===base)return c.v;const v=base.filter(r=>r.tipo===TIPO[m]);MEMO[m]={b:base,v};return v}}));
+Object.defineProperty(DATA,'pgTrab',{enumerable:false,configurable:true,get(){return DATA[COL_T]}});
+const g0=gravar,a0=apagar;
+gravar=async function(col,rec,ant){
+ if(TIPO[col])return g0(COL,{...rec,tipo:TIPO[col]},ant?{...ant,tipo:TIPO[col]}:ant);
+ if(col==='pgTrab')return g0(COL_T,rec,ant);
+ return g0.apply(this,arguments)};
+apagar=async function(col,rec){
+ if(TIPO[col])return a0(COL,{...rec,tipo:TIPO[col]});
+ if(col==='pgTrab')return a0(COL_T,rec);
+ return a0.apply(this,arguments)};
+
+/* ---------- 2. permissões ---------- */
+const PV=[...TODOS,...(typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[])];
+const PE=['admin','gerente','estoquista','gestor'];    /* cadastra e lança: os mesmos que lançam na Produção */
+const PP=['admin','financeiro','gerente'];             /* registra pagamento */
+const PX=['admin','financeiro'];                       /* estorna pagamento e reativa lançamento cancelado */
+const FV=['admin','financeiro','gerente'];             /* módulo no Financeiro: quem vê o Financeiro */
+Object.assign(PERM,{pgrade:{v:PV,e:[]},pgDia:{v:PE,e:PE},pgLanc:{v:PV,e:PE},pgTrab:{v:PV,e:PE},pgPag:{v:PV,e:PP},pgExtrato:{v:PV,e:[]},pgRel:{v:PV,e:[]},fGrade:{v:FV,e:PP}});
+const ROTAS=['pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];
+[...ROTAS,'fGrade'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+const podeLancar=()=>pode('pgLanc','e');
+const podePagar=()=>pode('pgPag','e');
+const podeEstornar=()=>PX.includes(APP.papel);
+
+/* ---------- 3. utilidades ---------- */
+const n0=x=>x===''||x==null||isNaN(+x)?0:+x;
+const r2=v=>round2(v);
+const numBR=s=>{s=String(s==null?'':s).trim().replace(/\s/g,'');if(!s)return NaN;if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');return /^(\d+\.?\d*|\.\d+)$/.test(s)?+s:NaN};
+const tot=l=>r2(n0(l.grades)*n0(l.valorGrade));
+const fG=n=>fQtd(n0(n));
+const plG=n=>fG(n)+(n0(n)===1?' grade':' grades');
+const pl=(n,s,p)=>fNum(n)+' '+(n===1?s:(p||s+'s'));
+const cap=s=>{s=String(s||'');return s.charAt(0).toLocaleUpperCase('pt-BR')+s.slice(1)};
+const cod=(sig,id)=>{const s=String(id||'');const t=(s.length>8?s.slice(-6):s).toUpperCase().replace(/[^A-Z0-9]/g,'');return sig+'-'+(t||'—')};
+const quem=uid=>uid?nomeUsuario(uid):'';
+const horaDe=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':pad(d.getHours())+':'+pad(d.getMinutes())};
+const N=s=>semAcento(String(s||'')).toLowerCase().replace(/\s+/g,' ').trim();
+const agora=()=>new Date().toISOString();
+const eu=()=>APP.uid||'local';
+const msgE=e=>typeof msgFalhaSalvar==='function'?msgFalhaSalvar(e):msgErro(e);
+const ordL=(a,b)=>String(a.data||'').localeCompare(String(b.data||''))||String(a.criadoEm||'').localeCompare(String(b.criadoEm||''))||String(a.id).localeCompare(String(b.id));
+const desc=(a,b)=>-ordL(a,b);
+
+/* valor por extenso (recibo): "cento e trinta e cinco reais e cinquenta centavos" */
+const U_=['','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+const D_=['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+const C_=['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+function ate999(n){if(!n)return '';if(n===100)return 'cem';const c=Math.floor(n/100),r=n%100;const p=[];if(c)p.push(C_[c]);
+ if(r){if(r<20)p.push(U_[r]);else{const d=Math.floor(r/10),u=r%10;p.push(D_[d]+(u?' e '+U_[u]:''))}}return p.join(' e ')}
+function inteiroExt(n){if(!n)return 'zero';const mi=Math.floor(n/1e6),mil=Math.floor(n/1000)%1000,r=n%1000;const gs=[];
+ if(mi)gs.push(mi===1?'um milhão':ate999(mi)+' milhões');if(mil)gs.push(mil===1?'mil':ate999(mil)+' mil');if(r)gs.push(ate999(r));
+ if(gs.length<2)return gs[0];const ult=r||mil;return gs.slice(0,-1).join(' ')+(ult<100||ult%100===0?' e ':' ')+gs[gs.length-1]}
+function extenso(v){v=r2(Math.abs(+v||0));const re=Math.floor(v+1e-9),ce=Math.round(v*100)-re*100;const p=[];
+ if(re)p.push(inteiroExt(re)+(re>=1e6&&re%1e6===0?' de reais':re===1?' real':' reais'));
+ if(ce)p.push(inteiroExt(ce)+(ce===1?' centavo':' centavos'));
+ return p.length?p.join(' e '):'zero reais'}
+
+/* ---------- 4. trabalhadores ---------- */
+const TRAB=id=>DATA[COL_T].find(t=>t.id===id)||null;
+const nomeT=id=>{const t=TRAB(id);return t?String(t.nome||'(sem nome)'):(id?'(trabalhador não encontrado)':'')};
+const ativo=t=>!!t&&t.situacao!=='Inativo';
+const noSetor=(t,s)=>!s||!!t&&(t.setor===s||t.setor===AMBOS);
+const porNome=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR');
+const optsTrab=atual=>DATA[COL_T].filter(t=>ativo(t)||t.id===atual).slice().sort(porNome).map(t=>[t.id,t.nome+' · '+t.setor+(ativo(t)?'':' (inativo)')]);
+const optsTrabTodos=()=>DATA[COL_T].slice().sort(porNome).map(t=>[t.id,t.nome+(ativo(t)?'':' (inativo)')]);
+const cpfDe=id=>{try{if(!veSensivel())return '';const s=sensDe('pgTrab',id);return s&&s.cpf?String(s.cpf):''}catch(e){return ''}};
+const setorPadrao=t=>t&&SETORES_G.includes(t.setor)?t.setor:'';
+
+/* ---------- 5. contas: lançado, pago, saldo e o que cada pagamento quitou ---------- */
+/* os pagamentos quitam primeiro os lançamentos mais antigos; no mesmo dia, o lançamento vem antes do pagamento.
+   Pago a mais fica como crédito e quita os próximos lançamentos. */
+function alocar(lancs,pags){
+ const ev=[...lancs.filter(l=>!l.cancelamento).map(l=>({k:'l',r:l})),...pags.filter(p=>!p.estorno).map(p=>({k:'p',r:p}))]
+  .sort((a,b)=>String(a.r.data||'').localeCompare(String(b.r.data||''))||(a.k===b.k?ordL(a.r,b.r):a.k==='l'?-1:1));
+ const fila=[],cred=[],pecas=[];
+ ev.forEach(e=>{
+  if(e.k==='l'){let resta=tot(e.r);
+   while(resta>0.004&&cred.length){const c=cred[0];const v=r2(Math.min(resta,c.resta));pecas.push({p:c.p,l:e.r,v});c.resta=r2(c.resta-v);resta=r2(resta-v);if(c.resta<=0.004)cred.shift()}
+   if(resta>0.004)fila.push({l:e.r,resta})}
+  else{let resta=r2(n0(e.r.valor));
+   while(resta>0.004&&fila.length){const f=fila[0];const v=r2(Math.min(resta,f.resta));pecas.push({p:e.r,l:f.l,v});f.resta=r2(f.resta-v);resta=r2(resta-v);if(f.resta<=0.004)fila.shift()}
+   if(resta>0.004)cred.push({p:e.r,resta})}});
+ return {pecas,abertos:fila,credito:cred}}
+const contaVazia=id=>({id,lancs:[],pags:[],lancado:0,pago:0,grades:0,saldo:0,ultLanc:'',ultPag:'',porSetor:{},pecas:[],abertos:[],credito:0});
+let CM={a:null,b:null,v:null};
+function calc(){
+ if(CM.v&&CM.a===DATA[COL]&&CM.b===DATA[COL_T])return CM.v;
+ const M=new Map();const ent=id=>{let x=M.get(id);if(!x){x=contaVazia(id);M.set(id,x)}return x};
+ DATA[COL_T].forEach(t=>ent(t.id));
+ DATA.pgLanc.forEach(l=>{if(l.trabId)ent(l.trabId).lancs.push(l)});
+ DATA.pgPag.forEach(p=>{if(p.trabId)ent(p.trabId).pags.push(p)});
+ M.forEach(x=>{x.lancs.sort(ordL);x.pags.sort(ordL);
+  x.lancs.forEach(l=>{if(l.cancelamento)return;const v=tot(l);x.lancado+=v;x.grades+=n0(l.grades);if(String(l.data||'')>x.ultLanc)x.ultLanc=l.data;
+   const s=x.porSetor[l.setor]||(x.porSetor[l.setor]={lancado:0,alocado:0,grades:0,saldo:0});s.lancado+=v;s.grades+=n0(l.grades)});
+  x.pags.forEach(p=>{if(p.estorno)return;x.pago+=n0(p.valor);if(String(p.data||'')>x.ultPag)x.ultPag=p.data});
+  x.lancado=r2(x.lancado);x.pago=r2(x.pago);x.saldo=r2(x.lancado-x.pago);
+  const A=alocar(x.lancs,x.pags);x.pecas=A.pecas;x.abertos=A.abertos;x.credito=r2(soma(A.credito,c=>c.resta));
+  A.pecas.forEach(pc=>{const s=x.porSetor[pc.l.setor];if(s)s.alocado+=pc.v});
+  Object.values(x.porSetor).forEach(s=>{s.lancado=r2(s.lancado);s.alocado=r2(s.alocado);s.saldo=r2(s.lancado-s.alocado)})});
+ CM={a:DATA[COL],b:DATA[COL_T],v:M};return M}
+const contaDe=id=>calc().get(id)||contaVazia(id);
+const ultimoPag=x=>{const ps=x.pags.filter(p=>!p.estorno);return ps.length?ps[ps.length-1]:null};
+
+/* ---------- 6. período: Dia · Semana · Mês · Período · Tudo ---------- */
+const semanaIni=iso=>{const d=dt(iso);return addDias(iso,-((d.getDay()+6)%7))};
+const fimMes=m=>addDias(addMeses(m+'-01',1),-1);
+const mesExt=m=>MESES_EXT[+m.slice(5,7)-1]+' de '+m.slice(0,4);
+function intervalo(U){const r=U.ref||hoje();
+ if(U.tipo==='dia')return {de:r,ate:r,rot:fData(r)+(r===hoje()?' · hoje':'')};
+ if(U.tipo==='semana'){const a=semanaIni(r),b=addDias(a,6);return {de:a,ate:b,rot:'Semana de '+fData(a).slice(0,5)+' a '+fData(b)}}
+ if(U.tipo==='mes'){const m=r.slice(0,7);return {de:m+'-01',ate:fimMes(m),rot:cap(mesExt(m))}}
+ if(U.tipo==='periodo'){const de=U.de||'',ate=U.ate||'';return {de,ate,rot:de||ate?(de?fData(de):'o início')+' a '+(ate?fData(ate):'hoje'):'todo o período'}}
+ return {de:'',ate:'',rot:'Todo o período'}}
+const noPer=(d,I)=>(!I.de||String(d||'')>=I.de)&&(!I.ate||String(d||'')<=I.ate);
+function moverPer(U,n){const r=U.ref||hoje();if(U.tipo==='dia')U.ref=addDias(r,n);else if(U.tipo==='semana')U.ref=addDias(r,7*n);else if(U.tipo==='mes')U.ref=addMeses(r.slice(0,7)+'-01',n)}
+function htmlPer(U,id){const I=intervalo(U);const T=[['dia','Dia'],['semana','Semana'],['mes','Mês'],['periodo','Período'],['tudo','Tudo']];
+ const nav=['dia','semana','mes'].includes(U.tipo);const longe=nav&&!noPer(hoje(),I);
+ return `<div class="pg-per" data-pgper="${esc(id)}" role="group" aria-label="Período"><div class="pg-per-tipos">${T.map(([k,l])=>`<button type="button" data-pgpt="${k}" aria-pressed="${U.tipo===k}">${l}</button>`).join('')}</div>
+  <div class="pg-per-nav">${nav?`<button type="button" class="btn min" data-pgpn="-1" aria-label="Anterior" title="Anterior">‹</button><b>${esc(I.rot)}</b><button type="button" class="btn min" data-pgpn="1" aria-label="Próximo" title="Próximo"${I.ate>=hoje()?' disabled':''}>›</button>${longe?'<button type="button" class="btn min" data-pgpn="0">Voltar para hoje</button>':''}`
+   :U.tipo==='periodo'?`<label>De <input type="date" data-pgpd="de" value="${esc(U.de||'')}" max="${hoje()}"></label><label>até <input type="date" data-pgpd="ate" value="${esc(U.ate||'')}" max="${hoje()}"></label>`:`<b>${esc(I.rot)}</b>`}</div></div>`}
+function ligarPer(c,U,id){const w=c.querySelector(`[data-pgper="${id}"]`);if(!w)return;
+ w.querySelectorAll('[data-pgpt]').forEach(b=>b.onclick=()=>{const k=b.dataset.pgpt;
+  if(k==='periodo'&&!U.de&&!U.ate){const I=intervalo(U.tipo==='tudo'?{tipo:'mes'}:U);U.de=I.de||hoje().slice(0,8)+'01';U.ate=I.ate&&I.ate<hoje()?I.ate:hoje()}
+  U.tipo=k;renderTela()});
+ w.querySelectorAll('[data-pgpn]').forEach(b=>b.onclick=()=>{const n=+b.dataset.pgpn;if(!n)U.ref=hoje();else moverPer(U,n);renderTela()});
+ w.querySelectorAll('[data-pgpd]').forEach(i=>i.onchange=()=>{U[i.dataset.pgpd]=i.value;renderTela()})}
+const txtPer=U=>{const I=intervalo(U);return U.tipo==='tudo'?'todo o período':U.tipo==='periodo'?I.rot:I.rot.charAt(0).toLowerCase()+I.rot.slice(1)};
+
+/* ---------- 7. peças de tela ---------- */
+const cabG=(ico,t,p,acoes)=>`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(ico)}</span><div><h1>${esc(t)}</h1><p>${p}</p></div></div><div class="acoes">${acoes||''}</div></div>`;
+const semAcesso=()=>'<div class="vazio"><b>Sem acesso</b>Seu perfil não inclui esta tela. Fale com o administrador.</div>';
+const tagSit=x=>x.saldo>0.004?tag('A receber','at'):x.saldo<-0.004?tag('Crédito','in'):tag('Em dia','ok');
+/* crédito (pago a mais) vai todo dentro de <small>: o total automático das tabelas (V51) não soma, porque não é dinheiro a pagar */
+const valSaldo=v=>v<-0.004?`<span class="pg-neg" title="Pago a mais: fica de crédito para os próximos lançamentos"><small>${esc(fMoeda(-v))} de crédito</small></span>`:`<b>${esc(fMoeda(v))}</b>`;
+const P=()=>window.PRODUCAO_SETOR||null;
+const FS=()=>window.FINANCEIRO_SETOR||null;
+function shellProd(el,ativa,corpo){const S=P();if(S&&typeof S.shellP==='function'){S.shellP(el,ativa,corpo);return}
+ el.innerHTML='<main class="sv-corpo" id="svCorpo"></main>';corpo($('#svCorpo',el))}
+function shellFin(el,ativa,corpo){const F=FS();if(F&&F.h&&typeof F.h.shellF==='function'){F.h.shellF(el,ativa,corpo);return}
+ el.innerHTML='<main class="sv-corpo" id="svCorpo"></main>';corpo($('#svCorpo',el))}
+/* linha que abre outra tela (a linha é a ação; botões dentro dela fazem só a deles) */
+function ligarLinhas(c,sel){$$(sel,c).forEach(tr=>{const ir=()=>JBNAV.ir(tr.dataset.go);
+ tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,label'))return;ir()};
+ tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)ir()}})}
+function ligarBusca(c,sel,U,k){const i=$(sel,c);if(!i)return;i.oninput=e=>{U[k]=e.target.value;clearTimeout(ligarBusca.t);ligarBusca.t=setTimeout(()=>{renderTela();const x=$(sel);if(x){x.focus();try{x.setSelectionRange(x.value.length,x.value.length)}catch(er){}}},250)}}
+const contasOpts=()=>{try{const F=FS();return F&&F.h&&typeof F.h.optsContas==='function'?F.h.optsContas():[]}catch(e){return []}};
+const nomeConta=id=>{if(!id)return '';try{const F=FS();return F&&F.h&&typeof F.h.nomeConta==='function'?F.h.nomeConta(id):''}catch(e){return ''}};
+const campo=(id,rot,inner,aj)=>`<div class="cmp"><label for="${id}">${rot}</label>${inner}${aj?`<span class="ajuda">${aj}</span>`:''}</div>`;
+const val=(v,id)=>{const x=v.querySelector('#'+id);return x?x.value:''};
+const optH=(ops,sel)=>ops.map(o=>{const[v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`}).join('');
+/* janela no padrão das janelas do Financeiro */
+/* a janela fecha sozinha quando a tela muda (botão voltar do celular, atalho, outra aba) e com Esc no computador */
+function fecharAoSair(v){
+ if(!v)return v;const h0=location.hash;let mo=null;
+ const fim=()=>{removeEventListener('hashchange',aoHash);removeEventListener('popstate',aoHash);document.removeEventListener('keydown',aoEsc,true);if(mo)mo.disconnect()};
+ const aoHash=()=>{if(location.hash!==h0&&v.isConnected)v.remove();if(!v.isConnected)fim()};
+ const aoEsc=e=>{if(e.key!=='Escape'||!v.isConnected)return;if([...document.querySelectorAll('.veu')].pop()!==v)return;e.stopPropagation();e.preventDefault();v.remove();fim()};
+ mo=new MutationObserver(()=>{if(!v.isConnected)fim()});mo.observe(document.body,{childList:true});
+ addEventListener('hashchange',aoHash);addEventListener('popstate',aoHash);document.addEventListener('keydown',aoEsc,true);return v}
+function janela(titulo,corpo,okTxt,aoOk,opc){opc=opc||{};
+ const F=FS();if(F&&F.h&&typeof F.h.modalF==='function'){const v=F.h.modalF(titulo,corpo,okTxt,aoOk,opc);if(v&&v.firstElementChild)v.firstElementChild.classList.add('pg-mod');return fecharAoSair(v)}
+ const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ v.innerHTML=`<div class="modal pg-mod" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3>${corpo}<div class="acoes" style="margin-top:14px"><button type="button" class="btn" data-r="0">Voltar</button>${okTxt?`<button type="button" class="btn pri" data-ok>${esc(okTxt)}</button>`:''}</div></div>`;
+ document.body.appendChild(v);
+ v.addEventListener('click',async e=>{if(e.target===v||e.target.closest('[data-r]')){v.remove();return}const b=e.target.closest('[data-ok]');if(!b||b.disabled)return;b.disabled=true;
+  try{const r=await aoOk(v);if(r===false)b.disabled=false;else v.remove()}catch(err){b.disabled=false;console.error(err);toast(msgE(err),'erro')}});
+ if(opc.depois)opc.depois(v);return fecharAoSair(v)}
+
+/* ---------- 8. cadastro e lançamentos no formulário padrão do sistema ---------- */
+function htmlContaTrab(r){
+ if(!r||!r.id||!TRAB(r.id))return '<span class="ajuda">Depois de salvar, aqui aparece quanto ele tem a receber.</span>';
+ const x=contaDe(r.id);const u=ultimoPag(x);
+ return `Lançado: <b>${esc(fMoeda(x.lancado))}</b> (${esc(plG(x.grades))}) · Pago: <b>${esc(fMoeda(x.pago))}</b> · Falta receber: ${valSaldo(x.saldo)}<br>`+
+  `<span class="ajuda">${x.ultLanc?'Último lançamento em '+esc(fData(x.ultLanc)):'Nenhum lançamento ainda'}${u?' · último pagamento em '+esc(fData(u.data))+' ('+esc(fMoeda(u.valor))+')':''}. <a href="#/pgExtrato/${esc(r.id)}">Ver o extrato</a></span>`}
+MODS.pgTrab={titulo:'Trabalhadores por grade',sing:'trabalhador',ic:'pgGrade',
+ desc:'Quem recebe por grade na Enforna e na Desenforna. O valor por grade não fica no cadastro: ele é digitado em cada lançamento.',
+ fields:[
+  {k:'nome',l:'Nome completo',t:'txt',req:1,s:'Trabalhador'},
+  {k:'apelido',l:'Apelido (como é conhecido)',t:'txt',aj:'Opcional. Ajuda a achar na pesquisa.',s:'Trabalhador'},
+  {k:'cpf',l:'CPF (opcional)',t:'cpf',sens:1,s:'Trabalhador'},
+  {k:'setor',l:'Setor de atuação',t:'sel',req:1,op:[...SETORES_G,AMBOS],s:'Trabalhador'},
+  {k:'dataCadastro',l:'Data de cadastro',t:'data',req:1,s:'Trabalhador'},
+  {k:'situacao',l:'Situação',t:'sel',req:1,op:['Ativo','Inativo'],aj:'Inativo sai da lista de lançamento do dia; o extrato e o saldo continuam.',s:'Trabalhador'},
+  {k:'telefone',l:'Telefone (opcional)',t:'tel',s:'Contato e pagamento'},
+  {k:'pix',l:'Chave PIX (opcional)',t:'txt',s:'Contato e pagamento'},
+  {k:'_conta',l:'Conta dele hoje',t:'html',w2:1,calc:r=>htmlContaTrab(r),s:'Conta do trabalhador'},
+  {k:'criadoPor',l:'Cadastrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
+ cols:[{k:'nome',l:'Nome',v:r=>`<b>${esc(r.nome)}</b>${r.apelido?`<span class="pg-sub">${esc(r.apelido)}</span>`:''}`,o:r=>String(r.nome||'')+' '+String(r.apelido||'')},
+  {k:'setor',l:'Setor'},{k:'dataCadastro',l:'Cadastro',t:'data'},
+  {k:'_ult',l:'Último lançamento',v:r=>{const x=contaDe(r.id);return x.ultLanc?esc(fData(x.ultLanc)):'—'},o:r=>contaDe(r.id).ultLanc},
+  {k:'_saldo',l:'Falta receber',t:'moeda',v:r=>valSaldo(contaDe(r.id).saldo),o:r=>Math.max(0,contaDe(r.id).saldo)},
+  {k:'situacao',l:'Situação',v:r=>tag(r.situacao||'Ativo',r.situacao==='Inativo'?'':'ok'),o:r=>r.situacao||'Ativo'}],
+ filtros:[{k:'_setor',l:'Setor',op:[...SETORES_G,AMBOS],fn:(r,v)=>r.setor===v},{k:'_sit',l:'Situação',op:['Ativo','Inativo'],fn:(r,v)=>(r.situacao||'Ativo')===v},
+  {k:'_saldo',l:'Conta',op:['A receber','Em dia','Com crédito'],fn:(r,v)=>{const s=contaDe(r.id).saldo;return v==='A receber'?s>0.004:v==='Com crédito'?s<-0.004:Math.abs(s)<=0.004}}],
+ setorDe:()=>APP.setorGestor||'',ordem:['nome','asc'],
+ padrao:()=>({nome:'',apelido:'',setor:'',dataCadastro:hoje(),situacao:'Ativo',telefone:'',pix:'',obs:''}),
+ validar(st){const e={};const nm=N(st.nome);
+  if(st.nome&&nm.length<3)e.nome='Escreva o nome completo.';
+  if(st.dataCadastro&&st.dataCadastro>hoje())e.dataCadastro='A data de cadastro não pode ser futura.';
+  if(st.cpf&&typeof cpfValido==='function'&&!cpfValido(st.cpf))e.cpf='CPF inválido: confira os números (ou deixe em branco).';
+  const av=[];
+  const mesmo=DATA[COL_T].find(t=>t.id!==st.id&&nm&&N(t.nome)===nm);
+  if(mesmo)av.push('Já existe um trabalhador cadastrado com este nome ('+mesmo.nome+', '+mesmo.setor+(ativo(mesmo)?'':', inativo')+'). Salve só se for outra pessoa.');
+  if(st.cpf&&veSensivel()){const c=String(st.cpf).replace(/\D/g,'');const ou=DATA[COL_T].find(t=>t.id!==st.id&&cpfDe(t.id).replace(/\D/g,'')===c);if(ou)av.push('Este CPF já está no cadastro de '+ou.nome+'.')}
+  const ant=TRAB(st.id);if(ant&&ativo(ant)&&st.situacao==='Inativo'){const x=contaDe(st.id);if(x.saldo>0.004)av.push(ant.nome+' ainda tem '+fMoeda(x.saldo)+' a receber. Inativo, ele sai da lista de lançamento, mas o saldo continua no extrato e no Financeiro.')}
+  if(av.length)e._aviso=av.join(' ');return e},
+ preparar(rec){rec.nome=String(rec.nome||'').replace(/\s+/g,' ').trim();rec.apelido=String(rec.apelido||'').replace(/\s+/g,' ').trim();if(!rec.situacao)rec.situacao='Ativo'},
+ semExcluir:true};
+
+/* valores recentes do trabalhador no setor: ajudam a perceber um valor digitado errado (nada é preenchido sozinho) */
+function recentes(tid,setor,semId){return contaDe(tid).lancs.filter(l=>!l.cancelamento&&l.id!==semId&&(!setor||l.setor===setor)).slice(-10)}
+function mediana(xs){const a=xs.map(Number).filter(v=>v>0).sort((x,y)=>x-y);if(!a.length)return 0;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
+function valorEstranho(st){const v=n0(st.valorGrade);if(!(v>0))return '';
+ let ref=mediana(recentes(st.trabId,st.setor,st.id).map(l=>l.valorGrade));let de='os últimos lançamentos dele';
+ if(!ref){ref=mediana(DATA.pgLanc.filter(l=>!l.cancelamento&&l.setor===st.setor&&l.id!==st.id).slice(-20).map(l=>l.valorGrade));de='os últimos lançamentos da '+(st.setor||'Produção')}
+ if(ref&&(v>ref*3||v<ref/3))return 'O valor por grade ('+fMoeda(v)+') está muito diferente do que aparece em '+de+' ('+fMoeda(ref)+'). Confira se foi digitado certo.';
+ if(!ref&&v>100)return 'O valor por grade ficou em '+fMoeda(v)+'. Confira se foi digitado certo.';
+ return ''}
+function htmlTotalLanc(r){
+ const g=n0(r.grades),v=n0(r.valorGrade);const t=r2(g*v);
+ let h=g>0&&v>0?`${esc(plG(g))} × ${esc(fMoeda(v))} = <b>${esc(fMoeda(t))}</b>`:'<span class="ajuda">Informe a quantidade de grades e o valor por grade: o total sai sozinho.</span>';
+ if(r.trabId&&TRAB(r.trabId)){const x=contaDe(r.trabId);const ant=DATA.pgLanc.find(l=>l.id===r.id);const antes=x.saldo;const depois=r2(antes-(ant&&!ant.cancelamento?tot(ant):0)+(r.cancelamento?0:t));
+  h+=`<br><span class="ajuda">${esc(nomeT(r.trabId))}: falta receber ${esc(fMoeda(antes))}${g>0&&v>0&&!r.cancelamento&&depois!==antes?' → com este lançamento, '+esc(fMoeda(depois)):''}.</span>`;
+  const rc=recentes(r.trabId,r.setor,r.id).slice(-3).reverse();
+  if(rc.length)h+=`<br><span class="ajuda">Últimos valores por grade dele${r.setor?' na '+esc(r.setor):''}: ${rc.map(l=>esc(fMoeda(l.valorGrade))+' ('+esc(fData(l.data).slice(0,5))+')').join(', ')}.</span>`}
+ return h}
+function htmlSitLanc(r){
+ const ok=!!DATA.pgLanc.find(l=>l.id===r.id);if(!ok)return '';
+ if(r.cancelamento){const c=r.cancelamento;return `${tag('Cancelado','pe')} em ${esc(fDataHora(c.em))} por ${esc(quem(c.por)||'—')}. Motivo: ${esc(c.motivo||'—')}. Não soma no saldo.`+
+  (podeEstornar()?` <button type="button" class="btn min" data-acao="pgReativarLanc">Reativar o lançamento</button>`:'')}
+ return `${tag('Lançado','ok')} Soma no saldo do trabalhador.`+(podeLancar()?` <button type="button" class="btn min perigo" data-acao="pgCancelarLanc">Cancelar lançamento</button>`:'')}
+/* rodapé da lista de trabalhadores: soma o que falta receber (o crédito de um não desconta o de outro).
+   Sem isto o rodapé só conta registros, porque o cadastro tem campo sensível (CPF). */
+if(typeof TOTAIS!=='undefined'&&!TOTAIS.pgTrab)TOTAIS.pgTrab={_saldo:'moeda'};
+MODS.pgLanc={titulo:'Lançamentos de grades',sing:'lançamento de grades',ic:'pgGrade',
+ desc:'Grades feitas por cada trabalhador, dia a dia. Total = grades × valor por grade do próprio lançamento.',
+ fields:[
+  {k:'data',l:'Data',t:'data',req:1,s:'Lançamento'},
+  {k:'trabId',l:'Trabalhador',t:'sel',req:1,op:st=>optsTrab(st&&st.trabId),s:'Lançamento'},
+  {k:'setor',l:'Setor',t:'sel',req:1,op:SETORES_G,s:'Lançamento'},
+  {k:'grades',l:'Quantidade de grades',t:'num',req:1,s:'Valores'},
+  {k:'valorGrade',l:'Valor por grade (R$)',t:'moeda',req:1,aj:'Digite o valor deste lançamento. Ele fica gravado só aqui: lançar outro valor depois não muda os anteriores.',s:'Valores'},
+  {k:'_total',l:'Total a receber',t:'html',vivo:1,w2:1,calc:r=>htmlTotalLanc(r),s:'Valores'},
+  {k:'_sit',l:'Situação',t:'html',vivo:1,w2:1,calc:r=>htmlSitLanc(r),sh:r=>!!DATA.pgLanc.find(l=>l.id===r.id),s:'Situação'},
+  {k:'criadoPor',l:'Lançado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
+  {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
+ cols:[{k:'data',l:'Data',t:'data'},
+  {k:'trabId',l:'Nome',v:r=>`<b>${esc(nomeT(r.trabId))}</b>`,o:r=>nomeT(r.trabId)},
+  {k:'setor',l:'Setor'},
+  {k:'grades',l:'Grades',t:'num',v:r=>r.cancelamento?`<s>${esc(fG(r.grades))}</s>`:esc(fG(r.grades)),o:r=>r.cancelamento?0:n0(r.grades)},
+  {k:'valorGrade',l:'Valor por grade',t:'moeda',v:r=>esc(fMoeda(r.valorGrade))},
+  {k:'_tot',l:'Total',t:'moeda',v:r=>r.cancelamento?`<s>${esc(fMoeda(tot(r)))}</s>`:esc(fMoeda(tot(r))),o:r=>r.cancelamento?0:tot(r)},
+  {k:'_sit',l:'Situação',v:r=>r.cancelamento?tag('Cancelado','pe'):tag('Lançado','ok'),o:r=>r.cancelamento?'Cancelado':'Lançado'}],
+ filtros:[{k:'_setor',l:'Setor',op:SETORES_G,fn:(r,v)=>r.setor===v},{k:'_trab',l:'Trabalhador',op:()=>optsTrabTodos(),fn:(r,v)=>r.trabId===v},
+  {k:'_sit',l:'Situação',op:['Lançado','Cancelado'],fn:(r,v)=>(v==='Cancelado')===!!r.cancelamento},{k:'data',l:'Data',t:'periodo',campo:'data'}],
+ setorDe:()=>APP.setorGestor||'',ordem:['data','desc'],rotaNovo:'#/pgDia',
+ padrao:()=>({data:hoje(),trabId:'',setor:'',grades:'',valorGrade:'',obs:''}),
+ aoMudar(st,k){if(k==='trabId'){const s=setorPadrao(TRAB(st.trabId));if(s)st.setor=s}},
+ validar(st){const e={};
+  if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
+  if(st.grades!==''&&st.grades!=null&&!(n0(st.grades)>0))e.grades='Informe uma quantidade maior que zero.';
+  if(st.valorGrade!==''&&st.valorGrade!=null&&!(n0(st.valorGrade)>0))e.valorGrade='Informe um valor maior que zero.';
+  const ant=DATA.pgLanc.find(l=>l.id===st.id);
+  if(ant&&ant.cancelamento)e.data='Este lançamento está cancelado: não dá para alterar. Lance de novo, se precisar.';
+  const av=[];const t=TRAB(st.trabId);
+  if(t&&!ativo(t)&&!ant)av.push(t.nome+' está inativo.');
+  if(t&&st.setor&&!noSetor(t,st.setor))av.push(t.nome+' está cadastrado na '+t.setor+' e este lançamento é na '+st.setor+'.');
+  const dup=DATA.pgLanc.find(l=>l.id!==st.id&&!l.cancelamento&&l.trabId===st.trabId&&l.data===st.data&&l.setor===st.setor);
+  if(dup)av.push('Já existe lançamento de '+nomeT(st.trabId)+' em '+fData(st.data)+' na '+st.setor+' ('+plG(dup.grades)+' × '+fMoeda(dup.valorGrade)+' = '+fMoeda(tot(dup))+'). Salve só se for outro serviço do mesmo dia, não uma repetição.');
+  const ve=valorEstranho(st);if(ve)av.push(ve);
+  if(n0(st.grades)>300)av.push('São '+plG(st.grades)+' num lançamento só. Confira a quantidade.');
+  if(st.data&&st.data<addDias(hoje(),-45)&&!ant)av.push('A data é de mais de 45 dias atrás ('+fData(st.data)+').');
+  if(ant&&tot(ant)!==r2(n0(st.grades)*n0(st.valorGrade))){const x=contaDe(st.trabId);const pgDepois=x.pags.filter(p=>!p.estorno&&String(p.data)>=String(ant.data));
+   if(pgDepois.length)av.push(nomeT(st.trabId)+' já recebeu pagamento depois deste lançamento. O total muda de '+fMoeda(tot(ant))+' para '+fMoeda(r2(n0(st.grades)*n0(st.valorGrade)))+' e o saldo dele muda junto. A alteração fica no histórico.')}
+  if(av.length)e._aviso=av.join(' ');return e},
+ preparar(rec){rec.grades=n0(rec.grades);rec.valorGrade=r2(n0(rec.valorGrade));rec.total=tot(rec)},
+ resumo(rows){const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const ok=rows.filter(r=>!r.cancelamento);
+  return `<div class="resumo">${b(esc(fNum(ok.length)),'Lançamentos no filtro')}${b(esc(fG(soma(ok,r=>n0(r.grades)))),'Grades')}${b(esc(fMoeda(soma(ok,tot))),'Total a receber')}${SETORES_G.map(s=>b(esc(fMoeda(soma(ok.filter(r=>r.setor===s),tot))),s)).join('')}${b(esc(fNum(rows.length-ok.length)),'Cancelados (não somam)')}</div>`},
+ semExcluir:true};
+
+/* pagamentos: só leitura no formulário padrão (registrar é pela janela própria; estorno não apaga) */
+function htmlSaldosPag(r){if(!r||r.saldoAntes==null)return '';
+ return `Falta receber antes: <b>${esc(fMoeda(r.saldoAntes))}</b> · pago: <b>${esc(fMoeda(r.valor))}</b> · depois: ${valSaldo(r2(n0(r.saldoDepois)))}`+
+  (r.excedente?`<br><span class="ajuda">Pago acima do que ele tinha a receber (${esc(fMoeda(r.excedente.valor))}). Motivo: ${esc(r.excedente.motivo||'—')}.</span>`:'')}
+function htmlSitPag(r){if(!DATA.pgPag.find(p=>p.id===r.id))return '';
+ if(r.estorno){const c=r.estorno;return `${tag('Estornado','pe')} em ${esc(fDataHora(c.em))} por ${esc(quem(c.por)||'—')}. Motivo: ${esc(c.motivo||'—')}. O valor voltou para o saldo do trabalhador.`}
+ return `${tag('Pago','ok')}`+(podeEstornar()?` <button type="button" class="btn min perigo" data-acao="pgEstornarPag">Estornar pagamento</button>`:'')}
+MODS.pgPag={titulo:'Pagamentos por grade',sing:'pagamento por grade',ic:'carteira',imutavel:true,
+ desc:'Pagamentos aos trabalhadores da Enforna e da Desenforna, inteiros ou parciais. Estorno não apaga: o pagamento fica marcado, com o motivo.',
+ fields:[
+  {k:'data',l:'Data do pagamento',t:'data',req:1,s:'Pagamento'},
+  {k:'trabId',l:'Trabalhador',t:'sel',req:1,op:()=>optsTrabTodos(),s:'Pagamento'},
+  {k:'valor',l:'Valor pago',t:'moeda',req:1,s:'Pagamento'},
+  {k:'forma',l:'Forma de pagamento',t:'sel',op:FORMAS_G,s:'Pagamento'},
+  {k:'contaId',l:'Saiu de (Caixa ou banco)',t:'sel',op:()=>contasOpts(),sh:r=>!!r.contaId,s:'Pagamento'},
+  {k:'_saldos',l:'Conta do trabalhador',t:'html',w2:1,calc:r=>htmlSaldosPag(r),sh:r=>r.saldoAntes!=null,s:'Pagamento'},
+  {k:'comprovante',l:'Comprovante',t:'arq',s:'Pagamento'},
+  {k:'_sit',l:'Situação',t:'html',w2:1,calc:r=>htmlSitPag(r),s:'Situação'},
+  {k:'origem',l:'Registrado em',t:'txt',s:'Registro'},
+  {k:'criadoPor',l:'Registrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
+  {k:'obs',l:'Observação',t:'area',w2:1,s:'Registro'}],
+ cols:[{k:'data',l:'Data',t:'data'},
+  {k:'trabId',l:'Nome',v:r=>`<b>${esc(nomeT(r.trabId))}</b>`,o:r=>nomeT(r.trabId)},
+  {k:'_setor',l:'Setor',v:r=>esc((TRAB(r.trabId)||{}).setor||''),o:r=>(TRAB(r.trabId)||{}).setor||''},
+  {k:'forma',l:'Forma'},
+  {k:'valor',l:'Valor',t:'moeda',v:r=>r.estorno?`<s>${esc(fMoeda(r.valor))}</s>`:esc(fMoeda(r.valor)),o:r=>r.estorno?0:n0(r.valor)},
+  {k:'_sit',l:'Situação',v:r=>r.estorno?tag('Estornado','pe'):tag('Pago','ok'),o:r=>r.estorno?'Estornado':'Pago'}],
+ filtros:[{k:'_trab',l:'Trabalhador',op:()=>optsTrabTodos(),fn:(r,v)=>r.trabId===v},{k:'_forma',l:'Forma',op:FORMAS_G,fn:(r,v)=>r.forma===v},
+  {k:'_sit',l:'Situação',op:['Pago','Estornado'],fn:(r,v)=>(v==='Estornado')===!!r.estorno},{k:'data',l:'Data',t:'periodo',campo:'data'}],
+ setorDe:()=>APP.setorGestor||'',ordem:['data','desc'],rotaNovo:'#/pgPag',
+ resumo(rows){const b=(v,l)=>`<div><b>${v}</b><span>${l}</span></div>`;const ok=rows.filter(r=>!r.estorno);
+  return `<div class="resumo">${b(esc(fNum(ok.length)),'Pagamentos no filtro')}${b(esc(fMoeda(soma(ok,r=>n0(r.valor)))),'Total pago')}${b(esc(fNum(new Set(ok.map(r=>r.trabId)).size)),'Trabalhadores pagos')}${b(esc(fNum(rows.length-ok.length)),'Estornados (não somam)')}</div>`},
+ semExcluir:true};
+
+/* ações dentro do formulário: cancelar ou reativar lançamento, estornar pagamento (com motivo, sem apagar) */
+window.ACOES_FORM=window.ACOES_FORM||{};
+function pedirMotivo(titulo,texto,okTxt,aoOk){
+ return janela(titulo,`<p class="ajuda" style="margin:0 0 10px">${texto}</p>${campo('pgMot','Motivo<i> *</i>','<textarea id="pgMot" rows="3" maxlength="400"></textarea>','Fica no registro e no histórico.')}`,okTxt,async v=>{
+  const m=String(val(v,'pgMot')||'').replace(/\s+/g,' ').trim();if(m.length<4){toast('Escreva o motivo (pelo menos 4 letras).','erro');return false}
+  return aoOk(m)},{perigo:true})}
+window.ACOES_FORM.pgCancelarLanc=async({st})=>{
+ if(GAV&&GAV.sujo){toast('Salve ou desfaça as alterações antes de cancelar.','erro');return}
+ const at=DATA.pgLanc.find(l=>l.id===st.id);if(!at||at.cancelamento)return;
+ pedirMotivo('Cancelar lançamento',`${esc(nomeT(at.trabId))} · ${esc(fData(at.data))} · ${esc(at.setor)} · ${esc(plG(at.grades))} × ${esc(fMoeda(at.valorGrade))} = <b>${esc(fMoeda(tot(at)))}</b>.<br>O lançamento não é apagado: fica no extrato como cancelado e deixa de somar no saldo.`,'Cancelar lançamento',async m=>{
+  const a2=DATA.pgLanc.find(l=>l.id===st.id);if(!a2||a2.cancelamento){toast('Este lançamento já foi cancelado.','erro');return}
+  const n={...clone(a2),cancelamento:{em:agora(),por:eu(),motivo:m},alteradoEm:agora(),alteradoPor:eu()};
+  await gravar('pgLanc',n,a2);await logV('pgLanc',a2.id,'cancelou o lançamento',[{c:'Situação',de:'Lançado',para:'Cancelado'},{c:'Motivo',de:'',para:m},{c:'Total',de:fMoeda(tot(a2)),para:'não soma no saldo'}]);
+  toast('Lançamento cancelado. Ele continua no extrato, sem somar.','ok');if(GAV)GAV.sujo=false;fecharRota(true)})};
+window.ACOES_FORM.pgReativarLanc=async({st})=>{
+ const at=DATA.pgLanc.find(l=>l.id===st.id);if(!at||!at.cancelamento||!podeEstornar())return;
+ if(!await confirmar('Reativar o lançamento?','O lançamento de '+nomeT(at.trabId)+' em '+fData(at.data)+' ('+fMoeda(tot(at))+') volta a somar no saldo dele. Fica no histórico.',{ok:'Reativar'}))return;
+ const a2=DATA.pgLanc.find(l=>l.id===st.id);if(!a2||!a2.cancelamento)return;
+ const n={...clone(a2),cancelamento:null,reativado:{em:agora(),por:eu(),motivoCancel:(a2.cancelamento||{}).motivo||''},alteradoEm:agora(),alteradoPor:eu()};
+ try{await gravar('pgLanc',n,a2);await logV('pgLanc',a2.id,'reativou o lançamento',[{c:'Situação',de:'Cancelado',para:'Lançado'}]);toast('Lançamento reativado.','ok');if(GAV)GAV.sujo=false;fecharRota(true)}catch(e){toast(msgE(e),'erro')}};
+window.ACOES_FORM.pgEstornarPag=async({st})=>{
+ const at=DATA.pgPag.find(p=>p.id===st.id);if(!at||at.estorno||!podeEstornar())return;
+ pedirMotivo('Estornar pagamento',`${esc(nomeT(at.trabId))} · ${esc(fData(at.data))} · ${esc(at.forma||'')} · <b>${esc(fMoeda(at.valor))}</b>.<br>O pagamento não é apagado: fica marcado como estornado e o valor volta para o saldo do trabalhador.`,'Estornar pagamento',async m=>{
+  const a2=DATA.pgPag.find(p=>p.id===st.id);if(!a2||a2.estorno){toast('Este pagamento já foi estornado.','erro');return}
+  const n={...clone(a2),estorno:{em:agora(),por:eu(),motivo:m},alteradoEm:agora(),alteradoPor:eu()};
+  await gravar('pgPag',n,a2);await logV('pgPag',a2.id,'estornou o pagamento',[{c:'Situação',de:'Pago',para:'Estornado'},{c:'Motivo',de:'',para:m},{c:'Valor',de:fMoeda(a2.valor),para:'volta para o saldo'}]);
+  toast('Pagamento estornado. O valor voltou para o saldo de '+nomeT(a2.trabId)+'.','ok');if(GAV)GAV.sujo=false;fecharRota(true)})};
+
+/* ---------- 9. Painel do controle ---------- */
+const UIP={tipo:'mes',ref:'',de:'',ate:'',q:'',todos:false};
+function indicadores(I){
+ const M=calc();const contas=[...M.values()];const ts=DATA[COL_T];
+ const L=DATA.pgLanc.filter(l=>!l.cancelamento&&noPer(l.data,I));
+ const Pg=DATA.pgPag.filter(p=>!p.estorno&&noPer(p.data,I));
+ const pecas=contas.flatMap(x=>x.pecas.filter(pc=>noPer(pc.p.data,I)));
+ const col=s=>({ativos:s?ts.filter(t=>ativo(t)&&noSetor(t,s)).length:ts.filter(ativo).length,
+  grades:soma(L.filter(l=>!s||l.setor===s),l=>n0(l.grades)),
+  devido:r2(soma(L.filter(l=>!s||l.setor===s),tot)),
+  pago:s?r2(soma(pecas.filter(pc=>pc.l.setor===s),pc=>pc.v)):r2(soma(Pg,p=>n0(p.valor))),
+  saldo:s?r2(soma(contas,x=>(x.porSetor[s]||{}).saldo||0)):r2(soma(contas,x=>Math.max(0,x.saldo)))});   /* falta pagar: crédito de um não desconta o que outro tem a receber */
+ const C={Enforna:col('Enforna'),Desenforna:col('Desenforna'),Total:col('')};
+ C.credPer=r2(C.Total.pago-C.Enforna.pago-C.Desenforna.pago);C.credito=r2(soma(contas,x=>x.credito));
+ C.nLanc=L.length;C.nPag=Pg.length;return C}
+function htmlIndicadores(C,I,U){
+ const per=txtPer(U);
+ const lin=(rot,sub,k,fmt,cls)=>`<tr${cls?` class="${cls}"`:''}><td>${esc(rot)}${sub?`<small>${esc(sub)}</small>`:''}</td>${['Enforna','Desenforna','Total'].map(s=>`<td data-l="${s}">${fmt(C[s][k])}</td>`).join('')}</tr>`;
+ const m=v=>esc(fMoeda(v)),q=v=>esc(fG(v)),n=v=>esc(fNum(v));
+ return `<div class="pg-ind-w"><table class="pg-ind" aria-label="Indicadores por setor"><thead><tr><th>Indicador</th><th>Enforna</th><th>Desenforna</th><th>Total</th></tr></thead><tbody>
+  ${lin('Trabalhadores ativos','hoje','ativos',n)}
+  ${lin('Grades lançadas',per,'grades',q)}
+  ${lin('Total devido','lançado · '+per,'devido',m)}
+  ${lin('Total pago',per,'pago',m)}
+  ${lin('Saldo pendente','falta pagar até hoje','saldo',v=>v<-0.004?`<span class="pg-neg">${esc(fMoeda(-v))} de crédito</span>`:m(v),'pg-forte')}
+ </tbody></table></div>
+ ${C.credPer>0.004||C.credito>0.004?`<p class="pg-nota">${C.credPer>0.004?'Do total pago, '+esc(fMoeda(C.credPer))+' foi pago a mais do que havia lançado (crédito): entra em Enforna ou Desenforna quando quitar os próximos lançamentos. ':''}${C.credito>0.004?'Crédito em aberto hoje: '+esc(fMoeda(C.credito))+'.':''}</p>`:''}`}
+function telaPainel(c){
+ const I=intervalo(UIP);const ts=DATA[COL_T];const ed=podeLancar(),pg=podePagar();
+ const acoes=`${pg&&ts.length?`<button type="button" class="btn" id="pgPagar">${ic('carteira')}Registrar pagamento</button>`:''}${ed?`<button type="button" class="btn" id="pgNovoT">${ic('mais')}Novo trabalhador</button>`:''}${ed&&ts.length?`<button type="button" class="btn pri" id="pgLancar">${ic('mais')}Lançar grades</button>`:''}`;
+ const topo=cabG('pgGrade','Controle por grade','Trabalhadores que recebem por grade na Enforna e na Desenforna: grades do dia, quanto cada um tem a receber e os pagamentos. O valor por grade é digitado em cada lançamento.',acoes);
+ if(!ts.length){
+  c.innerHTML=topo+`<div class="pg-passos">
+   <div><b><i>1</i>Cadastre os trabalhadores</b><span>Nome, CPF (se quiser), setor e situação. Sem valor fixo: o valor é de cada lançamento.</span>${ed?'<br><a class="btn pri min" href="#/pgTrab/novo">Cadastrar o primeiro</a>':''}</div>
+   <div><b><i>2</i>Lance as grades do dia</b><span>Escolha o dia e o setor e digite as grades e o valor por grade de cada um. O total sai sozinho.</span></div>
+   <div><b><i>3</i>Consulte e pague</b><span>Cada um tem o extrato com o que tem a receber. Pague inteiro ou parte; o Financeiro vê o mesmo em “Pagamento por grade”.</span></div></div>
+   ${ed?'':'<div class="vazio"><b>Nenhum trabalhador cadastrado</b>Quem lança na Produção faz o cadastro.</div>'}`;
+  ligarAcoesPainel(c);return}
+ const C=indicadores(I);
+ const q=N(UIP.q);
+ const L=[...calc().values()].map(x=>({x,t:TRAB(x.id)})).filter(o=>o.t)
+  .filter(o=>UIP.todos||Math.abs(o.x.saldo)>0.004||ativo(o.t)&&o.x.lancs.some(l=>!l.cancelamento&&noPer(l.data,I)))
+  .filter(o=>!q||N(o.t.nome+' '+(o.t.apelido||'')+' '+o.t.setor).includes(q))
+  .sort((a,b)=>b.x.saldo-a.x.saldo||porNome(a.t,b.t));
+ const lanP=x=>x.lancs.filter(l=>!l.cancelamento&&noPer(l.data,I));
+ c.innerHTML=topo+htmlPer(UIP,'painel')+htmlIndicadores(C,I,UIP)+
+  `<h3 class="grupo-t">A receber por trabalhador</h3>
+  <div class="pg-busca fi-filtros"><input type="search" id="pgQ" placeholder="Localizar trabalhador" value="${esc(UIP.q)}" aria-label="Localizar trabalhador"><button type="button" class="btn min" id="pgTodos" aria-pressed="${UIP.todos}">${UIP.todos?'Mostrar só quem tem saldo ou trabalhou':'Mostrar todos'}</button></div>`+
+  (L.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Nome</th><th>Setor</th><th class="num">Grades no período</th><th class="num">Lançado no período</th><th>Último pagamento</th><th class="num">Falta receber</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+   ${L.map(({x,t})=>{const lp=lanP(x);const u=ultimoPag(x);return `<tr class="clic" data-go="#/pgExtrato/${esc(t.id)}" tabindex="0">
+    <td data-l="Nome"><b>${esc(t.nome)}</b>${ativo(t)?'':'<span class="pg-sub">inativo</span>'}</td><td data-l="Setor">${esc(t.setor)}</td>
+    <td data-l="Grades no período" class="num">${esc(fG(soma(lp,l=>n0(l.grades))))}</td><td data-l="Lançado no período" class="num">${esc(fMoeda(soma(lp,tot)))}</td>
+    <td data-l="Último pagamento">${u?esc(fData(u.data))+' · '+esc(fMoeda(u.valor)):'—'}</td>
+    <td data-l="Falta receber" class="num">${valSaldo(x.saldo)}</td><td data-l="Situação">${tagSit(x)}</td>
+    <td class="acs">${pg&&x.saldo>0.004?`<button type="button" class="btn min pri" data-pgpagar="${esc(t.id)}">Pagar</button>`:''}${ed&&ativo(t)?`<button type="button" class="btn min" data-pglancar="${esc(t.id)}">Lançar</button>`:''}<button type="button" class="btn min" data-pgext="${esc(t.id)}">Extrato</button></td></tr>`}).join('')}</tbody></table></div>`
+   :`<div class="vazio"><b>${q?'Ninguém com esta pesquisa':'Ninguém com saldo ou lançamento no período'}</b>${q?'Confira o nome.':'Toque em “Mostrar todos” para ver todos os trabalhadores.'}</div>`)+
+  `<p class="pg-nota">Total devido = soma de grades × valor por grade de cada lançamento do período. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamento cancelado e pagamento estornado não somam. Estes valores ficam só neste controle e no módulo “Pagamento por grade” do Financeiro: não entram sozinhos em custo, despesa ou folha.</p>`;
+ ligarPer(c,UIP,'painel');ligarBusca(c,'#pgQ',UIP,'q');ligarLinhas(c,'tr[data-go]');ligarAcoesPainel(c);
+ const bt=$('#pgTodos',c);if(bt)bt.onclick=()=>{UIP.todos=!UIP.todos;renderTela()}}
+function ligarAcoesPainel(c){
+ const b=(s,f)=>{const x=$(s,c);if(x)x.onclick=f};
+ b('#pgPagar',()=>abrirPagamento('',ORIG_PROD));b('#pgNovoT',()=>JBNAV.ir('#/pgTrab/novo'));b('#pgLancar',()=>JBNAV.ir('#/pgDia'));
+ $$('[data-pgpagar]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();abrirPagamento(x.dataset.pgpagar,ORIG_PROD)});
+ $$('[data-pglancar]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();abrirLancamento(x.dataset.pglancar)});
+ $$('[data-pgext]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();JBNAV.ir('#/pgExtrato/'+x.dataset.pgext)})}
+
+/* ---------- 10. Lançar o dia: uma linha por trabalhador do setor ---------- */
+const DIA={data:'',setor:'',lin:{},extra:[],valor:'',salvando:false,ok:null};
+const linDe=tid=>DIA.lin[tid]||(DIA.lin[tid]={grades:'',valor:''});
+/* linha com alguma coisa digitada pela pessoa (o valor posto pelo botão "Pôr nas linhas vazias" sozinho não conta) */
+const digitada=x=>!!x&&(String(x.grades||'').trim()!==''||(String(x.valor||'').trim()!==''&&!x.auto));
+const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&l.trabId===tid&&l.data===d&&l.setor===s);
+function totLin(x){const g=numBR(x.grades),v=lerMoeda(x.valor);return g>0&&v>0?r2(g*v):0}
+function telaDia(c){
+ if(!podeLancar()){c.innerHTML=semAcesso();return}
+ if(!DIA.data)DIA.data=hoje();if(!SETORES_G.includes(DIA.setor))DIA.setor='Enforna';
+ const s=DIA.setor,d=DIA.data;
+ const base=DATA[COL_T].filter(t=>ativo(t)&&noSetor(t,s)).sort(porNome);
+ const extras=DIA.extra.map(TRAB).filter(t=>t&&!base.includes(t));
+ const todos=[...base,...extras];
+ const fora=DATA[COL_T].filter(t=>!todos.includes(t)).sort(porNome);
+ const somaT=()=>{let n=0,g=0,v=0;todos.forEach(t=>{const x=DIA.lin[t.id];if(!x)return;const tt=totLin(x);if(tt>0){n++;g+=numBR(x.grades);v+=tt}});return {n,g,v:r2(v)}};
+ const S=somaT();
+ c.innerHTML=cabG('pgGrade','Lançar grades do dia','Escolha o dia e o setor e digite, para cada trabalhador, as grades feitas e o valor por grade. Cada linha vira um lançamento com o próprio valor; quem não trabalhou fica em branco.',
+   `<a class="btn" href="#/pgLanc">${ic('lupa')}Ver lançamentos</a>`)+
+  (DIA.ok?`<div class="pg-ok" role="status"><b>${esc(pl(DIA.ok.n,'lançamento salvo','lançamentos salvos'))}</b> na ${esc(DIA.ok.setor)} em ${esc(fData(DIA.ok.data))}: ${esc(plG(DIA.ok.g))}, ${esc(fMoeda(DIA.ok.v))}.<br>
+   <a class="btn min" href="#/pgrade">Ver o painel</a><button type="button" class="btn min" data-pgset="${esc(DIA.ok.setor==='Enforna'?'Desenforna':'Enforna')}">Lançar a ${esc(DIA.ok.setor==='Enforna'?'Desenforna':'Enforna')}</button><button type="button" class="btn min" id="pgOkX">Fechar</button></div>`:'')+
+  `<div class="pg-cab-dia"><label>Data<input type="date" id="pgD" value="${esc(d)}" max="${hoje()}"></label>
+   <div class="pg-f"><span>Setor</span><span class="pg-seg" role="group" aria-label="Setor">${SETORES_G.map(x=>`<button type="button" data-pgset="${x}" aria-pressed="${x===s}">${x}</button>`).join('')}</span></div>
+   <div class="pg-f"><label for="pgVT">Mesmo valor por grade para todos</label><span class="pg-todos"><input id="pgVT" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(DIA.valor)}" autocomplete="off"><button type="button" class="btn min" id="pgVTok">Pôr nas linhas vazias</button></span></div></div>`+
+  (todos.length?`<div class="pg-grade" role="group" aria-label="Grades por trabalhador">
+   <div class="pg-lin pg-th" aria-hidden="true"><span>Trabalhador</span><span>Grades</span><span>Valor por grade</span><span>Total</span></div>
+   ${todos.map(t=>{const x=DIA.lin[t.id]||{grades:'',valor:''};const ja=jaNoDia(t.id,d,s);const tt=totLin(x);
+    return `<div class="pg-lin${x.erro?' erro':''}" data-pgl="${esc(t.id)}"><div class="nm">${esc(t.nome)}${t.setor===AMBOS?'<small>Enforna e Desenforna</small>':''}${!ativo(t)?'<small>inativo</small>':''}${ja.length?`<small class="ja">Já lançado neste dia: ${esc(ja.map(l=>plG(l.grades)+' × '+fMoeda(l.valorGrade)).join(' + '))}</small>`:''}</div>
+     <div class="g" data-l="Grades"><input data-pgc="grades" inputmode="decimal" placeholder="0" value="${esc(x.grades)}" aria-label="Grades de ${esc(t.nome)}" class="${x.erro&&!(numBR(x.grades)>0)?'vz':''}" autocomplete="off"></div>
+     <div class="v" data-l="Valor por grade"><input data-pgc="valor" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(x.valor)}" aria-label="Valor por grade de ${esc(t.nome)}" class="${x.erro&&!(lerMoeda(x.valor)>0)?'vz':''}" autocomplete="off"></div>
+     <div class="tt" data-pgtt>${tt?esc(fMoeda(tt)):'—'}</div></div>`}).join('')}
+   <div class="pg-rod"><span id="pgSoma">${S.n?`<b>${esc(pl(S.n,'trabalhador','trabalhadores'))}</b> · ${esc(plG(S.g))} · <b>${esc(fMoeda(S.v))}</b>`:'Nenhuma linha preenchida'}</span>
+    <span><button type="button" class="btn" id="pgLimpa">Limpar</button> <button type="button" class="btn pri" id="pgSalvar"${DIA.salvando?' disabled':''}>${DIA.salvando?'Salvando…':'Salvar lançamentos'}</button></span></div></div>`
+   :`<div class="vazio"><b>Nenhum trabalhador ativo na ${esc(s)}</b>${DATA[COL_T].length?'Escolha o outro setor, acrescente alguém abaixo ou cadastre.':'Cadastre os trabalhadores primeiro.'}<div class="vazio-acoes"><a class="btn pri" href="#/pgTrab/novo">${ic('mais')}Novo trabalhador</a></div></div>`)+
+  (fora.length?`<div class="pg-fora"><span>Trabalhou alguém que não está na lista?</span><select id="pgExtra" aria-label="Acrescentar trabalhador"><option value="">Escolher…</option>${fora.map(t=>`<option value="${esc(t.id)}">${esc(t.nome+' · '+t.setor+(ativo(t)?'':' (inativo)'))}</option>`).join('')}</select><a href="#/pgTrab/novo">Cadastrar novo</a></div>`:'')+
+  `<p class="pg-nota">O total de cada linha é grades × valor por grade. O valor digitado fica gravado só naquele lançamento: lançar outro valor amanhã não muda os anteriores. Lançamento igual (mesmo trabalhador, dia e setor) pede confirmação antes de salvar.</p>`;
+ /* tudo o que é digitado fica guardado (um redesenho por dado novo que chega não apaga a digitação) */
+ const atualizaRod=()=>{const S2=somaT();const el=$('#pgSoma',c);if(el)el.innerHTML=S2.n?`<b>${esc(pl(S2.n,'trabalhador','trabalhadores'))}</b> · ${esc(plG(S2.g))} · <b>${esc(fMoeda(S2.v))}</b>`:'Nenhuma linha preenchida'};
+ $$('.pg-lin[data-pgl] input',c).forEach(i=>i.addEventListener('input',()=>{const w=i.closest('[data-pgl]');const x=linDe(w.dataset.pgl);x[i.dataset.pgc]=i.value;if(i.dataset.pgc==='valor')delete x.auto;delete x.erro;w.classList.remove('erro');i.classList.remove('vz');
+  const tt=totLin(x);$('[data-pgtt]',w).textContent=tt?fMoeda(tt):'—';atualizaRod();DIA.ok=null}));
+ /* Enter passa para o próximo campo */
+ $$('.pg-lin[data-pgl] input',c).forEach((i,k,all)=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const p=all[k+1];if(p)p.focus();else{const b=$('#pgSalvar',c);if(b)b.focus()}}}));
+ const dI=$('#pgD',c);if(dI)dI.onchange=()=>{DIA.data=dI.value||hoje();DIA.ok=null;renderTela()};
+ $$('[data-pgset]',c).forEach(b=>b.onclick=async()=>{const novo=b.dataset.pgset;
+  if(DIA.setor!==novo){
+   /* trocar de setor limpa as linhas: se já digitou alguma coisa, pergunta antes (não perde o trabalho sem querer) */
+   const dig=Object.values(DIA.lin).some(digitada);
+   if(dig&&!await confirmar('Trocar de setor?','As linhas digitadas na '+DIA.setor+' ainda não foram salvas e vão sair da tela.',{ok:'Trocar mesmo assim'}))return;
+   DIA.setor=novo;DIA.lin={};DIA.extra=[]}
+  DIA.ok=null;renderTela()});
+ const vt=$('#pgVT',c);if(vt)vt.addEventListener('input',()=>{DIA.valor=vt.value});
+ const vb=$('#pgVTok',c);if(vb)vb.onclick=()=>{const v=lerMoeda(DIA.valor);if(!(v>0)){toast('Digite o valor por grade no campo ao lado.','erro');if(vt)vt.focus();return}
+  let n=0;todos.forEach(t=>{const x=linDe(t.id);if(!String(x.valor||'').trim()){x.valor=fMoedaCampo(v);x.auto=1;n++}});toast(n?'Valor posto em '+pl(n,'linha')+'. Confira antes de salvar.':'Todas as linhas já tinham valor.',n?'ok':'');renderTela()};
+ const ex=$('#pgExtra',c);if(ex)ex.onchange=()=>{if(ex.value&&!DIA.extra.includes(ex.value))DIA.extra.push(ex.value);renderTela()};
+ const lp=$('#pgLimpa',c);if(lp)lp.onclick=async()=>{if(Object.values(DIA.lin).some(digitada)&&!await confirmar('Limpar as linhas?','O que foi digitado e ainda não foi salvo some.',{ok:'Limpar'}))return;DIA.lin={};DIA.extra=[];renderTela()};
+ const ok=$('#pgOkX',c);if(ok)ok.onclick=()=>{DIA.ok=null;renderTela()};
+ const sv=$('#pgSalvar',c);if(sv)sv.onclick=()=>salvarDia(sv,todos)}
+async function salvarDia(btn,todos){
+ if(DIA.salvando)return;
+ const s=DIA.setor,d=DIA.data||hoje();
+ if(!d||d>hoje()){toast('Escolha uma data até hoje.','erro');return}
+ const itens=[],erros=[];
+ todos.forEach(t=>{const x=DIA.lin[t.id];if(!x)return;const temG=String(x.grades||'').trim()!=='',temV=String(x.valor||'').trim()!=='';if(!temG&&(!temV||x.auto))return;
+  const g=numBR(x.grades),v=r2(lerMoeda(x.valor));if(!(g>0)||!(v>0)){x.erro=1;erros.push(t);return}
+  itens.push({t,x,g,v})});
+ if(erros.length){renderTela();toast('Falta '+(erros.length>1?'completar '+erros.length+' linhas':'completar a linha de '+erros[0].nome)+': informe as grades e o valor por grade (os dois maiores que zero), ou deixe a linha em branco.','erro');return}
+ if(!itens.length){toast('Digite as grades e o valor por grade de pelo menos um trabalhador.','erro');return}
+ const av=[];
+ itens.forEach(({t,g,v})=>{const ja=jaNoDia(t.id,d,s);if(ja.length)av.push(t.nome+' já tem lançamento neste dia na '+s+' ('+ja.map(l=>plG(l.grades)+' × '+fMoeda(l.valorGrade)).join(' + ')+').');
+  const ve=valorEstranho({trabId:t.id,setor:s,valorGrade:v,id:''});if(ve)av.push(t.nome+': '+ve);if(g>300)av.push(t.nome+': '+plG(g)+' num lançamento só.')});
+ if(d<addDias(hoje(),-45))av.push('A data é de mais de 45 dias atrás ('+fData(d)+').');
+ if(av.length&&!await confirmar('Confirmar os lançamentos?',av.join(' ')+' Salve só se estiver certo.',{ok:'Salvar assim mesmo'}))return;
+ DIA.salvando=true;btn.disabled=true;
+ const lote=novoId();let n=0,falha=null;const feitos={n:0,g:0,v:0};
+ for(const it of itens){
+  if(!it.x.id)it.x.id=novoId();   /* o mesmo código numa nova tentativa: não duplica */
+  btn.textContent='Salvando '+(n+1)+' de '+itens.length+'…';
+  try{await gravarRegistro('pgLanc',{id:it.x.id,data:d,trabId:it.t.id,setor:s,grades:it.g,valorGrade:it.v,obs:'',lote},null,true);
+   delete DIA.lin[it.t.id];n++;feitos.n++;feitos.g+=it.g;feitos.v+=r2(it.g*it.v)}
+  catch(e){falha=e;break}}
+ DIA.salvando=false;
+ if(falha){toast('Foram salvos '+n+' de '+itens.length+' lançamentos. As linhas que faltam continuam na tela. '+msgE(falha),'erro');renderTela();return}
+ DIA.ok={n:feitos.n,g:feitos.g,v:r2(feitos.v),setor:s,data:d};DIA.extra=[];
+ toast(pl(feitos.n,'lançamento salvo','lançamentos salvos')+': '+fMoeda(feitos.v)+'.','ok');renderTela()}
+
+/* ---------- 11. Extrato de cada trabalhador (Produção e Financeiro) ---------- */
+const UIE={tipo:'mes',ref:'',de:'',ate:''};
+const UIX={q:''};
+function movsDe(x){
+ const ms=[...x.lancs.map(l=>({k:'l',r:l,data:l.data,v:l.cancelamento?0:tot(l)})),...x.pags.map(p=>({k:'p',r:p,data:p.data,v:p.estorno?0:-r2(n0(p.valor))}))]
+  .sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))||(a.k===b.k?ordL(a.r,b.r):a.k==='l'?-1:1));
+ let s=0;ms.forEach(m=>{s=r2(s+m.v);m.saldo=s});return ms}
+function dadosExtrato(tid,U){
+ const x=contaDe(tid);const I=intervalo(U);const ms=movsDe(x);
+ const ant=ms.filter(m=>I.de&&String(m.data||'')<I.de);const saldoAnt=ant.length?ant[ant.length-1].saldo:0;
+ const noP=ms.filter(m=>noPer(m.data,I));
+ const lanc=r2(soma(noP.filter(m=>m.k==='l'),m=>m.v)),pago=r2(-soma(noP.filter(m=>m.k==='p'),m=>m.v));
+ const grades=soma(noP.filter(m=>m.k==='l'&&!m.r.cancelamento),m=>n0(m.r.grades));
+ return {x,I,ms,noP,saldoAnt,lanc,pago,grades,saldoFim:r2(saldoAnt+lanc-pago)}}
+function fraseConta(x){
+ const u=ultimoPag(x);
+ if(x.saldo>0.004){const ab=x.abertos;const desde=ab.length?ab[0].l.data:'';
+  return `Falta receber <b class="at">${esc(fMoeda(x.saldo))}</b>${ab.length?`, de ${esc(pl(ab.length,'lançamento'))} em aberto desde ${esc(fData(desde))}`:''}.${u?` Último pagamento em ${esc(fData(u.data))} (${esc(fMoeda(u.valor))}).`:' Ainda não recebeu nenhum pagamento.'}`}
+ if(x.saldo<-0.004)return `Tem <b class="pg-neg">${esc(fMoeda(-x.saldo))} de crédito</b>: recebeu a mais e isso desconta dos próximos lançamentos.`;
+ return x.lancs.length||x.pags.length?`<b>Tudo pago.</b>${u?` Último pagamento em ${esc(fData(u.data))} (${esc(fMoeda(u.valor))}).`:''}`:'Nenhum lançamento ainda.'}
+function linhaMov(m){
+ const r=m.r;
+ if(m.k==='l'){const c=!!r.cancelamento;
+  return `<tr data-pgabre="#/pgLanc/${esc(r.id)}" tabindex="0"${c?' class="pg-x"':''}><td class="d">${esc(fData(r.data))}</td><td class="h">${esc(r.setor||'')} · ${esc(plG(r.grades))} × ${esc(fMoeda(r.valorGrade))}${c?'<span class="pg-tag">cancelado</span>':''}${r.obs?`<small>${esc(r.obs)}</small>`:''}</td>
+   <td class="n g">${esc(fG(r.grades))}</td><td class="n c"><span class="v">${esc(fMoeda(tot(r)))}</span></td><td class="n p"></td><td class="n s">${c?'—':valSaldo(m.saldo)}</td></tr>`}
+ const e=!!r.estorno;
+ return `<tr data-pgabre="#/pgPag/${esc(r.id)}" tabindex="0"${e?' class="pg-x"':''}><td class="d">${esc(fData(r.data))}</td><td class="h">Pagamento${r.forma?' · '+esc(r.forma):''}${e?'<span class="pg-tag">estornado</span>':''}${r.excedente?'<span class="pg-tag in">acima do saldo</span>':''}${r.obs?`<small>${esc(r.obs)}</small>`:''}</td>
+  <td class="n g"></td><td class="n c"></td><td class="n p"><span class="v">${esc(fMoeda(r.valor))}</span></td><td class="n s">${e?'—':valSaldo(m.saldo)}</td></tr>`}
+function htmlExtratoTabela(E){
+ const lin=E.noP.slice();
+ return `<div class="pg-tbw"><table class="pg-tb pg-ext" data-sem-total data-sem-ordem><thead><tr><th>Data</th><th>Histórico</th><th class="n">Grades</th><th class="n">A receber</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>
+  ${E.I.de?`<tr class="pg-ini"><td class="d">${esc(fData(addDias(E.I.de,-1)))}</td><td class="h">Saldo anterior</td><td class="n g"></td><td class="n c"></td><td class="n p"></td><td class="n s">${valSaldo(E.saldoAnt)}</td></tr>`:''}
+  ${lin.length?lin.map(linhaMov).join(''):`<tr><td class="h" colspan="6">Nenhum lançamento nem pagamento ${E.I.de||E.I.ate?'no período':'ainda'}.</td></tr>`}
+  <tr class="pg-fim"><td class="d">${E.I.ate&&E.I.ate<hoje()?esc(fData(E.I.ate)):'Hoje'}</td><td class="h">Saldo ${E.I.ate&&E.I.ate<hoje()?'no fim do período':'atual'}</td><td class="n g">${esc(fG(E.grades))}</td><td class="n c">${esc(fMoeda(E.lanc))}</td><td class="n p">${esc(fMoeda(E.pago))}</td><td class="n s">${valSaldo(E.saldoFim)}</td></tr>
+ </tbody></table></div>`}
+function telaExtrato(c,tid,ctx){
+ const fin=ctx==='fin';const t=TRAB(tid);
+ if(!t){telaEscolher(c,fin);return}
+ const E=dadosExtrato(tid,UIE);const x=E.x;const cpf=cpfDe(tid);const pg=podePagar();
+ const volta=fin?'#/fGrade':'#/pgrade';
+ const acoes=`<a class="btn" href="${volta}">${ic('esquerda')}${fin?'Pagamento por grade':'Painel'}</a><button type="button" class="btn" id="pgExp">${ic('baixar')}Extrato ▾</button>`+
+  (!fin&&podeLancar()&&ativo(t)?`<button type="button" class="btn" id="pgLan">${ic('mais')}Lançar grades</button>`:'')+
+  (pg?`<button type="button" class="btn pri" id="pgPg">${ic('carteira')}${fin?'Pagar':'Registrar pagamento'}</button>`:'')+
+  (!fin&&podeLancar()?`<a class="btn" href="#/pgTrab/${esc(tid)}">${ic('editar')}Cadastro</a>`:'');
+ c.innerHTML=cabG('pgGrade',t.nome,esc([t.setor,ativo(t)?'ativo':'inativo',cpf?'CPF '+mascCPF(cpf):'',t.apelido?'“'+t.apelido+'”':'',t.pix?'PIX '+t.pix:''].filter(Boolean).join(' · ')),acoes)+
+  `<p class="pg-frase">${fraseConta(x)}</p>`+htmlPer(UIE,'extrato')+
+  `<div class="cpl-conta"><div><span>Saldo anterior</span><b>${esc(fMoeda(E.saldoAnt))}</b></div><div><span>Grades no período</span><b>${esc(fG(E.grades))}</b></div><div><span>Lançado no período</span><b>${esc(fMoeda(E.lanc))}</b></div><div><span>Pago no período</span><b>${esc(fMoeda(E.pago))}</b></div><div class="${E.saldoFim>0.004?'tot':E.saldoFim<-0.004?'pg-cred':''}"><span>${E.I.ate&&E.I.ate<hoje()?'Saldo no fim do período':'Saldo de hoje'}</span><b>${esc(E.saldoFim<-0.004?fMoeda(-E.saldoFim)+' crédito':fMoeda(E.saldoFim))}</b></div></div>`+
+  htmlExtratoTabela(E)+
+  `<p class="pg-nota">Saldo = o que foi lançado − o que foi pago. Toque numa linha para abrir o lançamento ou o pagamento (com o comprovante e o histórico). Lançamento cancelado e pagamento estornado ficam aqui marcados, sem somar.${fin?' Os lançamentos são feitos na Produção (Controle por grade); o pagamento registrado aqui aparece lá também.':''}</p>`;
+ ligarPer(c,UIE,'extrato');
+ $$('tr[data-pgabre]',c).forEach(tr=>{const ir=()=>JBNAV.ir(tr.dataset.pgabre);tr.onclick=ir;tr.onkeydown=e=>{if(e.key==='Enter')ir()}});
+ const b=(s,f)=>{const el=$(s,c);if(el)el.onclick=f};
+ b('#pgPg',()=>abrirPagamento(tid,fin?ORIG_FIN:ORIG_PROD));b('#pgLan',()=>abrirLancamento(tid));
+ b('#pgExp',()=>{const bt=$('#pgExp',c);abrirMenuMais(bt,[...itensAcaoDoc(()=>docExtrato(tid,UIE),'Extrato de '+t.nome+' · '+intervalo(UIE).rot),
+  {l:'Exportar Excel',sub:'lançamentos e pagamentos do período',fn:()=>exportar('xlsx','Extrato_grade_'+nomeArq(t.nome)+'_'+hoje(),COLS_EXT,linhasExtratoExport(E),'Extrato de '+t.nome+' · '+intervalo(UIE).rot,{filtros:intervalo(UIE).rot})}])})}
+function telaEscolher(c,fin){
+ const q=N(UIX.q);const L=DATA[COL_T].map(t=>({t,x:contaDe(t.id)})).filter(o=>!q||N(o.t.nome+' '+(o.t.apelido||'')+' '+o.t.setor).includes(q)).sort((a,b)=>b.x.saldo-a.x.saldo||porNome(a.t,b.t));
+ const base=fin?'#/fGrade/':'#/pgExtrato/';
+ c.innerHTML=cabG('pgGrade','Extrato do trabalhador','Escolha o trabalhador para ver os lançamentos, os pagamentos e quanto ele tem a receber, por dia, semana, mês ou período.','')+
+  `<div class="pg-busca fi-filtros"><input type="search" id="pgQx" placeholder="Localizar trabalhador" value="${esc(UIX.q)}" aria-label="Localizar trabalhador"></div>`+
+  (L.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Nome</th><th>Setor</th><th>Último lançamento</th><th class="num">Falta receber</th><th>Situação</th></tr></thead><tbody>
+   ${L.map(({t,x})=>`<tr class="clic" data-go="${base}${esc(t.id)}" tabindex="0"><td data-l="Nome"><b>${esc(t.nome)}</b>${ativo(t)?'':'<span class="pg-sub">inativo</span>'}</td><td data-l="Setor">${esc(t.setor)}</td><td data-l="Último lançamento">${x.ultLanc?esc(fData(x.ultLanc)):'—'}</td><td data-l="Falta receber" class="num">${valSaldo(x.saldo)}</td><td data-l="Situação">${tagSit(x)}</td></tr>`).join('')}</tbody></table></div>`
+   :`<div class="vazio"><b>${DATA[COL_T].length?'Ninguém com esta pesquisa':'Nenhum trabalhador cadastrado'}</b>${DATA[COL_T].length?'Confira o nome.':'O cadastro é feito na Produção › Controle por grade › Trabalhadores.'}</div>`);
+ ligarBusca(c,'#pgQx',UIX,'q');ligarLinhas(c,'tr[data-go]')}
+const COLS_EXT=[{k:'data',l:'Data',t:'data'},{k:'hist',l:'Histórico'},{k:'grades',l:'Grades',t:'num'},{k:'vg',l:'Valor por grade',t:'moeda'},{k:'cred',l:'A receber',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
+function linhasExtratoExport(E){return [...(E.I.de?[{data:addDias(E.I.de,-1),hist:'Saldo anterior',saldo:E.saldoAnt}]:[]),...E.noP.map(m=>m.k==='l'?{data:m.r.data,hist:(m.r.setor||'')+' · '+plG(m.r.grades)+' × '+fMoeda(m.r.valorGrade),grades:n0(m.r.grades),vg:m.r.valorGrade,cred:tot(m.r),saldo:m.r.cancelamento?'':m.saldo,sit:m.r.cancelamento?'Cancelado':'Lançado'}
+  :{data:m.r.data,hist:'Pagamento'+(m.r.forma?' · '+m.r.forma:''),pago:n0(m.r.valor),saldo:m.r.estorno?'':m.saldo,sit:m.r.estorno?'Estornado':'Pago'})]}
+function docExtrato(tid,U){
+ const t=TRAB(tid);if(!t)return null;const E=dadosExtrato(tid,U);const cpf=cpfDe(tid);const e=CFG.empresa||{};
+ const D=baseRel('EXTRATO DO TRABALHADOR','Controle por grade · '+t.nome,[]);D.classe='demonstrativo';D.setor=nomeSetorDoc('producao');D.parteNome=t.nome;
+ D.meta=[['Período',E.I.rot],['Emitido em',fData(hoje())],['Por',APP.nome||quem(APP.uid)||'Usuário']];
+ D.quadros=[{rot:'TRABALHADOR',campos:[['Nome',t.nome,1],...(cpf?[['CPF',mascCPF(cpf)]]:[]),['Setor',t.setor||'—'],['Situação',ativo(t)?'Ativo':'Inativo']]}];
+ D.blocos.push({tipo:'indicadores',itens:[['Saldo anterior',fMoeda(E.saldoAnt)],['Lançado no período',fMoeda(E.lanc)],['Pago no período',fMoeda(E.pago),'ok'],[E.I.ate&&E.I.ate<hoje()?'Saldo no fim do período':'Saldo de hoje',E.saldoFim<-0.004?fMoeda(-E.saldoFim)+' crédito':fMoeda(E.saldoFim),E.saldoFim>0.004?'at':'']]});
+ const body=[...(E.I.de?[[fData(addDias(E.I.de,-1)),'Saldo anterior','','','','',fMoeda(E.saldoAnt)]]:[]),...E.noP.map(m=>m.k==='l'
+  ?[fData(m.r.data),(m.r.setor||'')+(m.r.cancelamento?' (cancelado)':''),fG(m.r.grades),fMoeda(m.r.valorGrade),fMoeda(tot(m.r)),'',m.r.cancelamento?'—':fMoeda(m.saldo)]
+  :[fData(m.r.data),'Pagamento'+(m.r.forma?' · '+m.r.forma:'')+(m.r.estorno?' (estornado)':''),'','','',fMoeda(m.r.valor),m.r.estorno?'—':fMoeda(m.saldo)])];
+ D.blocos.push({tipo:'secao',n:'1',titulo:'Lançamentos e pagamentos',tabela:body.length?{head:['Data','Histórico','Grades','Valor por grade','A receber','Pago','Saldo'],body,foot:['Totais do período','',fG(E.grades),'',fMoeda(E.lanc),fMoeda(E.pago),fMoeda(E.saldoFim)],dir:[2,3,4,5,6]}:null,vazio:body.length?'':'Nenhum lançamento nem pagamento no período.'});
+ D.blocos.push({tipo:'p',texto:'Saldo = o que foi lançado − o que foi pago. Cada lançamento usa o valor por grade gravado nele. Lançamentos cancelados e pagamentos estornados aparecem marcados e não somam.'});
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
+ D.assinaturas=[{nome:t.nome,sub:'Trabalhador · conferi o extrato'},{nome:'',sub:'Responsável pelo controle'}];
+ D.notaFinal='Extrato interno do Controle por grade, sem valor fiscal. Montado na hora a partir dos lançamentos gravados; emitir este documento não altera nenhum dado.';
+ D.rodape='Extrato do trabalhador · '+t.nome;D.arquivo='Extrato_grade_'+nomeArq(t.nome)+'_'+nomeArq(E.I.de||'inicio')+'_'+nomeArq(E.I.ate||hoje());
+ return D}
+
+/* ---------- 12. registrar pagamento (Produção e Financeiro: a mesma janela, o mesmo registro) ---------- */
+const PAGANDO=new Set();
+function abrirPagamento(tid,origem){
+ if(!podePagar()){toast('Seu perfil não registra pagamentos.','erro');return}
+ const lista=DATA[COL_T].slice().sort((a,b)=>contaDe(b.id).saldo-contaDe(a.id).saldo||porNome(a,b));
+ if(!lista.length){toast('Cadastre os trabalhadores primeiro.','erro');return}
+ const ctas=contasOpts();const ehFin=origem===ORIG_FIN;
+ const corpo=`${tid?'':campo('pgT','Trabalhador<i> *</i>',`<select id="pgT"><option value="">Escolha…</option>${lista.map(t=>{const s=contaDe(t.id).saldo;return `<option value="${esc(t.id)}">${esc(t.nome+' · '+(s>0.004?'a receber '+fMoeda(s):s<-0.004?'crédito '+fMoeda(-s):'em dia'))}</option>`}).join('')}</select>`)}
+  <div id="pgResumo"></div>
+  <div class="duas">${campo('pgV','Valor pago<i> *</i>','<input id="pgV" data-masc="moeda" inputmode="decimal" placeholder="0,00" autocomplete="off">','Pode ser o total ou uma parte.')}
+  ${campo('pgD2','Data do pagamento<i> *</i>',`<input id="pgD2" type="date" max="${hoje()}" value="${hoje()}">`)}
+  ${campo('pgF','Forma de pagamento',`<select id="pgF">${optH(FORMAS_G,'PIX')}</select>`)}
+  ${ctas.length?campo('pgC','Saiu de (Caixa ou banco)',`<select id="pgC"><option value="">${ehFin?'Escolha…':'Não informar'}</option>${optH(ctas,'')}</select>`,ehFin?'Caixa ou conta de onde saiu o dinheiro.':'Opcional.'):''}</div>
+  ${campo('pgO','Observação','<input id="pgO" maxlength="200" placeholder="Ex.: pagamento da semana">')}
+  ${campo('pgA','Comprovante (opcional)',APP.assets?'<input id="pgA" type="file" accept="application/pdf,image/*">':'<span class="ajuda">Nesta sessão não é possível anexar arquivos.</span>')}
+  <div id="pgPrev" class="pg-prev" hidden></div>
+  <div id="pgExc" hidden><label class="pg-chk"><input type="checkbox" id="pgExcOk"><span id="pgExcTxt"></span></label>${campo('pgExcM','Motivo<i> *</i>','<input id="pgExcM" maxlength="200" placeholder="Ex.: adiantamento combinado">')}</div>`;
+ const tidDe=v=>tid||val(v,'pgT');
+ janela('Registrar pagamento por grade'+(tid?' · '+nomeT(tid):''),corpo,'Registrar pagamento',async v=>{
+  const id=tidDe(v);if(!id){toast('Escolha o trabalhador.','erro');return false}
+  if(PAGANDO.has(id)){toast('Já há um pagamento deste trabalhador sendo gravado. Aguarde.','erro');return false}
+  const valor=r2(lerMoeda(val(v,'pgV')));const data=val(v,'pgD2');
+  if(!(valor>0)){toast('Informe o valor pago.','erro');return false}
+  if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  if(ehFin&&ctas.length&&!val(v,'pgC')&&!await confirmar('Sem a conta de saída?','Não foi escolhido de onde saiu o dinheiro (Caixa ou banco). Registrar assim mesmo?',{ok:'Registrar sem a conta'}))return false;
+  const x=contaDe(id);const saldo=x.saldo;let exc=null;
+  if(valor>Math.max(0,saldo)+0.004){
+   if(!$('#pgExcOk',v).checked){$('#pgExc',v).hidden=false;toast('O valor passa do que ele tem a receber: marque a confirmação e escreva o motivo.','erro');return false}
+   const mot=String(val(v,'pgExcM')||'').trim();if(mot.length<4){toast('Escreva o motivo do pagamento acima do saldo.','erro');return false}
+   exc={valor:r2(valor-Math.max(0,saldo)),motivo:mot}}
+  /* repetição: pagamento igual no mesmo dia ou outro pagamento a ele há menos de 5 minutos */
+  const t5=Date.now()-5*60000;
+  const rep=x.pags.find(p=>!p.estorno&&((p.data===data&&Math.abs(n0(p.valor)-valor)<0.005)||(p.criadoEm&&Date.parse(p.criadoEm)>t5)));
+  if(rep&&!await confirmar('Este pagamento parece repetido',`Já existe pagamento de ${fMoeda(rep.valor)} para ${nomeT(id)} em ${fData(rep.data)}${rep.criadoEm?' (registrado às '+horaDe(rep.criadoEm)+(rep.criadoPor?' por '+quem(rep.criadoPor):'')+')':''}. Registrar outro pagamento?`,{ok:'Sim, é outro pagamento'}))return false;
+  PAGANDO.add(id);
+  try{
+   let arq=null;const f=$('#pgA',v)&&$('#pgA',v).files[0];
+   if(f){if(f.size>20*1024*1024){toast('Arquivo maior que 20 MB.','erro');return false}
+    try{toast('Enviando o comprovante…');const r=await APP.assets.upload(f);arq={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes}}catch(e){toast('Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}}
+   const x2=contaDe(id);const antes=x2.saldo;
+   const rec={id:novoId(),data,trabId:id,valor,forma:val(v,'pgF')||'',contaId:val(v,'pgC')||'',obs:String(val(v,'pgO')||'').trim(),origem:origem||ORIG_PROD,
+    saldoAntes:antes,saldoDepois:r2(antes-valor),...(exc?{excedente:exc}:{}),...(arq?{comprovante:arq}:{})};
+   const salvo=await gravarRegistro('pgPag',rec,null,true);
+   const depois=r2(antes-valor);
+   toast('Pagamento de '+fMoeda(valor)+' a '+nomeT(id)+' registrado. '+(depois>0.004?'Falta receber: '+fMoeda(depois)+'.':depois<-0.004?'Ficou '+fMoeda(-depois)+' de crédito.':'Tudo pago.'),'ok');
+   setTimeout(()=>posPagamento(salvo||rec),60);return true}
+  finally{PAGANDO.delete(id)}},{depois:v=>{
+  const atual=()=>{const id=tidDe(v);const res=$('#pgResumo',v),pv=$('#pgPrev',v);if(!id){res.innerHTML='';pv.hidden=true;return}
+   const x=contaDe(id);const valor=r2(lerMoeda(val(v,'pgV'))||0);
+   res.innerHTML=`<div class="cpl-conta"><div><span>Lançado</span><b>${esc(fMoeda(x.lancado))}</b></div><div><span>Já pago</span><b>${esc(fMoeda(x.pago))}</b></div><div class="tot"><span>Falta receber</span><b>${esc(x.saldo<-0.004?fMoeda(-x.saldo)+' crédito':fMoeda(x.saldo))}</b></div></div>`+
+    (x.abertos.length?`<p class="pg-hist">Em aberto: ${esc(x.abertos.slice(0,4).map(a=>fData(a.l.data).slice(0,5)+' '+a.l.setor+' '+fMoeda(a.resta)).join(' · '))}${x.abertos.length>4?' e mais '+(x.abertos.length-4):''}. O pagamento quita primeiro os mais antigos.</p>`:'');
+   if(valor>0){const d=r2(x.saldo-valor);pv.hidden=false;pv.className='pg-prev'+(d<-0.004?' at':'');pv.innerHTML=d>0.004?`Depois deste pagamento, falta receber <b>${esc(fMoeda(d))}</b>.`:d<-0.004?`Este valor passa do que ele tem a receber em <b>${esc(fMoeda(-d))}</b>, que fica como crédito para os próximos lançamentos.`:'Este pagamento <b>quita tudo</b> o que ele tem a receber.'}else pv.hidden=true;
+   const exc=$('#pgExc',v);if(exc){const pass=valor>Math.max(0,x.saldo)+0.004;exc.hidden=!pass;if(pass)$('#pgExcTxt',v).textContent='Confirmo: pagar '+fMoeda(r2(valor-Math.max(0,x.saldo)))+' a mais do que '+nomeT(id)+' tem a receber.'}};
+  const vI=$('#pgV',v);const sel=$('#pgT',v);
+  const pre=()=>{const id=tidDe(v);if(!id)return;const s=contaDe(id).saldo;if(s>0.004&&!vI.dataset.digitou2)vI.value=fMoedaCampo(s)};
+  vI.addEventListener('input',()=>{vI.dataset.digitou2='1';atual()});
+  if(sel)sel.addEventListener('change',()=>{delete vI.dataset.digitou2;pre();atual()});
+  pre();atual()}})}
+function posPagamento(p){
+ const fazer=()=>docRecibo(DATA.pgPag.find(x=>x.id===p.id)||p);
+ janela('Pagamento registrado',`<p style="margin:0 0 6px">${esc(nomeT(p.trabId))} · ${esc(fData(p.data))} · ${esc(p.forma||'')} · <b>${esc(fMoeda(p.valor))}</b>.</p><p class="ajuda" style="margin:0">Falta receber agora: ${valSaldo(contaDe(p.trabId).saldo)}. O recibo tem a linha para ele assinar.</p>
+  <div class="pg-acoes-ok"><button type="button" class="btn pri" data-pgr="ver">${ic('doc')}Ver o recibo</button><button type="button" class="btn" data-pgr="imprimir">Imprimir</button><button type="button" class="btn" data-pgr="compartilhar">${ic('enviar')}Compartilhar</button></div>`,'',null,{depois:v=>{
+  $$('[data-pgr]',v).forEach(b=>b.onclick=()=>{v.remove();acaoDocumento(fazer,b.dataset.pgr)})}})}
+
+/* ---------- 13. lançar para um trabalhador só (do extrato ou do painel), sem sair da tela ---------- */
+function abrirLancamento(tid){
+ if(!podeLancar()){toast('Seu perfil não lança grades.','erro');return}
+ const t=TRAB(tid);if(!t)return;const s0=setorPadrao(t)||'Enforna';
+ const corpo=`<div class="duas">${campo('plD','Data<i> *</i>',`<input id="plD" type="date" max="${hoje()}" value="${hoje()}">`)}
+  ${campo('plS','Setor<i> *</i>',`<select id="plS">${optH(SETORES_G,s0)}</select>`)}
+  ${campo('plG','Quantidade de grades<i> *</i>','<input id="plG" inputmode="decimal" placeholder="0" autocomplete="off">')}
+  ${campo('plV','Valor por grade<i> *</i>','<input id="plV" data-masc="moeda" inputmode="decimal" placeholder="0,00" autocomplete="off">','Digite o valor deste lançamento.')}</div>
+  <div id="plT" class="pg-prev"></div>${campo('plO','Observação','<input id="plO" maxlength="200">')}`;
+ janela('Lançar grades · '+t.nome,corpo,'Salvar lançamento',async v=>{
+  const st={id:novoId(),data:val(v,'plD'),trabId:tid,setor:val(v,'plS'),grades:numBR(val(v,'plG')),valorGrade:r2(lerMoeda(val(v,'plV'))),obs:String(val(v,'plO')||'').trim()};
+  if(!st.data||st.data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  if(!(st.grades>0)){toast('Informe a quantidade de grades.','erro');return false}
+  if(!(st.valorGrade>0)){toast('Informe o valor por grade.','erro');return false}
+  const ev=MODS.pgLanc.validar(st);const av=ev._aviso;delete ev._aviso;const er=Object.values(ev);if(er.length){toast(er[0],'erro');return false}
+  if(av&&!await confirmar('Confirmar mesmo assim?',av,{ok:'Salvar assim mesmo'}))return false;
+  await gravarRegistro('pgLanc',st,null,true);
+  toast('Lançado: '+plG(st.grades)+' × '+fMoeda(st.valorGrade)+' = '+fMoeda(tot(st))+'. Falta receber: '+fMoeda(contaDe(tid).saldo)+'.','ok');return true},{depois:v=>{
+  const at=()=>{const g=numBR(val(v,'plG')),vv=lerMoeda(val(v,'plV'));const w=$('#plT',v);const x=contaDe(tid);
+   w.innerHTML=g>0&&vv>0?`${esc(plG(g))} × ${esc(fMoeda(vv))} = <b>${esc(fMoeda(r2(g*vv)))}</b> · falta receber passa de ${esc(fMoeda(x.saldo))} para <b>${esc(fMoeda(r2(x.saldo+g*vv)))}</b>.`
+    :`Falta receber hoje: <b>${esc(fMoeda(x.saldo))}</b>. ${(()=>{const rc=recentes(tid,val(v,'plS')).slice(-3).reverse();return rc.length?'Últimos valores por grade dele: '+esc(rc.map(l=>fMoeda(l.valorGrade)+' ('+fData(l.data).slice(0,5)+')').join(', '))+'.':''})()}`};
+  ['plG','plV','plS'].forEach(k=>{const i=$('#'+k,v);if(i){i.addEventListener('input',at);i.addEventListener('change',at)}});at()}})}
+
+/* ---------- 14. recibo de pagamento (cupom 80/58 mm ou folha A4, com assinatura do trabalhador) ---------- */
+function lancsDoPag(p){const x=contaDe(p.trabId);return x.pecas.filter(pc=>pc.p.id===p.id).map(pc=>({l:pc.l,v:pc.v}))}
+function docRecibo(p){
+ if(!p)return null;
+ const t=TRAB(p.trabId)||{nome:nomeT(p.trabId)||'Trabalhador',setor:''};const cpf=cpfDe(p.trabId);const e=CFG.empresa||{};
+ const empresa=String(e.razao||e.fantasia||(typeof razaoMostra==='function'?razaoMostra():'a empresa')).trim();
+ const codigo=cod('PG',p.id);const conta=nomeConta(p.contaId);const L=lancsDoPag(p);
+ const setores=[...new Set(L.map(x=>x.l.setor).filter(Boolean))];const setorTxt=(setores.length?setores:[t.setor||'Produção']).join(' e ');
+ const D=baseRel('RECIBO DE PAGAMENTO','Pagamento por grade · '+setorTxt,[]);
+ D.classe='comprovante';D.setor=nomeSetorDoc('producao');D.numero=codigo;D.parteNome=t.nome;
+ D.meta=[['Data do pagamento',fData(p.data)],['Forma',p.forma||'—'],['Situação',p.estorno?'Estornado':'Pago']];
+ D.quadros=[{rot:'TRABALHADOR',campos:[['Nome',t.nome,1],...(cpf?[['CPF',mascCPF(cpf)]]:[]),['Setor',t.setor||'—']]},
+  {rot:'PAGAMENTO',campos:[['Valor pago',fMoeda(p.valor)],['Por extenso',extenso(p.valor),1],['Forma',p.forma||'—'],...(conta?[['Saiu de',conta]]:[]),['Data',fData(p.data)]]}];
+ if(p.estorno)D.blocos.push({tipo:'aviso',texto:'PAGAMENTO ESTORNADO em '+fDataHora(p.estorno.em)+' por '+(quem(p.estorno.por)||'—')+'. Motivo: '+(p.estorno.motivo||'—')+'. Este recibo fica só como registro.'});
+ if(p.saldoAntes!=null)D.blocos.push({tipo:'indicadores',itens:[['Falta receber antes',fMoeda(p.saldoAntes)],['Valor pago',fMoeda(p.valor),'ok'],['Falta receber depois',n0(p.saldoDepois)<-0.004?fMoeda(-n0(p.saldoDepois))+' crédito':fMoeda(p.saldoDepois),n0(p.saldoDepois)>0.004?'at':'']]});
+ D.blocos.push({tipo:'secao',n:'1',titulo:'Lançamentos quitados por este pagamento',
+  tabela:L.length?{head:['Data','Setor','Grades','Valor por grade','Total do lançamento','Pago aqui'],body:L.map(({l,v})=>[fData(l.data),l.setor||'',fG(l.grades),fMoeda(l.valorGrade),fMoeda(tot(l)),fMoeda(v)]),foot:['Total','',fG(soma(L,x=>n0(x.l.grades))),'','',fMoeda(soma(L,x=>x.v))],dir:[2,3,4,5]}:null,
+  vazio:L.length?'':(p.estorno?'Pagamento estornado: não quita lançamento.':'Nenhum lançamento em aberto quando foi pago: o valor ficou como crédito para os próximos lançamentos.'),
+  nota:L.length?'O pagamento quita primeiro os lançamentos mais antigos. Um lançamento pago em parte continua em aberto pelo resto.':''});
+ if(p.excedente)D.blocos.push({tipo:'p',texto:'Pago acima do que havia a receber: '+fMoeda(p.excedente.valor)+'. Motivo: '+(p.excedente.motivo||'—')+'. Esse valor fica como crédito e desconta dos próximos lançamentos.'});
+ D.blocos.push({tipo:'secao',n:'2',titulo:'Registro no sistema',campos:[['Registrado por',quem(p.criadoPor)||'—'],['Registrado em',p.criadoEm?fDataHora(p.criadoEm):'—'],['Onde',p.origem||ORIG_PROD],['Código',codigo]]});
+ if(p.obs)D.observacoes=p.obs;
+ D.fecho='Recebi de '+empresa+' a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+'), referente às grades trabalhadas na '+setorTxt+', conforme os lançamentos acima, e dou quitação deste valor.';
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data)+'.';
+ D.assinaturas=[{nome:t.nome,sub:'Trabalhador · recebi o valor acima'},{nome:quem(p.criadoPor)||'',sub:'Responsável pelo pagamento'}];
+ D.notaFinal='Recibo interno de pagamento por grade, sem valor fiscal. Montado na hora a partir do pagamento gravado no sistema; emitir este recibo não altera nenhum dado.';
+ D.rodape='Recibo de pagamento por grade · '+codigo;
+ D.arquivo='Recibo_grade_'+nomeArq(t.nome)+'_'+nomeArq(p.data)+'_'+nomeArq(String(p.id).slice(-6));
+ D.cupom={kind:'recibo',para:'responsavel',tipo:'RECIBO',titulo:'PAGAMENTO POR GRADE',numero:codigo.replace(/^PG-/,''),
+  id:[['Data',fData(p.data)],['Setor',setorTxt]],cancelado:p.estorno?'PAGAMENTO ESTORNADO':'',
+  parte:{rot:'TRABALHADOR',nome:t.nome,linhas:[cpf?'CPF '+mascCPF(cpf):'']},
+  resumo:p.saldoAntes!=null?[['Falta receber antes',fMoeda(p.saldoAntes)]]:[],
+  total:['VALOR PAGO',fMoeda(p.valor)],
+  blocos:[{rot:'Pagamento',linhas:[['Forma',p.forma||'—'],...(conta?[['Saiu de',conta]]:[]),...(p.saldoDepois!=null?[['Falta receber depois',n0(p.saldoDepois)<-0.004?fMoeda(-n0(p.saldoDepois))+' crédito':fMoeda(p.saldoDepois)]]:[])]},
+   ...(L.length?[{rot:'Lançamentos quitados',linhas:L.map(({l,v})=>[fData(l.data).slice(0,5)+' '+(l.setor||'').slice(0,4)+'. '+fG(l.grades)+' × '+nMoedaG(l.valorGrade),fMoeda(v)])}]:[])],
+  texto:'Recebi a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+') pelas grades trabalhadas.',
+  obs:p.obs||'',
+  assinaturas:[{rot:'Trabalhador',nome:t.nome,sub:'Recebi o valor acima'},{rot:'Responsável',nome:quem(p.criadoPor)||''}],
+  rodape:'Código '+codigo+' · '+(p.criadoEm?fDataHora(p.criadoEm):'')};
+ return D}
+const nMoedaG=v=>fNum(n0(v),2);
+
+/* ---------- 15. Relatórios: por trabalhador, por setor, lançamentos, pagamentos e lista para assinatura ---------- */
+const UIR={tipo:'mes',ref:'',de:'',ate:'',setor:'',trab:'',rel:'trab'};
+const RELS=[['trab','Por trabalhador'],['setor','Por setor'],['lanc','Lançamentos'],['pag','Pagamentos'],['ass','Lista para assinatura']];
+function dadosRel(U){
+ const I=intervalo(U);const s=U.setor,tr=U.trab;
+ const T=DATA[COL_T].filter(t=>(!tr||t.id===tr)&&(!s||noSetor(t,s)));
+ const L=DATA.pgLanc.filter(l=>noPer(l.data,I)&&(!s||l.setor===s)&&(!tr||l.trabId===tr)).sort(ordL);
+ const Pg=DATA.pgPag.filter(p=>noPer(p.data,I)&&(!tr||p.trabId===tr)&&(!s||noSetor(TRAB(p.trabId),s))).sort(ordL);
+ const ok=L.filter(l=>!l.cancelamento),okP=Pg.filter(p=>!p.estorno);
+ const porT=T.map(t=>{const x=contaDe(t.id);const lt=ok.filter(l=>l.trabId===t.id);const pt=okP.filter(p=>p.trabId===t.id);
+  return {t,x,grades:soma(lt,l=>n0(l.grades)),lanc:r2(soma(lt,tot)),pago:r2(soma(pt,p=>n0(p.valor))),nL:lt.length,nP:pt.length,media:soma(lt,l=>n0(l.grades))?r2(soma(lt,tot)/soma(lt,l=>n0(l.grades))):0}})
+  .filter(o=>o.nL||o.nP||Math.abs(o.x.saldo)>0.004||(!U.trab&&ativo(o.t)));
+ const C=indicadores(I);
+ return {I,L,Pg,ok,okP,porT,C}}
+const COLS_R={
+ trab:[{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades',t:'num'},{k:'media',l:'Média por grade',t:'moeda'},{k:'lanc',l:'Lançado no período',t:'moeda'},{k:'pago',l:'Pago no período',t:'moeda'},{k:'saldo',l:'Falta receber (hoje)',t:'moeda'}],
+ setor:[{k:'setor',l:'Setor'},{k:'ativos',l:'Trabalhadores ativos',t:'num'},{k:'grades',l:'Grades',t:'num'},{k:'media',l:'Média por grade',t:'moeda'},{k:'devido',l:'Total devido',t:'moeda'},{k:'pago',l:'Total pago',t:'moeda'},{k:'saldo',l:'Saldo pendente (hoje)',t:'moeda'}],
+ lanc:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades',t:'num'},{k:'vg',l:'Valor por grade',t:'moeda'},{k:'total',l:'Total',t:'moeda'},{k:'sit',l:'Situação'},{k:'por',l:'Lançado por'}],
+ pag:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Trabalhador'},{k:'forma',l:'Forma'},{k:'conta',l:'Saiu de'},{k:'valor',l:'Valor',t:'moeda'},{k:'sit',l:'Situação'},{k:'por',l:'Registrado por'}],
+ ass:[{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades no período',t:'num'},{k:'saldo',l:'Valor a receber',t:'moeda'},{k:'ass',l:'Assinatura'}]};
+function linhasRel(k,R){
+ if(k==='trab')return R.porT.map(o=>({nome:o.t.nome,setor:o.t.setor,grades:o.grades,media:o.media,lanc:o.lanc,pago:o.pago,saldo:o.x.saldo}));
+ if(k==='setor')return ['Enforna','Desenforna','Total'].map(s=>{const c=R.C[s];return {setor:s,ativos:c.ativos,grades:c.grades,media:c.grades?r2(c.devido/c.grades):0,devido:c.devido,pago:c.pago,saldo:c.saldo}});
+ if(k==='lanc')return R.L.map(l=>({data:l.data,nome:nomeT(l.trabId),setor:l.setor,grades:n0(l.grades),vg:l.valorGrade,total:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',por:quem(l.criadoPor)}));
+ if(k==='pag')return R.Pg.map(p=>({data:p.data,nome:nomeT(p.trabId),forma:p.forma||'',conta:nomeConta(p.contaId),valor:n0(p.valor),sit:p.estorno?'Estornado':'Pago',por:quem(p.criadoPor)}));
+ return R.porT.filter(o=>o.x.saldo>0.004).map(o=>({nome:o.t.nome,setor:o.t.setor,grades:o.grades,saldo:o.x.saldo,ass:''}))}
+function fmtCel(c,v){if(v===''||v==null)return '';if(c.t==='moeda')return /^saldo/.test(c.k)&&v<-0.004?fMoeda(-v)+' (crédito)':fMoeda(v);if(c.t==='num')return fG(v);if(c.t==='data')return fData(v);return String(v)}
+function totaisRel(k,rows){
+ if(k==='trab')return ['Total','',fG(soma(rows,r=>r.grades)),'',fMoeda(soma(rows,r=>r.lanc)),fMoeda(soma(rows,r=>r.pago)),fMoeda(soma(rows,r=>Math.max(0,r.saldo)))];
+ if(k==='lanc'){const ok=rows.filter(r=>r.sit!=='Cancelado');return ['Total (sem cancelados)','','',fG(soma(ok,r=>r.grades)),'',fMoeda(soma(ok,r=>r.total)),'','']}
+ if(k==='pag'){const ok=rows.filter(r=>r.sit!=='Estornado');return ['Total (sem estornados)','','','',fMoeda(soma(ok,r=>r.valor)),'','']}
+ if(k==='ass')return ['Total','',fG(soma(rows,r=>r.grades)),fMoeda(soma(rows,r=>r.saldo)),''];
+ return null}
+function filtrosTxt(U){return [intervalo(U).rot,U.setor||'Enforna e Desenforna',U.trab?nomeT(U.trab):'todos os trabalhadores'].join(' · ')}
+function docRel(U,quais){
+ const R=dadosRel(U);const e=CFG.empresa||{};const titulos=Object.fromEntries(RELS);
+ const ass=quais.length===1&&quais[0]==='ass';
+ const D=baseRel(ass?'LISTA PARA ASSINATURA':'RELATÓRIO DO CONTROLE POR GRADE',(ass?'Pagamento por grade · ':'')+intervalo(U).rot,[['Período',intervalo(U).rot],['Setor',U.setor||'Enforna e Desenforna'],['Trabalhador',U.trab?nomeT(U.trab):'Todos']]);
+ D.setor=nomeSetorDoc('producao');
+ if(!ass)D.blocos.push({tipo:'indicadores',itens:[['Grades',fG(R.C.Total.grades)],['Total devido',fMoeda(R.C.Total.devido)],['Total pago',fMoeda(R.C.Total.pago),'ok'],['Saldo pendente (hoje)',fMoeda(R.C.Total.saldo),R.C.Total.saldo>0.004?'at':'']]});
+ quais.forEach((k,i)=>{const cols=COLS_R[k];const rows=linhasRel(k,R);const ft=totaisRel(k,rows);
+  D.blocos.push({tipo:'secao',n:String(i+1),titulo:titulos[k],tabela:rows.length?{head:cols.map(c=>c.l),body:rows.map(r=>cols.map(c=>c.k==='ass'?'______________________________':fmtCel(c,r[c.k]))),...(ft?{foot:ft}:{}),dir:cols.map((c,j)=>c.t==='moeda'||c.t==='num'?j:-1).filter(j=>j>=0)}:null,vazio:rows.length?'':'Nada no período.'})});
+ if(ass){D.blocos.push({tipo:'p',texto:'Cada trabalhador assina ao receber. O valor é o que ele tem a receber hoje (tudo o que foi lançado − tudo o que foi pago). Registre cada pagamento no sistema para o saldo baixar.'});
+  D.assinaturas=[{nome:'',sub:'Responsável pelo pagamento'}]}
+ else D.blocos.push({tipo:'p',texto:'Total devido = grades × valor por grade de cada lançamento do período. Pago por setor: o pagamento quita primeiro os lançamentos mais antigos. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamentos cancelados e pagamentos estornados não somam.'});
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
+ D.notaFinal='Relatório interno do Controle por grade. Montado na hora a partir dos lançamentos gravados; emitir não altera nenhum dado.';
+ D.rodape=(ass?'Lista para assinatura':'Relatório do controle por grade')+' · '+intervalo(U).rot;
+ D.arquivo=(ass?'Lista_assinatura_grade_':'Relatorio_grade_')+nomeArq(intervalo(U).de||'inicio')+'_'+nomeArq(intervalo(U).ate||hoje());
+ return D}
+function telaRel(c){
+ const R=dadosRel(UIR);const k=RELS.some(r=>r[0]===UIR.rel)?UIR.rel:'trab';const cols=COLS_R[k];const rows=linhasRel(k,R);const ft=totaisRel(k,rows);
+ const tit=Object.fromEntries(RELS)[k];
+ c.innerHTML=cabG('grafico','Relatórios do controle por grade','Por trabalhador, por setor, lançamentos e pagamentos do período, e a lista para assinatura no dia do pagamento. Visualize, imprima, gere o PDF ou a planilha.',
+   `<button type="button" class="btn" id="pgRx">${ic('baixar')}Exportar ▾</button><button type="button" class="btn pri" id="pgRdoc">${ic('doc')}Relatório completo</button>`)+
+  htmlPer(UIR,'rel')+
+  `<div class="pg-rel-f fi-filtros"><select id="pgRs" aria-label="Setor"><option value="">Setor: todos</option>${optH(SETORES_G,UIR.setor)}</select>
+   <select id="pgRt" aria-label="Trabalhador"><option value="">Trabalhador: todos</option>${optH(optsTrabTodos(),UIR.trab)}</select></div>
+  <div class="pg-rel-esc cpl-chips" role="tablist" aria-label="Relatório">${RELS.map(([id,l])=>`<button type="button" role="tab" class="btn min${id===k?' pri':''}" aria-selected="${id===k}" data-pgrel="${id}">${esc(l)}</button>`).join('')}</div>
+  <div class="pg-rel"><h3 class="grupo-t">${esc(tit)} · ${esc(filtrosTxt(UIR))}</h3>
+  ${rows.length?`<div class="pg-tbw"><table class="pg-tb"><thead><tr>${cols.map(c2=>`<th class="${c2.t==='moeda'||c2.t==='num'?'n':''}">${esc(c2.l)}</th>`).join('')}</tr></thead><tbody>
+   ${rows.map(r=>`<tr>${cols.map(c2=>`<td data-l="${esc(c2.l)}" class="${c2.t==='moeda'||c2.t==='num'?'n':''}">${esc(fmtCel(c2,r[c2.k]))}</td>`).join('')}</tr>`).join('')}
+   ${ft?`<tr class="pg-fim">${ft.map((v,i)=>`<td data-l="${esc(cols[i].l)}" class="${cols[i].t==='moeda'||cols[i].t==='num'?'n':''}">${esc(v)}</td>`).join('')}</tr>`:''}</tbody></table></div>`
+   :`<div class="vazio"><b>Nada para mostrar</b>Não há ${k==='pag'?'pagamento':k==='ass'?'trabalhador com saldo a receber':'lançamento'} com estes filtros.</div>`}
+  ${k==='setor'&&(R.C.credPer>0.004)?`<p class="pg-nota">Do total pago, ${esc(fMoeda(R.C.credPer))} foi pago a mais do que havia lançado (crédito) e ainda não tem setor.</p>`:''}</div>`;
+ ligarPer(c,UIR,'rel');
+ const s1=$('#pgRs',c);if(s1)s1.onchange=()=>{UIR.setor=s1.value;renderTela()};
+ const s2=$('#pgRt',c);if(s2)s2.onchange=()=>{UIR.trab=s2.value;renderTela()};
+ $$('[data-pgrel]',c).forEach(b=>b.onclick=()=>{UIR.rel=b.dataset.pgrel;renderTela()});
+ const tituloX=tit+' · '+filtrosTxt(UIR);
+ $('#pgRx',c).onclick=()=>abrirMenuMais($('#pgRx',c),[...itensAcaoDoc(()=>docRel(UIR,[k]),tituloX),
+  {l:'Exportar Excel',sub:'a tabela da tela',fn:()=>exportar('xlsx',(k==='ass'?'Lista_assinatura_grade_':'Grade_'+k+'_')+hoje(),cols,rows,tituloX,{filtros:filtrosTxt(UIR)})}]);
+ $('#pgRdoc',c).onclick=()=>abrirMenuMais($('#pgRdoc',c),itensAcaoDoc(()=>docRel(UIR,['setor','trab','lanc','pag']),'Relatório completo · '+filtrosTxt(UIR)))}
+
+/* ---------- 16. Setor Financeiro › Pagamento por grade (o mesmo controle, visto e pago de lá) ---------- */
+const UIF={vis:'aberto',q:'',tipo:'mes',ref:'',de:'',ate:''};
+const CHIPS_F=[['aberto','A pagar'],['credito','Com crédito'],['emdia','Em dia'],['todos','Todos']];
+const passaF=(o,k)=>k==='aberto'?o.x.saldo>0.004:k==='credito'?o.x.saldo<-0.004:k==='emdia'?Math.abs(o.x.saldo)<=0.004:true;
+function telaFin(c){
+ const r=lerRota();if(r.id){if(TRAB(r.id))return telaExtrato(c,r.id,'fin');c.innerHTML='<div class="vazio"><b>Trabalhador não encontrado</b><div class="vazio-acoes"><a class="btn" href="#/fGrade">Voltar ao Pagamento por grade</a></div></div>';return}
+ if(!pode('fGrade')){c.innerHTML=semAcesso();return}
+ const I=intervalo(UIF);const pg=podePagar();const q=N(UIF.q);
+ const todas=DATA[COL_T].map(t=>{const x=contaDe(t.id);const L=x.lancs.filter(l=>!l.cancelamento&&noPer(l.data,I));const Pp=x.pags.filter(p=>!p.estorno&&noPer(p.data,I));
+  return {t,x,lanP:r2(soma(L,tot)),grP:soma(L,l=>n0(l.grades)),pagP:r2(soma(Pp,p=>n0(p.valor)))}});
+ const ab=todas.filter(o=>o.x.saldo>0.004),cr=todas.filter(o=>o.x.saldo<-0.004);
+ const pags=DATA.pgPag.filter(p=>noPer(p.data,I)).sort(desc);const pagsOk=pags.filter(p=>!p.estorno);
+ const vis=UIF.vis==='pagos'?'pagos':'trab';const k=CHIPS_F.some(x=>x[0]===UIF.vis)?UIF.vis:'aberto';
+ const per=txtPer(UIF);
+ const cards=[
+  {k:'aberto',rot:'Falta pagar',v:fMoeda(soma(ab,o=>o.x.saldo)),sub:ab.length?pl(ab.length,'trabalhador','trabalhadores')+' com saldo':'nada em aberto',cls:ab.length?'':'ok'},
+  {k:'pagos',rot:'Pago · '+per,v:fMoeda(soma(pagsOk,p=>n0(p.valor))),sub:pl(pagsOk.length,'pagamento')},
+  {k:'todos',rot:'Lançado · '+per,v:fMoeda(soma(todas,o=>o.lanP)),sub:plG(soma(todas,o=>o.grP))+' na Enforna e na Desenforna'},
+  ...(cr.length?[{k:'credito',rot:'Crédito (pago a mais)',v:fMoeda(-soma(cr,o=>o.x.saldo)),sub:'desconta dos próximos lançamentos',cls:'ok'}]:[])];
+ const sel=vis==='pagos'?'pagos':k;
+ let corpo;
+ if(vis==='pagos'){const L=pags.filter(p=>!q||N(nomeT(p.trabId)+' '+(p.forma||'')).includes(q));
+  corpo=L.length?`<h3 class="grupo-t">Pagamentos · ${esc(per)} · ${esc(fMoeda(soma(L.filter(p=>!p.estorno),p=>n0(p.valor))))}</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Nome</th><th>Data</th><th>Forma</th><th>Saiu de</th><th class="num">Valor</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+   ${L.map(p=>`<tr class="clic${p.estorno?' vv-estornado':''}" data-go="#/fGrade/${esc(p.trabId)}" tabindex="0"><td data-l="Nome"><b>${esc(nomeT(p.trabId))}</b></td><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma||'—')}</td><td data-l="Saiu de">${esc(nomeConta(p.contaId)||'—')}</td>
+    <td data-l="Valor" class="num">${p.estorno?`<s>${esc(fMoeda(p.valor))}</s>`:`<b>${esc(fMoeda(p.valor))}</b>`}</td><td data-l="Situação">${p.estorno?tag('Estornado','pe'):tag('Pago','ok')}</td>
+    <td class="acs"><button type="button" class="btn min" data-pgrec="${esc(p.id)}">${ic('doc')}Recibo</button></td></tr>`).join('')}</tbody></table></div>`
+   :`<div class="vazio"><b>${q?'Nenhum pagamento com esta pesquisa':'Nenhum pagamento no período'}</b>${q?'':'Os pagamentos feitos aqui ou na Produção aparecem nesta lista.'}</div>`}
+ else{const L=todas.filter(o=>passaF(o,k)&&(!q||N(o.t.nome+' '+(o.t.apelido||'')+' '+o.t.setor).includes(q))).sort((a,b)=>b.x.saldo-a.x.saldo||porNome(a.t,b.t));
+  corpo=`<div class="cpl-chips" role="group" aria-label="Situação">${CHIPS_F.map(([id,l])=>`<button type="button" class="btn min${k===id?' pri':''}" data-pgfs="${id}" aria-pressed="${k===id}">${esc(l)}<em>${todas.filter(o=>passaF(o,id)).length}</em></button>`).join('')}</div>`+
+   (L.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Nome</th><th>Setor</th><th class="num">Lançado no período</th><th class="num">Pago no período</th><th>Último pagamento</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+    ${L.map(o=>{const u=ultimoPag(o.x);return `<tr class="clic" data-go="#/fGrade/${esc(o.t.id)}" tabindex="0"><td data-l="Nome"><b>${esc(o.t.nome)}</b><span class="pg-sub">${esc(plG(o.grP))} no período${ativo(o.t)?'':' · inativo'}</span></td><td data-l="Setor">${esc(o.t.setor)}</td>
+     <td data-l="Lançado no período" class="num">${esc(fMoeda(o.lanP))}</td><td data-l="Pago no período" class="num">${esc(fMoeda(o.pagP))}</td><td data-l="Último pagamento">${u?esc(fData(u.data))+' · '+esc(fMoeda(u.valor)):'—'}</td>
+     <td data-l="Falta pagar" class="num">${valSaldo(o.x.saldo)}</td><td data-l="Situação">${tagSit(o.x)}</td>
+     <td class="acs">${pg&&o.x.saldo>0.004?`<button type="button" class="btn min pri" data-pgfpagar="${esc(o.t.id)}">Pagar</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`
+    :`<div class="vazio"><b>${todas.length?'Ninguém nesta lista':'Nenhum trabalhador por grade'}</b>${todas.length?'Toque em “Todos” para ver os demais.':'Os trabalhadores e as grades são lançados na Produção › Controle por grade.'}</div>`)}
+ c.innerHTML=cabG('pgGrade','Pagamento por grade','O que cada trabalhador da Enforna e da Desenforna tem a receber. As grades são lançadas na Produção (Controle por grade); o pagamento registrado aqui é o mesmo de lá. Estes valores ficam neste módulo: não entram no Total pendente nem nas outras contas do Financeiro.',
+   `<button type="button" class="btn" id="pgFx">${ic('baixar')}Exportar ▾</button>${pg&&DATA[COL_T].length?`<button type="button" class="btn" id="pgFout">${ic('carteira')}Pagar outro trabalhador</button>`:''}`)+
+  htmlPer(UIF,'fin')+
+  `<div class="cpl-cards" role="tablist" aria-label="Resumo do pagamento por grade">${cards.map(q2=>`<button type="button" role="tab" data-pgfv="${esc(q2.k)}" aria-selected="${sel===q2.k}" class="${esc(q2.cls||'')}"><span class="rot">${esc(q2.rot)}</span><b>${esc(q2.v)}</b>${q2.sub?`<small>${esc(q2.sub)}</small>`:''}<span class="ver" aria-hidden="true">›</span></button>`).join('')}</div>`+
+  `<div class="pg-busca fi-filtros"><input type="search" id="pgFq" placeholder="${vis==='pagos'?'Procurar pagamento':'Localizar trabalhador'}" value="${esc(UIF.q)}" aria-label="Localizar"></div>`+corpo+
+  `<p class="cpl-nota">Falta pagar = tudo o que foi lançado − tudo o que foi pago. Cada lançamento usa o valor por grade gravado nele. Toque no trabalhador para ver o extrato e pagar inteiro ou em parte; pagar mais do que ele tem a receber pede confirmação e motivo.</p>`;
+ ligarPer(c,UIF,'fin');ligarBusca(c,'#pgFq',UIF,'q');ligarLinhas(c,'tr[data-go]');
+ $$('[data-pgfv]',c).forEach(b=>b.onclick=()=>{UIF.vis=b.dataset.pgfv;renderTela()});
+ $$('[data-pgfs]',c).forEach(b=>b.onclick=()=>{UIF.vis=b.dataset.pgfs;renderTela()});
+ $$('[data-pgfpagar]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();abrirPagamento(b.dataset.pgfpagar,ORIG_FIN)});
+ $$('[data-pgrec]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const p=DATA.pgPag.find(x=>x.id===b.dataset.pgrec);if(p)abrirMenuMais(b,itensAcaoDoc(()=>docRecibo(DATA.pgPag.find(x=>x.id===p.id)),'Recibo de '+nomeT(p.trabId)))});
+ const bo=$('#pgFout',c);if(bo)bo.onclick=()=>abrirPagamento('',ORIG_FIN);
+ $('#pgFx',c).onclick=()=>{
+  if(vis==='pagos'){const cols=COLS_R.pag;const rows=linhasRel('pag',{Pg:pags});abrirMenuMais($('#pgFx',c),[{l:'Visualizar',sub:pl(rows.length,'pagamento'),fn:()=>exportar('ver','Pagamentos_grade_'+hoje(),cols,rows,'Pagamentos por grade · '+per)},{l:'Exportar PDF',fn:()=>exportar('pdf','Pagamentos_grade_'+hoje(),cols,rows,'Pagamentos por grade · '+per)},{l:'Exportar Excel',fn:()=>exportar('xlsx','Pagamentos_grade_'+hoje(),cols,rows,'Pagamentos por grade · '+per)}]);return}
+  const cols=[{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades no período',t:'num'},{k:'lanc',l:'Lançado no período',t:'moeda'},{k:'pago',l:'Pago no período',t:'moeda'},{k:'saldo',l:'Falta pagar',t:'moeda'}];
+  const rows=todas.filter(o=>passaF(o,k)).map(o=>({nome:o.t.nome,setor:o.t.setor,grades:o.grP,lanc:o.lanP,pago:o.pagP,saldo:o.x.saldo}));const tt='Pagamento por grade · '+per;
+  abrirMenuMais($('#pgFx',c),[{l:'Visualizar',sub:pl(rows.length,'trabalhador','trabalhadores'),fn:()=>exportar('ver','Pagamento_por_grade_'+hoje(),cols,rows,tt)},{l:'Exportar PDF',fn:()=>exportar('pdf','Pagamento_por_grade_'+hoje(),cols,rows,tt)},{l:'Exportar Excel',fn:()=>exportar('xlsx','Pagamento_por_grade_'+hoje(),cols,rows,tt)},
+   {l:'Lista para assinatura',sub:'quem tem a receber hoje, com linha para assinar',fn:()=>acaoDocumento(()=>docRel({...UIR,tipo:UIF.tipo,ref:UIF.ref,de:UIF.de,ate:UIF.ate,setor:'',trab:''},['ass']),'ver')}])}}
+/* cartão no painel do Financeiro, logo abaixo de "A pagar por módulo" (separado: não entra no Total pendente) */
+function cartaoFin(el){
+ if(!pode('fGrade'))return;const c=el.querySelector('#svCorpo')||el;if(c.querySelector('.pg-fmods'))return;
+ const ref=c.querySelector('.cpg-mods');if(!ref)return;
+ const ab=DATA[COL_T].map(t=>contaDe(t.id)).filter(x=>x.saldo>0.004);
+ const ultimo=DATA.pgPag.filter(p=>!p.estorno).sort(desc)[0];
+ ref.insertAdjacentHTML('afterend',`<h3 class="grupo-t pg-fmods-t">Pagamento por grade · Produção</h3><div class="pg-fmods"><a href="#/fGrade"><span>${ic('pgGrade')}Enforna e Desenforna</span><b>${esc(fMoeda(soma(ab,x=>x.saldo)))}</b><small>${ab.length?esc(pl(ab.length,'trabalhador','trabalhadores'))+' com saldo a receber':'nada em aberto'}</small><small>${ultimo?'Último pagamento em '+esc(fData(ultimo.data)):'Controle próprio: fora do Total pendente'}</small></a></div>`)}
+
+/* ---------- 17. telas, menus e ligações com o resto do sistema ---------- */
+const comPagar=c=>{const b=$('#bNovo',c),f=$('#bFab',c);
+ [b,f].forEach(x=>{if(!x)return;x.onclick=()=>abrirPagamento('',ORIG_PROD)});if(b)b.innerHTML=ic('carteira')+'Registrar pagamento';if(f)f.setAttribute('aria-label','Registrar pagamento')};
+const comLancar=c=>{const b=$('#bNovo',c);if(b)b.innerHTML=ic('mais')+'Lançar grades';const f=$('#bFab',c);if(f)f.setAttribute('aria-label','Lançar grades')};
+Object.assign(TELAS_V,{
+ pgrade:el=>shellProd(el,'pgrade',telaPainel),
+ pgDia:el=>shellProd(el,'pgDia',telaDia),
+ pgLanc:el=>shellProd(el,'pgLanc',c=>{telaLista(c,'pgLanc');comLancar(c)}),
+ pgTrab:el=>shellProd(el,'pgTrab',c=>telaLista(c,'pgTrab')),
+ pgPag:el=>shellProd(el,'pgPag',c=>{telaLista(c,'pgPag');comPagar(c)}),
+ pgExtrato:el=>shellProd(el,'pgExtrato',c=>telaExtrato(c,lerRota().id,'prod')),
+ pgRel:el=>shellProd(el,'pgRel',telaRel),
+ fGrade:el=>shellFin(el,'fGrade',telaFin)});
+/* aba na Produção (no fim da lista: as abas de antes continuam na mesma ordem) */
+window.PROD_ABAS_EXTRA=window.PROD_ABAS_EXTRA||[];
+if(!window.PROD_ABAS_EXTRA.some(a=>a.m==='pgrade'))window.PROD_ABAS_EXTRA.push({r:'#/pgrade',m:'pgrade',ic:'pgGrade',l:'Controle por grade',at:ROTAS.slice(),
+ sub:[['#/pgrade','pgrade','Painel',['pgrade']],['#/pgDia','pgDia','Lançar o dia',['pgDia']],['#/pgLanc','pgLanc','Lançamentos',['pgLanc']],['#/pgTrab','pgTrab','Trabalhadores',['pgTrab']],
+  ['#/pgPag','pgPag','Pagamentos',['pgPag']],['#/pgExtrato','pgExtrato','Extrato',['pgExtrato']],['#/pgRel','pgRel','Relatórios',['pgRel']]]});
+/* módulo no Financeiro, logo depois de "Outros pagamentos" */
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fGrade'))window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade',m:'fGrade',ic:'pgGrade',l:'Pagamento por grade',at:['fGrade']});
+{const tf0=TELAS_V['setor-financeiro'];if(typeof tf0==='function')TELAS_V['setor-financeiro']=function(el){const r=tf0.apply(this,arguments);try{cartaoFin(el)}catch(e){console.warn('grade no painel do Financeiro',e)}return r}}
+/* recibo no lugar do comprovante genérico do pagamento */
+try{if(typeof COMP_LANC!=='undefined'&&COMP_LANC){
+ const e0=COMP_LANC.emitir,d0=COMP_LANC.doc,b0=COMP_LANC.botao;
+ COMP_LANC.emitir=function(mod,ant,sujo){if(mod==='pgPag'&&ant){verDoc(docRecibo(DATA.pgPag.find(p=>p.id===ant.id)||ant));return}return e0.apply(this,arguments)};
+ COMP_LANC.doc=function(mod,st){if(mod==='pgPag'&&st)return docRecibo(DATA.pgPag.find(p=>p.id===st.id)||st);return d0.apply(this,arguments)};
+ COMP_LANC.botao=function(mod,st){const h=b0.apply(this,arguments);return mod==='pgPag'&&h?h.replace(/data-tip="[^"]*"/,'data-tip="Emitir o recibo deste pagamento (imprimir, PDF ou compartilhar)"').replace(/Comprovante<\/button>/,'Recibo</button>'):h}}}catch(e){console.warn('grade: recibo',e)}
+/* busca geral (Ctrl K): as telas e cada trabalhador */
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{
+ const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(g,t,s,ico,rota,extra)=>E.push({g,t,s,ic:ico,k:NN(t+' '+s+' '+(extra||'')),ir:()=>JBNAV.ir(rota),h:rota,ix:E.length});
+ if(pode('pgrade')){add('Telas','Controle por grade','Produção · trabalhadores da Enforna e da Desenforna que recebem por grade','pgGrade','#/pgrade','grade grades enforna desenforna pagamento producao trabalhador diaria');
+  if(pode('pgDia'))add('Telas','Lançar grades do dia','Produção · Controle por grade','pgGrade','#/pgDia','lancar grade grades enforna desenforna dia');
+  add('Telas','Relatórios do controle por grade','Produção · por trabalhador, por setor, lançamentos, pagamentos e lista para assinatura','grafico','#/pgRel','relatorio grade');
+  DATA[COL_T].forEach(t=>{const x=contaDe(t.id);add('Trabalhadores por grade',t.nome,t.setor+' · '+(x.saldo>0.004?'falta receber '+fMoeda(x.saldo):x.saldo<-0.004?'crédito '+fMoeda(-x.saldo):'em dia'),'pgGrade','#/pgExtrato/'+t.id,(t.apelido||'')+' extrato grade')})}
+ if(pode('fGrade'))add('Telas','Pagamento por grade','Financeiro · o que cada trabalhador da Enforna e da Desenforna tem a receber','pgGrade','#/fGrade','pagar grade enforna desenforna trabalhador financeiro')}catch(e){}return E}}
+/* Lançamentos do setor (Relatórios da Produção): também os lançamentos e pagamentos por grade */
+try{const J=window.JB_DOCL;if(J&&typeof J.registrarFonte==='function')J.registrarFonte('producao',()=>{if(!pode('pgrade'))return [];
+ const dh=iso=>iso?fData(String(iso).slice(0,10))+' às '+horaDe(iso):'';
+ return [...DATA.pgLanc.map(l=>({data:l.data,reg:dh(l.criadoEm),_ord:(l.data||'')+'||'+(l.criadoEm||''),tipo:'Grades · '+(l.setor||''),cod:cod('GR',l.id),desc:nomeT(l.trabId)+' · '+plG(l.grades)+' × '+fMoeda(l.valorGrade),qtd:plG(l.grades),valor:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',resp:quem(l.criadoPor),_uid:l.criadoPor||'',_go:'#/pgLanc/'+l.id,_doc:()=>COMP_LANC.doc('pgLanc',DATA.pgLanc.find(x=>x.id===l.id)||l),_docT:'Comprovante do lançamento de grades'})),
+  ...DATA.pgPag.map(p=>({data:p.data,reg:dh(p.criadoEm),_ord:(p.data||'')+'||'+(p.criadoEm||''),tipo:'Pagamento por grade',cod:cod('PG',p.id),desc:nomeT(p.trabId)+(p.forma?' · '+p.forma:''),qtd:'',valor:n0(p.valor),sit:p.estorno?'Estornado':'Pago',resp:quem(p.criadoPor),_uid:p.criadoPor||'',_go:'#/pgPag/'+p.id,_doc:()=>docRecibo(DATA.pgPag.find(x=>x.id===p.id)||p),_docT:'Recibo de pagamento por grade'}))]})}catch(e){console.warn('grade: lançamentos do setor',e)}
+
+window.JB_GRADE=Object.freeze({COL,COL_T,calc,contaDe,alocar,extenso,intervalo,docRecibo,docExtrato,docRel,abrirPagamento,abrirLancamento,tot,SETORES_G});
 })();
 </script>
 </body>

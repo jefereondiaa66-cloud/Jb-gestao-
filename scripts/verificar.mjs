@@ -1148,6 +1148,41 @@ teste('vidro', 'Produção no visual "Vidro claro" em teste (V155): só com a ch
   if (ci) assert.ok(ci.includes('node scripts/testar-vidro-producao.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, valor gravado em cada lançamento, nada apagado nem misturado', () => {
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  assert.equal((app.match(/<script id="grade-v156">/g) || []).length, 1, 'um bloco só');
+  assert.ok(app.includes('<style id="grade-v156-css">'), 'aparência do bloco');
+  const b = /<script id="grade-v156">([\s\S]*?)<\/script>/.exec(app)[1];
+  /* dados: só as duas coleções novas; lançamento e pagamento são tipos dentro de prodGrade */
+  assert.ok(b.includes("const COL='prodGrade',COL_T='prodGradeTrab';") && b.includes("const TIPO={pgLanc:'lanc',pgPag:'pag'};"), 'coleções do controle');
+  assert.ok(b.includes("if(TIPO[col])return g0(COL,{...rec,tipo:TIPO[col]},ant?{...ant,tipo:TIPO[col]}:ant);") && b.includes("if(col==='pgTrab')return g0(COL_T,rec,ant);") && b.includes('return g0.apply(this,arguments)};'), 'gravação desviada só para as coleções do controle; o resto do sistema grava como antes');
+  /* não mistura com custos, despesas, contas a pagar, folha nem Controladoria */
+  assert.ok(!/gravar(Registro)?\(\s*['"](fin|fTitulos|despesas|folhas|ctl|prodFab|producaoSetor|producao)['"]/.test(b) && !/sincronizarDespesa|despesa\s*:/.test(b), 'não grava em custo, despesa nem produção');
+  /* cadastro sem valor por grade; o valor é digitado e guardado em cada lançamento */
+  const trab = /MODS\.pgTrab=\{[\s\S]*?\nMODS\.pgLanc=/.exec(b); assert.ok(trab, 'cadastro do trabalhador');
+  assert.ok(!/k:'(valor|valorGrade|preco)/.test(trab[0]), 'cadastro sem valor por grade');
+  assert.ok(b.includes("const tot=l=>r2(n0(l.grades)*n0(l.valorGrade));"), 'total = grades × valor por grade do próprio lançamento');
+  /* nada é apagado: cancelamento e estorno com motivo; sem excluir nas listas */
+  assert.equal((b.match(/semExcluir:true/g) || []).length, 3, 'trabalhadores, lançamentos e pagamentos sem excluir');
+  assert.ok(b.includes('window.ACOES_FORM.pgCancelarLanc') && b.includes('window.ACOES_FORM.pgEstornarPag') && b.includes("cancelamento:{em:agora(),por:eu(),motivo:m}") && b.includes("estorno:{em:agora(),por:eu(),motivo:m}"), 'cancelar e estornar guardam quem, quando e o motivo');
+  assert.ok(!/\bapagar\(\s*['"](pgLanc|pgPag|pgTrab)/.test(b), 'o controle não apaga registro');
+  /* repetição e pagamento acima do saldo pedem confirmação */
+  assert.ok(b.includes('já tem lançamento neste dia na') && b.includes('Este pagamento parece repetido') && b.includes("if(!$('#pgExcOk',v).checked)"), 'avisos de repetição e de pagamento acima do saldo');
+  /* navegação só pelo JBNAV */
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  /* ligações com o resto do programa (só acrescentam) */
+  assert.ok(app.includes("{r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']},...(window.PROD_ABAS_EXTRA||[])]"), 'aba da Produção no fim, as antigas na mesma ordem');
+  assert.ok(app.includes("'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */") && app.includes("'fMeta','fGrade'];   /* V156: Pagamento por grade */"), 'painel do dono: concessão e suspensão da Produção e do Financeiro valem para as telas novas');
+  assert.ok(b.includes("window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade'"), 'módulo no Setor Financeiro');
+  /* banco: as duas coleções registradas, com reversão e sem apagar nada */
+  const mig = join(RAIZ, 'supabase/migrations/20261123003000_seg_controle_grade.sql');
+  assert.ok(existsSync(mig) && existsSync(mig.replace('.sql', '.down.sql')), 'migração com reversão');
+  const sql = ler('supabase/migrations/20261123003000_seg_controle_grade.sql');
+  assert.ok(sql.includes("('prodGradeTrab', 'producao', false, 'dados', true)") && sql.includes("('prodGrade',     'producao', true,  'dados', true)") && sql.includes("when p_raiz = 'prodGrade' and p_item->>'tipo' = 'pag' then 'financeiro'"), 'coleções do módulo Produção; o Financeiro grava só pagamentos');
+  assert.ok(!/\b(drop|delete|truncate)\b/i.test(sql.replace(/--.*$/gm, '')), 'a migração só acrescenta');
+  if (ci) assert.ok(ci.includes('node scripts/testar-controle-grade.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();
