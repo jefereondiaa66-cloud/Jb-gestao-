@@ -210,6 +210,18 @@ try {
   ok(r6.kpis === '2,2,0,0,1', `indicadores do painel: ${r6.kpis} (veículos, em dia, próximas, vencidas, em manutenção)`);
   ok(r6.menu && r6.central, 'Revisões e manutenção no menu do setor e na Central de lançamentos');
 
+  /* 7. cadastrar veículo novo pela tela de revisões (vai para Veículos e máquinas do Combustível e volta) */
+  const r7 = await page.evaluate(async () => {
+    SV = 'combustivel'; location.hash = '#/frota'; await T.esperar(() => document.querySelector('.fr-nveic')); await T.dorme(200);
+    document.querySelector('.fr-nveic').click(); await T.esperar(() => document.querySelector('#camada [data-acao="salvar"]'));
+    T.escolher('nome', 'Toyota Hilux Teste'); T.escolher('tipo', 'Caminhonete'); T.escolher('identificacao', 'XYZ9A87'); await T.dorme(100);
+    await T.salvarGaveta(); await T.esperar(() => DATA.locais.some((l) => l.nome === 'Toyota Hilux Teste'), 10000); await T.sincronizado(); await T.dorme(600);
+    const L = DATA.locais.find((l) => l.nome === 'Toyota Hilux Teste');
+    return { setor: L.setor, rota: location.hash, naLista: FROTA_V157.frota().some((x) => x.id === L.id), card: !!document.querySelector('.fr-card[href="#/frota/' + L.id + '"]'), banco: T.banco('locais').some((x) => x.nome === 'Toyota Hilux Teste') };
+  });
+  ok(r7.setor === 'combustivel' && r7.banco, 'botão "Cadastrar veículo" grava o veículo no cadastro do Combustível (banco central)');
+  ok(r7.rota === '#/frota' && r7.naLista && r7.card, `depois de cadastrar volta para Revisões e manutenção com o veículo na lista (${r7.rota})`);
+
   if (process.env.FOTOS) {
     for (const [larg, alt, suf] of [[1280, 900, 'pc'], [390, 844, 'cel']]) {
       await page.setViewportSize({ width: larg, height: alt });

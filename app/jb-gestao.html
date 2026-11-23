@@ -50777,7 +50777,7 @@ function painel(c){
  const F=frota().map(situ).sort((a,b)=>a.ord-b.ord||(a.falta??1e12)-(b.falta??1e12)||String(a.L.nome).localeCompare(String(b.L.nome),'pt-BR'));
  const cnt=k=>k==='man'?F.filter(o=>o.man).length:k==='sem'?F.filter(o=>!o.p).length:F.filter(o=>o.cls===k).length;
  const prox=F.filter(o=>o.p).sort((a,b)=>String(a.p.dataPrev||a.prev||'9').localeCompare(String(b.p.dataPrev||b.prev||'9'))).slice(0,5);
- const ac=[podeE('frRev')?BTN('fr-nrev','mais','Registrar revisão',1):'',podeE('frLeit')?BTN('fr-nleit','camera','Foto do painel (km)'):'',podeE('frPlano')?BTN('fr-nplano','calendario','Programar revisão'):'',BTN('fr-rel','doc','Relatórios')].join('');
+ const ac=[podeE('frRev')?BTN('fr-nrev','mais','Registrar revisão',1):'',podeE('frLeit')?BTN('fr-nleit','camera','Foto do painel (km)'):'',podeE('frPlano')?BTN('fr-nplano','calendario','Programar revisão'):'',pode('locais','e')?BTN('fr-nveic','frota','Cadastrar veículo'):'',BTN('fr-rel','doc','Relatórios')].join('');
  c.innerHTML=cabecalho('Revisões e manutenção','Última revisão, leitura atual, próxima revisão e o que vai ser preciso em cada caminhão, veículo e máquina.',ac)+`
  <div class="hero fr-hero">
   ${kpiV('c3','frota','Veículos e máquinas',String(F.length),'ativos no cadastro','#/locais')}
@@ -50801,13 +50801,15 @@ function painel(c){
     ${o.p?`<span class="fr-serv">${esc(servLista(o.p).slice(0,4).join(' · ')||'serviços a definir')}</span>`:''}</span>
    <span class="fr-dir">${tag(o.t,o.cls||'')}${o.man?' '+tag('Em manutenção','in'):''}${o.p?`<span class="fr-falta">${esc(txtFalta(o)||'—')}</span>`:'<small>toque para programar</small>'}
     ${o.pct!=null?`<div class="fr-barra ${o.cls}"><i style="width:${Math.round(o.pct*100)}%"></i></div>`:''}</span></a>`).join('')
-   :`<div class="vazio"><b>Nenhum veículo com este filtro</b>${F.length?'Mude o filtro ou a pesquisa.':'Cadastre os caminhões e máquinas em Veículos e máquinas.'}</div>`};
+   :`<div class="vazio"><b>Nenhum veículo com este filtro</b>${F.length?'Mude o filtro ou a pesquisa.':'Toque em "Cadastrar veículo" para incluir os caminhões, carros e máquinas.'}</div>`};
  lista();
  c.querySelectorAll('[data-frf] button').forEach(b=>b.onclick=()=>{UI.f=b.dataset.k;c.querySelectorAll('[data-frf] button').forEach(x=>x.classList.toggle('on',x===b));lista()});
  const q=c.querySelector('[data-frq]');q.oninput=()=>{UI.q=q.value;lista()};
  const k=[...c.querySelectorAll('.fr-hero .kpi')];[['ok',1],['at',2],['pe',3],['man',4]].forEach(([f,i])=>{if(k[i])k[i].onclick=e=>{e.preventDefault();UI.f=f;painel(c)}});
  const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
  on('.fr-nrev',()=>novo('frRev'));on('.fr-nleit',()=>novo('frLeit'));on('.fr-nplano',()=>novo('frPlano'));on('.fr-rel',e=>menuRel(e.currentTarget));
+ /* 23/11/2026: veículo novo que chegou na empresa, cadastrado daqui (vai para Veículos e máquinas do Combustível) */
+ on('.fr-nveic',()=>{if(!pode('locais','e')){toast('Seu perfil não pode cadastrar veículos.','erro');return}PREFILL={mod:'locais',dados:{setor:'combustivel',situacao:'Ativo',controleUso:'Hodômetro (km)'}};VOLTA='#/frota';JBNAV.ir('#/locais/novo')});
 }
 
 function galeria(id){
@@ -50869,6 +50871,7 @@ function ficha(c,id){
 }
 const entrar=()=>{SV='combustivel';if(typeof marcarSetor==='function')marcarSetor('combustivel')};
 TELAS_V.frota=el=>{entrar();const id=lerRota().id;shellV(el,'frota',c=>id?ficha(c,id):painel(c),{setor:'combustivel'})};
+{const tl0=TELAS_V.locais;if(tl0)TELAS_V.locais=function(el){if(VOLTA&&!lerRota().id){const v=VOLTA;VOLTA=null;setTimeout(()=>JBNAV.subst(v),0)}return tl0.apply(this,arguments)}}
 ROTAS.slice(1).forEach(m=>{TELAS_V[m]=el=>{entrar();
  if(VOLTA&&!lerRota().id){const v=VOLTA;VOLTA=null;setTimeout(()=>JBNAV.subst(v),0)}
  shellV(el,m,c=>telaLista(c,m),{setor:'combustivel'})}});
