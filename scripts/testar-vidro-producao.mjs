@@ -93,7 +93,11 @@ try {
   console.log('\n3. Início no desenho novo');
   await ir('setor-producao'); await page.waitForTimeout(400);
   ok(await page.evaluate(() => document.body.classList.contains('vc-prod') && document.querySelector('.sv-abas').offsetParent !== null), 'barra de módulos à vista');
-  ok(await page.evaluate(() => [...document.querySelectorAll('.sv-abas .dir-aba')].map((a) => a.textContent.trim()).join('|').includes('Início|Lançar|Movimentações|Maromba|Secador|Fornos|Tijolo pronto|Relatórios|Configurações')), 'os nove módulos na barra');
+  /* os nove módulos de sempre, todos e na mesma ordem; uma função nova do setor (Controle por grade, V156.1: antes de
+     Relatórios) pode entrar entre eles */
+  const barra = await page.evaluate(() => [...document.querySelectorAll('.sv-abas .dir-aba')].map((a) => a.textContent.trim()));
+  const nove = ['Início', 'Lançar', 'Movimentações', 'Maromba', 'Secador', 'Fornos', 'Tijolo pronto', 'Relatórios', 'Configurações'];
+  ok(barra.filter((x) => nove.includes(x)).join('|') === nove.join('|') && barra.length <= nove.length + 1, 'os nove módulos na barra, na mesma ordem: ' + barra.join(' | '));
   ok(await page.evaluate(() => !!document.querySelector('.c2-home .vc-hic') && /Registrar parada/.test(document.querySelector('.vc-rapido').textContent) && /Lançar/.test(document.querySelector('.vc-rapido').textContent)), 'cabeçalho com os atalhos e o Lançar de sempre');
   ok(await page.evaluate(() => !!document.querySelector('.pp-hero svg.vc-area')), '"Maromba hoje" com o gráfico dos 14 dias');
   ok(await page.evaluate(() => { const d = document.querySelector('.vc-duo'); return !!d && !!d.querySelector('.c2-acesso') && !!d.querySelector('.c2-favblk'); }), 'módulos e atalhos lado a lado');

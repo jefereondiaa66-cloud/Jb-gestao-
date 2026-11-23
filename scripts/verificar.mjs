@@ -1171,7 +1171,11 @@ teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, v
   /* navegação só pelo JBNAV */
   assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
   /* ligações com o resto do programa (só acrescentam) */
-  assert.ok(app.includes("{r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']},...(window.PROD_ABAS_EXTRA||[])]"), 'aba da Produção no fim, as antigas na mesma ordem');
+  assert.ok(app.includes("function abasP(){return comExtrasP([") && app.includes("{r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']}]).filter(a=>pode(a.m,a.e?'e':'v'))}")
+    && app.includes("function comExtrasP(L){(window.PROD_ABAS_EXTRA||[]).forEach(a=>{const i=a.antes?L.findIndex(x=>x.r===a.antes):-1;if(i>=0)L.splice(i,0,a);else L.push(a)});return L}"), 'aba da Produção só acrescentada, as antigas na mesma ordem');
+  /* V156.1 ("não apareceu"): a barra de abas fica desligada nos setores; o controle aparece também no painel e no Lançar */
+  assert.ok(b.includes("antes:'#/prel'") && b.includes("window.PROD_LANC_EXTRA.push({k:'pgDia',m:'pgDia'") && b.includes('window.PROD_MES_EXTRA.push(cartaoMesProd)'), 'controle à vista: módulo antes de Relatórios, Lançar e cartão no painel');
+  assert.ok(app.includes("].concat(window.PROD_LANC_EXTRA||[]).filter(x=>pode(x.m,'e'));") && app.includes("<div class=\"pp-ind2${mesX?' pp-ind2-x':''}\"><h3 class=\"pp-sub\">No mês · ${esc(fMes(N.m))}</h3>${mes}${mesX}${perdas}</div>"), 'pontos de extensão da Produção (só acrescentam)');
   assert.ok(app.includes("'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */") && app.includes("'fMeta','fGrade'];   /* V156: Pagamento por grade */"), 'painel do dono: concessão e suspensão da Produção e do Financeiro valem para as telas novas');
   assert.ok(b.includes("window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade'"), 'módulo no Setor Financeiro');
   /* banco: as duas coleções registradas, com reversão e sem apagar nada

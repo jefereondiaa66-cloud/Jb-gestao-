@@ -17908,18 +17908,18 @@ function lancaveisP(){
   {m:'pparadas',ic:'relogio',t:'Parada da maromba',d:'Início, fim e motivo da parada.',go:()=>{JBNAV.ir('#/pparadas/novo')}},
   {m:'psecmov',ic:'aviso',t:'Perda na secagem',d:'Tijolos quebrados ou trincados no secador.',go:()=>{PREFILL={mod:'psecmov',dados:{mov:'Perda',data:hoje()}};JBNAV.ir('#/psecmov/novo')}},
   {m:'pprontomov',ic:'caixa',t:'Tijolo pronto',d:'Saída, perda posterior ou ajuste do estoque.',go:()=>{JBNAV.ir('#/pprontomov/novo')}}
- ].filter(x=>pode(x.m,'e'));
+ ].concat(window.PROD_LANC_EXTRA||[]).filter(x=>pode(x.m,'e'));   /* V156.1: lançamentos de outras funções do setor (Controle por grade) entram no fim */
 }
 function telaLancarP(c){
  const L=lancaveisP();
  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('mais')}</span><div><h1>Lançar</h1><p>Escolha o que aconteceu. Cada lançamento entra na hora no painel do setor.</p></div></div><div class="acoes"></div></div>
-  ${L.length?`<div class="hero pm-lanc">${L.map((x,i)=>`<button type="button" class="kpi c${(i%6)+1}" data-lp="${i}"><div class="ic">${ic(x.ic)}</div><div class="v" style="font-size:18px">${esc(x.t)}</div><div class="l">${esc(x.d)}</div></button>`).join('')}</div>`:`<div class="vazio"><b>Sem permissão para lançar</b>Peça ao administrador.</div>`}`;
+  ${L.length?`<div class="hero pm-lanc">${L.map((x,i)=>`<button type="button" class="kpi c${(i%6)+1}" data-lp="${i}"${typeof x.vch==='function'?` data-vch="${esc(x.vch())}"`:''}><div class="ic">${ic(x.ic)}</div><div class="v" style="font-size:18px">${esc(x.t)}</div><div class="l">${esc(x.d)}</div></button>`).join('')}</div>`:`<div class="vazio"><b>Sem permissão para lançar</b>Peça ao administrador.</div>`}`;
  $$('[data-lp]',c).forEach(b=>b.onclick=()=>L[+b.dataset.lp].go());
  try{if(typeof window.posTelaProdV56==='function')window.posTelaProdV56(c,'pmaromba')}catch(e){console.warn(e)}
 }
 
 /* ---------- casca do setor ---------- */
-function abasP(){return [
+function abasP(){return comExtrasP([
  {r:'#/setor-producao',m:'setor-producao',ic:'painel',l:'Início',at:['setor-producao']},
  {r:'#/plancar',m:'setor-producao',ic:'mais',l:'Lançar',at:['plancar','pm-novo']},
  {r:'#/movProducao',m:'setor-producao',ic:'lupa',l:'Movimentações',at:['movProducao']},   /* V151: tudo o que aconteceu no setor, com comprovante */
@@ -17928,7 +17928,10 @@ function abasP(){return [
  {r:'#/pfornadas',m:'pfornadas',ic:'chama',l:'Fornos',at:['pfornadas','pdesenf','plenha'],sub:[['#/pfornadas','pfornadas','Enforna',['pfornadas']],['#/pdesenf','pdesenf','Desenforna',['pdesenf']],['#/plenha','plenha','Lenha por fornada',['plenha']]]},
  {r:'#/ppronto',m:'ppronto',ic:'caixa',l:'Tijolo pronto',at:['ppronto','pprontomov'],sub:[['#/ppronto','ppronto','Estoque',['ppronto']],['#/pprontomov','pprontomov','Movimentações',['pprontomov']]]},
  {r:'#/prel',m:'prel',ic:'grafico',l:'Relatórios',at:['prel','pmes'],sub:[['#/prel','prel','Relatório do período',['prel']],['#/pmes','pmes','Produção por mês',['pmes']]]},
- {r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']},...(window.PROD_ABAS_EXTRA||[])].filter(a=>pode(a.m,a.e?'e':'v'))}   /* V156: abas novas (Controle por grade) entram no fim */
+ {r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']}]).filter(a=>pode(a.m,a.e?'e':'v'))}
+/* V156: abas novas de outras funções do setor (Controle por grade). Com "antes", a aba entra logo antes da aba
+   indicada (ex.: antes de Relatórios); sem "antes", no fim. As abas de sempre continuam na mesma ordem entre si. */
+function comExtrasP(L){(window.PROD_ABAS_EXTRA||[]).forEach(a=>{const i=a.antes?L.findIndex(x=>x.r===a.antes):-1;if(i>=0)L.splice(i,0,a);else L.push(a)});return L}
 function shellP(el,ativa,corpo){
  if(typeof marcarSetor==='function')marcarSetor('producao');
  el.innerHTML=`<div class="spot sv"><div class="sv-topo">${cabSpot('Setor de Produção',razaoMostra()+' · CNPJ '+cnpjMostra(),`<a class="btn" href="#/setores" data-tip="Voltar à seleção de setores">${ic('esquerda')}<span>Setores</span></a>`)}
@@ -18010,6 +18013,8 @@ function inicioProd(c){
   kp('calendario','Maromba no mês',fT(N.mes),'tijolos',esc(fT(N.gradesM)+' grade(s) · '+N.okM.length+' lançamento(s)'),'#/pmaromba','marM'),
   kp('chama','Enfornado no mês',fT(N.enfM),'tijolos',esc(N.fM.length+' fornada(s)'),'#/pfornadas','enfM'),
   kp('saida','Desenfornado no mês',fT(N.desMes.total),'tijolos',esc('bons '+fT(N.desMes.aprov)+' · '+N.desMes.n+' desenforna(s)'),'#/pdesenf','desM')].join('');
+ /* V156.1: cartões de outras funções do setor no "No mês" (Controle por grade); só acrescentam, os números de cima não mudam */
+ const mesX=(window.PROD_MES_EXTRA||[]).map(f=>{try{return typeof f==='function'?f(N)||'':''}catch(e){console.warn('Produção: cartão do mês',e);return ''}}).join('');
  const perdaLin=(r,href,cor,l,v,sub)=>`<a class="pp-pl" href="${href}"${rel(r)}><i class="${cor}"></i><span>${esc(l)}<small>${sub}</small></span><b>${fT(v)}</b></a>`;
  const perdas=`<div class="pp-k pp-perdas">${kc('aviso','Perdas no mês')}
    ${perdaLin('perdDes','#/pdesenf','e1','Perda no forno (entrou − saiu)',N.perdQueima,esc(N.baseQueima?pct(N.perdQueima,N.baseQueima)+' do que entrou no forno':'sem fornada desenfornada no mês'))}
@@ -18079,7 +18084,7 @@ function inicioProd(c){
   ${semAvisos?'':`<section class="pp-niv pp-n1" aria-label="Avisos e pendências"><div class="pp-st"><h2>${ic('sino')}Avisos e pendências<span class="pp-cnt" id="ppCnt"></span></h2><button type="button" class="pp-lk" id="ppMais" hidden>Ver todos</button></div><div class="pp-avl" id="ppAvl">${av.map(avItem).join('')}</div></section>`}
   <section class="pp-niv pp-n2" aria-label="Indicadores principais"><div class="pp-st"><h2>${ic('grafico')}Indicadores principais</h2><span class="pp-std">Só lançamentos confirmados · estimativa e parcial vêm marcados · clique num número para ver a lista</span></div>
    <div class="pp-ind">${hero}<div class="pp-metas">${metas}</div></div>
-   <div class="pp-ind2"><h3 class="pp-sub">No mês · ${esc(fMes(N.m))}</h3>${mes}${perdas}</div></section>
+   <div class="pp-ind2${mesX?' pp-ind2-x':''}"><h3 class="pp-sub">No mês · ${esc(fMes(N.m))}</h3>${mes}${mesX}${perdas}</div></section>
   <section class="pp-niv pp-n3" aria-label="Acompanhamento industrial"><div class="pp-st"><h2>${ic('chama')}Acompanhamento industrial</h2><span class="pp-std">Hoje · ${esc(fData(N.h))}</span></div>
    <div class="pp-fluxo">${fluxo}</div>
    <h3 class="pp-sub">Agora na fábrica</h3>${fab}
@@ -48895,7 +48900,7 @@ function vestirLancar(sv){
  const hero=sv.querySelector('.hero.pm-lanc');if(!hero||hero.dataset.vc)return;hero.dataset.vc='1';
  const rows=window.JB_MOV?seguro(()=>window.JB_MOV.montar('producao').slice().sort((a,b)=>a.ord<b.ord?1:a.ord>b.ord?-1:0),[]):[];
  const hj=typeof hoje==='function'?hoje():'';
- hero.querySelectorAll(':scope>.kpi').forEach(k=>{const t=(k.querySelector('.v')||{}).textContent||'';const f=TIPO_L[t.trim()];const n=f?rows.filter(r=>r.data===hj&&f(r)).length:0;
+ hero.querySelectorAll(':scope>.kpi').forEach(k=>{const t=(k.querySelector('.v')||{}).textContent||'';const f=TIPO_L[t.trim()];if(!f)return;/* V156.1: tipo de outra função (ex.: Grades por trabalhador) já vem com a própria contagem de hoje */const n=rows.filter(r=>r.data===hj&&f(r)).length;
   k.dataset.vch='hoje: '+n+' lançamento'+(n===1?'':'s')});   /* aparece pelo estilo: o texto do botão continua o de sempre */
  const ac=sv.querySelector(':scope>.sec-cab .acoes');
  if(ac&&!ac.querySelector('[data-vcmov]')){ac.insertAdjacentHTML('afterbegin',`<button type="button" class="btn" data-vcmov>${ic('lupa')}Ver movimentações</button>`);ac.querySelector('[data-vcmov]').onclick=()=>JBNAV.ir('#/movProducao')}
@@ -49105,6 +49110,13 @@ window.JB_VIDRO_PROD=Object.freeze({rotas:ROTAS.slice(),vestir:agendar});
 }
 @media(max-width:560px){.pg-fmods{grid-template-columns:1fr 1fr}.pg-fmods b{font-size:16px}}
 @media print{.pg-per,.pg-busca,.pg-rel-esc,.pg-rel-f,.pg-fora{display:none!important}}
+/* V156.1: painel da Produção com o cartão do Controle por grade no "No mês": 4 cartões e Perdas ao lado (ou embaixo) */
+.pp-ind2.pp-ind2-x{grid-template-columns:repeat(4,minmax(0,1fr)) 1.45fr}
+.pp-k.pg-pk .pg-pks{margin-top:2px}
+@media (max-width:1280px){.pp-ind2.pp-ind2-x{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:820px){.pp-ind2.pp-ind2-x{grid-template-columns:1fr 1fr}}
+html.vis-vc body.vc-prod .pp-ind2.pp-ind2-x>.pp-perdas{grid-column:1/-1}
+html.vis-vc body.vc-prod .pp-ind2>.pg-pk{--vc-cor:#0d9488}
 </style>
 <script id="grade-v156">
 "use strict";
@@ -49998,11 +50010,31 @@ Object.assign(TELAS_V,{
  pgExtrato:el=>shellProd(el,'pgExtrato',c=>telaExtrato(c,lerRota().id,'prod')),
  pgRel:el=>shellProd(el,'pgRel',telaRel),
  fGrade:el=>shellFin(el,'fGrade',telaFin)});
-/* aba na Produção (no fim da lista: as abas de antes continuam na mesma ordem) */
+/* módulo na Produção: logo antes de Relatórios e Configurações (as abas de sempre continuam na mesma ordem entre si).
+   V156.1 (23/11/2026, "não apareceu"): a barra de abas fica desligada nos setores, então o controle também aparece
+   no painel do setor (cartão no "No mês") e na tela Lançar (Grades por trabalhador). */
 window.PROD_ABAS_EXTRA=window.PROD_ABAS_EXTRA||[];
-if(!window.PROD_ABAS_EXTRA.some(a=>a.m==='pgrade'))window.PROD_ABAS_EXTRA.push({r:'#/pgrade',m:'pgrade',ic:'pgGrade',l:'Controle por grade',at:ROTAS.slice(),
+if(!window.PROD_ABAS_EXTRA.some(a=>a.m==='pgrade'))window.PROD_ABAS_EXTRA.push({r:'#/pgrade',m:'pgrade',ic:'pgGrade',l:'Controle por grade',at:ROTAS.slice(),antes:'#/prel',
  sub:[['#/pgrade','pgrade','Painel',['pgrade']],['#/pgDia','pgDia','Lançar o dia',['pgDia']],['#/pgLanc','pgLanc','Lançamentos',['pgLanc']],['#/pgTrab','pgTrab','Trabalhadores',['pgTrab']],
   ['#/pgPag','pgPag','Pagamentos',['pgPag']],['#/pgExtrato','pgExtrato','Extrato',['pgExtrato']],['#/pgRel','pgRel','Relatórios',['pgRel']]]});
+window.PROD_LANC_EXTRA=window.PROD_LANC_EXTRA||[];
+if(!window.PROD_LANC_EXTRA.some(x=>x.k==='pgDia'))window.PROD_LANC_EXTRA.push({k:'pgDia',m:'pgDia',ic:'pgGrade',t:'Grades por trabalhador',
+ d:'Enforna e Desenforna: as grades de cada trabalhador no dia e o valor por grade.',go:()=>{JBNAV.ir('#/pgDia')},
+ vch:()=>{const n=DATA.pgLanc.filter(l=>!l.cancelamento&&l.data===hoje()).length;return 'hoje: '+n+' lançamento'+(n===1?'':'s')}});
+/* cartão "Controle por grade" no "No mês" do painel da Produção: grades lançadas no mês e quanto falta pagar */
+function cartaoMesProd(N){
+ if(!pode('pgrade'))return '';
+ const m=String((N&&N.m)||hoje().slice(0,7));
+ const L=DATA.pgLanc.filter(l=>!l.cancelamento&&String(l.data||'').slice(0,7)===m);
+ const gr=s=>soma(L.filter(l=>!s||l.setor===s),l=>n0(l.grades));
+ const ts=DATA[COL_T];const ab=ts.map(t=>contaDe(t.id)).filter(x=>x.saldo>0.004);const falta=r2(soma(ab,x=>x.saldo));
+ const l1=!ts.length?'Toque para cadastrar os trabalhadores e lançar as grades do dia':SETORES_G.map(s=>s+' '+fG(gr(s))).join(' · ');
+ const l2=!ts.length?'':falta>0.004?'falta pagar '+fMoeda(falta):'nada a pagar agora';
+ return `<a class="pp-k pp-sm pg-pk" href="#/pgrade" data-tip="Abrir o Controle por grade (Enforna e Desenforna)"><div class="pp-kc"><span class="pp-ki">${ic('pgGrade')}</span><span class="pp-kl">Controle por grade</span></div>
+  <div class="pp-kv">${esc(fG(gr('')))}<small>${gr('')===1?'grade':'grades'}</small></div><div class="pp-ks">${esc(l1)}</div>${l2?`<div class="pp-ks pg-pks">${esc(l2)}</div>`:''}</a>`}
+cartaoMesProd.k='pgrade';
+window.PROD_MES_EXTRA=window.PROD_MES_EXTRA||[];
+if(!window.PROD_MES_EXTRA.some(f=>f&&f.k==='pgrade'))window.PROD_MES_EXTRA.push(cartaoMesProd);
 /* módulo no Financeiro, logo depois de "Outros pagamentos" */
 window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
 if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fGrade'))window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade',m:'fGrade',ic:'pgGrade',l:'Pagamento por grade',at:['fGrade']});

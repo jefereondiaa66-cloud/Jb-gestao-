@@ -11,6 +11,8 @@
 //  - painel separado por Enforna e Desenforna; extrato com filtros; relatórios; pagamento pelo Financeiro
 //  - nada é gravado fora das coleções do controle (não mistura com custos, despesas nem com a produção)
 //  - os dados voltam iguais ao abrir de novo (armazenamento no banco central); celular sem rolagem para o lado
+//  - V156.1: o controle fica à vista na Produção (a barra de abas é desligada nos setores): cartão no "No mês" do
+//    painel, módulo antes de Relatórios e "Grades por trabalhador" na tela Lançar
 // Uso: node scripts/construir.mjs && node scripts/testar-controle-grade.mjs
 // FOTOS=<pasta> guarda capturas das telas (computador e celular).
 import { readFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
@@ -111,6 +113,29 @@ try {
   ok(await avaliar(() => (window.FIN_ABAS_EXTRA || []).some((a) => a.r === '#/fGrade')), 'o Financeiro tem o módulo "Pagamento por grade"');
   ok(await avaliar(() => !MODS.pgTrab.fields.some((f) => /valor|pre[cç]o/i.test(f.k + ' ' + (f.l || '')))), 'o cadastro do trabalhador não tem valor por grade (nem tabela de preços)');
   await foto('01-painel-vazio');
+
+  /* V156.1 ("não apareceu"): a barra de abas fica desligada nos setores; o controle tem de estar à vista no painel,
+     em Módulos e na tela Lançar da Produção */
+  console.log('À vista na Produção');
+  await ir('#/setor-producao', '.pp-ind2 .pg-pk');
+  const vis = await avaliar(() => {
+    const c = document.querySelector('.pp-ind2 .pg-pk');
+    const ordem = [...document.querySelectorAll('.pp-ind2>.pp-k')].map((x) => x.classList.contains('pg-pk') ? 'grade' : x.classList.contains('pp-perdas') ? 'perdas' : 'mes');
+    const tiles = [...document.querySelectorAll('.c2-tiles .c2-tile')].map((e) => e.textContent.trim());
+    const funcoes = [...document.querySelectorAll('[data-c2=funcoes] .c2-op')].map((e) => e.textContent.trim());
+    return { href: c.getAttribute('href'), txt: c.textContent.replace(/\s+/g, ' '), ordem, tiles: tiles.length ? tiles : funcoes, larg: document.documentElement.scrollWidth <= document.documentElement.clientWidth };
+  });
+  ok(vis.href === '#/pgrade' && /Controle por grade/.test(vis.txt) && /cadastrar os trabalhadores/.test(vis.txt), 'o painel da Produção mostra o cartão "Controle por grade" no "No mês" (sem trabalhador, convida a cadastrar)');
+  ok(vis.ordem.join() === 'mes,mes,mes,grade,perdas' && vis.larg, 'o cartão entra depois dos 3 números do mês, antes de Perdas, sem rolar para o lado: ' + vis.ordem.join());
+  const iC = vis.tiles.indexOf('Controle por grade');
+  ok(iC > 0 && vis.tiles[iC + 1] === 'Relatórios' && vis.tiles.filter((x) => x !== 'Controle por grade').join() === 'Lançar,Movimentações,Maromba,Secador,Fornos,Tijolo pronto,Relatórios,Configurações', 'em Módulos o controle fica antes de Relatórios, e os de sempre na mesma ordem: ' + vis.tiles.join(', '));
+  await page.evaluate(() => document.querySelector('.pp-ind2 .pg-pk').click()); await page.waitForTimeout(700);
+  ok(await avaliar(() => location.hash === '#/pgrade' && !!document.querySelector('.pg-passos')), 'tocar no cartão abre o Controle por grade');
+  await ir('#/plancar', '.hero.pm-lanc');
+  const lc = await avaliar(() => [...document.querySelectorAll('.hero.pm-lanc .kpi .v')].map((e) => e.textContent.trim()));
+  ok(lc[lc.length - 1] === 'Grades por trabalhador' && lc.slice(0, -1).join() === 'Produção da maromba,Entrada no secador,Saída do secador,Enforna,Desenforna,Parada da maromba,Perda na secagem,Tijolo pronto', 'a tela Lançar da Produção tem "Grades por trabalhador" no fim, com os lançamentos de sempre na mesma ordem');
+  await page.evaluate(() => [...document.querySelectorAll('.hero.pm-lanc .kpi')].find((k) => /Grades por trabalhador/.test(k.textContent)).click()); await page.waitForTimeout(700);
+  ok(await avaliar(() => location.hash === '#/pgDia'), '"Grades por trabalhador" abre o Lançar o dia do controle');
 
   console.log('Cadastro do trabalhador');
   const cad = await avaliar(async () => {
@@ -291,6 +316,17 @@ try {
   ok(pn.cab.join() === 'Indicador,Enforna,Desenforna,Total', 'o painel separa Enforna e Desenforna');
   ok(pn.grades.join() === '30,35,65' && pn.devido.join() === 'R$ 80,20,R$ 63,00,R$ 143,20', 'grades e total devido por setor: ' + pn.devido.join(' | '));
   ok(pn.pago.join() === 'R$ 49,00,R$ 0,00,R$ 49,00' && pn.saldo.join() === 'R$ 31,20,R$ 63,00,R$ 94,20', 'pago e saldo pendente por setor: ' + pn.saldo.join(' | '));
+  await ir('#/setor-producao', '.pp-ind2 .pg-pk');
+  const cm = await avaliar(() => {
+    const G = window.JB_GRADE, m = hoje().slice(0, 7);
+    const L = DATA.pgLanc.filter((l) => !l.cancelamento && String(l.data).slice(0, 7) === m);
+    const g = (s) => L.filter((l) => !s || l.setor === s).reduce((a, l) => a + (+l.grades || 0), 0);
+    const falta = DATA.prodGradeTrab.map((t) => G.contaDe(t.id).saldo).filter((v) => v > 0.004).reduce((a, v) => a + v, 0);
+    const c = document.querySelector('.pp-ind2 .pg-pk');
+    return { kv: c.querySelector('.pp-kv').textContent.trim(), ks: [...c.querySelectorAll('.pp-ks')].map((x) => x.textContent.trim()),
+      e: { kv: fQtd(g('')) + (g('') === 1 ? 'grade' : 'grades'), ks: ['Enforna ' + fQtd(g('Enforna')) + ' · Desenforna ' + fQtd(g('Desenforna')), 'falta pagar ' + fMoeda(falta)] } };
+  });
+  ok(cm.kv === cm.e.kv && JSON.stringify(cm.ks) === JSON.stringify(cm.e.ks), 'o cartão do painel da Produção mostra as grades do mês por setor e quanto falta pagar: ' + cm.kv + ' · ' + cm.ks.join(' · '));
 
   await ir('#/pgExtrato/' + d.A, '.pg-tb');
   const ex = await avaliar(async ({ d3 }) => {
@@ -355,7 +391,7 @@ try {
     const r = await s.page.evaluate(async ({ A }) => {
       const L = T.lancs(A);
       const tela = {};
-      for (const rota of ['#/pgrade', '#/pgDia', '#/pgLanc', '#/pgPag', '#/pgExtrato/' + A, '#/pgRel', '#/fGrade']) {
+      for (const rota of ['#/setor-producao', '#/plancar', '#/pgrade', '#/pgDia', '#/pgLanc', '#/pgPag', '#/pgExtrato/' + A, '#/pgRel', '#/fGrade']) {
         JBNAV.ir(rota); await T.dorme(900); tela[rota] = T.semRolagemLateral();
       }
       JBNAV.ir('#/pgrade'); await T.dorme(700); JBNAV.ir('#/pgExtrato/' + A); await T.dorme(700); JBNAV.voltar(); await T.dorme(700);

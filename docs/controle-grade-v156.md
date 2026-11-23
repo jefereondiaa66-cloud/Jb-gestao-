@@ -12,8 +12,16 @@ depois nunca muda os anteriores. Não existe tabela de preço por trabalhador ne
 
 ## Onde fica
 
-- **Produção → aba "Controle por grade"** (a última aba; as outras não mudaram de lugar), com:
+- **Produção → módulo "Controle por grade"** (em Módulos e em Todas as funções, logo antes de Relatórios e
+  Configurações; os módulos de sempre continuam na mesma ordem entre si), com:
   Painel · Lançar o dia · Lançamentos · Trabalhadores · Pagamentos · Extrato · Relatórios.
+- **V156.1 (23/11/2026, "não apareceu")**: a barra de abas fica desligada em todos os setores, menos no Pessoal
+  (escolha do dono em 08/11/2026), e o módulo só aparecia no fim de Módulos. Agora o controle fica à vista:
+  - **painel da Produção → "No mês"**: cartão "Controle por grade" com as grades do mês (Enforna e Desenforna) e
+    quanto falta pagar; sem trabalhador cadastrado, convida a cadastrar. Toque abre o painel do controle;
+  - **Produção → Lançar** (botão Lançar e o "+" do celular): opção "Grades por trabalhador", que abre o Lançar o dia.
+  Pontos de extensão da Produção (só acrescentam; vazios, a tela fica igual): `window.PROD_ABAS_EXTRA` (com
+  `antes`), `window.PROD_LANC_EXTRA` e `window.PROD_MES_EXTRA`.
 - **Setor Financeiro → "Pagamento por grade"**: cartão no painel do Financeiro (abaixo de "A pagar por
   módulo", com o total que falta pagar) e tela própria (`#/fGrade`) para ver e pagar.
 - Rotas: `#/pgrade`, `#/pgDia`, `#/pgLanc`, `#/pgTrab`, `#/pgPag`, `#/pgExtrato[/<trabalhador>]`, `#/pgRel`, `#/fGrade[/<trabalhador>]`.
