@@ -5627,8 +5627,15 @@ const totaisQz=it=>({pessoas:it.length,fixo:round2(soma(it,x=>x.fixoPeriodo)),va
 function telaQuinzena(el){
  const mes=UIQ.mes,q=UIQ.q;const j=janelaQz(mes,q);const qz=quinzenaDe(mes,q);
  const fechada=qz&&qz.situacao!=='Aberta';
- const it=fechada?(qz.itens||[]):itensComNatureza(mes,q);
- const tt=fechada?(qz.totais||totaisQz(it)):totaisQz(it);
+ /* 23/11/2026 (ciclo de autoaperfeicoamento): a quinzena ABERTA ja vinha filtrada por setor
+    (pessoasQz usa filtroSetor), mas a quinzena FECHADA mostrava os itens congelados sem filtro:
+    o gestor de setor via nome e liquido de gente de todos os setores, inclusive no PDF e no Excel.
+    Agora as duas passam pelo mesmo filtro. Os valores congelados nao mudam; so as linhas de outros
+    setores ficam de fora. Para quem nao e gestor de setor, filtroSetor devolve a lista inteira e a
+    tela continua exatamente como antes (os totais congelados do fechamento). */
+ const itTodos=fechada?(qz.itens||[]):itensComNatureza(mes,q);
+ const it=filtroSetor(itTodos,x=>x.setor||setorF(x.funcionarioId));
+ const tt=fechada?(it.length===itTodos.length?(qz.totais||totaisQz(it)):totaisQz(it)):totaisQz(it);
  const edita=pode('quinzena','e');
  const sit=qz?qz.situacao:'Aberta';
  const kp=(v,l,cls='')=>`<div class="kpi" style="cursor:default"><div class="v">${v}</div><div class="l">${l}</div></div>`;
@@ -7048,12 +7055,19 @@ async function gravarRodada(res){
 }
 
 /* ---------- aprendizado operacional (contagens, sem dado pessoal) ---------- */
-let USO={mes:mesAtual(),erros:{},validacao:{},telas:{}},USO_SUJO=false,USO_T=null;
+/* 23/11/2026 (ciclo de autoaperfeicoamento): o grupo 'ocr' (leitura de foto) era contado em
+   contarUso('ocr',...) mas nunca existia dentro de USO, e a contagem quebrava calada dentro do
+   try/catch de quem chamava: a leitura por foto nunca aparecia aqui. Os grupos ficam numa lista
+   so, e contarUso cria o grupo que ainda nao existe em vez de quebrar. */
+const USO_GRUPOS=['erros','validacao','telas','ocr'];
+const usoVazio=()=>{const o={mes:mesAtual()};USO_GRUPOS.forEach(g=>o[g]={});return o};
+let USO=usoVazio(),USO_SUJO=false,USO_T=null;
 function carregarUso(){const r=(DATA.uso||[]).find(x=>x.id===mesAtual());
- USO={mes:mesAtual(),erros:{...(r&&r.erros||{})},validacao:{...(r&&r.validacao||{})},telas:{...(r&&r.telas||{})}}}
+ USO=usoVazio();USO_GRUPOS.forEach(g=>{USO[g]={...(r&&r[g]||{})}})}
 function contarUso(tipo,chave){
- if(!chave)return;
- if(USO.mes!==mesAtual())USO={mes:mesAtual(),erros:{},validacao:{},telas:{}};
+ if(!chave||!tipo)return;
+ if(USO.mes!==mesAtual())USO=usoVazio();
+ if(!USO[tipo]||typeof USO[tipo]!=='object')USO[tipo]={};
  USO[tipo][chave]=(USO[tipo][chave]||0)+1;USO_SUJO=true;
  clearTimeout(USO_T);USO_T=setTimeout(salvarUso,45000);
 }
@@ -7096,7 +7110,8 @@ function telaDiagnostico(el){
     <p class="ajuda">Contagens do mês de ${esc(fMes(USO.mes))}, gravadas pelo próprio sistema enquanto é usado. São só números por tela e por campo — nenhum nome, valor ou texto digitado é guardado. Servem para achar onde o sistema está atrapalhando.</p>
     ${bloco('Telas onde apareceu mensagem de erro',USO.erros,nomeMod)}
     ${bloco('Campos que mais barraram o salvamento',USO.validacao,k=>{const [m,f]=k.split('.');return (nomeMod(m))+' › '+f})}
-    ${bloco('Telas mais abertas',USO.telas,nomeMod)}</div>`;return}
+    ${bloco('Telas mais abertas',USO.telas,nomeMod)}
+    ${bloco('Leituras de foto (setor e finalidade)',USO.ocr,k=>{const [m,f]=String(k).split('.');return nomeMod(m)+(f?' \u203a '+f:'')})}</div>`;return}
   if(DIAG.aba==='oport'){
    c.innerHTML=!R.oportunidades.length?'<div class="vazio"><b>Nenhuma oportunidade no momento</b>O que o sistema sabe conferir está em ordem.</div>'
     :`<div class="painel pad">${R.oportunidades.map(o=>`<div class="aviso in" style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between"><div><b>${esc(o.t)}</b><div style="margin-top:3px">${esc(o.d)}</div></div><a class="btn min" href="${esc(o.rota)}">Abrir</a></div>`).join('')}</div>`;return}
@@ -8084,7 +8099,7 @@ async function mudarAcesso(uid,acao){
   toast({desativar:'Acesso desativado.',encerrar:'Acesso encerrado.',reativar:'Acesso reativado.'}[acao],'ok')}
  catch(e){toast(msgErro(e),'erro')}
 }
-const VERSAO='Versão 75 · novembro de 2026';
+const VERSAO='Versão 76 · novembro de 2026';
 /* marca do sistema: monograma, nome e o botão de recolher o menu */
 const iniciais=n=>String(n||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'JB';
 function marcaHtml(sub){
