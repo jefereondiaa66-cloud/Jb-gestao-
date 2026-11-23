@@ -14706,24 +14706,59 @@ const UIRECV={setor:'',status:'abertas',q:'',de:'',ate:'',por:'data',faixa:''};
 /* faixas de atraso: o mesmo modelo do Contas a receber de Vendas, mais "a vencer" */
 const FAIXAS_FIN_V=[['avencer','A vencer'],['1-30','1 a 30 dias',1,30],['31-60','31 a 60 dias',31,60],['61-90','61 a 90 dias',61,90],['91+','Mais de 90 dias',91,1e9]];
 const atrasoFinV=(v,f)=>f.status!=='Vencido'?0:Array.isArray(f.titulos)&&f.titulos.length?Math.max(0,...f.titulos.map(t=>+t.atraso||0)):Math.max(0,diasEntre(v.vencimento||v.data,hoje()));
+/* ---------- V159 (23/11/2026) · Contas a pagar da Lenha: um cartão por fornecedor ----------
+   Pedido do Jeferson: na tela Contas a pagar do Setor da Lenha, cada fornecedor aparece uma vez só, com o
+   total que a cerâmica deve a ele (antes era uma linha por compra e o VASCO aparecia três vezes). Tocando no
+   fornecedor aparecem as compras dele (#/pagar/<fornecedor>), com o Pagar de cada compra, como antes.
+   Só a tela muda: os números são os mesmos (finVenda de cada compra, já com pagamentos, combustível do
+   fornecedor, adiantamentos e descontos de acerto), somados por fornecedor depois dos filtros da tela.
+   Nada é gravado. O Combustível e as Contas a receber continuam com uma linha por compra ou venda.
+   O Pagar do cartão é o PAGAR / DAR BAIXA do Financeiro (quita primeiro as compras mais antigas), para quem
+   registra pagamento lá; quem paga só pelo setor vai para as compras do fornecedor e paga cada uma. */
+const SEM_FORN_V='__sem';
+const chaveFornV=v=>(v&&v.fornecedorId)||SEM_FORN_V;
+const nomeFornGrupoV=(fid,v)=>{const f=fid!==SEM_FORN_V?FORN(fid):null;return (f&&nomeFornecedor(f))||(v?parteSnap(v).nome:'')||(fid===SEM_FORN_V?'(compras sem fornecedor)':'(fornecedor sem cadastro)')};
+const plFinV=(n,s,p)=>n+' '+(n===1?s:(p||s+'s'));
+function gruposFornV(xs){
+ const M=new Map();xs.forEach(x=>{const k=chaveFornV(x.v);if(!M.has(k))M.set(k,[]);M.get(k).push(x)});
+ return [...M].map(([fid,L])=>{const ok=L.filter(x=>!cancV(x.v)),ab=ok.filter(x=>x.f.saldo>0.004),vc=ab.filter(x=>x.f.status==='Vencido');
+  const vs=ab.map(x=>String(x.v.vencimento||x.v.data||'')).filter(Boolean).sort();
+  const st=vc.length?'Vencido':ab.length?(ab.some(x=>x.f.status==='Parcial'||x.f.pago>0.004)?'Parcial':'Pendente'):ok.length?(ok.every(x=>x.f.status==='Pago (antes do sistema)')?'Pago (antes do sistema)':'Pago'):'Cancelado';
+  return{fid,xs:L,nome:nomeFornGrupoV(fid,L[0].v),n:ok.length,nCanc:L.length-ok.length,nAb:ab.length,total:round2(soma(ok,x=>x.f.total)),pago:round2(soma(ok,x=>x.f.pago)),
+   saldo:round2(soma(ok,x=>x.f.saldo)),vencido:round2(soma(vc,x=>x.f.saldo)),venc:vs[0]||'',atraso:ab.reduce((m,x)=>Math.max(m,+x.atraso||0),0),st}})
+  .sort((a,b)=>(b.nAb>0)-(a.nAb>0)||String(a.venc||'9999').localeCompare(String(b.venc||'9999'))||b.saldo-a.saldo||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+}
+const comprasFornTxtV=g=>g.n?(g.nAb===g.n?plFinV(g.n,'compra')+' em aberto':plFinV(g.n,'compra')+(g.nAb?' · '+g.nAb+' em aberto':'')):plFinV(g.nCanc,'compra cancelada','compras canceladas');
+const atrasoTxtV=a=>a?a+(a===1?' dia':' dias')+' de atraso':'';
 function telaFinV(el,O){
  shellV(el,O.modFin,(c,s)=>{
   if(!APP.carregado){carregandoV(c);return}
   if(UIRECV.setor!==s+O.K)Object.assign(UIRECV,{setor:s+O.K,status:'abertas',q:'',de:'',ate:'',por:'data',faixa:''});
   const venda=O.K==='venda';const ed=pode(O.modFin,'e');
+  /* V159: no Setor da Lenha a lista é por fornecedor; com o fornecedor no endereço (#/pagar/<id>), só as compras dele */
+  const porForn=!venda&&s==='lenha';const fSel=porForn?String(lerRota().id||''):'';const grupos=porForn&&!fSel;
+  const pagaCPL=porForn&&ed&&!!(window.CPL_LENHA&&typeof window.CPL_LENHA.abrirPagar==='function')&&pode('fLenha','e');
+  const nomeSel=fSel?nomeFornGrupoV(fSel,listaOp(O).find(v=>v.setor===s&&chaveFornV(v)===fSel)):'';
   /* o período vale pela data da compra (ou venda) ou pelo vencimento, à escolha */
   const pv=UIRECV.por==='venc';const dRef=v=>String((pv?v.vencimento:v.data)||'');
-  const base=listaOp(O).filter(v=>v.setor===s&&(!UIRECV.de||dRef(v)>=UIRECV.de)&&(!UIRECV.ate||dRef(v)<=UIRECV.ate));
+  const base=listaOp(O).filter(v=>v.setor===s&&(!fSel||chaveFornV(v)===fSel)&&(!UIRECV.de||dRef(v)>=UIRECV.de)&&(!UIRECV.ate||dRef(v)<=UIRECV.ate));
   const fin=base.map(v=>{const f=finVenda(v);return{v,f,atraso:atrasoFinV(v,f)}});const ok=fin.filter(x=>!cancV(x.v));
   let rows=fin;
   if(UIRECV.status==='abertas')rows=rows.filter(x=>x.f.saldo>0);else if(UIRECV.status)rows=rows.filter(x=>x.f.status===UIRECV.status);
   if(UIRECV.faixa==='avencer')rows=rows.filter(x=>!cancV(x.v)&&x.f.saldo>0&&x.f.status!=='Vencido');
   else if(UIRECV.faixa){const fx=FAIXAS_FIN_V.find(f=>f[0]===UIRECV.faixa);if(fx)rows=rows.filter(x=>x.atraso>=fx[2]&&x.atraso<=fx[3])}
-  if(UIRECV.q){const q=semAcento(UIRECV.q);rows=rows.filter(x=>semAcento(parteSnap(x.v).nome+' '+fNumV(x.v.numero)+' '+digitos(parteSnap(x.v).doc)).includes(q))}
+  if(UIRECV.q){const q=semAcento(UIRECV.q);rows=rows.filter(x=>semAcento(parteSnap(x.v).nome+' '+(porForn?nomeFornGrupoV(chaveFornV(x.v),x.v)+' ':'')+fNumV(x.v.numero)+' '+digitos(parteSnap(x.v).doc)).includes(q))}
   rows.sort((a,b)=>String(a.v.vencimento||'').localeCompare(String(b.v.vencimento||''))||(+a.v.numero-+b.v.numero));
+  const G=grupos?gruposFornV(rows):[];
   const tot=k=>round2(soma(ok,x=>x.f[k]));const venc=ok.filter(x=>x.f.status==='Vencido');const aVencer=ok.filter(x=>x.f.saldo>0&&x.f.status!=='Vencido');
   const per=UIRECV.de||UIRECV.ate?(UIRECV.de?fData(UIRECV.de):'início')+' a '+(UIRECV.ate?fData(UIRECV.ate):'hoje')+(pv?' (pelo vencimento)':''):'todo o período';
-  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('moeda')}</span><div><h1>${O.finTit}</h1><p>${venda?'Toda venda a prazo, ou não recebida no ato, gera a sua conta a receber.':'Toda compra a prazo, ou não paga no ato, gera a sua conta a pagar ao fornecedor.'} Pagamento parcial abate o saldo. Só as contas do ${esc(nomeSetorV(s))}.</p></div></div></div>
+  /* V159: a conta em palavras (a lista por fornecedor e as compras de um fornecedor) */
+  const gS=fSel?gruposFornV(fin)[0]||null:null;const faltaG=round2(soma(G,g=>g.saldo)),vencG=round2(soma(G,g=>g.vencido));
+  const frase=!porForn?'':fSel?(gS&&gS.saldo>0.004?`Falta pagar <b>${esc(fMoeda(gS.saldo))}</b> a ${esc(nomeSel)}, de ${esc(plFinV(gS.nAb,'compra'))} em aberto${gS.vencido>0.004?`, <b style="color:var(--pe)">${esc(fMoeda(gS.vencido))} vencido</b>`:''}.`:`Nada em aberto com ${esc(nomeSel)}${UIRECV.de||UIRECV.ate?' no período escolhido':''}.`)
+   :faltaG>0.004?`Falta pagar <b>${esc(fMoeda(faltaG))}</b> a ${esc(plFinV(G.filter(g=>g.saldo>0.004).length,'fornecedor','fornecedores'))}${vencG>0.004?`, <b style="color:var(--pe)">${esc(fMoeda(vencG))} vencido</b>`:''}. Toque no fornecedor para ver as compras dele.`:'';
+  const btnPagar=(fid,cls)=>`<button type="button" class="btn pri${cls||''}" data-fpag="${esc(fid)}">${ic('moeda')}Pagar</button>`;
+  c.innerHTML=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(fSel?'predio':'moeda')}</span><div><h1>${esc(fSel?nomeSel:O.finTit)}</h1><p>${fSel?'Contas a pagar do '+esc(nomeSetorV(s))+': as compras deste fornecedor. Pagamento parcial abate o saldo.':grupos?'Quanto a cerâmica deve a cada fornecedor: um cartão por fornecedor, com o total das compras em aberto. Toque no fornecedor para ver as compras dele.':`${venda?'Toda venda a prazo, ou não recebida no ato, gera a sua conta a receber.':'Toda compra a prazo, ou não paga no ato, gera a sua conta a pagar ao fornecedor.'} Pagamento parcial abate o saldo. Só as contas do ${esc(nomeSetorV(s))}.`}</p></div></div>${fSel?`<div class="acoes"><a class="btn" href="#/${esc(O.modFin)}">${ic('esquerda')}<span>Todos os fornecedores</span></a>${pagaCPL&&fSel!==SEM_FORN_V&&gS&&gS.saldo>0.004?btnPagar(fSel):''}</div>`:''}</div>
+   ${frase?`<p class="ajuda" style="font-size:14.5px;line-height:1.5;color:inherit;margin:0 2px 12px">${frase}</p>`:''}
    <div class="painel filtros" style="margin-bottom:14px"><select id="frPor" aria-label="O período vale pela data ou pelo vencimento"><option value="data" ${pv?'':'selected'}>Período pela data da ${venda?'venda':'compra'}</option><option value="venc" ${pv?'selected':''}>Período pelo vencimento</option></select><label class="inline" style="font-size:12.5px;color:var(--suave)">de <input type="date" id="frDe" value="${esc(UIRECV.de)}"></label><label class="inline" style="font-size:12.5px;color:var(--suave)">até <input type="date" id="frAte" value="${esc(UIRECV.ate)}"></label></div>
    <div class="hero">${kpiV('c4','moeda',venda?'Total vendido':'Total comprado',fMoeda(tot('total')),ok.length+' '+(venda?'venda(s)':'compra(s)')+' · '+per)}${kpiV('c2','entrada',venda?'Total recebido':'Total pago',fMoeda(tot('pago')),'pagamentos registrados')}
     ${kpiV('c5','carteira',venda?'A receber (a vencer)':'A pagar (a vencer)',fMoeda(round2(soma(aVencer,x=>x.f.saldo))),aVencer.length+' conta(s)')}
@@ -14732,23 +14767,40 @@ function telaFinV(el,O){
     <select id="frSt" aria-label="Situação"><option value="abertas" ${UIRECV.status==='abertas'?'selected':''}>Em aberto (pendentes, parciais e vencidas)</option><option value="" ${UIRECV.status===''?'selected':''}>Todas</option>${ST_FIN.map(x=>`<option ${UIRECV.status===x?'selected':''}>${x}</option>`).join('')}</select>
     <select id="frFx" aria-label="Faixa de atraso"><option value="">Atraso: todos</option>${FAIXAS_FIN_V.map(f=>`<option value="${f[0]}" ${UIRECV.faixa===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select>
     <span style="flex:1"></span><button type="button" class="btn min" id="frExp">${ic('baixar')}Exportar ▾</button></div>
-    ${rows.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr><th>${O.Sing}</th><th>${O.Parte}</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th class="num">${venda?'Recebido':'Pago'}</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead>
+    ${grupos&&G.length?`<div class="tabwrap"><table class="tbl cartao fin-forn"><thead><tr><th>${O.Parte}</th><th>Vencimento</th><th>Compras</th><th class="num">Vencido</th><th class="num">Pago</th><th class="num">Falta pagar</th><th>Situação</th><th></th></tr></thead>
+     <tbody>${G.map(g=>`<tr class="clic" data-go="#/${esc(O.modFin)}/${esc(g.fid)}" data-jbm="1" tabindex="0"><td data-l="${O.Parte}"><b>${esc(g.nome)}</b></td>
+      <td data-l="Vencimento">${g.venc?esc(fData(g.venc))+(g.atraso?`<span style="color:var(--pe)"> · ${esc(atrasoTxtV(g.atraso))}</span>`:''):'—'}</td><td data-l="Compras">${esc(comprasFornTxtV(g))}</td>
+      <td data-l="Vencido" class="num">${g.vencido>0.004?esc(fMoeda(g.vencido)):'—'}</td><td data-l="Pago" class="num">${g.pago>0.004?esc(fMoeda(g.pago)):'—'}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(g.saldo))}</b></td>
+      <td data-l="Situação">${tagV(g.st)}</td><td>${ed&&g.saldo>0.004?btnPagar(g.fid,' min'):''}</td></tr>`).join('')}</tbody>
+     <tfoot><tr><td><b>Total de ${esc(plFinV(G.length,'fornecedor','fornecedores'))}</b></td><td></td><td>${esc(plFinV(rows.filter(x=>!cancV(x.v)).length,'compra'))}</td><td class="num"><b>${esc(fMoeda(vencG))}</b></td><td class="num"><b>${esc(fMoeda(round2(soma(G,g=>g.pago))))}</b></td><td class="num"><b>${esc(fMoeda(faltaG))}</b></td><td></td><td></td></tr></tfoot></table></div>`
+    :!grupos&&rows.length?`<div class="tabwrap"><table class="tbl cartao"><thead><tr><th>${O.Sing}</th><th>${O.Parte}</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th class="num">${venda?'Recebido':'Pago'}</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead>
      <tbody>${rows.slice(0,300).map(({v,f,atraso})=>`<tr class="clic" data-go="${O.rota}${esc(v.id)}" tabindex="0"><td data-l="${O.Sing}"><b>${esc(fNumV(v.numero))}</b></td><td data-l="${O.Parte}">${esc(parteSnap(v).nome||'')}</td>
       <td data-l="Emissão">${esc(fData(v.data))}</td><td data-l="Vencimento">${esc(fData(v.vencimento))}${atraso?`<div class="ajuda" style="color:var(--pe)">${esc(atraso)} dia(s) de atraso</div>`:''}</td><td data-l="Valor" class="num">${esc(fMoeda(f.total))}</td><td data-l="${venda?'Recebido':'Pago'}" class="num">${esc(fMoeda(f.pago))}</td><td data-l="Saldo" class="num"><b>${esc(fMoeda(f.saldo))}</b></td>
       <td data-l="Situação">${tagV(f.status)}</td><td>${ed&&f.saldo>0&&!cancV(v)?`<button type="button" class="btn min" data-frec="${esc(v.id)}">${venda?'Receber':'Pagar'}</button>`:''}</td></tr>`).join('')}</tbody>
      <tfoot><tr><td colspan="4"><b>Total de ${rows.length} conta(s)</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.total)))}</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.pago)))}</b></td><td class="num"><b>${esc(fMoeda(soma(rows,x=>x.f.saldo)))}</b></td><td colspan="2"></td></tr></tfoot></table></div>`
-    :`<div class="vazio"><b>${UIRECV.status==='abertas'?'Nenhuma conta em aberto':'Nada encontrado'}</b>${listaOp(O).some(v=>v.setor===s)?'Ajuste os filtros para ver outras contas.':'As contas aparecem aqui quando houver '+(venda?'vendas':'compras')+'.'}</div>`}</div>
-   <p class="ajuda" style="margin-top:8px">Período: ${esc(per)}. ${venda?'Vendas':'Compras'} canceladas não entram nos totais.</p>`;
+    :`<div class="vazio"><b>${UIRECV.status==='abertas'?'Nenhuma conta em aberto':'Nada encontrado'}</b>${fSel?`${base.length?'Ajuste os filtros para ver outras contas deste fornecedor.':'Este fornecedor não tem compras '+(UIRECV.de||UIRECV.ate?'no período escolhido.':'no setor.')}<div class="vazio-acoes"><a class="btn" href="#/${esc(O.modFin)}">${ic('esquerda')}<span>Todos os fornecedores</span></a></div>`:listaOp(O).some(v=>v.setor===s)?'Ajuste os filtros para ver outras contas.':'As contas aparecem aqui quando houver '+(venda?'vendas':'compras')+'.'}</div>`}</div>
+   <p class="ajuda" style="margin-top:8px">Período: ${esc(per)}. ${venda?'Vendas':'Compras'} canceladas não entram nos totais.${grupos?' Cada fornecedor soma as compras dele que passam nos filtros.':''}</p>`;
   $('#frDe',c).onchange=e=>{UIRECV.de=e.target.value;renderTela()};$('#frAte',c).onchange=e=>{UIRECV.ate=e.target.value;renderTela()};
   $('#frPor',c).onchange=e=>{UIRECV.por=e.target.value;renderTela()};$('#frFx',c).onchange=e=>{UIRECV.faixa=e.target.value;renderTela()};
   $('#frSt',c).onchange=e=>{UIRECV.status=e.target.value;renderTela()};
   let tq;$('#frQ',c).oninput=e=>{UIRECV.q=e.target.value;clearTimeout(tq);tq=setTimeout(()=>{renderTela();const i=$('#frQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},350)};
   $$('tr[data-go]',c).forEach(tr=>{tr.onclick=e=>{if(e.target.closest('button'))return;JBNAV.ir(tr.dataset.go)};tr.onkeydown=e=>{if(e.key==='Enter')JBNAV.ir(tr.dataset.go)}});
   $$('[data-frec]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const v=listaOp(O).find(x=>x.id===b.dataset.frec);if(v)modalPagamentoV(v)});
-  $('#frExp',c).onclick=()=>{const cols=[{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'data',l:'Emissão',t:'data'},{k:'vencimento',l:'Vencimento',t:'data'},{k:'atraso',l:'Dias de atraso',t:'num',semTotal:1},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:venda?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'status',l:'Situação'}];
-   const linhas=rows.map(({v,f,atraso})=>({numero:fNumV(v.numero),parte:parteSnap(v).nome||'',data:v.data,vencimento:v.vencimento,atraso,total:f.total,pago:f.pago,saldo:f.saldo,status:f.status}));
-   const fx=f=>exportar(f,O.finTit.replace(/\s/g,'_')+'_'+curtoSetorV(s)+'_'+hoje(),cols,linhas,O.finTit+' · '+nomeSetorV(s),{extras:[totalPorParteRel(O,rows.map(x=>x.v))]}); /* V128: total por fornecedor (ou cliente) embaixo */
-   abrirMenuMais($('#frExp',c),[{l:'Visualizar',sub:linhas.length+' conta(s), com os filtros da tela',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'no modelo dos documentos',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha para conferir',fn:()=>fx('xlsx')}])};
+  /* V159: Pagar do fornecedor (PAGAR / DAR BAIXA do Financeiro, quitando as compras mais antigas primeiro) */
+  $$('[data-fpag]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const fid=b.dataset.fpag;
+   if(pagaCPL&&fid!==SEM_FORN_V)window.CPL_LENHA.abrirPagar(fid);else if(fid!==fSel)JBNAV.ir('#/'+O.modFin+'/'+fid)});
+  const colsC=[{k:'numero',l:O.Sing},{k:'parte',l:O.Parte},{k:'data',l:'Emissão',t:'data'},{k:'vencimento',l:'Vencimento',t:'data'},{k:'atraso',l:'Dias de atraso',t:'num',semTotal:1},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:venda?'Recebido':'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'status',l:'Situação'}];
+  const linhaC=({v,f,atraso})=>({numero:fNumV(v.numero),parte:porForn?nomeFornGrupoV(chaveFornV(v),v):parteSnap(v).nome||'',data:v.data,vencimento:v.vencimento,atraso,total:f.total,pago:f.pago,saldo:f.saldo,status:f.status});
+  $('#frExp',c).onclick=()=>{let fx,n;
+   if(grupos){/* V159: o fornecedor uma vez só (com a linha de total) e, embaixo, as compras de cada um */
+    const cols=[{k:'parte',l:O.Parte},{k:'n',l:'Compras',t:'num'},{k:'nAb',l:'Em aberto',t:'num'},{k:'venc',l:'Vencimento mais antigo',t:'data'},{k:'total',l:'Valor',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Falta pagar',t:'moeda'},{k:'vencido',l:'Vencido',t:'moeda'},{k:'status',l:'Situação'}];
+    const linhas=G.map(g=>({parte:g.nome,n:g.n,nAb:g.nAb,venc:g.venc,total:g.total,pago:g.pago,saldo:g.saldo,vencido:g.vencido,status:g.st}));n=linhas.length;
+    if(linhas.length>1)linhas.push({parte:'Total',n:soma(G,g=>g.n),nAb:soma(G,g=>g.nAb),venc:'',total:round2(soma(G,g=>g.total)),pago:round2(soma(G,g=>g.pago)),saldo:faltaG,vencido:vencG,status:''});
+    const det={titulo:'Compras de cada fornecedor',total:true,cols:colsC,rows:G.flatMap(g=>g.xs.map(linhaC)),vazio:'Nenhuma compra.'};
+    fx=f=>exportar(f,'Contas_a_pagar_por_fornecedor_'+curtoSetorV(s)+'_'+hoje(),cols,linhas,O.finTit+' por fornecedor · '+nomeSetorV(s),{extras:[det]})}
+   else{const linhas=rows.map(linhaC);n=linhas.length;
+    fx=f=>exportar(f,O.finTit.replace(/\s/g,'_')+'_'+curtoSetorV(s)+(fSel?'_'+nomeSel:'')+'_'+hoje(),colsC,linhas,O.finTit+' · '+nomeSetorV(s)+(fSel?' · '+nomeSel:''),fSel?{}:{extras:[totalPorParteRel(O,rows.map(x=>x.v))]})} /* V128: total por fornecedor (ou cliente) embaixo */
+   abrirMenuMais($('#frExp',c),[{l:'Visualizar',sub:(grupos?plFinV(n,'fornecedor','fornecedores'):n+' conta(s)')+', com os filtros da tela',fn:()=>fx('ver')},{l:'Exportar PDF',sub:'no modelo dos documentos',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha para conferir',fn:()=>fx('xlsx')}])};
  });
 }
 

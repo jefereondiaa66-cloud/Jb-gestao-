@@ -686,6 +686,30 @@ teste('variacoes', 'V152: variação de vendas por vendedor na aba Variações d
   if (ci) assert.ok(ci.includes('node scripts/testar-variacoes-vendedor.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('lenha', 'V159: Contas a pagar da Lenha com um cartão por fornecedor (mesmos números, só leitura; Combustível e Vendas sem mudança)', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('const SEM_FORN_V='); const j = app.indexOf('/* ================= relatórios: a mesma tela de relatórios do sistema', i);
+  assert.ok(i > 0 && j > i, 'trecho da V159 dentro dos setores operacionais');
+  const b = app.slice(i, j);
+  for (const proibido of ['gravar(', 'apagar(', 'gravarRegistro(', 'bucketPut(', 'registrarLog(', 'salvarCfg(', 'localStorage', 'location.hash', 'location.replace(', 'history.back(']) assert.ok(!b.includes(proibido), 'a tela só lê e navega pelo JBNAV: não pode usar ' + proibido);
+  assert.ok(b.includes("const porForn=!venda&&s==='lenha';"), 'só o Setor da Lenha junta por fornecedor');
+  assert.ok(b.includes('const fin=base.map(v=>{const f=finVenda(v);') && b.includes('saldo:round2(soma(ok,x=>x.f.saldo))'), 'o total do fornecedor é a soma do finVenda das compras (o mesmo número de antes)');
+  assert.ok(b.includes('window.CPL_LENHA.abrirPagar(fid)') && b.includes("pode('fLenha','e')"), 'Pagar do cartão = PAGAR / DAR BAIXA do Financeiro, só para quem registra lá');
+  assert.ok(b.includes('modalPagamentoV(v)') && b.includes('totalPorParteRel(O,rows.map(x=>x.v))'), 'compras de um fornecedor (e Combustível/Vendas) continuam com o Pagar de cada compra e o total por fornecedor no Exportar');
+  // agrupamento: função pura com dados de exemplo
+  const r2 = (v) => Math.round((+v || 0) * 100) / 100;
+  const g = new Function('FORN', 'nomeFornecedor', 'parteSnap', 'cancV', 'round2', 'soma', b.slice(0, b.indexOf('function telaFinV(')) + ';return gruposFornV;')(
+    (id) => ({ f1: { nome: 'VASCO' }, f2: { nome: 'EDUARDO' } })[id], (f) => (f ? f.nome : ''), (v) => v.fornecedor || {}, (v) => v.status === 'Cancelada', r2, (xs, fn) => xs.reduce((a, x) => a + (+fn(x) || 0), 0));
+  const x = (id, forn, venc, total, pago, st, extra) => ({ v: { id, fornecedorId: forn, vencimento: venc, ...(extra || {}) }, f: { total, pago, saldo: r2(total - pago), status: st }, atraso: st === 'Vencido' ? 3 : 0 });
+  const G = g([x('a', 'f1', '2026-11-20', 1672.45, 0, 'Vencido'), x('b', 'f2', '2026-11-23', 2284.8, 0, 'Pendente'), x('c', 'f1', '2026-11-21', 1797.25, 0, 'Vencido'), x('d', 'f1', '2026-11-23', 1789.45, 0, 'Pendente'), x('e', 'f1', '2026-11-22', 500, 0, 'Cancelado', { status: 'Cancelada' }), x('h', '', '2026-11-25', 100, 40, 'Parcial', { fornecedor: { nome: 'Avulso' } })]);
+  assert.equal(G.length, 3, 'um grupo por fornecedor (sem fornecedor fica num grupo só)');
+  assert.deepEqual([G[0].nome, G[0].n, G[0].nAb, G[0].nCanc, G[0].saldo, G[0].vencido, G[0].venc, G[0].st], ['VASCO', 3, 3, 1, 5259.15, 3469.7, '2026-11-20', 'Vencido'], 'VASCO: 3 compras somadas, cancelada fora da conta, vencimento mais antigo');
+  assert.deepEqual([G[1].nome, G[1].saldo, G[1].st], ['EDUARDO', 2284.8, 'Pendente']);
+  assert.deepEqual([G[2].fid, G[2].nome, G[2].saldo, G[2].st], ['__sem', 'Avulso', 60, 'Parcial'], 'compra sem fornecedor: grupo próprio, pagamento parcial');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-pagar-lenha-fornecedor.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
 teste('inventario', 'programa: módulo presente e ligado à ponte do Claude pela função própria', () => {
