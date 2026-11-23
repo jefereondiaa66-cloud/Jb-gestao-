@@ -1179,7 +1179,7 @@ teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, v
   /* cadastro sem valor por grade; o valor é digitado e guardado em cada lançamento */
   const trab = /MODS\.pgTrab=\{[\s\S]*?\nMODS\.pgLanc=/.exec(b); assert.ok(trab, 'cadastro do trabalhador');
   assert.ok(!/k:'(valor|valorGrade|preco)/.test(trab[0]), 'cadastro sem valor por grade');
-  assert.ok(b.includes("const tot=l=>r2(n0(l.grades)*n0(l.valorGrade));"), 'total = grades × valor por grade do próprio lançamento');
+  assert.ok(b.includes("const tot=l=>ehEmp(l)?r2(n0(l.valorEmp)):r2(n0(l.grades)*n0(l.valorGrade));"), 'total = grades × valor por grade do próprio lançamento (empreita do forno: a parte gravada nela)');
   /* nada é apagado: cancelamento e estorno com motivo; sem excluir nas listas */
   assert.equal((b.match(/semExcluir:true/g) || []).length, 3, 'trabalhadores, lançamentos e pagamentos sem excluir');
   assert.ok(b.includes('window.ACOES_FORM.pgCancelarLanc') && b.includes('window.ACOES_FORM.pgEstornarPag') && b.includes("cancelamento:{em:agora(),por:eu(),motivo:m}") && b.includes("estorno:{em:agora(),por:eu(),motivo:m}"), 'cancelar e estornar guardam quem, quando e o motivo');
@@ -1194,7 +1194,7 @@ teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, v
   /* V156.1 ("não apareceu"): a barra de abas fica desligada nos setores; o controle aparece também no painel e no Lançar */
   assert.ok(b.includes("antes:'#/prel'") && b.includes("window.PROD_LANC_EXTRA.push({k:'pgDia',m:'pgDia'") && b.includes('window.PROD_MES_EXTRA.push(cartaoMesProd)'), 'controle à vista: módulo antes de Relatórios, Lançar e cartão no painel');
   assert.ok(app.includes("].concat(window.PROD_LANC_EXTRA||[]).filter(x=>pode(x.m,'e'));") && app.includes("<div class=\"pp-ind2${mesX?' pp-ind2-x':''}\"><h3 class=\"pp-sub\">No mês · ${esc(fMes(N.m))}</h3>${mes}${mesX}${perdas}</div>"), 'pontos de extensão da Produção (só acrescentam)');
-  assert.ok(app.includes("'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */") && app.includes("'fMeta','fGrade'];   /* V156: Pagamento por grade */"), 'painel do dono: concessão e suspensão da Produção e do Financeiro valem para as telas novas');
+  assert.ok(app.includes("'pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção (V158: pgEmp, empreita do forno) */") && app.includes("'fMeta','fGrade'];   /* V156: Pagamento por grade */"), 'painel do dono: concessão e suspensão da Produção e do Financeiro valem para as telas novas');
   assert.ok(b.includes("window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade'"), 'módulo no Setor Financeiro');
   /* banco: as duas coleções registradas, com reversão e sem apagar nada
      (o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório) */
@@ -1206,6 +1206,32 @@ teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, v
     assert.ok(!/\b(drop|delete|truncate)\b/i.test(sql.replace(/--.*$/gm, '')), 'a migração só acrescenta');
   }
   if (ci) assert.ok(ci.includes('node scripts/testar-controle-grade.mjs'), 'teste no navegador roda na conferência automática');
+});
+
+teste('grade', 'Empreita do forno (V158): valor digitado em cada empreita, divisão que fecha, as duas formas de pagar e a empreita inteira cancelada junto', () => {
+  const app = ler('app/jb-gestao.html');
+  const b = /<script id="grade-v156">([\s\S]*?)<\/script>/.exec(app)[1];
+  /* cada parte é um lançamento comum do controle, na Desenforna, com o valor gravado nela */
+  assert.ok(b.includes("const SETOR_EMP='Desenforna';") && b.includes("const ehEmp=l=>!!(l&&l.emp&&typeof l.emp==='object');"), 'empreita é da Desenforna e se reconhece pelo campo emp');
+  assert.ok(b.includes("gravarRegistro('pgLanc',{id:x.id,data:Pl.data,trabId:x.trabId,setor:SETOR_EMP,grades:0,valorGrade:0,valorEmp:x.valor,lote:Pl.emp.id,obs:Pl.obs,emp:clone(Pl.emp)},null,true)"), 'grava só no controle, como lançamento do trabalhador');
+  assert.ok(!/fornoValor|valorForno|valorPorForno/.test(b), 'sem valor guardado por forno: o valor é digitado em cada empreita');
+  /* divisão: partes iguais em centavos (a soma fecha) ou a parte de cada um, que tem que dar o valor da empreita */
+  assert.ok(b.includes('const ct=Math.round(total*100),b=Math.floor(ct/n);let r=ct-b*n;'), 'partes iguais em centavos');
+  assert.ok(b.includes('if(Math.abs(Q.falta)>=0.005){toast(') && b.includes("const z=Q.ids.filter(id=>!(Q.partes[id]>0));"), 'parte digitada: maior que zero e a soma tem que fechar');
+  /* pagamento: cada peão a sua parte, ou tudo para um responsável do grupo (um lançamento só) */
+  assert.ok(b.includes("const partes=Q.modo==='resp'?[{id:novoId(),trabId:Q.resp,valor:Q.total}]:membros.map(m=>({id:novoId(),trabId:m.id,valor:m.parte}));"), 'as duas formas de pagar');
+  assert.ok(b.includes("if(EMP.modo==='resp'&&Q.ids.length>1&&!Q.resp)"), 'responsável escolhido entre os peões do grupo');
+  /* repetição: os mesmos códigos numa nova tentativa; empreita do mesmo forno em dias próximos pede confirmação */
+  assert.ok(b.includes('EMP.plano={data:d,emp,obs,partes,feitos:[]};') && b.includes('const falta=Pl.partes.filter(x=>!Pl.feitos.includes(x.id));'), 'nova tentativa não duplica');
+  assert.ok(b.includes("'Já existe empreita do '") && b.includes('Math.abs(diasEntre(g.data,d))<=3'), 'aviso de empreita repetida');
+  /* nada é apagado: a empreita inteira é cancelada (e reativada) junto, com motivo; a parte não muda sozinha */
+  assert.ok(b.includes('window.ACOES_FORM.pgCancelarEmp') && b.includes('window.ACOES_FORM.pgReativarEmp') && b.includes('cancelamento:{em:agora(),por:eu(),motivo:m,empreita:true}'), 'cancelar e reativar a empreita inteira, com motivo');
+  assert.ok(b.includes('Este lançamento é parte de uma empreita do forno: para mudar o dia, a pessoa ou o valor, cancele a empreita e lance de novo.'), 'a parte não muda de dia, pessoa ou valor');
+  /* à vista: sub-aba, tela Lançar, painel, busca, extrato, recibo, relatórios e comprovante */
+  assert.ok(b.includes("pgEmp:{v:PE,e:PE}") && b.includes("const ROTAS=['pgrade','pgDia','pgEmp',") && b.includes("['#/pgEmp','pgEmp','Empreita do forno',['pgEmp']]") && b.includes(" pgEmp:el=>shellProd(el,'pgEmp',telaEmp),"), 'tela registrada com a permissão de quem lança');
+  assert.ok(b.includes("window.PROD_LANC_EXTRA.push({k:'pgEmp',m:'pgEmp'") && b.includes("b('#pgEmpB',()=>JBNAV.ir('#/pgEmp'))"), 'no Lançar da Produção e no painel do controle');
+  assert.ok(b.includes("['emp','Empreitas do forno']") && b.includes('function docEmp(id)') && b.includes("if(mod==='pgLanc'&&ant&&ehEmp(ant)){verDoc(docEmp(ant.emp.id));return}"), 'relatório e comprovante da empreita');
+  assert.ok(b.includes('const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&'), 'a empreita não conta como grade repetida do dia');
 });
 
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);

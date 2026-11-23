@@ -25909,7 +25909,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
 
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
  const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg',
-  'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */
+  'pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção (V158: pgEmp, empreita do forno) */
  const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta','fGrade'];   /* V156: Pagamento por grade */
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
@@ -49113,6 +49113,43 @@ window.JB_VIDRO_PROD=Object.freeze({rotas:ROTAS.slice(),vestir:agendar});
 }
 @media(max-width:560px){.pg-fmods{grid-template-columns:1fr 1fr}.pg-fmods b{font-size:16px}}
 @media print{.pg-per,.pg-busca,.pg-rel-esc,.pg-rel-f,.pg-fora{display:none!important}}
+/* V158: empreita do forno */
+.pg-cab-dia.pe-cab select,.pg-cab-dia.pe-cab input:not([type=date]){height:34px;padding:0 9px;border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:13.5px;font-weight:400}
+.pg-cab-dia.pe-cab #peV{width:150px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.pg-cab-dia.pe-cab #peF{min-width:190px}
+.pg-cab-dia.pe-obs>label{flex:1 1 320px}
+.pg-cab-dia.pe-obs input{width:100%;box-sizing:border-box}
+.pe-lin{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,180px);gap:10px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+.pe-lin.pe-th{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63);padding-top:9px;padding-bottom:9px;background:var(--pn-l2,#F4F5F6)}
+.pe-lin.pe-th span:last-child{text-align:right}
+.pe-lin.on{background:var(--pn-l2,#F4F5F6)}
+.pe-nm{display:flex;gap:10px;align-items:center;min-width:0;cursor:pointer;font-weight:600;font-size:14.5px;overflow-wrap:anywhere}
+.pe-nm input{width:18px;height:18px;flex:none;margin:0;accent-color:var(--brasa,#D3121C)}
+.pe-nm small{display:block;font-weight:400;font-size:12px;color:var(--pn-s,#565A63);margin-top:2px}
+.pe-nm .pg-tag{margin-left:8px}
+.pe-v{text-align:right}
+.pe-v input{width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.pe-v input:focus,.pg-cab-dia.pe-cab input:focus,.pg-cab-dia.pe-cab select:focus{outline:2px solid var(--brasa,#D3121C);outline-offset:-1px;border-color:transparent}
+.pe-pt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pe-pt.pe-off{color:var(--pn-s,#565A63);font-weight:400}
+.pe-dif{color:#B42318;font-weight:700}
+.pe-ops{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;margin:16px 0 4px}
+.pe-fs{border:0;margin:0;padding:0;min-width:0}
+.pe-fs legend{font-size:12.5px;font-weight:700;color:var(--pn-s,#565A63);margin:0 0 6px;padding:0}
+.pe-op{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);cursor:pointer;margin:0 0 8px;font-size:14px}
+.pe-op input{margin:3px 0 0;flex:none;accent-color:var(--brasa,#D3121C)}
+.pe-op.on{border-color:var(--brasa,#D3121C);box-shadow:inset 0 0 0 1px var(--brasa,#D3121C)}
+.pe-op small{display:block;font-size:12.5px;color:var(--pn-s,#565A63);margin-top:2px;line-height:1.4}
+.pe-resp{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--pn-s,#565A63);margin:2px 0 6px}
+.pe-resp select{height:34px;max-width:100%}
+.pe-fim{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin:6px 0 18px}
+.pe-tb{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums;margin:4px 0 8px}
+.pe-tb th{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63);text-align:left;padding:6px 8px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+.pe-tb td{padding:7px 8px;border-bottom:1px solid var(--pn-l,#DDE0E3)}
+.pe-tb .n{text-align:right;white-space:nowrap}
+@media(max-width:760px){.pe-ops{grid-template-columns:1fr}}
+@media(max-width:520px){.pe-lin{grid-template-columns:minmax(0,1fr) 118px;padding:8px 12px}.pg-cab-dia.pe-cab>label{flex:1 1 100%}.pg-cab-dia.pe-cab #peV,.pg-cab-dia.pe-cab #peF{width:100%}.pe-fim .btn{flex:1}}
+@media print{.pe-ops,.pe-fim,.pe-cab{display:none!important}}
 /* V156.1: painel da Produção com o cartão do Controle por grade no "No mês": 4 cartões e Perdas ao lado (ou embaixo) */
 .pp-ind2.pp-ind2-x{grid-template-columns:repeat(4,minmax(0,1fr)) 1.45fr}
 .pp-k.pg-pk .pg-pks{margin-top:2px}
@@ -49175,8 +49212,8 @@ const PE=['admin','gerente','estoquista','gestor'];    /* cadastra e lança: os 
 const PP=['admin','financeiro','gerente'];             /* registra pagamento */
 const PX=['admin','financeiro'];                       /* estorna pagamento e reativa lançamento cancelado */
 const FV=['admin','financeiro','gerente'];             /* módulo no Financeiro: quem vê o Financeiro */
-Object.assign(PERM,{pgrade:{v:PV,e:[]},pgDia:{v:PE,e:PE},pgLanc:{v:PV,e:PE},pgTrab:{v:PV,e:PE},pgPag:{v:PV,e:PP},pgExtrato:{v:PV,e:[]},pgRel:{v:PV,e:[]},fGrade:{v:FV,e:PP}});
-const ROTAS=['pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];
+Object.assign(PERM,{pgrade:{v:PV,e:[]},pgDia:{v:PE,e:PE},pgLanc:{v:PV,e:PE},pgTrab:{v:PV,e:PE},pgPag:{v:PV,e:PP},pgExtrato:{v:PV,e:[]},pgRel:{v:PV,e:[]},fGrade:{v:FV,e:PP},pgEmp:{v:PE,e:PE}});   /* V158: pgEmp = empreita do forno */
+const ROTAS=['pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];
 [...ROTAS,'fGrade'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
 const podeLancar=()=>pode('pgLanc','e');
 const podePagar=()=>pode('pgPag','e');
@@ -49186,10 +49223,22 @@ const podeEstornar=()=>PX.includes(APP.papel);
 const n0=x=>x===''||x==null||isNaN(+x)?0:+x;
 const r2=v=>round2(v);
 const numBR=s=>{s=String(s==null?'':s).trim().replace(/\s/g,'');if(!s)return NaN;if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');return /^(\d+\.?\d*|\.\d+)$/.test(s)?+s:NaN};
-const tot=l=>r2(n0(l.grades)*n0(l.valorGrade));
+/* V158 · empreita do forno (Desenforna): o grupo desenforna o forno por um valor fechado. Cada parte é um lançamento
+   do peão (ou um só, do responsável que divide com o grupo), com o próprio valor (valorEmp) e os dados da empreita (emp). */
+const ehEmp=l=>!!(l&&l.emp&&typeof l.emp==='object');
+const tot=l=>ehEmp(l)?r2(n0(l.valorEmp)):r2(n0(l.grades)*n0(l.valorGrade));
 const fG=n=>fQtd(n0(n));
 const plG=n=>fG(n)+(n0(n)===1?' grade':' grades');
 const pl=(n,s,p)=>fNum(n)+' '+(n===1?s:(p||s+'s'));
+const nomeForno=e=>String((e&&e.fornoNome)||'forno');
+/* o que foi lançado, em poucas palavras: "10 grades × R$ 2,50" ou "Empreita · Forno 01 (parte de 4)" */
+const descL=l=>ehEmp(l)?'Empreita · '+nomeForno(l.emp)+(l.emp.modo==='resp'?' (responsável pelo grupo de '+n0(l.emp.n)+')':n0(l.emp.n)>1?' (parte de '+n0(l.emp.n)+')':''):plG(l.grades)+' × '+fMoeda(l.valorGrade);
+/* V158: o grupo da empreita (o nome de hoje no cadastro; o nome gravado só se o trabalhador não existir mais) */
+const membrosDe=e=>e&&Array.isArray(e.membros)?e.membros:[];
+const nmM=m=>m&&TRAB(m.id)?nomeT(m.id):String((m&&m.nome)||'—');
+const listaGrupo=e=>membrosDe(e).map(m=>nmM(m)+(e.modo==='resp'&&m.id===e.resp?' (responsável)':'')+(m.parte!=null&&m.parte!==''?' '+fMoeda(m.parte):'')).join(' · ');
+const grupoTxt=e=>'Grupo: '+(listaGrupo(e)||'—');
+const membrosTxt=(e,menos)=>{const ns=membrosDe(e).filter(m=>m.id!==menos).map(nmM);return ns.length?ns.join(', '):'o grupo'};
 const cap=s=>{s=String(s||'');return s.charAt(0).toLocaleUpperCase('pt-BR')+s.slice(1)};
 const cod=(sig,id)=>{const s=String(id||'');const t=(s.length>8?s.slice(-6):s).toUpperCase().replace(/[^A-Z0-9]/g,'');return sig+'-'+(t||'—')};
 const quem=uid=>uid?nomeUsuario(uid):'';
@@ -49200,6 +49249,13 @@ const eu=()=>APP.uid||'local';
 const msgE=e=>typeof msgFalhaSalvar==='function'?msgFalhaSalvar(e):msgErro(e);
 const ordL=(a,b)=>String(a.data||'').localeCompare(String(b.data||''))||String(a.criadoEm||'').localeCompare(String(b.criadoEm||''))||String(a.id).localeCompare(String(b.id));
 const desc=(a,b)=>-ordL(a,b);
+/* V158: as empreitas (uma por grupo) a partir das partes lançadas: dia, forno, valor, grupo, divisão, pagamento e situação */
+function empsDe(L){const M=new Map();
+ L.filter(ehEmp).slice().sort(ordL).forEach(l=>{const e=l.emp;let g=M.get(e.id);
+  if(!g){g={id:e.id,data:l.data,forno:e.forno||'',fornoNome:nomeForno(e),total:r2(n0(e.total)),n:n0(e.n)||membrosDe(e).length,divisao:e.divisao==='manual'?'manual':'iguais',
+   modo:e.modo==='resp'?'resp':'cada',resp:e.resp||'',membros:membrosDe(e),partes:[],por:l.criadoPor||'',em:l.criadoEm||'',obs:l.obs||'',cancelado:true,canc:null};M.set(e.id,g)}
+  g.partes.push(l);if(!l.cancelamento)g.cancelado=false;else if(!g.canc)g.canc=l.cancelamento});
+ return [...M.values()].map(g=>({...g,nomes:listaGrupo(g)}))}
 
 /* valor por extenso (recibo): "cento e trinta e cinco reais e cinquenta centavos" */
 const U_=['','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
@@ -49369,11 +49425,11 @@ MODS.pgTrab={titulo:'Trabalhadores por grade',sing:'trabalhador',ic:'pgGrade',
  semExcluir:true};
 
 /* valores recentes do trabalhador no setor: ajudam a perceber um valor digitado errado (nada é preenchido sozinho) */
-function recentes(tid,setor,semId){return contaDe(tid).lancs.filter(l=>!l.cancelamento&&l.id!==semId&&(!setor||l.setor===setor)).slice(-10)}
+function recentes(tid,setor,semId){return contaDe(tid).lancs.filter(l=>!l.cancelamento&&!ehEmp(l)&&l.id!==semId&&(!setor||l.setor===setor)).slice(-10)}
 function mediana(xs){const a=xs.map(Number).filter(v=>v>0).sort((x,y)=>x-y);if(!a.length)return 0;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
 function valorEstranho(st){const v=n0(st.valorGrade);if(!(v>0))return '';
  let ref=mediana(recentes(st.trabId,st.setor,st.id).map(l=>l.valorGrade));let de='os últimos lançamentos dele';
- if(!ref){ref=mediana(DATA.pgLanc.filter(l=>!l.cancelamento&&l.setor===st.setor&&l.id!==st.id).slice(-20).map(l=>l.valorGrade));de='os últimos lançamentos da '+(st.setor||'Produção')}
+ if(!ref){ref=mediana(DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&l.setor===st.setor&&l.id!==st.id).slice(-20).map(l=>l.valorGrade));de='os últimos lançamentos da '+(st.setor||'Produção')}
  if(ref&&(v>ref*3||v<ref/3))return 'O valor por grade ('+fMoeda(v)+') está muito diferente do que aparece em '+de+' ('+fMoeda(ref)+'). Confira se foi digitado certo.';
  if(!ref&&v>100)return 'O valor por grade ficou em '+fMoeda(v)+'. Confira se foi digitado certo.';
  return ''}
@@ -49387,46 +49443,59 @@ function htmlTotalLanc(r){
  return h}
 function htmlSitLanc(r){
  const ok=!!DATA.pgLanc.find(l=>l.id===r.id);if(!ok)return '';
+ const e=ehEmp(r);   /* V158: parte de empreita cancela e reativa a empreita inteira (as partes de todos juntas) */
  if(r.cancelamento){const c=r.cancelamento;return `${tag('Cancelado','pe')} em ${esc(fDataHora(c.em))} por ${esc(quem(c.por)||'—')}. Motivo: ${esc(c.motivo||'—')}. Não soma no saldo.`+
-  (podeEstornar()?` <button type="button" class="btn min" data-acao="pgReativarLanc">Reativar o lançamento</button>`:'')}
- return `${tag('Lançado','ok')} Soma no saldo do trabalhador.`+(podeLancar()?` <button type="button" class="btn min perigo" data-acao="pgCancelarLanc">Cancelar lançamento</button>`:'')}
+  (podeEstornar()?` <button type="button" class="btn min" data-acao="${e?'pgReativarEmp':'pgReativarLanc'}">${e?'Reativar a empreita':'Reativar o lançamento'}</button>`:'')}
+ return `${tag('Lançado','ok')} Soma no saldo do trabalhador.`+(podeLancar()?` <button type="button" class="btn min perigo" data-acao="${e?'pgCancelarEmp':'pgCancelarLanc'}">${e?'Cancelar a empreita':'Cancelar lançamento'}</button>`:'')}
+/* V158: a parte da empreita aberta no formulário (forno, valor fechado, grupo e a parte de cada um) */
+function htmlEmpLanc(r){const e=r&&r.emp||{};const ms=Array.isArray(e.membros)?e.membros:[];
+ return `<b>Empreita do ${esc(nomeForno(e))}</b> · valor da empreita <b>${esc(fMoeda(e.total))}</b> · ${esc(pl(n0(e.n)||ms.length,'peão','peões'))}<br>`+
+  (e.modo==='resp'?`Tudo para <b>${esc(nomeT(e.resp))}</b>, que divide com o grupo: ${esc(listaGrupo(e)||'—')}.`
+   :`Parte de ${esc(nomeT(r.trabId))}: <b>${esc(fMoeda(tot(r)))}</b> (${e.divisao==='manual'?'parte combinada':'partes iguais'}). ${esc(grupoTxt(e))}.`)+
+  `<br><span class="ajuda">Para mudar o valor, o grupo ou o dia, cancele a empreita e lance de novo: as partes de todos mudam juntas.</span>`}
 /* rodapé da lista de trabalhadores: soma o que falta receber (o crédito de um não desconta o de outro).
    Sem isto o rodapé só conta registros, porque o cadastro tem campo sensível (CPF). */
 if(typeof TOTAIS!=='undefined'&&!TOTAIS.pgTrab)TOTAIS.pgTrab={_saldo:'moeda'};
 MODS.pgLanc={titulo:'Lançamentos de grades',sing:'lançamento de grades',ic:'pgGrade',
- desc:'Grades feitas por cada trabalhador, dia a dia. Total = grades × valor por grade do próprio lançamento.',
+ desc:'Grades feitas por cada trabalhador, dia a dia. Total = grades × valor por grade do próprio lançamento. A empreita do forno entra com a parte de cada um.',
  fields:[
   {k:'data',l:'Data',t:'data',req:1,s:'Lançamento'},
   {k:'trabId',l:'Trabalhador',t:'sel',req:1,op:st=>optsTrab(st&&st.trabId),s:'Lançamento'},
   {k:'setor',l:'Setor',t:'sel',req:1,op:SETORES_G,s:'Lançamento'},
-  {k:'grades',l:'Quantidade de grades',t:'num',req:1,s:'Valores'},
-  {k:'valorGrade',l:'Valor por grade (R$)',t:'moeda',req:1,aj:'Digite o valor deste lançamento. Ele fica gravado só aqui: lançar outro valor depois não muda os anteriores.',s:'Valores'},
-  {k:'_total',l:'Total a receber',t:'html',vivo:1,w2:1,calc:r=>htmlTotalLanc(r),s:'Valores'},
+  {k:'grades',l:'Quantidade de grades',t:'num',req:1,sh:r=>!ehEmp(r),s:'Valores'},
+  {k:'valorGrade',l:'Valor por grade (R$)',t:'moeda',req:1,sh:r=>!ehEmp(r),aj:'Digite o valor deste lançamento. Ele fica gravado só aqui: lançar outro valor depois não muda os anteriores.',s:'Valores'},
+  {k:'_total',l:'Total a receber',t:'html',vivo:1,w2:1,calc:r=>htmlTotalLanc(r),sh:r=>!ehEmp(r),s:'Valores'},
+  {k:'_emp',l:'Empreita do forno',t:'html',w2:1,calc:r=>htmlEmpLanc(r),sh:r=>ehEmp(r),s:'Valores'},
   {k:'_sit',l:'Situação',t:'html',vivo:1,w2:1,calc:r=>htmlSitLanc(r),sh:r=>!!DATA.pgLanc.find(l=>l.id===r.id),s:'Situação'},
   {k:'criadoPor',l:'Lançado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Registro'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Registro'}],
  cols:[{k:'data',l:'Data',t:'data'},
   {k:'trabId',l:'Nome',v:r=>`<b>${esc(nomeT(r.trabId))}</b>`,o:r=>nomeT(r.trabId)},
-  {k:'setor',l:'Setor'},
-  {k:'grades',l:'Grades',t:'num',v:r=>r.cancelamento?`<s>${esc(fG(r.grades))}</s>`:esc(fG(r.grades)),o:r=>r.cancelamento?0:n0(r.grades)},
-  {k:'valorGrade',l:'Valor por grade',t:'moeda',v:r=>esc(fMoeda(r.valorGrade))},
+  {k:'setor',l:'Setor',v:r=>esc(r.setor||'')+(ehEmp(r)?`<small>empreita · ${esc(nomeForno(r.emp))}</small>`:''),o:r=>r.setor||''},
+  {k:'grades',l:'Grades',t:'num',v:r=>ehEmp(r)?'<small>empreita</small>':r.cancelamento?`<s>${esc(fG(r.grades))}</s>`:esc(fG(r.grades)),o:r=>r.cancelamento||ehEmp(r)?0:n0(r.grades)},
+  {k:'valorGrade',l:'Valor por grade',t:'moeda',v:r=>ehEmp(r)?'<small>—</small>':esc(fMoeda(r.valorGrade)),o:r=>ehEmp(r)?0:n0(r.valorGrade)},
   {k:'_tot',l:'Total',t:'moeda',v:r=>r.cancelamento?`<s>${esc(fMoeda(tot(r)))}</s>`:esc(fMoeda(tot(r))),o:r=>r.cancelamento?0:tot(r)},
   {k:'_sit',l:'Situação',v:r=>r.cancelamento?tag('Cancelado','pe'):tag('Lançado','ok'),o:r=>r.cancelamento?'Cancelado':'Lançado'}],
  filtros:[{k:'_setor',l:'Setor',op:SETORES_G,fn:(r,v)=>r.setor===v},{k:'_trab',l:'Trabalhador',op:()=>optsTrabTodos(),fn:(r,v)=>r.trabId===v},
+  {k:'_tipo',l:'Tipo',op:['Grades','Empreita do forno'],fn:(r,v)=>(v==='Empreita do forno')===ehEmp(r)},
   {k:'_sit',l:'Situação',op:['Lançado','Cancelado'],fn:(r,v)=>(v==='Cancelado')===!!r.cancelamento},{k:'data',l:'Data',t:'periodo',campo:'data'}],
  setorDe:()=>APP.setorGestor||'',ordem:['data','desc'],rotaNovo:'#/pgDia',
  padrao:()=>({data:hoje(),trabId:'',setor:'',grades:'',valorGrade:'',obs:''}),
  aoMudar(st,k){if(k==='trabId'){const s=setorPadrao(TRAB(st.trabId));if(s)st.setor=s}},
  validar(st){const e={};
   if(st.data&&st.data>hoje())e.data='A data não pode ser futura.';
-  if(st.grades!==''&&st.grades!=null&&!(n0(st.grades)>0))e.grades='Informe uma quantidade maior que zero.';
-  if(st.valorGrade!==''&&st.valorGrade!=null&&!(n0(st.valorGrade)>0))e.valorGrade='Informe um valor maior que zero.';
   const ant=DATA.pgLanc.find(l=>l.id===st.id);
   if(ant&&ant.cancelamento)e.data='Este lançamento está cancelado: não dá para alterar. Lance de novo, se precisar.';
+  /* V158: parte de empreita: só a observação muda aqui; o resto muda cancelando a empreita e lançando de novo */
+  if(ehEmp(st)||ehEmp(ant)){const a=ant||{};
+   if(ant&&!ant.cancelamento&&(st.data!==a.data||st.trabId!==a.trabId||st.setor!==a.setor||r2(n0(st.valorEmp))!==r2(n0(a.valorEmp))))e.data='Este lançamento é parte de uma empreita do forno: para mudar o dia, a pessoa ou o valor, cancele a empreita e lance de novo.';
+   return e}
+  if(st.grades!==''&&st.grades!=null&&!(n0(st.grades)>0))e.grades='Informe uma quantidade maior que zero.';
+  if(st.valorGrade!==''&&st.valorGrade!=null&&!(n0(st.valorGrade)>0))e.valorGrade='Informe um valor maior que zero.';
   const av=[];const t=TRAB(st.trabId);
   if(t&&!ativo(t)&&!ant)av.push(t.nome+' está inativo.');
   if(t&&st.setor&&!noSetor(t,st.setor))av.push(t.nome+' está cadastrado na '+t.setor+' e este lançamento é na '+st.setor+'.');
-  const dup=DATA.pgLanc.find(l=>l.id!==st.id&&!l.cancelamento&&l.trabId===st.trabId&&l.data===st.data&&l.setor===st.setor);
+  const dup=DATA.pgLanc.find(l=>l.id!==st.id&&!l.cancelamento&&!ehEmp(l)&&l.trabId===st.trabId&&l.data===st.data&&l.setor===st.setor);
   if(dup)av.push('Já existe lançamento de '+nomeT(st.trabId)+' em '+fData(st.data)+' na '+st.setor+' ('+plG(dup.grades)+' × '+fMoeda(dup.valorGrade)+' = '+fMoeda(tot(dup))+'). Salve só se for outro serviço do mesmo dia, não uma repetição.');
   const ve=valorEstranho(st);if(ve)av.push(ve);
   if(n0(st.grades)>300)av.push('São '+plG(st.grades)+' num lançamento só. Confira a quantidade.');
@@ -49493,6 +49562,30 @@ window.ACOES_FORM.pgReativarLanc=async({st})=>{
  const a2=DATA.pgLanc.find(l=>l.id===st.id);if(!a2||!a2.cancelamento)return;
  const n={...clone(a2),cancelamento:null,reativado:{em:agora(),por:eu(),motivoCancel:(a2.cancelamento||{}).motivo||''},alteradoEm:agora(),alteradoPor:eu()};
  try{await gravar('pgLanc',n,a2);await logV('pgLanc',a2.id,'reativou o lançamento',[{c:'Situação',de:'Cancelado',para:'Lançado'}]);toast('Lançamento reativado.','ok');if(GAV)GAV.sujo=false;fecharRota(true)}catch(e){toast(msgE(e),'erro')}};
+/* V158: empreita do forno: as partes de todos andam juntas (cancelar e reativar a empreita inteira, com motivo) */
+const partesEmp=id=>DATA.pgLanc.filter(l=>ehEmp(l)&&l.emp.id===id).sort(ordL);
+function cancelarEmp(empId,depois){
+ const ps=partesEmp(empId).filter(l=>!l.cancelamento);if(!ps.length){toast('Esta empreita já está cancelada.','erro');return}
+ const e0=ps[0].emp;const pagas=ps.filter(l=>contaDe(l.trabId).pecas.some(pc=>pc.l.id===l.id));
+ pedirMotivo('Cancelar a empreita',`${esc(nomeForno(e0))} · ${esc(fData(ps[0].data))} · <b>${esc(fMoeda(e0.total))}</b> · ${esc(pl(n0(e0.n)||ps.length,'peão','peões'))}.<br>${ps.map(l=>esc(nomeT(l.trabId))+': '+esc(fMoeda(tot(l)))).join(' · ')}.<br>Nada é apagado: as partes ficam no extrato de cada um como canceladas e deixam de somar no saldo.`+
+  (pagas.length?`<br><b>Atenção:</b> ${esc(pagas.map(l=>nomeT(l.trabId)).join(', '))} ${pagas.length>1?'já receberam':'já recebeu'} pagamento que quitou esta empreita; o valor fica como crédito para os próximos lançamentos.`:''),'Cancelar a empreita',async m=>{
+  let n=0;
+  for(const a2 of partesEmp(empId).filter(l=>!l.cancelamento)){
+   const nv={...clone(a2),cancelamento:{em:agora(),por:eu(),motivo:m,empreita:true},alteradoEm:agora(),alteradoPor:eu()};
+   await gravar('pgLanc',nv,a2);await logV('pgLanc',a2.id,'cancelou a empreita',[{c:'Situação',de:'Lançado',para:'Cancelado'},{c:'Motivo',de:'',para:m},{c:'Parte',de:fMoeda(tot(a2)),para:'não soma no saldo'}]);n++}
+  toast('Empreita cancelada ('+pl(n,'parte')+'). Ela continua no extrato, sem somar.','ok');if(GAV)GAV.sujo=false;if(depois)depois()})}
+async function reativarEmp(empId,depois){
+ const ps=partesEmp(empId).filter(l=>l.cancelamento);if(!ps.length||!podeEstornar())return;const e0=ps[0].emp;
+ if(!await confirmar('Reativar a empreita?','A empreita do '+nomeForno(e0)+' de '+fData(ps[0].data)+' ('+fMoeda(e0.total)+') volta a somar no saldo de '+ps.map(l=>nomeT(l.trabId)).join(', ')+'. Fica no histórico.',{ok:'Reativar'}))return;
+ try{for(const a2 of partesEmp(empId).filter(l=>l.cancelamento)){
+   const nv={...clone(a2),cancelamento:null,reativado:{em:agora(),por:eu(),motivoCancel:(a2.cancelamento||{}).motivo||''},alteradoEm:agora(),alteradoPor:eu()};
+   await gravar('pgLanc',nv,a2);await logV('pgLanc',a2.id,'reativou a empreita',[{c:'Situação',de:'Cancelado',para:'Lançado'}])}
+  toast('Empreita reativada.','ok');if(GAV)GAV.sujo=false;if(depois)depois()}catch(e){toast(msgE(e),'erro')}}
+window.ACOES_FORM.pgCancelarEmp=async({st})=>{
+ if(GAV&&GAV.sujo){toast('Salve ou desfaça as alterações antes de cancelar.','erro');return}
+ const at=DATA.pgLanc.find(l=>l.id===st.id);if(!at||!ehEmp(at)||at.cancelamento)return;cancelarEmp(at.emp.id,()=>fecharRota(true))};
+window.ACOES_FORM.pgReativarEmp=async({st})=>{
+ const at=DATA.pgLanc.find(l=>l.id===st.id);if(!at||!ehEmp(at)||!at.cancelamento)return;reativarEmp(at.emp.id,()=>fecharRota(true))};
 window.ACOES_FORM.pgEstornarPag=async({st})=>{
  const at=DATA.pgPag.find(p=>p.id===st.id);if(!at||at.estorno||!podeEstornar())return;
  pedirMotivo('Estornar pagamento',`${esc(nomeT(at.trabId))} · ${esc(fData(at.data))} · ${esc(at.forma||'')} · <b>${esc(fMoeda(at.valor))}</b>.<br>O pagamento não é apagado: fica marcado como estornado e o valor volta para o saldo do trabalhador.`,'Estornar pagamento',async m=>{
@@ -49508,9 +49601,12 @@ function indicadores(I){
  const L=DATA.pgLanc.filter(l=>!l.cancelamento&&noPer(l.data,I));
  const Pg=DATA.pgPag.filter(p=>!p.estorno&&noPer(p.data,I));
  const pecas=contas.flatMap(x=>x.pecas.filter(pc=>noPer(pc.p.data,I)));
+ const LE=s=>L.filter(l=>ehEmp(l)&&(!s||l.setor===s));   /* V158: partes de empreita do forno */
  const col=s=>({ativos:s?ts.filter(t=>ativo(t)&&noSetor(t,s)).length:ts.filter(ativo).length,
   grades:soma(L.filter(l=>!s||l.setor===s),l=>n0(l.grades)),
   devido:r2(soma(L.filter(l=>!s||l.setor===s),tot)),
+  devG:r2(soma(L.filter(l=>!ehEmp(l)&&(!s||l.setor===s)),tot)),
+  emp:{n:new Set(LE(s).map(l=>l.emp.id)).size,v:r2(soma(LE(s),tot))},
   pago:s?r2(soma(pecas.filter(pc=>pc.l.setor===s),pc=>pc.v)):r2(soma(Pg,p=>n0(p.valor))),
   saldo:s?r2(soma(contas,x=>(x.porSetor[s]||{}).saldo||0)):r2(soma(contas,x=>Math.max(0,x.saldo)))});   /* falta pagar: crédito de um não desconta o que outro tem a receber */
  const C={Enforna:col('Enforna'),Desenforna:col('Desenforna'),Total:col('')};
@@ -49523,6 +49619,7 @@ function htmlIndicadores(C,I,U){
  return `<div class="pg-ind-w"><table class="pg-ind" aria-label="Indicadores por setor"><thead><tr><th>Indicador</th><th>Enforna</th><th>Desenforna</th><th>Total</th></tr></thead><tbody>
   ${lin('Trabalhadores ativos','hoje','ativos',n)}
   ${lin('Grades lançadas',per,'grades',q)}
+  ${C.Total.emp&&C.Total.emp.n?lin('Empreitas do forno',per,'emp',v=>v&&v.n?esc(pl(v.n,'empreita'))+' · '+m(v.v):'—'):''}
   ${lin('Total devido','lançado · '+per,'devido',m)}
   ${lin('Total pago',per,'pago',m)}
   ${lin('Saldo pendente','falta pagar até hoje','saldo',v=>v<-0.004?`<span class="pg-neg">${esc(fMoeda(-v))} de crédito</span>`:m(v),'pg-forte')}
@@ -49530,8 +49627,8 @@ function htmlIndicadores(C,I,U){
  ${C.credPer>0.004||C.credito>0.004?`<p class="pg-nota">${C.credPer>0.004?'Do total pago, '+esc(fMoeda(C.credPer))+' foi pago a mais do que havia lançado (crédito): entra em Enforna ou Desenforna quando quitar os próximos lançamentos. ':''}${C.credito>0.004?'Crédito em aberto hoje: '+esc(fMoeda(C.credito))+'.':''}</p>`:''}`}
 function telaPainel(c){
  const I=intervalo(UIP);const ts=DATA[COL_T];const ed=podeLancar(),pg=podePagar();
- const acoes=`${pg&&ts.length?`<button type="button" class="btn" id="pgPagar">${ic('carteira')}Registrar pagamento</button>`:''}${ed?`<button type="button" class="btn" id="pgNovoT">${ic('mais')}Novo trabalhador</button>`:''}${ed&&ts.length?`<button type="button" class="btn pri" id="pgLancar">${ic('mais')}Lançar grades</button>`:''}`;
- const topo=cabG('pgGrade','Controle por grade','Trabalhadores que recebem por grade na Enforna e na Desenforna: grades do dia, quanto cada um tem a receber e os pagamentos. O valor por grade é digitado em cada lançamento.',acoes);
+ const acoes=`${pg&&ts.length?`<button type="button" class="btn" id="pgPagar">${ic('carteira')}Registrar pagamento</button>`:''}${ed?`<button type="button" class="btn" id="pgNovoT">${ic('mais')}Novo trabalhador</button>`:''}${ed&&ts.length?`<button type="button" class="btn" id="pgEmpB">${ic('chama')}Empreita do forno</button><button type="button" class="btn pri" id="pgLancar">${ic('mais')}Lançar grades</button>`:''}`;
+ const topo=cabG('pgGrade','Controle por grade','Trabalhadores que recebem por grade na Enforna e na Desenforna: grades do dia, quanto cada um tem a receber e os pagamentos. O valor por grade é digitado em cada lançamento. A Desenforna também pode ser lançada como empreita do forno: um valor para o forno, dividido entre o grupo.',acoes);
  if(!ts.length){
   c.innerHTML=topo+`<div class="pg-passos">
    <div><b><i>1</i>Cadastre os trabalhadores</b><span>Nome, CPF (se quiser), setor e situação. Sem valor fixo: o valor é de cada lançamento.</span>${ed?'<br><a class="btn pri min" href="#/pgTrab/novo">Cadastrar o primeiro</a>':''}</div>
@@ -49557,12 +49654,12 @@ function telaPainel(c){
     <td data-l="Falta receber" class="num">${valSaldo(x.saldo)}</td><td data-l="Situação">${tagSit(x)}</td>
     <td class="acs">${pg&&x.saldo>0.004?`<button type="button" class="btn min pri" data-pgpagar="${esc(t.id)}">Pagar</button>`:''}${ed&&ativo(t)?`<button type="button" class="btn min" data-pglancar="${esc(t.id)}">Lançar</button>`:''}<button type="button" class="btn min" data-pgext="${esc(t.id)}">Extrato</button></td></tr>`}).join('')}</tbody></table></div>`
    :`<div class="vazio"><b>${q?'Ninguém com esta pesquisa':'Ninguém com saldo ou lançamento no período'}</b>${q?'Confira o nome.':'Toque em “Mostrar todos” para ver todos os trabalhadores.'}</div>`)+
-  `<p class="pg-nota">Total devido = soma de grades × valor por grade de cada lançamento do período. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamento cancelado e pagamento estornado não somam. Estes valores ficam só neste controle e no módulo “Pagamento por grade” do Financeiro: não entram sozinhos em custo, despesa ou folha.</p>`;
+  `<p class="pg-nota">Total devido = soma de grades × valor por grade de cada lançamento do período, mais a parte de cada um nas empreitas do forno. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamento cancelado e pagamento estornado não somam. Estes valores ficam só neste controle e no módulo “Pagamento por grade” do Financeiro: não entram sozinhos em custo, despesa ou folha.</p>`;
  ligarPer(c,UIP,'painel');ligarBusca(c,'#pgQ',UIP,'q');ligarLinhas(c,'tr[data-go]');ligarAcoesPainel(c);
  const bt=$('#pgTodos',c);if(bt)bt.onclick=()=>{UIP.todos=!UIP.todos;renderTela()}}
 function ligarAcoesPainel(c){
  const b=(s,f)=>{const x=$(s,c);if(x)x.onclick=f};
- b('#pgPagar',()=>abrirPagamento('',ORIG_PROD));b('#pgNovoT',()=>JBNAV.ir('#/pgTrab/novo'));b('#pgLancar',()=>JBNAV.ir('#/pgDia'));
+ b('#pgPagar',()=>abrirPagamento('',ORIG_PROD));b('#pgNovoT',()=>JBNAV.ir('#/pgTrab/novo'));b('#pgLancar',()=>JBNAV.ir('#/pgDia'));b('#pgEmpB',()=>JBNAV.ir('#/pgEmp'));
  $$('[data-pgpagar]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();abrirPagamento(x.dataset.pgpagar,ORIG_PROD)});
  $$('[data-pglancar]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();abrirLancamento(x.dataset.pglancar)});
  $$('[data-pgext]',c).forEach(x=>x.onclick=e=>{e.stopPropagation();JBNAV.ir('#/pgExtrato/'+x.dataset.pgext)})}
@@ -49572,7 +49669,7 @@ const DIA={data:'',setor:'',lin:{},extra:[],valor:'',salvando:false,ok:null};
 const linDe=tid=>DIA.lin[tid]||(DIA.lin[tid]={grades:'',valor:''});
 /* linha com alguma coisa digitada pela pessoa (o valor posto pelo botão "Pôr nas linhas vazias" sozinho não conta) */
 const digitada=x=>!!x&&(String(x.grades||'').trim()!==''||(String(x.valor||'').trim()!==''&&!x.auto));
-const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&l.trabId===tid&&l.data===d&&l.setor===s);
+const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&l.trabId===tid&&l.data===d&&l.setor===s);   /* V158: a empreita do forno não conta como grade do dia */
 function totLin(x){const g=numBR(x.grades),v=lerMoeda(x.valor);return g>0&&v>0?r2(g*v):0}
 function telaDia(c){
  if(!podeLancar()){c.innerHTML=semAcesso();return}
@@ -49585,7 +49682,7 @@ function telaDia(c){
  const somaT=()=>{let n=0,g=0,v=0;todos.forEach(t=>{const x=DIA.lin[t.id];if(!x)return;const tt=totLin(x);if(tt>0){n++;g+=numBR(x.grades);v+=tt}});return {n,g,v:r2(v)}};
  const S=somaT();
  c.innerHTML=cabG('pgGrade','Lançar grades do dia','Escolha o dia e o setor e digite, para cada trabalhador, as grades feitas e o valor por grade. Cada linha vira um lançamento com o próprio valor; quem não trabalhou fica em branco.',
-   `<a class="btn" href="#/pgLanc">${ic('lupa')}Ver lançamentos</a>`)+
+   `<a class="btn" href="#/pgLanc">${ic('lupa')}Ver lançamentos</a>${podeLancar()?`<a class="btn" href="#/pgEmp">${ic('chama')}Empreita do forno</a>`:''}`)+
   (DIA.ok?`<div class="pg-ok" role="status"><b>${esc(pl(DIA.ok.n,'lançamento salvo','lançamentos salvos'))}</b> na ${esc(DIA.ok.setor)} em ${esc(fData(DIA.ok.data))}: ${esc(plG(DIA.ok.g))}, ${esc(fMoeda(DIA.ok.v))}.<br>
    <a class="btn min" href="#/pgrade">Ver o painel</a><button type="button" class="btn min" data-pgset="${esc(DIA.ok.setor==='Enforna'?'Desenforna':'Enforna')}">Lançar a ${esc(DIA.ok.setor==='Enforna'?'Desenforna':'Enforna')}</button><button type="button" class="btn min" id="pgOkX">Fechar</button></div>`:'')+
   `<div class="pg-cab-dia"><label>Data<input type="date" id="pgD" value="${esc(d)}" max="${hoje()}"></label>
@@ -49652,6 +49749,211 @@ async function salvarDia(btn,todos){
  DIA.ok={n:feitos.n,g:feitos.g,v:r2(feitos.v),setor:s,data:d};DIA.extra=[];
  toast(pl(feitos.n,'lançamento salvo','lançamentos salvos')+': '+fMoeda(feitos.v)+'.','ok');renderTela()}
 
+/* ---------- 10b. V158 · Empreita do forno (Desenforna) ----------
+   Pedido do Jeferson (23/11/2026): o grupo de peões desenforna o forno por um valor fechado e divide entre eles.
+   · O valor é digitado em cada empreita (não fica valor guardado por forno).
+   · Divisão: partes iguais (os centavos que sobram vão para os primeiros da lista) ou a parte de cada um digitada
+     (a soma tem que dar o valor da empreita).
+   · Pagamento, duas opções: cada peão recebe a parte dele (uma parte no saldo de cada um) ou tudo para um
+     responsável, que divide com o grupo (um lançamento só, no saldo dele, com a divisão anotada).
+   · Desenforna em mais de um dia continua sendo uma empreita só (a data é a do lançamento).
+   · Cada parte é um lançamento comum do controle (setor Desenforna), com o próprio valor (valorEmp) e os dados da
+     empreita (emp): extrato, pagamento, recibo e relatórios seguem as mesmas regras. Nada muda nas grades. */
+const SETOR_EMP='Desenforna';
+const EMP={data:'',forno:'',fornoTxt:'',valor:'',sel:{},partes:{},div:'iguais',modo:'cada',resp:'',obs:'',todos:false,salvando:false,ok:null,plano:null};
+/* fornos cadastrados no Setor da Lenha (os mesmos das fornadas da Produção) */
+function fornosEmp(){return (DATA.locais||[]).filter(l=>l&&l.setor==='lenha'&&l.tipo==='Forno'&&l.situacao!=='Inativo')
+ .sort((a,b)=>String(nomeLocal(a)).localeCompare(String(nomeLocal(b)),'pt-BR',{numeric:true}))}
+/* partes iguais em centavos: 100,00 para 3 = 33,34 + 33,33 + 33,33 (a soma sempre fecha) */
+function partesIguais(total,ids){const o={};const n=ids.length;if(!n||!(total>0))return o;
+ const ct=Math.round(total*100),b=Math.floor(ct/n);let r=ct-b*n;
+ ids.forEach(id=>{o[id]=(b+(r>0?1:0))/100;if(r>0)r--});return o}
+function contaEmp(lista){
+ const ids=lista.filter(t=>EMP.sel[t.id]).map(t=>t.id);
+ const total=r2(lerMoeda(EMP.valor)||0);
+ let partes={};
+ if(EMP.div==='manual')ids.forEach(id=>{partes[id]=r2(lerMoeda(EMP.partes[id]||'')||0)});else partes=partesIguais(total,ids);
+ const somaP=r2(ids.reduce((a,id)=>a+(partes[id]||0),0));
+ const modo=ids.length>1&&EMP.modo==='resp'?'resp':'cada';
+ return {ids,total,partes,somaP,falta:r2(total-somaP),modo,resp:modo==='resp'&&ids.includes(EMP.resp)?EMP.resp:''}}
+function htmlSomaEmp(Q){
+ if(!Q.ids.length)return 'Marque os peões que fizeram a empreita.';
+ const n=pl(Q.ids.length,'peão','peões');
+ if(!(Q.total>0))return `<b>${esc(n)}</b> · digite o valor da empreita.`;
+ let h=`<b>${esc(n)}</b> · valor da empreita <b>${esc(fMoeda(Q.total))}</b>`;
+ if(EMP.div==='manual')h+=Math.abs(Q.falta)<0.005?' · a soma das partes confere':` · <span class="pe-dif">soma das partes ${esc(fMoeda(Q.somaP))}: ${Q.falta>0?'faltam '+esc(fMoeda(Q.falta)):'passou '+esc(fMoeda(-Q.falta))}</span>`;
+ else{const vs=[...new Set(Q.ids.map(id=>Q.partes[id]))].sort((a,b)=>b-a);h+=' · '+(vs.length===1?esc(fMoeda(vs[0]))+' para cada':esc(vs.map(v=>fMoeda(v)).join(' ou '))+' para cada (o centavo que sobra vai para os primeiros da lista)')}
+ if(EMP.modo==='resp'&&Q.ids.length>1)h+=Q.resp?` · tudo para <b>${esc(nomeT(Q.resp))}</b>, que divide com o grupo`:' · <span class="pe-dif">escolha o responsável</span>';
+ return h}
+function telaEmp(c){
+ if(!podeLancar()){c.innerHTML=semAcesso();return}
+ if(!EMP.data)EMP.data=hoje();
+ const fs=fornosEmp();
+ if(EMP.forno&&EMP.forno!=='_outro'&&!fs.some(f=>f.id===EMP.forno))EMP.forno='';
+ const base=DATA[COL_T].filter(t=>ativo(t)&&(EMP.todos||noSetor(t,SETOR_EMP)));
+ const extras=Object.keys(EMP.sel).filter(id=>EMP.sel[id]).map(TRAB).filter(t=>t&&!base.includes(t));
+ const lista=[...base,...extras].sort(porNome);
+ const Q=contaEmp(lista);
+ const op=(nome,v,atual,tit,sub)=>`<label class="pe-op${v===atual?' on':''}"><input type="radio" name="${nome}" value="${v}"${v===atual?' checked':''}><span><b>${esc(tit)}</b><small>${esc(sub)}</small></span></label>`;
+ const linha=t=>{const on=!!EMP.sel[t.id];const pt=Q.partes[t.id];
+  return `<div class="pe-lin${on?' on':''}" data-pel="${esc(t.id)}"><label class="pe-nm"><input type="checkbox" data-pesel="${esc(t.id)}"${on?' checked':''}><span>${esc(t.nome)}${Q.resp===t.id?'<span class="pg-tag in">responsável</span>':''}${t.setor!==SETOR_EMP?`<small>${esc(t.setor===AMBOS?'Enforna e Desenforna':t.setor)}</small>`:''}${ativo(t)?'':'<small>inativo</small>'}</span></label>
+   <div class="pe-v">${on?(EMP.div==='manual'?`<input data-pept="${esc(t.id)}" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(EMP.partes[t.id]||'')}" aria-label="Parte de ${esc(t.nome)}" autocomplete="off">`:`<span class="pe-pt" data-pept-v="${esc(t.id)}">${pt?esc(fMoeda(pt)):'—'}</span>`):'<span class="pe-pt pe-off">—</span>'}</div></div>`};
+ const Pl=EMP.plano;const feitos=Pl?Pl.partes.filter(x=>(Pl.feitos||[]).includes(x.id)).length:0;
+ const recs=empsDe(DATA.pgLanc).sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||String(b.em).localeCompare(String(a.em)));
+ const mostra=recs.slice(0,EMP.mais?300:10);
+ c.innerHTML=cabG('chama','Empreita do forno','O grupo de peões desenforna o forno por um valor fechado. Digite o valor da empreita, marque quem fez parte e escolha como dividir e como pagar.',
+   `<a class="btn" href="#/pgLanc">${ic('lupa')}Ver lançamentos</a><a class="btn" href="#/pgDia">${ic('pgGrade')}Lançar grades</a>`)+
+  (EMP.ok?`<div class="pg-ok" role="status"><b>Empreita do ${esc(EMP.ok.fornoNome)} salva</b> (${esc(fData(EMP.ok.data))}): ${esc(fMoeda(EMP.ok.total))}, ${EMP.ok.modo==='resp'?'tudo para '+esc(nomeT(EMP.ok.resp))+', que divide com o grupo':'dividido entre '+esc(pl(EMP.ok.n,'peão','peões'))}.<br>
+   <button type="button" class="btn min pri" id="peOkDoc">${ic('doc')}Comprovante com as assinaturas</button><a class="btn min" href="#/pgrade">Ver o painel</a><button type="button" class="btn min" id="peOkX">Fechar</button></div>`:'')+
+  (Pl?`<div class="pg-ok pe-pend" role="alert"><b>A empreita do ${esc(Pl.emp.fornoNome)} ficou salva em parte</b> (${esc(fNum(feitos))} de ${esc(fNum(Pl.partes.length))}). Toque em “Terminar de salvar” para gravar o que falta, do jeito que foi começada: o que já foi salvo não se repete.<br>
+   <button type="button" class="btn min pri" id="peCont">Terminar de salvar</button><button type="button" class="btn min" id="peDesc">Cancelar o que foi salvo</button></div>`
+  :`<div class="pg-cab-dia pe-cab"><label>Data<input type="date" id="peD" value="${esc(EMP.data)}" max="${hoje()}"></label>
+   <label>Forno${fs.length?`<select id="peF"><option value="">Escolha o forno…</option>${fs.map(f=>`<option value="${esc(f.id)}"${EMP.forno===f.id?' selected':''}>${esc(nomeLocal(f))}</option>`).join('')}<option value="_outro"${EMP.forno==='_outro'?' selected':''}>Outro (digitar o nome)</option></select>`:''}</label>
+   ${!fs.length||EMP.forno==='_outro'?`<label>Nome do forno<input id="peFt" maxlength="60" placeholder="Ex.: Forno 03" value="${esc(EMP.fornoTxt)}" autocomplete="off"></label>`:''}
+   <label>Valor da empreita<input id="peV" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(EMP.valor)}" autocomplete="off"></label></div>
+  <h3 class="grupo-t">Quem fez a empreita</h3>`+
+  (lista.length?`<div class="pg-grade pe-grade" role="group" aria-label="Peões da empreita"><div class="pe-lin pe-th" aria-hidden="true"><span>Peão</span><span>${EMP.div==='manual'?'Parte combinada':'Parte de cada um'}</span></div>
+   ${lista.map(linha).join('')}
+   <div class="pg-rod"><span id="peSoma">${htmlSomaEmp(Q)}</span><span><button type="button" class="btn min" id="peMarca">${lista.every(t=>EMP.sel[t.id])?'Desmarcar todos':'Marcar todos'}</button></span></div></div>`
+   :`<div class="vazio"><b>Nenhum peão ativo na Desenforna</b>${DATA[COL_T].length?'Mostre também os da Enforna, logo abaixo, ou cadastre.':'Cadastre os trabalhadores primeiro.'}<div class="vazio-acoes"><a class="btn pri" href="#/pgTrab/novo">${ic('mais')}Novo trabalhador</a></div></div>`)+
+  `<div class="pg-fora"><label class="pg-chk"><input type="checkbox" id="peTodos"${EMP.todos?' checked':''}><span>Mostrar também os peões da Enforna</span></label><a href="#/pgTrab/novo">Cadastrar novo</a></div>
+  <div class="pe-ops"><fieldset class="pe-fs"><legend>Como dividir</legend>${op('peDiv','iguais',EMP.div,'Partes iguais','O valor da empreita dividido igual entre o grupo.')}${op('peDiv','manual',EMP.div,'Digitar a parte de cada um','Quando o grupo combinou outra divisão. A soma tem que dar o valor da empreita.')}</fieldset>
+   <fieldset class="pe-fs"><legend>Como pagar</legend>${op('pePag','cada',EMP.modo,'Cada peão recebe a parte dele','A parte de cada um entra no saldo dele, para pagar a cada um.')}${op('pePag','resp',EMP.modo,'Tudo para um responsável','O valor todo entra no saldo de um peão do grupo, que divide com os outros.')}
+    ${EMP.modo==='resp'?(Q.ids.length>1?`<label class="pe-resp">Responsável pelo grupo<select id="peR"><option value="">Escolha…</option>${Q.ids.map(id=>`<option value="${esc(id)}"${EMP.resp===id?' selected':''}>${esc(nomeT(id))}</option>`).join('')}</select></label>`:'<p class="ajuda">Marque pelo menos 2 peões para escolher o responsável. Com um peão só, ele recebe o valor todo.</p>'):''}</fieldset></div>
+  <div class="pg-cab-dia pe-cab pe-obs"><label>Observação<input id="peO" maxlength="200" placeholder="Ex.: desenforna em dois dias" value="${esc(EMP.obs)}" autocomplete="off"></label></div>
+  <div class="pe-fim"><button type="button" class="btn" id="peLimpa">Limpar</button><button type="button" class="btn pri" id="peSalvar"${EMP.salvando?' disabled':''}>${EMP.salvando?'Salvando…':'Salvar empreita'}</button></div>`)+
+  (recs.length?`<h3 class="grupo-t">Empreitas lançadas</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Forno</th><th>Grupo</th><th class="num">Valor da empreita</th><th>Pagamento</th><th>Situação</th></tr></thead><tbody>
+   ${mostra.map(g=>`<tr class="clic${g.cancelado?' vv-estornado':''}" data-peabre="${esc(g.id)}" tabindex="0"><td data-l="Data">${esc(fData(g.data))}</td><td data-l="Forno"><b>${esc(g.fornoNome)}</b></td><td data-l="Grupo">${esc(g.nomes||'—')}</td>
+    <td data-l="Valor da empreita" class="num">${g.cancelado?`<s>${esc(fMoeda(g.total))}</s>`:`<b>${esc(fMoeda(g.total))}</b>`}</td><td data-l="Pagamento">${g.modo==='resp'?'Tudo para '+esc(nomeT(g.resp)):'Cada um a sua parte'}</td><td data-l="Situação">${g.cancelado?tag('Cancelada','pe'):tag('Lançada','ok')}</td></tr>`).join('')}</tbody></table></div>
+   ${recs.length>mostra.length?`<p class="pg-nota"><button type="button" class="btn min" id="peMais">Ver todas (${esc(fNum(recs.length))})</button></p>`:''}`:'')+
+  `<p class="pg-nota">A empreita é da Desenforna. Cada parte vira um lançamento no Controle por grade, com o valor gravado nele: aparece no extrato, no pagamento, no recibo e nos relatórios. Desenforna em mais de um dia é uma empreita só. Para mudar o valor, o grupo ou o dia, cancele a empreita (com o motivo) e lance de novo. Empreita do mesmo forno em dias próximos pede confirmação antes de salvar.</p>`;
+ /* o que é digitado fica guardado (um redesenho por dado novo que chega não apaga a digitação) */
+ const atualiza=()=>{const Q2=contaEmp(lista);const el=$('#peSoma',c);if(el)el.innerHTML=htmlSomaEmp(Q2);
+  if(EMP.div!=='manual')$$('[data-pept-v]',c).forEach(x=>{const v=Q2.partes[x.dataset.peptV];x.textContent=v?fMoeda(v):'—'});EMP.ok=null};
+ const liga=(sel,ev,fn)=>{const x=$(sel,c);if(x)x.addEventListener(ev,fn)};
+ liga('#peD','change',e=>{EMP.data=e.target.value||hoje();EMP.ok=null});
+ liga('#peF','change',e=>{EMP.forno=e.target.value;EMP.ok=null;renderTela()});
+ liga('#peFt','input',e=>{EMP.fornoTxt=e.target.value});
+ liga('#peV','input',e=>{EMP.valor=e.target.value;atualiza()});
+ liga('#peO','input',e=>{EMP.obs=e.target.value});
+ liga('#peR','change',e=>{EMP.resp=e.target.value;EMP.ok=null;renderTela()});
+ liga('#peTodos','change',e=>{EMP.todos=e.target.checked;renderTela()});
+ $$('[data-pesel]',c).forEach(i=>i.onchange=()=>{const id=i.dataset.pesel;if(i.checked)EMP.sel[id]=true;else{delete EMP.sel[id];if(EMP.resp===id)EMP.resp=''}EMP.ok=null;renderTela()});
+ $$('[data-pept]',c).forEach(i=>i.addEventListener('input',()=>{EMP.partes[i.dataset.pept]=i.value;atualiza()}));
+ $$('input[name=peDiv]',c).forEach(i=>i.onchange=()=>{EMP.div=i.value;
+  /* passar para "digitar": cada um começa com a parte igual, para só ajustar */
+  if(EMP.div==='manual'){const Qi=contaEmp(lista);const iguais=partesIguais(Qi.total,Qi.ids);Qi.ids.forEach(id=>{if(!String(EMP.partes[id]||'').trim()&&iguais[id])EMP.partes[id]=fMoedaCampo(iguais[id])})}
+  EMP.ok=null;renderTela()});
+ $$('input[name=pePag]',c).forEach(i=>i.onchange=()=>{EMP.modo=i.value;EMP.ok=null;renderTela()});
+ liga('#peMarca','click',()=>{const todos=lista.every(t=>EMP.sel[t.id]);lista.forEach(t=>{if(todos)delete EMP.sel[t.id];else EMP.sel[t.id]=true});if(todos)EMP.resp='';EMP.ok=null;renderTela()});
+ liga('#peLimpa','click',async()=>{const dig=Object.keys(EMP.sel).length||String(EMP.valor||'').trim()||String(EMP.obs||'').trim();
+  if(dig&&!await confirmar('Limpar a empreita?','O que foi marcado e digitado e ainda não foi salvo some.',{ok:'Limpar'}))return;
+  Object.assign(EMP,{forno:'',fornoTxt:'',valor:'',sel:{},partes:{},resp:'',obs:'',ok:null});renderTela()});
+ liga('#peSalvar','click',e=>salvarEmp(e.currentTarget,lista));
+ liga('#peCont','click',e=>continuarEmp(e.currentTarget));
+ liga('#peDesc','click',()=>{const id=EMP.plano&&EMP.plano.emp.id;if(!id)return;
+  if(!partesEmp(id).some(l=>!l.cancelamento)){EMP.plano=null;renderTela();return}
+  cancelarEmp(id,()=>{EMP.plano=null;renderTela()})});
+ liga('#peOkX','click',()=>{EMP.ok=null;renderTela()});
+ liga('#peOkDoc','click',e=>{const id=EMP.ok&&EMP.ok.id;if(id)abrirMenuMais(e.currentTarget,itensAcaoDoc(()=>docEmp(id),'Empreita do '+EMP.ok.fornoNome))});
+ liga('#peMais','click',()=>{EMP.mais=true;renderTela()});
+ $$('tr[data-peabre]',c).forEach(tr=>{const ir=()=>abrirEmp(tr.dataset.peabre);tr.onclick=ir;tr.onkeydown=e=>{if(e.key==='Enter')ir()}})}
+async function salvarEmp(btn,lista){
+ if(EMP.salvando)return;
+ if(EMP.plano)return continuarEmp(btn);
+ const d=EMP.data||hoje();
+ if(!d||d>hoje()){toast('Escolha uma data até hoje.','erro');return}
+ const fs=fornosEmp();let forno='',fornoNome='';
+ if(fs.length&&EMP.forno&&EMP.forno!=='_outro'){const f=fs.find(x=>x.id===EMP.forno);if(f){forno=f.id;fornoNome=nomeLocal(f)}}
+ else if(!fs.length||EMP.forno==='_outro')fornoNome=String(EMP.fornoTxt||'').replace(/\s+/g,' ').trim().slice(0,60);
+ if(!fornoNome){const digitar=!fs.length||EMP.forno==='_outro';toast(digitar?'Digite o nome do forno.':'Escolha o forno da empreita.','erro');const x=digitar?$('#peFt'):$('#peF');if(x)x.focus();return}
+ const Q=contaEmp(lista);
+ if(!(Q.total>0)){toast('Digite o valor da empreita.','erro');const x=$('#peV');if(x)x.focus();return}
+ if(!Q.ids.length){toast('Marque os peões que fizeram a empreita.','erro');return}
+ if(EMP.div==='manual'){const z=Q.ids.filter(id=>!(Q.partes[id]>0));
+  if(z.length){toast('Digite a parte de '+z.map(nomeT).join(', ')+' (maior que zero), ou desmarque quem não entrou na divisão.','erro');return}
+  if(Math.abs(Q.falta)>=0.005){toast('A soma das partes ('+fMoeda(Q.somaP)+') não dá o valor da empreita ('+fMoeda(Q.total)+'): '+(Q.falta>0?'faltam '+fMoeda(Q.falta):'passou '+fMoeda(-Q.falta))+'.','erro');return}}
+ if(EMP.modo==='resp'&&Q.ids.length>1&&!Q.resp){toast('Escolha o responsável que recebe o valor e divide com o grupo.','erro');const x=$('#peR');if(x)x.focus();return}
+ /* repetição: empreita do mesmo forno no mesmo dia ou em dias próximos (até 3 dias) */
+ const av=[];
+ empsDe(DATA.pgLanc.filter(l=>ehEmp(l)&&!l.cancelamento)).filter(g=>(forno?g.forno===forno:N(g.fornoNome)===N(fornoNome))&&Math.abs(diasEntre(g.data,d))<=3)
+  .forEach(g=>av.push('Já existe empreita do '+g.fornoNome+' em '+fData(g.data)+' ('+fMoeda(g.total)+', '+pl(g.n,'peão','peões')+').'));
+ if(d<addDias(hoje(),-45))av.push('A data é de mais de 45 dias atrás ('+fData(d)+').');
+ const inat=Q.ids.map(TRAB).filter(t=>t&&!ativo(t));if(inat.length)av.push(inat.map(t=>t.nome).join(', ')+(inat.length>1?' estão inativos.':' está inativo.'));
+ if(Q.total>20000)av.push('O valor da empreita ficou em '+fMoeda(Q.total)+'. Confira se foi digitado certo.');
+ if(av.length&&!await confirmar('Confirmar a empreita?',av.join(' ')+' Salve só se for outra empreita, não uma repetição.',{ok:'Salvar assim mesmo'}))return;
+ const empId=novoId();
+ const membros=Q.ids.map(id=>({id,nome:nomeT(id),parte:Q.partes[id]}));
+ const emp={id:empId,forno,fornoNome,total:Q.total,n:Q.ids.length,membros,divisao:EMP.div==='manual'?'manual':'iguais',modo:Q.modo,resp:Q.modo==='resp'?Q.resp:''};
+ const obs=String(EMP.obs||'').replace(/\s+/g,' ').trim().slice(0,200);
+ /* os códigos são criados uma vez: numa nova tentativa, a mesma parte não duplica */
+ const partes=Q.modo==='resp'?[{id:novoId(),trabId:Q.resp,valor:Q.total}]:membros.map(m=>({id:novoId(),trabId:m.id,valor:m.parte}));
+ EMP.plano={data:d,emp,obs,partes,feitos:[]};
+ return continuarEmp(btn)}
+async function continuarEmp(btn){
+ const Pl=EMP.plano;if(!Pl||EMP.salvando)return;
+ EMP.salvando=true;if(btn)btn.disabled=true;
+ const falta=Pl.partes.filter(x=>!Pl.feitos.includes(x.id));let falha=null;
+ for(const x of falta){
+  if(btn)btn.textContent='Salvando '+(Pl.feitos.length+1)+' de '+Pl.partes.length+'…';
+  try{await gravarRegistro('pgLanc',{id:x.id,data:Pl.data,trabId:x.trabId,setor:SETOR_EMP,grades:0,valorGrade:0,valorEmp:x.valor,lote:Pl.emp.id,obs:Pl.obs,emp:clone(Pl.emp)},null,true);Pl.feitos.push(x.id)}
+  catch(e){falha=e;break}}
+ EMP.salvando=false;
+ if(falha){if(!Pl.feitos.length){EMP.plano=null;toast('A empreita não foi salva. Nada foi gravado: confira e tente de novo. '+msgE(falha),'erro')}
+  else toast('A empreita foi salva em parte ('+Pl.feitos.length+' de '+Pl.partes.length+'). Toque em “Terminar de salvar”: o que já foi salvo não se repete. '+msgE(falha),'erro');
+  renderTela();return}
+ EMP.ok={id:Pl.emp.id,total:Pl.emp.total,n:Pl.emp.n,fornoNome:Pl.emp.fornoNome,data:Pl.data,modo:Pl.emp.modo,resp:Pl.emp.resp};
+ Object.assign(EMP,{plano:null,sel:{},partes:{},valor:'',obs:'',resp:''});
+ await logV('pgLanc',Pl.partes[0].id,'lançou a empreita do forno',[{c:'Forno',de:'',para:Pl.emp.fornoNome},{c:'Valor da empreita',de:'',para:fMoeda(Pl.emp.total)},{c:'Grupo',de:'',para:listaGrupo(Pl.emp)},{c:'Pagamento',de:'',para:Pl.emp.modo==='resp'?'tudo para '+nomeT(Pl.emp.resp):'cada um a sua parte'}]);
+ toast('Empreita do '+EMP.ok.fornoNome+' salva: '+fMoeda(EMP.ok.total)+(EMP.ok.modo==='resp'?', tudo para '+nomeT(EMP.ok.resp)+', que divide com o grupo.':', dividido entre '+pl(EMP.ok.n,'peão','peões')+'.'),'ok');renderTela()}
+/* a empreita aberta: o grupo, a parte de cada um, o comprovante e o cancelamento (a empreita inteira) */
+function abrirEmp(id){
+ const g=empsDe(partesEmp(id))[0];if(!g)return;
+ const linhas=g.membros.map(m=>{const l=g.partes.find(x=>x.trabId===m.id);
+  return `<tr><td>${esc(nmM(m))}${g.modo==='resp'&&m.id===g.resp?' <span class="pg-tag in">responsável</span>':''}</td><td class="n">${m.parte!=null?esc(fMoeda(m.parte)):'—'}</td><td class="n">${l?(l.cancelamento?'<s>'+esc(fMoeda(tot(l)))+'</s>':esc(fMoeda(tot(l)))):'—'}</td></tr>`}).join('');
+ const corpo=`<p class="ajuda" style="margin:0 0 8px">${esc(fData(g.data))} · ${esc(g.fornoNome)} · valor da empreita <b>${esc(fMoeda(g.total))}</b> · ${esc(g.divisao==='manual'?'parte combinada de cada um':'partes iguais')}.</p>
+  ${g.cancelado&&g.canc?`<p class="pg-prev at">Empreita cancelada em ${esc(fDataHora(g.canc.em))} por ${esc(quem(g.canc.por)||'—')}. Motivo: ${esc(g.canc.motivo||'—')}. Não soma no saldo.</p>`:''}
+  <table class="pe-tb"><thead><tr><th>Peão</th><th class="n">Parte</th><th class="n">No saldo dele</th></tr></thead><tbody>${linhas}</tbody></table>
+  <p class="ajuda">${g.modo==='resp'?'O valor todo entrou no saldo de '+esc(nomeT(g.resp))+', que divide com o grupo como na coluna Parte.':'A parte de cada um entrou no saldo dele.'}${g.obs?' Observação: '+esc(g.obs)+'.':''} Lançada por ${esc(quem(g.por)||'—')}${g.em?' em '+esc(fDataHora(g.em)):''}.</p>
+  <div class="pg-acoes-ok"><button type="button" class="btn" data-pea="doc">${ic('doc')}Comprovante</button>${!g.cancelado&&podeLancar()?'<button type="button" class="btn perigo" data-pea="cancelar">Cancelar a empreita</button>':''}${g.cancelado&&podeEstornar()?'<button type="button" class="btn" data-pea="reativar">Reativar a empreita</button>':''}</div>`;
+ janela('Empreita do '+g.fornoNome,corpo,'',null,{depois:v=>{
+  $$('[data-pea]',v).forEach(b=>b.onclick=()=>{const a=b.dataset.pea;
+   if(a==='doc'){abrirMenuMais(b,itensAcaoDoc(()=>docEmp(id),'Empreita do '+g.fornoNome+' · '+fData(g.data)));return}
+   v.remove();if(a==='cancelar')cancelarEmp(id,()=>renderTela());else if(a==='reativar')reativarEmp(id,()=>renderTela())})}})}
+/* comprovante da empreita: o grupo, a parte de cada um e a linha para cada peão assinar */
+function docEmp(id){
+ const g=empsDe(partesEmp(id))[0];if(!g)return null;const e=CFG.empresa||{};
+ const codigo=cod('EF',id);const resp=g.modo==='resp'?nomeT(g.resp):'';
+ const D=baseRel('EMPREITA DO FORNO','Desenforna · '+g.fornoNome,[]);
+ D.classe='comprovante';D.setor=nomeSetorDoc('producao');D.numero=codigo;D.parteNome=resp||g.fornoNome;
+ D.meta=[['Data',fData(g.data)],['Forno',g.fornoNome],['Situação',g.cancelado?'Cancelada':'Lançada']];
+ D.quadros=[{rot:'EMPREITA',campos:[['Forno',g.fornoNome],['Data',fData(g.data)],['Valor da empreita',fMoeda(g.total)],['Por extenso',extenso(g.total),1],['Peões',fNum(g.n)],
+  ['Divisão',g.divisao==='manual'?'Parte combinada de cada um':'Partes iguais'],['Pagamento',g.modo==='resp'?'Tudo para '+resp+', que divide com o grupo':'Cada peão recebe a parte dele',1]]}];
+ if(g.cancelado&&g.canc)D.blocos.push({tipo:'aviso',texto:'EMPREITA CANCELADA em '+fDataHora(g.canc.em)+' por '+(quem(g.canc.por)||'—')+'. Motivo: '+(g.canc.motivo||'—')+'. Este documento fica só como registro.'});
+ D.blocos.push({tipo:'secao',n:'1',titulo:'Grupo e parte de cada um',tabela:{head:['Peão','Parte','Assinatura'],
+   body:g.membros.map(m=>[nmM(m)+(g.modo==='resp'&&m.id===g.resp?' (responsável)':''),m.parte!=null?fMoeda(m.parte):'—','______________________________']),
+   foot:['Total',fMoeda(r2(soma(g.membros,m=>n0(m.parte)))),''],dir:[1]},
+  nota:g.modo==='resp'?'O valor todo entra no saldo de '+resp+' no Controle por grade. Ele paga a parte de cada um, como na tabela.':'A parte de cada um entra no saldo dele no Controle por grade.'});
+ D.blocos.push({tipo:'secao',n:'2',titulo:'Registro no sistema',campos:[['Lançada por',quem(g.por)||'—'],['Lançada em',g.em?fDataHora(g.em):'—'],['Código',codigo]]});
+ if(g.obs)D.observacoes=g.obs;
+ D.fecho='Nós, abaixo assinados, fizemos por empreita a desenforna do '+g.fornoNome+', no valor de '+fMoeda(g.total)+' ('+extenso(g.total)+'), '+(g.modo==='resp'?'pago a '+resp+', que divide com o grupo como na tabela acima.':'dividido entre nós como na tabela acima.');
+ D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(g.data)+'.';
+ D.assinaturas=[...(g.modo==='resp'?[{nome:resp,sub:'Responsável pelo grupo · recebe e divide'}]:[]),{nome:quem(g.por)||'',sub:'Responsável pelo controle'}];
+ D.notaFinal='Comprovante interno do Controle por grade, sem valor fiscal. Montado na hora a partir dos lançamentos gravados; emitir este documento não altera nenhum dado.';
+ D.rodape='Empreita do forno · '+codigo;
+ D.arquivo='Empreita_'+nomeArq(g.fornoNome)+'_'+nomeArq(g.data)+'_'+nomeArq(String(id).slice(-6));
+ D.cupom={kind:'empreita',para:'responsavel',tipo:'COMPROVANTE',titulo:'EMPREITA DO FORNO',numero:codigo.replace(/^EF-/,''),
+  id:[['Data',fData(g.data)],['Forno',g.fornoNome]],cancelado:g.cancelado?'EMPREITA CANCELADA':'',
+  resumo:[['Peões',fNum(g.n)],['Divisão',g.divisao==='manual'?'combinada':'partes iguais']],
+  total:['VALOR DA EMPREITA',fMoeda(g.total)],
+  blocos:[{rot:g.modo==='resp'?'Recebe e divide: '+resp:'Parte de cada um',linhas:g.membros.map(m=>[nmM(m),m.parte!=null?fMoeda(m.parte):'—'])}],
+  texto:'Desenforna do '+g.fornoNome+' por empreita: '+fMoeda(g.total)+' ('+extenso(g.total)+').',
+  obs:g.obs||'',
+  assinaturas:g.membros.slice(0,15).map(m=>({rot:g.modo==='resp'&&m.id===g.resp?'Responsável':'Peão',nome:nmM(m)})),
+  rodape:'Código '+codigo+' · '+(g.em?fDataHora(g.em):'')};
+ return D}
+try{if(typeof FMT_PAD_DOC!=='undefined'&&!FMT_PAD_DOC.empreita)FMT_PAD_DOC.empreita='a4'}catch(e){}
+
 /* ---------- 11. Extrato de cada trabalhador (Produção e Financeiro) ---------- */
 const UIE={tipo:'mes',ref:'',de:'',ate:''};
 const UIX={q:''};
@@ -49674,9 +49976,9 @@ function fraseConta(x){
  return x.lancs.length||x.pags.length?`<b>Tudo pago.</b>${u?` Último pagamento em ${esc(fData(u.data))} (${esc(fMoeda(u.valor))}).`:''}`:'Nenhum lançamento ainda.'}
 function linhaMov(m){
  const r=m.r;
- if(m.k==='l'){const c=!!r.cancelamento;
-  return `<tr data-pgabre="#/pgLanc/${esc(r.id)}" tabindex="0"${c?' class="pg-x"':''}><td class="d">${esc(fData(r.data))}</td><td class="h">${esc(r.setor||'')} · ${esc(plG(r.grades))} × ${esc(fMoeda(r.valorGrade))}${c?'<span class="pg-tag">cancelado</span>':''}${r.obs?`<small>${esc(r.obs)}</small>`:''}</td>
-   <td class="n g">${esc(fG(r.grades))}</td><td class="n c"><span class="v">${esc(fMoeda(tot(r)))}</span></td><td class="n p"></td><td class="n s">${c?'—':valSaldo(m.saldo)}</td></tr>`}
+ if(m.k==='l'){const c=!!r.cancelamento;const em=ehEmp(r);
+  return `<tr data-pgabre="#/pgLanc/${esc(r.id)}" tabindex="0"${c?' class="pg-x"':''}><td class="d">${esc(fData(r.data))}</td><td class="h">${esc(r.setor||'')} · ${esc(descL(r))}${c?'<span class="pg-tag">cancelado</span>':''}${em?`<small>${esc(grupoTxt(r.emp))}</small>`:''}${r.obs?`<small>${esc(r.obs)}</small>`:''}</td>
+   <td class="n g">${em?'—':esc(fG(r.grades))}</td><td class="n c"><span class="v">${esc(fMoeda(tot(r)))}</span></td><td class="n p"></td><td class="n s">${c?'—':valSaldo(m.saldo)}</td></tr>`}
  const e=!!r.estorno;
  return `<tr data-pgabre="#/pgPag/${esc(r.id)}" tabindex="0"${e?' class="pg-x"':''}><td class="d">${esc(fData(r.data))}</td><td class="h">Pagamento${r.forma?' · '+esc(r.forma):''}${e?'<span class="pg-tag">estornado</span>':''}${r.excedente?'<span class="pg-tag in">acima do saldo</span>':''}${r.obs?`<small>${esc(r.obs)}</small>`:''}</td>
   <td class="n g"></td><td class="n c"></td><td class="n p"><span class="v">${esc(fMoeda(r.valor))}</span></td><td class="n s">${e?'—':valSaldo(m.saldo)}</td></tr>`}
@@ -49717,7 +50019,7 @@ function telaEscolher(c,fin){
    :`<div class="vazio"><b>${DATA[COL_T].length?'Ninguém com esta pesquisa':'Nenhum trabalhador cadastrado'}</b>${DATA[COL_T].length?'Confira o nome.':'O cadastro é feito na Produção › Controle por grade › Trabalhadores.'}</div>`);
  ligarBusca(c,'#pgQx',UIX,'q');ligarLinhas(c,'tr[data-go]')}
 const COLS_EXT=[{k:'data',l:'Data',t:'data'},{k:'hist',l:'Histórico'},{k:'grades',l:'Grades',t:'num'},{k:'vg',l:'Valor por grade',t:'moeda'},{k:'cred',l:'A receber',t:'moeda'},{k:'pago',l:'Pago',t:'moeda'},{k:'saldo',l:'Saldo',t:'moeda'},{k:'sit',l:'Situação'}];
-function linhasExtratoExport(E){return [...(E.I.de?[{data:addDias(E.I.de,-1),hist:'Saldo anterior',saldo:E.saldoAnt}]:[]),...E.noP.map(m=>m.k==='l'?{data:m.r.data,hist:(m.r.setor||'')+' · '+plG(m.r.grades)+' × '+fMoeda(m.r.valorGrade),grades:n0(m.r.grades),vg:m.r.valorGrade,cred:tot(m.r),saldo:m.r.cancelamento?'':m.saldo,sit:m.r.cancelamento?'Cancelado':'Lançado'}
+function linhasExtratoExport(E){return [...(E.I.de?[{data:addDias(E.I.de,-1),hist:'Saldo anterior',saldo:E.saldoAnt}]:[]),...E.noP.map(m=>m.k==='l'?{data:m.r.data,hist:(m.r.setor||'')+' · '+descL(m.r),grades:ehEmp(m.r)?'':n0(m.r.grades),vg:ehEmp(m.r)?'':m.r.valorGrade,cred:tot(m.r),saldo:m.r.cancelamento?'':m.saldo,sit:m.r.cancelamento?'Cancelado':'Lançado'}
   :{data:m.r.data,hist:'Pagamento'+(m.r.forma?' · '+m.r.forma:''),pago:n0(m.r.valor),saldo:m.r.estorno?'':m.saldo,sit:m.r.estorno?'Estornado':'Pago'})]}
 function docExtrato(tid,U){
  const t=TRAB(tid);if(!t)return null;const E=dadosExtrato(tid,U);const cpf=cpfDe(tid);const e=CFG.empresa||{};
@@ -49726,10 +50028,10 @@ function docExtrato(tid,U){
  D.quadros=[{rot:'TRABALHADOR',campos:[['Nome',t.nome,1],...(cpf?[['CPF',mascCPF(cpf)]]:[]),['Setor',t.setor||'—'],['Situação',ativo(t)?'Ativo':'Inativo']]}];
  D.blocos.push({tipo:'indicadores',itens:[['Saldo anterior',fMoeda(E.saldoAnt)],['Lançado no período',fMoeda(E.lanc)],['Pago no período',fMoeda(E.pago),'ok'],[E.I.ate&&E.I.ate<hoje()?'Saldo no fim do período':'Saldo de hoje',E.saldoFim<-0.004?fMoeda(-E.saldoFim)+' crédito':fMoeda(E.saldoFim),E.saldoFim>0.004?'at':'']]});
  const body=[...(E.I.de?[[fData(addDias(E.I.de,-1)),'Saldo anterior','','','','',fMoeda(E.saldoAnt)]]:[]),...E.noP.map(m=>m.k==='l'
-  ?[fData(m.r.data),(m.r.setor||'')+(m.r.cancelamento?' (cancelado)':''),fG(m.r.grades),fMoeda(m.r.valorGrade),fMoeda(tot(m.r)),'',m.r.cancelamento?'—':fMoeda(m.saldo)]
+  ?[fData(m.r.data),(m.r.setor||'')+(ehEmp(m.r)?' · '+descL(m.r):'')+(m.r.cancelamento?' (cancelado)':''),ehEmp(m.r)?'—':fG(m.r.grades),ehEmp(m.r)?'—':fMoeda(m.r.valorGrade),fMoeda(tot(m.r)),'',m.r.cancelamento?'—':fMoeda(m.saldo)]
   :[fData(m.r.data),'Pagamento'+(m.r.forma?' · '+m.r.forma:'')+(m.r.estorno?' (estornado)':''),'','','',fMoeda(m.r.valor),m.r.estorno?'—':fMoeda(m.saldo)])];
  D.blocos.push({tipo:'secao',n:'1',titulo:'Lançamentos e pagamentos',tabela:body.length?{head:['Data','Histórico','Grades','Valor por grade','A receber','Pago','Saldo'],body,foot:['Totais do período','',fG(E.grades),'',fMoeda(E.lanc),fMoeda(E.pago),fMoeda(E.saldoFim)],dir:[2,3,4,5,6]}:null,vazio:body.length?'':'Nenhum lançamento nem pagamento no período.'});
- D.blocos.push({tipo:'p',texto:'Saldo = o que foi lançado − o que foi pago. Cada lançamento usa o valor por grade gravado nele. Lançamentos cancelados e pagamentos estornados aparecem marcados e não somam.'});
+ D.blocos.push({tipo:'p',texto:'Saldo = o que foi lançado − o que foi pago. Cada lançamento usa o valor por grade gravado nele.'+(E.noP.some(m=>m.k==='l'&&ehEmp(m.r))?' Na empreita do forno, a linha mostra a parte do trabalhador no valor da empreita (ou o valor todo, quando ele é o responsável pelo grupo).':'')+' Lançamentos cancelados e pagamentos estornados aparecem marcados e não somam.'});
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
  D.assinaturas=[{nome:t.nome,sub:'Trabalhador · conferi o extrato'},{nome:'',sub:'Responsável pelo controle'}];
  D.notaFinal='Extrato interno do Controle por grade, sem valor fiscal. Montado na hora a partir dos lançamentos gravados; emitir este documento não altera nenhum dado.';
@@ -49839,13 +50141,15 @@ function docRecibo(p){
  if(p.estorno)D.blocos.push({tipo:'aviso',texto:'PAGAMENTO ESTORNADO em '+fDataHora(p.estorno.em)+' por '+(quem(p.estorno.por)||'—')+'. Motivo: '+(p.estorno.motivo||'—')+'. Este recibo fica só como registro.'});
  if(p.saldoAntes!=null)D.blocos.push({tipo:'indicadores',itens:[['Falta receber antes',fMoeda(p.saldoAntes)],['Valor pago',fMoeda(p.valor),'ok'],['Falta receber depois',n0(p.saldoDepois)<-0.004?fMoeda(-n0(p.saldoDepois))+' crédito':fMoeda(p.saldoDepois),n0(p.saldoDepois)>0.004?'at':'']]});
  D.blocos.push({tipo:'secao',n:'1',titulo:'Lançamentos quitados por este pagamento',
-  tabela:L.length?{head:['Data','Setor','Grades','Valor por grade','Total do lançamento','Pago aqui'],body:L.map(({l,v})=>[fData(l.data),l.setor||'',fG(l.grades),fMoeda(l.valorGrade),fMoeda(tot(l)),fMoeda(v)]),foot:['Total','',fG(soma(L,x=>n0(x.l.grades))),'','',fMoeda(soma(L,x=>x.v))],dir:[2,3,4,5]}:null,
+  tabela:L.length?{head:['Data','Setor','Grades','Valor por grade','Total do lançamento','Pago aqui'],body:L.map(({l,v})=>[fData(l.data),(l.setor||'')+(ehEmp(l)?' · '+descL(l):''),ehEmp(l)?'—':fG(l.grades),ehEmp(l)?'—':fMoeda(l.valorGrade),fMoeda(tot(l)),fMoeda(v)]),foot:['Total','',fG(soma(L,x=>n0(x.l.grades))),'','',fMoeda(soma(L,x=>x.v))],dir:[2,3,4,5]}:null,
   vazio:L.length?'':(p.estorno?'Pagamento estornado: não quita lançamento.':'Nenhum lançamento em aberto quando foi pago: o valor ficou como crédito para os próximos lançamentos.'),
   nota:L.length?'O pagamento quita primeiro os lançamentos mais antigos. Um lançamento pago em parte continua em aberto pelo resto.':''});
+ const LR=L.filter(x=>ehEmp(x.l)&&x.l.emp.modo==='resp');   /* V158: empreita paga ao responsável, que divide com o grupo */
+ if(LR.length)D.blocos.push({tipo:'p',texto:LR.map(({l})=>'Empreita do '+nomeForno(l.emp)+' de '+fData(l.data)+' ('+fMoeda(l.emp.total)+'): pago a '+t.nome+', responsável pelo grupo, que divide com '+membrosTxt(l.emp,l.trabId)+'.').join(' ')});
  if(p.excedente)D.blocos.push({tipo:'p',texto:'Pago acima do que havia a receber: '+fMoeda(p.excedente.valor)+'. Motivo: '+(p.excedente.motivo||'—')+'. Esse valor fica como crédito e desconta dos próximos lançamentos.'});
  D.blocos.push({tipo:'secao',n:'2',titulo:'Registro no sistema',campos:[['Registrado por',quem(p.criadoPor)||'—'],['Registrado em',p.criadoEm?fDataHora(p.criadoEm):'—'],['Onde',p.origem||ORIG_PROD],['Código',codigo]]});
  if(p.obs)D.observacoes=p.obs;
- D.fecho='Recebi de '+empresa+' a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+'), referente às grades trabalhadas na '+setorTxt+', conforme os lançamentos acima, e dou quitação deste valor.';
+ D.fecho='Recebi de '+empresa+' a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+'), referente '+refPag(L,setorTxt)+', conforme os lançamentos acima, e dou quitação deste valor.';
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(p.data)+'.';
  D.assinaturas=[{nome:t.nome,sub:'Trabalhador · recebi o valor acima'},{nome:quem(p.criadoPor)||'',sub:'Responsável pelo pagamento'}];
  D.notaFinal='Recibo interno de pagamento por grade, sem valor fiscal. Montado na hora a partir do pagamento gravado no sistema; emitir este recibo não altera nenhum dado.';
@@ -49857,17 +50161,24 @@ function docRecibo(p){
   resumo:p.saldoAntes!=null?[['Falta receber antes',fMoeda(p.saldoAntes)]]:[],
   total:['VALOR PAGO',fMoeda(p.valor)],
   blocos:[{rot:'Pagamento',linhas:[['Forma',p.forma||'—'],...(conta?[['Saiu de',conta]]:[]),...(p.saldoDepois!=null?[['Falta receber depois',n0(p.saldoDepois)<-0.004?fMoeda(-n0(p.saldoDepois))+' crédito':fMoeda(p.saldoDepois)]]:[])]},
-   ...(L.length?[{rot:'Lançamentos quitados',linhas:L.map(({l,v})=>[fData(l.data).slice(0,5)+' '+(l.setor||'').slice(0,4)+'. '+fG(l.grades)+' × '+nMoedaG(l.valorGrade),fMoeda(v)])}]:[])],
-  texto:'Recebi a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+') pelas grades trabalhadas.',
+   ...(L.length?[{rot:'Lançamentos quitados',linhas:L.map(({l,v})=>[fData(l.data).slice(0,5)+' '+(ehEmp(l)?'Empreita '+nomeForno(l.emp):(l.setor||'').slice(0,4)+'. '+fG(l.grades)+' × '+nMoedaG(l.valorGrade)),fMoeda(v)])}]:[])],
+  texto:'Recebi a importância de '+fMoeda(p.valor)+' ('+extenso(p.valor)+') '+(L.some(x=>ehEmp(x.l))?(L.every(x=>ehEmp(x.l))?'pela empreita do forno.':'pelas grades trabalhadas e pela empreita do forno.'):'pelas grades trabalhadas.'),
   obs:p.obs||'',
   assinaturas:[{rot:'Trabalhador',nome:t.nome,sub:'Recebi o valor acima'},{rot:'Responsável',nome:quem(p.criadoPor)||''}],
   rodape:'Código '+codigo+' · '+(p.criadoEm?fDataHora(p.criadoEm):'')};
  return D}
 const nMoedaG=v=>fNum(n0(v),2);
+/* V158: texto do "referente a" do recibo (grades, empreita do forno ou os dois) */
+function refPag(L,setorTxt){
+ const em=L.filter(x=>ehEmp(x.l)),gr=L.filter(x=>!ehEmp(x.l));
+ if(!em.length)return 'às grades trabalhadas na '+setorTxt;
+ const fs=[...new Set(em.map(x=>nomeForno(x.l.emp)))].join(', ');
+ const ee=(em.length>1?'às empreitas':'à empreita')+' da desenforna ('+fs+')';
+ return gr.length?'às grades trabalhadas na '+[...new Set(gr.map(x=>x.l.setor).filter(Boolean))].join(' e ')+' e '+ee:ee}
 
 /* ---------- 15. Relatórios: por trabalhador, por setor, lançamentos, pagamentos e lista para assinatura ---------- */
 const UIR={tipo:'mes',ref:'',de:'',ate:'',setor:'',trab:'',rel:'trab'};
-const RELS=[['trab','Por trabalhador'],['setor','Por setor'],['lanc','Lançamentos'],['pag','Pagamentos'],['ass','Lista para assinatura']];
+const RELS=[['trab','Por trabalhador'],['setor','Por setor'],['lanc','Lançamentos'],['emp','Empreitas do forno'],['pag','Pagamentos'],['ass','Lista para assinatura']];
 function dadosRel(U){
  const I=intervalo(U);const s=U.setor,tr=U.trab;
  const T=DATA[COL_T].filter(t=>(!tr||t.id===tr)&&(!s||noSetor(t,s)));
@@ -49875,26 +50186,31 @@ function dadosRel(U){
  const Pg=DATA.pgPag.filter(p=>noPer(p.data,I)&&(!tr||p.trabId===tr)&&(!s||noSetor(TRAB(p.trabId),s))).sort(ordL);
  const ok=L.filter(l=>!l.cancelamento),okP=Pg.filter(p=>!p.estorno);
  const porT=T.map(t=>{const x=contaDe(t.id);const lt=ok.filter(l=>l.trabId===t.id);const pt=okP.filter(p=>p.trabId===t.id);
-  return {t,x,grades:soma(lt,l=>n0(l.grades)),lanc:r2(soma(lt,tot)),pago:r2(soma(pt,p=>n0(p.valor))),nL:lt.length,nP:pt.length,media:soma(lt,l=>n0(l.grades))?r2(soma(lt,tot)/soma(lt,l=>n0(l.grades))):0}})
+  const lg=lt.filter(l=>!ehEmp(l));   /* V158: a média por grade não leva a empreita do forno */
+  return {t,x,grades:soma(lt,l=>n0(l.grades)),lanc:r2(soma(lt,tot)),pago:r2(soma(pt,p=>n0(p.valor))),nL:lt.length,nP:pt.length,media:soma(lg,l=>n0(l.grades))?r2(soma(lg,tot)/soma(lg,l=>n0(l.grades))):0,emp:r2(soma(lt.filter(ehEmp),tot))}})
   .filter(o=>o.nL||o.nP||Math.abs(o.x.saldo)>0.004||(!U.trab&&ativo(o.t)));
  const C=indicadores(I);
- return {I,L,Pg,ok,okP,porT,C}}
+ const E=empsDe(DATA.pgLanc.filter(l=>ehEmp(l)&&noPer(l.data,I)&&(!s||l.setor===s))).filter(g=>!tr||g.resp===tr||g.membros.some(m=>m.id===tr)||g.partes.some(l=>l.trabId===tr));
+ return {I,L,Pg,ok,okP,porT,C,E}}
 const COLS_R={
  trab:[{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades',t:'num'},{k:'media',l:'Média por grade',t:'moeda'},{k:'lanc',l:'Lançado no período',t:'moeda'},{k:'pago',l:'Pago no período',t:'moeda'},{k:'saldo',l:'Falta receber (hoje)',t:'moeda'}],
  setor:[{k:'setor',l:'Setor'},{k:'ativos',l:'Trabalhadores ativos',t:'num'},{k:'grades',l:'Grades',t:'num'},{k:'media',l:'Média por grade',t:'moeda'},{k:'devido',l:'Total devido',t:'moeda'},{k:'pago',l:'Total pago',t:'moeda'},{k:'saldo',l:'Saldo pendente (hoje)',t:'moeda'}],
  lanc:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades',t:'num'},{k:'vg',l:'Valor por grade',t:'moeda'},{k:'total',l:'Total',t:'moeda'},{k:'sit',l:'Situação'},{k:'por',l:'Lançado por'}],
+ emp:[{k:'data',l:'Data',t:'data'},{k:'forno',l:'Forno'},{k:'grupo',l:'Grupo (parte de cada um)'},{k:'n',l:'Peões',t:'num'},{k:'div',l:'Divisão'},{k:'pag',l:'Pagamento'},{k:'total',l:'Valor da empreita',t:'moeda'},{k:'sit',l:'Situação'},{k:'por',l:'Lançado por'}],
  pag:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Trabalhador'},{k:'forma',l:'Forma'},{k:'conta',l:'Saiu de'},{k:'valor',l:'Valor',t:'moeda'},{k:'sit',l:'Situação'},{k:'por',l:'Registrado por'}],
  ass:[{k:'nome',l:'Trabalhador'},{k:'setor',l:'Setor'},{k:'grades',l:'Grades no período',t:'num'},{k:'saldo',l:'Valor a receber',t:'moeda'},{k:'ass',l:'Assinatura'}]};
 function linhasRel(k,R){
  if(k==='trab')return R.porT.map(o=>({nome:o.t.nome,setor:o.t.setor,grades:o.grades,media:o.media,lanc:o.lanc,pago:o.pago,saldo:o.x.saldo}));
- if(k==='setor')return ['Enforna','Desenforna','Total'].map(s=>{const c=R.C[s];return {setor:s,ativos:c.ativos,grades:c.grades,media:c.grades?r2(c.devido/c.grades):0,devido:c.devido,pago:c.pago,saldo:c.saldo}});
- if(k==='lanc')return R.L.map(l=>({data:l.data,nome:nomeT(l.trabId),setor:l.setor,grades:n0(l.grades),vg:l.valorGrade,total:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',por:quem(l.criadoPor)}));
+ if(k==='setor')return ['Enforna','Desenforna','Total'].map(s=>{const c=R.C[s];return {setor:s,ativos:c.ativos,grades:c.grades,media:c.grades?r2(c.devG/c.grades):0,devido:c.devido,pago:c.pago,saldo:c.saldo}});
+ if(k==='lanc')return R.L.map(l=>({data:l.data,nome:nomeT(l.trabId),setor:(l.setor||'')+(ehEmp(l)?' · '+descL(l):''),grades:ehEmp(l)?'':n0(l.grades),vg:ehEmp(l)?'':l.valorGrade,total:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',por:quem(l.criadoPor)}));
+ if(k==='emp')return (R.E||[]).map(g=>({data:g.data,forno:g.fornoNome,grupo:g.nomes,n:g.n,div:g.divisao==='manual'?'Digitada':'Partes iguais',pag:g.modo==='resp'?'Ao responsável ('+nomeT(g.resp)+')':'Cada um a sua parte',total:g.total,sit:g.cancelado?'Cancelada':'Lançada',por:quem(g.por)}));
  if(k==='pag')return R.Pg.map(p=>({data:p.data,nome:nomeT(p.trabId),forma:p.forma||'',conta:nomeConta(p.contaId),valor:n0(p.valor),sit:p.estorno?'Estornado':'Pago',por:quem(p.criadoPor)}));
  return R.porT.filter(o=>o.x.saldo>0.004).map(o=>({nome:o.t.nome,setor:o.t.setor,grades:o.grades,saldo:o.x.saldo,ass:''}))}
 function fmtCel(c,v){if(v===''||v==null)return '';if(c.t==='moeda')return /^saldo/.test(c.k)&&v<-0.004?fMoeda(-v)+' (crédito)':fMoeda(v);if(c.t==='num')return fG(v);if(c.t==='data')return fData(v);return String(v)}
 function totaisRel(k,rows){
  if(k==='trab')return ['Total','',fG(soma(rows,r=>r.grades)),'',fMoeda(soma(rows,r=>r.lanc)),fMoeda(soma(rows,r=>r.pago)),fMoeda(soma(rows,r=>Math.max(0,r.saldo)))];
- if(k==='lanc'){const ok=rows.filter(r=>r.sit!=='Cancelado');return ['Total (sem cancelados)','','',fG(soma(ok,r=>r.grades)),'',fMoeda(soma(ok,r=>r.total)),'','']}
+ if(k==='lanc'){const ok=rows.filter(r=>r.sit!=='Cancelado');return ['Total (sem cancelados)','','',fG(soma(ok,r=>n0(r.grades))),'',fMoeda(soma(ok,r=>r.total)),'','']}
+ if(k==='emp'){const ok=rows.filter(r=>r.sit!=='Cancelada');return ['Total (sem canceladas)','',pl(ok.length,'empreita'),'','','',fMoeda(soma(ok,r=>r.total)),'','']}
  if(k==='pag'){const ok=rows.filter(r=>r.sit!=='Estornado');return ['Total (sem estornados)','','','',fMoeda(soma(ok,r=>r.valor)),'','']}
  if(k==='ass')return ['Total','',fG(soma(rows,r=>r.grades)),fMoeda(soma(rows,r=>r.saldo)),''];
  return null}
@@ -49904,12 +50220,12 @@ function docRel(U,quais){
  const ass=quais.length===1&&quais[0]==='ass';
  const D=baseRel(ass?'LISTA PARA ASSINATURA':'RELATÓRIO DO CONTROLE POR GRADE',(ass?'Pagamento por grade · ':'')+intervalo(U).rot,[['Período',intervalo(U).rot],['Setor',U.setor||'Enforna e Desenforna'],['Trabalhador',U.trab?nomeT(U.trab):'Todos']]);
  D.setor=nomeSetorDoc('producao');
- if(!ass)D.blocos.push({tipo:'indicadores',itens:[['Grades',fG(R.C.Total.grades)],['Total devido',fMoeda(R.C.Total.devido)],['Total pago',fMoeda(R.C.Total.pago),'ok'],['Saldo pendente (hoje)',fMoeda(R.C.Total.saldo),R.C.Total.saldo>0.004?'at':'']]});
+ if(!ass)D.blocos.push({tipo:'indicadores',itens:[['Grades',fG(R.C.Total.grades)],...(R.C.Total.emp&&R.C.Total.emp.n?[['Empreitas do forno',pl(R.C.Total.emp.n,'empreita')+' · '+fMoeda(R.C.Total.emp.v)]]:[]),['Total devido',fMoeda(R.C.Total.devido)],['Total pago',fMoeda(R.C.Total.pago),'ok'],['Saldo pendente (hoje)',fMoeda(R.C.Total.saldo),R.C.Total.saldo>0.004?'at':'']]});
  quais.forEach((k,i)=>{const cols=COLS_R[k];const rows=linhasRel(k,R);const ft=totaisRel(k,rows);
   D.blocos.push({tipo:'secao',n:String(i+1),titulo:titulos[k],tabela:rows.length?{head:cols.map(c=>c.l),body:rows.map(r=>cols.map(c=>c.k==='ass'?'______________________________':fmtCel(c,r[c.k]))),...(ft?{foot:ft}:{}),dir:cols.map((c,j)=>c.t==='moeda'||c.t==='num'?j:-1).filter(j=>j>=0)}:null,vazio:rows.length?'':'Nada no período.'})});
  if(ass){D.blocos.push({tipo:'p',texto:'Cada trabalhador assina ao receber. O valor é o que ele tem a receber hoje (tudo o que foi lançado − tudo o que foi pago). Registre cada pagamento no sistema para o saldo baixar.'});
   D.assinaturas=[{nome:'',sub:'Responsável pelo pagamento'}]}
- else D.blocos.push({tipo:'p',texto:'Total devido = grades × valor por grade de cada lançamento do período. Pago por setor: o pagamento quita primeiro os lançamentos mais antigos. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamentos cancelados e pagamentos estornados não somam.'});
+ else D.blocos.push({tipo:'p',texto:'Total devido = grades × valor por grade de cada lançamento do período, mais a parte de cada um nas empreitas do forno. Pago por setor: o pagamento quita primeiro os lançamentos mais antigos. Saldo pendente = tudo o que foi lançado − tudo o que foi pago, até hoje. Lançamentos cancelados e pagamentos estornados não somam.'});
  D.local=(e.cidade?e.cidade+', ':'')+dataExtenso(hoje())+'.';
  D.notaFinal='Relatório interno do Controle por grade. Montado na hora a partir dos lançamentos gravados; emitir não altera nenhum dado.';
  D.rodape=(ass?'Lista para assinatura':'Relatório do controle por grade')+' · '+intervalo(U).rot;
@@ -49918,7 +50234,7 @@ function docRel(U,quais){
 function telaRel(c){
  const R=dadosRel(UIR);const k=RELS.some(r=>r[0]===UIR.rel)?UIR.rel:'trab';const cols=COLS_R[k];const rows=linhasRel(k,R);const ft=totaisRel(k,rows);
  const tit=Object.fromEntries(RELS)[k];
- c.innerHTML=cabG('grafico','Relatórios do controle por grade','Por trabalhador, por setor, lançamentos e pagamentos do período, e a lista para assinatura no dia do pagamento. Visualize, imprima, gere o PDF ou a planilha.',
+ c.innerHTML=cabG('grafico','Relatórios do controle por grade','Por trabalhador, por setor, lançamentos, empreitas do forno e pagamentos do período, e a lista para assinatura no dia do pagamento. Visualize, imprima, gere o PDF ou a planilha.',
    `<button type="button" class="btn" id="pgRx">${ic('baixar')}Exportar ▾</button><button type="button" class="btn pri" id="pgRdoc">${ic('doc')}Relatório completo</button>`)+
   htmlPer(UIR,'rel')+
   `<div class="pg-rel-f fi-filtros"><select id="pgRs" aria-label="Setor"><option value="">Setor: todos</option>${optH(SETORES_G,UIR.setor)}</select>
@@ -49928,7 +50244,7 @@ function telaRel(c){
   ${rows.length?`<div class="pg-tbw"><table class="pg-tb"><thead><tr>${cols.map(c2=>`<th class="${c2.t==='moeda'||c2.t==='num'?'n':''}">${esc(c2.l)}</th>`).join('')}</tr></thead><tbody>
    ${rows.map(r=>`<tr>${cols.map(c2=>`<td data-l="${esc(c2.l)}" class="${c2.t==='moeda'||c2.t==='num'?'n':''}">${esc(fmtCel(c2,r[c2.k]))}</td>`).join('')}</tr>`).join('')}
    ${ft?`<tr class="pg-fim">${ft.map((v,i)=>`<td data-l="${esc(cols[i].l)}" class="${cols[i].t==='moeda'||cols[i].t==='num'?'n':''}">${esc(v)}</td>`).join('')}</tr>`:''}</tbody></table></div>`
-   :`<div class="vazio"><b>Nada para mostrar</b>Não há ${k==='pag'?'pagamento':k==='ass'?'trabalhador com saldo a receber':'lançamento'} com estes filtros.</div>`}
+   :`<div class="vazio"><b>Nada para mostrar</b>Não há ${k==='pag'?'pagamento':k==='ass'?'trabalhador com saldo a receber':k==='emp'?'empreita do forno':'lançamento'} com estes filtros.</div>`}
   ${k==='setor'&&(R.C.credPer>0.004)?`<p class="pg-nota">Do total pago, ${esc(fMoeda(R.C.credPer))} foi pago a mais do que havia lançado (crédito) e ainda não tem setor.</p>`:''}</div>`;
  ligarPer(c,UIR,'rel');
  const s1=$('#pgRs',c);if(s1)s1.onchange=()=>{UIR.setor=s1.value;renderTela()};
@@ -49937,7 +50253,7 @@ function telaRel(c){
  const tituloX=tit+' · '+filtrosTxt(UIR);
  $('#pgRx',c).onclick=()=>abrirMenuMais($('#pgRx',c),[...itensAcaoDoc(()=>docRel(UIR,[k]),tituloX),
   {l:'Exportar Excel',sub:'a tabela da tela',fn:()=>exportar('xlsx',(k==='ass'?'Lista_assinatura_grade_':'Grade_'+k+'_')+hoje(),cols,rows,tituloX,{filtros:filtrosTxt(UIR)})}]);
- $('#pgRdoc',c).onclick=()=>abrirMenuMais($('#pgRdoc',c),itensAcaoDoc(()=>docRel(UIR,['setor','trab','lanc','pag']),'Relatório completo · '+filtrosTxt(UIR)))}
+ $('#pgRdoc',c).onclick=()=>abrirMenuMais($('#pgRdoc',c),itensAcaoDoc(()=>docRel(UIR,['setor','trab','lanc',...(dadosRel(UIR).E.length?['emp']:[]),'pag']),'Relatório completo · '+filtrosTxt(UIR)))}
 
 /* ---------- 16. Setor Financeiro › Pagamento por grade (o mesmo controle, visto e pago de lá) ---------- */
 const UIF={vis:'aberto',q:'',tipo:'mes',ref:'',de:'',ate:''};
@@ -49948,7 +50264,7 @@ function telaFin(c){
  if(!pode('fGrade')){c.innerHTML=semAcesso();return}
  const I=intervalo(UIF);const pg=podePagar();const q=N(UIF.q);
  const todas=DATA[COL_T].map(t=>{const x=contaDe(t.id);const L=x.lancs.filter(l=>!l.cancelamento&&noPer(l.data,I));const Pp=x.pags.filter(p=>!p.estorno&&noPer(p.data,I));
-  return {t,x,lanP:r2(soma(L,tot)),grP:soma(L,l=>n0(l.grades)),pagP:r2(soma(Pp,p=>n0(p.valor)))}});
+  return {t,x,lanP:r2(soma(L,tot)),grP:soma(L,l=>n0(l.grades)),emP:new Set(L.filter(ehEmp).map(l=>l.emp.id)).size,pagP:r2(soma(Pp,p=>n0(p.valor)))}});
  const ab=todas.filter(o=>o.x.saldo>0.004),cr=todas.filter(o=>o.x.saldo<-0.004);
  const pags=DATA.pgPag.filter(p=>noPer(p.data,I)).sort(desc);const pagsOk=pags.filter(p=>!p.estorno);
  const vis=UIF.vis==='pagos'?'pagos':'trab';const k=CHIPS_F.some(x=>x[0]===UIF.vis)?UIF.vis:'aberto';
@@ -49969,7 +50285,7 @@ function telaFin(c){
  else{const L=todas.filter(o=>passaF(o,k)&&(!q||N(o.t.nome+' '+(o.t.apelido||'')+' '+o.t.setor).includes(q))).sort((a,b)=>b.x.saldo-a.x.saldo||porNome(a.t,b.t));
   corpo=`<div class="cpl-chips" role="group" aria-label="Situação">${CHIPS_F.map(([id,l])=>`<button type="button" class="btn min${k===id?' pri':''}" data-pgfs="${id}" aria-pressed="${k===id}">${esc(l)}<em>${todas.filter(o=>passaF(o,id)).length}</em></button>`).join('')}</div>`+
    (L.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Nome</th><th>Setor</th><th class="num">Lançado no período</th><th class="num">Pago no período</th><th>Último pagamento</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
-    ${L.map(o=>{const u=ultimoPag(o.x);return `<tr class="clic" data-go="#/fGrade/${esc(o.t.id)}" tabindex="0"><td data-l="Nome"><b>${esc(o.t.nome)}</b><span class="pg-sub">${esc(plG(o.grP))} no período${ativo(o.t)?'':' · inativo'}</span></td><td data-l="Setor">${esc(o.t.setor)}</td>
+    ${L.map(o=>{const u=ultimoPag(o.x);return `<tr class="clic" data-go="#/fGrade/${esc(o.t.id)}" tabindex="0"><td data-l="Nome"><b>${esc(o.t.nome)}</b><span class="pg-sub">${esc(plG(o.grP))} no período${o.emP?' · '+esc(pl(o.emP,'empreita')):''}${ativo(o.t)?'':' · inativo'}</span></td><td data-l="Setor">${esc(o.t.setor)}</td>
      <td data-l="Lançado no período" class="num">${esc(fMoeda(o.lanP))}</td><td data-l="Pago no período" class="num">${esc(fMoeda(o.pagP))}</td><td data-l="Último pagamento">${u?esc(fData(u.data))+' · '+esc(fMoeda(u.valor)):'—'}</td>
      <td data-l="Falta pagar" class="num">${valSaldo(o.x.saldo)}</td><td data-l="Situação">${tagSit(o.x)}</td>
      <td class="acs">${pg&&o.x.saldo>0.004?`<button type="button" class="btn min pri" data-pgfpagar="${esc(o.t.id)}">Pagar</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`
@@ -49979,7 +50295,7 @@ function telaFin(c){
   htmlPer(UIF,'fin')+
   `<div class="cpl-cards" role="tablist" aria-label="Resumo do pagamento por grade">${cards.map(q2=>`<button type="button" role="tab" data-pgfv="${esc(q2.k)}" aria-selected="${sel===q2.k}" class="${esc(q2.cls||'')}"><span class="rot">${esc(q2.rot)}</span><b>${esc(q2.v)}</b>${q2.sub?`<small>${esc(q2.sub)}</small>`:''}<span class="ver" aria-hidden="true">›</span></button>`).join('')}</div>`+
   `<div class="pg-busca fi-filtros"><input type="search" id="pgFq" placeholder="${vis==='pagos'?'Procurar pagamento':'Localizar trabalhador'}" value="${esc(UIF.q)}" aria-label="Localizar"></div>`+corpo+
-  `<p class="cpl-nota">Falta pagar = tudo o que foi lançado − tudo o que foi pago. Cada lançamento usa o valor por grade gravado nele. Toque no trabalhador para ver o extrato e pagar inteiro ou em parte; pagar mais do que ele tem a receber pede confirmação e motivo.</p>`;
+  `<p class="cpl-nota">Falta pagar = tudo o que foi lançado − tudo o que foi pago. Cada lançamento usa o valor por grade gravado nele; a empreita do forno entra com a parte de cada um (ou o valor todo no responsável pelo grupo). Toque no trabalhador para ver o extrato e pagar inteiro ou em parte; pagar mais do que ele tem a receber pede confirmação e motivo.</p>`;
  ligarPer(c,UIF,'fin');ligarBusca(c,'#pgFq',UIF,'q');ligarLinhas(c,'tr[data-go]');
  $$('[data-pgfv]',c).forEach(b=>b.onclick=()=>{UIF.vis=b.dataset.pgfv;renderTela()});
  $$('[data-pgfs]',c).forEach(b=>b.onclick=()=>{UIF.vis=b.dataset.pgfs;renderTela()});
@@ -50007,6 +50323,7 @@ const comLancar=c=>{const b=$('#bNovo',c);if(b)b.innerHTML=ic('mais')+'Lançar g
 Object.assign(TELAS_V,{
  pgrade:el=>shellProd(el,'pgrade',telaPainel),
  pgDia:el=>shellProd(el,'pgDia',telaDia),
+ pgEmp:el=>shellProd(el,'pgEmp',telaEmp),
  pgLanc:el=>shellProd(el,'pgLanc',c=>{telaLista(c,'pgLanc');comLancar(c)}),
  pgTrab:el=>shellProd(el,'pgTrab',c=>telaLista(c,'pgTrab')),
  pgPag:el=>shellProd(el,'pgPag',c=>{telaLista(c,'pgPag');comPagar(c)}),
@@ -50018,12 +50335,16 @@ Object.assign(TELAS_V,{
    no painel do setor (cartão no "No mês") e na tela Lançar (Grades por trabalhador). */
 window.PROD_ABAS_EXTRA=window.PROD_ABAS_EXTRA||[];
 if(!window.PROD_ABAS_EXTRA.some(a=>a.m==='pgrade'))window.PROD_ABAS_EXTRA.push({r:'#/pgrade',m:'pgrade',ic:'pgGrade',l:'Controle por grade',at:ROTAS.slice(),antes:'#/prel',
- sub:[['#/pgrade','pgrade','Painel',['pgrade']],['#/pgDia','pgDia','Lançar o dia',['pgDia']],['#/pgLanc','pgLanc','Lançamentos',['pgLanc']],['#/pgTrab','pgTrab','Trabalhadores',['pgTrab']],
+ sub:[['#/pgrade','pgrade','Painel',['pgrade']],['#/pgDia','pgDia','Lançar o dia',['pgDia']],['#/pgEmp','pgEmp','Empreita do forno',['pgEmp']],['#/pgLanc','pgLanc','Lançamentos',['pgLanc']],['#/pgTrab','pgTrab','Trabalhadores',['pgTrab']],
   ['#/pgPag','pgPag','Pagamentos',['pgPag']],['#/pgExtrato','pgExtrato','Extrato',['pgExtrato']],['#/pgRel','pgRel','Relatórios',['pgRel']]]});
 window.PROD_LANC_EXTRA=window.PROD_LANC_EXTRA||[];
 if(!window.PROD_LANC_EXTRA.some(x=>x.k==='pgDia'))window.PROD_LANC_EXTRA.push({k:'pgDia',m:'pgDia',ic:'pgGrade',t:'Grades por trabalhador',
  d:'Enforna e Desenforna: as grades de cada trabalhador no dia e o valor por grade.',go:()=>{JBNAV.ir('#/pgDia')},
- vch:()=>{const n=DATA.pgLanc.filter(l=>!l.cancelamento&&l.data===hoje()).length;return 'hoje: '+n+' lançamento'+(n===1?'':'s')}});
+ vch:()=>{const n=DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&l.data===hoje()).length;return 'hoje: '+n+' lançamento'+(n===1?'':'s')}});
+/* V158: a empreita do forno também na tela Lançar da Produção, logo depois das grades */
+if(!window.PROD_LANC_EXTRA.some(x=>x.k==='pgEmp'))window.PROD_LANC_EXTRA.push({k:'pgEmp',m:'pgEmp',ic:'chama',t:'Empreita do forno',
+ d:'Desenforna por empreita: o valor do forno dividido entre o grupo de peões.',go:()=>{JBNAV.ir('#/pgEmp')},
+ vch:()=>{const n=new Set(DATA.pgLanc.filter(l=>ehEmp(l)&&!l.cancelamento&&l.data===hoje()).map(l=>l.emp.id)).size;return 'hoje: '+n+' lançamento'+(n===1?'':'s')}});
 /* cartão "Controle por grade" no "No mês" do painel da Produção: grades lançadas no mês e quanto falta pagar */
 function cartaoMesProd(N){
  if(!pode('pgrade'))return '';
@@ -50031,7 +50352,8 @@ function cartaoMesProd(N){
  const L=DATA.pgLanc.filter(l=>!l.cancelamento&&String(l.data||'').slice(0,7)===m);
  const gr=s=>soma(L.filter(l=>!s||l.setor===s),l=>n0(l.grades));
  const ts=DATA[COL_T];const ab=ts.map(t=>contaDe(t.id)).filter(x=>x.saldo>0.004);const falta=r2(soma(ab,x=>x.saldo));
- const l1=!ts.length?'Toque para cadastrar os trabalhadores e lançar as grades do dia':SETORES_G.map(s=>s+' '+fG(gr(s))).join(' · ');
+ const ne=new Set(L.filter(ehEmp).map(l=>l.emp.id)).size;   /* V158: empreitas do forno no mês */
+ const l1=!ts.length?'Toque para cadastrar os trabalhadores e lançar as grades do dia':SETORES_G.map(s=>s+' '+fG(gr(s))).join(' · ')+(ne?' · '+pl(ne,'empreita'):'');
  const l2=!ts.length?'':falta>0.004?'falta pagar '+fMoeda(falta):'nada a pagar agora';
  return `<a class="pp-k pp-sm pg-pk" href="#/pgrade" data-tip="Abrir o Controle por grade (Enforna e Desenforna)"><div class="pp-kc"><span class="pp-ki">${ic('pgGrade')}</span><span class="pp-kl">Controle por grade</span></div>
   <div class="pp-kv">${esc(fG(gr('')))}<small>${gr('')===1?'grade':'grades'}</small></div><div class="pp-ks">${esc(l1)}</div>${l2?`<div class="pp-ks pg-pks">${esc(l2)}</div>`:''}</a>`}
@@ -50045,25 +50367,29 @@ if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fGrade'))window.FIN_ABAS_EXTRA.push({de
 /* recibo no lugar do comprovante genérico do pagamento */
 try{if(typeof COMP_LANC!=='undefined'&&COMP_LANC){
  const e0=COMP_LANC.emitir,d0=COMP_LANC.doc,b0=COMP_LANC.botao;
- COMP_LANC.emitir=function(mod,ant,sujo){if(mod==='pgPag'&&ant){verDoc(docRecibo(DATA.pgPag.find(p=>p.id===ant.id)||ant));return}return e0.apply(this,arguments)};
- COMP_LANC.doc=function(mod,st){if(mod==='pgPag'&&st)return docRecibo(DATA.pgPag.find(p=>p.id===st.id)||st);return d0.apply(this,arguments)};
- COMP_LANC.botao=function(mod,st){const h=b0.apply(this,arguments);return mod==='pgPag'&&h?h.replace(/data-tip="[^"]*"/,'data-tip="Emitir o recibo deste pagamento (imprimir, PDF ou compartilhar)"').replace(/Comprovante<\/button>/,'Recibo</button>'):h}}}catch(e){console.warn('grade: recibo',e)}
+ COMP_LANC.emitir=function(mod,ant,sujo){if(mod==='pgPag'&&ant){verDoc(docRecibo(DATA.pgPag.find(p=>p.id===ant.id)||ant));return}
+  if(mod==='pgLanc'&&ant&&ehEmp(ant)){verDoc(docEmp(ant.emp.id));return}   /* V158: parte de empreita → comprovante da empreita */
+  return e0.apply(this,arguments)};
+ COMP_LANC.doc=function(mod,st){if(mod==='pgPag'&&st)return docRecibo(DATA.pgPag.find(p=>p.id===st.id)||st);if(mod==='pgLanc'&&st&&ehEmp(st))return docEmp(st.emp.id);return d0.apply(this,arguments)};
+ COMP_LANC.botao=function(mod,st){const h=b0.apply(this,arguments);if(mod==='pgLanc'&&h&&st&&ehEmp(st))return h.replace(/data-tip="[^"]*"/,'data-tip="Emitir o comprovante da empreita do forno (o grupo, a parte de cada um e as assinaturas)"');
+  return mod==='pgPag'&&h?h.replace(/data-tip="[^"]*"/,'data-tip="Emitir o recibo deste pagamento (imprimir, PDF ou compartilhar)"').replace(/Comprovante<\/button>/,'Recibo</button>'):h}}}catch(e){console.warn('grade: recibo',e)}
 /* busca geral (Ctrl K): as telas e cada trabalhador */
 if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{
  const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
  const add=(g,t,s,ico,rota,extra)=>E.push({g,t,s,ic:ico,k:NN(t+' '+s+' '+(extra||'')),ir:()=>JBNAV.ir(rota),h:rota,ix:E.length});
  if(pode('pgrade')){add('Telas','Controle por grade','Produção · trabalhadores da Enforna e da Desenforna que recebem por grade','pgGrade','#/pgrade','grade grades enforna desenforna pagamento producao trabalhador diaria');
   if(pode('pgDia'))add('Telas','Lançar grades do dia','Produção · Controle por grade','pgGrade','#/pgDia','lancar grade grades enforna desenforna dia');
+  if(pode('pgEmp'))add('Telas','Empreita do forno','Produção · Controle por grade · desenforna por empreita, o valor dividido entre o grupo','chama','#/pgEmp','empreita forno desenforna grupo peao peoes dividir valor fechado responsavel');
   add('Telas','Relatórios do controle por grade','Produção · por trabalhador, por setor, lançamentos, pagamentos e lista para assinatura','grafico','#/pgRel','relatorio grade');
   DATA[COL_T].forEach(t=>{const x=contaDe(t.id);add('Trabalhadores por grade',t.nome,t.setor+' · '+(x.saldo>0.004?'falta receber '+fMoeda(x.saldo):x.saldo<-0.004?'crédito '+fMoeda(-x.saldo):'em dia'),'pgGrade','#/pgExtrato/'+t.id,(t.apelido||'')+' extrato grade')})}
  if(pode('fGrade'))add('Telas','Pagamento por grade','Financeiro · o que cada trabalhador da Enforna e da Desenforna tem a receber','pgGrade','#/fGrade','pagar grade enforna desenforna trabalhador financeiro')}catch(e){}return E}}
 /* Lançamentos do setor (Relatórios da Produção): também os lançamentos e pagamentos por grade */
 try{const J=window.JB_DOCL;if(J&&typeof J.registrarFonte==='function')J.registrarFonte('producao',()=>{if(!pode('pgrade'))return [];
  const dh=iso=>iso?fData(String(iso).slice(0,10))+' às '+horaDe(iso):'';
- return [...DATA.pgLanc.map(l=>({data:l.data,reg:dh(l.criadoEm),_ord:(l.data||'')+'||'+(l.criadoEm||''),tipo:'Grades · '+(l.setor||''),cod:cod('GR',l.id),desc:nomeT(l.trabId)+' · '+plG(l.grades)+' × '+fMoeda(l.valorGrade),qtd:plG(l.grades),valor:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',resp:quem(l.criadoPor),_uid:l.criadoPor||'',_go:'#/pgLanc/'+l.id,_doc:()=>COMP_LANC.doc('pgLanc',DATA.pgLanc.find(x=>x.id===l.id)||l),_docT:'Comprovante do lançamento de grades'})),
+ return [...DATA.pgLanc.map(l=>({data:l.data,reg:dh(l.criadoEm),_ord:(l.data||'')+'||'+(l.criadoEm||''),tipo:(ehEmp(l)?'Empreita · ':'Grades · ')+(l.setor||''),cod:cod('GR',l.id),desc:nomeT(l.trabId)+' · '+descL(l),qtd:ehEmp(l)?'':plG(l.grades),valor:tot(l),sit:l.cancelamento?'Cancelado':'Lançado',resp:quem(l.criadoPor),_uid:l.criadoPor||'',_go:'#/pgLanc/'+l.id,_doc:()=>COMP_LANC.doc('pgLanc',DATA.pgLanc.find(x=>x.id===l.id)||l),_docT:ehEmp(l)?'Comprovante da empreita do forno':'Comprovante do lançamento de grades'})),
   ...DATA.pgPag.map(p=>({data:p.data,reg:dh(p.criadoEm),_ord:(p.data||'')+'||'+(p.criadoEm||''),tipo:'Pagamento por grade',cod:cod('PG',p.id),desc:nomeT(p.trabId)+(p.forma?' · '+p.forma:''),qtd:'',valor:n0(p.valor),sit:p.estorno?'Estornado':'Pago',resp:quem(p.criadoPor),_uid:p.criadoPor||'',_go:'#/pgPag/'+p.id,_doc:()=>docRecibo(DATA.pgPag.find(x=>x.id===p.id)||p),_docT:'Recibo de pagamento por grade'}))]})}catch(e){console.warn('grade: lançamentos do setor',e)}
 
-window.JB_GRADE=Object.freeze({COL,COL_T,calc,contaDe,alocar,extenso,intervalo,docRecibo,docExtrato,docRel,abrirPagamento,abrirLancamento,tot,SETORES_G});
+window.JB_GRADE=Object.freeze({COL,COL_T,calc,contaDe,alocar,extenso,intervalo,docRecibo,docExtrato,docRel,abrirPagamento,abrirLancamento,tot,SETORES_G,partesIguais,empsDe,docEmp,abrirEmp});
 })();
 </script>
 <style id="frota-revisoes-v157-css">

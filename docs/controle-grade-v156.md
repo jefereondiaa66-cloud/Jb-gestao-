@@ -84,6 +84,35 @@ nenhum dos dois): 13 de 13 gravações com o resultado esperado (o Financeiro pa
 mês com lançamento, mas não cadastra, não lança, não altera nem tira lançamento, nem troca lançamento por
 pagamento; quem não tem os módulos não grava nem lê).
 
+## V158 · Empreita do forno (Desenforna)
+
+Pedido do dono (23/11/2026): o grupo de peões desenforna o forno por um valor fechado e divide entre eles.
+
+- Onde fica: Produção › Controle por grade › **Empreita do forno** (sub-aba logo depois de "Lançar o dia"),
+  na tela **Lançar** da Produção ("Empreita do forno", depois de "Grades por trabalhador"), no botão
+  "Empreita do forno" do painel do controle e na busca geral.
+- Na tela: data, forno (os fornos ativos do Setor da Lenha, ou "Outro" para digitar o nome), **valor da empreita
+  digitado em cada empreita** (não há valor guardado por forno) e os peões que fizeram parte (os da Desenforna e
+  de dois setores; os da Enforna aparecem ao pedir).
+- Divisão: **partes iguais** (em centavos: R$ 100,00 para 3 = 33,34 + 33,33 + 33,33, a soma sempre fecha) ou
+  **a parte de cada um digitada** (começa com a parte igual; a soma tem que dar o valor da empreita, senão não salva).
+- Pagamento, duas opções: **cada peão recebe a parte dele** (um lançamento no saldo de cada um) ou **tudo para um
+  responsável** do grupo, que divide com os outros (um lançamento só, no saldo dele, com a divisão anotada).
+- Desenforna em mais de um dia é uma empreita só. Empreita do mesmo forno em dias próximos (até 3 dias) pede
+  confirmação; data de mais de 45 dias e peão inativo também.
+- Gravação: cada parte é um lançamento comum do controle (`prodGrade`, tipo `lanc`, setor Desenforna, grades 0),
+  com o valor em `valorEmp` e os dados da empreita em `emp` (id, forno, nome do forno, valor, peões, divisão,
+  pagamento, responsável). Os códigos são criados uma vez: se a gravação falhar no meio, "Terminar de salvar"
+  grava só o que faltava, sem duplicar. Não precisou de migração no banco.
+- Nada é apagado: "Cancelar a empreita" (com motivo) cancela as partes de todos juntas; "Reativar a empreita"
+  devolve. A parte de um peão não muda de dia, pessoa ou valor sozinha (só a observação): para mudar, cancela e
+  lança de novo. Tudo fica no histórico.
+- Aparece no extrato (forno, grupo e parte), no pagamento e no recibo ("referente à empreita da desenforna";
+  para o responsável, com quem ele divide), no painel (linha "Empreitas do forno"), no Financeiro (Pagamento por
+  grade), nos Lançamentos do setor e no relatório **Empreitas do forno**. O comprovante da empreita (folha A4 ou
+  cupom) tem o grupo, a parte de cada um e a linha para cada peão assinar.
+- A média por grade dos relatórios não leva a empreita; o "Lançar o dia" não conta a empreita como grade repetida.
+
 ## Testes
 
 - `scripts/testar-controle-grade.mjs` (programa real, banco simulado, dados fictícios): cadastro, lote da
@@ -91,7 +120,9 @@ pagamento; quem não tem os módulos não grava nem lê).
   com histórico, pagamento parcial e total, repetido e acima do saldo, crédito, estorno, cancelar e reativar,
   recibo, painel por setor, extrato e filtros, relatórios, pagamento pelo Financeiro, nada gravado fora do
   controle, os dados voltando iguais ao abrir de novo, computador e celular sem rolagem para o lado e sem
-  erro de JavaScript.
+  erro de JavaScript. V158: empreita do forno (partes iguais em centavos, parte digitada que não fecha, tudo
+  para um responsável, aviso de repetida, nova tentativa sem duplicar, cancelar e reativar a empreita inteira,
+  extrato, painel, pagamento, recibo, relatório, comprovante e celular).
 - `scripts/verificar.mjs`, grupo `[grade]`: coleções, valor por lançamento, nada apagado nem misturado,
   navegação pelo JBNAV, ligações com a Produção, o Financeiro e o painel do dono, migração só com acréscimos.
 

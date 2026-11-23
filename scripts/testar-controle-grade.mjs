@@ -13,6 +13,10 @@
 //  - os dados voltam iguais ao abrir de novo (armazenamento no banco central); celular sem rolagem para o lado
 //  - V156.1: o controle fica à vista na Produção (a barra de abas é desligada nos setores): cartão no "No mês" do
 //    painel, módulo antes de Relatórios e "Grades por trabalhador" na tela Lançar
+//  - V158: empreita do forno (Desenforna): valor digitado em cada empreita, partes iguais (centavos que fecham) ou
+//    a parte de cada um (a soma tem que dar o valor), cada peão recebe a sua parte ou tudo vai para um responsável,
+//    aviso de empreita repetida, nova tentativa sem duplicar, cancelar e reativar a empreita inteira, extrato,
+//    recibo, painel, relatório e comprovante com as assinaturas do grupo
 // Uso: node scripts/construir.mjs && node scripts/testar-controle-grade.mjs
 // FOTOS=<pasta> guarda capturas das telas (computador e celular).
 import { readFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
@@ -109,7 +113,7 @@ try {
   console.log('Telas e menu');
   await ir('#/pgrade', '.pg-passos');
   ok(await avaliar(() => document.querySelector('#conteudo h1').textContent.includes('Controle por grade')), 'a tela do controle abre pela Produção, com os 3 passos para começar');
-  ok(await avaliar(() => (window.PROD_ABAS_EXTRA || []).some((a) => a.r === '#/pgrade' && a.sub.length === 7)), 'a Produção tem a aba "Controle por grade" com Painel, Lançar o dia, Lançamentos, Trabalhadores, Pagamentos, Extrato e Relatórios');
+  ok(await avaliar(() => (window.PROD_ABAS_EXTRA || []).some((a) => a.r === '#/pgrade' && a.sub.map((x) => x[2]).join() === 'Painel,Lançar o dia,Empreita do forno,Lançamentos,Trabalhadores,Pagamentos,Extrato,Relatórios')), 'a Produção tem a aba "Controle por grade" com Painel, Lançar o dia, Empreita do forno, Lançamentos, Trabalhadores, Pagamentos, Extrato e Relatórios');
   ok(await avaliar(() => (window.FIN_ABAS_EXTRA || []).some((a) => a.r === '#/fGrade')), 'o Financeiro tem o módulo "Pagamento por grade"');
   ok(await avaliar(() => !MODS.pgTrab.fields.some((f) => /valor|pre[cç]o/i.test(f.k + ' ' + (f.l || '')))), 'o cadastro do trabalhador não tem valor por grade (nem tabela de preços)');
   await foto('01-painel-vazio');
@@ -133,7 +137,7 @@ try {
   ok(await avaliar(() => location.hash === '#/pgrade' && !!document.querySelector('.pg-passos')), 'tocar no cartão abre o Controle por grade');
   await ir('#/plancar', '.hero.pm-lanc');
   const lc = await avaliar(() => [...document.querySelectorAll('.hero.pm-lanc .kpi .v')].map((e) => e.textContent.trim()));
-  ok(lc[lc.length - 1] === 'Grades por trabalhador' && lc.slice(0, -1).join() === 'Produção da maromba,Entrada no secador,Saída do secador,Enforna,Desenforna,Parada da maromba,Perda na secagem,Tijolo pronto', 'a tela Lançar da Produção tem "Grades por trabalhador" no fim, com os lançamentos de sempre na mesma ordem');
+  ok(lc.slice(-2).join() === 'Grades por trabalhador,Empreita do forno' && lc.slice(0, -2).join() === 'Produção da maromba,Entrada no secador,Saída do secador,Enforna,Desenforna,Parada da maromba,Perda na secagem,Tijolo pronto', 'a tela Lançar da Produção tem "Grades por trabalhador" e "Empreita do forno" no fim, com os lançamentos de sempre na mesma ordem');
   await page.evaluate(() => [...document.querySelectorAll('.hero.pm-lanc .kpi')].find((k) => /Grades por trabalhador/.test(k.textContent)).click()); await page.waitForTimeout(700);
   ok(await avaliar(() => location.hash === '#/pgDia'), '"Grades por trabalhador" abre o Lançar o dia do controle');
 
@@ -357,7 +361,7 @@ try {
     const D = JB_GRADE.docRel({ tipo: 'tudo', ref: hoje(), de: '', ate: '', setor: '', trab: '' }, ['trab', 'setor', 'lanc', 'pag']);
     return { r, doc: !!D && (D.blocos || []).length > 0, tit: D && (D.titulo || D.tipo) };
   });
-  ok(Object.keys(rel.r).length === 5 && Object.values(rel.r).every((n) => n > 0), 'relatórios por trabalhador, por setor, lançamentos, pagamentos e lista para assinatura: ' + JSON.stringify(rel.r));
+  ok(Object.keys(rel.r).join() === 'trab,setor,lanc,emp,pag,ass' && Object.entries(rel.r).every(([k, n]) => (k === 'emp' ? n === 0 : n > 0)), 'relatórios por trabalhador, por setor, lançamentos, empreitas do forno (nenhuma ainda), pagamentos e lista para assinatura: ' + JSON.stringify(rel.r));
   ok(rel.doc, 'o relatório completo sai no padrão de documentos da empresa (imprimir e PDF): ' + rel.tit);
 
   console.log('Financeiro');
@@ -391,7 +395,7 @@ try {
     const r = await s.page.evaluate(async ({ A }) => {
       const L = T.lancs(A);
       const tela = {};
-      for (const rota of ['#/setor-producao', '#/plancar', '#/pgrade', '#/pgDia', '#/pgLanc', '#/pgPag', '#/pgExtrato/' + A, '#/pgRel', '#/fGrade']) {
+      for (const rota of ['#/setor-producao', '#/plancar', '#/pgrade', '#/pgDia', '#/pgEmp', '#/pgLanc', '#/pgPag', '#/pgExtrato/' + A, '#/pgRel', '#/fGrade']) {
         JBNAV.ir(rota); await T.dorme(900); tela[rota] = T.semRolagemLateral();
       }
       JBNAV.ir('#/pgrade'); await T.dorme(700); JBNAV.ir('#/pgExtrato/' + A); await T.dorme(700); JBNAV.voltar(); await T.dorme(700);
@@ -404,6 +408,211 @@ try {
     ok(s.erros.length === 0, (mob ? 'celular' : 'computador') + ': nenhum erro de JavaScript' + (s.erros.length ? ': ' + s.erros.join(' | ') : ''));
     await s.ctx.close();
   }
+
+  /* ---------- V158 · empreita do forno, num banco novo (os números de cima não mudam) ---------- */
+  console.log('Empreita do forno (V158)');
+  const docsEmp = [...docsIniciais.filter((x) => x[0] !== 'locais'),
+    ['locais', 'l_forno', { id: 'l_forno', setor: 'lenha', nome: 'Forno 1', tipo: 'Forno', situacao: 'Ativo' }],
+    ['locais', 'l_forno2', { id: 'l_forno2', setor: 'lenha', nome: 'Forno 2', tipo: 'Forno', situacao: 'Ativo' }],
+    ['locais', 'l_forno3', { id: 'l_forno3', setor: 'lenha', nome: 'Forno 3', tipo: 'Forno', situacao: 'Inativo' }]];
+  const E = await abrir(docsEmp, false);
+  const avE = async (fn, arg) => limpa(await E.page.evaluate(fn, arg));
+  const irE = async (rota, sel) => { await E.page.evaluate((r) => JBNAV.ir(r), rota); await E.page.waitForSelector(sel, { timeout: 15000 }); await E.page.waitForTimeout(400); };
+  const antesE = await avE(() => T.foraDoControle());
+  const P = await avE(async () => {
+    for (const [nome, setor] of [['Peão Teste A', 'Desenforna'], ['Peão Teste B', 'Desenforna'], ['Peão Teste C', 'Enforna e Desenforna'], ['Peão Teste D', 'Enforna']])
+      await gravarRegistro('pgTrab', { ...MODS.pgTrab.padrao(), id: novoId(), nome, setor }, null, true);
+    await T.sincronizado();
+    return { A: T.trab('Peão Teste A').id, B: T.trab('Peão Teste B').id, C: T.trab('Peão Teste C').id, D: T.trab('Peão Teste D').id, d10: addDias(hoje(), -10) };
+  });
+  await irE('#/pgEmp', '.pe-cab');
+  const e1 = await avE(async ({ A, B, C, D }) => {
+    const ids = () => [...document.querySelectorAll('.pe-lin[data-pel]')].map((w) => w.dataset.pel);
+    const fornos = [...document.querySelectorAll('#peF option')].map((o) => o.textContent.trim());
+    const lista1 = ids();
+    document.querySelector('#peTodos').click(); await T.dorme(200); const lista2 = ids();
+    document.querySelector('#peTodos').click(); await T.dorme(200);
+    T.digitar('#peF', 'l_forno'); await T.dorme(200);
+    T.digitar('#peV', '100,00');
+    for (const id of [A, B, C]) { document.querySelector(`[data-pesel="${id}"]`).click(); await T.dorme(120); }
+    const soma = document.querySelector('#peSoma').textContent.replace(/\s+/g, ' ');
+    const partes = [A, B, C].map((id) => document.querySelector(`[data-pept-v="${id}"]`).textContent.trim());
+    document.querySelector('#peSalvar').click();
+    await T.esperar(() => DATA.pgLanc.length === 3 && document.querySelector('.pg-ok')); await T.sincronizado();
+    const L = DATA.pgLanc.slice().sort((a, b) => a.valorEmp - b.valorEmp || String(a.trabId).localeCompare(String(b.trabId)));
+    return { fornos, lista1, lista2, D, soma, partes, ok: document.querySelector('.pg-ok').textContent.replace(/\s+/g, ' '),
+      L: DATA.pgLanc.map((l) => ({ t: l.trabId, v: l.valorEmp, s: l.setor, g: l.grades, vg: l.valorGrade, tipo: l.tipo, emp: l.emp && { total: l.emp.total, n: l.emp.n, forno: l.emp.forno, fn: l.emp.fornoNome, div: l.emp.divisao, modo: l.emp.modo, id: l.emp.id }, lote: l.lote })),
+      saldos: [A, B, C].map((id) => T.saldo(id)), limpo: !document.querySelector('[data-pesel]:checked') && !document.querySelector('#peV').value };
+  }, P);
+  ok(e1.fornos.join() === 'Escolha o forno…,Forno 1,Forno 2,Outro (digitar o nome)', 'os fornos ativos do cadastro aparecem para escolher (o inativo não): ' + e1.fornos.join(', '));
+  ok(e1.lista1.length === 3 && !e1.lista1.includes(P.D) && e1.lista2.includes(P.D), 'a lista mostra os peões da Desenforna (e de dois setores); os da Enforna só ao pedir');
+  ok(/3 peões.*valor da empreita R\$ 100,00.*R\$ 33,34 ou R\$ 33,33 para cada/.test(e1.soma) && e1.partes.join() === 'R$ 33,34,R$ 33,33,R$ 33,33', 'partes iguais em centavos: 100,00 para 3 = 33,34 + 33,33 + 33,33 (' + e1.soma + ')');
+  const tot1 = e1.L.reduce((a, l) => a + l.v, 0);
+  ok(e1.L.length === 3 && Math.abs(tot1 - 100) < 0.001 && e1.L.every((l) => l.s === 'Desenforna' && l.g === 0 && l.vg === 0 && l.tipo === 'lanc' && l.emp && l.emp.total === 100 && l.emp.n === 3 && l.emp.forno === 'l_forno' && l.emp.fn === 'Forno 1' && l.emp.div === 'iguais' && l.emp.modo === 'cada' && l.lote === l.emp.id) && new Set(e1.L.map((l) => l.emp.id)).size === 1,
+    'cada peão ganha um lançamento com a sua parte, na Desenforna, ligado à mesma empreita (a soma dá R$ 100,00)');
+  ok(Math.abs(e1.saldos[0] - 33.34) < 0.001 && Math.abs(e1.saldos[1] - 33.33) < 0.001 && Math.abs(e1.saldos[2] - 33.33) < 0.001, 'a parte de cada um entra no saldo dele: ' + e1.saldos.join(' · '));
+  ok(/Empreita do Forno 1 salva/.test(e1.ok) && e1.limpo, 'depois de salvar, a tela confirma e fica limpa para a próxima empreita');
+  if (FOTOS) await E.page.screenshot({ path: join(FOTOS, '07-empreita.png'), fullPage: true });
+
+  const e2 = await avE(async ({ A, B }) => {
+    T.digitar('#peF', 'l_forno'); await T.dorme(200); T.digitar('#peV', '80,00');
+    for (const id of [A, B]) { document.querySelector(`[data-pesel="${id}"]`).click(); await T.dorme(120); }
+    await T.dorme(700); document.querySelector('#peSalvar').click();
+    await T.esperar(() => /Já existe empreita do Forno 1/.test(T.textoJanela())); const aviso = T.textoJanela();
+    await T.clicarJanela('[data-r="0"]'); await T.dorme(300);
+    const n = DATA.pgLanc.length, ficou = document.querySelectorAll('[data-pesel]:checked').length;
+    /* divisão combinada: passa para "digitar" (cada um começa com a parte igual) e a soma tem de fechar */
+    document.querySelector('input[name=peDiv][value=manual]').click(); await T.dorme(200);
+    const ini = [A, B].map((id) => document.querySelector(`[data-pept="${id}"]`).value);
+    T.digitar('#peF', '_outro'); await T.dorme(200); T.digitar('#peFt', 'Forno da frente'); T.digitar('#peV', '100,00');
+    T.digitar(document.querySelector(`[data-pept="${A}"]`), '60,00'); T.digitar(document.querySelector(`[data-pept="${B}"]`), '30,00'); await T.dorme(150);
+    const falta = document.querySelector('#peSoma').textContent.replace(/\s+/g, ' ');
+    await T.dorme(700); document.querySelector('#peSalvar').click(); await T.dorme(500);
+    const nFalta = DATA.pgLanc.length;
+    T.digitar(document.querySelector(`[data-pept="${B}"]`), '40,00'); await T.dorme(150);
+    const confere = document.querySelector('#peSoma').textContent.replace(/\s+/g, ' ');
+    await T.dorme(700); document.querySelector('#peSalvar').click();
+    await T.esperar(() => DATA.pgLanc.length === 5); await T.sincronizado();
+    const M = DATA.pgLanc.filter((l) => l.emp && l.emp.divisao === 'manual');
+    return { aviso, n, ficou, ini, falta, nFalta, confere, M: M.map((l) => [l.trabId === A ? 'A' : 'B', l.valorEmp, l.emp.total, l.emp.fornoNome, l.emp.forno]) };
+  }, P);
+  ok(/Já existe empreita do Forno 1 em .*R\$ 100,00, 3 peões/.test(e2.aviso) && e2.n === 3 && e2.ficou === 2, 'empreita do mesmo forno em dia próximo pede confirmação; cancelando, nada é gravado e a tela continua marcada');
+  ok(e2.ini.join() === '40,00,40,00', 'ao passar para "digitar a parte de cada um", cada um começa com a parte igual: ' + e2.ini.join(' e '));
+  ok(/soma das partes R\$ 90,00: faltam R\$ 10,00/.test(e2.falta) && e2.nFalta === 3, 'parte digitada que não fecha com o valor da empreita não salva: ' + e2.falta);
+  ok(/a soma das partes confere/.test(e2.confere) && JSON.stringify(e2.M.sort()) === JSON.stringify([['A', 60, 100, 'Forno da frente', ''], ['B', 40, 100, 'Forno da frente', '']]), 'com a soma certa, cada um fica com a parte combinada (60 e 40), e o forno digitado fica gravado');
+
+  /* tudo para um responsável, que divide com o grupo; e uma nova tentativa depois de uma falha não duplica */
+  const e3 = await avE(async ({ A, B, C, d10 }) => {
+    document.querySelector('input[name=peDiv][value=iguais]').click(); await T.dorme(200);
+    T.digitar('#peD', d10); T.digitar('#peF', 'l_forno2'); await T.dorme(200); T.digitar('#peV', '300,00');
+    for (const id of [A, B, C]) { document.querySelector(`[data-pesel="${id}"]`).click(); await T.dorme(120); }
+    document.querySelector('input[name=pePag][value=resp]').click(); await T.dorme(200);
+    await T.dorme(600); document.querySelector('#peSalvar').click(); await T.dorme(400);
+    const semResp = DATA.pgLanc.length;
+    T.digitar('#peR', B); await T.dorme(200);
+    const soma = document.querySelector('#peSoma').textContent.replace(/\s+/g, ' ');
+    await T.dorme(800); document.querySelector('#peSalvar').click();
+    await T.esperar(() => DATA.pgLanc.length === 6); await T.sincronizado();
+    const R = DATA.pgLanc.find((l) => l.emp && l.emp.modo === 'resp');
+    /* falha no 2º lançamento de uma empreita de 3 */
+    const g0 = window.gravarRegistro; let k = 0;
+    window.gravarRegistro = async function (mod) { if (mod === 'pgLanc' && ++k === 2) throw new Error('falha de teste'); return g0.apply(this, arguments); };
+    T.digitar('#peD', hoje()); T.digitar('#peF', 'l_forno2'); await T.dorme(200); T.digitar('#peV', '90,00');
+    for (const id of [A, B, C]) { document.querySelector(`[data-pesel="${id}"]`).click(); await T.dorme(120); }
+    document.querySelector('input[name=pePag][value=cada]').click(); await T.dorme(200);
+    await T.dorme(600); document.querySelector('#peSalvar').click();
+    await T.esperar(() => document.querySelector('#peCont')); await T.sincronizado();
+    const parcial = DATA.pgLanc.length, caixa = document.querySelector('.pe-pend').textContent.replace(/\s+/g, ' ');
+    window.gravarRegistro = g0;
+    document.querySelector('#peCont').click();
+    await T.esperar(() => DATA.pgLanc.length === 9 && !document.querySelector('#peCont')); await T.sincronizado();
+    const ultima = DATA.pgLanc.filter((l) => l.emp && l.emp.total === 90);
+    return { semResp, soma, R: R && { t: R.trabId, v: R.valorEmp, resp: R.emp.resp, membros: R.emp.membros.map((m) => [m.id, m.parte]), data: R.data },
+      parcial, caixa, ultima: { n: ultima.length, ids: new Set(ultima.map((l) => l.id)).size, emp: new Set(ultima.map((l) => l.emp.id)).size, soma: ultima.reduce((a, l) => a + l.valorEmp, 0) } };
+  }, P);
+  ok(e3.semResp === 5, 'tudo para um responsável: sem escolher o responsável, não salva');
+  ok(/tudo para Peão Teste B, que divide com o grupo/.test(e3.soma), 'o resumo mostra quem recebe tudo: ' + e3.soma);
+  ok(e3.R && e3.R.t === P.B && e3.R.v === 300 && e3.R.resp === P.B && e3.R.data === P.d10 && JSON.stringify(e3.R.membros) === JSON.stringify([[P.A, 100], [P.B, 100], [P.C, 100]]), 'com o responsável, é um lançamento só (R$ 300,00 no saldo dele), com a divisão do grupo anotada');
+  ok(e3.parcial === 7 && /ficou salva em parte \(1 de 3\)/.test(e3.caixa), 'se a gravação falha no meio, a tela avisa o que ficou salvo e oferece terminar: ' + e3.caixa.slice(0, 80));
+  ok(e3.ultima.n === 3 && e3.ultima.ids === 3 && e3.ultima.emp === 1 && Math.abs(e3.ultima.soma - 90) < 0.001, '"Terminar de salvar" grava só o que faltava: 3 partes, sem duplicar');
+
+  console.log('Empreita: cancelar, extrato, pagamento e documentos');
+  const e4 = await avE(async ({ A, B, C }) => {
+    const emp1 = DATA.pgLanc.find((l) => l.emp && l.emp.total === 100 && l.emp.divisao === 'iguais').emp.id;
+    const parte = DATA.pgLanc.find((l) => l.emp && l.emp.id === emp1 && l.trabId === A);
+    const err = MODS.pgLanc.validar({ ...parte, valorEmp: 50 }); const errObs = MODS.pgLanc.validar({ ...parte, obs: 'nota nova' });
+    const s0 = [A, B, C].map((id) => T.saldo(id));
+    await T.abrirRegistro('pgLanc', parte.id, 'pgCancelarEmp');
+    const campos = document.querySelector('#camada').textContent.replace(/\s+/g, ' ');
+    document.querySelector('#camada [data-acao="pgCancelarEmp"]').click();
+    await T.esperar(() => T.ultimaJanela() && T.ultimaJanela().querySelector('#pgMot'));
+    const txtCanc = T.textoJanela();
+    T.digitar('#pgMot', 'forno lançado errado'); await T.clicarJanela('[data-ok]');
+    await T.esperar(() => DATA.pgLanc.filter((l) => l.emp && l.emp.id === emp1).every((l) => l.cancelamento)); await T.sincronizado();
+    const s1 = [A, B, C].map((id) => T.saldo(id));
+    const canc = DATA.pgLanc.filter((l) => l.emp && l.emp.id === emp1).map((l) => l.cancelamento && l.cancelamento.empreita && l.cancelamento.motivo);
+    await T.abrirRegistro('pgLanc', parte.id, 'pgReativarEmp');
+    document.querySelector('#camada [data-acao="pgReativarEmp"]').click();
+    await T.esperar(() => /Reativar a empreita/.test(T.textoJanela())); await T.clicarJanela('[data-r="1"]');
+    await T.esperar(() => DATA.pgLanc.filter((l) => l.emp && l.emp.id === emp1).every((l) => !l.cancelamento)); await T.sincronizado();
+    const s2 = [A, B, C].map((id) => T.saldo(id));
+    const log = (DATA.log || []).filter((x) => DATA.pgLanc.some((l) => l.id === x.recId && l.emp && l.emp.id === emp1)).map((x) => x.acao);
+    const doc = COMP_LANC.doc('pgLanc', parte); const tab = doc && (doc.blocos || []).find((b) => b.tipo === 'secao' && b.tabela);
+    return { err: Object.values(err).join(' '), errObs: Object.keys(errObs).filter((k) => k !== '_aviso').length, s0, s1, s2, canc, log, campos: /Empreita do Forno 1/.test(campos) && /Cancelar a empreita/.test(campos), txtCanc,
+      doc: doc && { tit: doc.titulo || doc.tipo, linhas: tab && tab.tabela.body.map((r) => r.join(' | ')), fecho: doc.fecho, cupom: doc.cupom && doc.cupom.titulo, ass: doc.cupom && doc.cupom.assinaturas.length } };
+  }, P);
+  ok(/parte de uma empreita do forno/.test(e4.err) && e4.errObs === 0, 'a parte de um peão não muda de valor sozinha (só a observação); para mudar, cancela a empreita e lança de novo');
+  ok(e4.campos && ['Peão Teste A: R$ 33,34', 'Peão Teste B: R$ 33,33', 'Peão Teste C: R$ 33,33'].every((x) => e4.txtCanc.includes(x)), 'o lançamento mostra a empreita e o cancelamento lista a parte de cada um');
+  ok(e4.s1.every((v, i) => Math.abs(e4.s0[i] - v - [33.34, 33.33, 33.33][i]) < 0.001) && e4.canc.every((m) => m === 'forno lançado errado'), 'cancelar a empreita tira a parte de todos do saldo, sem apagar, com o motivo em cada parte');
+  ok(e4.s2.every((v, i) => Math.abs(e4.s0[i] - v) < 0.001) && e4.log.includes('cancelou a empreita') && e4.log.includes('reativou a empreita') && e4.log.includes('criou'), 'reativar devolve a parte de todos; tudo fica no histórico: ' + [...new Set(e4.log)].join(', '));
+  ok(e4.doc && e4.doc.tit === 'EMPREITA DO FORNO' && e4.doc.linhas.join(' / ') === 'Peão Teste A | R$ 33,34 | ______________________________ / Peão Teste B | R$ 33,33 | ______________________________ / Peão Teste C | R$ 33,33 | ______________________________' && /Nós, abaixo assinados, fizemos por empreita a desenforna do Forno 1, no valor de R\$ 100,00 \(cem reais\)/.test(e4.doc.fecho) && e4.doc.cupom === 'EMPREITA DO FORNO' && e4.doc.ass === 3,
+    'o comprovante da empreita tem o grupo, a parte de cada um e a linha para cada peão assinar (folha e cupom)');
+
+  await irE('#/pgExtrato/' + P.B, '.pg-tb');
+  const e5 = await avE(async ({ B }) => {
+    document.querySelector('[data-pgpt="tudo"]').click(); await T.dorme(400);
+    const linhas = [...document.querySelectorAll('.pg-tb tbody tr[data-pgabre]')].map((r) => r.textContent.replace(/\s+/g, ' ').trim());
+    const saldo = T.saldo(B);
+    JBNAV.ir('#/pgrade'); await T.esperar(() => document.querySelector(`[data-pgpagar="${B}"]`)); await T.dorme(300);
+    document.querySelector('[data-pgpt="tudo"]').click(); await T.dorme(400);
+    const ind = [...document.querySelectorAll('.pg-ind tbody tr')].find((r) => /Empreitas do forno/.test(r.cells[0].textContent));
+    const indV = ind ? [...ind.cells].slice(1).map((c) => c.textContent.replace(/^(Enforna|Desenforna|Total)/, '').trim()) : null;
+    document.querySelector(`[data-pgpagar="${B}"]`).click();
+    await T.esperar(() => T.ultimaJanela() && T.ultimaJanela().querySelector('#pgV'));
+    await T.clicarJanela('[data-ok]'); await T.esperar(() => DATA.pgPag.length === 1); await T.sincronizado();
+    await T.esperar(() => /Pagamento registrado/.test(T.textoJanela())); await T.clicarJanela('[data-r="0"]');
+    const rec = JB_GRADE.docRecibo(DATA.pgPag[0]); const tab = (rec.blocos || []).find((b) => b.tipo === 'secao' && b.tabela);
+    const ps = (rec.blocos || []).filter((b) => b.tipo === 'p').map((b) => b.texto).join(' ');
+    return { linhas, saldo, indV, pago: DATA.pgPag[0].valor, sDepois: T.saldo(B), rec: { fecho: rec.fecho, linhas: tab ? tab.tabela.body.map((r) => r.slice(1, 4).join(' | ')) : [], ps, cupom: rec.cupom.texto } };
+  }, P);
+  ok(e5.linhas.length === 4 && e5.linhas.some((t) => /Desenforna · Empreita · Forno 2 \(responsável pelo grupo de 3\).*Grupo: Peão Teste A R\$ 100,00 · Peão Teste B \(responsável\) R\$ 100,00 · Peão Teste C R\$ 100,00.*R\$ 300,00/.test(t)) && e5.linhas.some((t) => /Empreita · Forno da frente \(parte de 2\)/.test(t)),
+    'o extrato mostra cada empreita com o forno, o grupo e a parte (ou o valor todo, para o responsável)');
+  ok(JSON.stringify(e5.indV) === JSON.stringify(['—', '4 empreitas · R$ 590,00', '4 empreitas · R$ 590,00']), 'o painel do controle mostra as empreitas do forno na Desenforna: ' + JSON.stringify(e5.indV));
+  ok(Math.abs(e5.pago - e5.saldo) < 0.001 && Math.abs(e5.sDepois) < 0.001, 'o pagamento ao responsável quita o que ele tem a receber (' + e5.pago + ')');
+  ok(/referente às empreitas da desenforna \(Forno 2, Forno 1, Forno da frente\), conforme/.test(e5.rec.fecho) && e5.rec.linhas.every((x) => / · Empreita · .* \| — \| —$/.test(x)) && /Empreita do Forno 2 de .*\(R\$ 300,00\): pago a Peão Teste B, responsável pelo grupo, que divide com Peão Teste A, Peão Teste C\./.test(e5.rec.ps) && /pela empreita do forno\./.test(e5.rec.cupom),
+    'o recibo diz que é empreita, mostra as partes quitadas e, para o responsável, com quem ele divide');
+
+  await irE('#/pgRel', '.pg-rel');
+  const e6 = await avE(async () => {
+    document.querySelector('[data-pgpt="tudo"]').click(); await T.dorme(400);
+    document.querySelector('[data-pgrel="emp"]').click(); await T.dorme(400);
+    const rows = [...document.querySelectorAll('.pg-rel .pg-tb tbody tr:not(.pg-fim)')].map((r) => r.textContent.replace(/\s+/g, ' ').trim());
+    const fim = (document.querySelector('.pg-rel .pg-tb tr.pg-fim') || {}).textContent || '';
+    const D = JB_GRADE.docRel({ tipo: 'tudo', ref: hoje(), de: '', ate: '', setor: '', trab: '' }, ['emp']);
+    const doc = (D.blocos || []).find((b) => b.tipo === 'secao' && b.tabela);
+    return { rows, fim: fim.replace(/\s+/g, ' '), doc: doc ? doc.tabela.body.length : -1 };
+  });
+  ok(e6.rows.length === 4 && e6.rows.some((t) => /Forno 2.*Ao responsável \(Peão Teste B\).*R\$ 300,00/.test(t)) && e6.rows.some((t) => /Forno da frente.*Digitada.*Cada um a sua parte.*R\$ 100,00/.test(t)) && /4 empreitas.*R\$ 590,00/.test(e6.fim) && e6.doc === 4,
+    'o relatório "Empreitas do forno" lista cada empreita (forno, grupo, divisão, pagamento e valor), na tela e no documento');
+
+  await irE('#/pgDia', '.pg-cab-dia');
+  const e7 = await avE(async ({ A }) => {
+    document.querySelector('[data-pgset="Desenforna"]').click(); await T.dorme(300);
+    const w = document.querySelector(`.pg-lin[data-pgl="${A}"]`);
+    return { ja: !!(w && w.querySelector('small.ja')) };
+  }, P);
+  ok(!e7.ja, 'no Lançar o dia, a empreita não aparece como grade já lançada (não pede confirmação de repetido)');
+  const depoisE = await avE(() => T.foraDoControle());
+  ok(antesE === depoisE, 'a empreita não grava nada fora do controle por grade (produção, despesas e Financeiro iguais)');
+  ok(E.erros.length === 0, 'empreita: nenhum erro de JavaScript' + (E.erros.length ? ': ' + E.erros.join(' | ') : ''));
+  const docsEmpFinal = await avE(() => [...window.__srv.estado.docs.values()].map((x) => [x.colecao, x.id, x.dados]));
+  await E.ctx.close();
+  const M = await abrir(docsEmpFinal, true);
+  const e8 = await M.page.evaluate(async ({ B }) => {
+    const tela = {};
+    for (const rota of ['#/pgEmp', '#/pgExtrato/' + B, '#/pgRel', '#/pgLanc']) { JBNAV.ir(rota); await T.dorme(900); tela[rota] = T.semRolagemLateral(); }
+    JBNAV.ir('#/pgEmp'); await T.dorme(700);
+    const linhas = document.querySelectorAll('tr[data-peabre]').length;
+    document.querySelector('tr[data-peabre]').click(); await T.dorme(500);
+    const jan = T.textoJanela();
+    return { n: DATA.pgLanc.filter((l) => l.emp).length, tela, linhas, jan };
+  }, P);
+  ok(e8.n === 9 && e8.linhas === 4, 'celular: as empreitas voltam iguais do banco central (9 partes, 4 empreitas na lista)');
+  ok(Object.values(e8.tela).every(Boolean), 'celular: as telas da empreita não rolam para o lado ' + JSON.stringify(e8.tela));
+  ok(/Empreita do Forno 2|Empreita do Forno 1|Empreita do Forno da frente/.test(e8.jan) && /No saldo dele/.test(e8.jan) && /Comprovante/.test(e8.jan), 'tocar numa empreita da lista abre o grupo, a parte de cada um e o comprovante');
+  if (FOTOS) await M.page.screenshot({ path: join(FOTOS, '08-empreita-celular.png'), fullPage: true });
+  ok(M.erros.length === 0, 'celular: nenhum erro de JavaScript na empreita' + (M.erros.length ? ': ' + M.erros.join(' | ') : ''));
+  await M.ctx.close();
 } catch (e) {
   console.error(e); falhas++;
 } finally {
