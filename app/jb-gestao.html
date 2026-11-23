@@ -7625,7 +7625,7 @@ function telaFicha(el,mod){
  if($('#fxHol',el))$('#fxHol',el).onclick=()=>{UIH.func=f.id;JBNAV.ir('#/holerite')};
  if($('#fxMais',el)){const pop=$('#fxPop',el);
   $('#fxMais',el).onclick=()=>{pop.hidden=!pop.hidden};
-  document.addEventListener('click',e=>{if(!e.target.closest('.fx-menu'))pop.hidden=true},{once:true});
+  /* 22/11/2026 (memória): o vigia do clique fora do menu se desliga quando a ficha sai da tela; antes ficava ligado até o próximo clique e segurava a ficha antiga inteira na memória */ const foraFx=e=>{if(!pop.isConnected){document.removeEventListener('click',foraFx);return}if(!e.target.closest('.fx-menu')){pop.hidden=true;document.removeEventListener('click',foraFx)}}; document.addEventListener('click',foraFx); window.addEventListener('hashchange',()=>{if(!pop.isConnected)document.removeEventListener('click',foraFx)},{once:true});
   pop.querySelectorAll('[data-fxa]').forEach(b=>b.onclick=()=>{PREFILL={mod:b.dataset.fxa,dados:{funcionarioId:f.id}};JBNAV.ir('#/'+b.dataset.fxa+'/novo')})}
  resolverNomes(DATA.log.filter(l=>l.recId===f.id).map(l=>l.uid));
 }
