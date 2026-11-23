@@ -1174,12 +1174,15 @@ teste('grade', 'Controle de Produção por Grade (V156): coleções próprias, v
   assert.ok(app.includes("{r:'#/pcfg',m:'pcfg',ic:'engrenagem',l:'Configurações',at:['pcfg']},...(window.PROD_ABAS_EXTRA||[])]"), 'aba da Produção no fim, as antigas na mesma ordem');
   assert.ok(app.includes("'pgrade','pgDia','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção */") && app.includes("'fMeta','fGrade'];   /* V156: Pagamento por grade */"), 'painel do dono: concessão e suspensão da Produção e do Financeiro valem para as telas novas');
   assert.ok(b.includes("window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fGrade'"), 'módulo no Setor Financeiro');
-  /* banco: as duas coleções registradas, com reversão e sem apagar nada */
-  const mig = join(RAIZ, 'supabase/migrations/20261123003000_seg_controle_grade.sql');
-  assert.ok(existsSync(mig) && existsSync(mig.replace('.sql', '.down.sql')), 'migração com reversão');
-  const sql = ler('supabase/migrations/20261123003000_seg_controle_grade.sql');
-  assert.ok(sql.includes("('prodGradeTrab', 'producao', false, 'dados', true)") && sql.includes("('prodGrade',     'producao', true,  'dados', true)") && sql.includes("when p_raiz = 'prodGrade' and p_item->>'tipo' = 'pag' then 'financeiro'"), 'coleções do módulo Produção; o Financeiro grava só pagamentos');
-  assert.ok(!/\b(drop|delete|truncate)\b/i.test(sql.replace(/--.*$/gm, '')), 'a migração só acrescenta');
+  /* banco: as duas coleções registradas, com reversão e sem apagar nada
+     (o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório) */
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const mig = join(RAIZ, 'supabase/migrations/20261123003000_seg_controle_grade.sql');
+    assert.ok(existsSync(mig) && existsSync(mig.replace('.sql', '.down.sql')), 'migração com reversão');
+    const sql = ler('supabase/migrations/20261123003000_seg_controle_grade.sql');
+    assert.ok(sql.includes("('prodGradeTrab', 'producao', false, 'dados', true)") && sql.includes("('prodGrade',     'producao', true,  'dados', true)") && sql.includes("when p_raiz = 'prodGrade' and p_item->>'tipo' = 'pag' then 'financeiro'"), 'coleções do módulo Produção; o Financeiro grava só pagamentos');
+    assert.ok(!/\b(drop|delete|truncate)\b/i.test(sql.replace(/--.*$/gm, '')), 'a migração só acrescenta');
+  }
   if (ci) assert.ok(ci.includes('node scripts/testar-controle-grade.mjs'), 'teste no navegador roda na conferência automática');
 });
 
