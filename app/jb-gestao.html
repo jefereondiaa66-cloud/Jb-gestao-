@@ -50544,7 +50544,11 @@ const txtFalta=o=>{const a=[];
  return a.join(' · ')};
 const txtPrev=p=>p?[vz(p.leituraPrev)?'':fNum(+p.leituraPrev,0)+' '+UN(LOCAL(p.localId)),p.dataPrev?fData(p.dataPrev):''].filter(Boolean).join(' ou '):'';
 const servLista=r=>[...Object.keys((r&&r.servicos)||{}).filter(k=>r.servicos[k]),...linhas(r&&r.servicosOutros)];
-const fotoV=L=>L&&L.foto&&L.foto.id?`<img src="/_blob/${esc(L.foto.id)}" alt="" loading="lazy" onerror="this.remove()">`:ic('frota');
+/* 23/11/2026: a foto que identifica o veículo é a do cadastro; sem ela, a última "foto do caminhão" tirada num lançamento */
+const fotoVeicDe=L=>{if(!L)return null;if(L.foto&&L.foto.id)return L.foto;
+ const F=[...DATA.frLeit.filter(r=>r.localId===L.id&&vivo(r)).map(r=>({a:r.fotoVeic,d:(r.data||'')+(r.hora||'')})),...DATA.frRev.filter(r=>r.localId===L.id&&vivo(r)).map(r=>({a:r.fotoVeic,d:r.data||''}))]
+  .filter(x=>x.a&&x.a.id).sort((a,b)=>String(b.d).localeCompare(String(a.d)));return F.length?F[0].a:null};
+const fotoV=L=>{const f=fotoVeicDe(L);return f?`<img src="/_blob/${esc(f.id)}" alt="" loading="lazy" onerror="this.remove()">`:ic('frota')};
 
 /* ---------- 4. cadastro do veículo: marca e modelo, foto e intervalo de revisão ---------- */
 {const ML=MODS.locais;const ehC=r=>r.setor==='combustivel';
@@ -50581,6 +50585,7 @@ MODS.frRev={titulo:'Revisões e manutenções',sing:'revisão',ic:'ferramenta',s
   {k:'pecas',l:'Peças e materiais utilizados (um por linha)',t:'area',w2:1,s:'Serviços, peças e valor',aj:'Ex.: 2 filtros de óleo · 30 L de óleo 15W40 · 1 kg de graxa.'},
   {k:'valor',l:'Valor gasto (opcional)',t:'moeda',s:'Serviços, peças e valor',aj:'Só para o controle de custo por veículo. Não cria conta a pagar (a compra continua sendo lançada no Financeiro ou no Almoxarifado).'},
   {k:'obs',l:'Observações',t:'area',w2:1,s:'Serviços, peças e valor'},
+  {k:'fotoVeic',l:'Foto do caminhão (para identificar)',t:'arq',s:'Fotos e comprovantes'},
   {k:'fotoOdo',l:'Foto do painel (odômetro/horímetro)',t:'arq',s:'Fotos e comprovantes'},
   {k:'comprovante',l:'Nota, recibo ou ordem de serviço',t:'arq',s:'Fotos e comprovantes'},
   {k:'foto1',l:'Outra foto',t:'arq',s:'Fotos e comprovantes'},
@@ -50684,6 +50689,7 @@ MODS.frLeit={titulo:'Fotos do painel (km e horímetro)',sing:'leitura do painel'
  fields:[
   campoVeic,
   {k:'_info',l:'Leituras',t:'html',vivo:1,w2:1,s:'Veículo',calc:infoLeit},
+  {k:'fotoVeic',l:'Foto do caminhão (para identificar)',t:'arq',s:'Leitura',aj:'Opcional: foto do caminhão ou da máquina, para saber qual é. Ela também vira a foto do veículo nos cartões se o cadastro não tiver uma.'},
   {k:'foto',l:'Foto do painel',t:'arq',s:'Leitura',aj:'No celular, tocar em Anexar abre a câmera. A leitura automática da foto (OCR) chega em breve; por enquanto digite o número que aparece.'},
   {k:'leitura',l:r=>'Leitura do painel ('+UN(LOCAL(r.localId))+')',t:'num',req:1,s:'Leitura'},
   {k:'data',l:'Data',t:'data',req:1,s:'Leitura'},
@@ -50693,7 +50699,7 @@ MODS.frLeit={titulo:'Fotos do painel (km e horímetro)',sing:'leitura do painel'
   {k:'criadoPor',l:'Registrado por',t:'usuario',sh:r=>!!r.criadoPor,s:'Leitura'}],
  cols:[{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'_v',l:'Veículo',v:r=>'<b>'+esc(nomeLocal(LOCAL(r.localId))||'—')+'</b>',o:r=>nomeLocal(LOCAL(r.localId))},
   {k:'_l',l:'Leitura',v:r=>esc(fL(r.leitura,LOCAL(r.localId))),o:r=>+r.leitura||0},
-  {k:'_f',l:'Foto',v:r=>r.foto&&r.foto.id?'<span class="tag ok">com foto</span>':'<span class="tag at">sem foto</span>',o:r=>r.foto&&r.foto.id?1:0},
+  {k:'_f',l:'Fotos',v:r=>(r.foto&&r.foto.id?'<span class="tag ok">painel</span>':'<span class="tag at">sem foto do painel</span>')+(r.fotoVeic&&r.fotoVeic.id?' <span class="tag ok">caminhão</span>':''),o:r=>(r.foto&&r.foto.id?2:0)+(r.fotoVeic&&r.fotoVeic.id?1:0)},
   {k:'_u',l:'Registrado por',v:r=>esc(quem(r.criadoPor)||'—'),o:r=>quem(r.criadoPor)},{k:'situacao',l:'Situação',v:r=>tag(r.situacao||'Válida',r.situacao==='Cancelada'?'pe':'ok'),o:r=>r.situacao||'Válida'}],
  filtros:[{k:'localId',l:'Veículo',op:opFrota},{k:'data',l:'Data',t:'periodo',campo:'data'}],
  escopo:()=>true,
@@ -50748,11 +50754,11 @@ function relVeic(id){
  sec('3','Histórico de manutenção',R.length?{tabela:{head:['Data','Tipo','Leitura','Serviços','Peças e materiais','Oficina','Valor'],
   body:R.map(r=>[fData(r.data)+(r.status==='Em andamento'?' (na oficina)':''),r.tipoRev||'—',fL(r.leitura,L),servLista(r).join(', ')||'—',linhas(r.pecas).join(', ')||'—',r.oficina||'—',+r.valor>0?fMoeda(+r.valor):'—']),foot:['Total','','','','','',fMoeda(c.total)],dir:[6]}}:{campos:[['Situação','Nenhuma revisão registrada.',1]]});
  sec('4','Custos',{campos:[['Revisões concluídas',String(c.n)],['Gasto total',fMoeda(c.total)],['Revisões em '+anoA(),String(c.nAno)],['Gasto em '+anoA(),fMoeda(c.ano)]]});
- sec('5','Fotos do painel (evolução da leitura)',LT.length?{tabela:{head:['Data','Hora','Leitura','Foto','Registrado por'],body:LT.slice(0,60).map(r=>[fData(r.data),r.hora||'—',fL(r.leitura,L),r.foto&&r.foto.id?'sim':'não',quem(r.criadoPor)||'—'])}}:{campos:[['Situação','Nenhuma foto do painel registrada.',1]]});
+ sec('5','Fotos do painel (evolução da leitura)',LT.length?{tabela:{head:['Data','Hora','Leitura','Fotos','Registrado por'],body:LT.slice(0,60).map(r=>[fData(r.data),r.hora||'—',fL(r.leitura,L),[r.foto&&r.foto.id?'painel':'',r.fotoVeic&&r.fotoVeic.id?'caminhão':''].filter(Boolean).join(' e ')||'nenhuma',quem(r.criadoPor)||'—'])}}:{campos:[['Situação','Nenhuma foto do painel registrada.',1]]});
  D.notaFinal='Montado na hora a partir dos registros do Setor de Combustível. Emitir não altera nenhum dado.';
  return D;
 }
-window.FROTA_V157=Object.freeze({situ:L=>situ(L),atual,relGeral,relVeic,frota});
+window.FROTA_V157=Object.freeze({situ:L=>situ(L),atual,relGeral,relVeic,frota,fotoVeic:id=>fotoVeicDe(LOCAL(id))});
 
 /* ---------- 7. telas ---------- */
 const UI={f:'',q:''};
@@ -50807,8 +50813,9 @@ function painel(c){
 function galeria(id){
  const L=LOCAL(id);const G=[];const add=(a,t)=>{if(a&&a.id)G.push({a,t})};
  add(L&&L.foto,'Foto do veículo');
+ leitsDe(id).forEach(r=>{add(r.fotoVeic,'Caminhão · '+fData(r.data)+(r.hora?' '+r.hora:''))});
  leitsDe(id).forEach(r=>add(r.foto,'Painel · '+fL(r.leitura,L)+' · '+fData(r.data)+(r.hora?' '+r.hora:'')));
- revsDe(id).forEach(r=>{const d=fData(r.data);add(r.fotoOdo,'Painel na revisão · '+fL(r.leitura,L)+' · '+d);add(r.comprovante,'Comprovante · '+d);['foto1','foto2','foto3'].forEach(k=>add(r[k],'Revisão · '+d))});
+ revsDe(id).forEach(r=>{const d=fData(r.data);add(r.fotoVeic,'Caminhão na revisão · '+d);add(r.fotoOdo,'Painel na revisão · '+fL(r.leitura,L)+' · '+d);add(r.comprovante,'Comprovante · '+d);['foto1','foto2','foto3'].forEach(k=>add(r[k],'Revisão · '+d))});
  return G;
 }
 function ficha(c,id){

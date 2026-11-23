@@ -125,6 +125,21 @@ try {
   ok(r2.t1 === 'Revisão próxima' && r2.f1 === 700 && r2.p1 === 'media', `39.300 km: "${r2.t1}" (faltam ${r2.f1} km) e aviso em PENDÊNCIAS`);
   ok(r2.t2 === 'Revisão vencida' && r2.f2 === -200 && /^alta:Revisão vencida/.test(r2.p2), `40.200 km: "${r2.t2}" (passou ${-r2.f2} km), pendência de prioridade alta`);
 
+  /* 2b. foto do caminhão (identificação) junto da foto do painel: vira a foto do veículo nos cartões */
+  const r2b = await page.evaluate(async () => {
+    const campos = MODS.frLeit.fields.map((f) => f.k); const camposRev = MODS.frRev.fields.map((f) => f.k);
+    await T.abrirNovo('frLeit', 'combustivel', { localId: 'l_cam', leitura: 40210, hora: '18:00', fotoVeic: { id: 'blob-caminhao-1', nome: 'caminhao.jpg', tipo: 'image/jpeg' } }); await T.salvarGaveta();
+    await T.esperar(() => DATA.frLeit.length === 3); await T.sincronizado();
+    location.hash = '#/frota'; await T.esperar(() => document.querySelector('.fr-card')); await T.dorme(200);
+    const fv = FROTA_V157.fotoVeic('l_cam'); const semFoto = FROTA_V157.fotoVeic('l_emp');
+    location.hash = '#/frota/l_cam'; await T.esperar(() => document.querySelector('.fr-gal, .fr-vazio')); await T.dorme(200);
+    const gal = [...document.querySelectorAll('.fr-gal small')].map((x) => x.textContent).filter((t) => /^Caminhão/.test(t)).length;
+    return { lado: campos.indexOf('fotoVeic') >= 0 && campos.indexOf('fotoVeic') < campos.indexOf('foto'), rev: camposRev.includes('fotoVeic'), src: fv && fv.id, semFoto, gal, gravou: !!(T.banco('clCtrl').find((x) => x.tipo === 'frLeit' && x.fotoVeic) || {}).fotoVeic };
+  });
+  ok(r2b.lado && r2b.rev, 'foto do caminhão no lançamento da foto do painel (antes da do painel) e na revisão');
+  ok(r2b.gravou && r2b.src === 'blob-caminhao-1' && r2b.semFoto === null, 'foto do caminhão gravada e usada para identificar o veículo no cartão');
+  ok(r2b.gal === 1, 'foto do caminhão aparece nas fotos da ficha');
+
   /* 3. validações: leitura menor pede confirmação, leitura repetida e revisão duplicada são barradas */
   const r3 = await page.evaluate(async () => {
     const st = { ...MODS.frLeit.padrao(), id: 'x1', localId: 'l_cam', leitura: 38000 };
