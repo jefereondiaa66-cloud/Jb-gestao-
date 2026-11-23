@@ -650,6 +650,24 @@ teste('movimentacoes', 'V151: Movimentações do Almoxarifado, da Lenha, do Comb
   if (ci) assert.ok(ci.includes('node scripts/testar-movimentacoes.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+/* ---------- V157: revisões e manutenção da frota (Setor de Combustível) ---------- */
+teste('frota', 'V157: Revisões e manutenção da frota dentro do Combustível, sobre o cadastro de Veículos e máquinas, sem coleção nova e sem apagar', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['<style id="frota-revisoes-v157-css">', '<script id="frota-revisoes-v157">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const b = /<script id="frota-revisoes-v157">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(b.includes("const COL='clCtrl';") && b.includes("const TIPO={frRev:'frRev',frPlano:'frPlano',frLeit:'frLeit'};"), 'grava na coleção clCtrl (já liberada para o setor), com o tipo no registro');
+  assert.ok(!/DATA,\s*\{\s*\[?['"]?fr/.test(b) && !/Object\.assign\(DATA/.test(b), 'nenhuma coleção nova');
+  assert.ok(/apagar=async function\(col,rec\)\{if\(TIPO\[col\]\)\{[^}]*throw e\}/.test(b), 'registros de revisão não são apagados');
+  for (const m of ['frRev', 'frPlano', 'frLeit']) assert.ok(new RegExp('MODS\\.' + m + '=\\{[^]*?semExcluir:true').test(b), m + ' sem excluir');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)|localStorage/.test(b), 'navegação só pelo JBNAV e nada guardado no navegador');
+  assert.ok(b.includes("const frota=()=>DATA.locais.filter(l=>l.setor==='combustivel'"), 'a frota é o cadastro de Veículos e máquinas do Combustível');
+  assert.ok(b.includes("baseRel('RELATÓRIO DE REVISÕES E MANUTENÇÃO DA FROTA'") && b.includes("baseRel('FICHA DE MANUTENÇÃO DO VEÍCULO'") && b.includes('itensAcaoDoc('), 'relatórios no gerador de documentos (ver, imprimir, PDF, compartilhar)');
+  assert.ok(app.includes("['#/frota','ferramenta','Revisões e manutenção',['frota','frRev','frPlano','frLeit'],'frota']"), 'no menu do Combustível');
+  assert.ok(app.indexOf('<script id="frota-revisoes-v157">') > app.indexOf('<script id="pendencias-v81">'), 'vem depois das pendências (V81), onde ficam os avisos');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-frota.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 /* ---------- V152: variação de vendas por vendedor ---------- */
 teste('variacoes', 'V152: variação de vendas por vendedor na aba Variações de Vendas, só leitura e sem mexer nas variações (V73) nem no Setor de Vendas', () => {
   const app = ler('app/jb-gestao.html');
