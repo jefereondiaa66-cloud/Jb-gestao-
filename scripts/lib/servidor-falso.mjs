@@ -47,14 +47,21 @@ export function criarServidorFalso(opcoes) {
         if (!caminhoOk(op.colecao, op.id)) { code = '22023'; throw new Error('caminho inválido'); }
         var at = docs.get(k(op.colecao, op.id));
         conf = typeof op.versao_base === 'number' && (at ? at.versao : 0) !== op.versao_base;
+        /* opcoes.antesDeGravar(colecao, id, antes, depois) imita um gatilho do banco: pode recusar (lança um erro com
+           .codigo) ou devolver o documento como o banco gravaria. Sem a opção, nada muda. */
+        var gatilho = function (antes, depois) {
+          if (typeof opcoes.antesDeGravar !== 'function') return depois;
+          try { var g = opcoes.antesDeGravar(op.colecao, op.id, clone(antes), clone(depois)); return g === undefined ? depois : g; }
+          catch (e) { code = (e && e.codigo) || 'P0001'; throw e; }
+        };
         if (op.tipo === 'gravar') {
           if (!op.dados || typeof op.dados !== 'object' || Array.isArray(op.dados)) { code = '22023'; throw new Error('dados inválidos'); }
-          ver = gravarDireto(op.colecao, op.id, op.dados); res = 'aplicada';
+          ver = gravarDireto(op.colecao, op.id, gatilho(at ? at.dados : null, op.dados)); res = 'aplicada';
         } else if (op.tipo === 'atualizar') {
           if (!at) { code = 'P0002'; throw new Error('documento inexistente'); }
-          ver = gravarDireto(op.colecao, op.id, mesclar(at.dados, op.campos)); res = 'aplicada';
+          ver = gravarDireto(op.colecao, op.id, gatilho(at.dados, mesclar(at.dados, op.campos))); res = 'aplicada';
         } else {
-          if (!at) res = 'sem_efeito'; else { apagarDireto(op.colecao, op.id); res = 'aplicada'; }
+          if (!at) res = 'sem_efeito'; else { gatilho(at.dados, null); apagarDireto(op.colecao, op.id); res = 'aplicada'; }
         }
       } catch (e) { res = 'erro'; err = code + ': ' + e.message; }
       var x = { resultado: res, versao: ver, conflito: conf, erro: err, codigo: code };

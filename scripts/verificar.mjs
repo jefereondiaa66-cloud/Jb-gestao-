@@ -1258,6 +1258,48 @@ teste('grade', 'Empreita do forno (V158): valor digitado em cada empreita, divis
   assert.ok(b.includes('const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&'), 'a empreita não conta como grade repetida do dia');
 });
 
+teste('almoco', 'Controle de almoço da Cozinha (V160): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), adm = ler('nuvem/admin.html');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  assert.equal((app.match(/<script id="almoco-v160">/g) || []).length, 1, 'um bloco só');
+  assert.ok(app.includes('<style id="almoco-v160-css">'), 'aparência do bloco');
+  const b = /<script id="almoco-v160">([\s\S]*?)<\/script>/.exec(app)[1];
+  /* coleções próprias, separadas do almoxarifado; lançamentos agrupados por mês */
+  assert.ok(b.includes("const COL='almoco',COL_CFG='almocoCfg',COL_FL='almocoFolhas',DOC_V='valor',PAPEL='cozinha';")
+    && b.includes("Object.assign(BUCKET,{[COL]:'mes'});Object.assign(PARTES,{[COL]:4});Object.assign(CAMPO_DATA,{[COL]:'data'});"), 'coleções do controle de almoço');
+  assert.ok(!/gravar(Registro)?\(\s*['"](alm|almItens|almEntradas|almSaidas|almAjustes|fin|despesas|folhas|vales)['"]/.test(b), 'não grava no almoxarifado, no financeiro nem na folha');
+  assert.ok((b.match(/gravarRegistro\(/g) || []).length === 1 && b.includes("gravarRegistro('funcionarios',st,null,true)") && b.includes("JB_NUVEM_API.rpc('jb_almoco_cadastrar'"), 'cadastro rápido só no cadastro do Setor Pessoal');
+  assert.ok(!/\bapagar\(/.test(b), 'o controle não apaga nada');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  /* perfis: a Cozinha lança e cadastra; só o Pessoal e o administrador mudam o valor */
+  assert.ok(b.includes("const LANCA=['admin','rh','dp','gerente',PAPEL];") && b.includes("const CADASTRA=['admin','rh','dp',PAPEL];")
+    && b.includes("const VALOR=['admin','rh','dp'];") && b.includes("almocoValor:{v:VER.slice(),e:VALOR.slice()}"), 'quem lança, quem cadastra e quem muda o valor');
+  /* mês com a folha fechada: travado na tela (o banco também recusa) */
+  assert.ok(b.includes("const travado=m=>{const f=folhaDoMes(m);return !!(f&&f.situacao&&f.situacao!=='Aberta')};"), 'folha fechada trava o mês');
+  /* a parte do mês só é criada quando ainda não existe (erro de um lançamento volta para a tela) */
+  assert.ok(b.includes("const g=await ref.get().catch(()=>null);if(g&&g.exists)throw e}"), 'cria a parte do mês só quando falta');
+  /* Setor Pessoal: "Desconto refeição" na folha, no extrato, no recibo e no holerite (as telas sem almoço ficam iguais) */
+  assert.ok(app.includes('function refeicaoMes(fid,mes){') && app.includes("linhas.push(['(–) Desconto refeição ('+txtAlmocos(refeicao.qtd)+' na fábrica)',-refeicao.valor])")
+    && app.includes("addD('530','Desconto refeição',txtAlmocos(ex.refeicao.qtd),ex.refeicao.valor)") && app.includes('descRefeicao:dRefeicao')
+    && app.includes('refeicao:round2(soma(it,x=>+x.descRefeicao||0))'), 'desconto refeição ligado à folha do Pessoal');
+  /* nuvem: setor do almoxarifado também para quem só tem a Cozinha; perfil novo no painel */
+  assert.ok(nv.includes("almox: ['almox', 'cozinha']") && nv.includes('atualizarCompartilhados: function () { return atualizarCompartilhados(); },'), 'nuvem: setor e dados compartilhados');
+  assert.ok(adm.includes("['cozinha', 'Cozinha (só o controle de almoço)']"), 'perfil Cozinha no painel de usuários');
+  /* banco: coleções, regras e cadastro rápido, com reversão e sem apagar nada
+     (o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório) */
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const nome = 'supabase/migrations/20261124130000_seg_almoco_cozinha.sql';
+    assert.ok(existsSync(join(RAIZ, nome)) && existsSync(join(RAIZ, nome.replace('.sql', '.down.sql'))), 'migração com reversão');
+    const sql = ler(nome), limpo = sql.replace(/--.*$/gm, '');
+    assert.ok(sql.includes("('almoco',    'cozinha', true,  'dados', true)") && sql.includes("('almocoCfg', 'folha',   false, 'dados', true)")
+      && sql.includes("when p_raiz = 'almoco' then 'folha'") && sql.includes('create or replace function public.jb_almoco_cadastrar(p jsonb)')
+      && sql.includes('docs_almoco_proteger_iu') && sql.includes('docs_almoco_cfg_proteger_iu') && sql.includes("using errcode = 'JB423'"), 'coleções, gatilhos e cadastro rápido');
+    assert.ok(!/\b(drop|truncate)\b|\bdelete\s+from\b/i.test(limpo), 'a migração só acrescenta (gatilho de exclusão é para recusar, não para apagar)');
+    assert.ok(/revoke all on function public\.jb_almoco_cadastrar\(jsonb\) from public, anon;/.test(sql), 'cadastro rápido só para quem entrou');
+  }
+  if (ci) assert.ok(ci.includes('node scripts/testar-almoco.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

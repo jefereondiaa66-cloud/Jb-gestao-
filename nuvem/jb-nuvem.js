@@ -397,7 +397,8 @@
   /* setores que aparecem na tela de setores e no trilho: além das regras do perfil (no programa), só os que o
      servidor libera para a pessoa (antes aparecia o setor e as telas ficavam vazias). Administrador vê todos. */
   var MODULOS_DO_SETOR = { dp: ['dp', 'folha'], vendas: ['vendas'], lenha: ['compras'], combustivel: ['compras'], producao: ['producao'],
-    financeiro: ['financeiro'], barro: ['barro'], almox: ['almox'], paletes: ['paletes'], fiscal: ['fiscal'], control: ['controladoria'] };
+    financeiro: ['financeiro'], barro: ['barro'], almox: ['almox', 'cozinha'], paletes: ['paletes'], fiscal: ['fiscal'], control: ['controladoria'] };
+  /* V160: o Setor do Almoxarifado / Cozinha aparece também para quem só tem a Cozinha (controle de almoço) */
   window.JB_SETOR_SRV = function (id) {
     if (!eu || eu.admin) return true;
     var ms = MODULOS_DO_SETOR[id];
@@ -431,6 +432,8 @@
     rpc: async function (fn, args) { await pronto; atividade(); var r = await sb.rpc(fn, args || {}); if (r.error) throw traduzErro(r.error); return r.data; },
     auth: async function (acao, corpo) { await pronto; atividade(); return post(acao, corpo, sessao.access_token); },
     fiscal: fiscal,
+    /* V160: depois de um cadastro feito no servidor (cadastro rápido da Cozinha), traz os dados compartilhados na hora */
+    atualizarCompartilhados: function () { return atualizarCompartilhados(); },
     db: db
   });
 

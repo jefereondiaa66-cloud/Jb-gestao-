@@ -4078,6 +4078,10 @@ function textoDegrau(r){
  const ult=DATA.advertencias.filter(a=>a.funcionarioId===r.funcionarioId&&a.id!==r.id).sort((a,b)=>String(b.data).localeCompare(String(a.data)))[0];
  return (n?n+' medida(s) nos últimos 90 dias. Este é o '+(n+1)+'º registro; degrau sugerido: '+sug:'Nenhuma medida nos últimos 90 dias. Degrau sugerido: '+TIPOS_ADV[0])+(ult?'. Última: '+ult.tipo+' em '+fData(ult.data):'');
 }
+/* V160: almoços na fábrica (Cozinha › Controle de almoço) do mês, a descontar na folha: quantos e quanto
+   (cada almoço guarda o valor do dia em que foi marcado). Sem o módulo do almoço, nada muda. */
+function refeicaoMes(fid,mes){try{const A=window.JB_ALMOCO;if(A&&typeof A.doMes==='function'){const x=A.doMes(fid,mes);if(x&&+x.qtd>0)return{qtd:+x.qtd,valor:round2(+x.valor||0),itens:x.itens||[]}}}catch(e){console.warn('almoço',e)}return{qtd:0,valor:0,itens:[]}}
+const txtAlmocos=q=>q+(q===1?' almoço':' almoços');
 /* ---- extrato mensal do funcionário ---- */
 function extratoMes(fid,mes,opc){
  opc=opc||{};const f=F(fid)||{};const ini=mes+'-01',fim=mes+'-31';
@@ -4094,6 +4098,7 @@ function extratoMes(fid,mes,opc){
  const hePend=DATA.horasExtras.filter(r=>r.funcionarioId===fid&&dd(r.data)&&r.situacao==='Pendente');
  const prod=DATA.producao.filter(r=>r.funcionarioId===fid&&dd(r.data));
  const vales=DATA.vales.filter(r=>r.funcionarioId===fid&&r.natureza==='Desconta do pagamento'&&r.situacao!=='Perdoado'&&!r.quinzenaRef&&(r.competenciaDesconto||String(r.data).slice(0,7))===mes);
+ const refeicao=refeicaoMes(fid,mes);   /* V160: Desconto refeição (almoços na fábrica) */
  const adv=DATA.advertencias.filter(r=>r.funcionarioId===fid&&dd(r.data));
  const fer=DATA.ferias.filter(r=>r.funcionarioId===fid&&r.inicio&&r.inicio<=fim&&(!r.fim||r.fim>=ini)&&r.situacao!=='Cancelada');
  const sal=salarioF(fid),vh=valorHoraF(fid),vd=valorDiariaF(fid);
@@ -4116,6 +4121,7 @@ function extratoMes(fid,mes,opc){
  if(faltasNJ&&temFixo(f)&&sal&&opc.descontarFaltas!==false)linhas.push(['(–) Faltas não justificadas ('+faltasNJ+' dia(s))',-round2(faltasNJ*sal/30)]);
  if(opc.descontarAtrasos&&atrasoMin&&vh)linhas.push(['(–) Atrasos ('+fHm(atrasoMin)+')',-round2(atrasoMin/60*vh)]);
  if(vales.length)linhas.push(['(–) Vales e adiantamentos a descontar ('+vales.length+')',-soma(vales,r=>r.valor)]);
+ if(refeicao.valor>0)linhas.push(['(–) Desconto refeição ('+txtAlmocos(refeicao.qtd)+' na fábrica)',-refeicao.valor]);
  const pgProd=soma(prod.filter(r=>r.situacao==='Pago'),r=>+r.valorPago||totalProducao(r));
  const pgHe=soma(heOk.filter(r=>r.situacao==='Pago'),r=>+r.valorPago||estimadoHE(r));
  if(pgProd+pgHe>0)linhas.push(['(–) Já pago neste mês'+(pgProd&&pgHe?' (produção e horas extras)':pgProd?' (produção)':' (horas extras)'),-round2(pgProd+pgHe)]);
@@ -4124,7 +4130,7 @@ function extratoMes(fid,mes,opc){
   const pagoSal=iti?round2((+iti.fixo||0)+(+iti.diarias||0)+(adInsal?+iti.insalubridade||0:0)+(adNot?+iti.noturno||0:0)-(+iti.descFaltas||0)-(+iti.descAtrasos||0)):0;
   if(pagoSal>0)linhas.push(['(–) Salário e diárias pagos no fechamento da folha',-pagoSal])}
  const total=soma(linhas,l=>l[1]);
- return{f,mes,forma:formaRem(f),sal,vh,vd,adInsal,adNot,adNotRef,linhas,total,di,cs,faltasNJ,faltasJ,atrasoMin,extraMin,noturnoMin,diasTrab,heOk,hePend,prod,vales,adv,fer,falta,
+ return{f,mes,forma:formaRem(f),sal,vh,vd,adInsal,adNot,adNotRef,linhas,total,di,cs,faltasNJ,faltasJ,atrasoMin,extraMin,noturnoMin,diasTrab,heOk,hePend,prod,vales,refeicao,adv,fer,falta,
   prodPendente:soma(prod.filter(r=>r.situacao!=='Pago'),totalProducao),prodPago:pgProd,jaPago:round2(pgProd+pgHe)};
 }
 const UIE={func:'',mes:mesAtual(),atrasos:false};
@@ -4148,7 +4154,7 @@ function telaExtrato(el){
  ${!veSensivel()?'<div class="aviso at">Seu acesso não mostra salários, valor da diária nem valor por produção, então a composição do pagamento fica incompleta.</div>':''}
  ${ex.falta.length?'<div class="aviso at">Para o cálculo ficar completo, falta cadastrar na ficha: '+esc(ex.falta.join(', '))+'.</div>':''}
  <div class="grupo-t">Resumo de ${fMes(UIE.mes)}</div>
- <div class="kpis">${kp(ex.diasTrab,'Dias com trabalho registrado')}${kp(ex.faltasNJ,'Faltas não justificadas',ex.faltasNJ?'pe':'')}${kp(ex.faltasJ,'Faltas justificadas')}${kp(fHm(ex.atrasoMin),'Atrasos',ex.atrasoMin?'at':'')}${kp(fHm(ex.extraMin),'Horas além da jornada')}${kp(fNum(soma(ex.prod,r=>r.quantidade),2),'Produção (quantidade)')}${kp(fMoeda(soma(ex.prod,totalProducao)),'Produção (valor)')}${kp(fMoeda(soma(ex.vales,r=>r.valor)),'Vales a descontar',ex.vales.length?'at':'')}${kp(fMoeda(ex.jaPago),'Já pago neste mês')}${kp(ex.adv.length,'Advertências no mês (régua: '+degrauAdv(UIE.func,hoje())+' em 90 dias)',ex.adv.length?'pe':'')}</div>
+ <div class="kpis">${kp(ex.diasTrab,'Dias com trabalho registrado')}${kp(ex.faltasNJ,'Faltas não justificadas',ex.faltasNJ?'pe':'')}${kp(ex.faltasJ,'Faltas justificadas')}${kp(fHm(ex.atrasoMin),'Atrasos',ex.atrasoMin?'at':'')}${kp(fHm(ex.extraMin),'Horas além da jornada')}${kp(fNum(soma(ex.prod,r=>r.quantidade),2),'Produção (quantidade)')}${kp(fMoeda(soma(ex.prod,totalProducao)),'Produção (valor)')}${kp(fMoeda(soma(ex.vales,r=>r.valor)),'Vales a descontar',ex.vales.length?'at':'')}${ex.refeicao&&ex.refeicao.qtd?kp(fMoeda(ex.refeicao.valor),'Desconto refeição ('+txtAlmocos(ex.refeicao.qtd)+')','at'):''}${kp(fMoeda(ex.jaPago),'Já pago neste mês')}${kp(ex.adv.length,'Advertências no mês (régua: '+degrauAdv(UIE.func,hoje())+' em 90 dias)',ex.adv.length?'pe':'')}</div>
  <div class="grupo-t">Composição do pagamento (estimativa gerencial)</div>
  <div class="painel tabwrap">${ex.linhas.length?`<table class="tbl"><thead><tr><th>Item</th><th class="num">Valor</th></tr></thead><tbody>
   ${ex.linhas.map(([l,v])=>`<tr><td data-l="Item">${esc(l)}</td><td data-l="Valor" class="num" ${v<0?'style="color:var(--pe)"':''}>${fMoeda(v)}</td></tr>`).join('')}
@@ -4767,7 +4773,8 @@ function pessoasDaFolha(mes){
  const mov=id=>DATA.diario.some(r=>r.funcionarioId===id&&dd(r.data))
   ||DATA.producao.some(r=>r.funcionarioId===id&&dd(r.data))
   ||DATA.horasExtras.some(r=>r.funcionarioId===id&&dd(r.data))
-  ||DATA.vales.some(r=>r.funcionarioId===id&&(r.competenciaDesconto||String(r.data).slice(0,7))===mes);
+  ||DATA.vales.some(r=>r.funcionarioId===id&&(r.competenciaDesconto||String(r.data).slice(0,7))===mes)
+  ||refeicaoMes(id,mes).qtd>0;
  return filtroSetor(DATA.funcionarios,f=>f.setor).filter(f=>{
    if(f.admissao&&f.admissao>fim)return false;
    if(f.situacao!=='Desligado')return true;
@@ -4784,6 +4791,7 @@ function itemFolha(f,mes,opc){
  const dFaltas=(ex.faltasNJ&&temFixo(f)&&ex.sal)?round2(ex.faltasNJ*ex.sal/30):0;
  const dAtrasos=(opc&&opc.descontarAtrasos&&ex.atrasoMin&&ex.vh)?round2(ex.atrasoMin/60*ex.vh):0;
  const dVales=round2(soma(ex.vales,r=>r.valor));
+ const dRefeicao=round2((ex.refeicao||{}).valor||0),qRefeicao=(ex.refeicao||{}).qtd||0;
  const jaPago=round2(ex.jaPago);
  /* cálculo legal: só com a chave própria, e só para quem tem carteira. É o mesmo cálculo
     do holerite, para os dois nunca divergirem. Folha já fechada recalcula pela regra que usou. */
@@ -4798,10 +4806,10 @@ function itemFolha(f,mes,opc){
  }
  const adN=lg?lg.noturno:round2(ex.adNot),adI=lg?lg.insalubridade:round2(ex.adInsal);
  const bruto=round2(fixo+diarias+producao+extras+adN+adI+(lg?lg.salFamilia:0));
- const descontos=round2(dFaltas+dAtrasos+dVales+jaPago+(lg?lg.inss+lg.irrf:0));
+ const descontos=round2(dFaltas+dAtrasos+dVales+dRefeicao+jaPago+(lg?lg.inss+lg.irrf:0));
  return{funcionarioId:f.id,nome:f.nome,matricula:f.matricula||'',setor:f.setor||'',cargo:f.cargo||'',
   contratacao:f.tipoContratacao||'',forma:formaRem(f),fixo,diarias,producao,extras,noturno:adN,insalubridade:adI,
-  descFaltas:dFaltas,descAtrasos:dAtrasos,descVales:dVales,jaPago,bruto,descontos,total:round2(bruto-descontos),
+  descFaltas:dFaltas,descAtrasos:dAtrasos,descVales:dVales,descRefeicao:dRefeicao,qtdRefeicao:qRefeicao,jaPago,bruto,descontos,total:round2(bruto-descontos),
   faltas:ex.faltasNJ,diasTrab:ex.diasTrab,qtdProd:round2(soma(ex.prod,r=>r.quantidade)),falta:ex.falta,
   ...(lg?{legal:true,...lg}:{})};
 }
@@ -4810,7 +4818,7 @@ const totaisFolha=it=>({pessoas:it.length,
  fixo:round2(soma(it,x=>x.fixo)),diarias:round2(soma(it,x=>x.diarias)),
  producao:round2(soma(it,x=>x.producao)),extras:round2(soma(it,x=>x.extras)),
  descFaltas:round2(soma(it,x=>x.descFaltas)),descAtrasos:round2(soma(it,x=>x.descAtrasos)),
- vales:round2(soma(it,x=>x.descVales)),jaPago:round2(soma(it,x=>x.jaPago)),
+ vales:round2(soma(it,x=>x.descVales)),refeicao:round2(soma(it,x=>+x.descRefeicao||0)),jaPago:round2(soma(it,x=>x.jaPago)),
  bruto:round2(soma(it,x=>x.bruto)),descontos:round2(soma(it,x=>x.descontos)),liquido:round2(soma(it,x=>x.total)),
  noturno:round2(soma(it,x=>+x.noturno||0)),insalubridade:round2(soma(it,x=>+x.insalubridade||0)),salFamilia:round2(soma(it,x=>+x.salFamilia||0)),
  inss:round2(soma(it,x=>+x.inss||0)),irrf:round2(soma(it,x=>+x.irrf||0)),fgts:round2(soma(it,x=>+x.fgts||0)),
@@ -4849,7 +4857,7 @@ function telaFolha(el){
   if(usou)return `<div class="aviso in" style="margin-bottom:12px"><b>Cálculo legal no fechamento${fechada?'':' ligado'}.</b> Para quem tem carteira, a folha ${fechada?'descontou':'desconta'} INSS e IRRF e ${fechada?'pagou':'paga'} adicional noturno e salário-família pelo mesmo cálculo do holerite, com a tabela de ${esc(fMes((fechada&&fc.parametrosLegais&&fc.parametrosLegais.vigencia)||LG().vigencia||''))}.</div>`;
   if(fechada)return '';
   return legalLigado()?`<div class="aviso at" style="margin-bottom:12px">As tabelas legais estão ligadas só no holerite. O fechamento <b>não</b> desconta INSS nem IRRF. ${pode('config')?'Para descontar, confira as tabelas com o contador e ligue “Descontar INSS e IRRF no fechamento” em <a href="#/config">Configurações › Tabelas legais</a>.':''}</div>`:''})()}
- <div class="kpis">${kp(fMoeda(tt.fixo),'Salário fixo')}${kp(fMoeda(tt.diarias),'Diárias')}${kp(fMoeda(tt.producao),'Produção')}${kp(fMoeda(tt.extras),'Horas extras')}${tt.insalubridade?kp(fMoeda(tt.insalubridade),'Insalubridade'):''}${tt.noturno?kp(fMoeda(tt.noturno),'Adicional noturno'):''}${tt.salFamilia?kp(fMoeda(tt.salFamilia),'Salário-família'):''}${tt.inss?kp(fMoeda(tt.inss),'INSS descontado','pe'):''}${tt.irrf?kp(fMoeda(tt.irrf),'IRRF descontado','pe'):''}${tt.fgts?kp(fMoeda(tt.fgts),'FGTS da empresa (8%)'):''}${kp(fMoeda(tt.descFaltas+tt.descAtrasos),'Faltas e atrasos',(tt.descFaltas+tt.descAtrasos)?'at':'')}${kp(fMoeda(tt.vales),'Vales a descontar',tt.vales?'at':'')}${kp(fMoeda(tt.jaPago),'Já pago no mês')}</div>
+ <div class="kpis">${kp(fMoeda(tt.fixo),'Salário fixo')}${kp(fMoeda(tt.diarias),'Diárias')}${kp(fMoeda(tt.producao),'Produção')}${kp(fMoeda(tt.extras),'Horas extras')}${tt.insalubridade?kp(fMoeda(tt.insalubridade),'Insalubridade'):''}${tt.noturno?kp(fMoeda(tt.noturno),'Adicional noturno'):''}${tt.salFamilia?kp(fMoeda(tt.salFamilia),'Salário-família'):''}${tt.inss?kp(fMoeda(tt.inss),'INSS descontado','pe'):''}${tt.irrf?kp(fMoeda(tt.irrf),'IRRF descontado','pe'):''}${tt.fgts?kp(fMoeda(tt.fgts),'FGTS da empresa (8%)'):''}${kp(fMoeda(tt.descFaltas+tt.descAtrasos),'Faltas e atrasos',(tt.descFaltas+tt.descAtrasos)?'at':'')}${kp(fMoeda(tt.vales),'Vales a descontar',tt.vales?'at':'')}${tt.refeicao?kp(fMoeda(tt.refeicao),'Desconto refeição','at'):''}${kp(fMoeda(tt.jaPago),'Já pago no mês')}</div>
  ${(()=>{try{const cf=custoFolhaItens(it);const P=cf.prod,A=cf.adm;if(!cf.pessoas)return '';
   const cu=round2(P.comFator+P.semCarteira),de=round2(A.comFator+A.semCarteira);
   const kp=(v,l)=>`<div class="kpi" style="cursor:default"><div class="v" style="font-size:18px">${v}</div><div class="l">${l}</div></div>`;
@@ -4857,26 +4865,26 @@ function telaFolha(el){
   <div class="kpis">${kp(fMoeda(round2(P.base+A.base)),'Base com carteira (salário devido)')}${kp(fMoeda(round2(P.comFator+A.comFator)),'Com carteira × 1,29','dest')}${kp(fMoeda(round2(P.semCarteira+A.semCarteira)),'Sem carteira (bruto, sem fator)')}${kp(fMoeda(cu),'Produção → custo (Mão de obra)')}${kp(fMoeda(de),'Administrativo → despesa')}</div>
   <div class="ajuda" style="margin:-6px 0 12px">Os 29% guardam 13º (8,33%), férias + 1/3 (11,11%) e FGTS (9,56%) que a cerâmica vai pagar no futuro. Rescisões, detalhe e o ano inteiro: <a href="javascript:void 0" data-relcf="r24">custo do mês</a> · <a href="javascript:void 0" data-relcf="r26">mês a mês</a>.</div>`}catch(e){console.warn('custo folha',e);return ''}})()}
  <div class="grupo-t">Pagamento por pessoa</div>
- <div class="painel tabwrap">${it.length?`<table class="tbl cartao tbl-folha"><thead><tr><th>Pessoa</th><th>Remuneração</th><th class="num">Fixo</th><th class="num">Diárias</th><th class="num">Produção</th><th class="num">Extras</th>${(tt.legais||tt.noturno||tt.insalubridade)?'<th class="num">Adicionais e sal.-família</th>':''}<th class="num">Faltas</th><th class="num">Vales</th>${tt.legais?'<th class="num">INSS</th><th class="num">IRRF</th>':''}<th class="num">Já pago</th><th class="num">A pagar</th><th></th></tr></thead><tbody>
+ <div class="painel tabwrap">${it.length?`<table class="tbl cartao tbl-folha"><thead><tr><th>Pessoa</th><th>Remuneração</th><th class="num">Fixo</th><th class="num">Diárias</th><th class="num">Produção</th><th class="num">Extras</th>${(tt.legais||tt.noturno||tt.insalubridade)?'<th class="num">Adicionais e sal.-família</th>':''}<th class="num">Faltas</th><th class="num">Vales</th>${tt.refeicao?'<th class="num">Refeição</th>':''}${tt.legais?'<th class="num">INSS</th><th class="num">IRRF</th>':''}<th class="num">Já pago</th><th class="num">A pagar</th><th></th></tr></thead><tbody>
   ${it.map(i=>`<tr><td data-l="Pessoa"><b>${esc(i.nome)}</b>${i.matricula?'<div style="font-size:12px;color:var(--suave)">'+esc(i.matricula)+(i.setor?' · '+esc(i.setor):'')+'</div>':''}</td>
    <td data-l="Remuneração">${esc(i.forma)}${(i.falta||[]).length?'<div style="font-size:12px;color:var(--at,#9a6b00)">cadastro incompleto</div>':''}</td>
    <td data-l="Fixo" class="num">${col(i.fixo)}</td><td data-l="Diárias" class="num">${col(i.diarias)}</td>
    <td data-l="Produção" class="num">${col(i.producao)}</td><td data-l="Extras" class="num">${col(i.extras)}</td>
    ${(tt.legais||tt.noturno||tt.insalubridade)?`<td data-l="Adicionais e sal.-família" class="num">${col(round2((+i.noturno||0)+(+i.insalubridade||0)+(+i.salFamilia||0)))}</td>`:''}
-   <td data-l="Faltas" class="num">${col(round2(i.descFaltas+i.descAtrasos),1)}</td><td data-l="Vales" class="num">${col(i.descVales,1)}</td>
+   <td data-l="Faltas" class="num">${col(round2(i.descFaltas+i.descAtrasos),1)}</td><td data-l="Vales" class="num">${col(i.descVales,1)}</td>${tt.refeicao?`<td data-l="Refeição" class="num">${col(+i.descRefeicao||0,1)}${i.qtdRefeicao?'<div style="font-size:11.5px;color:var(--suave)">'+txtAlmocos(i.qtdRefeicao)+'</div>':''}</td>`:''}
    ${tt.legais?`<td data-l="INSS" class="num">${i.legal?col(i.inss,1)+'<div style="font-size:11.5px;color:var(--suave)">base '+fMoeda(i.baseInss)+'</div>':'<span style="color:var(--fraco)">sem carteira</span>'}</td><td data-l="IRRF" class="num">${i.legal?col(i.irrf,1)+(i.deps?'<div style="font-size:11.5px;color:var(--suave)">'+i.deps+' dep.</div>':''):'—'}</td>`:''}
    <td data-l="Já pago" class="num">${col(i.jaPago,1)}</td><td data-l="A pagar" class="num"><b>${fMoeda(i.total)}</b></td>
    <td data-l="Ações"><span class="acoes-ln"><button class="btn min ico" data-rec="${esc(i.funcionarioId)}" title="Visualizar o recibo" aria-label="Visualizar o recibo de ${esc(i.nome)}">${ic('recibo')}</button><button class="btn min ico" data-ext="${esc(i.funcionarioId)}" title="Abrir o extrato" aria-label="Abrir o extrato de ${esc(i.nome)}">${ic('doc')}</button></span></td></tr>`).join('')}
   </tbody><tfoot><tr><td colspan="2"><b>Total de ${it.length} pessoa(s)</b></td><td class="num"><b>${fMoeda(tt.fixo)}</b></td><td class="num"><b>${fMoeda(tt.diarias)}</b></td>
    <td class="num"><b>${fMoeda(tt.producao)}</b></td><td class="num"><b>${fMoeda(tt.extras)}</b></td>
    ${(tt.legais||tt.noturno||tt.insalubridade)?`<td class="num"><b>${fMoeda(round2((tt.noturno||0)+(tt.insalubridade||0)+(tt.salFamilia||0)))}</b></td>`:''}
-   <td class="num"><b>${fMoeda(-(tt.descFaltas+tt.descAtrasos))}</b></td><td class="num"><b>${fMoeda(-tt.vales)}</b></td>
+   <td class="num"><b>${fMoeda(-(tt.descFaltas+tt.descAtrasos))}</b></td><td class="num"><b>${fMoeda(-tt.vales)}</b></td>${tt.refeicao?`<td class="num"><b>${fMoeda(-tt.refeicao)}</b></td>`:''}
    ${tt.legais?`<td class="num"><b>${fMoeda(-tt.inss)}</b></td><td class="num"><b>${fMoeda(-tt.irrf)}</b></td>`:''}
    <td class="num"><b>${fMoeda(-tt.jaPago)}</b></td><td class="num"><b>${fMoeda(tt.liquido)}</b></td><td></td></tr></tfoot></table>`
   :'<div class="vazio"><b>Ninguém a pagar neste mês</b>Entram na folha as pessoas ativas e quem teve ponto, produção, hora extra ou vale no mês.</div>'}</div>
  <div class="aviso in" style="margin-top:12px">${tt.legais?'Com o cálculo legal: INSS e IRRF descontados de quem tem carteira e FGTS lançado como custo da empresa. Ainda não calcula 13º nem férias, e não substitui a conferência da contabilidade.':'Conta gerencial de quanto sai do caixa: não calcula INSS, IRRF, FGTS, 13º nem férias, e não substitui a folha da contabilidade.'} Produção e horas extras já lançadas como pagas entram em <b>Já pago</b> para não pagar duas vezes.</div>
  <div class="inst-cartao" style="margin-top:14px"><h3>Como fechar o mês</h3><ol>
-  <li>Confira se o ponto, a produção, as horas extras e os vales do mês estão todos lançados.</li>
+  <li>Confira se o ponto, a produção, as horas extras, os vales e os almoços da cozinha do mês estão todos lançados.</li>
   <li>Olhe a coluna <b>A pagar</b> de cada pessoa e o total no rodapé.</li>
   <li>Toque em <b>Fechar folha</b>: os valores congelam, a produção do mês vira <b>Pago</b>, os vales viram <b>Descontado</b> e o custo dos salários entra em Despesas.</li>
   <li>Depois de pagar de verdade, use <b>Marcar como paga</b> e guarde o PDF. O <b>Recibo</b> de cada pessoa sai com linha de assinatura.</li></ol></div>`;
@@ -4893,9 +4901,9 @@ function telaFolha(el){
   [{k:'nome',l:'Funcionário'},{k:'matricula',l:'Matrícula'},{k:'setor',l:'Setor'},{k:'contratacao',l:'Contratação'},{k:'forma',l:'Remuneração'},
    {k:'fixo',l:'Salário fixo',t:'moeda'},{k:'diarias',l:'Diárias',t:'moeda'},{k:'producao',l:'Produção',t:'moeda'},{k:'extras',l:'Horas extras',t:'moeda'},
    {k:'bruto',l:'Bruto',t:'moeda'},{k:'descFaltas',l:'(-) Faltas',t:'moeda'},{k:'descAtrasos',l:'(-) Atrasos',t:'moeda'},{k:'descVales',l:'(-) Vales',t:'moeda'},
-   {k:'jaPago',l:'(-) Já pago',t:'moeda'},{k:'total',l:'A pagar',t:'moeda'}],
+   ...(tt.refeicao?[{k:'descRefeicao',l:'(-) Desconto refeição',t:'moeda'}]:[]),{k:'jaPago',l:'(-) Já pago',t:'moeda'},{k:'total',l:'A pagar',t:'moeda'}],
   it.concat([{nome:'TOTAL ('+it.length+' pessoas)',fixo:tt.fixo,diarias:tt.diarias,producao:tt.producao,extras:tt.extras,bruto:tt.bruto,
-   descFaltas:tt.descFaltas,descAtrasos:tt.descAtrasos,descVales:tt.vales,jaPago:tt.jaPago,total:tt.liquido}]),
+   descFaltas:tt.descFaltas,descAtrasos:tt.descAtrasos,descVales:tt.vales,descRefeicao:tt.refeicao||0,jaPago:tt.jaPago,total:tt.liquido}]),
   'Fechamento da folha · '+fMes(mes)+(fc?' · '+fc.situacao:''));
 }
 
@@ -5868,7 +5876,7 @@ function ferramentasIA(){
     origem:fechada?'valores congelados no fechamento':'cálculo ao vivo pelos lançamentos, ainda pode mudar',
     pagaEm:fc&&fc.pagoEm?fc.pagoEm:null,totais:tt,
     pessoas:it.slice(0,60).map(x=>({nome:x.nome,remuneracao:x.forma,fixo:x.fixo,diarias:x.diarias,producao:x.producao,
-     extras:x.extras,descontoFaltas:x.descFaltas,descontoVales:x.descVales,jaPago:x.jaPago,aPagar:x.total,
+     extras:x.extras,descontoFaltas:x.descFaltas,descontoVales:x.descVales,descontoRefeicao:+x.descRefeicao||0,jaPago:x.jaPago,aPagar:x.total,
      cadastroIncompleto:(x.falta||[]).length>0})),
     nota:notaSalario()||'Conta gerencial de desembolso: não inclui INSS, IRRF, FGTS, 13º nem férias.'}}});
 
@@ -5893,7 +5901,7 @@ function ferramentasIA(){
     composicao:ex.linhas.map(l=>({item:l[0],valor:l[1]})),totalEstimado:ex.total,
     diasTrabalhados:ex.diasTrab,faltasNaoJustificadas:ex.faltasNJ,faltasJustificadas:ex.faltasJ,
     atrasoMinutos:ex.atrasoMin,producaoQuantidade:soma(ex.prod,r=>+r.quantidade||0),
-    valesADescontar:soma(ex.vales,r=>r.valor),advertenciasNoMes:ex.adv.length,
+    valesADescontar:soma(ex.vales,r=>r.valor),almocosNaFabrica:(ex.refeicao||{}).qtd||0,descontoRefeicao:(ex.refeicao||{}).valor||0,advertenciasNoMes:ex.adv.length,
     jaPagoNoMes:ex.jaPago,faltaCadastrar:ex.falta,
     nota:notaSalario()||'Estimativa gerencial, sem encargos.'}}});
 
@@ -7673,7 +7681,7 @@ function fichaResumo(f){
  ${ex?`<div class="grupo-t">Movimento de ${fMes(COMP.mes)}</div>
  <div class="kpis">${kp(ex.diasTrab,'Dias com trabalho')}${kp(ex.faltasNJ,'Faltas não justificadas',ex.faltasNJ?'pe':'')}
   ${kp(fHm(ex.atrasoMin),'Atrasos',ex.atrasoMin?'at':'')}${kp(fHm(ex.extraMin),'Horas além da jornada')}
-  ${kp(fNum(soma(ex.prod,r=>r.quantidade),2),'Produção (quantidade)')}${kp(veSensivel()?fMoeda(soma(ex.vales,r=>r.valor)):'•••','Vales a descontar',ex.vales.length?'at':'')}
+  ${kp(fNum(soma(ex.prod,r=>r.quantidade),2),'Produção (quantidade)')}${kp(veSensivel()?fMoeda(soma(ex.vales,r=>r.valor)):'•••','Vales a descontar',ex.vales.length?'at':'')}${ex.refeicao&&ex.refeicao.qtd?kp(fMoeda(ex.refeicao.valor),'Desconto refeição ('+txtAlmocos(ex.refeicao.qtd)+')','at'):''}
   ${kp(veSensivel()?fMoeda(ex.total):'•••','Total estimado a receber','br')}</div>
  ${ex.linhas.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Composição do pagamento de ${fMes(COMP.mes)}</th><th class="num">Valor</th></tr></thead><tbody>
   ${ex.linhas.map(([l,v])=>`<tr><td data-l="Item">${esc(l)}</td><td data-l="Valor" class="num" ${v<0?'style="color:var(--pe)"':''}>${veSensivel()?fMoeda(v):'•••'}</td></tr>`).join('')}
@@ -7875,6 +7883,7 @@ function holerite(fid,mes,opc){
  if(ir.valor)addD('302','IRRF',fNum(ir.aliquota,1)+'%',ir.valor);
  if(ex.vales.length)addD('510','Vales e adiantamentos',ex.vales.length+' lançamento(s)',soma(ex.vales,r=>r.valor));
  if(+L.vtPercentual>0&&f.valeTransporte)addD('520','Vale-transporte',(+L.vtPercentual)+'% do salário',round2(Math.min((+f.valeTransporte||0),baseTrib*(+L.vtPercentual)/100)));
+ if(ex.refeicao&&ex.refeicao.valor>0)addD('530','Desconto refeição',txtAlmocos(ex.refeicao.qtd),ex.refeicao.valor);   /* V160: almoços na fábrica (Cozinha) */
  if(ex.jaPago>0)addD('590','Já pago durante o mês','',ex.jaPago);
  /* o bruto é a soma de tudo o que a pessoa recebe, cota de salário-família incluída */
  const bruto=round2(soma(pro,x=>x.v));
@@ -9466,7 +9475,7 @@ function resumoLanc(f,mes,q){
   <div class="bloco"><h3>Folha de ${esc(fMes(mes))}<a href="#/folha">Abrir</a></h3>
    <ul class="lc-ul">${lin('Salário fixo',im.fixo)}${lin('Diárias',im.diarias,false,im.diasTrab?im.diasTrab+' dia(s)':'')}${lin('Produção',im.producao)}${lin('Horas extras',im.extras)}
     ${lin('Insalubridade',+im.insalubridade||0)}${lin('Adicional noturno e salário-família',round2((+im.noturno||0)+(+im.salFamilia||0)))}${lin('Faltas e atrasos',round2(im.descFaltas+im.descAtrasos),true)}
-    ${lin('INSS',+im.inss||0,true)}${lin('IRRF',+im.irrf||0,true)}${lin('Vales e adiantamentos',im.descVales,true)}${lin('Já pago no mês',im.jaPago,true)}
+    ${lin('INSS',+im.inss||0,true)}${lin('IRRF',+im.irrf||0,true)}${lin('Vales e adiantamentos',im.descVales,true)}${lin('Desconto refeição',+im.descRefeicao||0,true,im.qtdRefeicao?txtAlmocos(im.qtdRefeicao):'')}${lin('Já pago no mês',im.jaPago,true)}
     <li class="tot"><span>A pagar no fechamento</span><b>${fMoeda(im.total)}</b></li></ul>
    ${pendMes&&im.producao?`<p class="aviso in" style="margin:0 14px 10px">A produção da folha inclui ${fMoeda(pendMes)} ainda pendente de aprovação.</p>`:''}
    ${(im.falta||[]).length?`<p class="aviso at" style="margin:0 14px 14px">Falta no cadastro: ${esc(im.falta.join(', '))}. O valor fica menor que o real.</p>`:''}</div></div>`;
@@ -12744,7 +12753,7 @@ function docExtrato(ex){
   ['Dias com trabalho registrado',String(ex.diasTrab)],['Faltas não justificadas',String(ex.faltasNJ)],['Faltas justificadas',String(ex.faltasJ)],
   ['Atrasos',fHm(ex.atrasoMin)],['Horas além da jornada',fHm(ex.extraMin)],['Horas extras aprovadas',fNum(soma(ex.heOk,r=>r.horas),2)+' h'],
   ['Produção lançada',fNum(soma(ex.prod,r=>r.quantidade),2)+' un · '+fMoeda(soma(ex.prod,totalProducao))],
-  ['Vales a descontar',fMoeda(soma(ex.vales,r=>r.valor))],['Já pago neste mês',fMoeda(ex.jaPago)],
+  ['Vales a descontar',fMoeda(soma(ex.vales,r=>r.valor))],...(ex.refeicao&&ex.refeicao.qtd?[['Almoços na fábrica (desconto refeição)',txtAlmocos(ex.refeicao.qtd)+' · '+fMoeda(ex.refeicao.valor)]]:[]),['Já pago neste mês',fMoeda(ex.jaPago)],
   ['Advertências no mês',String(ex.adv.length)+' (régua: '+degrauAdv(f.id,hoje())+' em 90 dias)']]}});
  D.notaFinal='Documento gerencial gerado pelo sistema em '+fDataHora(new Date().toISOString())+'. Os valores são estimativas de controle interno: não incluem INSS, IRRF, FGTS, 13º, férias e outros encargos, e não substituem a folha de pagamento feita pela contabilidade.';
  D.assinaturas=[{nome:emp.responsavel||'',sub:'Responsável pela empresa'},{nome:f.nome,sub:'Funcionário(a)'}];
@@ -12759,12 +12768,13 @@ function docFolha(mes,it,tt,fc){
  D.meta=[['Competência',mesLongo(mes)],['Situação',sit],['Emitido em',fDataHora(new Date().toISOString())]];
  D.arquivo='Folha_'+mes;D.paisagem=true;D.rodape='Fechamento da folha · '+mesLongo(mes);
  if(sit==='Aberta')D.estimativa='Folha ainda aberta: valores sujeitos a mudança até o fechamento';
- const head=['Funcionário','Remuneração','Fixo','Diárias','Produção','Extras',...(adP?['Adic./S.-fam.']:[]),'(–) Faltas','(–) Vales',...(lgP?['(–) INSS','(–) IRRF']:[]),'(–) Já pago','A pagar'];
+ const rfP=!!tt.refeicao;   /* V160: coluna do desconto refeição só quando há almoço no mês */
+ const head=['Funcionário','Remuneração','Fixo','Diárias','Produção','Extras',...(adP?['Adic./S.-fam.']:[]),'(–) Faltas','(–) Vales',...(rfP?['(–) Refeição']:[]),...(lgP?['(–) INSS','(–) IRRF']:[]),'(–) Já pago','A pagar'];
  const body=it.map(i=>[i.nome+(i.matricula?' ('+i.matricula+')':''),i.forma||'',fMoeda(i.fixo),fMoeda(i.diarias),fMoeda(i.producao),fMoeda(i.extras),
-  ...(adP?[fMoeda((+i.noturno||0)+(+i.insalubridade||0)+(+i.salFamilia||0))]:[]),fMoeda(-(i.descFaltas+i.descAtrasos)),fMoeda(-i.descVales),
+  ...(adP?[fMoeda((+i.noturno||0)+(+i.insalubridade||0)+(+i.salFamilia||0))]:[]),fMoeda(-(i.descFaltas+i.descAtrasos)),fMoeda(-i.descVales),...(rfP?[fMoeda(-(+i.descRefeicao||0))]:[]),
   ...(lgP?[fMoeda(-(+i.inss||0)),fMoeda(-(+i.irrf||0))]:[]),fMoeda(-i.jaPago),fMoeda(i.total)]);
  const foot=['Total de '+it.length+' pessoa(s)','',fMoeda(tt.fixo),fMoeda(tt.diarias),fMoeda(tt.producao),fMoeda(tt.extras),
-  ...(adP?[fMoeda((tt.noturno||0)+(tt.insalubridade||0)+(tt.salFamilia||0))]:[]),fMoeda(-(tt.descFaltas+tt.descAtrasos)),fMoeda(-tt.vales),
+  ...(adP?[fMoeda((tt.noturno||0)+(tt.insalubridade||0)+(tt.salFamilia||0))]:[]),fMoeda(-(tt.descFaltas+tt.descAtrasos)),fMoeda(-tt.vales),...(rfP?[fMoeda(-tt.refeicao)]:[]),
   ...(lgP?[fMoeda(-tt.inss),fMoeda(-tt.irrf)]:[]),fMoeda(-tt.jaPago),fMoeda(tt.liquido)];
  D.blocos.push({tipo:'tabela',head,body:body.length?body:[['Nenhuma pessoa na folha deste mês.',...head.slice(1).map(()=>'')]],foot,dir:head.map((_,k)=>k).filter(k=>k>=2),fonte:fonteTab(head.length)});
  D.blocos.push({tipo:'aviso',texto:lgP?'Com cálculo legal: INSS e IRRF de quem tem carteira pela tabela de '+mesLongo((fc&&fc.parametrosLegais&&fc.parametrosLegais.vigencia)||LG().vigencia||'')+'; FGTS de '+fMoeda(tt.fgts)+' a recolher pela empresa. Não inclui 13º nem férias.'
@@ -12780,7 +12790,7 @@ function docRecibo(i,mes,fc){
   ['Adicional de insalubridade',+i.insalubridade||0],['Adicional noturno',+i.noturno||0],['Salário-família'+(i.cotasSF?' ('+i.cotasSF+' cota(s))':''),+i.salFamilia||0],
   ['(–) Faltas não justificadas'+(i.faltas?' ('+i.faltas+' dia(s))':''),-i.descFaltas],['(–) Atrasos',-i.descAtrasos],
   ['(–) INSS (base '+fMoeda(i.baseInss||0)+')',-(+i.inss||0)],['(–) IRRF (base '+fMoeda(i.baseIrrf||0)+(i.deps?', '+i.deps+' dependente(s)':'')+')',-(+i.irrf||0)],
-  ['(–) Vales e adiantamentos',-i.descVales],['(–) Já pago durante o mês',-i.jaPago]].filter(l=>l[1]);
+  ['(–) Vales e adiantamentos',-i.descVales],['(–) Desconto refeição'+(i.qtdRefeicao?' ('+txtAlmocos(i.qtdRefeicao)+')':''),-(+i.descRefeicao||0)],['(–) Já pago durante o mês',-i.jaPago]].filter(l=>l[1]);
  const D=baseRel('RECIBO DE PAGAMENTO','Competência '+mesLongo(mes),[]);
  D.meta=[['Competência',mesLongo(mes)],['Folha',fc?fc.situacao:'Aberta'],['Emitido em',fData(hoje())]];
  D.quadros=[quadroEmpresaDoc('QUEM PAGA'),quadroFuncDoc(f,'QUEM RECEBE')];
@@ -38267,7 +38277,7 @@ const RELS=[
   const m=UIR.mes;const fs=funcsR().filter(f=>(f.situacao!=='Desligado'||String(f.dataDesligamento||'').startsWith(m))&&(!UIR.extra||formaRem(f)===UIR.extra));
   const rows=fs.map(f=>{const ex=extratoMes(f.id,m,{});const g=l=>{const x=ex.linhas.find(([t])=>t.startsWith(l));return x?x[1]:0};
    return{nome:f.nome,setor:f.setor,carteira:temCarteira(f.tipoContratacao)?'Sim':'Não',forma:ex.forma,fixo:g('Salário mensal'),diarias:g('Diárias trabalhadas'),producao:g('Produção do mês'),extras:g('Horas extras'),
-    descontos:round2(g('(–) Faltas')+g('(–) Atrasos')+g('(–) Vales')),jaPago:-ex.jaPago,faltas:ex.faltasNJ,total:ex.total}}).filter(r=>r.total||r.producao||r.fixo);
+    descontos:round2(g('(–) Faltas')+g('(–) Atrasos')+g('(–) Vales')+g('(–) Desconto refeição')),jaPago:-ex.jaPago,faltas:ex.faltasNJ,total:ex.total}}).filter(r=>r.total||r.producao||r.fixo);
   return{cols:[{k:'nome',l:'Funcionário'},{k:'setor',l:'Setor'},{k:'carteira',l:'Carteira'},{k:'forma',l:'Remuneração'},{k:'fixo',l:'Fixo',t:'moeda'},{k:'diarias',l:'Diárias',t:'moeda'},{k:'producao',l:'Produção',t:'moeda'},{k:'extras',l:'Horas extras',t:'moeda'},{k:'descontos',l:'Descontos',t:'moeda'},{k:'jaPago',l:'Já pago',t:'moeda'},{k:'faltas',l:'Faltas',t:'num'},{k:'total',l:'Total estimado',t:'moeda'}],total:1,
    rows:rows.sort((a,b)=>b.total-a.total)}}}
 
@@ -41737,13 +41747,13 @@ html.casca2 #conteudo.lc-fab .filtros.lc-f>.lc-x{flex:1 1 100%;width:100%;min-wi
 'use strict';
 const SILENCIO_MS=700,GESTO_MS=20000,MAX_ENTRADAS=100,MAX_BYTES=4000000;
 /* não entram no histórico: registros do próprio sistema */
-const IGNORAR=new Set(['log','uso','diagnostico','ws','data','iaPedidos','iaVersoes','iaPermissoes','ccAuditoria']);
+const IGNORAR=new Set(['log','uso','diagnostico','ws','data','iaPedidos','iaVersoes','iaPermissoes','ccAuditoria','almoco']);   /* V160: o almoço da cozinha tem histórico e "desfazer" próprios */
 /* valem fora do programa ou mexem em acesso: a ação fica no histórico, mas não volta */
-const IRREVERSIVEIS={nfe:'nota fiscal',nfeXml:'nota fiscal',nfeTrava:'nota fiscal',nfePayload:'nota fiscal',nfeImport:'nota fiscal',fiscalCfg:'configuração fiscal',acesso:'acesso de usuário',ccPolitica:'política do Controle Central',ccAgentes:'agente do Controle Central'};
+const IRREVERSIVEIS={nfe:'nota fiscal',nfeXml:'nota fiscal',nfeTrava:'nota fiscal',nfePayload:'nota fiscal',nfeImport:'nota fiscal',fiscalCfg:'configuração fiscal',acesso:'acesso de usuário',ccPolitica:'política do Controle Central',ccAgentes:'agente do Controle Central',almocoCfg:'valor do almoço'};
 /* pedem confirmação antes de desfazer ou refazer */
 const IMPORTANTES=new Set(['folhas','quinzenas','funcionarios','sensivel','desligamentos','admissoes','contratos','docsEmitidos','comprovantes','dependentes','config','vendas','compras','estoqueMov','fin','prodGrade','prodGradeTrab']);
 const COLS_DA_FOLHA=new Set(['diario','horasExtras','producao','alimentacao','diarias','vales','adicionais','despesas']);
-const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',prodGrade:'Controle por grade',prodGradeTrab:'Trabalhadores por grade',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas'};
+const NOMES={alm:'Almoxarifado',ctl:'Controle',fin:'Financeiro',pal:'Paletes',prodFab:'Produção',vendas:'Vendas',compras:'Compras',consumos:'Consumos',estoqueMov:'Estoque',clientes:'Clientes',fornecedores:'Fornecedores',produtos:'Produtos',locais:'Locais',maoLenha:'Mão de obra da lenha',prodGrade:'Controle por grade',prodGradeTrab:'Trabalhadores por grade',config:'Configurações',folhas:'Folha de pagamento',quinzenas:'Quinzena',nfe:'Nota fiscal',acesso:'Acessos',orcamentos:'Orçamentos',precos:'Preços',metas:'Metas',almoco:'Almoço da cozinha',almocoCfg:'Valor do almoço'};
 IC.desfazer='<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>';
 IC.refazer='<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>';
 
@@ -50932,6 +50942,703 @@ if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;windo
  try{if(typeof liberadoV!=='function'||liberadoV('combustivel'))frota().map(situ).forEach(o=>{if(o.cls==='pe')L.push({key:'frv-'+o.L.id+'-'+o.p.id,mod:'frota',setor:'Combustível',prio:'alta',titulo:'Revisão vencida: '+o.L.nome,det:'Prevista para '+txtPrev(o.p)+' · '+txtFalta(o)+'.',rota:'#/frota/'+o.L.id});
   else if(o.cls==='at')L.push({key:'frp-'+o.L.id+'-'+o.p.id,mod:'frota',setor:'Combustível',prio:'media',titulo:'Revisão próxima: '+o.L.nome,det:'Prevista para '+txtPrev(o.p)+' · '+txtFalta(o)+'.',rota:'#/frota/'+o.L.id})})}catch(e){console.warn('frota: pendências',e)}
  return L}}
+})();
+</script>
+<style id="almoco-v160-css">
+/* ===== V160 · Controle de almoço da Cozinha · só aparência das telas novas (nada do almoxarifado muda) ===== */
+.alm-tela{--alm-ok:#16A34A;--alm-ok2:#15803D;--alm-okbg:rgba(22,163,74,.11);--alm-nao:#6B7280;--alm-naobg:rgba(107,114,128,.13)}
+.alm-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.alm-nav a{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 14px;border-radius:99px;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-b,#fff);color:var(--pn-s,#565A63);font-size:13.5px;font-weight:600;text-decoration:none}
+.alm-nav a svg{width:16px;height:16px;flex:none}
+.alm-nav a[aria-current=page]{background:var(--c2-preto,#0B0B0D);border-color:var(--c2-preto,#0B0B0D);color:#fff}
+.alm-nav a:focus-visible,.alm-bts button:focus-visible,.alm-chips button:focus-visible,.alm-nm:focus-visible,.alm-seta:focus-visible{outline:2px solid var(--brasa,#D3121C);outline-offset:2px}
+/* dia: setas, data por extenso, outro dia e o valor do almoço */
+.alm-dia{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:12px 14px;margin:0 0 12px;border:1px solid var(--pn-l,#DDE0E3);border-radius:14px;background:var(--pn-b,#fff)}
+.alm-seta{all:unset;box-sizing:border-box;cursor:pointer;width:46px;height:46px;display:inline-grid;place-items:center;border-radius:12px;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-l2,#F4F5F6);color:var(--pn-t,#17181B)}
+.alm-seta svg{width:20px;height:20px}
+.alm-seta:disabled{opacity:.35;cursor:not-allowed}
+.alm-dt{display:flex;flex-direction:column;min-width:120px}
+.alm-dt b{font-size:20px;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--pn-t,#17181B)}
+.alm-dt span{font-size:13px;color:var(--pn-s,#565A63)}
+.alm-outro{display:inline-flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--pn-s,#565A63)}
+.alm-outro input{height:42px;padding:0 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:15px;text-transform:none;letter-spacing:0;font-weight:500}
+.alm-preco{flex:1 1 220px;text-align:right;font-size:14px;color:var(--pn-s,#565A63)}
+.alm-preco b{color:var(--pn-t,#17181B)}.alm-preco b.pe{color:#B42318}
+.alm-aviso{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 12px;border-radius:12px;border:1px solid #F3D18A;background:#FFF8E6;color:#5B4100;font-size:14px;line-height:1.45}
+.alm-aviso svg{width:20px;height:20px;flex:none;margin-top:1px}
+.alm-aviso.trava{border-color:#F2B8B5;background:#FDECEC;color:#7A1C17}
+.alm-aviso.in{border-color:#BFD4F2;background:#EEF4FC;color:#1D3A63}
+.alm-aviso a{color:inherit;font-weight:700}
+/* busca, marcar todos e filtros */
+.alm-ferr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.alm-ferr input[type=search]{flex:1 1 240px;min-width:0;height:50px;box-sizing:border-box;padding:0 14px;border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:16px}
+.alm-todos{min-height:50px;font-size:15px!important;padding:0 18px!important}
+.alm-todos svg,.alm-ferr .btn svg{width:18px;height:18px}
+.alm-todos .alm-ct{display:none}
+.alm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.alm-chips button{all:unset;box-sizing:border-box;cursor:pointer;min-height:36px;padding:0 13px;display:inline-flex;align-items:center;gap:6px;border-radius:99px;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-b,#fff);color:var(--pn-s,#565A63);font-size:13.5px;font-weight:600}
+.alm-chips button em{font-style:normal;font-variant-numeric:tabular-nums;opacity:.8}
+.alm-chips button[aria-pressed=true]{background:var(--c2-preto,#0B0B0D);border-color:var(--c2-preto,#0B0B0D);color:#fff}
+/* uma linha por funcionário: nome e função à esquerda, SIM e NÃO grandes à direita */
+.alm-lista{display:flex;flex-direction:column;gap:8px}
+.alm-lin{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px 8px 12px;border:1px solid var(--pn-l,#DDE0E3);border-left:6px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff);transition:background .15s,border-color .15s}
+.alm-lin[hidden]{display:none}
+.alm-lin.sim{background:var(--alm-okbg);border-color:rgba(22,163,74,.38);border-left-color:var(--alm-ok)}
+.alm-lin.nao{background:var(--alm-naobg);border-color:rgba(107,114,128,.32);border-left-color:var(--alm-nao)}
+.alm-lin.nao .alm-nm b{color:var(--pn-s,#565A63)}
+.alm-lin.novo{box-shadow:0 0 0 3px rgba(211,18,28,.35)}
+.alm-nm{all:unset;box-sizing:border-box;cursor:pointer;min-width:0;padding:4px 0;border-radius:8px}
+.alm-nm b{display:block;font-size:16px;line-height:1.25;font-weight:700;color:var(--pn-t,#17181B);overflow-wrap:anywhere}
+.alm-nm small{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12.5px;line-height:1.35;color:var(--pn-s,#565A63);margin-top:2px}
+.alm-nm small .mc{font-weight:600}
+.alm-lin.sim .alm-nm small .mc{color:var(--alm-ok2)}
+.alm-lin.env .alm-nm small .mc{color:#B54708}
+.alm-bts{display:flex;gap:8px}
+.alm-bts button{all:unset;box-sizing:border-box;cursor:pointer;min-width:78px;height:54px;padding:0 12px;display:inline-grid;place-items:center;border-radius:12px;border:2px solid;background:var(--pn-b,#fff);font-size:17px;font-weight:800;letter-spacing:.03em;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.alm-bts .bs{border-color:var(--alm-ok);color:var(--alm-ok2)}
+.alm-bts .bn{border-color:#9CA3AF;color:#4B5563}
+.alm-bts .bs[aria-pressed=true]{background:var(--alm-ok);border-color:var(--alm-ok);color:#fff}
+.alm-bts .bn[aria-pressed=true]{background:var(--alm-nao);border-color:var(--alm-nao);color:#fff}
+.alm-bts button:active:not(:disabled){transform:scale(.97)}
+.alm-bts button:disabled{opacity:.4;cursor:not-allowed}
+.alm-nada{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px;border:1px dashed var(--pn-l,#DDE0E3);border-radius:12px;color:var(--pn-s,#565A63)}
+.alm-nada[hidden]{display:none}
+/* rodapé fixo: almoços e valor do dia */
+.alm-rod{position:sticky;bottom:0;z-index:6;display:flex;flex-wrap:wrap;gap:4px 22px;align-items:center;justify-content:space-between;margin:14px 0 0;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));background:var(--c2-preto,#0B0B0D);color:#fff;border-radius:14px;box-shadow:0 -6px 20px rgba(0,0,0,.16)}
+.alm-rod>div{display:flex;flex-direction:column;min-width:0}
+.alm-rod span{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.75}
+.alm-rod b{font-size:20px;font-variant-numeric:tabular-nums;line-height:1.2}
+/* desfazer o "marcar todos" */
+.alm-desf{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 24px);padding:12px 14px 12px 18px;border-radius:12px;background:#1F2937;color:#fff;font-size:14.5px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.alm-desf button{all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:#fff;color:#111827;font-weight:800;font-size:14px}
+/* janelas: cadastro rápido e marcações do dia */
+.alm-modal{max-width:460px;width:calc(100vw - 28px)}
+.alm-modal .cmp input{min-height:46px;font-size:16px}
+.alm-modal .cmp label i{color:#B42318;font-style:normal}
+.alm-modal .alm-err{color:#B42318;font-size:13.5px;margin:8px 0 0;min-height:1em}
+.alm-hist{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.alm-hist li{display:flex;gap:10px;align-items:baseline;padding:8px 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px}
+.alm-hist li b{min-width:92px;font-size:14px}.alm-hist li b.s{color:var(--alm-ok2,#15803D)}.alm-hist li b.n{color:#4B5563}
+.alm-hist li span{font-size:13px;color:var(--pn-s,#565A63)}
+/* relatórios, histórico e valor */
+.alm-per{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:12px 14px;margin:0 0 12px;border:1px solid var(--pn-l,#DDE0E3);border-radius:14px;background:var(--pn-b,#fff)}
+.alm-per label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--pn-s,#565A63)}
+.alm-per input,.alm-per select{height:42px;box-sizing:border-box;padding:0 10px;border:1px solid var(--pn-l,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);color:var(--pn-t,#17181B);font:inherit;font-size:14.5px;min-width:0}
+.alm-per .alm-rap{display:flex;flex-wrap:wrap;gap:6px}
+.alm-per .alm-rap button{all:unset;box-sizing:border-box;cursor:pointer;height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--pn-l,#DDE0E3);font-size:13px;font-weight:600;color:var(--pn-s,#565A63);background:var(--pn-b,#fff)}
+.alm-folhas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.alm-folhas span{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:99px;font-size:12.5px;font-weight:600;border:1px solid var(--pn-l,#DDE0E3);background:var(--pn-l2,#F4F5F6);color:var(--pn-s,#565A63)}
+.alm-folhas span.fe{border-color:#F2B8B5;background:#FDECEC;color:#7A1C17}
+.alm-folhas svg{width:14px;height:14px}
+.alm-num{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.alm-num>div{padding:12px 14px;border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff)}
+.alm-num span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pn-s,#565A63)}
+.alm-num b{display:block;font-size:20px;margin-top:2px;font-variant-numeric:tabular-nums;color:var(--pn-t,#17181B)}
+.alm-abas{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.alm-abas .alm-x{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.alm-tb td.num,.alm-tb th.num{text-align:right;font-variant-numeric:tabular-nums}
+.alm-tb tfoot td{font-weight:800}
+.alm-tb .s{color:var(--alm-ok2,#15803D);font-weight:700}.alm-tb .n{color:#4B5563;font-weight:700}
+.alm-mais{display:flex;justify-content:center;margin:12px 0 0}
+.alm-hl{display:flex;flex-direction:column;gap:8px}
+.alm-hl>div{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 14px;border:1px solid var(--pn-l,#DDE0E3);border-radius:12px;background:var(--pn-b,#fff)}
+.alm-hl .q{font-size:12.5px;color:var(--pn-s,#565A63);font-variant-numeric:tabular-nums;white-space:nowrap}
+.alm-hl .t{font-size:14px;min-width:0;overflow-wrap:anywhere}.alm-hl .t small{display:block;font-size:12.5px;color:var(--pn-s,#565A63)}
+.alm-hl .m{font-weight:800;font-size:13px;padding:3px 10px;border-radius:99px;background:var(--pn-l2,#F4F5F6)}
+.alm-hl .m.s{background:var(--alm-okbg,rgba(22,163,74,.11));color:var(--alm-ok2,#15803D)}.alm-hl .m.n{background:var(--alm-naobg,rgba(107,114,128,.13));color:#374151}
+.alm-val{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:0 0 14px}
+.alm-val>div{padding:16px 18px;border:1px solid var(--pn-l,#DDE0E3);border-radius:14px;background:var(--pn-b,#fff)}
+.alm-val .grande{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--pn-t,#17181B)}
+.alm-val .sub{font-size:13px;color:var(--pn-s,#565A63);margin-top:4px}
+.alm-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;align-items:end}
+.alm-form .cmp input{min-height:46px;font-size:16px}
+.alm-form .btn{min-height:46px}
+@media (max-width:760px){
+ .alm-num{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .alm-val{grid-template-columns:1fr}
+ .alm-form{grid-template-columns:1fr}
+ .alm-hl>div{grid-template-columns:minmax(0,1fr) auto}.alm-hl .q{grid-column:1/-1}
+}
+@media (max-width:560px){
+ .alm-dia{padding:10px 12px;gap:8px 10px}
+ .alm-dt b{font-size:18px}
+ .alm-outro{flex:1 1 140px}.alm-outro input{width:100%}
+ .alm-preco{flex-basis:100%;text-align:left}
+ .alm-lin{padding:8px 8px 8px 10px;gap:8px}
+ .alm-nm b{font-size:15.5px}
+ .alm-bts{gap:6px}
+ .alm-bts button{min-width:66px;height:56px;font-size:16px;padding:0 8px}
+ .alm-rod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+ .alm-rod span{font-size:10.5px;letter-spacing:.02em;line-height:1.25}
+ .alm-rod>div:nth-child(2){text-align:center}.alm-rod>div:nth-child(3){text-align:right}
+ .alm-rod b{font-size:18px}
+ /* celular: a lista aparece logo na primeira tela (sem a explicação longa, menus numa linha só, data compacta) */
+ .alm-tela .sec-cab{flex-wrap:nowrap;align-items:center;gap:10px;margin-bottom:12px}
+ .alm-tela .sec-cab .sec-id{min-width:0;flex:1 1 auto;align-items:center}
+ .alm-tela .sec-cab .sec-id p{display:none}
+ .alm-tela .sec-cab .acoes{width:auto;flex:none}
+ .alm-tela .sec-cab .acoes>.btn{flex:none;min-height:44px;padding:0 12px}
+ .alm-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 0 10px}
+ .alm-nav::-webkit-scrollbar,.alm-chips::-webkit-scrollbar{display:none}
+ .alm-nav a{flex:none;min-height:36px;padding:0 12px;font-size:13px}
+ .alm-dia{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px 8px;padding:10px}
+ .alm-dia>[data-alm-ir="-1"]{grid-area:1/1}
+ .alm-dia>.alm-outro{grid-area:1/2}
+ .alm-dia>[data-alm-ir="1"]{grid-area:1/3}
+ .alm-seta{width:44px;height:44px}
+ .alm-outro>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .alm-outro input{width:100%;height:44px;font-size:16px;font-weight:700;text-align:center}
+ .alm-dt{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;gap:0 6px;min-width:0}
+ .alm-dt b{display:none}
+ .alm-dia>[data-alm-hoje]{grid-column:1/-1;min-height:40px;justify-content:center}
+ .alm-preco{grid-column:1/-1;font-size:13px}
+ .alm-ferr{flex-wrap:nowrap}
+ .alm-ferr input[type=search]{height:46px;flex:1 1 auto}
+ .alm-ferr .alm-todos{flex:none;min-height:46px;padding:0 12px!important}
+ .alm-todos .alm-lg{display:none}.alm-todos .alm-ct{display:inline}
+ .alm-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+ .alm-chips button{flex:none;min-height:34px;padding:0 11px;font-size:13px}
+}
+@media (max-width:430px){.alm-tela .sec-cab .acoes .alm-lg{display:none}}
+/* celular com a barra de baixo da casca nova: o rodapé fica logo acima dela (e do botão redondo do meio) */
+@media (max-width:860px){
+ html.casca2 body.c2-tem-mob .alm-rod{bottom:calc(100px + env(safe-area-inset-bottom,0px));padding-bottom:10px}
+ html.casca2 body.c2-tem-mob .alm-desf{bottom:calc(176px + env(safe-area-inset-bottom,0px))}
+}
+</style>
+<script id="almoco-v160">
+"use strict";
+/* ================= V160 · Controle de almoço da Cozinha (24/11/2026) =================
+   Pedido do Jeferson: dentro do Setor do Almoxarifado / Cozinha, só na parte da COZINHA (telas, menus, dados e
+   relatórios próprios; nada misturado com o almoxarifado), registrar todo dia quem almoçou na fábrica e descontar
+   sozinho o valor da refeição na folha de cada um, no Setor Pessoal.
+   · Funcionários: os do Setor Pessoal (a mesma base, sem cadastro duplicado). Na lista do dia entram os ativos, em
+     ordem alfabética; demitidos e inativos ficam fora (quem saiu depois aparece só nos dias em que ainda trabalhava).
+   · Dados: coleção nova "almoco" (agrupada por mês): um lançamento por pessoa e dia, com SIM/NÃO (ou sem marcação),
+     o valor do dia e o histórico de quem marcou, com data e hora. O valor do almoço fica em "almocoCfg/valor", uma
+     tabela com "vale a partir de": cada lançamento guarda o valor do dia em que foi marcado, então mudar o valor vale
+     só daqui pra frente.
+   · Folha: o Setor Pessoal lê os almoços do mês (window.JB_ALMOCO.doMes) e mostra o evento "Desconto refeição"
+     (almoços do mês × valor de cada dia) no extrato, na folha, no recibo e no holerite. Folha do mês fechada (ou paga)
+     trava aquele mês aqui; o banco central confere a mesma regra (gatilho seg.almoco_proteger).
+   · Cadastro rápido: nome, CPF, função e admissão vão para o cadastro do Setor Pessoal (funcionarios + parte
+     protegida). Na nuvem, pela função jb_almoco_cadastrar: o CPF não volta para a tela de quem cadastrou.
+   · Perfis: "Cozinha" (novo) só lança os almoços e faz o cadastro rápido. Pessoal/Admin (administrador, RH e DP)
+     também altera o valor do almoço, vê a folha e fecha o mês (as telas da folha são as de sempre). */
+(()=>{
+if(typeof MODS==='undefined'||typeof DATA==='undefined'||typeof TELAS_V==='undefined'||typeof PERM==='undefined'||typeof gravar!=='function'){console.warn('Controle de almoço: programa incompleto');return}
+const B=window.ALM_IA_BASE||{};
+const COL='almoco',COL_CFG='almocoCfg',COL_FL='almocoFolhas',DOC_V='valor',PAPEL='cozinha';
+const ROTAS=['almoco','almocoRel','almocoHist','almocoValor'];
+Object.assign(IC,{
+ almCad:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+ almOk:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+ almPessoa:'<circle cx="10" cy="8" r="4"/><path d="M3 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 4.5 2"/><path d="M19 14v6M16 17h6"/>'});
+
+/* ---------- 1. banco: três coleções só deste controle ----------
+   almoco        lançamentos (agrupados por mês, em 4 partes), um por pessoa e dia
+   almocoCfg     valor do almoço (documento "valor": tabela com "vale a partir de")
+   almocoFolhas  só leitura: a situação de cada folha do mês, para quem não lê a folha (o servidor entrega) */
+Object.assign(DATA,{[COL]:[],[COL_CFG]:[],[COL_FL]:[]});
+Object.assign(BUCKET,{[COL]:'mes'});Object.assign(PARTES,{[COL]:4});Object.assign(CAMPO_DATA,{[COL]:'data'});
+
+/* ---------- 2. perfis e permissões ---------- */
+Object.assign(PAPEIS,{[PAPEL]:'Cozinha (controle de almoço)'});
+const VER=['admin','rh','dp','financeiro','gerente',PAPEL];   /* veem as telas do almoço */
+const LANCA=['admin','rh','dp','gerente',PAPEL];               /* marcam SIM e NÃO */
+const CADASTRA=['admin','rh','dp',PAPEL];                       /* cadastro rápido de funcionário */
+const VALOR=['admin','rh','dp'];                                /* Pessoal/Admin: altera o valor do almoço */
+Object.assign(PERM,{almoco:{v:VER.slice(),e:LANCA.slice()},almocoRel:{v:VER.slice(),e:[]},almocoHist:{v:VER.slice(),e:[]},almocoValor:{v:VER.slice(),e:VALOR.slice()}});
+['setores','documento'].forEach(k=>{if(PERM[k]&&Array.isArray(PERM[k].v)&&!PERM[k].v.includes(PAPEL))PERM[k].v.push(PAPEL)});
+ROTAS.forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+/* as telas são do Setor do Almoxarifado / Cozinha: a suspensão e a concessão do setor no Controle Central valem para elas */
+if(window.ROTAS_SETOR_V52&&Array.isArray(ROTAS_SETOR_V52.almox))ROTAS.forEach(r=>{if(!ROTAS_SETOR_V52.almox.includes(r))ROTAS_SETOR_V52.almox.push(r)});
+const podeLancar=()=>pode('almoco','e');
+const podeCadastrar=()=>podeLancar()&&CADASTRA.includes(APP.papel);
+const podeValor=()=>pode('almocoValor','e');
+
+/* ---------- 3. utilidades ---------- */
+const r2=v=>round2(v);
+const agora=()=>new Date().toISOString();
+const eu=()=>APP.uid||'local';
+const quem=uid=>!uid?'':uid==='sistema'?'Sistema':nomeUsuario(uid);
+const primeiro=s=>String(s||'').trim().split(/\s+/)[0]||'';
+const horaDe=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':pad(d.getHours())+':'+pad(d.getMinutes())};
+const quando=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':fData(isoDe(d))+' às '+pad(d.getHours())+':'+pad(d.getMinutes())};
+const DIAS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+const dataOk=d=>{const s=String(d||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const x=new Date(s+'T12:00:00');return !isNaN(x)&&isoDe(x)===s};
+const diaSem=d=>dataOk(d)?DIAS[dt(d).getDay()]:'';
+const N=s=>semAcento(String(s||'')).replace(/\s+/g,' ').trim();
+const plN=(n,s,p)=>fNum(n)+' '+(n===1?s:(p||s+'s'));
+const mesL=m=>typeof mesLongo==='function'?mesLongo(m):fMes(m);
+const fimMes=m=>{const y=+m.slice(0,4),mm=+m.slice(5,7);return m+'-'+pad(new Date(y,mm,0).getDate())};
+/* mensagem de erro para a pessoa: as do servidor do almoço já vêm em português simples */
+function msgE(e){const m=String((e&&e.message)||'').replace(/^[0-9A-Z]{5}: /,'').trim();
+ if(m&&m.length<400&&/almoço|folha|CPF|Setor Pessoal|admiss|nome completo|cadastr|funcionário/i.test(m)&&!/Failed to|ERROR|sql|function|relation|syntax/i.test(m))return m;
+ return typeof msgFalhaSalvar==='function'?msgFalhaSalvar(e):msgErro(e)}
+function fecharVeu(v,aoFechar){if(typeof animarSaida==='function')animarSaida(v);else v.remove();if(aoFechar)aoFechar()}
+
+/* ---------- 4. lançamentos: um por pessoa e dia (o código diz qual) ---------- */
+const ID=(d,fid)=>'al-'+d+'-'+fid;
+const PEND=new Map(),OK=new Set();   /* marcações subindo agora: a tela mostra na hora, o banco confirma depois */
+let IX={arr:null};
+function idx(){const arr=DATA[COL];if(IX.arr===arr)return IX;
+ const porId=new Map(),porDia=new Map(),porFM=new Map();
+ (arr||[]).forEach(r=>{if(!r||!r.id||!r.funcionarioId||!dataOk(r.data))return;porId.set(r.id,r);
+  let L=porDia.get(r.data);if(!L){L=[];porDia.set(r.data,L)}L.push(r);
+  if(r.sim===true){const k=r.funcionarioId+'|'+r.data.slice(0,7);let x=porFM.get(k);if(!x){x={qtd:0,valor:0,itens:[]};porFM.set(k,x)}
+   x.qtd++;x.valor=r2(x.valor+(+r.valor||0));x.itens.push(r)}});
+ porFM.forEach(x=>x.itens.sort((a,b)=>a.data.localeCompare(b.data)));
+ /* a marcação que já voltou do banco sai da lista das que estão subindo */
+ OK.forEach(id=>{const p=PEND.get(id),r=porId.get(id);if(!p){OK.delete(id);return}if(r&&r.sim===p.sim){PEND.delete(id);OK.delete(id)}});
+ IX={arr,porId,porDia,porFM};return IX}
+const salvo=(d,fid)=>idx().porId.get(ID(d,fid))||null;
+const regDe=(d,fid)=>PEND.get(ID(d,fid))||salvo(d,fid);
+const estado=r=>r&&r.sim===true?'sim':r&&r.sim===false?'nao':'';
+const ultimo=r=>r&&Array.isArray(r.hist)&&r.hist.length?r.hist[r.hist.length-1]:null;
+const marcaTxt=a=>a===1?'SIM':a===0?'NÃO':'Desmarcado';
+/* o que a folha do Setor Pessoal desconta no mês: os almoços com SIM e o valor guardado em cada um */
+function doMes(fid,mes){const x=idx().porFM.get(fid+'|'+mes);return x?{qtd:x.qtd,valor:x.valor,itens:x.itens.slice()}:{qtd:0,valor:0,itens:[]}}
+
+/* ---------- 5. valor do almoço: tabela com "vale a partir de" (a mais recente para o dia vale) ---------- */
+const cfgV=()=>(DATA[COL_CFG]||[]).find(x=>x&&x.id===DOC_V)||null;
+const tabelaV=()=>{const c=cfgV();return c&&Array.isArray(c.tabela)?c.tabela.filter(e=>e&&typeof e==='object'):[]};
+const valida=e=>!e.cancelado&&dataOk(e.desde)&&e.valor!==''&&e.valor!=null&&isFinite(+e.valor)&&+e.valor>=0;
+function vigente(d){let b=null;tabelaV().filter(valida).forEach(e=>{if(e.desde<=d&&(!b||e.desde>b.desde||(e.desde===b.desde&&String(e.em||'')>=String(b.em||''))))b=e});return b}
+const precoDe=d=>{const e=vigente(d);return e?r2(+e.valor):null};
+const agendados=()=>tabelaV().filter(e=>valida(e)&&e.desde>hoje()).sort((a,b)=>a.desde.localeCompare(b.desde));
+
+/* ---------- 6. folha do mês fechada (ou paga) no Setor Pessoal trava o mês ---------- */
+const folhaDoMes=m=>(DATA.folhas||[]).find(x=>x&&x.id===m)||(DATA[COL_FL]||[]).find(x=>x&&x.id===m)||null;
+const travado=m=>{const f=folhaDoMes(m);return !!(f&&f.situacao&&f.situacao!=='Aberta')};
+const txtTrava=m=>{const f=folhaDoMes(m)||{};return 'A folha de '+mesL(m)+' já foi '+(f.situacao==='Paga'?'paga':'fechada')+' no Setor Pessoal'+(f.fechadoEm?' ('+quando(f.fechadoEm)+')':'')+'. Os almoços desse mês não mudam mais. Para corrigir, o Pessoal precisa reabrir a folha.'};
+
+/* ---------- 7. quem aparece na lista do dia ---------- */
+function ativoNoDia(f,d){if(!f||!f.id||!f.nome)return false;if(dataOk(f.admissao)&&f.admissao>d)return false;
+ const s=f.situacao||'Ativo';if(s==='Ativo')return true;
+ return s==='Desligado'&&dataOk(f.dataDesligamento)&&f.dataDesligamento>=d}
+function pessoasDia(d){const vistos=new Set(),L=[];
+ (DATA.funcionarios||[]).forEach(f=>{if(ativoNoDia(f,d)){vistos.add(f.id);L.push(f)}});
+ /* quem já tem marcação no dia continua na lista (para conferir e corrigir), mesmo que tenha saído depois */
+ const extra=r=>{if(!r||vistos.has(r.funcionarioId))return;vistos.add(r.funcionarioId);L.push(F(r.funcionarioId)||{id:r.funcionarioId,nome:'(funcionário não encontrado)',_sem:true})};
+ (idx().porDia.get(d)||[]).forEach(extra);PEND.forEach(p=>{if(p.data===d)extra(p)});
+ return L.sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'))}
+const funcaoDe=f=>String((f&&(f.cargo||f.setor))||'').trim();
+
+/* ---------- 8. gravação ---------- */
+function itemNovo(fid,d,sim,ant){
+ const valor=sim===true?(ant&&ant.sim===true?r2(+ant.valor||0):precoDe(d)):0;
+ const hist=Array.isArray(ant&&ant.hist)?ant.hist.slice():[];
+ if(!ant||ant.sim!==sim)hist.push([sim===true?1:sim===false?0:null,eu(),agora()]);
+ return{id:ID(d,fid),funcionarioId:fid,data:d,sim,valor:r2(valor||0),hist}}
+/* por que não dá para marcar agora ('' quando dá) */
+function motivo(d,precisaValor){
+ if(!podeLancar())return 'Seu perfil só consulta o almoço.';
+ if(!dataOk(d))return 'Escolha um dia válido.';
+ if(d>hoje())return 'Não dá para marcar o almoço de um dia que ainda não chegou.';
+ if(travado(d.slice(0,7)))return txtTrava(d.slice(0,7));
+ if(precisaValor&&precoDe(d)==null)return 'O valor do almoço ainda não foi definido para '+fData(d)+'. '+(podeValor()?'Defina em “Valor do almoço”.':'Peça ao Setor Pessoal para definir o valor.');
+ return ''}
+/* cada documento do mês recebe as suas marcações de uma vez, uma gravação de cada vez (a mesma fila do programa) */
+function putLote(chave,itens){const k=COL+'/'+chave;const ant=FILA_BK[k]||Promise.resolve();
+ const p=ant.catch(()=>{}).then(()=>contarEscrita(()=>putLote0(chave,itens)));FILA_BK[k]=p;
+ p.then(()=>{if(FILA_BK[k]===p)delete FILA_BK[k]},()=>{if(FILA_BK[k]===p)delete FILA_BK[k]});return p}
+async function putLote0(chave,itens){const ref=APP.db.doc(COL+'/'+chave);
+ try{await tentar(()=>ref.update({items:itens}));return}
+ catch(e){if(!(e&&['invalid_argument','transform_error','not_found','not-found'].includes(e.code)))throw e;
+  /* só cria quando a parte do mês ainda não existe; se ela existe, o erro é do lançamento (dia, pessoa) e volta para a tela */
+  const g=await ref.get().catch(()=>null);if(g&&g.exists)throw e}
+ /* o documento desta parte do mês ainda não existe: cria. Se outro aparelho criou no mesmo instante, o banco não
+    deixa apagar o que ele gravou (lançamento de almoço não se apaga); aí junta ao que já está lá */
+ try{await tentar(()=>ref.set({chave,items:itens}))}
+ catch(e2){await tentar(()=>ref.update({items:itens}))}}
+async function gravarItens(xs){const porChave=new Map();
+ xs.forEach(x=>{const k=chaveBucket(COL,x);let o=porChave.get(k);if(!o){o={};porChave.set(k,o)}o[x.id]=limpa(x)});
+ await Promise.all([...porChave].map(([k,o])=>putLote(k,o)))}
+function pendentes(xs){xs.forEach(x=>{PEND.set(x.id,x);OK.delete(x.id)});repintar()}
+function confirmados(xs){xs.forEach(x=>{if(PEND.get(x.id)===x)OK.add(x.id)});idx();repintar();
+ setTimeout(()=>{let m=false;xs.forEach(x=>{if(PEND.get(x.id)===x){PEND.delete(x.id);OK.delete(x.id);m=true}});if(m)repintar()},20000)}
+function desfeitos(xs){xs.forEach(x=>{if(PEND.get(x.id)===x){PEND.delete(x.id);OK.delete(x.id)}});repintar()}
+function repintar(){try{if(lerRota().mod==='almoco'&&document.querySelector('#conteudo .alm-tela'))TELAS_V.almoco($('#conteudo'))}catch(e){console.warn('almoço: tela',e)}}
+async function marcar(f,d,sim){
+ const ant=regDe(d,f.id);if(ant&&ant.sim===sim)return;
+ const m=motivo(d,sim===true&&!(ant&&ant.sim===true));if(m){toast(m,'erro');return}
+ const it=itemNovo(f.id,d,sim,ant);pendentes([it]);
+ try{await gravarItens([it]);confirmados([it])}
+ catch(e){desfeitos([it]);toast('Não foi possível marcar '+(f.nome||'o funcionário')+': '+msgE(e),'erro')}}
+async function marcarTodos(d){
+ const P=pessoasDia(d).filter(f=>!f._sem);const sem=P.filter(f=>!estado(regDe(d,f.id)));
+ if(!sem.length){toast('Todos da lista já estão marcados.');return}
+ const m=motivo(d,true);if(m){toast(m,'erro');return}
+ const nao=P.filter(f=>estado(regDe(d,f.id))==='nao').length;
+ if(!await confirmar('Marcar '+plN(sem.length,'pessoa')+' como SIM?','Quem ainda está sem marcação em '+fData(d)+' fica com almoço (SIM), '+fMoeda(precoDe(d))+' cada.'+(nao?' '+(nao===1?'Quem está marcado':'Os '+nao+' marcados')+' como NÃO continua'+(nao===1?'':'m')+' NÃO.':'')+' Depois é só tocar em NÃO para quem não almoçou.',{ok:'Marcar todos como SIM'}))return;
+ const xs=sem.map(f=>itemNovo(f.id,d,true,regDe(d,f.id)));pendentes(xs);
+ try{await gravarItens(xs);confirmados(xs);
+  logV(COL,d,'marcou todos como SIM',[{c:'Dia do almoço',de:'',para:fData(d)},{c:'Pessoas',de:'',para:String(xs.length)}]);
+  avisoDesfazer(d,xs)}
+ catch(e){desfeitos(xs);toast('Não foi possível marcar todos: '+msgE(e),'erro')}}
+/* "Desfazer" logo depois de marcar todos: quem continua SIM por causa do botão volta para sem marcação (fica no histórico) */
+function avisoDesfazer(d,xs){document.querySelectorAll('.alm-desf').forEach(x=>x.remove());
+ const v=document.createElement('div');v.className='alm-desf';v.setAttribute('role','status');
+ v.innerHTML=`<span>${esc(plN(xs.length,'pessoa marcada','pessoas marcadas'))} como SIM.</span><button type="button">Desfazer</button>`;
+ document.body.appendChild(v);const t=setTimeout(()=>v.remove(),12000);
+ v.querySelector('button').onclick=async()=>{clearTimeout(t);v.remove();
+  const m=motivo(d,false);if(m){toast(m,'erro');return}
+  const ys=xs.map(x=>regDe(d,x.funcionarioId)).filter(r=>r&&r.sim===true).map(r=>itemNovo(r.funcionarioId,d,null,r));
+  if(!ys.length){toast('Nada para desfazer: as marcações já foram mudadas.');return}
+  pendentes(ys);
+  try{await gravarItens(ys);confirmados(ys);logV(COL,d,'desfez o marcar todos',[{c:'Dia do almoço',de:'',para:fData(d)},{c:'Pessoas',de:'',para:String(ys.length)}]);
+   toast(plN(ys.length,'pessoa voltou','pessoas voltaram')+' para sem marcação.','ok')}
+  catch(e){desfeitos(ys);toast('Não foi possível desfazer: '+msgE(e),'erro')}}}
+
+/* ---------- 9. casca, menu do controle e cabeçalho ---------- */
+function shell(el,ativa,corpo){if(typeof B.shellS==='function'){B.shellS(el,'almox',ativa,corpo);return}
+ el.innerHTML='<main class="sv-corpo" id="svCorpo"></main>';const c=$('#svCorpo',el);if(!APP.carregado){c.innerHTML='<div class="carrega">Carregando…</div>';return}corpo(c)}
+const cabA=(ico,t,p,acoes)=>typeof B.cab==='function'?B.cab(ico,t,esc(p),acoes):`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(ico)}</span><div><h1>${esc(t)}</h1><p>${esc(p)}</p></div></div><div class="acoes">${acoes||''}</div></div>`;
+function navA(ativa){const L=[['almoco','prato','Almoço do dia'],['almocoRel','grafico','Relatórios'],['almocoHist','relogio','Histórico'],['almocoValor','moeda','Valor do almoço']].filter(([r])=>pode(r));
+ return `<nav class="alm-nav" aria-label="Controle de almoço">${L.map(([r,i,l])=>`<a href="#/${r}"${r===ativa?' aria-current="page"':''}>${ic(i)}<span>${esc(l)}</span></a>`).join('')}</nav>`}
+const veu=html=>{const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';v.innerHTML=html;document.body.appendChild(v);return v};
+
+/* ---------- 10. tela do dia ---------- */
+const UD={d:'',q:'',f:'todos',novo:''};
+const FILTROS=[['todos','Todos'],['falta','Sem marcar'],['sim','SIM'],['nao','NÃO']];
+function contas(d,P){let sim=0,nao=0,falta=0,val=0,total=0;
+ P.forEach(f=>{const s=estado(regDe(d,f.id));if(!f._sem)total++;if(s==='sim'){sim++;val=r2(val+(+regDe(d,f.id).valor||0))}else if(s==='nao')nao++;else if(!f._sem)falta++});
+ return{sim,nao,falta,val,total}}
+function linhaHtml(f,d,ctx){const r=regDe(d,f.id);const s=estado(r);const u=ultimo(r);
+ const env=!!(r&&PEND.get(r.id)===r&&!OK.has(r.id));
+ const sub=f._sem?'Não está mais no cadastro do Setor Pessoal':(funcaoDe(f)||'Função não informada');
+ const marc=env?'salvando…':u?marcaTxt(u[0])+(u[1]?' · '+(primeiro(quem(u[1]))||'—'):'')+(u[2]?' às '+horaDe(u[2]):''):'';
+ const okSim=ctx.lanca&&!f._sem&&(ctx.preco!=null||s==='sim'),okNao=ctx.lanca&&!f._sem;
+ return `<div class="alm-lin${s?' '+s:''}${env?' env':''}${UD.novo===f.id?' novo':''}" data-fid="${esc(f.id)}" data-n="${esc(N(f.nome))}" data-st="${s||'falta'}">
+  <button type="button" class="alm-nm" data-alm-ver="${esc(f.id)}" aria-label="Marcações de ${esc(f.nome)} em ${esc(fData(d))}"><b>${esc(f.nome)}</b><small><span class="fn">${esc(sub)}</span>${marc?`<span class="mc">${esc(marc)}</span>`:''}</small></button>
+  <div class="alm-bts" role="group" aria-label="${esc(f.nome)} almoçou?">
+   <button type="button" class="bs" data-alm-sim="${esc(f.id)}" aria-pressed="${s==='sim'}"${okSim?'':' disabled'}>SIM</button>
+   <button type="button" class="bn" data-alm-nao="${esc(f.id)}" aria-pressed="${s==='nao'}"${okNao?'':' disabled'}>NÃO</button>
+  </div></div>`}
+const rodapeHtml=C=>`<div><span>Almoços do dia</span><b>${fNum(C.sim)}</b></div><div><span>Valor do dia</span><b>${esc(fMoeda(C.val))}</b></div><div><span>Faltam marcar</span><b>${fNum(C.falta)}</b></div>`;
+const nChip=(k,C)=>k==='todos'?C.total:k==='falta'?C.falta:k==='sim'?C.sim:C.nao;
+function telaDia(c){
+ if(!dataOk(UD.d)||UD.d>hoje())UD.d=hoje();
+ const d=UD.d,m=d.slice(0,7),trava=travado(m),preco=precoDe(d),lanca=podeLancar()&&!trava;
+ const P=pessoasDia(d);const ctx={lanca,preco};
+ const chave=[d,UD.f,lanca?1:0,preco==null?'-':preco,trava?1:0,podeCadastrar()?1:0,P.map(f=>f.id).join(',')].join('|');
+ const ex=c.querySelector('.alm-tela');
+ if(ex&&ex.dataset.chave===chave){pintar(ex,d,P,ctx);return}
+ const C=contas(d,P);
+ const L=P.filter(f=>{const s=estado(regDe(d,f.id));return UD.f==='todos'||(UD.f==='falta'?!s&&!f._sem:s===UD.f)});
+ const acoes=podeCadastrar()?`<button type="button" class="btn" data-alm-novo="" aria-label="Novo funcionário">${ic('almPessoa')}<span>Novo<span class="alm-lg"> funcionário</span></span></button>`:'';
+ c.innerHTML=`<div class="alm-tela" data-chave="${esc(chave)}">
+  ${cabA('prato','Almoço do dia','Toque em SIM para quem almoçou na fábrica e em NÃO para quem não almoçou. O valor vai sozinho para a folha de cada um no Setor Pessoal.',acoes)}
+  ${navA('almoco')}
+  <div class="alm-dia">
+   <button type="button" class="alm-seta" data-alm-ir="-1" aria-label="Dia anterior">${ic('esquerda')}</button>
+   <div class="alm-dt"><b>${esc(fData(d))}</b><span>${esc(diaSem(d))}${d===hoje()?' · hoje':''}</span></div>
+   <button type="button" class="alm-seta" data-alm-ir="1" aria-label="Próximo dia"${d>=hoje()?' disabled':''}>${ic('direita')}</button>
+   <label class="alm-outro"><span>Outro dia</span><input type="date" id="almData" value="${esc(d)}" max="${esc(hoje())}"></label>
+   ${d!==hoje()?`<button type="button" class="btn" data-alm-hoje="">Voltar para hoje</button>`:''}
+   <div class="alm-preco">${preco==null?'<b class="pe">Valor do almoço não definido</b>':`Almoço neste dia: <b>${esc(fMoeda(preco))}</b>`}${pode('almocoValor')?` · <a href="#/almocoValor">${podeValor()?'alterar o valor':'ver o valor'}</a>`:''}</div>
+  </div>
+  ${trava?`<div class="alm-aviso trava" role="note">${ic('almCad')}<span>${esc(txtTrava(m))}</span></div>`:''}
+  ${!trava&&preco==null?`<div class="alm-aviso" role="note">${ic('aviso')}<span>O valor do almoço ainda não foi definido para este dia, então o SIM fica travado (o NÃO funciona). ${podeValor()?'<a href="#/almocoValor">Definir o valor agora</a>.':'Peça ao Setor Pessoal para definir o valor.'}</span></div>`:''}
+  ${!podeLancar()?`<div class="alm-aviso in" role="note">${ic('aviso')}<span>Seu perfil só consulta o almoço. Quem marca é a Cozinha e o Setor Pessoal.</span></div>`:''}
+  <div class="alm-ferr">
+   <input type="search" id="almBusca" placeholder="Buscar pelo nome" value="${esc(UD.q)}" aria-label="Buscar funcionário pelo nome" autocomplete="off" enterkeyhint="search">
+   ${lanca&&preco!=null?`<button type="button" class="btn pri alm-todos" data-alm-todos="" aria-label="Marcar todos como SIM"${C.falta?'':' hidden'}>${ic('almOk')}<span><span class="alm-lg">Marcar todos como SIM</span><span class="alm-ct">Todos SIM</span></span></button>`:''}
+  </div>
+  <div class="alm-chips" role="group" aria-label="Mostrar">${FILTROS.map(([k,l])=>`<button type="button" data-alm-f="${k}" aria-pressed="${UD.f===k}">${esc(l)} <em data-alm-n="${k}">${nChip(k,C)}</em></button>`).join('')}</div>
+  <div class="alm-lista" id="almLista">${L.map(f=>linhaHtml(f,d,ctx)).join('')}
+   <div class="alm-nada" id="almNada" hidden><b>Ninguém com esse nome na lista.</b>${podeCadastrar()?`<button type="button" class="btn" data-alm-novo="busca">${ic('almPessoa')}<span>Cadastrar novo funcionário</span></button>`:''}</div>
+   ${!P.length?`<div class="vazio"><b>Nenhum funcionário ativo neste dia</b>${podeCadastrar()?'Cadastre em “Novo funcionário”: ele vai para o Setor Pessoal e aparece aqui.':'Os funcionários ativos do Setor Pessoal aparecem aqui.'}</div>`:!L.length?'<div class="vazio"><b>Ninguém neste filtro</b>Toque em “Todos” para ver a lista inteira.</div>':''}
+  </div>
+  <div class="alm-rod" id="almRod" aria-live="polite">${rodapeHtml(C)}</div>
+ </div>`;
+ filtrarBusca(c);ligarDia(c);
+ resolverNomes(P.map(f=>{const u=ultimo(regDe(d,f.id));return u&&u[1]}).filter(u=>u&&u!=='sistema'&&u!=='local'));
+ if(UD.novo){const x=c.querySelector('.alm-lin.novo');if(x)setTimeout(()=>{try{x.scrollIntoView({block:'center',behavior:'smooth'})}catch(e){}},60);
+  setTimeout(()=>{UD.novo='';const y=document.querySelector('.alm-lin.novo');if(y)y.classList.remove('novo')},4000)}
+}
+/* os mesmos dados de antes na tela: troca só cores, botões e números (sem redesenhar a lista, o toque não se perde) */
+function pintar(ex,d,P,ctx){const t=document.createElement('div');
+ P.forEach(f=>{const el=ex.querySelector('.alm-lin[data-fid="'+(window.CSS&&CSS.escape?CSS.escape(f.id):f.id)+'"]');if(!el)return;
+  t.innerHTML=linhaHtml(f,d,ctx);const nv=t.firstElementChild;
+  if(el.className!==nv.className)el.className=nv.className;el.dataset.st=nv.dataset.st;
+  const a=el.querySelector('.alm-nm small'),b=nv.querySelector('.alm-nm small');if(a&&b&&a.innerHTML!==b.innerHTML)a.innerHTML=b.innerHTML;
+  ['bs','bn'].forEach(k=>{const x=el.querySelector('.'+k),y=nv.querySelector('.'+k);if(x&&y){if(x.getAttribute('aria-pressed')!==y.getAttribute('aria-pressed'))x.setAttribute('aria-pressed',y.getAttribute('aria-pressed'));x.disabled=y.disabled}})});
+ const C=contas(d,P);const rod=ex.querySelector('#almRod');if(rod){const h=rodapeHtml(C);if(rod.innerHTML!==h)rod.innerHTML=h}
+ FILTROS.forEach(([k])=>{const e=ex.querySelector('[data-alm-n="'+k+'"]');if(e)e.textContent=String(nChip(k,C))});
+ const bt=ex.querySelector('[data-alm-todos]');if(bt)bt.hidden=!C.falta}
+function filtrarBusca(c){const q=N(UD.q);let n=0;
+ c.querySelectorAll('.alm-lin').forEach(el=>{const ok=!q||String(el.dataset.n||'').includes(q);el.hidden=!ok;if(ok)n++});
+ const nada=c.querySelector('#almNada');if(nada)nada.hidden=!(q&&!n)}
+function ligarDia(c){const T=c.querySelector('.alm-tela');if(!T)return;
+ T.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!T.contains(b)||b.disabled)return;const d=UD.d;const ds=b.dataset;
+  if(ds.almSim){marcar(F(ds.almSim)||{id:ds.almSim,nome:''},d,true);return}
+  if(ds.almNao){marcar(F(ds.almNao)||{id:ds.almNao,nome:''},d,false);return}
+  if(ds.almVer){verMarcacoes(ds.almVer,d);return}
+  if(ds.almIr){const n=addDias(d,+ds.almIr);UD.d=n>hoje()?hoje():n;renderTela();return}
+  if(ds.almHoje!==undefined){UD.d=hoje();renderTela();return}
+  if(ds.almTodos!==undefined){marcarTodos(d);return}
+  if(ds.almNovo!==undefined){modalNovo(ds.almNovo==='busca'?UD.q:'');return}
+  if(ds.almF){UD.f=ds.almF;renderTela()}});
+ const di=T.querySelector('#almData');if(di)di.onchange=()=>{const v=di.value;if(dataOk(v)){UD.d=v>hoje()?hoje():v;renderTela()}};
+ const q=T.querySelector('#almBusca');if(q)q.oninput=()=>{UD.q=q.value;filtrarBusca(c)};
+}
+/* toque no nome: as marcações daquele dia, com quem marcou, a data e a hora */
+function verMarcacoes(fid,d){const f=F(fid)||{nome:'(funcionário)'};const r=regDe(d,fid);const H=r&&Array.isArray(r.hist)?r.hist.filter(Array.isArray):[];
+ const v=veu(`<div class="modal alm-modal" role="dialog" aria-modal="true" aria-labelledby="almVT"><h3 id="almVT">${esc(f.nome)}</h3>
+  <p class="ajuda">Almoço de ${esc(fData(d))} (${esc(diaSem(d))})${r&&r.sim===true?' · '+esc(fMoeda(+r.valor||0)):''}${funcaoDe(f)?' · '+esc(funcaoDe(f)):''}</p>
+  ${H.length?`<ol class="alm-hist">${H.map(h=>`<li><b class="${h[0]===1?'s':h[0]===0?'n':''}">${marcaTxt(h[0])}</b><span>${esc(quem(h[1])||'—')} · ${esc(quando(h[2]))}</span></li>`).join('')}</ol>`:'<p class="ajuda">Ainda sem marcação neste dia.</p>'}
+  <p class="ajuda" style="margin-top:10px">O histórico não se apaga: cada troca de SIM e NÃO fica guardada com quem marcou.</p>
+  <div class="acoes" style="margin-top:12px"><button type="button" class="btn pri" data-x="">Fechar</button></div></div>`);
+ const esc_=e=>{if(e.key==='Escape')fechar()};const fechar=()=>{document.removeEventListener('keydown',esc_);fecharVeu(v)};
+ v.addEventListener('click',e=>{if(e.target===v||e.target.closest('[data-x]'))fechar()});document.addEventListener('keydown',esc_);
+ const x=v.querySelector('[data-x]');if(x)x.focus();
+ resolverNomes(H.map(h=>h[1]).filter(u=>u&&u!=='sistema')).then(()=>{if(document.body.contains(v)){v.querySelectorAll('.alm-hist li span').forEach((sp,i)=>{const h=H[i];if(h)sp.textContent=(quem(h[1])||'—')+' · '+quando(h[2])})}})}
+
+/* ---------- 11. cadastro rápido de funcionário (vai para o cadastro do Setor Pessoal) ---------- */
+async function salvarNovo(x){
+ const id=novoId();
+ /* nuvem: o servidor confere a permissão e o CPF repetido e grava o cadastro e a parte protegida juntos */
+ if(window.JB_NUVEM_API&&typeof JB_NUVEM_API.rpc==='function'){
+  const r=await JB_NUVEM_API.rpc('jb_almoco_cadastrar',{p:{id,nome:x.nome,cpf:x.cpf,cargo:x.cargo,admissao:x.admissao}});
+  try{await logV('funcionarios',id,'criou (cadastro rápido da Cozinha)',[{c:'Nome completo',de:'',para:x.nome},{c:'Cargo ou função',de:'',para:x.cargo||'—'},{c:'Data de admissão',de:'',para:fData(x.admissao)},{c:'CPF',de:'',para:'•••'}])}catch(e){}
+  try{if(typeof JB_NUVEM_API.atualizarCompartilhados==='function')await JB_NUVEM_API.atualizarCompartilhados()}catch(e){}
+  return{id,matricula:(r&&r.matricula)||''}}
+ /* Claude e este navegador: o mesmo caminho do cadastro do Setor Pessoal (cadastro, parte protegida e histórico) */
+ const st={id,nome:x.nome,cpf:x.cpf,admissao:x.admissao,situacao:'Ativo',matricula:proxMatricula(),cadastroRapido:{origem:'Cozinha',por:eu(),em:agora()}};
+ if(x.cargo)st.cargo=x.cargo;
+ const rec=await gravarRegistro('funcionarios',st,null,true);
+ return{id,matricula:(rec&&rec.matricula)||st.matricula}}
+function modalNovo(nomeIni){
+ if(!podeCadastrar()){toast('Seu perfil não faz cadastro de funcionário.','erro');return}
+ const cargos=[...new Set([...(CFG.cargos||[]),...(DATA.funcionarios||[]).map(f=>f.cargo)].filter(Boolean).map(s=>String(s).trim()))].sort((a,b)=>a.localeCompare(b,'pt-BR')).slice(0,200);
+ const v=veu(`<div class="modal alm-modal" role="dialog" aria-modal="true" aria-labelledby="almNT">
+  <h3 id="almNT">Novo funcionário</h3>
+  <p class="ajuda">Cadastro rápido: vai direto para o cadastro do Setor Pessoal e já aparece na lista do almoço. O Pessoal completa os outros dados depois.</p>
+  <div class="campos" style="grid-template-columns:1fr">
+   <div class="cmp"><label for="almNN">Nome completo <i>*</i></label><input id="almNN" autocomplete="off" autocapitalize="words" maxlength="120" value="${esc(String(nomeIni||'').trim())}"></div>
+   <div class="cmp"><label for="almNC">CPF <i>*</i></label><input id="almNC" data-masc="cpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" autocomplete="off"></div>
+   <div class="cmp"><label for="almNF">Função</label><input id="almNF" list="almNFL" maxlength="80" placeholder="Ex.: Ajudante de produção" autocomplete="off"><datalist id="almNFL">${cargos.map(c=>`<option value="${esc(c)}"></option>`).join('')}</datalist></div>
+   <div class="cmp"><label for="almNA">Data de admissão <i>*</i></label><input id="almNA" type="date" value="${esc(hoje())}"></div>
+  </div>
+  <p class="alm-err" id="almNE" role="alert"></p>
+  <div class="acoes" style="margin-top:12px"><button type="button" class="btn" data-x="">Cancelar</button><button type="button" class="btn pri" id="almNOk">Salvar no Setor Pessoal</button></div></div>`);
+ let ocupado=false;
+ const esc_=e=>{if(e.key==='Escape'&&!ocupado)fechar()};const fechar=()=>{document.removeEventListener('keydown',esc_);fecharVeu(v)};
+ document.addEventListener('keydown',esc_);
+ v.addEventListener('click',e=>{if(!ocupado&&(e.target===v||e.target.closest('[data-x]')))fechar()});
+ const erro=t=>{$('#almNE',v).textContent=t||''};
+ setTimeout(()=>{const p=$(nomeIni?'#almNC':'#almNN',v);if(p&&!matchMedia('(pointer:coarse)').matches)p.focus()},60);
+ $('#almNOk',v).onclick=async()=>{if(ocupado)return;erro('');
+  const nome=$('#almNN',v).value.replace(/\s+/g,' ').trim(),cpf=soDig($('#almNC',v).value),cargo=$('#almNF',v).value.replace(/\s+/g,' ').trim(),adm=$('#almNA',v).value;
+  if(nome.length<5||nome.split(' ').length<2){erro('Escreva o nome completo (nome e sobrenome).');$('#almNN',v).focus();return}
+  if(!cpfValido(cpf)){erro('CPF inválido. Confira os 11 números.');$('#almNC',v).focus();return}
+  if(!dataOk(adm)||dataAbsurda(adm)||adm>addDias(hoje(),366)){erro('Escolha a data de admissão.');$('#almNA',v).focus();return}
+  if(veSensivel()){const dup=(DATA.sensivel||[]).find(s=>s&&F(s.id)&&soDig(s.cpf)===cpf);if(dup){erro('Este CPF já está cadastrado no Setor Pessoal: '+nomeF(dup.id)+'. Procure o nome na lista.');return}}
+  const mesmo=(DATA.funcionarios||[]).find(f=>N(f.nome)===N(nome)&&f.situacao!=='Desligado');
+  if(mesmo&&!await confirmar('Já existe '+mesmo.nome+'?','Já tem um funcionário ativo com esse nome'+(mesmo.cargo?' ('+mesmo.cargo+')':'')+'. Só cadastre de novo se for outra pessoa.',{ok:'É outra pessoa: cadastrar'}))return;
+  ocupado=true;const b=$('#almNOk',v);b.disabled=true;b.textContent='Salvando…';
+  try{const r=await salvarNovo({nome,cpf,cargo,admissao:adm});
+   ocupado=false;fechar();UD.q='';UD.f='todos';UD.novo=r.id;
+   toast(nome+' cadastrado no Setor Pessoal'+(r.matricula?' (matrícula '+r.matricula+')':'')+'. Já está na lista do almoço.','ok');
+   if(lerRota().mod==='almoco')renderTela()}
+  catch(e){ocupado=false;b.disabled=false;b.textContent='Salvar no Setor Pessoal';erro(msgE(e))}};
+}
+
+/* ---------- 12. relatórios (por funcionário, por dia e os lançamentos) ---------- */
+const UR={de:'',ate:'',fid:'',aba:'func',n:60};
+function periodo(U){if(!dataOk(U.de))U.de=mesAtual()+'-01';if(!dataOk(U.ate))U.ate=hoje();if(U.ate<U.de){const t=U.de;U.de=U.ate;U.ate=t}}
+const perTxt=U=>fData(U.de)+' a '+fData(U.ate);
+const nomeDe=fid=>{const f=F(fid);return f?f.nome:'(funcionário não encontrado)'};
+function dadosRel(U){
+ const recs=(DATA[COL]||[]).filter(r=>r&&dataOk(r.data)&&r.data>=U.de&&r.data<=U.ate&&(!U.fid||r.funcionarioId===U.fid)&&(r.sim===true||r.sim===false));
+ const pf=new Map(),pd=new Map();
+ recs.forEach(r=>{let x=pf.get(r.funcionarioId);if(!x){const f=F(r.funcionarioId);x={fid:r.funcionarioId,nome:nomeDe(r.funcionarioId),matricula:(f&&f.matricula)||'',funcao:funcaoDe(f),dias:0,nao:0,valor:0};pf.set(r.funcionarioId,x)}
+  let y=pd.get(r.data);if(!y){y={data:r.data,dia:diaSem(r.data),sim:0,nao:0,valor:0};pd.set(r.data,y)}
+  if(r.sim){x.dias++;x.valor=r2(x.valor+(+r.valor||0));y.sim++;y.valor=r2(y.valor+(+r.valor||0))}else{x.nao++;y.nao++}});
+ const FS=[...pf.values()].filter(x=>x.dias>0||U.fid).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ const DS=[...pd.values()].sort((a,b)=>a.data.localeCompare(b.data));
+ const LS=recs.slice().sort((a,b)=>a.data.localeCompare(b.data)||nomeDe(a.funcionarioId).localeCompare(nomeDe(b.funcionarioId),'pt-BR')).map(r=>{const f=F(r.funcionarioId);const u=ultimo(r);
+  return{data:r.data,nome:nomeDe(r.funcionarioId),funcao:funcaoDe(f),marc:r.sim?'SIM':'NÃO',valor:r.sim?r2(+r.valor||0):0,por:u?quem(u[1]):'',em:u?quando(u[2]):'',_uid:u?u[1]:''}});
+ const tot={sim:DS.reduce((a,x)=>a+x.sim,0),nao:DS.reduce((a,x)=>a+x.nao,0),valor:r2(DS.reduce((a,x)=>a+x.valor,0)),pessoas:FS.filter(x=>x.dias>0).length,dias:DS.length};
+ return{FS,DS,LS,tot}}
+const COLS={
+ func:[{k:'nome',l:'Funcionário'},{k:'matricula',l:'Matrícula'},{k:'funcao',l:'Função'},{k:'dias',l:'Dias que almoçou',t:'num'},{k:'valor',l:'Valor a descontar',t:'moeda'}],
+ dia:[{k:'data',l:'Data',t:'data'},{k:'dia',l:'Dia da semana'},{k:'sim',l:'Almoçaram',t:'num'},{k:'nao',l:'Não almoçaram',t:'num'},{k:'valor',l:'Valor do dia',t:'moeda'}],
+ lanc:[{k:'data',l:'Data',t:'data'},{k:'nome',l:'Funcionário'},{k:'funcao',l:'Função'},{k:'marc',l:'Almoçou'},{k:'valor',l:'Valor',t:'moeda'},{k:'por',l:'Marcado por'},{k:'em',l:'Quando'}]};
+const TIT_R={func:'Almoço por funcionário',dia:'Almoço por dia',lanc:'Lançamentos do almoço'};
+function linhasExp(aba,R){
+ if(aba==='func')return R.FS.map(x=>({...x})).concat(R.FS.length?[{nome:'TOTAL ('+plN(R.tot.pessoas,'pessoa')+')',matricula:'',funcao:'',dias:R.tot.sim,valor:R.tot.valor}]:[]);
+ if(aba==='dia')return R.DS.map(x=>({...x})).concat(R.DS.length?[{data:'Total',dia:plN(R.tot.dias,'dia'),sim:R.tot.sim,nao:R.tot.nao,valor:R.tot.valor}]:[]);
+ return R.LS.map(x=>({...x}))}
+function filtrosTxt(U){return 'Período: '+perTxt(U)+(U.fid?' · Funcionário: '+nomeDe(U.fid):'')}
+function chipsFolha(U){const ms=mesesRange(U.de.slice(0,7),U.ate.slice(0,7));if(!ms.length||ms.length>24)return '';
+ return `<div class="alm-folhas">${ms.map(m=>{const t=travado(m);return `<span class="${t?'fe':''}">${t?ic('almCad'):''}${esc(fMes(m))} · folha ${t?((folhaDoMes(m)||{}).situacao==='Paga'?'paga':'fechada'):'aberta'}</span>`}).join('')}</div>`}
+function exportarRel(btn,U,R){const aba=U.aba;const nome={func:'Almoco_por_funcionario',dia:'Almoco_por_dia',lanc:'Almoco_lancamentos'}[aba];
+ const tit=TIT_R[aba]+' · '+perTxt(U);const fx=f=>exportar(f,nome+'_'+hoje(),COLS[aba],linhasExp(aba,R),tit,{filtros:filtrosTxt(U)});
+ const completo=f=>exportar(f,'Relatorio_almoco_'+hoje(),COLS.func,linhasExp('func',R),'Relatório do almoço da cozinha · '+perTxt(U),{filtros:filtrosTxt(U),extras:[{titulo:'Por dia',cols:COLS.dia,rows:R.DS.map(x=>({...x})),vazio:'Nenhum almoço no período.'}]});
+ abrirMenuMais(btn,[{l:'Visualizar',sub:'esta tabela, com os filtros da tela',fn:()=>fx('ver')},{l:'Imprimir',fn:()=>fx('imprimir')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha',fn:()=>fx('xlsx')},'-',
+  {l:'Relatório completo (PDF)',sub:'por funcionário e por dia',fn:()=>completo('pdf')},{l:'Relatório completo (Excel)',sub:'uma aba para cada tabela',fn:()=>completo('xlsx')}])}
+function perHtml(U,id,extra){const fs=[...new Map((DATA[COL]||[]).filter(r=>r&&r.funcionarioId).map(r=>[r.funcionarioId,nomeDe(r.funcionarioId)])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
+ return `<div class="alm-per" id="${id}">
+  <label>De<input type="date" data-alm-p="de" value="${esc(U.de)}"></label>
+  <label>Até<input type="date" data-alm-p="ate" value="${esc(U.ate)}"></label>
+  <div class="alm-rap"><button type="button" data-alm-r="mes">Este mês</button><button type="button" data-alm-r="ant">Mês passado</button><button type="button" data-alm-r="hoje">Hoje</button></div>
+  <label>Funcionário<select data-alm-p="fid"><option value="">Todos</option>${fs.map(([fid,n])=>`<option value="${esc(fid)}"${U.fid===fid?' selected':''}>${esc(n)}</option>`).join('')}</select></label>
+  ${extra||''}
+ </div>`}
+function ligarPer(c,U){c.querySelectorAll('[data-alm-p]').forEach(i=>i.onchange=()=>{const k=i.dataset.almP;if(k==='fid'||k==='por')U[k]=i.value;else if(dataOk(i.value))U[k]=i.value;U.n=60;periodo(U);renderTela()});
+ c.querySelectorAll('[data-alm-r]').forEach(b=>b.onclick=()=>{const r=b.dataset.almR,m=mesAtual();
+  if(r==='mes'){U.de=m+'-01';U.ate=hoje()}else if(r==='ant'){const a=mesMenos(m,1);U.de=a+'-01';U.ate=fimMes(a)}else{U.de=hoje();U.ate=hoje()}U.n=60;renderTela()})}
+function telaRel(c){periodo(UR);const R=dadosRel(UR);const aba=UR.aba;
+ const tb=(cols,rows,foot)=>`<div class="painel tabwrap"><table class="tbl cartao alm-tb"><thead><tr>${cols.map(k=>`<th class="${['num','moeda'].includes(k.t)?'num':''}">${esc(k.l)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>${foot||''}</table></div>`;
+ const td=(k,v)=>`<td data-l="${esc(k.l)}"${['num','moeda'].includes(k.t)?' class="num"':''}>${v}</td>`;
+ const fmt=(k,x)=>k.t==='moeda'?esc(fMoeda(x[k.k])):k.t==='num'?esc(fNum(x[k.k])):k.t==='data'?esc(fData(x[k.k])):k.k==='marc'?`<span class="${x.marc==='SIM'?'s':'n'}">${esc(x.marc)}</span>`:esc(x[k.k]||'—');
+ let corpo='';
+ if(aba==='func')corpo=R.FS.length?tb(COLS.func,R.FS.map(x=>`<tr>${COLS.func.map(k=>td(k,fmt(k,x))).join('')}</tr>`).join(''),`<tfoot><tr><td colspan="3">Total de ${esc(plN(R.tot.pessoas,'pessoa'))}</td><td class="num">${esc(fNum(R.tot.sim))}</td><td class="num">${esc(fMoeda(R.tot.valor))}</td></tr></tfoot>`):'<div class="vazio"><b>Nenhum almoço no período</b>Escolha outro período ou outro funcionário.</div>';
+ else if(aba==='dia')corpo=R.DS.length?tb(COLS.dia,R.DS.map(x=>`<tr>${COLS.dia.map(k=>td(k,fmt(k,x))).join('')}</tr>`).join(''),`<tfoot><tr><td colspan="2">Total de ${esc(plN(R.tot.dias,'dia'))}</td><td class="num">${esc(fNum(R.tot.sim))}</td><td class="num">${esc(fNum(R.tot.nao))}</td><td class="num">${esc(fMoeda(R.tot.valor))}</td></tr></tfoot>`):'<div class="vazio"><b>Nenhum almoço no período</b>Escolha outro período.</div>';
+ else{const L=R.LS.slice(0,UR.n);corpo=R.LS.length?tb(COLS.lanc,L.map(x=>`<tr>${COLS.lanc.map(k=>td(k,fmt(k,x))).join('')}</tr>`).join(''),`<tfoot><tr><td colspan="4">Total de ${esc(plN(R.LS.length,'lançamento'))} (${esc(fNum(R.tot.sim))} SIM)</td><td class="num">${esc(fMoeda(R.tot.valor))}</td><td colspan="2"></td></tr></tfoot>`)+(R.LS.length>L.length?`<div class="alm-mais"><button type="button" class="btn" data-alm-mais="">Mostrar mais (${fNum(R.LS.length-L.length)})</button></div>`:''):'<div class="vazio"><b>Nenhum lançamento no período</b>Escolha outro período.</div>';
+  resolverNomes(L.map(x=>x._uid).filter(u=>u&&u!=='sistema'))}
+ c.innerHTML=`${cabA('grafico','Relatórios do almoço','Quem almoçou na fábrica e quanto vai ser descontado na folha. Escolha o período e exporte em PDF ou Excel.','')}
+  ${navA('almocoRel')}
+  ${perHtml(UR,'almRP')}
+  ${chipsFolha(UR)}
+  <div class="alm-num"><div><span>Almoços</span><b>${esc(fNum(R.tot.sim))}</b></div><div><span>Valor a descontar</span><b>${esc(fMoeda(R.tot.valor))}</b></div><div><span>Pessoas</span><b>${esc(fNum(R.tot.pessoas))}</b></div><div><span>Dias com lançamento</span><b>${esc(fNum(R.tot.dias))}</b></div></div>
+  <div class="alm-abas"><div class="alm-chips" role="group" aria-label="Tabela" style="margin:0">${[['func','Por funcionário'],['dia','Por dia'],['lanc','Lançamentos']].map(([k,l])=>`<button type="button" data-alm-aba="${k}" aria-pressed="${aba===k}">${esc(l)}</button>`).join('')}</div>
+   <div class="alm-x"><button type="button" class="btn" id="almRx">${ic('baixar')}<span>Exportar</span></button></div></div>
+  ${corpo}
+  <p class="ajuda" style="margin-top:10px">Cada almoço vai para a folha do mês em que aconteceu, com o valor do dia em que foi marcado. Mês com a folha fechada no Setor Pessoal não muda mais.</p>`;
+ ligarPer(c,UR);
+ c.querySelectorAll('[data-alm-aba]').forEach(b=>b.onclick=()=>{UR.aba=b.dataset.almAba;UR.n=60;renderTela()});
+ const mx=c.querySelector('[data-alm-mais]');if(mx)mx.onclick=()=>{UR.n+=200;renderTela()};
+ $('#almRx',c).onclick=e=>exportarRel(e.currentTarget,UR,R)}
+
+/* ---------- 13. histórico das marcações e do valor (nada aqui se apaga) ---------- */
+const UH={de:'',ate:'',fid:'',por:'',n:60};
+function linhasHist(U){const out=[];
+ (DATA[COL]||[]).forEach(r=>{if(!r||!dataOk(r.data)||r.data<U.de||r.data>U.ate||(U.fid&&r.funcionarioId!==U.fid))return;
+  const H=Array.isArray(r.hist)?r.hist.filter(Array.isArray):[];
+  H.forEach((h,i)=>{if(U.por&&h[1]!==U.por)return;const a=i>0?H[i-1][0]:undefined;
+   out.push({em:h[2]||'',quando:quando(h[2]),dia:r.data,diaTxt:fData(r.data)+' ('+diaSem(r.data).slice(0,3)+')',nome:nomeDe(r.funcionarioId),marc:marcaTxt(h[0]),a:h[0],antes:a===undefined?'':marcaTxt(a),por:quem(h[1]),_uid:h[1]})})});
+ return out.sort((a,b)=>String(b.em).localeCompare(String(a.em)))}
+const COLS_H=[{k:'quando',l:'Quando'},{k:'diaTxt',l:'Dia do almoço'},{k:'nome',l:'Funcionário'},{k:'marc',l:'Marcação'},{k:'antes',l:'Antes'},{k:'por',l:'Quem marcou'}];
+function telaHist(c){periodo(UH);const L=linhasHist(UH);const V=L.slice(0,UH.n);
+ const uids=[...new Set(linhasHist({...UH,por:''}).map(x=>x._uid).filter(Boolean))];resolverNomes(uids.filter(u=>u!=='sistema').concat(tabelaV().flatMap(e=>[e.por,e.cancelado&&e.cancelado.por]).filter(Boolean)));
+ const tab=tabelaV().slice().sort((a,b)=>String(b.em||'').localeCompare(String(a.em||'')));
+ c.innerHTML=`${cabA('relogio','Histórico do almoço','Quem marcou SIM ou NÃO, com a data e a hora de cada marcação, e as mudanças no valor do almoço. Nada aqui pode ser apagado.','')}
+  ${navA('almocoHist')}
+  ${perHtml(UH,'almHP',`<label>Quem marcou<select data-alm-p="por"><option value="">Todos</option>${uids.map(u=>`<option value="${esc(u)}"${UH.por===u?' selected':''}>${esc(quem(u)||u)}</option>`).join('')}</select></label>`)}
+  <div class="alm-abas"><b style="font-size:14px">${esc(plN(L.length,'marcação','marcações'))} · ${esc(perTxt(UH))}</b><div class="alm-x"><button type="button" class="btn" id="almHx">${ic('baixar')}<span>Exportar</span></button></div></div>
+  ${L.length?`<div class="alm-hl">${V.map(x=>`<div><span class="q">${esc(x.quando)}</span><span class="t"><b>${esc(x.nome)}</b><small>Almoço de ${esc(x.diaTxt)} · ${esc(x.por||'—')}${x.antes?' · antes: '+esc(x.antes):''}</small></span><span class="m ${x.a===1?'s':x.a===0?'n':''}">${esc(x.marc)}</span></div>`).join('')}</div>
+   ${L.length>V.length?`<div class="alm-mais"><button type="button" class="btn" data-alm-mais="">Mostrar mais (${fNum(L.length-V.length)})</button></div>`:''}`:'<div class="vazio"><b>Nenhuma marcação no período</b>Escolha outro período ou outra pessoa.</div>'}
+  <h3 class="grupo-t" style="margin-top:22px">Mudanças no valor do almoço</h3>
+  ${tab.length?`<div class="painel tabwrap"><table class="tbl cartao alm-tb"><thead><tr><th>Vale a partir de</th><th class="num">Valor por dia</th><th>Situação</th><th>Quem salvou</th><th>Quando</th><th>Observação</th></tr></thead><tbody>
+   ${tab.map(e=>`<tr><td data-l="Vale a partir de">${esc(fData(e.desde))}</td><td data-l="Valor por dia" class="num">${esc(fMoeda(+e.valor||0))}</td><td data-l="Situação">${esc(sitValor(e))}</td><td data-l="Quem salvou">${esc(quem(e.por)||'—')}</td><td data-l="Quando">${esc(quando(e.em))}</td><td data-l="Observação">${esc(e.obs||'—')}</td></tr>`).join('')}</tbody><tfoot class="alm-semtot"></tfoot></table></div>`:'<div class="vazio"><b>O valor do almoço ainda não foi definido</b>O Setor Pessoal define em “Valor do almoço”.</div>'}`;
+ ligarPer(c,UH);
+ const mx=c.querySelector('[data-alm-mais]');if(mx)mx.onclick=()=>{UH.n+=200;renderTela()};
+ $('#almHx',c).onclick=e=>{const tit='Histórico do almoço · '+perTxt(UH);const fx=f=>exportar(f,'Historico_almoco_'+hoje(),COLS_H,L,tit,{filtros:filtrosTxt(UH)+(UH.por?' · Quem marcou: '+quem(UH.por):'')});
+  abrirMenuMais(e.currentTarget,[{l:'Visualizar',sub:plN(L.length,'marcação','marcações'),fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',sub:'planilha',fn:()=>fx('xlsx')}])}}
+
+/* ---------- 14. valor do almoço (Pessoal/Admin altera; os outros só veem) ---------- */
+function sitValor(e){if(e.cancelado)return 'Cancelado'+(e.cancelado.por?' por '+quem(e.cancelado.por):'');if(!valida(e))return 'Inválido';
+ const v=vigente(hoje());if(v===e)return 'Vale hoje';if(e.desde>hoje())return 'Agendado';return 'Substituído'}
+async function gravarCfg(nova,acao,campos){const c=cfgV();const ant=c?clone(c):null;
+ const rec={...(c||{}),id:DOC_V,tabela:nova,alteradoEm:agora(),alteradoPor:eu()};
+ await gravar(COL_CFG,rec,ant);logV(COL_CFG,DOC_V,acao,campos)}
+/* o que a pessoa já escreveu no formulário não se perde quando chega dado novo do banco e a tela se redesenha */
+const CAMPOS_V=['almVV','almVD','almVO'];let GUARDA_V=null;
+function telaValor(c){const pv=podeValor();const hj=precoDe(hoje()),vh=vigente(hoje());const ag=agendados();const tem=tabelaV().some(valida);
+ const guard=GUARDA_V||[];GUARDA_V=null;
+ resolverNomes(tabelaV().flatMap(e=>[e.por,e.cancelado&&e.cancelado.por]).filter(Boolean));
+ const minD=tem?hoje():'';
+ c.innerHTML=`${cabA('moeda','Valor do almoço','O valor descontado por dia de almoço. Mudar o valor vale só daqui pra frente: os dias já lançados guardam o valor de quando foram marcados.','')}
+  ${navA('almocoValor')}
+  <div class="alm-val">
+   <div><span class="ajuda">Valor de hoje</span><div class="grande">${hj==null?'—':esc(fMoeda(hj))}</div><div class="sub">${vh?'Vale desde '+esc(fData(vh.desde))+(vh.por?' · salvo por '+esc(quem(vh.por))+' em '+esc(quando(vh.em)):''):'Ainda não definido: a Cozinha não consegue marcar SIM.'}</div></div>
+   <div><span class="ajuda">Próxima mudança</span>${ag.length?ag.map(e=>`<div class="grande" style="font-size:26px">${esc(fMoeda(+e.valor||0))}</div><div class="sub">A partir de ${esc(fData(e.desde))}${e.por?' · por '+esc(quem(e.por)):''}${pv?` · <a href="javascript:void 0" data-alm-canc="${esc(e.id)}">cancelar</a>`:''}</div>`).join(''):'<div class="sub" style="margin-top:8px">Nenhuma mudança agendada.</div>'}</div>
+  </div>
+  ${pv?`<div class="painel" style="padding:16px 18px;margin-bottom:14px"><h3 style="margin:0 0 10px;font-size:16px">${tem?'Mudar o valor':'Definir o valor do almoço'}</h3>
+   <div class="alm-form">
+    <div class="cmp"><label for="almVV">Valor por dia de almoço (R$)</label><input id="almVV" data-masc="moeda" inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+    <div class="cmp"><label for="almVD">Vale a partir de</label><input id="almVD" type="date" value="${esc(hoje())}"${minD?` min="${esc(minD)}"`:''}></div>
+    <div class="cmp"><label for="almVO">Observação (opcional)</label><input id="almVO" maxlength="140" autocomplete="off" placeholder="Ex.: reajuste do fornecedor"></div>
+   </div>
+   <p class="ajuda" style="margin:10px 0 0">${tem?'O novo valor começa hoje ou num dia depois. Almoços já marcados não mudam de valor.':'O primeiro valor pode começar num dia que já passou, para a Cozinha lançar os dias anteriores.'}</p>
+   <p class="alm-err" id="almVE" role="alert" style="color:#B42318;font-size:13.5px;margin:8px 0 0"></p>
+   <div class="acoes" style="margin-top:6px"><button type="button" class="btn pri" id="almVOk">${tem?'Salvar novo valor':'Salvar valor'}</button></div></div>`
+  :`<div class="alm-aviso in" role="note">${ic('aviso')}<span>Só o Setor Pessoal e o administrador alteram o valor do almoço.</span></div>`}
+  <h3 class="grupo-t">Tabela de valores</h3>
+  ${tabelaV().length?`<div class="painel tabwrap"><table class="tbl cartao alm-tb"><thead><tr><th>Vale a partir de</th><th class="num">Valor por dia</th><th>Situação</th><th>Quem salvou</th><th>Quando</th><th>Observação</th></tr></thead><tbody>
+   ${tabelaV().slice().sort((a,b)=>String(b.desde).localeCompare(String(a.desde))||String(b.em||'').localeCompare(String(a.em||''))).map(e=>`<tr><td data-l="Vale a partir de">${esc(fData(e.desde))}</td><td data-l="Valor por dia" class="num">${esc(fMoeda(+e.valor||0))}</td><td data-l="Situação">${esc(sitValor(e))}</td><td data-l="Quem salvou">${esc(quem(e.por)||'—')}</td><td data-l="Quando">${esc(quando(e.em))}</td><td data-l="Observação">${esc(e.obs||'—')}</td></tr>`).join('')}</tbody><tfoot class="alm-semtot"></tfoot></table></div>`:'<div class="vazio"><b>Nenhum valor salvo ainda</b>Quando o valor for definido, ele aparece aqui com quem salvou e quando.</div>'}`;
+ c.querySelectorAll('[data-alm-canc]').forEach(a=>a.onclick=async()=>{const id=a.dataset.almCanc;const e=tabelaV().find(x=>x.id===id);if(!e)return;
+  if(!await confirmar('Cancelar a mudança agendada?','O valor de '+fMoeda(+e.valor||0)+' a partir de '+fData(e.desde)+' não vai mais valer. Fica no histórico como cancelado.',{ok:'Cancelar a mudança'}))return;
+  const base=(cfgV()&&cfgV().tabela)||[];
+  try{await gravarCfg(base.map(x=>x&&x.id===id?{...x,cancelado:{por:eu(),em:agora()}}:x),'cancelou a mudança do valor do almoço',[{c:'Valor por dia',de:fMoeda(+e.valor||0),para:'cancelado'},{c:'Vale a partir de',de:fData(e.desde),para:''}]);toast('Mudança cancelada.','ok')}
+  catch(err){toast('Não foi possível cancelar: '+msgE(err),'erro')}});
+ guard.forEach(g=>{const e=c.querySelector('#'+g.id);if(!e)return;if(g.id!=='almVD'||g.v)e.value=g.v;if(g.f)e.focus()});
+ const ok=c.querySelector('#almVOk');if(ok)ok.onclick=async()=>{const E=t=>{const x=$('#almVE',c);if(x)x.textContent=t||''};E('');
+  const val=lerMoeda($('#almVV',c).value),des=$('#almVD',c).value,obs=$('#almVO',c).value.replace(/\s+/g,' ').trim();
+  if($('#almVV',c).value.trim()===''||isNaN(val)||val<0||val>1000){E('Escreva o valor por dia, por exemplo 5,00.');$('#almVV',c).focus();return}
+  if(!dataOk(des)){E('Escolha o dia em que o valor passa a valer.');return}
+  if(tem&&des<hoje()){E('O novo valor vale só daqui pra frente: escolha hoje ou um dia depois.');return}
+  const at=precoDe(des);
+  if(!await confirmar(tem?'Salvar o novo valor?':'Salvar o valor do almoço?','A partir de '+fData(des)+', cada almoço marcado como SIM desconta '+fMoeda(r2(val))+' na folha.'+(at!=null&&tem?' Hoje o valor é '+fMoeda(at)+'.':'')+' Os almoços já marcados continuam com o valor de quando foram marcados.',{ok:'Salvar'}))return;
+  ok.disabled=true;
+  const e={id:novoId(),desde:des,valor:r2(val),por:eu(),em:agora(),...(obs?{obs}:{})};
+  const base=(cfgV()&&cfgV().tabela)||[];
+  try{await gravarCfg([...base,e],'salvou o valor do almoço',[{c:'Valor por dia',de:at!=null?fMoeda(at):'—',para:fMoeda(e.valor)},{c:'Vale a partir de',de:'',para:fData(des)}]);toast('Valor do almoço salvo: '+fMoeda(e.valor)+' a partir de '+fData(des)+'.','ok');
+   /* salvo: o formulário volta limpo (a tela pode ter sido redesenhada durante a gravação) */
+   if(lerRota().mod==='almocoValor'){CAMPOS_V.forEach(id=>{const x=document.getElementById(id);if(x)x.value=id==='almVD'?hoje():''});renderTela()}}
+  catch(err){ok.disabled=false;E('Não foi possível salvar: '+msgE(err))}}}
+
+/* ---------- 15. telas e ligações com o setor ---------- */
+Object.assign(TELAS_V,{
+ /* com a tela do dia aberta, uma mudança nos dados só repinta a lista (a casca do setor fica) */
+ almoco:el=>{const cp=el.querySelector('#svCorpo');if(cp&&cp.querySelector('.alm-tela')&&APP.carregado){telaDia(cp);return}shell(el,'almoco',telaDia)},
+ almocoRel:el=>shell(el,'almocoRel',telaRel),
+ almocoHist:el=>shell(el,'almocoHist',telaHist),
+ almocoValor:el=>{GUARDA_V=CAMPOS_V.map(id=>{const e=el.querySelector('#'+id);return e?{id,v:e.value,f:document.activeElement===e}:null}).filter(Boolean);shell(el,'almocoValor',telaValor)}});
+/* menu "Módulos" do setor: o controle de almoço fica junto da Cozinha, separado das telas do almoxarifado */
+if(B.SETS&&B.SETS.almox&&typeof B.SETS.almox.abas==='function'){const a0=B.SETS.almox.abas;
+ B.SETS.almox.abas=function(){const L=a0.apply(this,arguments)||[];if(L.some(a=>a&&a.m==='almoco'))return L;
+  const i=L.findIndex(a=>a&&a.m==='almCozinha');
+  L.splice(i>=0?i+1:L.length,0,{r:'#/almoco',m:'almoco',ic:'prato',l:'Almoço do dia',at:['almoco']},{r:'#/almocoRel',m:'almocoRel',ic:'grafico',l:'Relatórios do almoço',at:['almocoRel']},
+   {r:'#/almocoHist',m:'almocoHist',ic:'relogio',l:'Histórico do almoço',at:['almocoHist']},{r:'#/almocoValor',m:'almocoValor',ic:'moeda',l:'Valor do almoço',at:['almocoValor']});
+  return L}}
+/* cartão do setor: quem só tem a Cozinha também vê o setor, e entra direto no almoço */
+{const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>x&&x.id==='almox');
+ if(s){const v0=s.v,r0=s.rota;s.v=()=>{try{if(!v0||v0())return true}catch(e){}return pode('almoco')};
+  Object.defineProperty(s,'rota',{configurable:true,enumerable:true,get(){try{if(!pode('setor-almox')&&pode('almoco'))return '#/almoco'}catch(e){}return r0}})}}
+/* botão "Almoço do dia" no início do setor e "Controle de almoço" na tela da Cozinha (estoque da cozinha) */
+function botaoAlmoco(el,rot){if(!pode('almoco'))return;const a=el.querySelector('.sec-cab .acoes');if(!a||a.querySelector('[data-alm-bt]'))return;
+ const b=document.createElement('a');b.className='btn';b.href='#/almoco';b.dataset.almBt='1';b.innerHTML=ic('prato')+'<span>'+esc(rot)+'</span>';
+ const coz=a.querySelector('a[href="#/almCozinha"]');if(coz)coz.after(b);else a.insertBefore(b,a.firstChild)}
+{const t0=TELAS_V['setor-almox'];if(typeof t0==='function')TELAS_V['setor-almox']=function(el){const r=t0.apply(this,arguments);try{botaoAlmoco(el,'Almoço do dia')}catch(e){console.warn('almoço: botão no início do setor',e)}return r}}
+{const t1=TELAS_V.almCozinha;if(typeof t1==='function')TELAS_V.almCozinha=function(el){const r=t1.apply(this,arguments);try{botaoAlmoco(el,'Controle de almoço')}catch(e){console.warn('almoço: botão na cozinha',e)}return r}}
+/* perfil Cozinha: só as telas do almoço (e o documento que ele mesmo gerar); qualquer outra tela volta para o almoço do dia */
+const LIVRES=[...ROTAS,'documento','setores'];
+{const rc0=renderCasca;renderCasca=function(){const r=rc0.apply(this,arguments);
+ try{if(acessoOk()&&APP.papel===PAPEL&&!LIVRES.includes(lerRota().mod))setTimeout(()=>{if(APP.papel===PAPEL&&!LIVRES.includes(lerRota().mod))JBNAV.subst('#/almoco')},0)}catch(e){console.warn('almoço: perfil Cozinha',e)}
+ return r}}
+/* busca geral (Ctrl K) */
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{if(pode('almoco')){
+ const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(g,t,s,ico,rota,extra)=>E.push({g,t,s,ic:ico,k:NN(t+' '+s+' '+(extra||'')),ir:()=>JBNAV.ir(rota),h:rota,ix:E.length});
+ add('Telas','Almoço do dia','Cozinha · marcar quem almoçou na fábrica (SIM ou NÃO)','prato','#/almoco','almoco refeicao marmita cozinha comida desconto folha');
+ add('Telas','Relatórios do almoço','Cozinha · almoços por funcionário e por dia, PDF e Excel','grafico','#/almocoRel','relatorio almoco refeicao desconto folha');
+ add('Telas','Histórico do almoço','Cozinha · quem marcou SIM ou NÃO, com data e hora','relogio','#/almocoHist','historico almoco auditoria marcacao');
+ add('Telas','Valor do almoço','Cozinha · quanto é descontado por dia de almoço','moeda','#/almocoValor','valor preco almoco refeicao')}}catch(e){}return E}}
+/* PENDÊNCIAS do Setor Pessoal: cadastro rápido da Cozinha que ainda falta completar (some quando o Pessoal completa) */
+if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;window.LEMBRETES_V61=function(){const L=l0.apply(this,arguments)||[];
+ try{(DATA.funcionarios||[]).forEach(f=>{const cr=f&&f.cadastroRapido;if(!cr||f.situacao==='Desligado')return;
+  const falta=[!f.setor&&'setor',!f.tipoContratacao&&'tipo de contratação',!f.formaRemuneracao&&'forma de remuneração'].filter(Boolean);if(!falta.length)return;
+  L.push({key:'alm-cad-'+f.id,mod:'funcionarios',setor:'Setor Pessoal',prio:'media',titulo:'Cadastro rápido da Cozinha: completar '+f.nome,
+   det:'Falta '+falta.join(', ')+'.'+(cr.em?' Cadastrado em '+quando(cr.em)+(cr.por?' por '+quem(cr.por):'')+'.':''),rota:'#/funcionarios/'+f.id})})}catch(e){console.warn('almoço: pendências',e)}
+ return L}}
+
+window.JB_ALMOCO=Object.freeze({COL,COL_CFG,COL_FL,ID,doMes,precoDe,vigente,travado,pessoasDia,regDe,estado,itemNovo,dadosRel,linhasHist,marcar,marcarTodos,salvarNovo,
+ estadoTela:()=>({...UD}),irPara:d=>{if(dataOk(d)){UD.d=d>hoje()?hoje():d;if(lerRota().mod==='almoco')renderTela();else JBNAV.ir('#/almoco')}}});
 })();
 </script>
 </body>
