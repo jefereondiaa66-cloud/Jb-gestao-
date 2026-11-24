@@ -13643,11 +13643,19 @@ function custoMedioNota(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))re
 const BUSCAR_PADRAO_V=0.30; /* V122 (14/11/2026): R$ 0,30 por litro, a pedido do Jeferson (antes R$ 0,40) */
 const ehCombustivelV=p=>!!p&&p.setor==='combustivel'&&(!p.tipoItem||p.tipoItem==='Combustível');
 function custoBuscar(pid){const p=PROD(pid);if(!ehCombustivelV(p))return 0;const v=p.custoBuscar;return v===''||v==null||!isFinite(+v)||+v<0?BUSCAR_PADRAO_V:Math.round(+v*10000)/10000}
-function custoPartes(pid){const media=custoMedioNota(pid);const buscar=media>0?custoBuscar(pid):0;return{media,buscar,custo:Math.round((media+buscar)*10000)/10000}}
+/* V161 (24/11/2026): acréscimo por litro informado na própria compra de combustível (ex.: nota a R$ 7,49 + R$ 0,30 = R$ 7,79),
+   separado do frete, a pedido do Jeferson. É só custo: o total da compra e a conta a pagar continuam pelo valor da nota.
+   Nos litros dessa compra o acréscimo dela substitui o custo de buscar do cadastro (não soma os dois); compra sem
+   acréscimo informado continua com o custo de buscar do cadastro. Com isso, a parcela "buscar" é a média ponderada pelos litros. */
+const acrescLitroV=v=>{const a=v&&v.acrescimoLitro;return a===''||a==null||!isFinite(+a)||+a<0?null:+a};
+function custoPartes(pid){const media=custoMedioNota(pid);let buscar=media>0?custoBuscar(pid):0;let acresc=false;
+ if(media>0&&ehCombustivelV(PROD(pid))){let q=0,x=0;DATA.compras.forEach(v=>{if(cancV(v))return;const a=acrescLitroV(v);(v.itens||[]).forEach(i=>{if(i.produtoId!==pid)return;const qq=+i.qtd||0;q+=qq;if(a!=null){acresc=true;x+=qq*a}else x+=qq*buscar})});
+  if(acresc&&q>0)buscar=Math.round(x/q*10000)/10000}
+ return{media,buscar,acresc,custo:Math.round((media+buscar)*10000)/10000}}
 function custoMedio(pid){return custoPartes(pid).custo}
 /* texto do custo com as duas parcelas: "custo por litro R$ 7,93 (média das compras R$ 7,63 + custo de buscar R$ 0,30)" */
 const rotCustoV=pid=>custoBuscar(pid)>0?'custo por litro':'custo médio';
-function txtCustoV(pid,un){const c=custoPartes(pid);const u=un?'/'+un:'';return c.buscar>0?'custo por litro '+fMoeda(c.custo)+u+' (média das compras '+fMoeda(c.media)+' + custo de buscar '+fMoeda(c.buscar)+')':'custo médio '+fMoeda(c.custo)+u}
+function txtCustoV(pid,un){const c=custoPartes(pid);const u=un?'/'+un:'';return c.buscar>0?'custo por litro '+fMoeda(c.custo)+u+' (média das compras '+fMoeda(c.media)+' + '+(c.acresc?'acréscimo por litro':'custo de buscar')+' '+fMoeda(c.buscar)+')':'custo médio '+fMoeda(c.custo)+u}
 const valorEstoqueP=p=>round2(Math.max(0,saldoP(p.id))*(modoV(p.setor)==='consumo'?custoMedio(p.id):(+p.precoCompra||0)));
 
 /* ---------- financeiro de uma venda ou compra (a conta mora dentro do próprio registro) ---------- */
@@ -13692,7 +13700,7 @@ async function logV(mod,recId,acao,campos){
  const e={id:novoId(),ts:new Date().toISOString(),uid:APP.uid||'local',modulo:mod,recId,acao,campos:campos||[]};
  try{await bucketPut('log',chaveBucket('log',e),e.id,e)}catch(err){console.warn('log',err)}
 }
-const ROT_OP={numero:'Número',setor:'Setor',clienteId:'Cliente',fornecedorId:'Fornecedor',total:'Total',forma:'Forma de pagamento',condicao:'Condição',vencimento:'Vencimento',status:'Situação'};
+const ROT_OP={acrescimoLitro:'Acréscimo por litro (custo)',numero:'Número',setor:'Setor',clienteId:'Cliente',fornecedorId:'Fornecedor',total:'Total',forma:'Forma de pagamento',condicao:'Condição',vencimento:'Vencimento',status:'Situação'};
 
 /* ---------- número: sequência única por tipo, reservada com trava curta no banco ---------- */
 async function reservarNumeroV(O){O=O||OP.venda;return reservarSeqV(O.numDoc,Math.max(0,...listaOp(O).map(v=>+v.numero||0)))}
@@ -13890,7 +13898,7 @@ MODS.produtos={get titulo(){return (SETORES_V[setorAtualV()]||{}).prodTit||'Prod
  get cols(){const c=ehConsumoAtual();return [{k:'nome',l:c?'Item':'Produto',v:r=>'<b>'+esc(r.nome)+'</b>'+(r.codigo?` <small style="color:var(--fraco)">${esc(r.codigo)}</small>`:''),o:r=>r.nome+' '+(r.codigo||'')},
   {k:'_tipo',l:'Tipo',v:r=>esc(nomeTipoP(r))||'—',o:r=>nomeTipoP(r)},
   {k:'unidade',l:'Unidade'},
-  ...(c?[{k:'_cm',l:setorAtualV()==='combustivel'?'Custo por litro':'Custo médio',t:'moeda',v:r=>{const cp=custoPartes(r.id);return cp.custo?esc(fMoeda(cp.custo))+(cp.buscar>0?`<div class="ajuda">média ${esc(fMoeda(cp.media))} + buscar ${esc(fMoeda(cp.buscar))}</div>`:''):'—'},o:r=>custoMedio(r.id)}]:[{k:'dimensoes',l:'Dimensões',v:r=>esc(r.dimensoes||'—')},{k:'precoVenda',l:'Preço de referência',t:'moeda',v:r=>esc(fMoeda(r.precoVenda)),o:r=>+r.precoVenda||0},{k:'precoMinimo',l:'Preço mínimo',t:'moeda',v:r=>r.precoMinimo===''||r.precoMinimo==null?'—':esc(fMoeda(r.precoMinimo)),o:r=>+r.precoMinimo||0}]),
+  ...(c?[{k:'_cm',l:setorAtualV()==='combustivel'?'Custo por litro':'Custo médio',t:'moeda',v:r=>{const cp=custoPartes(r.id);return cp.custo?esc(fMoeda(cp.custo))+(cp.buscar>0?`<div class="ajuda">média ${esc(fMoeda(cp.media))} + ${cp.acresc?'acréscimo':'buscar'} ${esc(fMoeda(cp.buscar))}</div>`:''):'—'},o:r=>custoMedio(r.id)}]:[{k:'dimensoes',l:'Dimensões',v:r=>esc(r.dimensoes||'—')},{k:'precoVenda',l:'Preço de referência',t:'moeda',v:r=>esc(fMoeda(r.precoVenda)),o:r=>+r.precoVenda||0},{k:'precoMinimo',l:'Preço mínimo',t:'moeda',v:r=>r.precoMinimo===''||r.precoMinimo==null?'—':esc(fMoeda(r.precoMinimo)),o:r=>+r.precoMinimo||0}]),
   {k:'_saldo',l:'Saldo',t:'num',v:r=>controla(r)?esc(fQtd(saldoP(r.id))):'—',o:r=>saldoP(r.id)},
   {k:'_val',l:'Valor em estoque',t:'moeda',v:r=>controla(r)?esc(fMoeda(valorEstoqueP(r))):'—',o:r=>valorEstoqueP(r)},
   {k:'_est',l:'Estoque',v:r=>tagV(situacaoEstoque(r)),o:r=>situacaoEstoque(r)},
@@ -14240,7 +14248,7 @@ function inicioConsumoV(c,s){
    Compra: o mesmo caminho com o fornecedor; entra no estoque e vira conta a pagar.
    O rascunho fica na memória enquanto a pessoa troca de tela (para cadastrar um cliente, por exemplo). */
 const RASC_V={venda:null,compra:null};
-function novoRascunhoV(O,s){return{tipo:O.K,setor:s,parteId:'',busca:'',data:hoje(),hora:horaAgora(),itens:[{produtoId:'',qtd:'',preco:''}],descTipo:'valor',descValor:'',frete:'',outros:'',forma:O.K==='venda'?'PIX':'Boleto',condicao:O.K==='venda'?'À vista':'A prazo',recebido:'sim',vencimento:'',entrada:'',nf:'',obs:'',recebidoPor:O.K==='compra'&&typeof window.respPrincipalV48==='function'&&typeof window.abaDoSetorV48==='function'?window.respPrincipalV48(window.abaDoSetorV48(s)):''}}
+function novoRascunhoV(O,s){return{tipo:O.K,setor:s,parteId:'',busca:'',data:hoje(),hora:horaAgora(),itens:[{produtoId:'',qtd:'',preco:''}],descTipo:'valor',descValor:'',frete:'',outros:'',acresLitro:'',forma:O.K==='venda'?'PIX':'Boleto',condicao:O.K==='venda'?'À vista':'A prazo',recebido:'sim',vencimento:'',entrada:'',nf:'',obs:'',recebidoPor:O.K==='compra'&&typeof window.respPrincipalV48==='function'&&typeof window.abaDoSetorV48==='function'?window.respPrincipalV48(window.abaDoSetorV48(s)):''}}
 const prodsOpV=(O,s)=>DATA.produtos.filter(p=>p.situacao!=='Inativo'&&p.setor===s).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
 const numV=x=>x===''||x==null?0:+x;
 function calcOpV(d){
@@ -14271,6 +14279,7 @@ function conferirOpV(O,d){
  if(venda){const porP={};c.itens.forEach(i=>{porP[i.produtoId]=round3((porP[i.produtoId]||0)+i.qtd)});
   Object.entries(porP).forEach(([id,q])=>{const p=PROD(id);if(!controla(p))return;const s=saldoP(id);if(q>s+1e-9)e.push('Estoque insuficiente de '+p.nome+': saldo '+fQtd(s)+' '+(p.unidade||'')+', venda de '+fQtd(q)+'.')})}
  [['descValor','Desconto'],['frete','Frete'],['outros','Outros valores'],['entrada','Entrada']].forEach(([k,l])=>{if(d[k]!==''&&(isNaN(+d[k])||+d[k]<0))e.push(l+': valor inválido.')});
+ if(acresOpV(d)){if(isNaN(+d.acresLitro)||+d.acresLitro<0)e.push('Acréscimo por litro: valor inválido.');else if(+d.acresLitro>2)a.push('O acréscimo está em '+fMoeda(+d.acresLitro)+' por litro. Confira se é isso mesmo (ex.: 0,30 são 30 centavos).')}
  if(d.descTipo==='pct'&&numV(d.descValor)>100)e.push('Desconto não pode passar de 100%.');
  if(c.desconto>c.subtotal+0.004)e.push('O desconto é maior que o valor dos itens.');
  if(c.itens.length&&!(c.total>0)){if(!venda&&d.setor==='lenha'&&c.total===0)a.push('Compra sem preço: entra com valor zero e fica marcada como sem preço.');else e.push('O total precisa ser maior que zero.')}
@@ -14284,6 +14293,25 @@ function conferirOpV(O,d){
  if(!venda&&d.nf){const dup=DATA.compras.find(x=>x.setor===d.setor&&!cancV(x)&&x.fornecedorId===d.parteId&&(x.fiscal||{}).numero&&String((x.fiscal||{}).numero)===String(d.nf));if(dup)a.push('A nota nº '+d.nf+' deste fornecedor já foi lançada na compra nº '+fNumV(dup.numero)+'. Confira para não lançar em dobro.')}
  if(!venda&&d.parteId&&d.data)c.itens.forEach(i=>{const dp=DATA.compras.find(x=>x.setor===d.setor&&!cancV(x)&&x.fornecedorId===d.parteId&&x.data===d.data&&(x.itens||[]).some(j=>j.produtoId===i.produtoId&&Math.abs((+j.qtd||0)-i.qtd)<1e-9));if(dp)a.push('Possível compra repetida: a nº '+fNumV(dp.numero)+' tem o mesmo fornecedor, a mesma data e '+fQtd(i.qtd)+' '+((PROD(i.produtoId)||{}).unidade||'')+'.')});
  return{erros:e,avisos:a,c,par};
+}
+/* ---------- V161: acréscimo por litro na compra de combustível (só custo) ---------- */
+const acresOpV=d=>!!d&&d.tipo==='compra'&&d.setor==='combustivel'&&d.acresLitro!==''&&d.acresLitro!=null;
+function resumoAcresV(d,c,ln){if(!acresOpV(d)||isNaN(+d.acresLitro)||+d.acresLitro<0)return '';const a=+d.acresLitro;
+ return ln('Acréscimo por litro (só no custo)','+ '+fMoeda(a)+'/L')+c.itens.map(i=>{const p=PROD(i.produtoId)||{};return ln('Custo do litro · '+(p.nome||''),fMoeda(i.preco)+' + '+fMoeda(a)+' = '+fMoeda(Math.round((i.preco+a)*10000)/10000))}).join('')}
+function kvAcresV(v,O){if(O.K!=='compra'||v.setor!=='combustivel')return[];const a=acrescLitroV(v);const ed=pode(O.mod,'e')&&!cancV(v);
+ const bt=ed?` <button type="button" class="btn min" id="vvAcres">${ic('editar')}${a==null?'Informar':'Alterar'}</button>`:'';
+ if(a==null)return[['Acréscimo por litro','Não informado: vale o custo de buscar do cadastro ('+esc(fMoeda(custoBuscar((v.itens[0]||{}).produtoId)))+'/L).'+bt,1]];
+ return[['Acréscimo por litro',esc(fMoeda(a))+' por litro, só no custo (fora do total e da conta a pagar). Custo do litro: '+esc((v.itens||[]).map(i=>i.nome+' '+fMoeda(Math.round(((+i.preco||0)+a)*10000)/10000)).join(' · '))+'.'+bt,1]]}
+function modalAcresV(v){const O=opDe(v);const a=acrescLitroV(v);
+ modalV('Acréscimo por litro · compra nº '+fNumV(v.numero),`<p class="ajuda" style="margin:0 0 10px">Centavos somados ao preço de cada litro desta compra, só no custo (ex.: 7,49 + 0,30 = 7,79). O total da compra e a conta a pagar não mudam. Vale para os abastecimentos lançados daqui em diante; os já gravados guardam o custo com que foram gravados.</p>
+  <div class="campos"><div class="cmp"><label for="maAcres">Acréscimo por litro (R$)</label><input id="maAcres" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(a==null?'':fMoedaCampo(a))}"><span class="ajuda">Em branco: volta a valer o custo de buscar do cadastro do combustível.</span></div></div>`,'Salvar',async m=>{
+  const t=$('#maAcres',m).value.trim();const n=t===''?null:lerMoeda(t);
+  if(n!=null&&(!isFinite(n)||n<0)){toast('Acréscimo por litro: valor inválido.','erro');return false}
+  const atual=atualOp(v);const ant=acrescLitroV(atual);const nv=n==null?null:Math.round(n*10000)/10000;
+  if(ant===nv){toast('Nada mudou.');return}
+  const mud={acrescimoLitro:nv==null?'':nv};
+  await salvarOpV(atual,mud,'alterou o acréscimo por litro',[{c:'Acréscimo por litro (custo)',de:ant==null?'':fMoeda(ant),para:nv==null?'(custo de buscar do cadastro)':fMoeda(nv)}]);
+  toast('Acréscimo por litro salvo. Os próximos abastecimentos já usam o custo novo.','ok')});
 }
 function telaOpNovaV(el,O,pid){
  const s=setorAtualV();const modoOk=(O.K==='venda')===(modoV(s)==='venda');
@@ -14322,7 +14350,7 @@ function resumoOpV(O,d){
  const r=conferirOpV(O,d);const c=r.c;const venda=O.K==='venda';const ln=(l,v,cls)=>`<div class="${cls||''}"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
  const er=d.tentou?r.erros:r.erros.filter(x=>/Estoque insuficiente|inválido|não pode/.test(x));
  return `<h3>Resumo da ${O.sing}</h3><div class="vd-tot">${ln((venda?'Produtos':'Itens')+' ('+c.itens.length+')',fMoeda(c.subtotal))}${ln('Desconto'+(d.descTipo==='pct'&&numV(d.descValor)?' ('+fNum(d.descValor,2)+'%)':''),'− '+fMoeda(c.desconto))}${ln('Frete','+ '+fMoeda(c.frete))}${ln('Outros valores','+ '+fMoeda(c.outros))}
-  ${ln('Total',fMoeda(c.total),'vd-grande')}${ln(d.condicao==='À vista'?(venda?'Recebido no ato':'Pago no ato'):'Entrada',fMoeda(c.pagoAgora))}${ln(venda?'A receber':'A pagar',fMoeda(c.saldo)+(d.condicao==='A prazo'&&d.vencimento?' em '+fData(d.vencimento):''))}</div>
+  ${ln('Total',fMoeda(c.total),'vd-grande')}${resumoAcresV(d,c,ln)}${ln(d.condicao==='À vista'?(venda?'Recebido no ato':'Pago no ato'):'Entrada',fMoeda(c.pagoAgora))}${ln(venda?'A receber':'A pagar',fMoeda(c.saldo)+(d.condicao==='A prazo'&&d.vencimento?' em '+fData(d.vencimento):''))}</div>
   ${er.length||r.avisos.length?`<ul class="vd-avisos">${er.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}</ul>`:''}
   <button type="button" class="btn pri vd-ok" id="vdOk" ${pode(O.mod,'e')?'':'disabled'}>${ic(O.ic)}Confirmar ${O.sing}</button>
   <ol class="vd-passos">${venda?'<li>Registra a venda com número próprio</li>'+(temEstoqueV(c.itens)?'<li>Baixa o estoque</li>':'')+'<li>Registra a conta a receber</li><li>Gera o comprovante</li><li>Entra nos relatórios</li><li>Fica pronta para vincular o documento fiscal</li>':'<li>Registra a compra com número próprio</li><li>Dá entrada no estoque</li><li>Registra a conta a pagar</li><li>Guarda a nota do fornecedor</li><li>Entra nos relatórios do setor</li>'}</ol>`;
@@ -14340,10 +14368,10 @@ function formOpV(c,O,s){
    <fieldset class="sec"><legend>${venda?'Produtos':'Itens comprados'}</legend>
     <div class="tabwrap"><table class="tbl cartao vd-itens"><thead><tr><th>${venda?'Produto':'Item'}</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Preço unit.</th><th class="num">Total</th><th></th></tr></thead><tbody id="vdItens">${itensOpV(O,d)}</tbody></table></div>
     <div class="inline" style="margin-top:8px"><button type="button" class="btn min" id="vdAdd">${ic('mais')}Adicionar ${venda?'produto':'item'}</button><span class="ajuda">A unidade é a do cadastro: o estoque é contado nela.</span></div></fieldset>
-   <fieldset class="sec"><legend>Desconto, frete e outros valores</legend><div class="campos">
+   <fieldset class="sec"><legend>${!venda&&s==='combustivel'?'Desconto, frete, acréscimo por litro e outros valores':'Desconto, frete e outros valores'}</legend><div class="campos">
     <div class="cmp"><label for="vdDesc">Desconto</label><div class="vd-desc"><select id="vdDescTipo" aria-label="Tipo de desconto"><option value="valor" ${d.descTipo==='valor'?'selected':''}>R$</option><option value="pct" ${d.descTipo==='pct'?'selected':''}>%</option></select><input id="vdDesc" data-v="descValor" ${d.descTipo==='pct'?'type="number" step="any" min="0" max="100"':'data-masc="moeda"'} inputmode="decimal" placeholder="0,00" value="${esc(d.descValor===''?'':d.descTipo==='pct'?d.descValor:fMoedaCampo(d.descValor))}"></div></div>
     <div class="cmp"><label for="vdFrete">Frete</label><input id="vdFrete" data-v="frete" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.frete===''?'':fMoedaCampo(d.frete))}"></div>
-    <div class="cmp"><label for="vdOutros">Outros valores</label><input id="vdOutros" data-v="outros" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.outros===''?'':fMoedaCampo(d.outros))}"><span class="ajuda">${venda?'Taxa de entrega, carga e descarga etc.':'Carga, descarga, taxas etc.'}</span></div></div></fieldset>
+    <div class="cmp"><label for="vdOutros">Outros valores</label><input id="vdOutros" data-v="outros" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.outros===''?'':fMoedaCampo(d.outros))}"><span class="ajuda">${venda?'Taxa de entrega, carga e descarga etc.':'Carga, descarga, taxas etc.'}</span></div>${!venda&&s==='combustivel'?`<div class="cmp"><label for="vdAcresL">Acréscimo por litro</label><input id="vdAcresL" data-v="acresLitro" data-masc="moeda" inputmode="decimal" placeholder="0,00" value="${esc(d.acresLitro===''||d.acresLitro==null?'':fMoedaCampo(d.acresLitro))}"><span class="ajuda">Centavos somados ao preço de cada litro (ex.: 7,49 + 0,30 = 7,79). Não é frete: entra só no custo do litro, não no total nem na conta a pagar. Em branco vale o custo de buscar do cadastro do combustível.</span></div>`:''}</div></fieldset>
    <fieldset class="sec"><legend>Pagamento${venda?'':' e nota'}</legend><div class="campos">
     <div class="cmp"><label for="vdForma">Forma de pagamento<i> *</i></label><select id="vdForma" data-v="forma">${FORMAS_V.map(x=>`<option ${d.forma===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
     <div class="cmp"><label for="vdCond">Condição<i> *</i></label><select id="vdCond" data-v="condicao">${['À vista','A prazo'].map(x=>`<option ${d.condicao===x?'selected':''}>${x}</option>`).join('')}</select></div>
@@ -14360,7 +14388,7 @@ function formOpV(c,O,s){
     e redesenhar o botão entre o apertar e o soltar do mouse perdia o clique em "Confirmar" */
  const atuRes=()=>{const r=$('#vdResumo',c);if(!r)return;const h=resumoOpV(O,d);if(r._h!==h){r.innerHTML=h;r._h=h}};
  const atuItens=()=>{$('#vdItens',c).innerHTML=itensOpV(O,d);atuRes()};
- const moeda=k=>['descValor','frete','outros','entrada'].includes(k);
+ const moeda=k=>['descValor','frete','outros','entrada','acresLitro'].includes(k);
  const visPag=()=>{$$('[data-vis]',c).forEach(w=>w.hidden=w.dataset.vis!==(d.condicao==='A prazo'?'prazo':'avista'))};
  $('#vdBusca',c).oninput=e=>{d.busca=e.target.value;$('#vdCli',c).innerHTML=opcoesParteV(O,d)};
  {const na=$('#vdNfArq',c);if(na)na.onchange=()=>{const f=na.files[0]||null;const sp=$('#vdNfArqN',c);
@@ -14410,6 +14438,7 @@ async function confirmarOpV(O,btn){
   itens,subtotal:r2.c.subtotal,descTipo:d.descTipo,descValor:numV(d.descValor),desconto:r2.c.desconto,frete:r2.c.frete,outros:r2.c.outros,total:r2.c.total,
   forma:d.forma,condicao:d.condicao,vencimento:d.condicao==='A prazo'?d.vencimento:d.data,
   pagamentos:r2.c.pagoAgora>0?[{id:novoId(),data:d.data,valor:r2.c.pagoAgora,forma:d.forma,...(d.contaId?{contaId:d.contaId}:{}),obs:d.condicao==='À vista'?(venda?'Recebido na venda':'Pago na compra'):'Entrada',por:APP.uid||'local',em:agora}]:[],
+  ...(acresOpV(d)?{acrescimoLitro:Math.round(+d.acresLitro*10000)/10000}:{}),
   ...(!venda&&!(r2.c.total>0)?{semPreco:true}:{}),status:'Concluída',fiscal:venda?{status:'Pendente'}:{status:d.nf?'Recebida':'Pendente',...(d.nf?{numero:String(d.nf).trim()}:{}),...(anxNota?{[anxNota.k]:anxNota.a}:{})},obs:String(d.obs||'').trim(),...(venda||!String(d.recebidoPor||'').trim()?{}:{recebidoPor:String(d.recebidoPor).trim()}),
   responsavel:APP.uid||'local',responsavelNome:APP.nome||nomeUsuario(APP.uid)||'Usuário',...(venda?{vendedor:APP.uid||'local',vendedorNome:APP.nome||nomeUsuario(APP.uid)||'Usuário'}:{}),
   criadoEm:agora,criadoPor:APP.uid||'local',alteradoEm:agora,alteradoPor:APP.uid||'local'};
@@ -14444,7 +14473,7 @@ function detalheOpV(c,O,v){
   ${canc?`<div class="aviso pe" style="margin-bottom:14px"><span><b>${O.Sing} cancelada</b> em ${esc(fDataHora(v.cancelamento.em))} por ${esc(nomeUsuario(v.cancelamento.por))}. Motivo: ${esc(v.cancelamento.motivo)}. O estoque foi estornado e a conta foi cancelada${f.devolver>0?`; há ${esc(fMoeda(f.devolver))} ${venda?'recebidos deste cliente: devolva':'pagos a este fornecedor: peça a devolução'} e registre o estorno de cada pagamento`:''}.${venda&&fs.status==='Autorizada'?' A nota fiscal desta venda está autorizada: faça o cancelamento no emissor, dentro do prazo e das regras do seu estado, e atualize a situação fiscal aqui.':''}</span></div>`:''}
   <div class="vv-grade">
    <section class="bloco"><h3>Dados da ${O.sing}</h3>${kvV([['Número',esc(fNumV(v.numero))],['Setor',esc(S.nome||v.setor)],['Data e hora',esc(fData(v.data)+(v.hora?' às '+v.hora:''))],['Responsável',esc(resp)],
-     ['Forma de pagamento',esc(v.forma)],['Condição',esc(v.condicao)],v.recebidoPor?['Recebido por',esc(v.recebidoPor)]:null,['Vencimento',esc(fData(v.vencimento))],['Registrada em',esc(fDataHora(v.criadoEm))],v.obs?['Observações',esc(v.obs),1]:null])}</section>
+     ['Forma de pagamento',esc(v.forma)],['Condição',esc(v.condicao)],v.recebidoPor?['Recebido por',esc(v.recebidoPor)]:null,...kvAcresV(v,O),['Vencimento',esc(fData(v.vencimento))],['Registrada em',esc(fDataHora(v.criadoEm))],v.obs?['Observações',esc(v.obs),1]:null])}</section>
    <section class="bloco"><h3>${O.Parte}${par&&pode(venda?'clientes':'fornecedores')?`<a href="#/${venda?'clientes':'fornecedores'}/${esc(par.id)}">Abrir cadastro</a>`:''}</h3>${kvV([['Nome / razão social',esc(cx.nome||'—'),1],['CPF/CNPJ',esc(cx.doc||'—')],venda?['Inscrição estadual',esc(cx.ie||'—')]:null,['Cidade',esc(cx.cidade||'—')],['Telefone / WhatsApp',esc(cx.whatsapp||cx.telefone||'—')],cx.email?['E-mail',esc(cx.email)]:null,cx.endereco?['Endereço',esc(cx.endereco),1]:null,
      !venda&&par&&par.pix?['PIX / dados bancários',esc(par.pix),1]:null,par?[venda?'Em aberto do cliente':'A pagar a este fornecedor',esc(fMoeda(emAbertoParte(O,par.id)))]:null])}${par?'':'<p class="ajuda" style="margin:0 17px 14px">Venda sem cadastro do cliente.</p>'}</section>
    <section class="bloco w2"><h3>${venda?'Produtos':'Itens comprados'}</h3><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>${venda?'Produto':'Item'}</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Preço unit.</th>${venda?'<th class="num">Preço de tabela</th>':''}<th class="num">Total</th></tr></thead>
@@ -14484,6 +14513,7 @@ function detalheOpV(c,O,v){
  if($('#vvPag',c))$('#vvPag',c).onclick=()=>modalPagamentoV(v);
  if($('#vvCanc',c))$('#vvCanc',c).onclick=()=>modalCancelarV(v);
  if($('#vvFis',c))$('#vvFis',c).onclick=()=>modalFiscalV(v);
+ if($('#vvAcres',c))$('#vvAcres',c).onclick=()=>modalAcresV(v);
  if($('#vvRel',c))$('#vvRel',c).onclick=()=>{Object.assign(UIRV,{id:venda?'rv_vendas':'rc_compras',cliente:venda?v.clienteId:'',fornecedor:venda?'':v.fornecedorId,produto:'',usuario:'',forma:'',stvenda:'',stfin:'',local:'',rapido:'tudo',ini:'',fim:''});JBNAV.ir('#/relvendas')};
  $$('[data-vrec]',c).forEach(b=>b.onclick=()=>{const p=pgs.find(x=>x.id===b.dataset.vrec);if(p)verDoc(docRecebimentoV(v,p),{voltar:O.rota+v.id})});
  $$('[data-vest]',c).forEach(b=>b.onclick=()=>{const p=pgs.find(x=>x.id===b.dataset.vest);if(p)modalEstornoV(v,p)});
@@ -14493,7 +14523,7 @@ function textoOpV(v){const f=finVenda(v);const O=opDe(v);
  return [razaoMostra()+' · CNPJ '+cnpjMostra(),(O.K==='venda'?'Comprovante de venda nº ':'Compra nº ')+fNumV(v.numero)+' · '+nomeSetorV(v.setor),'Data: '+fData(v.data)+(v.hora?' às '+v.hora:''),O.Parte+': '+(parteSnap(v).nome||''),
   ...v.itens.map(i=>'• '+fQtd(i.qtd)+' '+(i.unidade||'')+' '+i.nome+' × '+fMoeda(i.preco)+' = '+fMoeda(i.total)),
   v.desconto?'Desconto: '+fMoeda(v.desconto):'',v.frete?'Frete: '+fMoeda(v.frete):'',v.outros?'Outros valores: '+fMoeda(v.outros):'',
-  'Total: '+fMoeda(v.total),'Pagamento: '+v.forma+' · '+v.condicao+(v.condicao==='A prazo'?' · vencimento '+fData(v.vencimento):''),
+  'Total: '+fMoeda(v.total),acrescLitroV(v)!=null?'Acréscimo por litro (só custo, fora do total): '+fMoeda(acrescLitroV(v)):'','Pagamento: '+v.forma+' · '+v.condicao+(v.condicao==='A prazo'?' · vencimento '+fData(v.vencimento):''),
   f.saldo>0?'Saldo em aberto: '+fMoeda(f.saldo):'Situação: pago',cancV(v)?'CANCELADA':''].filter(Boolean).join('\n');
 }
 function modalV(titulo,corpo,okTxt,aoOk,opc){
@@ -14612,6 +14642,7 @@ function docOpV(v){
  if(cancV(v))D.blocos.push({tipo:'aviso',texto:O.Sing.toUpperCase()+' CANCELADA em '+fDataHora(v.cancelamento.em)+'. Motivo: '+v.cancelamento.motivo+'.'});
  D.blocos.push({tipo:'tabela',head:[venda?'Produto':'Item','Quantidade','Unidade','Preço unitário','Total'],dir:[1,3,4],body:v.itens.map(i=>[i.nome+(i.codigo?' ('+i.codigo+')':''),fQtd(i.qtd),i.unidade||'',fMoeda(i.preco),fMoeda(i.total)]),foot:[venda?'Produtos':'Itens','','','',fMoeda(v.subtotal)]});
  D.blocos.push({tipo:'tabela',head:['Valores','Valor'],dir:[1],body:[[venda?'Produtos':'Itens',fMoeda(v.subtotal)],['(–) Desconto'+(v.descTipo==='pct'&&v.descValor?' ('+fNum(v.descValor,2)+'%)':''),fMoeda(-(+v.desconto||0))],['(+) Frete',fMoeda(v.frete)],['(+) Outros valores',fMoeda(v.outros)]],foot:['Valor total',fMoeda(v.total)]});
+ if(!venda&&acrescLitroV(v)!=null)D.blocos.push({tipo:'tabela',head:['Custo do litro (controle interno)','Preço da nota','Acréscimo por litro','Custo do litro'],dir:[1,2,3],body:(v.itens||[]).map(i=>[i.nome,fMoeda(i.preco),fMoeda(acrescLitroV(v)),fMoeda(Math.round(((+i.preco||0)+acrescLitroV(v))*10000)/10000)])});
  D.blocos.push({tipo:'tabela',head:['Pagamento','Detalhe'],body:[['Forma de pagamento',v.forma],['Condição',v.condicao],['Vencimento',fData(v.vencimento)],[venda?'Valor recebido':'Valor pago',fMoeda(f.pago)],[venda?'Saldo a receber':'Saldo a pagar',fMoeda(f.saldo)],['Responsável',v.responsavelNome||v.vendedorNome||nomeUsuario(v.criadoPor)]]});
  if(v.obs)D.blocos.push({tipo:'p',texto:'Observações: '+v.obs});
  D.blocos.push({tipo:'aviso',texto:venda?(fs.status==='Autorizada'?'Documento fiscal: '+[fs.modelo,fs.numero?'nº '+fs.numero:'',fs.serie?'série '+fs.serie:'',fs.chave?'chave '+fs.chave:''].filter(Boolean).join(' · ')+'.'
@@ -44981,9 +45012,11 @@ const buscarDigitado=r=>{const v=r.custoBuscar;if(v===''||v==null)return BUSCAR_
 {const iB=MP.fields.findIndex(f=>f.k==='bombaNome');const iO=MP.fields.findIndex(f=>f.k==='obs');const pos=iB>=0?iB:iO>=0?iO:MP.fields.length;
  MP.fields.splice(pos,0,
   {k:'custoBuscar',l:'Custo de buscar por litro (R$)',t:'moeda',sh:r=>ehCombustivelV(r),s:'Custo por litro',
-   aj:'Quanto a cerâmica gasta para ir buscar cada litro. Soma na média das compras para formar o custo por litro. Em branco vale R$ 0,30; para não somar nada, informe 0.'},
+   aj:'Quanto a cerâmica gasta para ir buscar cada litro. Soma na média das compras para formar o custo por litro. Em branco vale R$ 0,30; para não somar nada, informe 0. Compra com acréscimo por litro informado usa o acréscimo dela no lugar deste valor.'},
   {k:'_custo115',l:'Custo por litro usado no sistema',t:'html',vivo:1,w2:1,sh:r=>ehCombustivelV(r),s:'Custo por litro',calc:r=>{
    const media=r.id&&PROD(r.id)?custoMedioNota(r.id):(r.precoCompra!==''&&r.precoCompra!=null?+lerNum(r.precoCompra)||0:0);const b=buscarDigitado(r);const un=esc(r.unidade||'L');
+   {const cp=r.id&&PROD(r.id)?custoPartes(r.id):null;if(cp&&cp.acresc&&media>0)return `Média das compras: <b>${esc(fMoeda(cp.media))}</b> · acréscimo por litro: <b>${esc(fMoeda(cp.buscar))}</b> · custo por ${un}: <b>${esc(fMoeda(cp.custo))}</b>
+    <span class="ajuda">O acréscimo é a média pelos litros: nas compras com acréscimo por litro informado vale o delas; nas outras, o custo de buscar acima (${esc(fMoeda(b))}). O valor da compra e a conta a pagar continuam pelo valor da nota. Lançamentos já gravados não mudam.</span>`}
    if(!(media>0))return `<span class="ajuda">Ainda sem compra registrada. Quando houver, o custo por ${un} será a média das compras + ${esc(fMoeda(b))} de custo de buscar.</span>`;
    return `Média das compras: <b>${esc(fMoeda(media))}</b> · custo de buscar: <b>${esc(fMoeda(b))}</b> · custo por ${un}: <b>${esc(fMoeda(Math.round((media+b)*10000)/10000))}</b>
     <span class="ajuda">Vale para os abastecimentos lançados daqui em diante e para a lenha paga com combustível. O valor da compra e a conta a pagar ao posto continuam pelo valor da nota. Lançamentos já gravados não mudam.</span>`}});
