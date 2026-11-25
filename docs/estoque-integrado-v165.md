@@ -45,3 +45,33 @@ nenhum erro de JavaScript.
 Código: GitHub › Actions › "Reverter publicação". Banco: `20261125120000_seg_estoque_versoes.down.sql`
 (não mexe nos dados). Os registros novos (itens mestres, transferências, usos) ficam no histórico e na
 auditoria.
+
+## V168 · Cadastro automático nos dois lados (25/11/2026)
+
+Pedido do Jeferson: cadastrou no Combustível, aparece no Almoxarifado, e vice-versa, já com o código mestre.
+
+- **Produto novo no Setor de Combustível** → o item mestre (CMB-…, categoria Combustíveis e lubrificantes) é criado
+  sozinho no Almoxarifado, ligado ao produto. Se já existe no almoxarifado um item com o mesmo nome e unidade, sem
+  ligação, ele é ligado em vez de criar outro.
+- **Item novo no Almoxarifado que é do Combustível** (categoria Combustíveis e lubrificantes, ou reconhecido pelo nome
+  e em litro ou kg) → o produto é criado sozinho no Setor de Combustível (ou ligado ao de mesmo nome e unidade).
+- Só no cadastro novo; editar não cria nada. Sem saldo: o estoque continua entrando pela compra ou pela entrada.
+- Item reconhecido pelo nome em outra unidade (balde, caixa…) não liga sozinho: vai para a Conferência de cadastro,
+  onde se escolhe o fator (ex.: 1 balde = 20 L).
+- Teste: parte 13 de `scripts/testar-estoque-integrado.mjs`.
+
+## V168 · Entrada de produtos com foto, valor e observação para completar depois (25/11/2026)
+
+- **Entrada de produtos** (Estoque integrado e Estoque do Combustível): várias linhas de produto, quantidade, valor
+  (opcional) e observação/descrição. Entra no estoque do Combustível na hora e aparece também no Almoxarifado.
+- É **um lançamento só** (`estoqueMov`, tipo `Entrada`, `integrado: true`, com `valorUnit`, `valorEntrada`, `obs`, `foto`).
+  Sem foto ou sem valor fica **pendente**: aparece em "Entradas de produtos" no Estoque integrado e no Estoque do
+  Combustível e nas PENDÊNCIAS. **Completar** (foto, valor, observação) em qualquer um dos dois atualiza o mesmo
+  lançamento; a quantidade não muda depois. O valor entra no custo médio.
+- **Duplicidade**: antes de gravar, o mesmo produto com a mesma quantidade nos últimos 3 dias (entrada, compra ou
+  entrada pelo almoxarifado) ou repetido na mesma lista é avisado; só grava se a pessoa confirmar que é outro.
+- Teste: parte 14 de `scripts/testar-estoque-integrado.mjs`.
+- **Na tela Estoque do Combustível**: o cartão do produto com entrada pendente mostra a etiqueta "Pendente: foto e valor";
+  tocar no cartão abre o lançamento para completar. Enquanto pendente, a **quantidade** também é editável (muda o saldo,
+  com o antes e o depois no histórico; não pode ficar menor que o que já saiu). Completa, a quantidade só muda por Ajuste.
+- Teste: parte 15 de `scripts/testar-estoque-integrado.mjs`.

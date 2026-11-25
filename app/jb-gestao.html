@@ -13645,7 +13645,7 @@ function situacaoEstoque(p){if(!controla(p))return 'Sem controle';const s=saldoP
 /* custo médio das compras (só o que vem na nota, sem frete); sem compra registrada, vale o preço de referência do cadastro */
 function custoMedioNota(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))return;(v.itens||[]).forEach(i=>{if(i.produtoId===pid){q+=+i.qtd||0;t+=+i.total||0}})});
  /* V165: compras feitas pelo Almoxarifado com destino ao setor e transferências entram no custo médio pelo valor */
- if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>{if(x.produtoId===pid&&x.valor!=null&&x.qtd>0){q+=x.qtd;t+=x.valor}})}catch(e){}
+ if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>{if(x.produtoId===pid&&x.valor!=null&&x.qtd>0){q+=x.qtd;t+=x.valor}});const ex=JB_ESTOQUE.custoExtra(pid);q+=ex.q;t+=ex.t}catch(e){}
  if(q>0)return Math.round(t/q*10000)/10000;const p=PROD(pid);return p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:0}
 /* V115 (13/11/2026): o litro do combustível custa mais do que vem na nota, porque a cerâmica gasta para ir buscar.
    Custo por litro = média das compras + custo de buscar. O custo de buscar mora no cadastro do combustível
@@ -14747,7 +14747,10 @@ function telaEstoqueV(el){
    PREFILL={mod:'estoqueMov',dados:{tipo,...(pid?{produtoId:pid}:{})}};JBNAV.ir('#/estoqueMov/novo')};
   $$('[data-mov]',c).forEach(bt=>bt.onclick=()=>novoMov(bt.dataset.mov));
   if(window.JB_ESTOQUE)JB_ESTOQUE.ligarBotoes(c);
-  $$('tr[data-pf]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('[data-je]'))return;UIEV.produto=tr.dataset.pf;renderTela();setTimeout(()=>{const f=$('#meP');if(f)f.scrollIntoView({block:'center'})},60)});
+  $$('tr[data-pf]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('[data-je]'))return;
+   /* V168: produto com entrada pendente (foto, valor): tocar no cartão abre o lançamento para completar */
+   if(window.JB_ESTOQUE){const pd=JB_ESTOQUE.pendDoProd(tr.dataset.pf);if(pd.length){JB_ESTOQUE.abrirCompletar(pd[0].id);return}}
+   UIEV.produto=tr.dataset.pf;renderTela();setTimeout(()=>{const f=$('#meP');if(f)f.scrollIntoView({block:'center'})},60)});
   $$('tr[data-go]',c).forEach(tr=>{tr.onclick=()=>JBNAV.ir(tr.dataset.go);tr.onkeydown=e=>{if(e.key==='Enter')tr.onclick()}});
   [['#meP','produto'],['#meT','tipo'],['#meDe','de'],['#meAte','ate']].forEach(([q,k])=>{$(q,c).onchange=e=>{UIEV[k]=e.target.value;renderTela()}});
   $('#meExp',c).onclick=()=>{const cols=[{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'tipo',l:'Tipo'},{k:'produto',l:'Item'},{k:'qtd',l:'Quantidade',t:'num'},{k:'unidade',l:'Unidade'},{k:'anterior',l:'Antes',t:'num'},{k:'atual',l:'Depois',t:'num'},{k:'motivo',l:'Motivo / origem'},{k:'usuario',l:'Usuário'}];
@@ -52314,14 +52317,16 @@ async function criarMestres(){
  return feitos}
 
 /* ---------------- 9. botões nas telas que já existem ---------------- */
+const pendDoProd=pid=>entradasIntegradas().filter(m=>m.produtoId===pid&&pendenteE(m));
 function botoesProduto(p,s){if(s!==SETOR||!p||!controla(p))return '';
- const b=[];if(pode('consumos','e'))b.push(`<button type="button" class="btn pri" data-je="usar" data-pid="${esc(p.id)}">USAR</button>`);
+ const b=[];const pd=pendDoProd(p.id);
+ if(pd.length)b.push(`<button type="button" class="btn" data-je="comp" data-mid="${esc(pd[0].id)}" style="background:var(--pe-fundo,#fde8e8);color:var(--pe,#b42318);border-color:transparent">Pendente: ${esc(txtPend(pd[0]))}${pd.length>1?' ('+pd.length+')':''}</button>`);if(pode('consumos','e'))b.push(`<button type="button" class="btn pri" data-je="usar" data-pid="${esc(p.id)}">USAR</button>`);
  if(pode('estoqueMov','e'))b.push(`<button type="button" class="btn" data-je="req" data-pid="${esc(p.id)}">Requisição</button>`);
  if(pode('estoqueMov','e')&&itemDoProd(p.id))b.push(`<button type="button" class="btn" data-je="dev" data-pid="${esc(p.id)}">Devolver ao Almox.</button>`);
  return b.length?`<span class="ei-bts">${b.join('')}</span>`:''}
 function ligarBotoes(c){c.querySelectorAll('[data-je]').forEach(b=>{b.onclick=e=>{e.preventDefault();e.stopPropagation();const k=b.dataset.je;
  if(k==='usar')abrirUsar(b.dataset.pid);else if(k==='req')abrirRequisicao(b.dataset.pid);else if(k==='dev')abrirDevolver(b.dataset.pid);
- else if(k==='trf')abrirTransferir(b.dataset.item);else if(k==='lig')abrirLigar(b.dataset.item)}})}
+ else if(k==='trf')abrirTransferir(b.dataset.item);else if(k==='lig')abrirLigar(b.dataset.item);else if(k==='comp')abrirCompletar(b.dataset.mid);else if(k==='ent')abrirEntradaLote()}})}
 
 /* ---------------- 10. tela Estoque integrado (#/estoqueCentral) ---------------- */
 const UC={q:'',setor:'',tipo:'',prod:'',quem:'',de:'',ate:'',lim:150};
@@ -52357,9 +52362,10 @@ function telaCentral(c){
  if(UC.q){const q=N(UC.q);M=M.filter(r=>(r._b||N([r.tipo,r.item,r.parte,r.quem,r.doc].join(' '))).includes(q))}
  const quems=[...new Set(todas.map(r=>r.quem).filter(Boolean))].sort();
  const cabF=B().cab||((i,t,p,a)=>`<h1>${esc(t)}</h1>`);
- c.innerHTML=cabF('caixa','Estoque integrado','Almoxarifado e Setor de Combustível no mesmo cadastro: saldo de cada setor, total, transferências e todas as movimentações.','')+
+ c.innerHTML=cabF('caixa','Estoque integrado','Almoxarifado e Setor de Combustível no mesmo cadastro: saldo de cada setor, total, transferências e todas as movimentações.',pode('estoqueMov','e')?`<button type="button" class="btn pri" data-je="ent">${ic('mais')}Entrada de produtos</button>`:'')+
   `<div class="ei-res"><div><b>${S.length}</b><span>produtos de combustível, óleo e graxa</span></div><div><b>${S.filter(x=>x.comb>0).length}</b><span>com saldo no Combustível</span></div><div><b>${S.filter(x=>x.alm>0).length}</b><span>com saldo no Almoxarifado</span></div><div><b>${div}</b><span>abaixo do mínimo</span></div></div>
   ${falta.length&&pode('almItens','e')?`<div class="aviso at" style="margin-bottom:12px"><span>${falta.length} produto(s) do Combustível ainda sem código mestre (${esc(falta.map(p=>p.nome).join(', '))}). <button type="button" class="btn min" id="eiMestre">Criar os códigos mestres</button></span></div>`:''}
+  ${htmlEntradas()}
   <h3 class="ei-sec">Saldo por setor</h3>
   <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Produto</th><th class="num">Almoxarifado</th><th class="num">Combustível</th><th class="num">Total</th><th>Situação</th><th></th></tr></thead><tbody>
   ${S.map(x=>{const sit=x.tot<=0?'Sem estoque':x.min!=null&&x.tot<x.min?'Abaixo do mínimo':'Normal';
@@ -52405,11 +52411,136 @@ if(typeof TELAS_V!=='undefined'){
  L.splice(i+1,0,{r:'#/estoqueCentral',m:'estoqueCentral',ic:'caixa',l:'Estoque integrado',at:['estoqueCentral']});return L}}}
 /* atalho no Estoque do Setor de Combustível */
 if(typeof TELAS_V!=='undefined'&&typeof TELAS_V.estoque==='function'){const t0=TELAS_V.estoque;TELAS_V.estoque=function(el){const r=t0.apply(this,arguments);
- try{if(typeof setorAtualV==='function'&&setorAtualV()===SETOR&&pode('estoqueCentral')){const a=el.querySelector('.sec-cab .acoes');if(a&&!a.querySelector('[data-eic]')){const b=document.createElement('a');b.className='btn';b.href='#/estoqueCentral';b.dataset.eic='1';b.innerHTML=ic('caixa')+'Estoque integrado';a.prepend(b)}}}catch(e){}
+ try{if(typeof setorAtualV==='function'&&setorAtualV()===SETOR&&pode('estoqueCentral')){const a=el.querySelector('.sec-cab .acoes');if(a&&!a.querySelector('[data-eic]')){const b=document.createElement('a');b.className='btn';b.href='#/estoqueCentral';b.dataset.eic='1';b.innerHTML=ic('caixa')+'Estoque integrado';a.prepend(b);if(pode('estoqueMov','e')){const e2=document.createElement('button');e2.type='button';e2.className='btn';e2.dataset.je='ent';e2.innerHTML=ic('mais')+'Entrada de produtos';a.prepend(e2)}}
+  const cab=el.querySelector('.sec-cab');const h=htmlEntradas(20);if(cab&&h&&!el.querySelector('[data-eient]')){const d=document.createElement('div');d.dataset.eient='1';d.innerHTML=h;cab.after(d)}
+  ligarBotoes(el)}}catch(e){console.warn('V168 estoque',e)}
  return r}}
+/* PENDÊNCIAS: entrada sem foto ou sem valor aparece para o Combustível e para o Almoxarifado */
+if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;window.LEMBRETES_V61=function(){const L=l0.apply(this,arguments)||[];
+ try{entradasIntegradas().filter(pendenteE).forEach(m=>{const pr=PROD(m.produtoId)||{};
+  L.push({key:'ei-pend-'+m.id,mod:'estoqueMov',setor:'Combustível e Almoxarifado',prio:'media',titulo:'Entrada sem '+txtPend(m)+': '+(pr.nome||''),
+   det:fQtd(m.quantidade)+' '+(m.unidade||pr.unidade||'')+' em '+fData(m.data)+'. Toque em Completar no Estoque integrado.',rota:'#/estoqueCentral'})})}catch(e){console.warn('V168 pendências',e)}
+ return L}}
+
+/* ---------------- 12. V168: cadastro automático nos dois lados (pedido do Jeferson, 25/11/2026) ----------------
+   Produto novo cadastrado no Setor de Combustível → o item mestre (CMB-…) aparece sozinho no Almoxarifado, ligado.
+   Item novo cadastrado no Almoxarifado que é do Combustível (categoria Combustíveis e lubrificantes, ou pelo nome
+   em litro ou kg) → o produto aparece sozinho no Setor de Combustível, ligado. Só no cadastro novo (editar não
+   cria nada), sem saldo (estoque entra pela compra ou entrada) e sem duplicar (quem já está ligado fica como está).
+   Item pelo nome em outra unidade (balde, caixa…) fica na Conferência de cadastro, para escolher o fator. */
+const pendCod=new Set();
+function proxCMB(){const re=/^CMB-(\d+)$/;const n=Math.max(0,...(DATA.almItens||[]).map(i=>{const m=re.exec(String(i.codigo||''));return m?+m[1]:0}),...[...pendCod].map(c=>+c.slice(4)));
+ const c='CMB-'+String(n+1).padStart(3,'0');pendCod.add(c);setTimeout(()=>pendCod.delete(c),120000);return c}
+async function mestreDoProduto(p){
+ if(!p||p.setor!==SETOR||p.almItemId||p.situacao==='Inativo'||itemDoProd(p.id)||!pode('almItens','e'))return null;
+ const un=p.unidade==='L'?'litro':p.unidade==='kg'?'kg':String(p.unidade||'unidade');const ag=agora();
+ /* já existe no almoxarifado com o mesmo nome e unidade: só liga (não cria outro) */
+ const igual=(DATA.almItens||[]).find(i=>ativoI(i)&&!i.produtoSetorId&&N(i.nome)===N(p.nome)&&i.unidade===un);
+ if(igual){const it=await ligarItem(igual,p,1);toast(p.nome+' ligado ao item '+(igual.codigo||igual.nome)+' do Almoxarifado.','ok');return it}
+ const rec={...(MODS.almItens&&MODS.almItens.padrao?MODS.almItens.padrao():{}),id:novoId(),nome:String(p.nome||'').trim(),categoria:CAT,unidade:un,codigo:proxCMB(),ativo:true,data:hoje(),
+  produtoSetorId:p.id,setorEstoque:SETOR,fatorSetor:1,ligadoEm:ag,obs:'Criado sozinho ao cadastrar o produto no Setor de Combustível.',criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+ await gravar('almItens',rec,null);try{await registrarLog('almItens',rec.id,'criou',null,rec)}catch(e){}
+ toast('Código mestre '+rec.codigo+' criado no Almoxarifado para '+rec.nome+'.','ok');return rec}
+const autoItem=i=>!!i&&!i.produtoSetorId&&i.ativo!==false&&!['Cozinha','Limpeza','EPI'].includes(i.categoria)&&(i.categoria===CAT||(classificar(i).setor===SETOR&&['litro','kg'].includes(i.unidade)));
+async function produtoDoItem(i){
+ if(!autoItem(i)||!pode('produtos','e'))return null;
+ const g=await garantirLigacao(i);toast(i.nome+' também está no Setor de Combustível ('+nomeProduto(g.produto)+').','ok');return g.produto}
+if(typeof gravar==='function'){const gAnt=gravar;
+ gravar=async function(col,rec,ant){const r=await gAnt.apply(this,arguments);
+  try{if(!ant&&rec&&rec.id){
+   if(col==='produtos'&&rec.setor===SETOR&&!rec.almItemId)setTimeout(()=>{mestreDoProduto(PROD(rec.id)||rec).catch(e=>console.warn('V168 mestre',e))},500);
+   else if((col==='almItens'||(col==='alm'&&rec.jbt==='item'))&&!rec.produtoSetorId)setTimeout(()=>{produtoDoItem(ITEM(rec.id)||rec).catch(e=>{console.warn('V168 produto',e);toast(String(e&&e.message||e),'erro')})},500)}}
+  catch(e){console.warn('V168',e)}
+  return r}}
+
+/* ---------------- 13. V168: entrada de produtos com foto, valor e observação para completar depois ----------------
+   Pedido do Jeferson (25/11/2026): ele manda o que tem (produto e quantidade); o lançamento entra no estoque do
+   Combustível na hora e aparece também no Almoxarifado (Estoque integrado e Pendências), PENDENTE de foto e valor.
+   É UM lançamento só (estoqueMov, tipo Entrada, integrado: true): completar a foto, o valor ou a observação em
+   qualquer um dos dois setores atualiza os dois. A quantidade não muda depois (o saldo já contou).
+   Duplicidade: antes de gravar, o mesmo produto com a mesma quantidade lançado nos últimos 3 dias (entrada, compra
+   ou entrada pelo almoxarifado) ou repetido no mesmo lote é avisado e só grava se a pessoa confirmar. */
+const ehEntInt=m=>!!m&&m.integrado===true&&m.tipo==='Entrada'&&m.setor===SETOR;
+const faltaFoto=m=>!(m.foto&&m.foto.id);const faltaValor=m=>!(+m.valorUnit>0);
+const pendenteE=m=>ehEntInt(m)&&(faltaFoto(m)||faltaValor(m));
+const entradasIntegradas=()=>(DATA.estoqueMov||[]).filter(ehEntInt).sort((a,b)=>String(b.data+' '+(b.hora||'')).localeCompare(String(a.data+' '+(a.hora||''))));
+function custoExtra(pid){let q=0,t=0;entradasIntegradas().forEach(m=>{if(m.produtoId===pid&&+m.valorUnit>0){q+=+m.quantidade||0;t+=(+m.quantidade||0)*(+m.valorUnit)}});return{q,t}}
+const txtPend=m=>[faltaFoto(m)?'foto':'',faltaValor(m)?'valor':''].filter(Boolean).join(' e ');
+/* lançamentos parecidos (possível duplicidade) */
+function parecidos(pid,q,data){
+ const L=[];const perto=d=>dias(d,data||hoje())<=3;const igual=x=>Math.abs((+x||0)-q)<1e-6;
+ (DATA.estoqueMov||[]).forEach(m=>{if(m&&m.produtoId===pid&&m.tipo==='Entrada'&&perto(m.data)&&igual(m.quantidade||m.delta))L.push('entrada de '+fData(m.data)+(m.hora?' às '+m.hora:''))});
+ comprasSetor().forEach(v=>{if(perto(v.data)&&(v.itens||[]).some(i=>i.produtoId===pid&&igual(i.qtd)))L.push('compra nº '+fNumV(v.numero)+' de '+fData(v.data))});
+ entradasNoSetor().forEach(x=>{if(x.produtoId===pid&&perto(x.data)&&igual(x.qtd))L.push(x.tipo.toLowerCase()+' de '+fData(x.data))});
+ return L}
+const prodsComb=()=>DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(p=>[p.id,nomeProduto(p)+' ('+(p.unidade||'')+')']);
+function linhaLote(k){return `<div class="ei-lin" data-lk="${k}" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;margin:0 0 6px">
+  <select data-lp aria-label="Produto ${k+1}"><option value="">Produto…</option>${opt(prodsComb(),'')}</select>
+  <input data-lq inputmode="decimal" placeholder="Quantidade" aria-label="Quantidade ${k+1}"><input data-lv inputmode="decimal" placeholder="Valor unit. (depois)" aria-label="Valor ${k+1}">
+  <input data-lo placeholder="Observação / descrição (opcional)" aria-label="Observação ${k+1}" style="grid-column:1/-1"></div>`}
+async function abrirEntradaLote(pre){
+ if(!pode('estoqueMov','e')){toast('Seu perfil não lança entrada no estoque do Combustível.','erro');return}
+ let n=Math.max(3,(pre||[]).length);
+ const p=janela('Entrada de produtos (Combustível e Almoxarifado)',
+  `<p class="ei-saldo">Entra no estoque do Combustível agora e aparece também no Almoxarifado. Sem foto ou sem valor, fica <b>pendente</b> para completar depois, em qualquer um dos dois setores.</p>
+   <div data-lotes>${Array.from({length:n},(_,k)=>linhaLote(k)).join('')}</div><button type="button" class="btn min" data-maislin>Mais uma linha</button>
+   ${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}`,
+  {ok:'Lançar no estoque',depois:async ctl=>{
+   const ls=[...ctl.v.querySelectorAll('[data-lk]')].map(w=>({pid:w.querySelector('[data-lp]').value,q:num(w,'[data-lq]'),v:num(w,'[data-lv]'),o:val(w,'[data-lo]')})).filter(l=>l.pid||!isNaN(l.q));
+   if(!ls.length)throw new Error('Escolha pelo menos um produto com a quantidade.');
+   for(const l of ls){if(!l.pid)throw new Error('Escolha o produto em todas as linhas com quantidade.');if(!(l.q>0))throw new Error('Informe a quantidade de '+(PROD(l.pid)||{}).nome+'.');if(!isNaN(l.v)&&l.v<0)throw new Error('Valor inválido.')}
+   const dt=val(ctl.v,'#eiD')||hoje();if(dt>hoje())throw new Error('A data não pode ser futura.');
+   /* duplicidade: no próprio lote e nos lançamentos dos últimos dias */
+   const avis=[];const vistos={};ls.forEach(l=>{const k=l.pid+'|'+l.q;if(vistos[k])avis.push((PROD(l.pid)||{}).nome+': está duas vezes nesta lista');vistos[k]=1;
+    const pp=parecidos(l.pid,l.q,dt);if(pp.length)avis.push((PROD(l.pid)||{}).nome+' '+fQtd(l.q)+' '+((PROD(l.pid)||{}).unidade||'')+': já tem '+pp.join(', '))});
+   if(avis.length&&!await confirmar('Possível lançamento em duplicidade','Confira antes de gravar: '+avis.join(' · ')+'. Se for outro material, confirme; se já foi lançado, cancele.',{ok:'É outro, lançar'}))return false;
+   const sd={};ls.forEach(l=>{sd[l.pid]=sd[l.pid]==null?saldoP(l.pid):sd[l.pid]});const ag=agora();let feitos=0;
+   for(const l of ls){const pr=PROD(l.pid)||{};const ant=r3(sd[l.pid]);sd[l.pid]=r3(ant+l.q);const v=!isNaN(l.v)&&l.v>0?Math.round(l.v*10000)/10000:null;
+    const rec={id:novoId(),setor:SETOR,tipo:'Entrada',integrado:true,produtoId:l.pid,quantidade:r3(l.q),delta:r3(l.q),unidade:pr.unidade||'',anterior:ant,atual:sd[l.pid],
+     valorUnit:v,valorEntrada:v?r2(v*l.q):null,obs:l.o,foto:null,motivo:'Entrada de produtos (estoque integrado)',data:dt,hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+    await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}feitos++}
+   toast(feitos+' entrada(s) lançada(s) no estoque. As que estão sem foto ou valor ficam pendentes no Combustível e no Almoxarifado.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+ await esperar(()=>document.querySelector('.ei-modal [data-maislin]'),2000);
+ const w=document.querySelector('.ei-modal');
+ if(w){const b=w.querySelector('[data-maislin]');if(b)b.onclick=()=>{w.querySelector('[data-lotes]').insertAdjacentHTML('beforeend',linhaLote(n++))};
+  (pre||[]).forEach((x,k)=>{const r=w.querySelector('[data-lk="'+k+'"]');if(!r)return;r.querySelector('[data-lp]').value=x.produtoId||'';r.querySelector('[data-lq]').value=x.qtd==null?'':String(x.qtd).replace('.',',');if(x.obs)r.querySelector('[data-lo]').value=x.obs})}
+ return p}
+async function abrirCompletar(id){
+ const m=(DATA.estoqueMov||[]).find(x=>x.id===id);if(!m){toast('Lançamento não encontrado.','erro');return}
+ if(!pode('estoqueMov','e')){toast('Seu perfil não altera este lançamento. Peça a quem lança no Combustível.','erro');return}
+ const pr=PROD(m.produtoId)||{};let foto=m.foto||null;
+ const fotoHtml=()=>foto&&foto.id?`<a href="/_blob/${esc(foto.id)}" target="_blank" rel="noopener"><img src="/_blob/${esc(foto.id)}" alt="Foto do produto" style="max-width:100%;max-height:160px;border-radius:8px;display:block"></a>`:'<span class="ei-saldo">Sem foto.</span>';
+ const p=janela('Completar a entrada · '+(pr.nome||''),
+  `<p class="ei-saldo">Entrada de ${esc(fData(m.data))} · ${pendenteE(m)?'pendente de '+esc(txtPend(m)):'completa'}.${pendenteE(m)?'':' Para mudar a quantidade de uma entrada completa, use Ajuste no estoque.'}</p>
+   <div class="campos">${pendenteE(m)?campo('eiQ','Quantidade ('+esc(m.unidade||pr.unidade||'')+')','<input id="eiQ" inputmode="decimal" value="'+esc(String(m.quantidade).replace('.',','))+'">','Muda o saldo do estoque; fica no histórico (antes e depois).'):''}
+   ${campo('eiV','Valor unitário (R$ por '+esc(m.unidade||pr.unidade||'unidade')+')','<input id="eiV" inputmode="decimal" value="'+(+m.valorUnit>0?esc(String(m.valorUnit).replace('.',',')):'')+'">')}
+   ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="3">'+esc(m.obs||'')+'</textarea>')}
+   <div class="cmp"><label>Foto do produto</label><div data-fotow>${fotoHtml()}</div>
+    ${APP.assets?'<label class="btn min" style="cursor:pointer;margin-top:6px">Tirar ou escolher foto<input type="file" accept="image/*" capture="environment" hidden data-efoto></label>':'<p class="ei-saldo">Para enviar a foto, use a versão da nuvem (jb-gestao-ceramica.netlify.app).</p>'}</div></div>`,
+  {ok:'Salvar',depois:async ctl=>{
+   const v=num(ctl.v,'#eiV');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');
+   const atual=(DATA.estoqueMov||[]).find(x=>x.id===id)||m;const ag=agora();const vu=!isNaN(v)&&v>0?Math.round(v*10000)/10000:null;
+   let q=+atual.quantidade||0;if(pendenteE(atual)&&ctl.v.querySelector('#eiQ')){const nq=num(ctl.v,'#eiQ');if(!(nq>0))throw new Error('Informe a quantidade.');
+    const s=saldoP(atual.produtoId);if(s-q+nq<-1e-9)throw new Error('Parte desta entrada já saiu do estoque: a quantidade não pode ser menor que '+fQtd(r3(q-s))+'.');q=r3(nq)}
+   const novo={...clone(atual),quantidade:q,delta:q,atual:r3((+atual.anterior||0)+q),valorUnit:vu,valorEntrada:vu?r2(vu*q):null,obs:val(ctl.v,'#eiO'),foto:foto||null,alteradoEm:ag,alteradoPor:eu()};
+   await gravar('estoqueMov',novo,atual);
+   try{await logV('estoqueMov',id,'completou a entrada',[{c:'Quantidade',de:fQtd(atual.quantidade),para:fQtd(q)},{c:'Valor unitário',de:+atual.valorUnit>0?fMoeda(atual.valorUnit):'',para:vu?fMoeda(vu):''},{c:'Foto',de:atual.foto?'sim':'não',para:foto?'sim':'não'},{c:'Observação',de:atual.obs||'',para:novo.obs||''}])}catch(e){}
+   toast(pendenteE(novo)?'Salvo. Ainda falta '+txtPend(novo)+'.':'Entrada completa: foto e valor salvos.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+ await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);
+ const w=document.querySelector('.ei-modal');const inp=w&&w.querySelector('[data-efoto]');
+ if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Foto maior que 20 MB.','erro');return}
+  toast('Enviando a foto…');APP.assets.upload(f).then(r=>{foto={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes};const fw=w.querySelector('[data-fotow]');if(fw)fw.innerHTML=fotoHtml();toast('Foto enviada. Toque em Salvar para gravar.','ok')}).catch(()=>toast('Não foi possível enviar a foto.','erro'))};
+ return p}
+function htmlEntradas(lim){
+ const L=entradasIntegradas();const pend=L.filter(pendenteE);if(!L.length)return '';
+ return `<h3 class="ei-sec">Entradas de produtos${pend.length?' · '+pend.length+' pendente(s) de foto ou valor':''}</h3>
+  <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Produto</th><th class="num">Quantidade</th><th class="num">Valor unit.</th><th>Foto</th><th>Observação</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${L.slice(0,lim||60).map(m=>{const pr=PROD(m.produtoId)||{};return `<tr><td data-l="Data">${esc(fData(m.data))}</td><td data-l="Produto">${esc(pr.nome||'')}</td><td data-l="Quantidade" class="num">${esc(fQtd(m.quantidade)+' '+(m.unidade||pr.unidade||''))}</td>
+   <td data-l="Valor unit." class="num">${+m.valorUnit>0?esc(fMoeda(m.valorUnit)):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver</a>`:'—'}</td><td data-l="Observação">${esc(m.obs||'—')}</td>
+   <td data-l="Situação">${pendenteE(m)?tag('Pendente: '+txtPend(m),'pe'):tag('Completa','ok')}</td><td>${pode('estoqueMov','e')?`<button type="button" class="btn min${pendenteE(m)?' pri':''}" data-je="comp" data-mid="${esc(m.id)}">${pendenteE(m)?'Completar':'Editar'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`}
 
 window.JB_ESTOQUE=Object.freeze({SETOR,CAT,classificar,destinoLinha,entradasNoSetor,movsAlmSaldo,htmlDestinoLinha,txtPassoEntrada,prepararLinhasEntrada,conferirEntradaAlm,antesCompraSetor,
- garantirLigacao,criarMestres,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
+ pendDoProd,garantirLigacao,criarMestres,mestreDoProduto,produtoDoItem,abrirEntradaLote,abrirCompletar,entradasIntegradas,custoExtra,pendenteE,parecidos,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
  _teste:{RX_CMB,RX_FICA,fator,prodLig,itemDoProd}});
 })();
 </script>

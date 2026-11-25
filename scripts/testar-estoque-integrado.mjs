@@ -235,6 +235,74 @@ try {
   ok(c12.usarBt >= 3, 'botão USAR em cada produto do estoque do Combustível');
   ok(c12.conferir.length === 0, 'nenhum item pendente na conferência de cadastro');
 
+  console.log('13. Cadastro automático nos dois lados (V168)');
+  const c13 = await page.evaluate(async () => {
+    const np = { ...MODS.produtos.padrao(), id: 'p_novo', nome: 'Arla 32 Teste', setor: 'combustivel', unidade: 'L', tipoItem: 'Aditivo', controlaEstoque: 'Sim', situacao: 'Ativo' };
+    await gravarRegistro('produtos', np, null, true); await T.esperar(() => T.mestre('p_novo'), 8000); await T.sinc(); await T.dorme(800);
+    const m = T.mestre('p_novo'); const nMestres = DATA.almItens.filter((i) => i.produtoSetorId === 'p_novo').length;
+    const ni = { ...MODS.almItens.padrao(), id: 'i_hid', nome: 'Óleo hidráulico 68 granel teste', categoria: 'Combustíveis e lubrificantes', unidade: 'litro' };
+    await gravarRegistro('almItens', ni, null, true); await T.esperar(() => (ALMOX_V52.ITEM('i_hid') || {}).produtoSetorId, 8000); await T.sinc(); await T.dorme(800);
+    const ph = PROD(ALMOX_V52.ITEM('i_hid').produtoSetorId);
+    const nb = { ...MODS.almItens.padrao(), id: 'i_balde2', nome: 'Balde óleo 15W40 teste', categoria: 'Peças e manutenção', unidade: 'unidade' };
+    await gravarRegistro('almItens', nb, null, true); await T.dorme(1500);
+    const pAntes = DATA.produtos.length; const ed = { ...PROD('p_novo'), obs: 'editado' }; await gravar('produtos', ed, PROD('p_novo')); await T.dorme(1200);
+    return { cod: m && m.codigo, cat: m && m.categoria, nMestres, saldo: saldoP('p_novo'), ph: ph && [ph.setor, ph.unidade, ph.almItemId], nProdHid: DATA.produtos.filter((p) => p.almItemId === 'i_hid').length,
+      balde: !!(ALMOX_V52.ITEM('i_balde2') || {}).produtoSetorId, conf: JB_ESTOQUE.paraConferir().map((i) => i.id), depoisEd: DATA.produtos.length - pAntes, mestresDepoisEd: DATA.almItens.filter((i) => i.produtoSetorId === 'p_novo').length }; });
+  ok(/^CMB-\d{3}$/.test(c13.cod) && c13.cat === 'Combustíveis e lubrificantes' && c13.nMestres === 1 && c13.saldo === 0, `produto novo no Combustível ganhou o código mestre ${c13.cod} no Almoxarifado, sem saldo`);
+  ok(c13.ph && c13.ph.join() === 'combustivel,L,i_hid' && c13.nProdHid === 1, 'item novo do Almoxarifado (categoria Combustíveis, em litro) apareceu no Setor de Combustível, ligado');
+  ok(!c13.balde && c13.conf.includes('i_balde2'), 'balde (outra unidade) não é ligado sozinho: vai para a Conferência de cadastro');
+  ok(c13.depoisEd === 0 && c13.mestresDepoisEd === 1, 'editar um produto não cria nada de novo');
+
+  console.log('14. Entrada de produtos pendente de foto e valor, com observação, e duplicidade (V168)');
+  const c14 = await page.evaluate(async () => {
+    const s0 = saldoP('p_s10'), g0 = saldoP('p_graxa'); const n0 = DATA.estoqueMov.filter((m) => m.integrado).length;
+    JB_ESTOQUE.abrirEntradaLote(); await T.esperar(() => document.querySelector('.ei-modal [data-lk="1"]'));
+    const lin = (k, p, q, v, o) => { const r = document.querySelector('.ei-modal [data-lk="' + k + '"]'); r.querySelector('[data-lp]').value = p; r.querySelector('[data-lq]').value = q; r.querySelector('[data-lv]').value = v; r.querySelector('[data-lo]').value = o; };
+    lin(0, 'p_s10', '300', '', 'tambor azul do galpão'); lin(1, 'p_graxa', '4', '25,50', 'graxa de chassi, marca X');
+    document.querySelector('.ei-modal [data-r="1"]').click(); await T.esperar(() => DATA.estoqueMov.filter((m) => m.integrado).length === n0 + 2, 8000); await T.sinc();
+    const E = JB_ESTOQUE.entradasIntegradas(); const es = E.find((m) => m.produtoId === 'p_s10'), eg = E.find((m) => m.produtoId === 'p_graxa');
+    const pend0 = [JB_ESTOQUE.pendenteE(es), JB_ESTOQUE.pendenteE(eg)];
+    JBNAV.ir('#/estoqueCentral'); await T.esperar(() => document.querySelector('[data-je="comp"]')); const naCentral = document.querySelectorAll('[data-je="comp"]').length;
+    const lemb = (window.LEMBRETES_V61() || []).filter((l) => /^ei-pend-/.test(l.key)).length;
+    /* duplicidade: lançar de novo o mesmo diesel 300 L */
+    let msgDup = ''; const c0 = window.confirmar; window.confirmar = async (t, x) => { msgDup = t + ': ' + x; return false; };
+    JB_ESTOQUE.abrirEntradaLote(); await T.esperar(() => document.querySelector('.ei-modal [data-lk="0"]')); lin(0, 'p_s10', '300', '', '');
+    document.querySelector('.ei-modal [data-r="1"]').click(); await T.dorme(800); window.confirmar = c0; T.fecharJanelas();
+    const n1 = DATA.estoqueMov.filter((m) => m.integrado).length;
+    /* completar no Almoxarifado (Estoque integrado): valor e observação; a mesma entrada muda nos dois */
+    JB_ESTOQUE.abrirCompletar(es.id); await T.esperar(() => document.querySelector('.ei-modal #eiV'));
+    document.querySelector('.ei-modal #eiV').value = '6,10'; document.querySelector('.ei-modal #eiO').value = 'tambor azul, conferido';
+    document.querySelector('.ei-modal [data-r="1"]').click(); await T.esperar(() => +((DATA.estoqueMov.find((m) => m.id === es.id) || {}).valorUnit) === 6.1, 8000); await T.sinc();
+    const es2 = DATA.estoqueMov.find((m) => m.id === es.id); const b = T.banco('estoqueMov').find((m) => m.id === es.id);
+    SV = 'combustivel'; location.hash = '#/estoque'; await T.esperar(() => document.querySelector('[data-eient]')); const noComb = /6,10/.test(document.querySelector('[data-eient]').textContent);
+    return { s: saldoP('p_s10') - s0, g: saldoP('p_graxa') - g0, obs: [es.obs, eg.obs], vg: eg.valorUnit, pend0, naCentral, lemb, msgDup, dupGravou: n1 - (n0 + 2), vu: es2.valorUnit, obs2: es2.obs, qtd: es2.quantidade, banco: b && b.valorUnit, mesmo: DATA.estoqueMov.filter((m) => m.integrado && m.produtoId === 'p_s10').length, noComb, pend1: JB_ESTOQUE.pendenteE(es2), cm: custoMedioNota('p_graxa') };
+  });
+  ok(c14.s === 300 && c14.g === 4, 'a entrada soma no estoque na hora (300 L de diesel e 4 kg de graxa)');
+  ok(c14.obs[0] === 'tambor azul do galpão' && c14.vg === 25.5, 'observação e valor (quando informado) ficam no lançamento');
+  ok(c14.pend0.join() === 'true,true' && c14.naCentral >= 2 && c14.lemb === 2, 'sem foto ou sem valor: pendente no Estoque integrado (Almoxarifado) e nas Pendências');
+  ok(/duplicidade/.test(c14.msgDup) && c14.dupGravou === 0, 'o mesmo produto e quantidade lançado de novo: aviso de duplicidade e nada gravado');
+  ok(c14.vu === 6.1 && c14.obs2 === 'tambor azul, conferido' && c14.qtd === 300 && c14.banco === 6.1 && c14.mesmo === 1, 'completar o valor e a observação muda o mesmo lançamento (sem cópia)');
+  ok(c14.noComb, 'o valor completado aparece também no Estoque do Combustível');
+  ok(c14.pend1 === true, 'ainda sem foto: continua pendente só da foto');
+  ok(Math.abs(c14.cm - 25.5) < 1e-6, `o valor da entrada entra no custo médio (graxa ${c14.cm})`);
+
+  console.log('15. Na tela Estoque do Combustível: pendente no cartão, tocar abre para editar (quantidade, valor, observação)');
+  const c15 = await page.evaluate(async () => {
+    SV = 'combustivel'; location.hash = '#/estoque'; await T.esperar(() => document.querySelector('tr[data-pf="p_graxa"] [data-je="comp"]'));
+    const etiqueta = document.querySelector('tr[data-pf="p_graxa"] [data-je="comp"]').textContent; const g0 = saldoP('p_graxa');
+    const tr = document.querySelector('tr[data-pf="p_graxa"]'); (tr.querySelector('td') || tr).click();
+    await T.esperar(() => document.querySelector('.ei-modal #eiQ')); const q = document.querySelector('.ei-modal #eiQ'); q.value = '5';
+    document.querySelector('.ei-modal #eiO').value = 'graxa de chassi, 5 baldes de 1 kg'; document.querySelector('.ei-modal [data-r="1"]').click();
+    await T.esperar(() => saldoP('p_graxa') === g0 + 1, 8000); await T.sinc();
+    const e = JB_ESTOQUE.entradasIntegradas().find((m) => m.produtoId === 'p_graxa');
+    const semPend = !document.querySelector('tr[data-pf="p_diesel_inexistente"]'); const sP = !!document.querySelector('tr[data-pf="p_oleo"] [data-je="comp"]');
+    return { etiqueta, d: saldoP('p_graxa') - g0, q: e.quantidade, obs: e.obs, vt: e.valorEntrada, hist: (DATA.log || []).some((l) => l.recId === e.id && /completou/.test(l.acao)), sP };
+  });
+  ok(/Pendente: foto/.test(c15.etiqueta), 'o cartão da graxa mostra a etiqueta “' + c15.etiqueta + '”');
+  ok(c15.d === 1 && c15.q === 5 && c15.obs === 'graxa de chassi, 5 baldes de 1 kg' && c15.vt === 127.5, 'tocar no cartão abriu o lançamento: quantidade 4 → 5 (saldo +1), observação e valor total atualizados');
+  ok(c15.hist, 'a mudança ficou no histórico');
+  ok(c15.sP === false, 'produto sem entrada pendente não mostra a etiqueta');
+
   ok(erros.length === 0, 'nenhum erro de JavaScript na página' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) { console.error(e); falhas++; }
 finally { await browser.close(); http.close(); }
