@@ -318,6 +318,59 @@ try {
   ok(c16.e && c16.e.join() === '32.5,balde de 20 L,prateleira 3,true', 'quantidade, valor, peso/embalagem e observação gravados; sem foto fica pendente');
   ok(c16.naCentral, 'o lançamento aparece no Estoque integrado (Almoxarifado)');
 
+  console.log('17. Cadastro por foto no Almoxarifado: embalagens × conteúdo e produto do Combustível vai direto para lá (V171)');
+  const c17 = await page.evaluate(async () => {
+    const it = ALMOX_V52.ITEM('i_hid'); const pid = it.produtoSetorId; const s0 = saldoP(pid), a0 = ALMOX_V52.estI('i_hid').saldo;
+    const abre = async () => { T.fecharJanelas(); ALMOX_V52.cadastroFoto({ nome: it.nome }); await T.esperar(() => document.querySelector('#fpEmbN') && document.querySelector('[name=fpModo]')); };
+    const pre = (o) => Object.entries(o).forEach(([k, v]) => { const el = document.querySelector('#' + k); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    /* 1) "tem 8 tambor" sem dizer quanto tem em cada: não grava */
+    await abre(); pre({ fpT: 'tem 8 tambor', fpEmbN: '8', fpEmbT: 'tambor' }); const msg = document.querySelector('#fpEmbR').textContent;
+    const nM0 = DATA.estoqueMov.length, nA0 = DATA.almAjustes.length; document.querySelector('.veu .modal [data-ok]').click(); await T.dorme(500);
+    const bloqueou = DATA.estoqueMov.length === nM0 && DATA.almAjustes.length === nA0;
+    /* 2) 3 baldes × 20 L: conta sozinha e vai para o Combustível (quem lança no Combustível grava a entrada integrada) */
+    await abre(); pre({ fpEmbN: '3', fpEmbT: 'balde', fpEmbC: '20' }); const conta = [document.querySelector('#fpQtd').value, document.querySelector('#fpEmbR').textContent];
+    document.querySelector('.veu .modal [data-ok]').click(); await T.esperar(() => saldoP(pid) === s0 + 60, 8000); await T.sinc();
+    const e = JB_ESTOQUE.entradasIntegradas().find((m) => m.produtoId === pid && m.quantidade === 60);
+    /* 3) quem só tem o Almoxarifado: entrada sem compra com destino ao Combustível (conta lá, não aqui) */
+    const p0 = PERM.estoqueMov.e; PERM.estoqueMov.e = [];
+    await abre(); pre({ fpEmbN: '1', fpEmbT: 'balde', fpEmbC: '20' }); document.querySelector('.veu .modal [data-ok]').click(); await T.esperar(() => saldoP(pid) === s0 + 80, 8000); await T.sinc(); PERM.estoqueMov.e = p0; T.fecharJanelas();
+    const aj = DATA.almAjustes.find((a) => a.itemId === 'i_hid' && a.destino === 'combustivel');
+    const ent = JB_ESTOQUE.entradasNoSetor().find((x) => x.id === 'j:' + (aj && aj.id));
+    return { msg, bloqueou, conta, e: e && [e.embalagem, e.integrado, e.origemAlmItem], alm: ALMOX_V52.estI('i_hid').saldo - a0, aj: aj && [aj.qtd, aj.qtdSetor, aj.embalagem], ent: !!ent, tot: JB_ESTOQUE.saldoTotalItem(ALMOX_V52.ITEM('i_hid')) };
+  });
+  ok(/Falta quanto tem em cada tambor/.test(c17.msg) && c17.bloqueou, '“tem 8 tambor” sem o volume de cada um: avisa e não grava (nada de 8 litros)');
+  ok(c17.conta[0] === '60' && /3 × 20 L = 60 L/.test(c17.conta[1]), 'embalagens × conteúdo: ' + c17.conta[1]);
+  ok(c17.e && c17.e.join() === '3 baldes de 20 L,true,i_hid', 'produto do Combustível entrou direto no estoque do Combustível, com a embalagem escrita');
+  ok(c17.alm === 0, 'o saldo do Almoxarifado não mudou (não conta em dobro)');
+  ok(c17.aj && c17.aj.join() === '20,20,1 balde de 20 L' && c17.ent, 'sem permissão no Combustível: entrada sem compra com destino ao Combustível, contada lá');
+
+  console.log('18. No Combustível: lançar por embalagens e completar o valor da entrada que veio do Almoxarifado (V171)');
+  const c18 = await page.evaluate(async () => {
+    T.fecharJanelas(); const s0 = saldoP('p_novo');
+    const pre = (o) => { const m = document.querySelector('.ei-modal'); Object.entries(o).forEach(([k, v]) => { const el = m.querySelector('#' + k); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }); };
+    /* 8 baldes sem dizer quanto tem em cada: não grava */
+    JB_ESTOQUE.abrirEntradaProduto('p_novo'); await T.esperar(() => document.querySelector('.ei-modal #eiEN'));
+    pre({ eiQ: '8', eiEN: '8', eiET: 'balde' }); const aviso = document.querySelector('.ei-modal [data-embr]').textContent;
+    document.querySelector('.ei-modal [data-r="1"]').click(); await T.dorme(600); const naoGravou = saldoP('p_novo') === s0; const erro = (document.querySelector('[data-eierro]') || {}).textContent || ''; T.fecharJanelas();
+    /* 2 galões de 20 L = 40 L */
+    JB_ESTOQUE.abrirEntradaProduto('p_novo'); await T.esperar(() => document.querySelector('.ei-modal #eiEN'));
+    pre({ eiEN: '2', eiET: 'galão', eiEC: '20' }); const q = document.querySelector('.ei-modal #eiQ').value, emb = document.querySelector('.ei-modal #eiE').value;
+    document.querySelector('.ei-modal [data-r="1"]').click(); await T.esperar(() => saldoP('p_novo') === s0 + 40, 8000); await T.sinc();
+    /* entrada que veio do Almoxarifado (passo 17): aparece pendente no Combustível e se completa por lá */
+    const aj = DATA.almAjustes.find((a) => a.itemId === 'i_hid' && a.destino === 'combustivel'); const pid = aj.produtoSetorId;
+    const lista = JB_ESTOQUE.entradasTodas().some((m) => m.id === 'j:' + aj.id);
+    JB_ESTOQUE.abrirCompletar('j:' + aj.id); await T.esperar(() => document.querySelector('.ei-modal #eiV'));
+    pre({ eiV: '18,50', eiO: 'balde no galpão' }); document.querySelector('.ei-modal [data-r="1"]').click();
+    await T.esperar(() => +(DATA.almAjustes.find((a) => a.id === aj.id) || {}).precoUnit === 18.5, 8000); await T.sinc();
+    const a2 = DATA.almAjustes.find((a) => a.id === aj.id); const m2 = JB_ESTOQUE.entradasTodas().find((m) => m.id === 'j:' + aj.id);
+    return { aviso, naoGravou, erro, q, emb, lista, a2: [a2.precoUnit, a2.obs, a2.qtdSetor, a2.destino], vu: m2.valorUnit, cm: custoMedioNota(pid), nAj: DATA.almAjustes.filter((a) => a.id === aj.id).length };
+  });
+  ok(/Falta quanto tem em cada balde/.test(c18.aviso) && c18.naoGravou && /cada embalagem/.test(c18.erro), '8 baldes sem o volume de cada um: avisa e não grava');
+  ok(c18.q === '40' && c18.emb === '2 galões de 20 L', 'embalagens × conteúdo no Combustível: ' + c18.emb + ' = ' + c18.q + ' L');
+  ok(c18.lista, 'a entrada que veio do Almoxarifado aparece nas entradas do Combustível');
+  ok(c18.a2.join() === '18.5,balde no galpão,20,combustivel' && c18.vu === 18.5 && c18.nAj === 1, 'valor e observação completados no Combustível, no mesmo lançamento (sem cópia)');
+  ok(Math.abs(c18.cm - 18.5) < 1e-6, 'o valor entra no custo médio do Combustível (' + c18.cm + ')');
+
   ok(erros.length === 0, 'nenhum erro de JavaScript na página' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) { console.error(e); falhas++; }
 finally { await browser.close(); http.close(); }

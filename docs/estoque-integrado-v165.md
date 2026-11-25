@@ -83,3 +83,17 @@ Pedido do Jeferson: produto já cadastrado, mas sem quantidade, valor, peso e fo
 foto e data. Grava a mesma entrada integrada da V168 (aparece no Almoxarifado; sem foto ou sem valor fica pendente),
 com o aviso de duplicidade. Se o produto já tem entrada pendente, o toque abre a pendente para completar (que agora
 também tem peso/embalagem). Teste: parte 16 de `scripts/testar-estoque-integrado.mjs`.
+
+## V171 · Lançamento por embalagens (25/11/2026)
+
+Pedido do Jeferson, depois dos lançamentos do Paulo em que o número de baldes entrou como litros.
+
+- Cadastro por foto do Almoxarifado: campos **quantas embalagens**, **tipo** e **quanto tem em cada uma**; o total sai sozinho
+  (ex.: 3 baldes × 20 L = 60 L). Óleo, Arla e graxa (litro/kg) com embalagem e sem o conteúdo de cada uma não gravam.
+  A leitura por IA pede embalagens e o volume lido no rótulo.
+- Produto do Combustível já ligado vai direto para o estoque do Combustível: quem lança no Combustível grava a entrada
+  integrada; quem só tem o Almoxarifado grava a entrada sem compra com `destino: 'combustivel'`, `produtoSetorId` e
+  `qtdSetor` (conta no Combustível, não no Almoxarifado).
+- No Combustível: os mesmos campos de embalagem ao lançar e ao completar; as entradas vindas do Almoxarifado aparecem
+  pendentes e se completam lá (valor, foto, observação) no próprio lançamento, sem cópia.
+- Teste: `scripts/testar-estoque-integrado.mjs`, partes 17 e 18.

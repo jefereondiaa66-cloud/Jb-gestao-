@@ -21245,6 +21245,8 @@ const pagLenhaAlm=()=>{try{return window.CB_LENHA&&CB_LENHA.saidasProd?CB_LENHA.
 const semPreco=l=>!l||l.preco===''||l.preco==null||(typeof l.preco==='number'&&isNaN(l.preco));
 function fretesDe(e){const ls=(e.itens||[]).filter(l=>l&&l.itemId);const base=soma(ls,l=>(+l.qtd||0)*(+l.preco||0));const fr=+e.frete||0;const qt=soma(ls,l=>+l.qtd||0);
  return ls.map(l=>{const q=+l.qtd||0,v=q*(+l.preco||0);return{l,q,v,fr:fr?(base>0?fr*v/base:(qt>0?fr*q/qt:0)):0}})}
+/* V171: entrada sem compra (ajuste) de produto do Combustível feita pelo Almoxarifado vai para o estoque do Combustível */
+const ajFora=a=>!!a&&a.tipo!=='saida'&&!!a.destino&&a.destino!=='almox'&&!!a.produtoSetorId&&!!window.JB_ESTOQUE&&!!(DATA.produtos||[]).find(p=>p.id===a.produtoSetorId);
 function calcAlm(){
  if(MA.b===DATA[CA]&&MA.c===DATA.clCtrl&&MA.m===DATA.estoqueMov)return MA.v;
  const it={};const g=id=>it[id]||(it[id]={...VZ});
@@ -21253,7 +21255,7 @@ function calcAlm(){
  DATA.almEntradas.forEach(e=>fretesDe(e).forEach(x=>{if(foraE(e,x.l))return;const o=g(x.l.itemId);o.eq+=x.q;if(semPreco(x.l))o.sv+=x.q;else{o.eqc+=x.q;o.ev+=x.v+x.fr}if(String(e.data||'')>o.ultEnt)o.ultEnt=String(e.data||'')}));
  DATA.almSaidas.forEach(s=>(s.itens||[]).forEach(l=>{if(!l||!l.itemId)return;const o=g(l.itemId);o.sq+=+l.qtd||0;if(String(s.data||'')>o.ultSai)o.ultSai=String(s.data||'')}));
  DATA.almDevolucoes.forEach(d=>(d.itens||[]).forEach(l=>{if(l&&l.itemId)g(l.itemId).dq+=+l.qtd||0}));
- DATA.almAjustes.forEach(a=>{if(!a.itemId)return;const q=+a.qtd||0;g(a.itemId).aq+=a.tipo==='saida'?-q:q});
+ DATA.almAjustes.forEach(a=>{if(!a.itemId)return;if(JE&&ajFora(a))return;const q=+a.qtd||0;g(a.itemId).aq+=a.tipo==='saida'?-q:q});
  DATA.almEpis.forEach(x=>{if(x.itemId)g(x.itemId).epi+=+x.qtd||0});
  DATA.almEmprestimos.forEach(x=>{if(!x.itemId)return;const o=g(x.itemId);const q=+x.qtd||0;if(x.devData){if(x.devEstado==='Danificada'||x.devEstado==='Perdida')o.perda+=q}else o.emp+=q});
  pagLenhaAlm().forEach(x=>{const o=g(x.itemId);o.pl+=x.qtd;if(String(x.data||'')>o.ultSai)o.ultSai=String(x.data||'')});
@@ -21517,7 +21519,7 @@ MODS.almFornecedores={titulo:'Fornecedores do almoxarifado',sing:'fornecedor',ic
 /* ---------- ajuste de estoque ---------- */
 const saldoSem=(itemId,mod,id)=>{/* saldo do item como se este lançamento não existisse */
  const e=estI(itemId);let s=e.saldo,d=e.disp;const x=id&&DATA[mod].find(r=>r.id===id);if(!x)return{s,d};
- if(mod==='almAjustes'&&x.itemId===itemId){const q=+x.qtd||0;s-=x.tipo==='saida'?-q:q;d-=x.tipo==='saida'?-q:q}
+ if(mod==='almAjustes'&&x.itemId===itemId&&!ajFora(x)){const q=+x.qtd||0;s-=x.tipo==='saida'?-q:q;d-=x.tipo==='saida'?-q:q}
  if(mod==='almEpis'&&x.itemId===itemId){s+=+x.qtd||0;d+=+x.qtd||0}
  if(mod==='almEmprestimos'&&x.itemId===itemId){const q=+x.qtd||0;if(x.devData){if(x.devEstado==='Danificada'||x.devEstado==='Perdida'){s+=q;d+=q}}else d+=q}
  return{s:r3(s),d:r3(d)}};
@@ -22213,6 +22215,7 @@ function movsAlm(){
  DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);(d.itens||[]).forEach((l,k)=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);
   add({k:'d'+d.id+k,data:d.data,tipo:'Devolução',rot:'Devolução',itemId:l.itemId,q:+l.qtd||0,valor:(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm),doc:'Devolução '+(s?fReq(s.numero)+(s.solicitante||s.setor?' · de '+(s.solicitante||s.setor):''):''),href:s?'#/almSaida/'+s.id:'',ord:d.criadoEm||''})})});
  DATA.almAjustes.forEach(a=>{const ent=a.tipo!=='saida';const cont=!!a.inventarioId;const cu=ent&&+a.precoUnit>0?+a.precoUnit:estI(a.itemId).cm;
+  if(ajFora(a)){add({k:'a'+a.id,data:a.data,tipo:'Ajuste',rot:'Entrada direto para o Combustível',itemId:a.itemId,q:0,valor:0,doc:[a.motivo||'',a.embalagem||'',fQtd(+a.qtd||0)+' '+un((ITEM(a.itemId)||{}).unidade)+' foram para o estoque do Setor de Combustível'].filter(Boolean).join(' · '),href:'#/almAjustes/'+a.id,ord:a.criadoEm||''});return}
   add({k:'a'+a.id,data:a.data,tipo:'Ajuste',rot:cont?'Acerto de contagem':ent?'Entrada sem compra':'Saída por ajuste',itemId:a.itemId,q:(ent?1:-1)*(+a.qtd||0),valor:(ent?1:-1)*(+a.qtd||0)*cu,
    doc:[a.motivo||'',a.responsavel?(ent?'trazido por ':'retirado por ')+a.responsavel:''].filter(Boolean).join(' · '),href:'#/almAjustes/'+a.id,ord:a.criadoEm||''})});
  DATA.almEpis.forEach(x=>add({k:'p'+x.id,data:x.data,tipo:'EPI entregue',rot:'EPI entregue',itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:'para '+(nomeF(x.funcId)||'—')+(x.motivo?' · '+x.motivo:''),href:'#/almEpis/'+x.id,ord:x.criadoEm||''}));
@@ -23351,7 +23354,7 @@ function editarAjPr(a){
   <div class="duas">${H.campoM('eaD','Data<i> *</i>',`<input id="eaD" type="date" max="${hoje()}" value="${esc(a0.data)}">`)}${H.campoM('eaM','Motivo<i> *</i>',`<input id="eaM" value="${esc(a0.motivo||'')}">`)}</div>
   <div class="duas">${H.campoM('eaR',ent?'Quem trouxe':'Quem retirou',`<input id="eaR" value="${esc(a0.responsavel||'')}">`)}${H.campoM('eaO','Observação',`<input id="eaO" value="${esc(a0.obs||'')}">`)}</div>`,'Salvar alterações',async v=>{
   const data=H.valM(v,'eaD'),mot=String(H.valM(v,'eaM')||'').trim();if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}if(!mot){toast('Informe o motivo.','erro');return false}
-  const novos=L.map((x,k)=>{const qv=$(`[data-eq="${k}"]`,v).value;return{...clone(x),qtd:qv===''?NaN:r3(+qv),data,motivo:mot,responsavel:String(H.valM(v,'eaR')||'').trim(),obs:String(H.valM(v,'eaO')||'').trim()}});
+  const novos=L.map((x,k)=>{const qv=$(`[data-eq="${k}"]`,v).value;const fs=ajFora(x)&&window.JB_ESTOQUE?JB_ESTOQUE.fatorItem(ITEM(x.itemId)):0;return{...clone(x),qtd:qv===''?NaN:r3(+qv),...(fs?{qtdSetor:r3((qv===''?0:+qv)*fs)}:{}),data,motivo:mot,responsavel:String(H.valM(v,'eaR')||'').trim(),obs:String(H.valM(v,'eaO')||'').trim()}});
   for(const n of novos){if(!(n.qtd>0)){toast('Quantidade inválida em '+nomeItem(ITEM(n.itemId))+'. Para tirar o lançamento, use Excluir.','erro');return false}
    const er=Object.values(conferirRegistro('almAjustes',n).erros);if(er.length){toast(nomeItem(ITEM(n.itemId))+': '+er[0],'erro');return false}}
   for(let k=0;k<novos.length;k++){const n=novos[k],o=L[k];if(n.qtd===+o.qtd&&n.data===o.data&&n.motivo===o.motivo&&n.responsavel===(o.responsavel||'')&&n.obs===(o.obs||''))continue;await gravarRegistro('almAjustes',n,clone(o),false)}
@@ -23359,7 +23362,7 @@ function editarAjPr(a){
 }
 async function excluirAjPr(a){
  const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const ent=L[0].tipo!=='saida';
- if(ent){const neg=L.filter(x=>estI(x.itemId).saldo-(+x.qtd||0)<-1e-9);if(neg.length){toast('Não dá para excluir: parte de '+neg.map(x=>nomeItem(ITEM(x.itemId))).join(', ')+' já saiu do estoque.','erro');return}}
+ if(ent){const neg=L.filter(x=>ajFora(x)?(saldoP(x.produtoSetorId)-(+x.qtdSetor||0)<-1e-9):estI(x.itemId).saldo-(+x.qtd||0)<-1e-9);if(neg.length){toast('Não dá para excluir: parte de '+neg.map(x=>nomeItem(ITEM(x.itemId))).join(', ')+' já saiu do estoque.','erro');return}}
  if(!await confirmar('Tem certeza que deseja excluir?',(ent?'A entrada':'A saída')+' '+codAj(L[0])+' ('+textoItensPr(L)+') será excluída e o saldo volta a ser o de antes. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true}))return;
  try{for(const x of L){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu')}refrescaPr();toast('Lançamento excluído.','ok')}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
 
@@ -23372,6 +23375,15 @@ async function prepFotoPr(file,max,q){
  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(src,0,0,cv.width,cv.height);try{if(src.close)src.close()}catch(e){}
  return await new Promise(ok=>cv.toBlob(b=>ok(b),'image/jpeg',q||.82))}
 const qtdDaFrase=t=>{const m=/(?:tem|t[eê]m|são|sao|há|ha|quantidade|qtd\.?)\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:un\b|unid|unidades?|peças?|pecas?|caixas?|pacotes?|rolos?|pares?|metros?|kg|litros?|desse|dessa|desses|dessas|deste|desta)/i.exec(String(t||''));return m?+String(m[1]||m[2]).replace(',','.'):''};
+/* V171 (25/11/2026, pedido do Jeferson): produto que vem em balde, galão, tambor ou caixa se lança como
+   EMBALAGENS × quanto tem em cada uma (ex.: 8 baldes × 20 L = 160 L). Nunca o número de baldes como se fosse litro. */
+const RX_EMB=/\b(baldes?|gal(?:ão|ao|ões|oes)|tambor(?:es)?|tambores|bombonas?|latas?|caixas?|frascos?|potes?|fardos?|sacos?|garraf(?:ão|ao|ões|oes)|ibcs?|containers?)\b/i;
+const embDaFrase=t=>{const x=String(t||'');const m=/(\d+(?:[.,]\d+)?)\s*(?:de\s+)?(baldes?|gal(?:ão|ao|ões|oes)|tambor(?:es)?|bombonas?|latas?|caixas?|frascos?|potes?|fardos?|sacos?|garraf(?:ão|ao|ões|oes)|ibcs?)\b/i.exec(x);
+ return m?{n:+String(m[1]).replace(',','.'),tipo:m[2].toLowerCase()}:null};
+const plEmb=(t,n)=>{t=String(t||'embalagem').trim().toLowerCase();if(n<=1)return t;if(/s$/.test(t))return t;if(/ão$/.test(t))return t.replace(/ão$/,'ões');if(/[rz]$/.test(t))return t+'es';if(/l$/.test(t))return t.replace(/l$/,'is');return t+'s'};
+const unCurta=u=>u==='litro'?'L':u==='kg'?'kg':u==='metro'?'m':un(u);
+const txtEmb=(n,t,c,u)=>n>0?fQtd(n)+' '+plEmb(t||'embalagem',n)+(c>0?' de '+fQtd(c)+' '+unCurta(u):''):'';
+const UN_MEDIDA=['litro','kg','metro'];
 function promptFotoPr(frase,sc){
  const gs=[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].slice(0,120);
  const its=DATA.almItens.filter(ativo).slice(0,400).map(i=>[i.codigo,i.nome,i.marca,i.refFab].filter(Boolean).join(' | '));
@@ -23379,7 +23391,7 @@ function promptFotoPr(frase,sc){
 FRASE DE QUEM CADASTRA: "${String(frase||'').replace(/"/g,"'")}"
 
 Responda SOMENTE com um objeto JSON numa linha, sem texto antes ou depois, com estas chaves:
-{"nome":texto,"marca":texto|null,"especificacao":texto|null,"ca":texto|null,"categoria":texto,"tipoCozinha":texto|null,"grupo":texto|null,"unidade":texto,"quantidade":número|null,"preco":número|null,"local":texto|null,"existente":texto|null,"confianca":"alta"|"media"|"baixa","observacao":texto|null}
+{"nome":texto,"marca":texto|null,"especificacao":texto|null,"ca":texto|null,"categoria":texto,"tipoCozinha":texto|null,"grupo":texto|null,"unidade":texto,"quantidade":número|null,"embalagens":número|null,"tipoEmbalagem":texto|null,"conteudoEmbalagem":número|null,"preco":número|null,"local":texto|null,"existente":texto|null,"confianca":"alta"|"media"|"baixa","observacao":texto|null}
 
 REGRAS
 1. "nome": curto e claro em português, começando pelo que o produto é e depois a medida ou o tipo. Ex.: "Rolamento 6205 2RS", "Luva de raspa cano longo", "Disjuntor bipolar 32 A", "Detergente neutro 500 ml". Não ponha a marca no nome.
@@ -23391,11 +23403,12 @@ REGRAS
 7. "existente": se o produto da foto for CLARAMENTE o mesmo de um destes já cadastrados, devolva o código dele (a primeira parte); senão null.
 ${its.length?its.join('\n'):'(nenhum produto cadastrado ainda)'}
 8. "local": só se a frase disser onde fica guardado.
+10. EMBALAGEM: óleo, graxa, Arla, combustível, tinta e outros líquidos usam a unidade "litro" (graxa e produto em pó: "kg"). Se o produto vem em balde, galão, tambor, bombona, lata ou caixa: "embalagens" = quantas embalagens a FRASE diz (ex.: "tem 8 tambor" → 8); "tipoEmbalagem" = o nome (balde, galão, tambor…); "conteudoEmbalagem" = quanto tem em CADA embalagem, lido no RÓTULO da foto, na unidade escolhida (ex.: "20 L" → 20; "balde 18 kg" → 18). Aí "quantidade" = embalagens × conteudoEmbalagem. NUNCA ponha o número de embalagens como se fosse litros ou quilos. Se não der para ler quanto tem em cada uma, deixe "conteudoEmbalagem" null e diga em "observacao" que falta conferir o volume.
 9. "confianca": "alta" se o produto está nítido e você tem certeza; "baixa" se a foto está borrada ou não dá para saber o que é. Em "observacao" diga em poucas palavras o que conferir.`}
 function modalFotoPr(ini){
  ini=ini||{};if(!pode('almItens','e')){toast('Seu perfil não cadastra produtos.','erro');return}
  const sc=ini.sc||ESC;const coz=sc==='coz';const fixa=CAT_ESC[sc]||'';const U=UXP(sc);
- let blob=null,url='',ctrl=null,exist='',n=0,caLido='';
+ let blob=null,url='',ctrl=null,exist='',n=0,caLido='',contaEmb=()=>{};
  const gs=()=>[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
  const corpo=`<div class="apr-foto"><label class="apr-fz" for="fpF"><input type="file" accept="image/*" capture="environment" id="fpF" hidden><span id="fpP">${ic('camera')}<b>Tirar foto do produto</b><small>${fixa?'opcional '+NA_ESC[sc]+' · ou da galeria':'obrigatória no almoxarifado · ou da galeria'}</small></span></label>
   <div>${H.campoM('fpT','O que é e quanto tem',`<textarea id="fpT" rows="3" placeholder="${sc==='lim'?'Ex.: tem 10 desse, fica no depósito':coz?'Ex.: tem 10 pacotes, fica na despensa':'Ex.: tem 10 desse, marca SKF, fica na prateleira B'}"></textarea>`)}
@@ -23404,7 +23417,9 @@ function modalFotoPr(ini){
   ${H.campoM('fpNome','Nome do produto<i> *</i>',`<input id="fpNome" autocomplete="off" value="${esc(ini.nome||'')}" placeholder="${sc==='lim'?'Ex.: Detergente neutro 500 ml':coz?'Ex.: Arroz tipo 1 5 kg':'Ex.: Rolamento 6205 2RS'}">`)}
   <div class="duas">${H.campoM('fpMarca','Marca',`<input id="fpMarca" autocomplete="off" list="fpMarL"><datalist id="fpMarL">${[...new Set(DATA.almItens.map(i=>i.marca).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}${H.campoM('fpEsp','Especificação',`<input id="fpEsp" autocomplete="off" placeholder="${coz?'Peso, sabor, embalagem':sc==='lim'?'Volume, fragrância, embalagem':'Medidas, voltagem, material, aplicação'}">`)}</div>
   <div class="duas">${fixa?`<input type="hidden" id="fpCat" value="${esc(fixa)}">${coz?H.campoM('fpTipo','Tipo (cozinha)',`<select id="fpTipo"><option value="">Selecione…</option>${optH(TIPOS_COZ,'')}</select>`):''}`:H.campoM('fpCat','Categoria<i> *</i>',`<select id="fpCat"><option value="">Selecione…</option>${optH(CAT_NOMES,'')}</select>`,'Cozinha e Limpeza vão para as telas delas. EPI vai para a Entrega de EPI na saída.')}${H.campoM('fpGrp','Grupo',`<input id="fpGrp" list="fpGrpL" autocomplete="off" placeholder="${sc==='lim'?'Ex.: Detergentes':coz?'Ex.: Temperos':'Ex.: Rolamentos'}"><datalist id="fpGrpL">${gs().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`,'Se o grupo não existir, ele é criado ao salvar.')}</div>
-  <div class="duas">${H.campoM('fpQtd','Quantidade que tem',`<input id="fpQtd" type="number" step="any" min="0" inputmode="decimal">`)}${H.campoM('fpUn','Unidade<i> *</i>',`<select id="fpUn">${optH(UNIDS,'unidade')}</select>`)}</div>
+  <div class="duas">${H.campoM('fpEmbN','Quantas embalagens',`<input id="fpEmbN" type="number" step="any" min="0" inputmode="decimal" placeholder="ex.: 8">`,'Se vem em balde, galão, tambor, caixa…')}${H.campoM('fpEmbT','Tipo de embalagem',`<input id="fpEmbT" list="fpEmbTL" autocomplete="off" placeholder="balde, galão, tambor…"><datalist id="fpEmbTL">${['balde','galão','tambor','bombona','lata','caixa','frasco','pote','saco','fardo'].map(x=>`<option value="${x}">`).join('')}</datalist>`)}</div>
+  <div class="duas">${H.campoM('fpUn','Unidade<i> *</i>',`<select id="fpUn">${optH(UNIDS,'unidade')}</select>`,'Óleo, Arla e combustível: litro. Graxa: kg.')}${H.campoM('fpEmbC','Quanto tem em cada embalagem',`<input id="fpEmbC" type="number" step="any" min="0" inputmode="decimal" placeholder="ex.: 20">`,'Na unidade ao lado (balde de 20 L → 20).')}</div>
+  <div class="duas">${H.campoM('fpQtd','Quantidade total que tem',`<input id="fpQtd" type="number" step="any" min="0" inputmode="decimal">`,'Com embalagens, a conta é feita sozinha.')}<div id="fpEmbR" class="ajuda" style="align-self:center"></div></div>
   <div class="duas">${H.campoM('fpPreco','Preço de uma unidade (opcional)',`<input id="fpPreco" type="number" step="any" min="0" inputmode="decimal" placeholder="0,00">`)}${H.campoM('fpLoc','Local de guarda',`<input id="fpLoc" list="fpLocL" autocomplete="off" value="${esc(U.ultLocal||(coz?'Cozinha':''))}"><datalist id="fpLocL">${locaisAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}</div>
   <p class="ajuda" id="fpFeitos" style="margin:4px 0 0"></p>`;
  modalPr(coz?'Cadastrar produto da cozinha':sc==='lim'?'Cadastrar produto de limpeza':'Cadastrar por foto',corpo,'Salvar produto',async v=>{
@@ -23412,21 +23427,31 @@ function modalFotoPr(ini){
   const nome=g('fpNome').replace(/\s+/g,' ');if(!nome){toast('Escreva o nome do produto.','erro');return false}
   const qs=g('fpQtd');const qtd=qs===''?'':+qs;if(qs!==''&&!(qtd>=0)){toast('Quantidade inválida.','erro');return false}
   const ps=g('fpPreco');const preco=ps===''?'':+ps;if(ps!==''&&!(preco>=0)){toast('Preço inválido.','erro');return false}
+  /* V171: embalagens × conteúdo */
+  const eN=+g('fpEmbN')||0,eC=+g('fpEmbC')||0,eT=g('fpEmbT');const unSel=g('fpUn')||'unidade';
+  const exU=exist&&(v.querySelector('[name=fpModo]:checked')||{}).value!=='novo'&&ITEM(exist)?ITEM(exist).unidade:unSel;
+  const temEmb=eN>0||RX_EMB.test(g('fpT'))||!!eT;
+  if(temEmb&&UN_MEDIDA.includes(exU)&&!(eC>0)){toast('Informe quanto tem em CADA embalagem (ex.: balde de 20 L → 20). A quantidade fica em '+un(exU)+', não em baldes.','erro');return false}
+  if(eN>0&&eC>0&&qtd!==''&&Math.abs(qtd-eN*eC)>1e-6){toast('A quantidade total ('+fQtd(qtd)+') não bate com '+fQtd(eN)+' × '+fQtd(eC)+' = '+fQtd(r3(eN*eC))+'. Confira.','erro');return false}
+  const embTxt=txtEmb(eN,eT,eC,exU);const descr=[g('fpMarca'),g('fpEsp')].filter(Boolean).join(' · ');
   const modo=(v.querySelector('[name=fpModo]:checked')||{}).value||'';const ie=exist&&modo!=='novo'?ITEM(exist):null;
   let fotoMeta=null;const subir=async()=>{if(!blob||!APP.assets||fotoMeta)return;try{const pq=await prepFotoPr(blob,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));fotoMeta={id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}}catch(e){console.warn('foto do produto',e);toast('A foto não foi guardada (o produto é salvo assim mesmo).','aviso')}};
   if(ie){
    if(qtd===''){toast('Informe a quantidade.','erro');return false}
-   const e=estI(ie.id);const d=r3(modo==='total'?qtd-e.saldo:qtd);
+   const e=estI(ie.id);const tot0=window.JB_ESTOQUE&&JB_ESTOQUE.saldoTotalItem?JB_ESTOQUE.saldoTotalItem(ie):e.saldo;const d=r3(modo==='total'?qtd-tot0:qtd);
    if(d<0&&-d>e.disp+1e-9){toast('O saldo não pode ficar menor que o emprestado ('+qtdUn(e.emp,ie)+').','erro');return false}
-   if(Math.abs(d)>1e-9){const st=novoAjPr({itemId:ie.id,tipo:d>0?'entrada':'saida',qtd:Math.abs(d),motivo:modo==='total'?'Contagem pelo cadastro por foto':'Entrada pelo cadastro por foto',preco:d>0?preco:''});
-    const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(er[0],'erro');return false}await gravarAjPr(st)}
-   await subir();const mud={};if(fotoMeta&&!(ie.foto&&ie.foto.id))mud.foto=fotoMeta;[['marca','fpMarca'],['especificacao','fpEsp'],['local','fpLoc']].forEach(([k,id])=>{if(!ie[k]&&g(id))mud[k]=g(id)});
+   await subir();const JE=window.JB_ESTOQUE;let foiCmb='';
+   let extra=null;
+   if(d>1e-9&&JE&&JE.entradaDoAlm){try{const r=await JE.entradaDoAlm({item:ie,qtd:d,preco,embalagem:embTxt,obs:descr,foto:fotoMeta||ie.foto||null,motivo:modo==='total'?'Contagem pelo cadastro por foto':'Entrada pelo cadastro por foto'});if(r&&r.feito)foiCmb=r.msg;else if(r&&r.ajuste){extra=r.ajuste;foiCmb=r.msg}}catch(e){toast(String(e&&e.message||e),'erro');return false}}
+   if((!foiCmb||extra)&&Math.abs(d)>1e-9){const st=novoAjPr({itemId:ie.id,tipo:d>0?'entrada':'saida',qtd:Math.abs(d),motivo:modo==='total'?'Contagem pelo cadastro por foto':'Entrada pelo cadastro por foto',preco:d>0?preco:''});if(embTxt)st.embalagem=embTxt;if(extra)Object.assign(st,extra);
+    const er=Object.values(conferirRegistro('almAjustes',st).erros);if(er.length){toast(er[0],'erro');return false}await gravarAjPr(st)}const mud={};if(fotoMeta&&!(ie.foto&&ie.foto.id))mud.foto=fotoMeta;[['marca','fpMarca'],['especificacao','fpEsp'],['local','fpLoc']].forEach(([k,id])=>{if(!ie[k]&&g(id))mud[k]=g(id)});
    if(catAuto(ie.nome,'')==='EPI'&&ie.categoria!=='EPI')mud.categoria='EPI';if(ehCoz(ie)&&!ie.tipoCoz&&g('fpTipo'))mud.tipoCoz=g('fpTipo');
    /* V146: o produto antigo fotografado de novo entra no grupo que a leitura achou */
    const gn2=g('fpGrp');const cat2=mud.categoria||ie.categoria;if(gn2&&!(ie.grupoId&&GRUPO(ie.grupoId))){let gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(gn2)&&x.categoria===cat2);
     if(!gr&&pode('almGrupos','e')){const sg2={...MODS.almGrupos.padrao(),id:novoId(),nome:gn2,categoria:cat2,local:ie.local||''};if(!Object.values(conferirRegistro('almGrupos',sg2).erros).length){try{gr=await gravarRegistro('almGrupos',sg2,null,true)}catch(e){console.warn('grupo',e)}}}
     if(gr)mud.grupoId=gr.id}
    if(Object.keys(mud).length){const at=ITEM(ie.id);try{await gravarRegistro('almItens',{...clone(at),...mud},clone(at),false)}catch(e){console.warn(e)}}
+   if(foiCmb){n++;toast(foiCmb,'ok');limpar(v,nomeItem(ie)+': '+foiCmb);return false}
    n++;toast(nomeItem(ie)+': agora tem '+qtdUn(estI(ie.id).saldo,ie)+'.','ok');limpar(v,nomeItem(ie)+' atualizado: tem '+qtdUn(estI(ie.id).saldo,ie));return false}
   const cat=g('fpCat');if(!cat){toast('Escolha a categoria.','erro');return false}
   if(escCat(cat)==='alm'&&!blob){toast('Tire a foto do produto: no almoxarifado todo material é cadastrado com foto.','erro');return false}
@@ -23441,15 +23466,25 @@ function modalFotoPr(ini){
   await subir();if(fotoMeta)st.foto=fotoMeta;
   const rec=await gravarRegistro('almItens',st,null,true);
   for(let k=0;k<30&&!ITEM(rec.id);k++)await new Promise(ok=>setTimeout(ok,100));
-  if(qtd>0){const sa=novoAjPr({itemId:rec.id,tipo:'entrada',qtd,motivo:'Saldo inicial (cadastro por foto)',preco});const ea=Object.values(conferirRegistro('almAjustes',sa).erros);
+  let foiCmb='',extraN=null;
+  if(qtd>0&&window.JB_ESTOQUE&&JB_ESTOQUE.entradaDoAlm&&cat===JB_ESTOQUE.CAT){/* espera a ligação automática com o Combustível (V168) */
+   for(let k=0;k<40&&!(ITEM(rec.id)||{}).produtoSetorId;k++)await new Promise(ok=>setTimeout(ok,100));
+   try{const r=await JB_ESTOQUE.entradaDoAlm({item:ITEM(rec.id)||rec,qtd,preco,embalagem:embTxt,obs:descr,foto:fotoMeta,motivo:'Saldo inicial (cadastro por foto)'});if(r&&r.feito)foiCmb=r.msg;else if(r&&r.ajuste){extraN=r.ajuste;foiCmb=r.msg}}catch(e){toast(String(e&&e.message||e),'erro')}}
+  if(qtd>0&&(!foiCmb||extraN)){const sa=novoAjPr({itemId:rec.id,tipo:'entrada',qtd,motivo:'Saldo inicial (cadastro por foto)',preco});if(embTxt)sa.embalagem=embTxt;if(extraN)Object.assign(sa,extraN);const ea=Object.values(conferirRegistro('almAjustes',sa).erros);
    if(ea.length)toast('Produto cadastrado, mas a quantidade não: '+ea[0],'erro');else await gravarAjPr(sa)}
-  U.ultLocal=g('fpLoc');n++;toast(rec.codigo+' · '+nome+' cadastrado'+(qtd>0?' com '+fQtd(qtd)+' '+un(st.unidade):'')+'.'+(escCat(cat)!==sc?' Foi para '+({coz:'a Cozinha',lim:'a Limpeza'}[escCat(cat)]||'o Estoque / Produtos')+'.':'')+(!(preco>0)?' Ficou sem valor: ponha o preço depois.':''),'ok');limpar(v,rec.codigo+' · '+nome+(qtd>0?' ('+fQtd(qtd)+' '+un(st.unidade)+')':''));return false},
+  U.ultLocal=g('fpLoc');n++;toast(rec.codigo+' · '+nome+' cadastrado'+(qtd>0?' com '+fQtd(qtd)+' '+un(st.unidade):'')+(embTxt?' ('+embTxt+')':'')+'.'+(foiCmb?' '+foiCmb:'')+(escCat(cat)!==sc?' Foi para '+({coz:'a Cozinha',lim:'a Limpeza'}[escCat(cat)]||'o Estoque / Produtos')+'.':'')+(!(preco>0)?' Ficou sem valor: ponha o preço depois.':''),'ok');limpar(v,rec.codigo+' · '+nome+(qtd>0?' ('+fQtd(qtd)+' '+un(st.unidade)+')':''));return false},
   {depois:v=>{
    const st=$('#fpSt',v),fi=$('#fpF',v),pv=$('#fpP',v);
+   /* V171: conta embalagens × conteúdo */
+   contaEmb=()=>{const N=+$('#fpEmbN',v).value||0,C=+$('#fpEmbC',v).value||0,u=$('#fpUn',v).value;const r=$('#fpEmbR',v);
+    if(N>0&&C>0){$('#fpQtd',v).value=r3(N*C);r.textContent=fQtd(N)+' × '+fQtd(C)+' '+unCurta(u)+' = '+fQtd(r3(N*C))+' '+unCurta(u)}
+    else if(N>0&&UN_MEDIDA.includes(u)){r.innerHTML='<b style="color:#B42318">Falta quanto tem em cada '+esc($('#fpEmbT',v).value||'embalagem')+'.</b>'}
+    else r.textContent=''};
+   ['fpEmbN','fpEmbC','fpUn','fpEmbT'].forEach(id=>{const x=$('#'+id,v);if(x)x.addEventListener('input',contaEmb),x.addEventListener('change',contaEmb)});
    const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome'));
     const d=(exist&&ITEM(exist)?ITEM(exist):null)||(nm?DATA.almItens.find(i=>normT(i.nome)===nm):null);
     const box=$('#fpDup',v);const ant=(v.querySelector('[name=fpModo]:checked')||{}).value||'somar';
-    if(!d){box.innerHTML='';exist='';return}exist=d.id;const e=estI(d.id);
+    if(!d){box.innerHTML='';exist='';return}exist=d.id;const e=estI(d.id);if(UNIDS.includes(d.unidade)){$('#fpUn',v).value=d.unidade;contaEmb()}
     box.innerHTML=`<div class="aviso at apr-dup"><span><b>Este produto já está cadastrado:</b> ${esc(rotItem(d))}${d.marca?' · '+esc(d.marca):''} — tem ${esc(qtdUn(e.saldo,d))}. O que fazer com a quantidade?</span>
      <label><input type="radio" name="fpModo" value="somar" ${ant==='somar'?'checked':''}> Somar ao que já tem (chegou mais)</label>
      <label><input type="radio" name="fpModo" value="total" ${ant==='total'?'checked':''}> É o total que tem agora (acerta o saldo)</label>
@@ -23458,7 +23493,8 @@ function modalFotoPr(ini){
    $('#fpGrp',v).addEventListener('change',()=>{const gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(H.valM(v,'fpGrp')));const c=$('#fpCat',v);if(gr&&!c.value&&!fixa)c.value=gr.categoria;const l=$('#fpLoc',v);if(gr&&gr.local&&!l.value)l.value=gr.local});
    const ler=async()=>{const frase=String(H.valM(v,'fpT')||'').trim();
     if(!blob&&!frase){st.textContent='Tire a foto ou escreva o que é o produto.';return}
-    if(!$('#fpQtd',v).value){const q=qtdDaFrase(frase);if(q!=='')$('#fpQtd',v).value=q}
+    {const ef=embDaFrase(frase);if(ef){if(!$('#fpEmbN',v).value)$('#fpEmbN',v).value=ef.n;if(!$('#fpEmbT',v).value)$('#fpEmbT',v).value=ef.tipo.replace(/s$/,'').replace(/õe$/,'ão').replace(/ore$/,'or')}
+     else if(!$('#fpQtd',v).value){const q=qtdDaFrase(frase);if(q!=='')$('#fpQtd',v).value=q}contaEmb()}
     if(ctrl)ctrl.abort();ctrl=new AbortController();const meu=ctrl;const bt=$('#fpLer',v);bt.disabled=true;st.textContent='Lendo a foto…';
     try{const L=window.ALM_IA_LER;const M=L&&await L.motor();if(!M){st.textContent=(L&&L.semMotorTxt?L.semMotorTxt():'A leitura por IA não está disponível agora.')+' Preencha à mão.';return}
      const imgs=blob&&!M.semImagens&&M.maxImgs?[await prepFotoPr(blob,1568,.82)]:[];
@@ -23469,7 +23505,7 @@ function modalFotoPr(ini){
      const put=(id,x)=>{if(x!==null&&x!==undefined&&String(x).trim()!=='')$('#'+id,v).value=String(x).trim()};
      put('fpNome',o.nome);put('fpMarca',o.marca);put('fpEsp',o.especificacao);caLido=String(o.ca||'').trim();
      if(fixa){if(coz&&TIPOS_COZ.includes(o.tipoCozinha))$('#fpTipo',v).value=o.tipoCozinha}else{const ca=catAuto(o.nome,CAT_NOMES.includes(o.categoria)?o.categoria:'');if(ca)$('#fpCat',v).value=ca}
-     put('fpGrp',o.grupo);if(UNIDS.includes(o.unidade))$('#fpUn',v).value=o.unidade;if(+o.quantidade>=0&&o.quantidade!==null&&o.quantidade!=='')put('fpQtd',+o.quantidade);if(+o.preco>0)put('fpPreco',+o.preco);put('fpLoc',o.local);
+     put('fpGrp',o.grupo);if(UNIDS.includes(o.unidade))$('#fpUn',v).value=o.unidade;if(+o.quantidade>=0&&o.quantidade!==null&&o.quantidade!=='')put('fpQtd',+o.quantidade);if(+o.embalagens>0)put('fpEmbN',+o.embalagens);put('fpEmbT',o.tipoEmbalagem);if(+o.conteudoEmbalagem>0)put('fpEmbC',+o.conteudoEmbalagem);contaEmb();if(+o.preco>0)put('fpPreco',+o.preco);put('fpLoc',o.local);
      const gr=o.grupo&&DATA.almGrupos.find(x=>normT(x.nome)===normT(o.grupo));if(gr&&!fixa&&!CAT_NOMES.includes(o.categoria)&&!$('#fpCat',v).value)$('#fpCat',v).value=gr.categoria;
      const ex=o.existente&&DATA.almItens.find(i=>normT(i.codigo)===normT(o.existente));exist=ex?ex.id:'';marcarDup();
      st.textContent=(o.confianca==='baixa'?'Leitura com dúvida: confira com atenção. ':'Pronto. Confira e toque em “Salvar produto”. ')+(o.observacao?String(o.observacao):'')}
@@ -23482,7 +23518,7 @@ function modalFotoPr(ini){
    if(ini.nome)marcarDup()}});
  /* depois de salvar: limpa para o próximo produto e mostra o que já foi feito */
  function limpar(v,feito){if(ctrl)ctrl.abort();blob=null;exist='';if(url){URL.revokeObjectURL(url);url=''}
-  ['fpNome','fpMarca','fpEsp','fpQtd','fpPreco','fpT','fpGrp'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});caLido='';$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
+  ['fpNome','fpMarca','fpEsp','fpQtd','fpPreco','fpT','fpGrp','fpEmbN','fpEmbT','fpEmbC'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});caLido='';$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
   $('#fpP',v).innerHTML=`${ic('camera')}<b>Foto do próximo produto</b><small>ou escolher da galeria</small>`;$('#fpSt',v).textContent='Salvo. Tire a foto do próximo produto.';
   const gl=$('#fpGrpL',v);if(gl)gl.innerHTML=gs().map(x=>`<option value="${esc(x)}">`).join('');
   refrescaPr();const fe=$('#fpFeitos',v);fe.innerHTML=`✔ ${esc(feito)}${n>1?` · ${n} produto(s) nesta sessão`:''}`}
@@ -48046,9 +48082,9 @@ function linhasEstoqueCL(s){
     extra:[['Preço por unidade',+it.preco>0?fMoeda(+it.preco)+(un?' por '+un:''):''],['Forma de pagamento',v.forma],['Condição',v.condicao],['Vencimento',v.vencimento?fData(v.vencimento):''],
      ['Caminhão',(v.lenhaMedicao||{}).caminhao],['Nota do fornecedor',(v.fiscal||{}).numero]]}));return}
   /* V165: entrada pelo Almoxarifado com destino ao setor e transferência do Almoxarifado (registro do almoxarifado) */
-  if(uid.indexOf('a:')===0){const trf=/^Transfer/i.test(String(m.tipo||''));
-   out.push(L({...base,uid,g:trf?'trf':'ent',tipo:m.tipo,sent:'e',est:true,qtd:r3(m.qtd),valor:m.valor||null,parte:lim(m.parte),parteRot:trf?'Veio de':'Fornecedor',
-    quem:lim(m.quem),doc:lim(m.doc),ref:lim(m.ref),kind:trf?'':'almEntrada',id:rec.id||'',rec:trf?null:rec,extra:[['Origem',trf?'Almoxarifado':'Compra lançada pelo Almoxarifado']]}));return}
+  if(uid.indexOf('a:')===0){const trf=/^Transfer/i.test(String(m.tipo||''));const ajA=uid.indexOf('a:j:')===0;
+   out.push(L({...base,uid,g:trf?'trf':'ent',tipo:m.tipo,sent:'e',est:true,qtd:r3(m.qtd),valor:m.valor||null,parte:lim(m.parte),parteRot:trf||ajA?'Veio de':'Fornecedor',
+    quem:lim(m.quem),doc:lim(m.doc),ref:lim(m.ref),kind:trf?'':ajA?'almAjustes':'almEntrada',id:rec.id||'',rec:trf?null:rec,extra:[['Origem',trf?'Almoxarifado':ajA?'Entrada sem compra lançada pelo Almoxarifado':'Compra lançada pelo Almoxarifado']]}));return}
   if(uid.indexOf('m:')===0){if(!vM)return;const mv=rec;const destino=/:d$/.test(uid);const t=lim(mv.tipo||m.tipo);const q=r3(m.qtd);
    let g='aju',tipo=t||'Movimentação de estoque',sent=q>=0?'e':'s';
    if(t==='Entrada'){g='ent';tipo='Entrada sem compra';sent='e'}
@@ -52082,6 +52118,10 @@ function entradasNoSetor(){
  (DATA.alm||[]).forEach(t=>{if(!t||t.jbt!=='transf'||t.destino!==SETOR||!t.produtoId)return;const i=ITEM(t.itemId);
   out.push({id:'t:'+t.id,data:t.data,hora:t.hora||'',tipo:'Transferência do Almoxarifado',produtoId:t.produtoId,qtd:+t.qtdSetor||0,valor:t.valor==null?null:+t.valor,
    parte:'Almoxarifado',doc:'Transferência'+(i?' de '+(i.codigo?i.codigo+' ':'')+i.nome:'')+(t.motivo?' · '+t.motivo:''),href:'#/estoqueCentral',por:t.criadoPor,em:t.criadoEm||'',rec:t})});
+ /* V171: entrada sem compra (cadastro por foto ou lançamento) de produto do Combustível feita pelo Almoxarifado */
+ (DATA.alm||[]).forEach(t=>{if(!t||t.jbt!=='ajuste'||t.tipo==='saida'||t.destino!==SETOR||!t.produtoSetorId||!PROD(t.produtoSetorId))return;const i=ITEM(t.itemId);
+  out.push({id:'j:'+t.id,data:t.data,hora:t.hora||'',tipo:'Entrada pelo Almoxarifado (sem compra)',produtoId:t.produtoSetorId,qtd:+t.qtdSetor||0,valor:+t.precoUnit>0?r2((+t.qtd||0)*(+t.precoUnit)):null,
+   parte:'Almoxarifado',doc:[t.motivo||'Entrada sem compra',t.embalagem||'',i?(i.codigo?i.codigo+' ':'')+i.nome:''].filter(Boolean).join(' · '),href:'#/almAjustes/'+t.id,por:t.criadoPor,em:t.criadoEm||'',rec:t})});
  ME={a:DATA.alm,p:DATA.produtos,v:out};return out;
 }
 /* movimentos que mexem no saldo do almoxarifado por causa da integração (para o cálculo e a lista do almoxarifado) */
@@ -52322,7 +52362,7 @@ async function criarMestres(){
  return feitos}
 
 /* ---------------- 9. botões nas telas que já existem ---------------- */
-const pendDoProd=pid=>entradasIntegradas().filter(m=>m.produtoId===pid&&pendenteE(m));
+const pendDoProd=pid=>entradasTodas().filter(m=>m.produtoId===pid&&pendenteE(m));
 function botoesProduto(p,s){if(s!==SETOR||!p||!controla(p))return '';
  const b=[];const pd=pendDoProd(p.id);
  if(pd.length)b.push(`<button type="button" class="btn" data-je="comp" data-mid="${esc(pd[0].id)}" style="background:var(--pe-fundo,#fde8e8);color:var(--pe,#b42318);border-color:transparent">Pendente: ${esc(txtPend(pd[0]))}${pd.length>1?' ('+pd.length+')':''}</button>`);if(pode('consumos','e'))b.push(`<button type="button" class="btn pri" data-je="usar" data-pid="${esc(p.id)}">USAR</button>`);
@@ -52422,7 +52462,7 @@ if(typeof TELAS_V!=='undefined'&&typeof TELAS_V.estoque==='function'){const t0=T
  return r}}
 /* PENDÊNCIAS: entrada sem foto ou sem valor aparece para o Combustível e para o Almoxarifado */
 if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;window.LEMBRETES_V61=function(){const L=l0.apply(this,arguments)||[];
- try{entradasIntegradas().filter(pendenteE).forEach(m=>{const pr=PROD(m.produtoId)||{};
+ try{entradasTodas().filter(pendenteE).forEach(m=>{const pr=PROD(m.produtoId)||{};
   L.push({key:'ei-pend-'+m.id,mod:'estoqueMov',setor:'Combustível e Almoxarifado',prio:'media',titulo:'Entrada sem '+txtPend(m)+': '+(pr.nome||''),
    det:fQtd(m.quantidade)+' '+(m.unidade||pr.unidade||'')+' em '+fData(m.data)+'. Toque em Completar no Estoque integrado.',rota:'#/estoqueCentral'})})}catch(e){console.warn('V168 pendências',e)}
  return L}}
@@ -52511,6 +52551,7 @@ async function abrirEntradaLote(pre){
   (pre||[]).forEach((x,k)=>{const r=w.querySelector('[data-lk="'+k+'"]');if(!r)return;r.querySelector('[data-lp]').value=x.produtoId||'';r.querySelector('[data-lq]').value=x.qtd==null?'':String(x.qtd).replace('.',',');if(x.obs)r.querySelector('[data-lo]').value=x.obs})}
  return p}
 async function abrirCompletar(id){
+ if(String(id).indexOf('j:')===0)return abrirCompletarAj(String(id).slice(2));
  const m=(DATA.estoqueMov||[]).find(x=>x.id===id);if(!m){toast('Lançamento não encontrado.','erro');return}
  if(!pode('estoqueMov','e')){toast('Seu perfil não altera este lançamento. Peça a quem lança no Combustível.','erro');return}
  const pr=PROD(m.produtoId)||{};let foto=m.foto||null;
@@ -52519,12 +52560,12 @@ async function abrirCompletar(id){
   `<p class="ei-saldo">Entrada de ${esc(fData(m.data))} · ${pendenteE(m)?'pendente de '+esc(txtPend(m)):'completa'}.${pendenteE(m)?'':' Para mudar a quantidade de uma entrada completa, use Ajuste no estoque.'}</p>
    <div class="campos">${pendenteE(m)?campo('eiQ','Quantidade ('+esc(m.unidade||pr.unidade||'')+')','<input id="eiQ" inputmode="decimal" value="'+esc(String(m.quantidade).replace('.',','))+'">','Muda o saldo do estoque; fica no histórico (antes e depois).'):''}
    ${campo('eiV','Valor unitário (R$ por '+esc(m.unidade||pr.unidade||'unidade')+')','<input id="eiV" inputmode="decimal" value="'+(+m.valorUnit>0?esc(String(m.valorUnit).replace('.',',')):'')+'">')}
-   ${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" value="'+esc(m.embalagem||'')+'" placeholder="ex.: balde de 20 L">')}
+   ${campoEmb(m.unidade||pr.unidade||'')}${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" value="'+esc(m.embalagem||'')+'" placeholder="ex.: balde de 20 L">')}
    ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="3">'+esc(m.obs||'')+'</textarea>')}
    <div class="cmp"><label>Foto do produto</label><div data-fotow>${fotoHtml()}</div>
     ${APP.assets?'<label class="btn min" style="cursor:pointer;margin-top:6px">Tirar ou escolher foto<input type="file" accept="image/*" capture="environment" hidden data-efoto></label>':'<p class="ei-saldo">Para enviar a foto, use a versão da nuvem (jb-gestao-ceramica.netlify.app).</p>'}</div></div>`,
   {ok:'Salvar',depois:async ctl=>{
-   const v=num(ctl.v,'#eiV');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');
+   const v=num(ctl.v,'#eiV');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');conferirEmb(ctl.v,m.unidade||pr.unidade||'');
    const atual=(DATA.estoqueMov||[]).find(x=>x.id===id)||m;const ag=agora();const vu=!isNaN(v)&&v>0?Math.round(v*10000)/10000:null;
    let q=+atual.quantidade||0;if(pendenteE(atual)&&ctl.v.querySelector('#eiQ')){const nq=num(ctl.v,'#eiQ');if(!(nq>0))throw new Error('Informe a quantidade.');
     const s=saldoP(atual.produtoId);if(s-q+nq<-1e-9)throw new Error('Parte desta entrada já saiu do estoque: a quantidade não pode ser menor que '+fQtd(r3(q-s))+'.');q=r3(nq)}
@@ -52533,7 +52574,7 @@ async function abrirCompletar(id){
    try{await logV('estoqueMov',id,'completou a entrada',[{c:'Quantidade',de:fQtd(atual.quantidade),para:fQtd(q)},{c:'Valor unitário',de:+atual.valorUnit>0?fMoeda(atual.valorUnit):'',para:vu?fMoeda(vu):''},{c:'Foto',de:atual.foto?'sim':'não',para:foto?'sim':'não'},{c:'Observação',de:atual.obs||'',para:novo.obs||''}])}catch(e){}
    toast(pendenteE(novo)?'Salvo. Ainda falta '+txtPend(novo)+'.':'Entrada completa: foto e valor salvos.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
  await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);
- const w=document.querySelector('.ei-modal');const inp=w&&w.querySelector('[data-efoto]');
+ const w=document.querySelector('.ei-modal');ligarEmb(w,m.unidade||pr.unidade||'');const inp=w&&w.querySelector('[data-efoto]');
  if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Foto maior que 20 MB.','erro');return}
   toast('Enviando a foto…');APP.assets.upload(f).then(r=>{foto={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes};const fw=w.querySelector('[data-fotow]');if(fw)fw.innerHTML=fotoHtml();toast('Foto enviada. Toque em Salvar para gravar.','ok')}).catch(()=>toast('Não foi possível enviar a foto.','erro'))};
  return p}
@@ -52554,13 +52595,13 @@ async function abrirEntradaProduto(pid){
   `<p class="ei-saldo">Saldo agora: <b>${esc(fQtd(saldoP(pid))+' '+un)}</b>. Entra no estoque do Combustível e aparece também no Almoxarifado. Sem foto ou sem valor, fica pendente para completar depois.</p>
    <div class="campos">${campo('eiQ','Quantidade ('+esc(un)+') *','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
    ${campo('eiV','Valor unitário (R$ por '+esc(un||'unidade')+')','<input id="eiV" inputmode="decimal" autocomplete="off" placeholder="pode pôr depois">')}
-   ${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" placeholder="ex.: balde de 20 L, caixa com 12 de 1 L">')}
+   ${campoEmb(un)}${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" placeholder="ex.: balde de 20 L, caixa com 12 de 1 L">')}
    ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="2" placeholder="marca, onde está guardado, para que é"></textarea>')}
    <div class="cmp"><label>Foto do produto</label><div data-fotow></div>${campoFoto()}</div>
    ${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}</div>`,
   {ok:'Salvar',depois:async ctl=>{
    const q=num(ctl.v,'#eiQ'),v=num(ctl.v,'#eiV'),dt=val(ctl.v,'#eiD')||hoje();
-   if(!(q>0))throw new Error('Informe a quantidade.');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');if(dt>hoje())throw new Error('A data não pode ser futura.');
+   if(!(q>0))throw new Error('Informe a quantidade.');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');if(dt>hoje())throw new Error('A data não pode ser futura.');conferirEmb(ctl.v,un);
    const pp=parecidos(pid,q,dt);
    if(pp.length&&!await confirmar('Possível lançamento em duplicidade','Confira antes de gravar: '+pr.nome+' '+fQtd(q)+' '+un+' já tem '+pp.join(', ')+'. Se for outro material, confirme; se já foi lançado, cancele.',{ok:'É outro, lançar'}))return false;
    const s=saldoP(pid);const vu=!isNaN(v)&&v>0?Math.round(v*10000)/10000:null;const ag=agora();
@@ -52568,17 +52609,84 @@ async function abrirEntradaProduto(pid){
     embalagem:val(ctl.v,'#eiE'),obs:val(ctl.v,'#eiO'),foto:foto||null,motivo:'Entrada de produtos (estoque integrado)',data:dt,hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
    await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}
    toast(pendenteE(rec)?'Lançado: '+fQtd(q)+' '+un+' de '+pr.nome+'. Falta '+txtPend(rec)+' (fica pendente nos dois setores).':'Lançado e completo: '+fQtd(q)+' '+un+' de '+pr.nome+'.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
- await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);ligarFoto(document.querySelector('.ei-modal'),()=>foto,f=>{foto=f});
+ await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);ligarFoto(document.querySelector('.ei-modal'),()=>foto,f=>{foto=f});ligarEmb(document.querySelector('.ei-modal'),un);
  return p}
 function htmlEntradas(lim){
- const L=entradasIntegradas();const pend=L.filter(pendenteE);if(!L.length)return '';
+ const L=entradasTodas();const pend=L.filter(pendenteE);if(!L.length)return '';
  return `<h3 class="ei-sec">Entradas de produtos${pend.length?' · '+pend.length+' pendente(s) de foto ou valor':''}</h3>
   <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Produto</th><th class="num">Quantidade</th><th class="num">Valor unit.</th><th>Foto</th><th>Observação</th><th>Situação</th><th></th></tr></thead><tbody>
   ${L.slice(0,lim||60).map(m=>{const pr=PROD(m.produtoId)||{};return `<tr><td data-l="Data">${esc(fData(m.data))}</td><td data-l="Produto">${esc(pr.nome||'')}</td><td data-l="Quantidade" class="num">${esc(fQtd(m.quantidade)+' '+(m.unidade||pr.unidade||''))}</td>
    <td data-l="Valor unit." class="num">${+m.valorUnit>0?esc(fMoeda(m.valorUnit)):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver</a>`:'—'}</td><td data-l="Observação">${esc([m.embalagem,m.obs].filter(Boolean).join(' · ')||'—')}</td>
-   <td data-l="Situação">${pendenteE(m)?tag('Pendente: '+txtPend(m),'pe'):tag('Completa','ok')}</td><td>${pode('estoqueMov','e')?`<button type="button" class="btn min${pendenteE(m)?' pri':''}" data-je="comp" data-mid="${esc(m.id)}">${pendenteE(m)?'Completar':'Editar'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`}
+   <td data-l="Situação">${pendenteE(m)?tag('Pendente: '+txtPend(m),'pe'):tag('Completa','ok')}</td><td>${pode(m.aj?'almAjustes':'estoqueMov','e')?`<button type="button" class="btn min${pendenteE(m)?' pri':''}" data-je="comp" data-mid="${esc(m.id)}">${pendenteE(m)?'Completar':'Editar'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`}
 
-window.JB_ESTOQUE=Object.freeze({SETOR,CAT,classificar,destinoLinha,entradasNoSetor,movsAlmSaldo,htmlDestinoLinha,txtPassoEntrada,prepararLinhasEntrada,conferirEntradaAlm,antesCompraSetor,
+/* ---------------- 13b. V171: embalagens × conteúdo também nos lançamentos do Combustível ----------------
+   "8 baldes" não é 8 litros: quem lança diz quantas embalagens e quanto tem em cada uma; a conta e o texto da
+   embalagem saem sozinhos. Lançamento de óleo ou graxa com embalagem e sem o conteúdo de cada uma não grava. */
+const plE=(t,n)=>{t=String(t||'embalagem').trim().toLowerCase();if(n<=1||/s$/.test(t))return t;if(/ão$/.test(t))return t.replace(/ão$/,'ões');if(/[rz]$/.test(t))return t+'es';if(/l$/.test(t))return t.replace(/l$/,'is');return t+'s'};
+const fNumC=x=>String(r3(x)).replace('.',',');
+function campoEmb(un){return `<div class="ei-emb" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+  ${campo('eiEN','Embalagens','<input id="eiEN" inputmode="decimal" autocomplete="off" placeholder="ex.: 8">')}
+  ${campo('eiET','Tipo','<input id="eiET" list="eiETL" autocomplete="off" placeholder="balde, galão…"><datalist id="eiETL">'+['balde','galão','tambor','bombona','lata','caixa','frasco'].map(x=>'<option value="'+x+'">').join('')+'</datalist>')}
+  ${campo('eiEC','Cada uma tem ('+esc(un||'unidade')+')','<input id="eiEC" inputmode="decimal" autocomplete="off" placeholder="ex.: 20">')}</div><p class="ei-saldo" data-embr></p>`}
+function ligarEmb(w,un){if(!w)return;const g=id=>w.querySelector('#'+id);const r=w.querySelector('[data-embr]');
+ const conta=()=>{const N=num(w,'#eiEN'),C=num(w,'#eiEC'),T=val(w,'#eiET');
+  if(N>0&&C>0){const q=r3(N*C);if(g('eiQ'))g('eiQ').value=fNumC(q);if(g('eiE'))g('eiE').value=fNumC(N)+' '+plE(T||'embalagem',N)+' de '+fNumC(C)+' '+un;if(r)r.textContent=fNumC(N)+' × '+fNumC(C)+' '+un+' = '+fNumC(q)+' '+un}
+  else if(N>0&&['L','kg','litro'].includes(un)){if(r)r.innerHTML='<b style="color:#B42318">Falta quanto tem em cada '+esc(T||'embalagem')+'.</b>'}
+  else if(r)r.textContent=''};
+ ['eiEN','eiEC','eiET'].forEach(id=>{const x=g(id);if(x){x.addEventListener('input',conta);x.addEventListener('change',conta)}})}
+function conferirEmb(v,un){const N=num(v,'#eiEN'),C=num(v,'#eiEC');
+ if(N>0&&!(C>0)&&['L','kg','litro'].includes(un))throw new Error('Informe quanto tem em cada embalagem (ex.: balde de 20 L → 20). A quantidade é em '+un+', não em baldes.')}
+/* entradas sem compra que o Almoxarifado mandou para o Combustível (V171) aparecem junto das entradas integradas,
+   com a mesma situação (pendente de foto ou valor) e o mesmo botão Completar. Valor e foto ficam no próprio lançamento. */
+function entradasAj(){const out=[];
+ (DATA.alm||[]).forEach(t=>{if(!t||t.jbt!=='ajuste'||t.tipo==='saida'||t.destino!==SETOR||!t.produtoSetorId)return;const p=PROD(t.produtoSetorId);if(!p)return;const i=ITEM(t.itemId);const f=fator(i);
+  out.push({id:'j:'+t.id,aj:true,setor:SETOR,tipo:'Entrada',produtoId:p.id,quantidade:+t.qtdSetor||0,unidade:p.unidade||'',valorUnit:+t.precoUnit>0?Math.round(+t.precoUnit/f*10000)/10000:null,
+   foto:t.foto&&t.foto.id?t.foto:(i&&i.foto&&i.foto.id?i.foto:null),obs:t.obs||'',embalagem:t.embalagem||'',data:t.data,hora:t.hora||'',criadoPor:t.criadoPor,rec:t})});
+ return out}
+const entradasTodas=()=>entradasIntegradas().concat(entradasAj()).sort((a,b)=>String(b.data+' '+(b.hora||'')).localeCompare(String(a.data+' '+(a.hora||''))));
+async function abrirCompletarAj(ajId){
+ const t=(DATA.alm||[]).find(x=>x&&x.id===ajId&&x.jbt==='ajuste');if(!t){toast('Lançamento não encontrado.','erro');return}
+ if(!pode('almAjustes','e')){toast('Este lançamento foi feito pelo Almoxarifado: peça a quem lança lá para completar.','erro');return}
+ const p=PROD(t.produtoSetorId)||{};const i=ITEM(t.itemId);const f=fator(i);const un=p.unidade||'';const m=entradasAj().find(x=>x.id==='j:'+ajId)||{};let foto=t.foto||null;
+ const pend=pendenteE(m);
+ const pj=janela('Completar a entrada · '+(p.nome||''),
+  `<p class="ei-saldo">Entrada feita pelo Almoxarifado em ${esc(fData(t.data))}, no estoque do Combustível · ${pend?'pendente de '+esc(txtPend(m)):'completa'}.</p>
+   <div class="campos">${pend?campo('eiQ','Quantidade ('+esc(un)+')','<input id="eiQ" inputmode="decimal" value="'+esc(fNumC(+t.qtdSetor||0))+'">','Muda o saldo do estoque do Combustível.'):''}
+   ${campo('eiV','Valor unitário (R$ por '+esc(un||'unidade')+')','<input id="eiV" inputmode="decimal" value="'+(m.valorUnit>0?esc(String(m.valorUnit).replace('.',',')):'')+'">')}
+   ${campoEmb(un)}${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" value="'+esc(t.embalagem||'')+'">')}
+   ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="3">'+esc(t.obs||'')+'</textarea>')}
+   <div class="cmp"><label>Foto do produto</label><div data-fotow></div>${m.foto&&!foto?'<p class="ei-saldo">Usando a foto do cadastro do produto.</p>':''}${campoFoto()}</div></div>`,
+  {ok:'Salvar',depois:async ctl=>{
+   const v=num(ctl.v,'#eiV');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');conferirEmb(ctl.v,un);
+   const atual=(DATA.alm||[]).find(x=>x&&x.id===ajId)||t;let qS=+atual.qtdSetor||0;
+   if(pend&&ctl.v.querySelector('#eiQ')){const nq=num(ctl.v,'#eiQ');if(!(nq>0))throw new Error('Informe a quantidade.');const s=saldoP(p.id);if(s-qS+nq<-1e-9)throw new Error('Parte desta entrada já saiu do estoque: a quantidade não pode ser menor que '+fQtd(r3(qS-s))+'.');qS=r3(nq)}
+   const ag=agora();const novo={...clone(atual),qtd:r3(qS/f),qtdSetor:qS,precoUnit:!isNaN(v)&&v>0?Math.round(v*f*10000)/10000:'',embalagem:val(ctl.v,'#eiE'),obs:val(ctl.v,'#eiO'),foto:foto||null,alteradoEm:ag,alteradoPor:eu()};
+   novo.jbt='ajuste';await gravar('alm',novo,clone(atual));
+   try{await logV('almAjustes',ajId,'completou a entrada',[{c:'Quantidade',de:fQtd(atual.qtdSetor),para:fQtd(qS)},{c:'Valor unitário',de:m.valorUnit>0?fMoeda(m.valorUnit):'',para:v>0?fMoeda(v):''},{c:'Observação',de:atual.obs||'',para:novo.obs||''}])}catch(e){}
+   const m2=entradasAj().find(x=>x.id==='j:'+ajId)||{};toast(pendenteE(m2)?'Salvo. Ainda falta '+txtPend(m2)+'.':'Entrada completa.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+ await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);const w=document.querySelector('.ei-modal');ligarFoto(w,()=>foto||m.foto,x=>{foto=x});ligarEmb(w,un);
+ return pj}
+
+/* ---------------- 14. V171: entrada pelo Almoxarifado de produto do Combustível (cadastro por foto) ----------------
+   Pedido do Jeferson (25/11/2026), depois dos lançamentos do Paulo: o que é do Combustível e já está ligado entra
+   direto no estoque do Combustível, na unidade do setor (embalagens × conteúdo, convertido pelo fator), com foto,
+   embalagem e descrição. Quem lança no Combustível grava a entrada integrada (completa ou pendente de foto/valor);
+   quem só tem o Almoxarifado grava a entrada sem compra com destino ao Combustível (conta lá, não aqui). */
+function saldoTotalItem(i){const p=prodLig(i);return r3(estAlm(i.id).saldo+(p?saldoP(p.id)/fator(i):0))}
+async function entradaDoAlm(o){
+ const i=o&&o.item;if(!i||!(+o.qtd>0))return null;
+ if(classificar(i).setor!==SETOR)return null;
+ const p=prodLig(i);if(!p)return null;   /* ainda não ligado: fica no almoxarifado e aparece na Conferência de cadastro */
+ const f=fator(i),q=r3(+o.qtd*f),un=p.unidade||'';const vu=+o.preco>0?Math.round(+o.preco/f*10000)/10000:null;
+ const pp=parecidos(p.id,q,hoje());
+ if(pp.length&&!await confirmar('Possível lançamento em duplicidade','Confira antes de gravar: '+p.nome+' '+fQtd(q)+' '+un+' já tem '+pp.join(', ')+'. Se for outro material, confirme; se já foi lançado, cancele.',{ok:'É outro, lançar'}))throw new Error('Nada foi gravado.');
+ if(pode('estoqueMov','e')){const s=saldoP(p.id);const ag=agora();
+  const rec={id:novoId(),setor:SETOR,tipo:'Entrada',integrado:true,produtoId:p.id,quantidade:q,delta:q,unidade:un,anterior:r3(s),atual:r3(s+q),valorUnit:vu,valorEntrada:vu?r2(vu*q):null,
+   embalagem:o.embalagem||'',obs:o.obs||'',foto:o.foto&&o.foto.id?o.foto:null,origemAlmItem:i.id,motivo:(o.motivo||'Entrada pelo Almoxarifado')+' (estoque integrado)',data:hoje(),hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+  await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}
+  return{feito:true,msg:'Foi para o estoque do Combustível: '+fQtd(q)+' '+un+' de '+p.nome+(pendenteE(rec)?' (falta '+txtPend(rec)+')':'')+'. Aparece também no Almoxarifado.'}}
+ return{ajuste:{destino:SETOR,produtoSetorId:p.id,qtdSetor:q,embalagem:o.embalagem||'',obs:o.obs||''},msg:'Vai para o estoque do Combustível: '+fQtd(q)+' '+un+' de '+p.nome+'. Aparece também no Almoxarifado.'}}
+window.JB_ESTOQUE=Object.freeze({SETOR,CAT,entradaDoAlm,entradasTodas,abrirCompletarAj,saldoTotalItem,fatorItem:fator,classificar,destinoLinha,entradasNoSetor,movsAlmSaldo,htmlDestinoLinha,txtPassoEntrada,prepararLinhasEntrada,conferirEntradaAlm,antesCompraSetor,
  pendDoProd,abrirEntradaProduto,garantirLigacao,criarMestres,mestreDoProduto,produtoDoItem,abrirEntradaLote,abrirCompletar,entradasIntegradas,custoExtra,pendenteE,parecidos,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
  _teste:{RX_CMB,RX_FICA,fator,prodLig,itemDoProd}});
 })();
