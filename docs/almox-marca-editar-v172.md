@@ -42,6 +42,17 @@ para o estoque do Combustível, a quantidade do setor é refeita pelo fator do p
 
 A ficha do produto ganhou **Trocar foto** também para quem já tem foto.
 
+## V173 · Editar e Excluir no cartão do produto
+
+Pedido do Jeferson no mesmo dia: os botões ficam no próprio cartão, ao lado de **Saída** e **Entrada** (no celular,
+numa segunda linha, com o Excluir só com o ícone da lixeira).
+
+- **Editar**: com um lançamento só (o cadastro por foto, por exemplo), abre direto a edição completa. Com mais de um,
+  mostra a lista dos lançamentos do produto para escolher. Sem lançamento, abre a ficha.
+- **Excluir**: se aquele lançamento é o único registro do produto (cadastro feito por engano), o lançamento e o
+  produto saem do estoque. Com outros lançamentos, mostra a lista para escolher qual excluir, e o produto continua.
+  Produto ligado ao Combustível ou que está numa contagem nunca é apagado. Tudo pede confirmação e fica no histórico.
+
 ## Teste
 
 `node scripts/construir.mjs && node scripts/testar-almox-marca-editar.mjs` percorre tudo com dados de exemplo.

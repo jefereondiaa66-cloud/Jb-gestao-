@@ -23089,11 +23089,14 @@ function abaProdPr(cp,P,sc){
    return `<div class="apr-card${s==='Abaixo do mínimo'?' baixo':e.saldo<=0?' zero':''}"><button type="button" class="apr-ft" data-ver="${esc(i.id)}" aria-label="Ver ${esc(i.nome)}">${fotoPr(i)||ic(IC_ESC[sc])}</button>
     <button type="button" class="apr-tx" data-ver="${esc(i.id)}"><b>${esc(i.nome)}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)||(coz?i.tipoCoz:fixa?'':i.categoria),i.local].filter(Boolean).join(' · '))}</small>${s==='Abaixo do mínimo'?'<em class="apr-al">Abaixo do mínimo</em>':''}${sv?'<em class="apr-sv">Sem valor</em>':''}</button>
     <div class="apr-sd"><b>${esc(fQtd(e.saldo))}</b><small>${esc(un(i.unidade))}</small><small>${sv?'sem valor':esc(fMoeda(e.valor))}</small></div>
-    <div class="apr-bt">${sv&&P.edI?`<button type="button" class="btn min apr-pv" data-pv="${esc(i.id)}">${ic('moeda')}Pôr valor</button>`:''}${P.edS&&ativo(i)?`<button type="button" class="btn min" data-sai="${esc(i.id)}" ${e.disp>0?'':'disabled title="Sem saldo"'}>${ic('saida')}Saída</button>`:''}${P.edA&&ativo(i)?`<button type="button" class="btn min" data-ent="${esc(i.id)}">${ic('entrada')}Entrada</button>`:''}</div></div>`}).join('')
+    <div class="apr-bt">${sv&&P.edI?`<button type="button" class="btn min apr-pv" data-pv="${esc(i.id)}">${ic('moeda')}Pôr valor</button>`:''}${P.edS&&ativo(i)?`<button type="button" class="btn min" data-sai="${esc(i.id)}" ${e.disp>0?'':'disabled title="Sem saldo"'}>${ic('saida')}Saída</button>`:''}${P.edA&&ativo(i)?`<button type="button" class="btn min" data-ent="${esc(i.id)}">${ic('entrada')}Entrada</button>`:''}${P.edA||P.edI?`<button type="button" class="btn min" data-edp="${esc(i.id)}">${ic('editar')}Editar</button>`:''}${P.edA?`<button type="button" class="btn min perigo apr-exp" data-exp="${esc(i.id)}" title="Excluir" aria-label="Excluir ${esc(i.nome)}">${ic('lixo')}<span>Excluir</span></button>`:''}</div></div>`}).join('')
    :noNada(tem?'Nenhum produto com estes filtros':(fixa?'Nenhum produto '+DO_ESC[sc]+' cadastrado ainda':'Nenhum produto cadastrado ainda'),tem?(U.sit==='Sem valor'?'Todos os produtos daqui já têm valor.':''):`<div class="vazio-acoes">${P.edI?`<button type="button" class="btn pri" data-foto>${ic('camera')}${fixa?'Cadastrar produto':'Cadastrar por foto'}</button>`:''}</div>`);
   $$('[data-ver]',el).forEach(b=>b.onclick=()=>fichaPr(b.dataset.ver));
   $$('[data-sai]',el).forEach(b=>b.onclick=()=>modalLancPr('saida',b.dataset.sai));
   $$('[data-ent]',el).forEach(b=>b.onclick=()=>modalLancPr('entrada',b.dataset.ent));
+  /* V173: Editar e Excluir no próprio cartão do produto, ao lado de Saída e Entrada */
+  $$('[data-edp]',el).forEach(b=>b.onclick=()=>editarDoCartaoPr(b.dataset.edp));
+  $$('[data-exp]',el).forEach(b=>b.onclick=()=>excluirDoCartaoPr(b.dataset.exp));
   $$('[data-pv]',el).forEach(b=>b.onclick=()=>modalValorPr([b.dataset.pv]));
   const f=$('[data-foto]',el);if(f)f.onclick=()=>modalFotoPr({sc});
   const m=$('#prM',cp);m.hidden=L.length<=U.n;m.onclick=()=>{U.n+=60;pinta()}};
@@ -23465,6 +23468,65 @@ async function excluirAjPr(a){
  if(!await confirmar('Tem certeza que deseja excluir?',(ent?'A entrada':'A saída')+' '+codAj(L[0])+' ('+textoItensPr(L)+') será excluída e o saldo volta a ser o de antes. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true}))return;
  try{for(const x of L){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu')}refrescaPr();toast('Lançamento excluído.','ok');return true}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
 
+/* ---------- V173 (25/11/2026, pedido do Jeferson): Editar e Excluir no cartão do produto ----------
+   Ficam ao lado de Saída e Entrada, no Estoque / Produtos, na Cozinha e na Limpeza.
+   · Editar: com um lançamento só (o cadastro por foto, por exemplo), abre direto a edição completa; com mais de um,
+     mostra a lista dos lançamentos do produto para escolher. Sem lançamento, abre a ficha.
+   · Excluir: se o único registro do produto é aquele lançamento, o lançamento e o produto saem do estoque (é o
+     cadastro feito por engano). Com outros lançamentos, mostra a lista para escolher qual excluir, e o produto fica.
+     Produto ligado ao Combustível ou com compra, saída ou contagem nunca é apagado. Tudo fica no histórico. */
+function lancsDoItemPr(id){
+ const i=ITEM(id);const L=[];
+ DATA.almAjustes.forEach(a=>{if(a.itemId!==id)return;const ent=a.tipo!=='saida';
+  L.push({k:'a'+a.id,data:a.data,ord:a.criadoEm||'',rot:a.inventarioId?'Acerto de contagem':!ent?'Saída por ajuste':ajFora(a)?'Entrada para o Combustível':'Entrada sem compra',
+   txt:(ent?'+':'−')+qtdUn(+a.qtd||0,i),doc:[a.motivo,a.embalagem,a.responsavel].filter(Boolean).join(' · '),aj:a.inventarioId?null:a,href:a.inventarioId?'#/almAjustes/'+a.id:''})});
+ const JE=window.JB_ESTOQUE;
+ if(JE&&JE.entradasTodas&&i&&i.produtoSetorId){try{JE.entradasTodas().forEach(m=>{if(m.aj||m.produtoId!==i.produtoSetorId)return;
+  L.push({k:'c'+m.id,data:m.data,ord:m.hora||'',rot:'Entrada no Combustível',txt:'+'+fQtd(+m.quantidade||0)+' '+(m.unidade||''),doc:[m.embalagem,m.obs].filter(Boolean).join(' · '),cmb:m.id})})}catch(e){console.warn('V173 combustível',e)}}
+ movsAlm().forEach(m=>{if(m.itemId!==id||/^a/.test(String(m.k)))return;
+  L.push({k:m.k,data:m.data,ord:m.ord||'',rot:m.rot||m.tipo,txt:(m.q<0?'−':'+')+qtdUn(Math.abs(+m.q||0),i),doc:m.doc||'',href:m.href||''})});
+ return L.sort((x,y)=>String(y.data||'').localeCompare(String(x.data||''))||String(y.ord).localeCompare(String(x.ord)))}
+function editarDoCartaoPr(id){
+ const i=ITEM(id);if(!i)return;const L=lancsDoItemPr(id);
+ if(!L.length){toast('Este produto ainda não tem lançamento. Na ficha dá para editar o cadastro, a foto e lançar a entrada.');fichaPr(id);return}
+ if(L.length===1&&L[0].aj&&pode('almAjustes','e')){editarAjPr(L[0].aj);return}
+ if(L.length===1&&L[0].cmb&&window.JB_ESTOQUE){JB_ESTOQUE.abrirCompletar(L[0].cmb);return}
+ janelaLancsPr(id)}
+/* exclui uma linha só (no lote, os outros produtos continuam) */
+async function excluirLinhaAj(a,txt,ok){
+ const x=DATA.almAjustes.find(y=>y.id===a.id)||a;const i=ITEM(x.itemId);
+ if(x.tipo!=='saida'&&(ajFora(x)?(saldoP(x.produtoSetorId)-(+x.qtdSetor||0)<-1e-9):estI(x.itemId).saldo-(+x.qtd||0)<-1e-9)){toast('Não dá para excluir: parte de '+nomeItem(i)+' já saiu do estoque.','erro');return false}
+ if(!await confirmar('Tem certeza que deseja excluir?',txt||('O lançamento '+codAj(x)+' ('+textoItensPr([x])+') será excluído e o saldo volta a ser o de antes. O produto continua cadastrado. A exclusão fica anotada no histórico.'),{ok:ok||'Sim, excluir',perigo:true}))return false;
+ try{await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu');return true}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro');return false}}
+async function excluirDoCartaoPr(id){
+ const i=ITEM(id);if(!i)return;if(!pode('almAjustes','e')){toast('Seu perfil não exclui lançamentos.','erro');return}
+ const L=lancsDoItemPr(id);
+ const presoA=i.produtoSetorId?'ligado ao Setor de Combustível':(DATA.almInventarios||[]).some(v=>v&&v.contagens&&Object.prototype.hasOwnProperty.call(v.contagens,id))?'numa contagem de estoque':'';
+ const podeItem=pode('almItens','e')&&!presoA;
+ if(!L.length){
+  if(!podeItem){toast('Este produto não tem lançamento'+(presoA?' e está '+presoA+': não dá para excluir daqui.':'. Seu perfil não exclui produtos.'),'erro');return}
+  if(!await confirmar('Tem certeza que deseja excluir?',nomeItem(i)+' ainda não tem nenhum lançamento e sai do estoque. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true}))return;
+  try{await apagar('almItens',i);await registrarLog('almItens',i.id,'excluiu');refrescaPr();toast(nomeItem(i)+' excluído.','ok')}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}return}
+ if(L.length===1&&L[0].aj){const a=L[0].aj;
+  const txt=podeItem?'O lançamento '+codAj(a)+' ('+textoItensPr([a])+') e o produto '+nomeItem(i)+' saem do estoque. A exclusão fica anotada no histórico.'
+   :'O lançamento '+codAj(a)+' ('+textoItensPr([a])+') será excluído. O produto continua cadastrado'+(presoA?' porque está '+presoA:'')+'. A exclusão fica anotada no histórico.';
+  if(!await excluirLinhaAj(a,txt))return;
+  if(podeItem){try{const at=ITEM(id);if(at){await apagar('almItens',at);await registrarLog('almItens',at.id,'excluiu')}}catch(err){toast('O lançamento foi excluído, mas o produto não: '+motivoErro(err)+'.','erro');refrescaPr();return}}
+  refrescaPr();toast(podeItem?nomeItem(i)+' excluído do estoque.':'Lançamento excluído.','ok');return}
+ janelaLancsPr(id)}
+function janelaLancsPr(id){
+ const i=ITEM(id);if(!i)return;const L=lancsDoItemPr(id);const edA=pode('almAjustes','e');
+ modalPr('Lançamentos · '+nomeItem(i),`<p class="ajuda" style="margin:0 0 8px">Escolha o lançamento. <b>Editar</b> muda quantidade, valor, embalagens, foto e dados do produto; <b>Excluir</b> tira o lançamento (o produto continua).</p>
+  <div class="apr-ll">${L.length?L.map((x,k)=>`<div class="apr-ll-i"><div class="apr-ll-t"><b>${esc(x.rot)}</b><span class="apr-ll-q">${esc(x.txt)}</span><small>${esc(fData(x.data))}${x.doc?' · '+esc(x.doc):''}</small></div>
+   <div class="apr-ll-a">${x.aj&&edA?`<button type="button" class="btn min" data-lle="${k}">${ic('editar')}Editar</button><button type="button" class="btn min perigo" data-llx="${k}" title="Excluir" aria-label="Excluir este lançamento">${ic('lixo')}</button>`
+    :x.cmb?`<button type="button" class="btn min" data-lle="${k}">${ic('editar')}Editar</button>`:x.href?`<button type="button" class="btn min" data-llv="${k}">${ic('olho')}Abrir</button>`:''}</div></div>`).join(''):'<p class="ajuda">Nenhum lançamento.</p>'}</div>`,'',null,
+  {depois:v=>{
+   $$('[data-lle]',v).forEach(b=>b.onclick=()=>{const x=L[+b.dataset.lle];if(!x)return;v.remove();if(x.aj)editarAjPr(x.aj);else if(x.cmb&&window.JB_ESTOQUE)JB_ESTOQUE.abrirCompletar(x.cmb)});
+   $$('[data-llv]',v).forEach(b=>b.onclick=()=>{const x=L[+b.dataset.llv];if(!x)return;v.remove();JBNAV.ir(x.href)});
+   $$('[data-llx]',v).forEach(b=>b.onclick=async()=>{const x=L[+b.dataset.llx];if(!x||!x.aj)return;if(await excluirLinhaAj(x.aj)){v.remove();refrescaPr();toast('Lançamento excluído.','ok')}});
+   const vt=$('[data-r]',v);if(vt)vt.textContent='Fechar'}});
+}
+
 /* ---------- cadastrar por foto: uma foto do produto + a frase ("tem 10 desse, marca tal"); a IA preenche, a pessoa confere ---------- */
 async function prepFotoPr(file,max,q){
  let src=null,w=0,h=0;
@@ -23656,7 +23718,7 @@ window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,confer
  consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,
  GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,rotItemM,nomeItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
  saidaRapida:saidaRapidaAlm,contagem:{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm},
- cadastroFoto:ini=>modalFotoPr({sc:'alm',...(ini||{})}),lancar:(tipo,pre)=>{if(!pre&&!['almProdutos','almCozinha','almLimpeza'].includes(lerRota().mod))ESC='alm';return modalLancPr(tipo,pre)},fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,editarLanc:editarAjPr,
+ cadastroFoto:ini=>modalFotoPr({sc:'alm',...(ini||{})}),lancar:(tipo,pre)=>{if(!pre&&!['almProdutos','almCozinha','almLimpeza'].includes(lerRota().mod))ESC='alm';return modalLancPr(tipo,pre)},fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,editarLanc:editarAjPr,lancsDoItem:lancsDoItemPr,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almMov')},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 /* V65: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
@@ -23838,7 +23900,13 @@ window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,
 .apr-ed-fb{cursor:pointer;white-space:nowrap}
 .apr-ed-pr{margin-top:2px}.apr-ed-pr summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:6px 0;color:var(--brasa,#A3461F)}
 .apr-ed-r{align-self:center;margin:0}.acoes .apr-ed-ex{margin-right:auto}
-.apr-lc-t[data-abre]{cursor:pointer}.apr-lc-t[data-abre]:focus-visible{outline:2px solid var(--brasa,#A3461F);outline-offset:2px;border-radius:8px}
+.apr-lc-t[data-abre]{cursor:pointer}
+/* V173 · Editar e Excluir no cartão do produto e a lista dos lançamentos do produto */
+.apr-exp svg{flex:0 0 auto}
+@media (max-width:640px){.apr-bt .apr-exp{flex:0 0 auto}.apr-bt .apr-exp span{display:none}}
+.apr-ll-i{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--linha,#E8E1DA)}
+.apr-ll-t{min-width:0}.apr-ll-t b{font-size:14px}.apr-ll-q{margin-left:8px;font-weight:700}.apr-ll-t small{display:block;font-size:12px;color:var(--fraco,#7a7068);overflow-wrap:anywhere}
+.apr-ll-a{display:flex;gap:6px;flex:0 0 auto}.apr-lc-t[data-abre]:focus-visible{outline:2px solid var(--brasa,#A3461F);outline-offset:2px;border-radius:8px}
 /* ===== V146 · cozinha, sem valor, grupos, saída de EPI e requisição semanal ===== */
 .apr-sv{display:inline-block;margin:4px 6px 0 0;font-style:normal;font-size:11.5px;font-weight:700;color:var(--at,#b26a00);background:var(--at-bg,#FFF3DF);border-radius:999px;padding:1px 8px;line-height:1.5}
 .apr-lc-t .apr-sv{margin:0 0 2px 6px;vertical-align:1px}

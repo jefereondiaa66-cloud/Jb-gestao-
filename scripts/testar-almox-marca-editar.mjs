@@ -239,8 +239,50 @@ try {
   }
   await foto('03-limpeza');
 
+  console.log('6. Editar e Excluir no cartão do produto (V173)');
+  await ir('#/almProdutos', '#prFoto'); await page.click('[data-aba="prod"]'); await page.waitForSelector('#prL');
+  const cartao = (nome) => page.locator('#prL .apr-card', { hasText: nome });
+  const busca = async (q) => { await page.fill('#prQ', q); await page.waitForTimeout(250); };
+  await busca('');
+  ok(await page.locator('#prL .apr-card [data-edp]').count() >= 3 && await page.locator('#prL .apr-card [data-exp]').count() >= 3, 'todo cartão tem Editar e Excluir ao lado de Saída e Entrada');
+  await foto('05-cartao-editar-excluir');
+  /* um lançamento só: Editar abre direto a edição completa */
+  await busca('Luva'); await cartao(LUVA).locator('[data-edp]').click(); await page.waitForSelector('#eQ0'); await pronto();
+  ok(await page.inputValue('#eQ0') === '6' && await page.locator('.apr-ed-pr').count() === 1, 'Luva (um lançamento): Editar abre direto a edição completa');
+  await page.locator('.veu [data-r]').last().click(); await semEditor();
+  /* um lançamento só: Excluir tira o lançamento e o produto */
+  await cartao(LUVA).locator('[data-exp]').click(); await page.waitForSelector('.veu .btn.perigo[data-r="1"]');
+  ok(/e o produto .*saem do estoque/.test(await page.innerText('.veu .modal')), 'a confirmação diz que o lançamento e o produto saem do estoque');
+  await page.evaluate(() => [...document.querySelectorAll('.veu .btn.perigo[data-r="1"]')].pop().click());
+  await page.waitForFunction(() => !ALMOX_V52.ITEM('it_luva') && !DATA.almAjustes.some((a) => a.itemId === 'it_luva'), null, { timeout: 10000 });
+  await busca('Luva'); ok(await cartao(LUVA).count() === 0, 'a luva saiu do estoque (lançamento e produto)');
+  /* mais de um lançamento: Editar e Excluir mostram a lista para escolher */
+  await busca('SKF'); await cartao(ROL).locator('[data-edp]').click(); await page.waitForSelector('.apr-ll');
+  ok(await page.locator('.apr-ll .apr-ll-i').count() === 2, 'SKF (dois lançamentos): Editar mostra a lista para escolher');
+  await page.locator('.apr-ll [data-lle]').first().click(); await page.waitForSelector('#eQ0'); await pronto();
+  ok(await page.locator('#eQ0').count() === 1, 'escolher na lista abre a edição completa');
+  await page.locator('.veu [data-r]').last().click(); await semEditor();
+  await cartao(ROL).locator('[data-exp]').click(); await page.waitForSelector('.apr-ll');
+  const kCinco = await page.evaluate(() => [...document.querySelectorAll('.apr-ll .apr-ll-i')].findIndex((x) => /\+5 un/.test(x.innerText)));
+  await page.locator('.apr-ll .apr-ll-i').nth(kCinco).locator('[data-llx]').click(); await page.waitForSelector('.veu .btn.perigo[data-r="1"]');
+  ok(/continua cadastrado/.test(await page.evaluate(() => [...document.querySelectorAll('.veu .modal')].pop().innerText)), 'excluir pela lista avisa que o produto continua');
+  await page.evaluate(() => [...document.querySelectorAll('.veu .btn.perigo[data-r="1"]')].pop().click());
+  await page.waitForFunction((n) => { const i = DATA.almItens.find((x) => x.nome === n && x.marca === 'SKF'); return i && ALMOX_V52.estI(i.id).saldo === 10; }, ROL, { timeout: 10000 });
+  ok((await um(ROL, 'SKF')).saldo === 10 && (await itens(ROL)).length === 2, 'excluiu só a entrada de 5: SKF com 10, produto continua');
+  await page.waitForFunction(() => !document.querySelector('.apr-ll'), null, { timeout: 5000 });
+  ok(true, 'depois de excluir, a lista fecha e volta para os produtos');
+  /* produto ligado ao Combustível não é apagado */
+  await busca('15W40'); const nO = await page.evaluate(() => DATA.almItens.length);
+  await cartao('Óleo 15W40 Teste').first().locator('[data-exp]').click(); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => DATA.almItens.length) === nO && /Combustível/.test(await page.innerText('#toasts')), 'produto ligado ao Combustível: Excluir não apaga e avisa');
+  await busca('');
+
   /* celular */
   await page.setViewportSize({ width: 390, height: 820 });
+  await ir('#/almProdutos', '#prFoto'); await page.click('[data-aba="prod"]'); await page.waitForSelector('#prL'); await page.waitForTimeout(300);
+  await page.evaluate(() => { const c = document.querySelector('#prL .apr-card'); if (c) c.scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); }); await page.waitForTimeout(250);
+  await foto('06-cartao-celular');
+  ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 392, 'os botões do cartão cabem no celular');
   await page.evaluate((id) => ALMOX_V52.editarLanc(DATA.almAjustes.find((x) => x.id === id)), ajT.id); await page.waitForSelector('#eN0'); await pronto(); await page.waitForTimeout(400);
   await foto('04-editar-celular');
   const larg = await page.evaluate(() => { const m = document.querySelector('.veu .modal'); return m ? m.scrollWidth - m.clientWidth : 99; });
