@@ -20,11 +20,39 @@ export function criarServidorFalso(opcoes) {
     return o;
   }
   function registrar(c, i, op, v) { mudancas.push({ seq: ++seq, c: c, i: i, op: op, v: v, em: Date.now() }); }
+  /* V165: versão de cada produto do estoque (imita seg.estoque_versao e o gatilho docs_estoque_versao) */
+  var versoesEst = new Map();
+  function chavesEst(p) {
+    var out = [];
+    if (!p || typeof p !== 'object') return out;
+    if (p.produtoId) out.push('p:' + p.produtoId); if (p.produtoDestinoId) out.push('p:' + p.produtoDestinoId);
+    if (p.itemId) out.push('i:' + p.itemId); if (p.almItemId) out.push('i:' + p.almItemId);
+    (Array.isArray(p.itens) ? p.itens : []).forEach(function (l) { if (l && l.itemId) out.push('i:' + l.itemId); if (l && l.produtoId) out.push('p:' + l.produtoId); if (l && l.produtoSetorId) out.push('p:' + l.produtoSetorId); });
+    return out;
+  }
+  function subirVersoes(c, antes, depois) {
+    if (['alm', 'compras', 'consumos', 'estoqueMov'].indexOf(String(c).split('/')[0]) < 0) return;
+    var a = (antes && antes.items) || {}, b = (depois && depois.items) || {}, ch = new Set();
+    Object.keys(Object.assign({}, a, b)).forEach(function (x) { if (JSON.stringify(a[x]) !== JSON.stringify(b[x])) chavesEst(a[x]).concat(chavesEst(b[x])).forEach(function (y) { ch.add(y); }); });
+    ch.forEach(function (y) { versoesEst.set(y, (versoesEst.get(y) || 0) + 1); });
+  }
+  function estoquePonte(acao, dados, uid) {
+    if (admins.indexOf(uid) < 0) throw erroSql('42501', 'estoque: acesso restrito');
+    if (acao === 'versoes') { var v = {}; (dados.chaves || []).forEach(function (c) { v[c] = versoesEst.get(c) || 0; }); return { versoes: v }; }
+    if (acao === 'reservar') {
+      var vs = dados.versoes || {}, mudou = Object.keys(vs).filter(function (c) { return (versoesEst.get(c) || 0) !== +vs[c]; });
+      if (mudou.length) return { ok: false, mudou: mudou };
+      var nv = {}; Object.keys(vs).forEach(function (c) { versoesEst.set(c, (versoesEst.get(c) || 0) + 1); nv[c] = versoesEst.get(c); });
+      return { ok: true, versoes: nv };
+    }
+    throw erroSql('22023', 'ação desconhecida');
+  }
   function gravarDireto(c, i, dados) {   // gravação vinda "da nuvem"
     var at = docs.get(k(c, i)), v = at ? at.versao + 1 : 1;
+    subirVersoes(c, at ? at.dados : null, dados);
     docs.set(k(c, i), { colecao: c, id: i, dados: clone(dados), versao: v }); registrar(c, i, at ? 'alteracao' : 'inclusao', v); return v;
   }
-  function apagarDireto(c, i) { var at = docs.get(k(c, i)); if (at) { docs.delete(k(c, i)); registrar(c, i, 'exclusao', at.versao); } }
+  function apagarDireto(c, i) { var at = docs.get(k(c, i)); if (at) { subirVersoes(c, at.dados, null); docs.delete(k(c, i)); registrar(c, i, 'exclusao', at.versao); } }
   function erroSql(code, msg) {
     var e = new Error(JSON.stringify({ error: { name: 'HttpException', message: 'Failed to run sql query: ERROR:  ' + code + ': ' + msg } }));
     e.code = 'tool_error'; return e;
@@ -140,12 +168,13 @@ export function criarServidorFalso(opcoes) {
     if (/jbcore\.aplicar\(/.test(q)) return aplicar(a[0]);
     if (/jbcore\.fiscal\(/.test(q)) return fiscalPedir(a[0], a[1], a[2]);
     if (/jbcore\.resposta\(/.test(q)) return fiscalResposta(a[0]);
+    if (/jbcore\.estoque_ponte\(/.test(q)) return estoquePonte(a[0], a[1], a[2]);
     if (/from public\.docs d where d\.colecao = /.test(q)) { var d = docs.get(k(a[0], a[1])); return d ? [clone(d.dados), d.versao] : null; }
     throw erroSql('42883', 'consulta não prevista no servidor falso: ' + q.slice(0, 80));
   }
   var estado = {
     docs: docs, operacoes: operacoes, chamadas: chamadas, falhas: falhas, sinais: [], fiscal: fiscal,
-    gravarDireto: gravarDireto, apagarDireto: apagarDireto,
+    gravarDireto: gravarDireto, apagarDireto: apagarDireto, versoesEstoque: versoesEst,
     contarAplicadas: function () { var n = 0; operacoes.forEach(function (o) { if (o.resultado === 'aplicada') n++; }); return n; }
   };
   var mcp = {

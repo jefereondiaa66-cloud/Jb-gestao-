@@ -521,6 +521,12 @@
     return sqlJ('select inv.api_ponte(' + txt64(acao) + ',' + json64(dados || {}) + ',' + txt64(uid) + ') as j');
   }
 
+  /* V165: estoque integrado (versão de cada produto, para duas pessoas não tirarem o mesmo saldo ao mesmo tempo) */
+  async function estoque(acao, dados) {
+    if (estado.modo !== 'central') throw erro('desligado', 'O banco central não está ligado nesta página' + (estado.motivo ? ' (' + estado.motivo + ')' : '') + '.');
+    return sqlJ('select jbcore.estoque_ponte(' + txt64(acao) + ',' + json64(dados || {}) + ',' + txt64(uid) + ') as j');
+  }
+
   var api = Object.freeze({
     versao: VERSAO,
     estado: function () { return { modo: estado.modo, motivo: estado.motivo, erro: estado.erro, motivoErro: estado.motivoErro, ultimaSinc: estado.ultimaSinc,
@@ -529,7 +535,8 @@
     pendentesDesde: function (ms) { var lim = Date.now() - (+ms || 0); return fila.filter(function (o) { return Date.parse(o.criadoEm) <= lim; }).length; },
     sincronizar: sincronizar,
     fiscal: fiscal,
-    inventario: inventario
+    inventario: inventario,
+    estoque: estoque
   });
   window.JB_CORE_PONTE = Object.freeze({ conectar: conectar, api: api, CFG: CFG });
 })();
@@ -13617,7 +13624,7 @@ const parteId=x=>x?x[opDe(x).campoId]||'':'';
 /* ---------- estoque: saldo = movimentações + compras + consumo + vendas (canceladas voltam) ---------- */
 let MEMO_EST={m:null,v:null,c:null,u:null,s:null};
 function saldos(){
- if(MEMO_EST.m===DATA.estoqueMov&&MEMO_EST.v===DATA.vendas&&MEMO_EST.c===DATA.compras&&MEMO_EST.u===DATA.consumos&&MEMO_EST.s)return MEMO_EST.s;
+ if(MEMO_EST.m===DATA.estoqueMov&&MEMO_EST.v===DATA.vendas&&MEMO_EST.c===DATA.compras&&MEMO_EST.u===DATA.consumos&&MEMO_EST.a===DATA.alm&&MEMO_EST.s)return MEMO_EST.s;
  const s={};const add=(p,q)=>{if(p)s[p]=round3((s[p]||0)+(+q||0))};
  DATA.estoqueMov.forEach(m=>{add(m.produtoId,m.delta);if(m.produtoDestinoId)add(m.produtoDestinoId,m.deltaDestino)});
  DATA.vendas.forEach(v=>{
@@ -13625,7 +13632,9 @@ function saldos(){
   if(cancV(v))return;(v.itens||[]).forEach(i=>{if(i.baixaEstoque)add(i.produtoId,-(+i.qtd||0))})});
  DATA.compras.forEach(v=>{if(cancV(v))return;(v.itens||[]).forEach(i=>{if(i.baixaEstoque)add(i.produtoId,+(+i.qtd||0))})});
  DATA.consumos.forEach(c=>{if(c.origem!=='Posto externo')add(c.produtoId,-(+c.quantidade||0))}); /* V48: abastecimento em posto externo não sai do estoque da fábrica */
- MEMO_EST={m:DATA.estoqueMov,v:DATA.vendas,c:DATA.compras,u:DATA.consumos,s};return s;
+ /* V165: o que entrou pelo Almoxarifado com destino ao setor e o que foi transferido do Almoxarifado (um registro só, no almoxarifado) */
+ if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>add(x.produtoId,x.qtd))}catch(e){console.warn('V165 saldo',e)}
+ MEMO_EST={m:DATA.estoqueMov,v:DATA.vendas,c:DATA.compras,u:DATA.consumos,a:DATA.alm,s};return s;
 }
 const saldoP=id=>saldos()[id]||0;
 const controla=p=>!!p&&p.controlaEstoque!=='Não';
@@ -13635,6 +13644,8 @@ const vendasComEstoqueV=()=>DATA.produtos.some(p=>p.setor==='vendas'&&p.situacao
 function situacaoEstoque(p){if(!controla(p))return 'Sem controle';const s=saldoP(p.id);if(s<=0)return 'Sem estoque';if(p.estoqueMinimo!==''&&p.estoqueMinimo!=null&&s<+p.estoqueMinimo)return 'Abaixo do mínimo';return 'Normal'}
 /* custo médio das compras (só o que vem na nota, sem frete); sem compra registrada, vale o preço de referência do cadastro */
 function custoMedioNota(pid){let q=0,t=0;DATA.compras.forEach(v=>{if(cancV(v))return;(v.itens||[]).forEach(i=>{if(i.produtoId===pid){q+=+i.qtd||0;t+=+i.total||0}})});
+ /* V165: compras feitas pelo Almoxarifado com destino ao setor e transferências entram no custo médio pelo valor */
+ if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>{if(x.produtoId===pid&&x.valor!=null&&x.qtd>0){q+=x.qtd;t+=x.valor}})}catch(e){}
  if(q>0)return Math.round(t/q*10000)/10000;const p=PROD(pid);return p&&p.precoCompra!==''&&p.precoCompra!=null?+p.precoCompra:0}
 /* V115 (13/11/2026): o litro do combustível custa mais do que vem na nota, porque a cerâmica gasta para ir buscar.
    Custo por litro = média das compras + custo de buscar. O custo de buscar mora no cadastro do combustível
@@ -14421,6 +14432,8 @@ async function confirmarOpV(O,btn){
  const c=r.c;const nomeP=r.par?O.nomeP(r.par):'Consumidor final';
  const txt=nomeP+' · '+c.itens.length+' item(ns) · total '+fMoeda(c.total)+' · '+d.forma+', '+d.condicao.toLowerCase()+(d.condicao==='A prazo'?' (vence em '+fData(d.vencimento)+')':'')+'.'+
   (r.avisos.length?' Atenção: '+r.avisos.join(' '):'')+(venda?(temEstoqueV(d.itens)?' Ao confirmar, o estoque é baixado, a conta a receber é registrada e o comprovante é gerado.':' Ao confirmar, a venda é registrada, a conta a receber é lançada e o comprovante é gerado.'):' Ao confirmar, os itens entram no estoque e a conta a pagar é registrada.')+' Depois de confirmada ela não se edita; para corrigir, cancela-se com motivo.';
+ /* V165: compra de um produto que já entrou pelo Almoxarifado: é compra nova ou é o mesmo material (transferência)? */
+ if(!venda&&window.JB_ESTOQUE){let ok=true;try{ok=await JB_ESTOQUE.antesCompraSetor(d)}catch(e){console.warn('V165 compra',e)}if(!ok)return}
  if(!await confirmar('Confirmar a '+O.sing+'?',txt,{ok:'Confirmar '+O.sing}))return;
  btn.disabled=true;
  /* V101: o arquivo da nota sobe antes de reservar o número; se não subir, nada é gravado */
@@ -14692,6 +14705,7 @@ function movimentosV(setor){
  DATA.vendas.forEach(v=>{if(v.fluxo!=='pedido')return;
   (v.baixas||[]).forEach((b,k)=>(b.itens||[]).forEach((i,j)=>{if(!doS(i.produtoId))return;out.push({k:'p',id:v.id+':b'+k+':'+j,data:b.data,hora:b.hora||'',tipo:'Venda',produtoId:i.produtoId,qtd:-(+i.qtd||0),anterior:i.anterior,atual:i.atual,motivo:'Pedido nº '+fNumV(v.numero)+' · '+b.desc+' · '+((v.cliente||{}).nome||''),por:b.por,ref:'#/venda/'+v.id,em:b.em||''})}));
   (v.devolucoes||[]).forEach((d,k)=>(d.itens||[]).forEach((i,j)=>{if(!doS(i.produtoId))return;out.push({k:'p',id:v.id+':d'+k+':'+j,data:d.data,hora:(d.em||'').slice(11,16),tipo:'Devolução',produtoId:i.produtoId,qtd:d.voltaEstoque?+i.qtd||0:0,anterior:i.anterior,atual:i.atual,motivo:'Pedido nº '+fNumV(v.numero)+' · '+d.destinacao+' · '+d.motivo,por:d.por,ref:'#/venda/'+v.id,em:d.em||''})}))});
+ if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>{if(!doS(x.produtoId))return;out.push({k:'a',id:x.id,data:x.data,hora:x.hora||'',tipo:x.tipo,produtoId:x.produtoId,qtd:x.qtd,anterior:null,atual:null,motivo:x.doc,por:x.por,ref:x.href,em:x.em||''})})}catch(e){}
  DATA.consumos.forEach(c=>{if(!doS(c.produtoId)||c.origem==='Posto externo')return;out.push({k:'c',id:c.id,data:c.data,hora:c.hora||'',tipo:'Consumo',produtoId:c.produtoId,qtd:-(+c.quantidade||0),anterior:c.anterior,atual:c.atual,
   motivo:[c.combLenha?'Fornecedor de lenha: '+(c.combLenha.fornecedorNome||''):c.abastecidoEm==='Veículo de terceiro'?'Terceiro: '+(c.terceiroNome||''):nomeLocal(LOCAL(c.localId)),c.operador,c.medidor!=null?'km/h '+fNum(c.medidor):''].filter(Boolean).join(' · '),por:c.criadoPor,ref:'#/consumos/'+c.id,em:c.criadoEm||''})});
  return out.sort((a,b)=>(b.data+' '+b.hora+' '+b.em).localeCompare(a.data+' '+a.hora+' '+a.em));
@@ -14716,7 +14730,7 @@ function telaEstoqueV(el){
    ${ps.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Item</th><th>Tipo</th><th>Unidade</th><th class="num">Saldo</th>${consumo?'':'<th class="num">Reservado</th><th class="num">Disponível</th>'}<th class="num">Mínimo</th><th class="num">${consumo?'Custo médio':'Custo de referência'}</th><th class="num">Valor em estoque</th><th>Situação</th></tr></thead>
     <tbody>${ps.map(p=>{const sd=saldoP(p.id);const cu=consumo?custoMedio(p.id):+p.precoCompra||0;return `<tr class="clic" data-pf="${esc(p.id)}" tabindex="0"><td data-l="Item"><b>${esc(p.nome)}</b>${p.situacao==='Inativo'?' '+tag('Inativo',''):''}</td><td data-l="Tipo">${esc(nomeTipoP(p))||'—'}</td><td data-l="Unidade">${esc(p.unidade||'')}</td>
      <td data-l="Saldo" class="num"><b>${controla(p)?esc(fQtd(sd)):'—'}</b></td>${consumo?'':(()=>{const rs=typeof reservadoP==='function'&&controla(p)?reservadoP(p.id):0;return `<td data-l="Reservado" class="num">${controla(p)?esc(fQtd(rs)):'—'}</td><td data-l="Disponível" class="num">${controla(p)?esc(fQtd(round3(sd-rs))):'—'}</td>`})()}<td data-l="Mínimo" class="num">${p.estoqueMinimo!==''&&p.estoqueMinimo!=null&&controla(p)?esc(fQtd(p.estoqueMinimo)):'—'}</td>
-     <td data-l="Custo" class="num">${cu?esc(fMoeda(cu)):'—'}</td><td data-l="Valor em estoque" class="num">${controla(p)&&cu?esc(fMoeda(valorEstoqueP(p))):'—'}</td><td data-l="Situação">${tagV(situacaoEstoque(p))}</td></tr>`}).join('')}</tbody></table></div>`
+     <td data-l="Custo" class="num">${cu?esc(fMoeda(cu)):'—'}</td><td data-l="Valor em estoque" class="num">${controla(p)&&cu?esc(fMoeda(valorEstoqueP(p))):'—'}</td><td data-l="Situação">${tagV(situacaoEstoque(p))}${window.JB_ESTOQUE?JB_ESTOQUE.botoesProduto(p,s):''}</td></tr>`}).join('')}</tbody></table></div>`
     :`<div class="painel"><div class="vazio"><b>Nenhum item neste setor</b>Cadastre os itens com a unidade de medida.${pode('produtos','e')?`<div class="vazio-acoes"><a class="btn pri" href="#/produtos/novo">${ic('mais')}Cadastrar</a></div>`:''}</div></div>`}
    <h3 class="grupo-t">Movimentações</h3>
    <div class="painel"><div class="filtros"><select id="meP" aria-label="Item"><option value="">Item: todos</option>${ps.map(p=>`<option value="${esc(p.id)}" ${UIEV.produto===p.id?'selected':''}>${esc(nomeProduto(p))}</option>`).join('')}</select>
@@ -14732,7 +14746,8 @@ function telaEstoqueV(el){
   const novoMov=(tipo,pid)=>{if(tipo==='consumo'){PREFILL=pid?{mod:'consumos',dados:{produtoId:pid}}:null;JBNAV.ir('#/consumos/novo');return}if(tipo==='compra'){JBNAV.ir('#/compra/nova');return}
    PREFILL={mod:'estoqueMov',dados:{tipo,...(pid?{produtoId:pid}:{})}};JBNAV.ir('#/estoqueMov/novo')};
   $$('[data-mov]',c).forEach(bt=>bt.onclick=()=>novoMov(bt.dataset.mov));
-  $$('tr[data-pf]',c).forEach(tr=>tr.onclick=()=>{UIEV.produto=tr.dataset.pf;renderTela();setTimeout(()=>{const f=$('#meP');if(f)f.scrollIntoView({block:'center'})},60)});
+  if(window.JB_ESTOQUE)JB_ESTOQUE.ligarBotoes(c);
+  $$('tr[data-pf]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('[data-je]'))return;UIEV.produto=tr.dataset.pf;renderTela();setTimeout(()=>{const f=$('#meP');if(f)f.scrollIntoView({block:'center'})},60)});
   $$('tr[data-go]',c).forEach(tr=>{tr.onclick=()=>JBNAV.ir(tr.dataset.go);tr.onkeydown=e=>{if(e.key==='Enter')tr.onclick()}});
   [['#meP','produto'],['#meT','tipo'],['#meDe','de'],['#meAte','ate']].forEach(([q,k])=>{$(q,c).onchange=e=>{UIEV[k]=e.target.value;renderTela()}});
   $('#meExp',c).onclick=()=>{const cols=[{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'tipo',l:'Tipo'},{k:'produto',l:'Item'},{k:'qtd',l:'Quantidade',t:'num'},{k:'unidade',l:'Unidade'},{k:'anterior',l:'Antes',t:'num'},{k:'atual',l:'Depois',t:'num'},{k:'motivo',l:'Motivo / origem'},{k:'usuario',l:'Usuário'}];
@@ -21176,7 +21191,7 @@ const ROTAS_P=['setor-paletes','paleteConfig','pagamentosPaletes','paleteMov','p
 window.ROTAS_SETOR_V52={almox:ROTAS_A.slice(),paletes:ROTAS_P.slice()};
 
 /* ================= almoxarifado: cadastros ================= */
-const CATS=[['Peças e manutenção','PEC'],['EPI','EPI'],['Ferramentas','FER'],['Elétrico','ELE'],['Material de produção','PRO'],['Produtos em geral','GER'],['Cozinha','COZ'],['Limpeza','LIM'],['Escritório','ESC'],['Outros','OUT']];
+const CATS=[['Peças e manutenção','PEC'],['EPI','EPI'],['Ferramentas','FER'],['Elétrico','ELE'],['Material de produção','PRO'],['Produtos em geral','GER'],['Cozinha','COZ'],['Limpeza','LIM'],['Escritório','ESC'],['Combustíveis e lubrificantes','CMB'],['Outros','OUT']];   /* V165: CMB = cadastro mestre dos itens do Setor de Combustível */
 const PREF=Object.fromEntries(CATS);const CAT_NOMES=CATS.map(c=>c[0]);
 const UNIDS=['unidade','par','caixa','metro','kg','litro','rolo','jogo','pacote','fardo','saco','botijão','dúzia','lata','maço','bandeja'];
 const TIPOS_COZ=['Mercearia','Carnes','Alimentos em geral','Gás e outros'];
@@ -21223,18 +21238,22 @@ const semPreco=l=>!l||l.preco===''||l.preco==null||(typeof l.preco==='number'&&i
 function fretesDe(e){const ls=(e.itens||[]).filter(l=>l&&l.itemId);const base=soma(ls,l=>(+l.qtd||0)*(+l.preco||0));const fr=+e.frete||0;const qt=soma(ls,l=>+l.qtd||0);
  return ls.map(l=>{const q=+l.qtd||0,v=q*(+l.preco||0);return{l,q,v,fr:fr?(base>0?fr*v/base:(qt>0?fr*q/qt:0)):0}})}
 function calcAlm(){
- if(MA.b===DATA[CA]&&MA.c===DATA.clCtrl)return MA.v;
+ if(MA.b===DATA[CA]&&MA.c===DATA.clCtrl&&MA.m===DATA.estoqueMov)return MA.v;
  const it={};const g=id=>it[id]||(it[id]={...VZ});
- DATA.almEntradas.forEach(e=>fretesDe(e).forEach(x=>{const o=g(x.l.itemId);o.eq+=x.q;if(semPreco(x.l))o.sv+=x.q;else{o.eqc+=x.q;o.ev+=x.v+x.fr}if(String(e.data||'')>o.ultEnt)o.ultEnt=String(e.data||'')}));
+ /* V165: linha de entrada que foi direto para o estoque de outro setor (Combustível) não fica no almoxarifado */
+ const JE=window.JB_ESTOQUE;const foraE=(e,l)=>!!JE&&JE.destinoLinha(e,l)!=='almox';
+ DATA.almEntradas.forEach(e=>fretesDe(e).forEach(x=>{if(foraE(e,x.l))return;const o=g(x.l.itemId);o.eq+=x.q;if(semPreco(x.l))o.sv+=x.q;else{o.eqc+=x.q;o.ev+=x.v+x.fr}if(String(e.data||'')>o.ultEnt)o.ultEnt=String(e.data||'')}));
  DATA.almSaidas.forEach(s=>(s.itens||[]).forEach(l=>{if(!l||!l.itemId)return;const o=g(l.itemId);o.sq+=+l.qtd||0;if(String(s.data||'')>o.ultSai)o.ultSai=String(s.data||'')}));
  DATA.almDevolucoes.forEach(d=>(d.itens||[]).forEach(l=>{if(l&&l.itemId)g(l.itemId).dq+=+l.qtd||0}));
  DATA.almAjustes.forEach(a=>{if(!a.itemId)return;const q=+a.qtd||0;g(a.itemId).aq+=a.tipo==='saida'?-q:q});
  DATA.almEpis.forEach(x=>{if(x.itemId)g(x.itemId).epi+=+x.qtd||0});
  DATA.almEmprestimos.forEach(x=>{if(!x.itemId)return;const o=g(x.itemId);const q=+x.qtd||0;if(x.devData){if(x.devEstado==='Danificada'||x.devEstado==='Perdida')o.perda+=q}else o.emp+=q});
  pagLenhaAlm().forEach(x=>{const o=g(x.itemId);o.pl+=x.qtd;if(String(x.data||'')>o.ultSai)o.ultSai=String(x.data||'')});
+ /* V165: transferências entre setores (Almoxarifado → Combustível sai daqui; Combustível → Almoxarifado volta) */
+ if(JE)JE.movsAlmSaldo().forEach(x=>{const o=g(x.itemId);if(x.q<0)o.tq=(o.tq||0)-x.q;else o.tr=(o.tr||0)+x.q;if(x.q<0&&String(x.data||'')>o.ultSai)o.ultSai=String(x.data||'')});
  DATA.almItens.forEach(i=>{if(+i.custoRef>0)g(i.id).ref=+i.custoRef});
- Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda-o.pl);o.cm=o.eqc>0?o.ev/o.eqc:(o.ref||0);o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
- MA={b:DATA[CA],c:DATA.clCtrl,v:it};return it;
+ Object.values(it).forEach(o=>{o.saldo=r3(o.eq-o.sq+o.dq+o.aq-o.epi-o.perda-o.pl-(o.tq||0)+(o.tr||0));o.cm=o.eqc>0?o.ev/o.eqc:(o.ref||0);o.valor=r2(Math.max(0,o.saldo)*o.cm);o.emp=r3(o.emp);o.disp=r3(o.saldo-o.emp)});
+ MA={b:DATA[CA],c:DATA.clCtrl,m:DATA.estoqueMov,v:it};return it;
 }
 const estI=id=>calcAlm()[id]||VZ;
 /* V146: produto "sem valor": nenhuma compra com preço e nenhum custo de referência (o valor ainda vai ser pesquisado) */
@@ -21773,17 +21792,18 @@ let RE=null;
 /* o cofre de rascunhos (área de trabalho V57) lê e devolve o rascunho daqui */
 window.JB_RASC_E={ler:()=>RE,por:v=>{RE=v}};
 function rascunhoE(e){
- if(e)return{id:e.id,data:e.data||hoje(),fornecedorId:e.fornecedorId||'',nota:e.nota||'',itens:clone(e.itens||[]).map(l=>({itemId:l.itemId,qtd:l.qtd,preco:l.preco})),frete:e.frete||'',
+ if(e)return{id:e.id,data:e.data||hoje(),fornecedorId:e.fornecedorId||'',nota:e.nota||'',itens:clone(e.itens||[]).map(l=>({itemId:l.itemId,qtd:l.qtd,preco:l.preco,...(l.destino?{destino:l.destino}:{})})),frete:e.frete||'',
   forma:e.forma==='vista'?'vista':'prazo',pagoVia:e.pagoVia||'PIX',contaId:'',nParc:Math.max(1,(e.parcelas||[]).length||1),venc1:((e.parcelas||[])[0]||{}).venc||addDias(e.data||hoje(),30),recebedor:e.recebedor||'',obs:e.obs||'',
   totalNota:e.totalNota==null?'':e.totalNota,anexo:e.anexo||null};
  return{id:null,data:hoje(),fornecedorId:'',nota:'',itens:[{itemId:'',qtd:'',preco:''}],frete:'',forma:'prazo',pagoVia:'PIX',contaId:'',nParc:1,venc1:addDias(hoje(),30),recebedor:respP(ABA_ALM),obs:'',totalNota:'',anexo:null}}
 /* V56: o mesmo item em duas linhas vira uma linha só (quantidades somadas, preço médio ponderado) */
 function juntarLinhasE(ls){const m=new Map();const difs=[];
  /* V146: linha sem preço fica sem preço (null); junto com linha de preço, vale o preço das que têm */
- ls.forEach(l=>{const q=numE(l.qtd),sp=semPreco(l),p=numE(l.preco);const a=m.get(l.itemId);
-  if(!a){m.set(l.itemId,{itemId:l.itemId,qtd:q,qp:sp?0:q,valor:sp?0:q*p,precos:new Set(sp?[]:[r2(p)]),sp});return}
+ /* V165: o destino da linha (Almoxarifado ou Combustível) separa as linhas do mesmo item */
+ ls.forEach(l=>{const q=numE(l.qtd),sp=semPreco(l),p=numE(l.preco);const ch=l.itemId+'|'+(l.destino||'');const a=m.get(ch);
+  if(!a){m.set(ch,{itemId:l.itemId,destino:l.destino||'',qtd:q,qp:sp?0:q,valor:sp?0:q*p,precos:new Set(sp?[]:[r2(p)]),sp});return}
   a.qtd+=q;if(sp)a.sp=true;else{a.qp+=q;a.valor+=q*p;a.precos.add(r2(p))}});
- const out=[...m.values()].map(a=>{if(a.precos.size>1)difs.push(a.itemId);return{itemId:a.itemId,qtd:r3(a.qtd),preco:a.qp>0?Math.round(a.valor/a.qp*10000)/10000:(a.sp?'':0)}});
+ const out=[...m.values()].map(a=>{if(a.precos.size>1)difs.push(a.itemId);return{itemId:a.itemId,...(a.destino?{destino:a.destino}:{}),qtd:r3(a.qtd),preco:a.qp>0?Math.round(a.valor/a.qp*10000)/10000:(a.sp?'':0)}});
  return{ls:out,difs,juntou:out.length<ls.length}}
 const ehDiversos=i=>!!i&&/itens\s+diversos/i.test(String(i.nome||''));
 function itemDiversos(){return DATA.almItens.filter(i=>ativo(i)&&ehDiversos(i)).sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo)))[0]||null}
@@ -21829,11 +21849,13 @@ function conferirE(d){
  const dup=DATA.almEntradas.find(x=>x.id!==d.id&&x.fornecedorId===d.fornecedorId&&x.data===d.data&&ig(x.total,c.total));
  if(dup&&c.total>0)a.push('Possível entrada repetida: já há uma de '+nomeFornA(dup.fornecedorId)+' em '+fData(dup.data)+' com o mesmo total.');
  if(d.nota&&d.fornecedorId){const dn=DATA.almEntradas.find(x=>x.id!==d.id&&x.fornecedorId===d.fornecedorId&&String(x.nota||'').trim()===String(d.nota).trim());if(dn)a.push('A nota '+d.nota+' deste fornecedor já foi lançada em '+fData(dn.data)+'.')}
+ /* V165: a mesma compra lançada também no Setor de Combustível (estoque em dobro) */
+ if(window.JB_ESTOQUE){try{const x=JB_ESTOQUE.conferirEntradaAlm(d,c.ls);e.push(...x.erros);a.push(...x.avisos)}catch(err){console.warn('V165 conferência',err)}}
  return{erros:e,avisos:a,c}}
 function linhasE(d){
  const opI=sel=>`<option value="">Selecione…</option>`+optsItens(null,sel).map(([v,l])=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
  return d.itens.map((l,k)=>{const i=ITEM(l.itemId);const tot=r2(numE(l.qtd)*numE(l.preco));const e=i?estI(i.id):null;
-  return `<tr data-li="${k}"><td data-l="Item"><div class="cmp"><select data-ei="itemId" aria-label="Item da linha ${k+1}">${opI(l.itemId)}</select></div>${i?`<small class="vd-saldo">Saldo ${esc(fQtd(e.saldo)+' '+un(i.unidade))} · custo médio ${esc(fMoeda(e.cm))}</small>`:''}${!i&&pode('almItens','e')?`<button type="button" class="btn min v56-novoit" data-enovo="${k}">${ic('mais')}novo item</button>`:''}</td>
+  return `<tr data-li="${k}"><td data-l="Item"><div class="cmp"><select data-ei="itemId" aria-label="Item da linha ${k+1}">${opI(l.itemId)}</select></div>${i?`<small class="vd-saldo">Saldo ${esc(fQtd(e.saldo)+' '+un(i.unidade))} · custo médio ${esc(fMoeda(e.cm))}</small>`:''}${i&&window.JB_ESTOQUE?JB_ESTOQUE.htmlDestinoLinha(i,l,k):''}${!i&&pode('almItens','e')?`<button type="button" class="btn min v56-novoit" data-enovo="${k}">${ic('mais')}novo item</button>`:''}</td>
    <td data-l="Quantidade" class="num"><div class="cmp"><input data-ei="qtd" type="number" step="any" min="0" inputmode="decimal" value="${esc(l.qtd)}" aria-label="Quantidade da linha ${k+1}"></div></td>
    <td data-l="Un.">${esc(i?un(i.unidade):'—')}</td>
    <td data-l="Preço unitário" class="num"><div class="cmp"><input data-ei="preco" data-masc="moeda" inputmode="decimal" placeholder="sem valor" value="${esc(l.preco===''||l.preco==null?'':fMoedaCampo(l.preco))}" aria-label="Preço da linha ${k+1}"></div></td>
@@ -21848,7 +21870,7 @@ function resumoE(d){
   ${(()=>{const dif=d.totalNota!==''&&d.totalNota!=null&&!isNaN(+d.totalNota)?r2(+d.totalNota-c.total):0;return dif>=0.005&&c.ls.length?`<button type="button" class="btn" id="eDifDiv" style="width:100%;margin-bottom:8px">${ic('mais')}Lançar a diferença (${esc(fMoeda(dif))}) como itens diversos</button>`:''})()}
   ${er.length||r.avisos.length?`<ul class="vd-avisos">${er.map(x=>`<li class="pe">${esc(x)}</li>`).join('')}${r.avisos.map(x=>`<li class="at">${esc(x)}</li>`).join('')}</ul>`:''}
   <button type="button" class="btn pri vd-ok" id="eOk" ${pode('almEntrada','e')?'':'disabled'}>${ic('entrada')}${d.id?'Salvar alterações':'Confirmar entrada'}</button>
-  <ol class="vd-passos"><li>Soma os itens no estoque e recalcula o custo médio (o frete é rateado entre os itens)</li><li>${c.total>0?'Lança a conta a pagar no Financeiro (setor Almoxarifado / Cozinha)':'Sem valor: não lança conta a pagar'}</li><li>Fica no histórico e nos relatórios</li></ol>`}
+  <ol class="vd-passos"><li>Soma os itens no estoque e recalcula o custo médio (o frete é rateado entre os itens)${window.JB_ESTOQUE?JB_ESTOQUE.txtPassoEntrada(c.ls):''}</li><li>${c.total>0?'Lança a conta a pagar no Financeiro (setor Almoxarifado / Cozinha)':'Sem valor: não lança conta a pagar'}</li><li>Fica no histórico e nos relatórios</li></ol>`}
 function fotoE(d){const a=d.anexo;const lk=a&&a.id?`<a href="/_blob/${esc(a.id)}" target="_blank" rel="noopener">${ic('clip','style="width:14px;height:14px;vertical-align:-2px"')} ${esc(a.nome||'arquivo')}</a>`:'<span class="ajuda">Nenhum arquivo anexado.</span>';
  if(!APP.assets)return `<label>Foto do cupom ou da nota</label><div>${lk}<div class="ajuda">${APP.modo==='local'?'Anexos só funcionam na versão publicada com armazenamento em nuvem.':'Seu acesso não permite enviar arquivos.'}</div></div>`;
  return `<label>Foto do cupom ou da nota</label><div class="inline v56-arq">${lk}<label class="btn min" style="cursor:pointer">${ic('clip')}${a&&a.id?'Substituir':'Anexar foto/PDF'}<input type="file" accept="application/pdf,image/*" hidden data-efoto></label><label class="btn min v56-cam" style="cursor:pointer">Tirar foto<input type="file" accept="image/*" capture="environment" hidden data-efoto></label>${a&&a.id?'<button type="button" class="btn min perigo" id="eFotoRm">Remover</button>':''}</div>`}
@@ -21887,9 +21909,10 @@ function formE(c){
   if(t.dataset.efoto!==undefined){const f=t.files&&t.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Arquivo maior que 20 MB.','erro');return}
    toast('Enviando o arquivo…');APP.assets.upload(f).then(r=>{d.anexo={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes};const w=$('#eFotoW',c);if(w)w.innerHTML=fotoE(d);toast('Arquivo anexado. Ele é gravado quando você confirmar a entrada.','ok')}).catch(err=>toast(err&&err.code==='unsupported_type'?'Tipo de arquivo não aceito. Use PDF ou imagem.':'Não foi possível enviar o arquivo.','erro'));return}
   if(t.dataset.ev&&t.tagName==='SELECT'){d[t.dataset.ev]=t.value;if(t.dataset.ev==='forma')vis();atuRes();return}
+  if(t.dataset.edest!=null){const l=d.itens[+t.dataset.edest];if(l){l.destino=t.value;atuItens()}return}
   const li=t.closest('[data-li]');if(li&&t.dataset.ei==='itemId'){const k=+li.dataset.li;const id=t.value;
    const ult=DATA.almEntradas.filter(x=>x.id!==d.id&&(x.itens||[]).some(l=>l.itemId===id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)))[0];
-   const pl=ult&&ult.itens.find(l=>l.itemId===id);d.itens[k]={...d.itens[k],itemId:id,preco:d.itens[k].preco!==''&&d.itens[k].preco!=null?d.itens[k].preco:(pl?+pl.preco:'')};atuItens()}});
+   const pl=ult&&ult.itens.find(l=>l.itemId===id);d.itens[k]={...d.itens[k],itemId:id,destino:'',preco:d.itens[k].preco!==''&&d.itens[k].preco!=null?d.itens[k].preco:(pl?+pl.preco:'')};atuItens()}});
  c.addEventListener('click',async e=>{const t=e.target.closest('button');if(!t)return;
   if(t.id==='eAdd'){d.itens.push({itemId:'',qtd:'',preco:''});atuItens();const s=$$('#eItens select',c).pop();if(s)s.focus();return}
   if(t.dataset.erm!=null){d.itens.splice(+t.dataset.erm,1);if(!d.itens.length)d.itens.push({itemId:'',qtd:'',preco:''});atuItens();return}
@@ -21910,8 +21933,10 @@ async function salvarE(btn){
  const txt=nomeFornA(d.fornecedorId)+' · '+c.ls.length+' item(ns) · total '+fMoeda(c.total)+(c.total>0?(d.forma==='vista'?' · pago à vista ('+d.pagoVia+')':' · a prazo em '+c.parcelas.length+'x, 1º vencimento '+fData(c.parcelas[0].venc)):'')+'.'+(r.avisos.length?' Atenção: '+r.avisos.join(' '):'');
  if(!await confirmar(ant?'Salvar as alterações da entrada?':'Confirmar a entrada?',txt,{ok:ant?'Salvar':'Confirmar entrada'}))return;
  btn.disabled=true;const agora=agoraIso();
+ /* V165: linhas que vão para o estoque do Combustível: liga o item ao produto do setor (cria se não existir) e guarda o destino */
+ let destL=null;if(window.JB_ESTOQUE){try{destL=await JB_ESTOQUE.prepararLinhasEntrada(J.ls)}catch(err){btn.disabled=false;toast(String(err&&err.message||err)+' Nada foi gravado.','erro');return}}
  const rec={...(ant?clone(ant):{id:novoId(),criadoEm:agora,criadoPor:eu(),milheiros:null,precoMilheiro:null}),
-  data:d.data,fornecedorId:d.fornecedorId,nota:String(d.nota||'').trim(),itens:J.ls.map(l=>({itemId:l.itemId,qtd:r3(numE(l.qtd)),preco:semPreco(l)?null:J.difs.includes(l.itemId)?l.preco:r2(numE(l.preco))})),frete:c.fr,total:c.total,
+  data:d.data,fornecedorId:d.fornecedorId,nota:String(d.nota||'').trim(),itens:J.ls.map((l,k)=>({itemId:l.itemId,qtd:r3(numE(l.qtd)),preco:semPreco(l)?null:J.difs.includes(l.itemId)?l.preco:r2(numE(l.preco)),...(destL&&destL[k]?destL[k]:{})})),frete:c.fr,total:c.total,
   totalNota:d.totalNota===''||d.totalNota==null||isNaN(+d.totalNota)?null:r2(+d.totalNota),anexo:d.anexo||null,
   forma:d.forma,pagoVia:d.forma==='vista'?d.pagoVia:'',parcelas:c.parcelas,recebedor:String(d.recebedor||'').trim(),obs:String(d.obs||'').trim(),alteradoEm:agora,alteradoPor:eu()};
  if(!ant)rec.finTitulos=[];
@@ -22174,7 +22199,8 @@ function movsAlm(){
     compra, requisição, saída por ajuste, acerto de contagem — e a pessoa da saída. "tipo" continua o mesmo de antes
     (os indicadores e o setor de Inventário contam por ele). A entrada sem compra vale o preço informado nela. */
  const L=[];const add=x=>L.push(x);
- DATA.almEntradas.forEach(e=>fretesDe(e).forEach((x,k)=>add({k:'e'+e.id+k,data:e.data,tipo:'Entrada',rot:'Entrada (compra)',itemId:x.l.itemId,q:x.q,valor:r2(x.v+x.fr),sv:semPreco(x.l),doc:'Entrada · '+nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),href:'#/almEntrada/'+e.id,ord:e.createdAt||e.criadoEm||''})));
+ const JE=window.JB_ESTOQUE;
+ DATA.almEntradas.forEach(e=>fretesDe(e).forEach((x,k)=>JE&&JE.destinoLinha(e,x.l)!=='almox'?add({k:'e'+e.id+k,data:e.data,tipo:'Entrada',rot:'Entrada direto para o Combustível',itemId:x.l.itemId,q:0,valor:0,sv:semPreco(x.l),doc:'Entrada · '+nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:'')+' · '+fQtd(x.q)+' '+un((ITEM(x.l.itemId)||{}).unidade)+' foram para o estoque do Setor de Combustível',href:'#/almEntrada/'+e.id,ord:e.createdAt||e.criadoEm||''}):add({k:'e'+e.id+k,data:e.data,tipo:'Entrada',rot:'Entrada (compra)',itemId:x.l.itemId,q:x.q,valor:r2(x.v+x.fr),sv:semPreco(x.l),doc:'Entrada · '+nomeFornA(e.fornecedorId)+(e.nota?' · nota '+e.nota:''),href:'#/almEntrada/'+e.id,ord:e.createdAt||e.criadoEm||''})));
  DATA.almSaidas.forEach(s=>(s.itens||[]).forEach((l,k)=>add({k:'s'+s.id+k,data:s.data,tipo:'Saída',rot:'Saída (requisição)',itemId:l.itemId,q:-(+l.qtd||0),valor:-(l.custoTotal!=null&&l.custoTotal!==''?+l.custoTotal:(+l.qtd||0)*estI(l.itemId).cm),doc:fReq(s.numero)+' · '+([s.solicitante?'para '+s.solicitante:'',s.setor||'',s.maquinaId?nomeMaq(s.maquinaId):''].filter(Boolean).join(' · ')||'—'),href:'#/almSaida/'+s.id,ord:s.criadoEm||''})));
  DATA.almDevolucoes.forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId);(d.itens||[]).forEach((l,k)=>{const o=s&&(s.itens||[]).find(i=>i.itemId===l.itemId);
   add({k:'d'+d.id+k,data:d.data,tipo:'Devolução',rot:'Devolução',itemId:l.itemId,q:+l.qtd||0,valor:(+l.qtd||0)*(o&&o.custoUnit!=null?+o.custoUnit:estI(l.itemId).cm),doc:'Devolução '+(s?fReq(s.numero)+(s.solicitante||s.setor?' · de '+(s.solicitante||s.setor):''):''),href:s?'#/almSaida/'+s.id:'',ord:d.criadoEm||''})})});
@@ -22184,6 +22210,7 @@ function movsAlm(){
  DATA.almEpis.forEach(x=>add({k:'p'+x.id,data:x.data,tipo:'EPI entregue',rot:'EPI entregue',itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:'para '+(nomeF(x.funcId)||'—')+(x.motivo?' · '+x.motivo:''),href:'#/almEpis/'+x.id,ord:x.criadoEm||''}));
  pagLenhaAlm().forEach(x=>add({k:'l'+x.id,data:x.data,tipo:'Pagamento de lenha',rot:'Pagamento de lenha',itemId:x.itemId,q:-x.qtd,valor:-(x.custoTotal!=null&&x.custoTotal!==''?+x.custoTotal:x.qtd*estI(x.itemId).cm),doc:'Pago ao fornecedor '+x.fornecedorNome+' ('+fMoeda(x.valor)+' descontado da lenha)',href:x.href,ord:x.em}));
  DATA.almEmprestimos.forEach(x=>{if(x.devData&&(x.devEstado==='Danificada'||x.devEstado==='Perdida'))add({k:'m'+x.id,data:x.devData,tipo:'Ferramenta '+String(x.devEstado).toLowerCase(),rot:'Ferramenta '+String(x.devEstado).toLowerCase(),itemId:x.itemId,q:-(+x.qtd||0),valor:-(+x.qtd||0)*estI(x.itemId).cm,doc:'com '+(nomeF(x.funcId)||'—')+(x.devObs?' · '+x.devObs:''),href:'#/almEmprestimos/'+x.id,ord:x.criadoEm||''})});
+ if(JE)JE.movsAlmSaldo().forEach(x=>add({k:'t'+x.id,data:x.data,tipo:'Transferência',rot:x.q<0?'Transferência para o Combustível':'Transferência do Combustível',itemId:x.itemId,q:x.q,valor:x.q*estI(x.itemId).cm,doc:x.doc,href:x.href||'#/estoqueCentral',ord:x.em||''}));
  return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||String(a.ord).localeCompare(String(b.ord))||a.k.localeCompare(b.k))}
 function telaMovAlm(c){
  const U=UM2;let L=movsAlm();
@@ -33710,6 +33737,8 @@ function movsSetor(s,de,ate){
  DATA.estoqueMov.forEach(m=>{if(m.setor!==s||!dentro(m.data))return;
   L.push({uid:'m:'+m.id,data:m.data,hora:m.hora||'',tipo:m.tipo,produtoId:m.produtoId,qtd:r3(+m.delta||0),qtdInf:r3(+m.quantidade||Math.abs(+m.delta||0)),unidade:m.unidade||'',valor:0,parte:m.destino||'',ref:'#/estoqueMov/'+m.id,quem:m.responsavel||nomeUsuario(m.criadoPor),doc:m.motivo||'',rec:m});
   if(m.tipo==='Transferência'&&m.produtoDestinoId)L.push({uid:'m:'+m.id+':d',data:m.data,hora:m.hora||'',tipo:'Transferência (entrada)',produtoId:m.produtoDestinoId,qtd:r3(+m.deltaDestino||0),qtdInf:r3(+m.deltaDestino||0),unidade:m.unidade||'',valor:0,parte:'',ref:'#/estoqueMov/'+m.id,quem:nomeUsuario(m.criadoPor),doc:m.motivo||'',rec:m})});
+ if(window.JB_ESTOQUE)try{JB_ESTOQUE.entradasNoSetor().forEach(x=>{const p=PROD(x.produtoId);if(!p||p.setor!==s||!dentro(x.data))return;
+  L.push({uid:'a:'+x.id,data:x.data,hora:x.hora||'',tipo:x.tipo,produtoId:x.produtoId,qtd:r3(x.qtd),qtdInf:r3(Math.abs(x.qtd)),unidade:p.unidade||'',valor:r2(x.valor||0),parte:x.parte||'',ref:x.href,quem:nomeUsuario(x.por),doc:x.doc,rec:x.rec})})}catch(e){console.warn('V165 movs',e)}
  DATA.consumos.forEach(c=>{if(c.setor!==s||!dentro(c.data))return;const posto=c.origem==='Posto externo';
   L.push({uid:'u:'+c.id,data:c.data,hora:c.hora||'',tipo:ehCb(s)?(posto?'Abastecimento em posto':'Abastecimento'):'Consumo',produtoId:c.produtoId,qtd:posto?0:-r3(+c.quantidade||0),qtdInf:r3(+c.quantidade||0),unidade:c.unidade||'',valor:r2(+c.custoTotal||0),parte:nomeAlvo(c),ref:'#/consumos/'+c.id,quem:c.operador||nomeUsuario(c.criadoPor),doc:[c.fornada,c.cupom?'cupom '+c.cupom:''].filter(Boolean).join(' · '),rec:c})});
  return L.sort((a,b)=>(String(a.data)+a.hora).localeCompare(String(b.data)+b.hora)||a.uid.localeCompare(b.uid));
@@ -48005,6 +48034,10 @@ function linhasEstoqueCL(s){
     sit:v.historico?'Antes do sistema':lim(f.status),ref:'#/compra/'+v.id,kind:'compra',id:v.id,rec:v,
     extra:[['Preço por unidade',+it.preco>0?fMoeda(+it.preco)+(un?' por '+un:''):''],['Forma de pagamento',v.forma],['Condição',v.condicao],['Vencimento',v.vencimento?fData(v.vencimento):''],
      ['Caminhão',(v.lenhaMedicao||{}).caminhao],['Nota do fornecedor',(v.fiscal||{}).numero]]}));return}
+  /* V165: entrada pelo Almoxarifado com destino ao setor e transferência do Almoxarifado (registro do almoxarifado) */
+  if(uid.indexOf('a:')===0){const trf=/^Transfer/i.test(String(m.tipo||''));
+   out.push(L({...base,uid,g:trf?'trf':'ent',tipo:m.tipo,sent:'e',est:true,qtd:r3(m.qtd),valor:m.valor||null,parte:lim(m.parte),parteRot:trf?'Veio de':'Fornecedor',
+    quem:lim(m.quem),doc:lim(m.doc),ref:lim(m.ref),kind:trf?'':'almEntrada',id:rec.id||'',rec:trf?null:rec,extra:[['Origem',trf?'Almoxarifado':'Compra lançada pelo Almoxarifado']]}));return}
   if(uid.indexOf('m:')===0){if(!vM)return;const mv=rec;const destino=/:d$/.test(uid);const t=lim(mv.tipo||m.tipo);const q=r3(m.qtd);
    let g='aju',tipo=t||'Movimentação de estoque',sent=q>=0?'e':'s';
    if(t==='Entrada'){g='ent';tipo='Entrada sem compra';sent='e'}
@@ -48031,9 +48064,10 @@ function linhasEstoqueCL(s){
      parte:alvoC(c),parteRot:c.abastecidoEm==='Veículo de terceiro'?'Terceiro':'Veículo ou máquina',doc:c.cupom?'Cupom '+c.cupom:'',
      extra:[['Posto',c.postoNome],['Cupom',c.cupom],['Condição',c.condPosto],['Vencimento',c.vencPosto?fData(c.vencPosto):''],['Motorista',c.operador],['Km ou horímetro',c.medidor],['Estoque da fábrica','não muda (abastecido fora)']]}));return}
    const terc=c.abastecidoEm==='Veículo de terceiro';
-   out.push(L({...comum,g:'abast',tipo:terc?'Abastecimento de terceiro':'Abastecimento',sent:'s',est:true,qtd:-q,valor:+c.custoTotal||null,
-    parte:alvoC(c),parteRot:terc?'Terceiro':'Veículo ou máquina',doc:lim(c.tipoServico),
-    extra:[['Motorista',c.operador],['Km ou horímetro',c.medidor],['Quem abasteceu',c.quemAbasteceu],['Finalidade',c.terceiroFinalidade],['Serviço',c.tipoServico]]}));return}
+   const usar=c.acao==='usar';
+   out.push(L({...comum,g:'abast',tipo:usar?'Uso (USAR)':terc?'Abastecimento de terceiro':'Abastecimento',sent:'s',est:true,qtd:-q,valor:+c.custoTotal||null,
+    parte:usar&&!c.localId?lim(c.finalidade):alvoC(c),parteRot:usar&&!c.localId?'Finalidade':terc?'Terceiro':'Veículo ou máquina',doc:usar?lim(c.finalidade):lim(c.tipoServico),
+    extra:[['Finalidade',usar?c.finalidade:''],['Motorista',c.operador],['Km ou horímetro',c.medidor],['Quem abasteceu',c.quemAbasteceu],['Finalidade',c.terceiroFinalidade],['Serviço',c.tipoServico]]}));return}
  }catch(e){console.warn('movimentações: linha do estoque',e)}});
  return out;
 }
@@ -51936,5 +51970,444 @@ window.JB_ALMOCO=Object.freeze({COL,COL_CFG,COL_FL,REFS:Object.freeze(REFS.map(r
  lancarPorFoto:()=>modalFoto(),promptFoto,linhasFoto,estadoTela:()=>({...UD,ref:refAtual()}),irPara:(d,ref)=>{if(REF[ref]){UD.ref=ref;UD.refEm=Date.now()}if(dataOk(d)){UD.d=d>hoje()?hoje():d;if(lerRota().mod==='almoco')renderTela();else JBNAV.ir('#/almoco')}}});
 })();
 </script>
+<style id="estoque-integrado-v165-css">
+/* V165 · Estoque integrado (Almoxarifado ↔ Combustível). Só peças e cores do tema atual. */
+.ei-dest{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--suave)}
+.ei-dest select{font-size:12px;padding:2px 6px;min-height:0;height:auto;width:auto;max-width:100%}
+.ei-dest .ei-mot{color:var(--fraco)}
+.ei-bts{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:8px;vertical-align:middle}
+.ei-bts .btn{min-height:0;padding:3px 9px;font-size:12px}
+.ei-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px}
+.ei-res>div{background:var(--branco);border:1px solid var(--linha);border-radius:12px;padding:10px 12px}
+.ei-res b{display:block;font-size:20px;color:var(--tinta)}
+.ei-res span{font-size:12px;color:var(--suave)}
+.ei-sec{margin:22px 0 10px;font-size:15px;font-weight:700;color:var(--tinta)}
+.ei-fil{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.ei-fil select,.ei-fil input{max-width:220px}
+.ei-cod{font-size:11.5px;color:var(--fraco);display:block}
+.ei-modal .campos{display:grid;gap:10px;margin:10px 0}
+.ei-modal .cmp label{display:block;font-size:12.5px;color:var(--suave);margin-bottom:3px}
+.ei-modal .cmp input,.ei-modal .cmp select,.ei-modal .cmp textarea{width:100%}
+.ei-modal .ei-saldo{font-size:12.5px;color:var(--suave);margin:4px 0 0}
+.ei-modal .ei-erro{color:var(--pe);font-size:13px;margin:6px 0 0;min-height:1em}
+.ei-ops{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.ei-ops .btn{justify-content:center;width:100%}
+</style>
+<script id="estoque-integrado-v165">
+"use strict";
+/* ================= V165 · Estoque integrado: Almoxarifado ↔ Setor de Combustível (25/11/2026) =================
+   Pedido do Jeferson (prompt mestre "Integração inteligente de estoques"), aprovado em 25/11/2026:
+   · Cadastro mestre = itens do almoxarifado (coleção alm). Categoria nova "Combustíveis e lubrificantes" (CMB).
+     O item mestre liga ao produto do Setor de Combustível (produtoSetorId, fatorSetor = quantas unidades do setor
+     valem 1 unidade do item; ex.: balde = 20 L). O cadastro do Combustível continua o mesmo (bomba, custo de buscar).
+   · Entrada pelo Almoxarifado: cada linha mostra para onde vai e por quê (ligado, categoria, nome, último destino).
+     O que é do Combustível vai DIRETO para o estoque do Combustível (decisão do dono). É UM registro (a entrada,
+     com o destino na linha) e UMA conta a pagar. Os filtros ficam no Almoxarifado (Peças e manutenção).
+   · Transferir para o setor (alm, jbt "transf") e devolver ao Almoxarifado (estoqueMov "Transferência entre
+     setores"): um registro só, com origem e destino. Transferência não muda o estoque total nem gera conta.
+   · USAR no Combustível (consumos, acao "usar"): só baixa quando o responsável confirma. Receber não é usar.
+   · Requisição de outro setor saindo do estoque do Combustível (estoqueMov "Saída" com o setor): não é consumo.
+   · Compra × transferência: a mesma nota (ou a mesma quantidade em poucos dias) lançada no outro setor é
+     barrada ou perguntada, para o estoque total não ficar em dobro.
+   · Saldos continuam CALCULADOS dos lançamentos (nada de contador). Concorrência: versão de cada produto no banco
+     (seg.estoque_versao, migração 20261125120000); a operação reserva a versão que viu ao abrir a janela.
+   · Tela "Estoque integrado" (#/estoqueCentral): saldo por setor e total, conferência de cadastro e a central de
+     movimentações dos dois setores, com filtros.
+   Nada existente é apagado ou reescrito; registros antigos sem destino continuam no almoxarifado. */
+(()=>{
+const SETOR='combustivel',CAT='Combustíveis e lubrificantes';
+const A=()=>window.ALMOX_V52||{},B=()=>window.ALM_IA_BASE||{};
+const r2=v=>Math.round((+v||0)*100)/100,r3=v=>Math.round((+v||0)*1000)/1000;
+const agora=()=>new Date().toISOString();const eu=()=>APP.uid||'local';
+const hh=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const N=s=>semAcento(s).replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+const opt=(ops,sel)=>ops.map(o=>{const[v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`}).join('');
+const ITEM=id=>(DATA.almItens||[]).find(i=>i&&i.id===id)||null;
+const unI=i=>i?(i.unidade==='unidade'?'un':String(i.unidade||'')):'';
+const ativoI=i=>!!i&&i.ativo!==false&&i.ativo!=='false';
+const prodLig=i=>i&&i.produtoSetorId?PROD(i.produtoSetorId)||null:null;
+const fator=i=>{const f=+(i&&i.fatorSetor);return f>0?f:1};
+const itensDoProd=pid=>(DATA.almItens||[]).filter(i=>i&&i.produtoSetorId===pid&&ativoI(i)).sort((a,b)=>(fator(a)===1?0:1)-(fator(b)===1?0:1));
+const itemDoProd=pid=>itensDoProd(pid)[0]||null;
+const nomeSet=s=>s===SETOR?'Combustível':'Almoxarifado';
+const estAlm=id=>{try{return A().estI(id)}catch(e){return {saldo:0,cm:0}}};
+
+/* ---------------- 1. classificação: para onde vai cada item ---------------- */
+const RX_CMB=/\b(diesel|s ?10|s ?500|gasolina|etanol|arla|oleo (de )?(motor|hidraulico|transmissao|lubrificante|diferencial|cambio|2 ?tempos|dois tempos|compressor)|oleo \d+ ?w ?\d+|\d+ ?w ?\d+|lubrificantes?|graxas?|fluido (de )?freio|aditivo (de |para )?(radiador|diesel|combustivel))\b/;
+const RX_FICA=/\b(filtros?|elementos?|oleo de soja|soja|cozinha|bombas?|mangueiras?|engraxadeiras?|bicos?|retentor(es)?|vedac|junta)\b/;
+function ultimoDestino(id){let d='',q='';(DATA.almEntradas||[]).forEach(e=>(e.itens||[]).forEach(l=>{if(l&&l.itemId===id&&l.destino){const k=String(e.criadoEm||e.data||'');if(k>q){q=k;d=l.destino}}}));return d}
+function classificar(i){
+ if(!i)return{setor:'almox',motivo:''};
+ const p=prodLig(i);if(p)return{setor:SETOR,motivo:'ligado a '+nomeProduto(p),ligado:true};
+ if(['Cozinha','Limpeza','EPI'].includes(i.categoria))return{setor:'almox',motivo:'categoria '+i.categoria};
+ if(i.categoria===CAT)return{setor:SETOR,motivo:'categoria '+CAT};
+ const n=N(i.nome);const m=RX_CMB.exec(n);
+ if(m&&!RX_FICA.test(n))return{setor:SETOR,motivo:'pelo nome ('+m[0]+')'};
+ const u=ultimoDestino(i.id);if(u)return{setor:u,motivo:'último destino usado'};
+ return{setor:'almox',motivo:''};
+}
+/* destino de uma linha de entrada já gravada: o que está escrito nela; sem nada escrito, o item ligado manda para o
+   setor só se a entrada foi feita depois da ligação (o que entrou antes continua no almoxarifado) */
+function destinoLinha(e,l){
+ if(!l)return 'almox';
+ if(l.destino===SETOR)return l.produtoSetorId&&PROD(l.produtoSetorId)?SETOR:(prodLig(ITEM(l.itemId))?SETOR:'almox');
+ if(l.destino)return 'almox';
+ const i=ITEM(l.itemId);if(!prodLig(i)||!i.ligadoEm)return 'almox';
+ return String((e&&(e.criadoEm||e.createdAt))||'')>=String(i.ligadoEm)?SETOR:'almox';
+}
+
+/* ---------------- 2. o que entra no Combustível vindo do almoxarifado (um registro só, no almoxarifado) ---------------- */
+let ME={a:null,p:null,v:null};
+function entradasNoSetor(){
+ if(ME.a===DATA.alm&&ME.p===DATA.produtos&&ME.v)return ME.v;
+ const out=[];
+ (DATA.almEntradas||[]).forEach(e=>(e.itens||[]).forEach((l,k)=>{if(destinoLinha(e,l)!==SETOR)return;const i=ITEM(l.itemId);const pid=l.produtoSetorId||(i&&i.produtoSetorId);if(!pid)return;
+  const q=l.qtdSetor!=null&&l.qtdSetor!==''?+l.qtdSetor:r3((+l.qtd||0)*fator(i));const sem=l.preco===null||l.preco===''||l.preco==null;
+  out.push({id:'e:'+e.id+':'+k,data:e.data,hora:e.hora||'',tipo:'Entrada pelo Almoxarifado',produtoId:pid,qtd:q,valor:sem?null:r2((+l.qtd||0)*(+l.preco||0)),
+   parte:(()=>{try{return B().nomeFornA(e.fornecedorId)}catch(x){return ''}})(),doc:'Entrada do almoxarifado'+(e.nota?' · nota '+e.nota:'')+(i?' · '+(i.codigo?i.codigo+' ':'')+i.nome:''),
+   href:'#/almEntrada/'+e.id,por:e.criadoPor||e.lancadoPorId,em:e.criadoEm||'',rec:e})}));
+ (DATA.alm||[]).forEach(t=>{if(!t||t.jbt!=='transf'||t.destino!==SETOR||!t.produtoId)return;const i=ITEM(t.itemId);
+  out.push({id:'t:'+t.id,data:t.data,hora:t.hora||'',tipo:'Transferência do Almoxarifado',produtoId:t.produtoId,qtd:+t.qtdSetor||0,valor:t.valor==null?null:+t.valor,
+   parte:'Almoxarifado',doc:'Transferência'+(i?' de '+(i.codigo?i.codigo+' ':'')+i.nome:'')+(t.motivo?' · '+t.motivo:''),href:'#/estoqueCentral',por:t.criadoPor,em:t.criadoEm||'',rec:t})});
+ ME={a:DATA.alm,p:DATA.produtos,v:out};return out;
+}
+/* movimentos que mexem no saldo do almoxarifado por causa da integração (para o cálculo e a lista do almoxarifado) */
+let MS={a:null,m:null,v:null};
+function movsAlmSaldo(){
+ if(MS.a===DATA.alm&&MS.m===DATA.estoqueMov&&MS.v)return MS.v;
+ const out=[];
+ (DATA.alm||[]).forEach(t=>{if(!t||t.jbt!=='transf'||!t.itemId)return;const p=PROD(t.produtoId);
+  out.push({id:t.id,itemId:t.itemId,q:-(+t.qtd||0),data:t.data,em:t.criadoEm||'',doc:'Para o estoque do '+nomeSet(t.destino)+(p?' ('+nomeProduto(p)+', '+fQtd(+t.qtdSetor||0)+' '+(p.unidade||'')+')':'')+(t.motivo?' · '+t.motivo:''),href:'#/estoqueCentral'})});
+ (DATA.estoqueMov||[]).forEach(m=>{if(!m||!m.almItemId||m.tipo!=='Transferência entre setores')return;const p=PROD(m.produtoId);
+  out.push({id:m.id,itemId:m.almItemId,q:+m.qtdAlm||0,data:m.data,em:m.criadoEm||'',doc:'Voltou do estoque do Combustível'+(p?' ('+nomeProduto(p)+', '+fQtd(Math.abs(+m.delta||0))+' '+(p.unidade||'')+')':'')+(m.motivo?' · '+m.motivo:''),href:'#/estoqueMov/'+m.id})});
+ MS={a:DATA.alm,m:DATA.estoqueMov,v:out};return out;
+}
+
+/* ---------------- 3. concorrência: versão de cada produto no banco ---------------- */
+async function chamar(acao,dados){
+ if(window.JB_NUVEM_API)return JB_NUVEM_API.rpc('jb_estoque',{p_acao:acao,p_dados:dados});
+ if(window.JB_CORE_PONTE&&JB_CORE_PONTE.api&&typeof JB_CORE_PONTE.api.estoque==='function')return JB_CORE_PONTE.api.estoque(acao,dados);
+ return null}
+const semServidor=e=>/42883|does not exist|não existe|desligado|PGRST202|Could not find/i.test(String((e&&(e.message||e.code))||e||''));
+async function lerVersoes(chaves){try{const r=await chamar('versoes',{chaves});return r&&r.versoes?r.versoes:null}catch(e){if(!semServidor(e))console.warn('V165 versões',e);return null}}
+/* {ok:true} | {ok:false,mudou:[…]} — sem a função no banco (migração não aplicada) segue com a conferência do aparelho */
+async function reservar(vers){if(!vers)return{ok:true,local:true};try{const r=await chamar('reservar',{versoes:vers});return r&&typeof r.ok==='boolean'?r:{ok:true,local:true}}
+ catch(e){if(semServidor(e))return{ok:true,local:true};throw e}}
+const MSG_MUDOU='Outra pessoa mexeu neste produto agora mesmo. O saldo foi atualizado: confira e confirme de novo.';
+
+/* ---------------- 4. janelas ---------------- */
+function janela(titulo,corpo,{ok='Confirmar',depois}={}){return new Promise(res=>{
+ const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ v.innerHTML=`<div class="modal ei-modal" role="dialog" aria-modal="true" aria-labelledby="eiT"><h3 id="eiT">${esc(titulo)}</h3>${corpo}<p class="ei-erro" data-eierro></p><div class="acoes"><button type="button" class="btn" data-r="0">Cancelar</button><button type="button" class="btn pri" data-r="1">${esc(ok)}</button></div></div>`;
+ let feito=false;const fim=r=>{if(feito)return;feito=true;if(typeof animarSaida==='function')animarSaida(v);else v.remove();res(r)};
+ const ctl={v,erro:t=>{const e=v.querySelector('[data-eierro]');if(e)e.textContent=t||''},fechar:()=>fim(true),ocupado:b=>{const x=v.querySelector('[data-r="1"]');if(x)x.disabled=!!b}};
+ v.addEventListener('click',async e=>{if(e.target===v)return fim(false);const b=e.target.closest('[data-r]');if(!b)return;if(b.dataset.r!=='1')return fim(false);
+  if(!depois)return fim(true);ctl.ocupado(true);ctl.erro('');let r=false;try{r=await depois(ctl)}catch(err){ctl.erro(String(err&&err.message||err))}ctl.ocupado(false);if(r)fim(true)});
+ v.addEventListener('keydown',e=>{if(e.key==='Escape')fim(false)});
+ document.body.appendChild(v);const f=v.querySelector('input,select,textarea');if(f&&!matchMedia('(pointer:coarse)').matches)f.focus()})}
+function escolha(titulo,texto,ops){return new Promise(res=>{
+ const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
+ v.innerHTML=`<div class="modal ei-modal" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3><p>${esc(texto)}</p><div class="ei-ops">${ops.map(([k,l,pri])=>`<button type="button" class="btn${pri?' pri':''}" data-k="${esc(k)}">${esc(l)}</button>`).join('')}<button type="button" class="btn" data-k="">Voltar</button></div></div>`;
+ const fim=r=>{if(typeof animarSaida==='function')animarSaida(v);else v.remove();res(r||null)};
+ v.addEventListener('click',e=>{if(e.target===v)return fim(null);const b=e.target.closest('[data-k]');if(b)fim(b.dataset.k)});
+ document.body.appendChild(v)})}
+const val=(v,sel)=>{const x=v.querySelector(sel);return x?String(x.value||'').trim():''};
+const num=(v,sel)=>{const t=val(v,sel).replace(/\./g,'').replace(',','.');return t===''||isNaN(+t)?NaN:+t};
+const campo=(id,rot,html,aj)=>`<div class="cmp"><label for="${id}">${rot}</label>${html}${aj?`<p class="ei-saldo">${aj}</p>`:''}</div>`;
+function sincronizarAgora(){try{if(window.JB_CORE_PONTE&&JB_CORE_PONTE.api&&typeof JB_CORE_PONTE.api.sincronizar==='function')JB_CORE_PONTE.api.sincronizar()}catch(e){}}
+const esperar=async(f,ms)=>{for(let n=0;n<(ms||3000)/100&&!f();n++)await new Promise(r=>setTimeout(r,100))};
+
+/* ---------------- 5. ligar o item mestre ao produto do Combustível ---------------- */
+const UN_SETOR={litro:'L',kg:'kg'};
+const tipoItemDe=n=>/graxa/.test(n)?'Graxa':/arla|aditivo|fluido/.test(n)?'Aditivo':/diesel|gasolina|etanol|\bs ?10\b|\bs ?500\b/.test(n)?'Combustível':'Óleo lubrificante';
+async function criarProdutoSetor(i){
+ if(!pode('produtos','e'))throw new Error('Para mandar “'+i.nome+'” para o Combustível ele precisa de um produto no setor, e o seu perfil não cadastra produtos. Peça ao gerente ou deixe no Almoxarifado.');
+ const n=N(i.nome);const un=UN_SETOR[i.unidade]||String(i.unidade||'un');
+ const igual=DATA.produtos.find(p=>p.setor===SETOR&&p.situacao!=='Inativo'&&N(p.nome)===n&&String(p.unidade||'')===un&&!itemDoProd(p.id));
+ if(igual)return igual;
+ const ti=tipoItemDe(n);const ag=agora();
+ const p={id:novoId(),nome:String(i.nome).trim(),setor:SETOR,tipoItem:ti,tipoComb:ti==='Combustível'?(/gasolina/.test(n)?'Gasolina':/etanol/.test(n)?'Etanol':'Diesel'):'',unidade:un,controlaEstoque:'Sim',situacao:'Ativo',
+  almItemId:i.id,obs:'Criado pelo cadastro mestre do almoxarifado ('+(i.codigo||i.nome)+').',criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+ await gravar('produtos',p,null);try{await registrarLog('produtos',p.id,'criou',null,p)}catch(e){}
+ return p}
+async function ligarItem(i,p,fat){
+ const ant=ITEM(i.id)||i;const ag=agora();
+ const novo={...clone(ant),produtoSetorId:p.id,setorEstoque:SETOR,fatorSetor:fat>0?fat:1,ligadoEm:ag,alteradoEm:ag,alteradoPor:eu()};
+ await gravar('almItens',novo,ant);
+ try{await logV('almItens',i.id,'ligou ao Setor de Combustível',[{c:'Produto do setor',de:'',para:nomeProduto(p)},{c:'Fator',de:'',para:'1 '+unI(i)+' = '+fQtd(novo.fatorSetor)+' '+(p.unidade||'')}])}catch(e){}
+ return novo}
+async function garantirLigacao(i){
+ const p0=prodLig(i);if(p0)return{produto:p0,fator:fator(i),item:i};
+ const p=await criarProdutoSetor(i);const it=await ligarItem(i,p,1);return{produto:p,fator:1,item:it}}
+
+/* ---------------- 6. entrada do almoxarifado: destino de cada linha ---------------- */
+function htmlDestinoLinha(i,l,k){
+ if(!i||['Cozinha','Limpeza','EPI'].includes(i.categoria))return '';
+ const c=classificar(i);const sel=l.destino||'';const ef=sel||c.setor;
+ if(c.setor!==SETOR&&!sel)return `<div class="ei-dest">Fica no Almoxarifado <select data-edest="${k}" aria-label="Destino da linha ${k+1}"><option value="">automático</option><option value="${SETOR}">mandar para o Combustível</option></select></div>`;
+ return `<div class="ei-dest"><span>Destino:</span><select data-edest="${k}" aria-label="Destino da linha ${k+1}">${opt([['','automático: '+nomeSet(c.setor)],[SETOR,'Estoque do Combustível'],['almox','Fica no Almoxarifado']],sel)}</select>${c.motivo?`<span class="ei-mot">${esc(ef===SETOR?'→ Combustível · '+c.motivo:c.motivo)}</span>`:''}</div>`}
+const efLinha=l=>{const i=ITEM(l.itemId);return l.destino||(i?classificar(i).setor:'almox')};
+function txtPassoEntrada(ls){const n=(ls||[]).filter(l=>l.itemId&&efLinha(l)===SETOR).length;return n?'. '+n+(n===1?' item vai':' itens vão')+' direto para o estoque do Setor de Combustível (uma entrada só, sem lançar de novo lá)':''}
+async function prepararLinhasEntrada(ls){
+ const out=[];
+ for(const l of ls){const i=ITEM(l.itemId);const ef=efLinha(l);
+  if(ef===SETOR&&i){const g=await garantirLigacao(i);out.push({destino:SETOR,produtoSetorId:g.produto.id,qtdSetor:r3((+l.qtd||0)*g.fator)})}
+  else if(i&&(prodLig(i)||classificar(i).setor===SETOR))out.push({destino:'almox'});
+  else out.push(null)}
+ return out}
+/* compra × transferência, do lado do almoxarifado */
+const nNota=x=>String(x==null?'':x).replace(/\D/g,'').replace(/^0+/,'');
+const docF=x=>String(x||'').replace(/\D/g,'');
+function mesmoForn(docA,nomeA,docB,nomeB){const a=docF(docA),b=docF(docB);if(a&&b)return a===b;const x=N(nomeA).split(' ')[0],y=N(nomeB).split(' ')[0];return !x||!y||x===y}
+const dias=(a,b)=>Math.abs((Date.parse(a)-Date.parse(b))/864e5);
+const perto=(a,b)=>a>0&&b>0&&Math.abs(a-b)<=Math.max(a,b)*0.03;
+const comprasSetor=()=>(DATA.compras||[]).filter(v=>v&&v.setor===SETOR&&!(typeof cancV==='function'&&cancV(v)));
+function conferirEntradaAlm(d,ls){
+ const erros=[],avisos=[];const fa=(()=>{try{return (DATA.almFornecedores||[]).find(f=>f.id===d.fornecedorId)||{}}catch(e){return{}}})();
+ const vai=(ls||[]).filter(l=>l.itemId&&efLinha(l)===SETOR);if(!vai.length)return{erros,avisos};
+ const nn=nNota(d.nota);
+ if(nn){const v=comprasSetor().find(v=>nNota((v.fiscal||{}).numero)===nn&&mesmoForn(fa.doc,fa.nome,(v.fornecedor||{}).doc,(v.fornecedor||{}).nome));
+  if(v)erros.push('A nota '+d.nota+' já foi lançada como compra no Setor de Combustível (compra nº '+fNumV(v.numero)+' de '+fData(v.data)+'). Lançar de novo deixaria o estoque e a conta a pagar em dobro. Se é o mesmo material, ele já está no estoque do Combustível.')}
+ vai.forEach(l=>{const i=ITEM(l.itemId);const p=prodLig(i);if(!p)return;const q=r3((+l.qtd||0)*fator(i));
+  const v=comprasSetor().find(v=>dias(v.data,d.data||hoje())<=7&&(v.itens||[]).some(x=>x.produtoId===p.id&&perto(+x.qtd,q)));
+  if(v&&!(nn&&nNota((v.fiscal||{}).numero)===nn))avisos.push('O Combustível lançou '+fQtd(q)+' '+(p.unidade||'')+' de '+p.nome+' em '+fData(v.data)+' (compra nº '+fNumV(v.numero)+'). Se for o mesmo material, não lance aqui: ficaria em dobro.')});
+ return{erros,avisos}}
+
+/* ---------------- 7. compra no Setor de Combustível: é compra nova ou é o material do almoxarifado? ---------------- */
+async function antesCompraSetor(d){
+ if(!d||d.setor!==SETOR)return true;
+ const forn=typeof FORN==='function'?FORN(d.parteId||d.fornecedorId)||{}:{};const nf=nNota(d.nf);
+ const its=(d.itens||[]).filter(x=>x&&x.produtoId&&+x.qtd>0);if(!its.length)return true;
+ const pids=new Set(its.map(x=>x.produtoId));
+ const linhasAlm=[];(DATA.almEntradas||[]).forEach(e=>(e.itens||[]).forEach(l=>{const i=ITEM(l.itemId);const p=l.produtoSetorId?PROD(l.produtoSetorId):prodLig(i);if(!p||!pids.has(p.id))return;
+  const fa=(DATA.almFornecedores||[]).find(f=>f.id===e.fornecedorId)||{};linhasAlm.push({e,l,i,p,fa,q:l.qtdSetor!=null?+l.qtdSetor:r3((+l.qtd||0)*fator(i)),dest:destinoLinha(e,l)})}));
+ const porNota=nf?linhasAlm.find(x=>nNota(x.e.nota)===nf&&mesmoForn(x.fa.doc,x.fa.nome,(typeof docFornecedor==='function'?docFornecedor(forn):'')||forn.doc||forn.cnpj||forn.cpf,(typeof nomeFornecedor==='function'?nomeFornecedor(forn):'')||forn.nome)):null;
+ if(porNota){const ja=porNota.dest===SETOR;
+  const r=await escolha('Esta nota já foi lançada no Almoxarifado',
+   'A nota '+d.nf+' entrou pelo Almoxarifado em '+fData(porNota.e.data)+' ('+fQtd(porNota.q)+' '+(porNota.p.unidade||'')+' de '+porNota.p.nome+'). '+(ja?'Esse material já está no estoque do Combustível. Lançar a compra de novo deixaria o estoque e a conta a pagar em dobro.':'O material está no estoque do Almoxarifado. Se ele veio para cá, é transferência, não compra.'),
+   ja?[]:[['trf','Transferir do Almoxarifado',1]]);
+  if(r==='trf')abrirTransferir(porNota.i.id);return false}
+ const parecido=linhasAlm.find(x=>dias(x.e.data,d.data||hoje())<=7&&its.some(y=>y.produtoId===x.p.id&&perto(+y.qtd,x.q)));
+ if(parecido){const ja=parecido.dest===SETOR;
+  const r=await escolha('Compra nova ou o mesmo material?',
+   'Em '+fData(parecido.e.data)+' entraram '+fQtd(parecido.q)+' '+(parecido.p.unidade||'')+' de '+parecido.p.nome+' pelo Almoxarifado'+(ja?', direto para o estoque do Combustível':'')+'. Esta compra é outra (nota diferente) ou é o mesmo material?',
+   [['nova','É compra nova (outra nota)',1],['mesmo',ja?'É o mesmo material (já está no estoque)':'É o mesmo material: transferir do Almoxarifado']]);
+  if(r==='nova'){if(!nf){toast('Informe o número da nota desta compra para diferenciar da entrada do almoxarifado.','erro');return false}return true}
+  if(r==='mesmo'){if(ja)toast('Nada foi lançado: o material já está no estoque do Combustível.','ok');else abrirTransferir(parecido.i.id);return false}
+  return false}
+ const comSaldo=its.map(x=>{const i=itemDoProd(x.produtoId);return i&&estAlm(i.id).saldo>0?{i,p:PROD(x.produtoId)}:null}).find(Boolean);
+ if(comSaldo){const s=estAlm(comSaldo.i.id).saldo;
+  const r=await escolha('Tem '+comSaldo.p.nome+' no Almoxarifado',fQtd(s)+' '+unI(comSaldo.i)+' estão no estoque do Almoxarifado. Se o material veio de lá, use Transferir: compra só quando chegou de um fornecedor.',
+   [['nova','É compra de fornecedor',1],['trf','Transferir do Almoxarifado']]);
+  if(r==='trf'){abrirTransferir(comSaldo.i.id);return false}return r==='nova'}
+ return true}
+
+/* ---------------- 8. transferir, devolver, usar e requisição ---------------- */
+async function abrirTransferir(itemId){
+ const i=ITEM(itemId);if(!i){toast('Item não encontrado.','erro');return}
+ if(!pode('almSaida','e')&&!pode('almAjustes','e')){toast('Seu perfil não movimenta o almoxarifado.','erro');return}
+ sincronizarAgora();const vers=await lerVersoes(['i:'+i.id].concat(i.produtoSetorId?['p:'+i.produtoSetorId]:[]));
+ const p=prodLig(i);const e=estAlm(i.id);
+ await janela('Transferir para o Setor de Combustível',
+  `<p>${esc((i.codigo?i.codigo+' · ':'')+i.nome)}<br><span class="ei-saldo">No Almoxarifado: <b>${esc(fQtd(e.saldo)+' '+unI(i))}</b>${p?' · vai para '+esc(nomeProduto(p))+(fator(i)!==1?' (1 '+esc(unI(i))+' = '+esc(fQtd(fator(i)))+' '+esc(p.unidade||'')+')':''):' · o produto do Combustível é criado e ligado agora'}</span></p>
+   <div class="campos">${campo('eiQ','Quantidade ('+esc(unI(i))+')','<input id="eiQ" inputmode="decimal" autocomplete="off">')}${campo('eiM','Motivo ou observação','<input id="eiM" autocomplete="off">')}${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}</div>
+   <p class="ei-saldo">Transferência não é compra nem consumo: o estoque total não muda e não gera conta a pagar.</p>`,
+  {ok:'Transferir',depois:async ctl=>{
+   const q=num(ctl.v,'#eiQ');const dt=val(ctl.v,'#eiD')||hoje();
+   if(!(q>0))throw new Error('Informe a quantidade.');if(dt>hoje())throw new Error('A data não pode ser futura.');
+   const s=estAlm(i.id).saldo;if(q>s+1e-9)throw new Error('O Almoxarifado tem só '+fQtd(s)+' '+unI(i)+'.');
+   const rv=await reservar(vers);if(!rv.ok){toast(MSG_MUDOU,'erro');return true}
+   const g=await garantirLigacao(ITEM(i.id)||i);const cm=estAlm(i.id).cm;const ag=agora();
+   const rec={id:novoId(),jbt:'transf',origem:'almox',destino:SETOR,data:dt,hora:hh(),itemId:i.id,qtd:r3(q),produtoId:g.produto.id,qtdSetor:r3(q*g.fator),
+    valor:cm>0?r2(q*cm):null,motivo:val(ctl.v,'#eiM'),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+   await gravar('alm',rec,null);try{await logV('almItens',i.id,'transferiu para o Setor de Combustível',[{c:'Quantidade',de:'',para:fQtd(rec.qtd)+' '+unI(i)+' → '+fQtd(rec.qtdSetor)+' '+(g.produto.unidade||'')}])}catch(e){}
+   toast('Transferido: '+fQtd(rec.qtdSetor)+' '+(g.produto.unidade||'')+' agora estão no estoque do Combustível.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+}
+async function abrirDevolver(pid){
+ const p=PROD(pid);const its=itensDoProd(pid);if(!p||!its.length){toast('Este produto não está ligado a um item do almoxarifado.','erro');return}
+ if(!pode('estoqueMov','e')){toast('Seu perfil não movimenta o estoque do Combustível.','erro');return}
+ sincronizarAgora();const vers=await lerVersoes(['p:'+pid].concat(its.map(i=>'i:'+i.id)));
+ await janela('Devolver ao Almoxarifado',
+  `<p>${esc(nomeProduto(p))}<br><span class="ei-saldo">No Combustível: <b>${esc(fQtd(saldoP(pid))+' '+(p.unidade||''))}</b></span></p>
+   <div class="campos">${campo('eiQ','Quantidade ('+esc(p.unidade||'')+')','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
+   ${its.length>1?campo('eiI','Volta para o almoxarifado como','<select id="eiI">'+opt(its.map(x=>[x.id,(x.codigo?x.codigo+' · ':'')+x.nome+' (1 '+unI(x)+' = '+fQtd(fator(x))+' '+(p.unidade||'')+')']),its[0].id)+'</select>'):''}
+   ${campo('eiM','Motivo','<input id="eiM" autocomplete="off" placeholder="ex.: sobrou da troca de óleo">')}</div>`,
+  {ok:'Devolver',depois:async ctl=>{
+   const i=its.find(x=>x.id===val(ctl.v,'#eiI'))||its[0];
+   const q=num(ctl.v,'#eiQ');if(!(q>0))throw new Error('Informe a quantidade.');const s=saldoP(pid);if(q>s+1e-9)throw new Error('O Combustível tem só '+fQtd(s)+' '+(p.unidade||'')+'.');
+   const rv=await reservar(vers);if(!rv.ok){toast(MSG_MUDOU,'erro');return true}
+   const ag=agora();const rec={id:novoId(),setor:SETOR,tipo:'Transferência entre setores',produtoId:pid,quantidade:r3(q),delta:-r3(q),unidade:p.unidade||'',anterior:r3(s),atual:r3(s-q),
+    almItemId:i.id,qtdAlm:r3(q/fator(i)),destino:'Almoxarifado',motivo:val(ctl.v,'#eiM')||'Devolução ao Almoxarifado',data:hoje(),hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+   await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}
+   toast('Devolvido ao Almoxarifado.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+}
+const maquinas=()=>(DATA.locais||[]).filter(l=>l&&l.setor===SETOR&&l.situacao!=='Inativo').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(l=>[l.id,nomeLocal(l)]);
+async function abrirUsar(pid){
+ const p=PROD(pid);if(!p){toast('Produto não encontrado.','erro');return}
+ if(!pode('consumos','e')){toast('Seu perfil não lança consumo no Combustível.','erro');return}
+ sincronizarAgora();const vers=await lerVersoes(['p:'+pid]);
+ await janela('USAR · '+p.nome,
+  `<p class="ei-saldo">No estoque do Combustível: <b>${esc(fQtd(saldoP(pid))+' '+(p.unidade||''))}</b>. Só baixa quando você confirmar.</p>
+   <div class="campos">${campo('eiQ','Quantidade usada ('+esc(p.unidade||'')+')','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
+   ${campo('eiL','Veículo, máquina ou equipamento','<select id="eiL"><option value="">Não se aplica</option>'+opt(maquinas(),'')+'</select>')}
+   ${campo('eiF','Finalidade *','<input id="eiF" autocomplete="off" placeholder="ex.: troca de óleo, lubrificação da maromba">')}
+   ${campo('eiR','Responsável','<input id="eiR" autocomplete="off" value="'+esc(APP.nome||'')+'">')}</div>`,
+  {ok:'Confirmar uso',depois:async ctl=>{
+   const q=num(ctl.v,'#eiQ');const fin=val(ctl.v,'#eiF');if(!(q>0))throw new Error('Informe a quantidade.');if(!fin)throw new Error('Informe a finalidade.');
+   const s=saldoP(pid);if(controla(p)&&q>s+1e-9)throw new Error('Estoque insuficiente: o saldo é '+fQtd(s)+' '+(p.unidade||'')+'. Saldo negativo só pela tela de abastecimento, com autorização do gerente.');
+   if(!await confirmar('Confirmar o uso?',fQtd(q)+' '+(p.unidade||'')+' de '+p.nome+' · '+fin+'. O saldo do Combustível baixa agora.',{ok:'Confirmar'}))return false;
+   const rv=await reservar(vers);if(!rv.ok){toast(MSG_MUDOU,'erro');return true}
+   const cu=typeof custoMedio==='function'?custoMedio(pid):0;const ag=agora();const loc=val(ctl.v,'#eiL');
+   const rec={id:novoId(),setor:SETOR,acao:'usar',produtoId:pid,quantidade:r3(q),unidade:p.unidade||'',...(loc?{localId:loc}:{}),origem:'Estoque da fábrica',finalidade:fin,
+    operador:val(ctl.v,'#eiR'),responsavelNome:val(ctl.v,'#eiR'),anterior:r3(s),atual:r3(s-q),custoUnit:cu||0,custoTotal:r2(q*(cu||0)),data:hoje(),hora:hh(),obs:'USAR: '+fin,
+    criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+   await gravar('consumos',rec,null);try{await registrarLog('consumos',rec.id,'criou',null,rec)}catch(e){}
+   toast('Uso registrado: '+fQtd(q)+' '+(p.unidade||'')+' de '+p.nome+'.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+}
+const setoresReq=()=>{let L=[];try{L=(CFG&&CFG.setores)||[]}catch(e){}return ['Departamento Pessoal',...L].filter((x,k,a)=>x&&a.indexOf(x)===k)};
+async function abrirRequisicao(pid){
+ const p=PROD(pid);if(!p){toast('Produto não encontrado.','erro');return}
+ if(!pode('estoqueMov','e')){toast('Seu perfil não movimenta o estoque do Combustível.','erro');return}
+ sincronizarAgora();const vers=await lerVersoes(['p:'+pid]);
+ await janela('Requisição de outro setor · '+p.nome,
+  `<p class="ei-saldo">No estoque do Combustível: <b>${esc(fQtd(saldoP(pid))+' '+(p.unidade||''))}</b>. É saída para o setor que pediu, não consumo do Combustível.</p>
+   <div class="campos">${campo('eiS','Setor que pediu *','<input id="eiS" list="eiSL" autocomplete="off"><datalist id="eiSL">'+setoresReq().map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist>')}
+   ${campo('eiQ','Quantidade ('+esc(p.unidade||'')+')','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
+   ${campo('eiP','Quem retirou *','<input id="eiP" autocomplete="off">')}${campo('eiF','Finalidade','<input id="eiF" autocomplete="off">')}${campo('eiA','Autorizado por','<input id="eiA" autocomplete="off" value="'+esc(APP.nome||'')+'">')}</div>`,
+  {ok:'Registrar a entrega',depois:async ctl=>{
+   const st=val(ctl.v,'#eiS'),q=num(ctl.v,'#eiQ'),ps=val(ctl.v,'#eiP');if(!st)throw new Error('Informe o setor que pediu.');if(!(q>0))throw new Error('Informe a quantidade.');if(!ps)throw new Error('Informe quem retirou.');
+   const s=saldoP(pid);if(q>s+1e-9)throw new Error('Estoque insuficiente: o saldo é '+fQtd(s)+' '+(p.unidade||'')+'.');
+   const rv=await reservar(vers);if(!rv.ok){toast(MSG_MUDOU,'erro');return true}
+   const ag=agora();const fin=val(ctl.v,'#eiF');
+   const rec={id:novoId(),setor:SETOR,tipo:'Saída',requisicao:true,setorSolicitante:st,produtoId:pid,quantidade:r3(q),delta:-r3(q),unidade:p.unidade||'',anterior:r3(s),atual:r3(s-q),
+    destino:st,responsavel:ps,autorizadoPor:val(ctl.v,'#eiA'),finalidade:fin,motivo:'Requisição do setor '+st+(fin?' · '+fin:''),data:hoje(),hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+   await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}
+   toast('Requisição registrada: saída para '+st+'.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+}
+/* ligar um item do almoxarifado (já existente) a um produto do Combustível, com o fator de unidade */
+async function abrirLigar(itemId){
+ const i=ITEM(itemId);if(!i)return;if(!pode('almItens','e')){toast('Seu perfil não altera itens.','erro');return}
+ const ps=DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo').map(p=>[p.id,nomeProduto(p)+' ('+(p.unidade||'')+')'+(itemDoProd(p.id)?' · já tem código '+(itemDoProd(p.id).codigo||''):'')]);
+ await janela('Ligar ao Setor de Combustível',
+  `<p>${esc((i.codigo?i.codigo+' · ':'')+i.nome)} <span class="ei-saldo">(${esc(unI(i))})</span></p>
+   <div class="campos">${campo('eiP','Produto do Combustível','<select id="eiP"><option value="">Criar um produto novo com este nome</option>'+opt(ps,'')+'</select>')}
+   ${campo('eiF','Quanto vale 1 '+esc(unI(i))+' no Combustível','<input id="eiF" inputmode="decimal" value="1">','Ex.: balde de 20 L = 20. Mesma unidade = 1.')}</div>
+   <p class="ei-saldo">O que já está no Almoxarifado continua lá; use Transferir para mandar. As próximas entradas deste item vão direto para o Combustível.</p>`,
+  {ok:'Ligar',depois:async ctl=>{const f=num(ctl.v,'#eiF');if(!(f>0))throw new Error('Informe o fator (número maior que zero).');
+   const pid=val(ctl.v,'#eiP');const p=pid?PROD(pid):await criarProdutoSetor(i);await ligarItem(i,p,f);toast('Ligado a '+nomeProduto(p)+'.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+}
+/* cadastro mestre dos produtos do Combustível que ainda não têm item no almoxarifado (CMB-001…) */
+async function criarMestres(){
+ if(!pode('almItens','e')){toast('Seu perfil não cadastra itens.','erro');return 0}
+ const falta=DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo'&&!itemDoProd(p.id)).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ if(!falta.length)return 0;
+ const re=/^CMB-(\d+)$/;let n=Math.max(0,...(DATA.almItens||[]).map(i=>{const m=re.exec(String(i.codigo||''));return m?+m[1]:0}));const ag=agora();let feitos=0;
+ for(const p of falta){n++;const un=p.unidade==='L'?'litro':p.unidade==='kg'?'kg':String(p.unidade||'unidade');
+  const rec={...(MODS.almItens&&MODS.almItens.padrao?MODS.almItens.padrao():{}),id:novoId(),jbt:undefined,nome:p.nome,categoria:CAT,unidade:un,codigo:'CMB-'+String(n).padStart(3,'0'),ativo:true,data:hoje(),
+   produtoSetorId:p.id,setorEstoque:SETOR,fatorSetor:1,ligadoEm:ag,obs:'Item mestre do produto do Setor de Combustível (V165).',criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+  delete rec.jbt;await gravar('almItens',rec,null);try{await registrarLog('almItens',rec.id,'criou',null,rec)}catch(e){}feitos++}
+ return feitos}
+
+/* ---------------- 9. botões nas telas que já existem ---------------- */
+function botoesProduto(p,s){if(s!==SETOR||!p||!controla(p))return '';
+ const b=[];if(pode('consumos','e'))b.push(`<button type="button" class="btn pri" data-je="usar" data-pid="${esc(p.id)}">USAR</button>`);
+ if(pode('estoqueMov','e'))b.push(`<button type="button" class="btn" data-je="req" data-pid="${esc(p.id)}">Requisição</button>`);
+ if(pode('estoqueMov','e')&&itemDoProd(p.id))b.push(`<button type="button" class="btn" data-je="dev" data-pid="${esc(p.id)}">Devolver ao Almox.</button>`);
+ return b.length?`<span class="ei-bts">${b.join('')}</span>`:''}
+function ligarBotoes(c){c.querySelectorAll('[data-je]').forEach(b=>{b.onclick=e=>{e.preventDefault();e.stopPropagation();const k=b.dataset.je;
+ if(k==='usar')abrirUsar(b.dataset.pid);else if(k==='req')abrirRequisicao(b.dataset.pid);else if(k==='dev')abrirDevolver(b.dataset.pid);
+ else if(k==='trf')abrirTransferir(b.dataset.item);else if(k==='lig')abrirLigar(b.dataset.item)}})}
+
+/* ---------------- 10. tela Estoque integrado (#/estoqueCentral) ---------------- */
+const UC={q:'',setor:'',tipo:'',prod:'',quem:'',de:'',ate:'',lim:150};
+function linhasSaldo(){
+ /* uma linha por produto do Combustível: Almoxarifado = soma dos itens ligados (convertidos pelo fator) */
+ const L=[];
+ DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo').forEach(p=>{const its=itensDoProd(p.id);const i=its[0]||null;
+  const alm=r3(its.reduce((a,x)=>a+estAlm(x.id).saldo*fator(x),0));const c=saldoP(p.id);
+  L.push({i,its,p,cod:i?i.codigo||'':'',nome:p.nome,un:p.unidade||'',alm,comb:c,tot:r3(alm+c),min:p.estoqueMinimo!==''&&p.estoqueMinimo!=null?+p.estoqueMinimo:(i&&i.minimo!==''&&i.minimo!=null?+i.minimo:null)})});
+ (DATA.almItens||[]).filter(i=>ativoI(i)&&i.categoria===CAT&&!prodLig(i)).forEach(i=>{const a=estAlm(i.id).saldo;L.push({i,its:[i],p:null,cod:i.codigo||'',nome:i.nome,un:unI(i),alm:a,comb:0,tot:a,min:i.minimo!==''&&i.minimo!=null?+i.minimo:null})});
+ return L.sort((a,b)=>String(a.cod||'~').localeCompare(String(b.cod||'~'),'pt-BR',{numeric:true})||String(a.nome).localeCompare(String(b.nome),'pt-BR'))}
+function paraConferir(){return (DATA.almItens||[]).filter(i=>ativoI(i)&&!prodLig(i)&&classificar(i).setor===SETOR)}
+const GRUPO_T=t=>{t=String(t||'');return /^Transfer/i.test(t)?'trf':/USAR|^Uso|Abastec|Consumo/i.test(t)?'uso':/Requisi|Saída|EPI|Pagamento de lenha/i.test(t)?'sai':/Devolu/i.test(t)?'dev':/Ajuste|Acerto|contagem/i.test(t)?'aju':/Perda|perdid|danific/i.test(t)?'per':/Entrada|Compra/i.test(t)?'ent':'out'};
+const GRUPOS=[['ent','Entradas'],['trf','Transferências'],['sai','Requisições e saídas'],['uso','Consumo (USAR e abastecimentos)'],['dev','Devoluções'],['aju','Ajustes de inventário'],['per','Perdas e avarias']];
+function linhasCentral(){
+ const M=window.JB_MOV;if(!M||typeof M.montar!=='function')return [];
+ const out=[];
+ const add=(s,r)=>{const g=GRUPO_T(r.tipo);let ori='',des='';const nomeS=s==='almox'?'Almoxarifado':'Combustível';
+  if(g==='trf'){if(s==='almox')return;const volta=!!(r.rec&&r.rec.tipo==='Transferência entre setores');const vem=/^a:/.test(String(r.uid||''));
+   if(volta){ori='Combustível';des='Almoxarifado'}else if(vem){ori='Almoxarifado';des='Combustível'}else{ori='Combustível';des='Combustível ('+(r.parte||'outro produto')+')'}}
+  else if(/direto para o Combustível/.test(r.tipo))return;
+  else if(r.qtd>0||r.sent==='e'){ori=r.parte||'—';des=nomeS}else{ori=nomeS;des=r.parte||'—'}
+  out.push({...r,_s:s,_g:g,_ori:ori,_des:des})};
+ ['almox','combustivel'].forEach(s=>{let rows=[];try{rows=M.montar(s)}catch(e){}rows.forEach(r=>{if(r&&r.est!==false&&r.qtd!=null)add(s,r)})});
+ return out.sort((a,b)=>a.ord<b.ord?1:a.ord>b.ord?-1:0)}
+function telaCentral(c){
+ const S=linhasSaldo();const conf=paraConferir();const falta=DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo'&&!itemDoProd(p.id));
+ const div=S.filter(x=>x.min!=null&&x.tot<x.min).length;
+ let M=linhasCentral();const todas=M;
+ if(UC.setor){const nm=nomeSet(UC.setor);M=M.filter(r=>r._s===UC.setor||r._ori===nm||r._des===nm)}
+ if(UC.tipo)M=M.filter(r=>r._g===UC.tipo);if(UC.prod)M=M.filter(r=>N(r.item).includes(N(UC.prod)));
+ if(UC.quem)M=M.filter(r=>r.quem===UC.quem);if(UC.de)M=M.filter(r=>r.data>=UC.de);if(UC.ate)M=M.filter(r=>r.data<=UC.ate);
+ if(UC.q){const q=N(UC.q);M=M.filter(r=>(r._b||N([r.tipo,r.item,r.parte,r.quem,r.doc].join(' '))).includes(q))}
+ const quems=[...new Set(todas.map(r=>r.quem).filter(Boolean))].sort();
+ const cabF=B().cab||((i,t,p,a)=>`<h1>${esc(t)}</h1>`);
+ c.innerHTML=cabF('caixa','Estoque integrado','Almoxarifado e Setor de Combustível no mesmo cadastro: saldo de cada setor, total, transferências e todas as movimentações.','')+
+  `<div class="ei-res"><div><b>${S.length}</b><span>produtos de combustível, óleo e graxa</span></div><div><b>${S.filter(x=>x.comb>0).length}</b><span>com saldo no Combustível</span></div><div><b>${S.filter(x=>x.alm>0).length}</b><span>com saldo no Almoxarifado</span></div><div><b>${div}</b><span>abaixo do mínimo</span></div></div>
+  ${falta.length&&pode('almItens','e')?`<div class="aviso at" style="margin-bottom:12px"><span>${falta.length} produto(s) do Combustível ainda sem código mestre (${esc(falta.map(p=>p.nome).join(', '))}). <button type="button" class="btn min" id="eiMestre">Criar os códigos mestres</button></span></div>`:''}
+  <h3 class="ei-sec">Saldo por setor</h3>
+  <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Produto</th><th class="num">Almoxarifado</th><th class="num">Combustível</th><th class="num">Total</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${S.map(x=>{const sit=x.tot<=0?'Sem estoque':x.min!=null&&x.tot<x.min?'Abaixo do mínimo':'Normal';
+   const bts=[...x.its.filter(y=>estAlm(y.id).saldo>0).map(y=>`<button type="button" class="btn min" data-je="trf" data-item="${esc(y.id)}">Transferir${x.its.length>1?' '+esc(y.codigo||y.nome):''}</button>`),x.p?botoesProduto(x.p,SETOR):'',x.i&&!x.p?`<button type="button" class="btn min" data-je="lig" data-item="${esc(x.i.id)}">Ligar</button>`:''].join('');
+   const emb=x.its.filter(y=>fator(y)!==1).map(y=>(y.codigo||y.nome)+': '+fQtd(estAlm(y.id).saldo)+' '+unI(y)+' (1 = '+fQtd(fator(y))+' '+x.un+')').join(' · ');
+   return `<tr><td data-l="Produto"><b>${esc(x.nome)}</b><span class="ei-cod">${esc(x.cod||'sem código mestre')}${emb?' · '+esc(emb):''}</span></td>
+    <td data-l="Almoxarifado" class="num">${esc(fQtd(x.alm)+' '+x.un)}</td><td data-l="Combustível" class="num">${x.p?esc(fQtd(x.comb)+' '+x.un):'—'}</td><td data-l="Total" class="num"><b>${esc(fQtd(x.tot)+' '+x.un)}</b></td>
+    <td data-l="Situação">${tagV(sit)}</td><td>${bts}</td></tr>`}).join('')||'<tr><td colspan="6"><div class="vazio">Nenhum produto de combustível, óleo ou graxa cadastrado.</div></td></tr>'}</tbody></table></div>
+  <p class="ajuda" style="margin:6px 2px 0">Total = Almoxarifado (convertido pelo fator) + Combustível. Transferência só troca de setor: o total não muda.</p>
+  ${conf.length?`<h3 class="ei-sec">Conferência de cadastro</h3><p class="ajuda" style="margin:0 2px 8px">Itens do almoxarifado que parecem ser do Combustível. Nada muda sozinho: decida item por item.</p>
+   <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Item</th><th class="num">Saldo no Almoxarifado</th><th>Por quê</th><th></th></tr></thead><tbody>
+   ${conf.map(i=>`<tr><td data-l="Item"><b>${esc(i.nome)}</b><span class="ei-cod">${esc(i.codigo||'')} · ${esc(i.categoria||'')}</span></td><td data-l="Saldo" class="num">${esc(fQtd(estAlm(i.id).saldo)+' '+unI(i))}</td><td data-l="Por quê">${esc(classificar(i).motivo)}</td><td>${pode('almItens','e')?`<button type="button" class="btn min" data-je="lig" data-item="${esc(i.id)}">Ligar ao Combustível</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}
+  <h3 class="ei-sec">Central de movimentações</h3>
+  <div class="ei-fil"><input type="search" id="eiQ0" placeholder="Pesquisar" value="${esc(UC.q)}" aria-label="Pesquisar">
+   <select id="eiS0" aria-label="Setor"><option value="">Setor: os dois</option>${opt([['almox','Almoxarifado'],[SETOR,'Combustível']],UC.setor)}</select>
+   <select id="eiT0" aria-label="Tipo"><option value="">Tipo: todos</option>${opt(GRUPOS,UC.tipo)}</select>
+   <input id="eiP0" placeholder="Produto" value="${esc(UC.prod)}" aria-label="Produto">
+   <select id="eiU0" aria-label="Usuário"><option value="">Usuário: todos</option>${opt(quems,UC.quem)}</select>
+   <input type="date" id="eiD0" value="${esc(UC.de)}" aria-label="De" title="De"><input type="date" id="eiA0" value="${esc(UC.ate)}" aria-label="Até" title="Até"></div>
+  <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Produto</th><th class="num">Quantidade</th><th>Tipo</th><th>Origem</th><th>Destino</th><th>Responsável</th><th>Finalidade / documento</th></tr></thead><tbody>
+  ${M.slice(0,UC.lim).map((r,k)=>`<tr class="clic" data-eim="${k}" tabindex="0"><td data-l="Data">${esc(fData(r.data))}${r.hora?' <small>'+esc(r.hora)+'</small>':''}</td><td data-l="Produto">${esc(r.item||'—')}</td><td data-l="Quantidade" class="num"><b>${esc(r.qtdTxt||'')}</b></td>
+   <td data-l="Tipo">${esc(r.tipo)}</td><td data-l="Origem">${esc(r._ori)}</td><td data-l="Destino">${esc(r._des)}</td><td data-l="Responsável">${esc(r.quem||'—')}</td><td data-l="Finalidade">${esc([r.doc,r.sit].filter(Boolean).join(' · ')||'—')}</td></tr>`).join('')||'<tr><td colspan="8"><div class="vazio">Nenhuma movimentação com estes filtros.</div></td></tr>'}</tbody></table>
+  <div class="pag"><span>${M.length} movimentação(ões)</span>${M.length>UC.lim?'<button type="button" class="btn min" id="eiMais">Mostrar mais</button>':''}</div></div>`;
+ ligarBotoes(c);
+ const mudou=(id,k)=>{const x=c.querySelector(id);if(x)x.onchange=x.oninput=()=>{UC[k]=x.value;UC.lim=150;clearTimeout(telaCentral._t);telaCentral._t=setTimeout(()=>{const y=document.activeElement&&document.activeElement.id;telaCentral(c);const z=y&&c.querySelector('#'+y);if(z&&z.focus){z.focus();try{z.setSelectionRange&&z.setSelectionRange(z.value.length,z.value.length)}catch(e){}}},x.tagName==='INPUT'&&x.type!=='date'?250:0)}};
+ [['#eiQ0','q'],['#eiS0','setor'],['#eiT0','tipo'],['#eiP0','prod'],['#eiU0','quem'],['#eiD0','de'],['#eiA0','ate']].forEach(([a,b])=>mudou(a,b));
+ const mm=c.querySelector('#eiMais');if(mm)mm.onclick=()=>{UC.lim+=150;telaCentral(c)};
+ const bm=c.querySelector('#eiMestre');if(bm)bm.onclick=async()=>{bm.disabled=true;try{const n=await criarMestres();toast(n+' código(s) mestre(s) criado(s) na categoria '+CAT+'.','ok')}catch(e){toast('Não foi possível: '+(e&&e.message||e),'erro')}setTimeout(()=>{try{renderTela()}catch(e){}},400)};
+ c.querySelectorAll('tr[data-eim]').forEach(tr=>{const go=()=>{const r=M[+tr.dataset.eim];if(!r||!window.JB_MOV)return;try{if(typeof acaoDocumento==='function')acaoDocumento(()=>JB_MOV.docMov(r),'ver');else verDoc(JB_MOV.docMov(r))}catch(e){if(r.ref)JBNAV.ir(r.ref)}};
+  tr.onclick=go;tr.onkeydown=e=>{if(e.key==='Enter')go()}});
+}
+
+/* ---------------- 11. rotas, permissões e menus ---------------- */
+if(typeof PERM!=='undefined')PERM.estoqueCentral={v:Array.from(new Set([...((PERM.almEstoque||{}).v||[]),...((PERM['setor-combustivel']||{}).v||[])])),e:[]};
+if(typeof ROTAS_SETOR!=='undefined'&&!ROTAS_SETOR.includes('estoqueCentral'))ROTAS_SETOR.push('estoqueCentral');
+if(typeof TELAS_V!=='undefined'){
+ TELAS_V.estoqueCentral=el=>{const sh=B().shellS;
+  if(typeof sh==='function'&&pode('setor-almox'))return sh(el,'almox','estoqueCentral',c=>telaCentral(c));
+  if(typeof shellV==='function')return shellV(el,'estoqueCentral',c=>{if(!APP.carregado){carregandoV(c);return}telaCentral(c)},{setor:SETOR});
+  el.innerHTML='<div class="vazio"><b>Tela indisponível</b></div>'}}
+{const S=B().SETS;if(S&&S.almox&&typeof S.almox.abas==='function'){const a0=S.almox.abas;S.almox.abas=function(){const L=a0.apply(this,arguments).slice();const i=L.findIndex(a=>a&&a.m==='almMov');
+ if(i<0)return L;   /* quem não vê as Movimentações do almoxarifado (ex.: só a Cozinha) não vê esta aba */
+ L.splice(i+1,0,{r:'#/estoqueCentral',m:'estoqueCentral',ic:'caixa',l:'Estoque integrado',at:['estoqueCentral']});return L}}}
+/* atalho no Estoque do Setor de Combustível */
+if(typeof TELAS_V!=='undefined'&&typeof TELAS_V.estoque==='function'){const t0=TELAS_V.estoque;TELAS_V.estoque=function(el){const r=t0.apply(this,arguments);
+ try{if(typeof setorAtualV==='function'&&setorAtualV()===SETOR&&pode('estoqueCentral')){const a=el.querySelector('.sec-cab .acoes');if(a&&!a.querySelector('[data-eic]')){const b=document.createElement('a');b.className='btn';b.href='#/estoqueCentral';b.dataset.eic='1';b.innerHTML=ic('caixa')+'Estoque integrado';a.prepend(b)}}}catch(e){}
+ return r}}
+
+window.JB_ESTOQUE=Object.freeze({SETOR,CAT,classificar,destinoLinha,entradasNoSetor,movsAlmSaldo,htmlDestinoLinha,txtPassoEntrada,prepararLinhasEntrada,conferirEntradaAlm,antesCompraSetor,
+ garantirLigacao,criarMestres,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
+ _teste:{RX_CMB,RX_FICA,fator,prodLig,itemDoProd}});
+})();
+</script>
+
 </body>
 </html>
