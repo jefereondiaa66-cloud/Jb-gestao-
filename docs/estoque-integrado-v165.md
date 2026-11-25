@@ -75,3 +75,11 @@ Pedido do Jeferson: cadastrou no Combustível, aparece no Almoxarifado, e vice-v
   tocar no cartão abre o lançamento para completar. Enquanto pendente, a **quantidade** também é editável (muda o saldo,
   com o antes e o depois no histórico; não pode ficar menor que o que já saiu). Completa, a quantidade só muda por Ajuste.
 - Teste: parte 15 de `scripts/testar-estoque-integrado.mjs`.
+
+## V170 · Tocar em qualquer cartão do Estoque do Combustível abre o lançamento (25/11/2026)
+
+Pedido do Jeferson: produto já cadastrado, mas sem quantidade, valor, peso e foto. Tocar no cartão do produto
+(Setor de Combustível › Estoque) abre **Lançar · produto** com quantidade, valor unitário, **peso/embalagem**, observação,
+foto e data. Grava a mesma entrada integrada da V168 (aparece no Almoxarifado; sem foto ou sem valor fica pendente),
+com o aviso de duplicidade. Se o produto já tem entrada pendente, o toque abre a pendente para completar (que agora
+também tem peso/embalagem). Teste: parte 16 de `scripts/testar-estoque-integrado.mjs`.

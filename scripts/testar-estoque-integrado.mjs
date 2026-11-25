@@ -303,6 +303,21 @@ try {
   ok(c15.hist, 'a mudança ficou no histórico');
   ok(c15.sP === false, 'produto sem entrada pendente não mostra a etiqueta');
 
+  console.log('16. Tocar no cartão de produto sem entrada abre o lançamento completo (V170)');
+  const c16 = await page.evaluate(async () => {
+    SV = 'combustivel'; location.hash = '#/estoque'; await T.esperar(() => document.querySelector('tr[data-pf="p_oleo"]'));
+    const s0 = saldoP('p_oleo'); const tr = document.querySelector('tr[data-pf="p_oleo"]'); (tr.querySelector('td') || tr).click();
+    await T.esperar(() => document.querySelector('.ei-modal #eiE')); const tit = document.querySelector('.ei-modal h3').textContent; const m = document.querySelector('.ei-modal');
+    m.querySelector('#eiQ').value = '60'; m.querySelector('#eiV').value = '32,50'; m.querySelector('#eiE').value = 'balde de 20 L'; m.querySelector('#eiO').value = 'prateleira 3';
+    m.querySelector('[data-r="1"]').click(); await T.esperar(() => saldoP('p_oleo') === s0 + 60, 8000); await T.sinc();
+    const e = JB_ESTOQUE.entradasIntegradas().find((x) => x.produtoId === 'p_oleo' && x.quantidade === 60);
+    JBNAV.ir('#/estoqueCentral'); await T.esperar(() => /balde de 20 L/.test(document.body.textContent));
+    return { tit, e: e && [e.valorUnit, e.embalagem, e.obs, JB_ESTOQUE.pendenteE(e)], naCentral: true };
+  });
+  ok(/Lançar · Óleo 10W40 Teste/.test(c16.tit), 'tocar no cartão do óleo abriu “' + c16.tit + '”');
+  ok(c16.e && c16.e.join() === '32.5,balde de 20 L,prateleira 3,true', 'quantidade, valor, peso/embalagem e observação gravados; sem foto fica pendente');
+  ok(c16.naCentral, 'o lançamento aparece no Estoque integrado (Almoxarifado)');
+
   ok(erros.length === 0, 'nenhum erro de JavaScript na página' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) { console.error(e); falhas++; }
 finally { await browser.close(); http.close(); }

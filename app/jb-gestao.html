@@ -14749,7 +14749,7 @@ function telaEstoqueV(el){
   if(window.JB_ESTOQUE)JB_ESTOQUE.ligarBotoes(c);
   $$('tr[data-pf]',c).forEach(tr=>tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('[data-je]'))return;
    /* V168: produto com entrada pendente (foto, valor): tocar no cartão abre o lançamento para completar */
-   if(window.JB_ESTOQUE){const pd=JB_ESTOQUE.pendDoProd(tr.dataset.pf);if(pd.length){JB_ESTOQUE.abrirCompletar(pd[0].id);return}}
+   if(window.JB_ESTOQUE&&typeof setorAtualV==='function'&&setorAtualV()==='combustivel'&&pode('estoqueMov','e')){JB_ESTOQUE.abrirEntradaProduto(tr.dataset.pf);return}
    UIEV.produto=tr.dataset.pf;renderTela();setTimeout(()=>{const f=$('#meP');if(f)f.scrollIntoView({block:'center'})},60)});
   $$('tr[data-go]',c).forEach(tr=>{tr.onclick=()=>JBNAV.ir(tr.dataset.go);tr.onkeydown=e=>{if(e.key==='Enter')tr.onclick()}});
   [['#meP','produto'],['#meT','tipo'],['#meDe','de'],['#meAte','ate']].forEach(([q,k])=>{$(q,c).onchange=e=>{UIEV[k]=e.target.value;renderTela()}});
@@ -52519,6 +52519,7 @@ async function abrirCompletar(id){
   `<p class="ei-saldo">Entrada de ${esc(fData(m.data))} · ${pendenteE(m)?'pendente de '+esc(txtPend(m)):'completa'}.${pendenteE(m)?'':' Para mudar a quantidade de uma entrada completa, use Ajuste no estoque.'}</p>
    <div class="campos">${pendenteE(m)?campo('eiQ','Quantidade ('+esc(m.unidade||pr.unidade||'')+')','<input id="eiQ" inputmode="decimal" value="'+esc(String(m.quantidade).replace('.',','))+'">','Muda o saldo do estoque; fica no histórico (antes e depois).'):''}
    ${campo('eiV','Valor unitário (R$ por '+esc(m.unidade||pr.unidade||'unidade')+')','<input id="eiV" inputmode="decimal" value="'+(+m.valorUnit>0?esc(String(m.valorUnit).replace('.',',')):'')+'">')}
+   ${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" value="'+esc(m.embalagem||'')+'" placeholder="ex.: balde de 20 L">')}
    ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="3">'+esc(m.obs||'')+'</textarea>')}
    <div class="cmp"><label>Foto do produto</label><div data-fotow>${fotoHtml()}</div>
     ${APP.assets?'<label class="btn min" style="cursor:pointer;margin-top:6px">Tirar ou escolher foto<input type="file" accept="image/*" capture="environment" hidden data-efoto></label>':'<p class="ei-saldo">Para enviar a foto, use a versão da nuvem (jb-gestao-ceramica.netlify.app).</p>'}</div></div>`,
@@ -52527,7 +52528,7 @@ async function abrirCompletar(id){
    const atual=(DATA.estoqueMov||[]).find(x=>x.id===id)||m;const ag=agora();const vu=!isNaN(v)&&v>0?Math.round(v*10000)/10000:null;
    let q=+atual.quantidade||0;if(pendenteE(atual)&&ctl.v.querySelector('#eiQ')){const nq=num(ctl.v,'#eiQ');if(!(nq>0))throw new Error('Informe a quantidade.');
     const s=saldoP(atual.produtoId);if(s-q+nq<-1e-9)throw new Error('Parte desta entrada já saiu do estoque: a quantidade não pode ser menor que '+fQtd(r3(q-s))+'.');q=r3(nq)}
-   const novo={...clone(atual),quantidade:q,delta:q,atual:r3((+atual.anterior||0)+q),valorUnit:vu,valorEntrada:vu?r2(vu*q):null,obs:val(ctl.v,'#eiO'),foto:foto||null,alteradoEm:ag,alteradoPor:eu()};
+   const novo={...clone(atual),quantidade:q,delta:q,atual:r3((+atual.anterior||0)+q),valorUnit:vu,valorEntrada:vu?r2(vu*q):null,embalagem:val(ctl.v,'#eiE'),obs:val(ctl.v,'#eiO'),foto:foto||null,alteradoEm:ag,alteradoPor:eu()};
    await gravar('estoqueMov',novo,atual);
    try{await logV('estoqueMov',id,'completou a entrada',[{c:'Quantidade',de:fQtd(atual.quantidade),para:fQtd(q)},{c:'Valor unitário',de:+atual.valorUnit>0?fMoeda(atual.valorUnit):'',para:vu?fMoeda(vu):''},{c:'Foto',de:atual.foto?'sim':'não',para:foto?'sim':'não'},{c:'Observação',de:atual.obs||'',para:novo.obs||''}])}catch(e){}
    toast(pendenteE(novo)?'Salvo. Ainda falta '+txtPend(novo)+'.':'Entrada completa: foto e valor salvos.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
@@ -52536,16 +52537,49 @@ async function abrirCompletar(id){
  if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Foto maior que 20 MB.','erro');return}
   toast('Enviando a foto…');APP.assets.upload(f).then(r=>{foto={id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes};const fw=w.querySelector('[data-fotow]');if(fw)fw.innerHTML=fotoHtml();toast('Foto enviada. Toque em Salvar para gravar.','ok')}).catch(()=>toast('Não foi possível enviar a foto.','erro'))};
  return p}
+/* V170 (25/11/2026, pedido do Jeferson): tocar em QUALQUER cartão do Estoque do Combustível abre o lançamento do
+   produto: quantidade, valor, peso/embalagem, foto e observação na mesma tela. Grava a mesma entrada integrada
+   (aparece no Almoxarifado); sem foto ou sem valor fica pendente. Produto com entrada pendente abre a pendente. */
+function campoFoto(){return APP.assets?'<label class="btn min" style="cursor:pointer;margin-top:6px">Tirar ou escolher foto<input type="file" accept="image/*" capture="environment" hidden data-efoto></label>':'<p class="ei-saldo">Para enviar a foto, use a versão da nuvem (jb-gestao-ceramica.netlify.app).</p>'}
+function ligarFoto(w,get,set){const inp=w&&w.querySelector('[data-efoto]');const fw=w&&w.querySelector('[data-fotow]');
+ const desenha=()=>{const f=get();if(fw)fw.innerHTML=f&&f.id?`<img src="/_blob/${esc(f.id)}" alt="Foto do produto" style="max-width:100%;max-height:160px;border-radius:8px;display:block">`:'<span class="ei-saldo">Sem foto.</span>'};desenha();
+ if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;if(f.size>20*1024*1024){toast('Foto maior que 20 MB.','erro');return}
+  toast('Enviando a foto…');APP.assets.upload(f).then(r=>{set({id:r.id,nome:f.name,tipo:r.contentType,tam:r.sizeBytes});desenha();toast('Foto enviada. Toque em Salvar para gravar.','ok')}).catch(()=>toast('Não foi possível enviar a foto.','erro'))}}
+async function abrirEntradaProduto(pid){
+ const pr=PROD(pid);if(!pr){toast('Produto não encontrado.','erro');return}
+ const pd=pendDoProd(pid);if(pd.length)return abrirCompletar(pd[0].id);
+ if(!pode('estoqueMov','e')){toast('Seu perfil não lança entrada no estoque do Combustível.','erro');return}
+ let foto=null;const un=pr.unidade||'';
+ const p=janela('Lançar · '+pr.nome,
+  `<p class="ei-saldo">Saldo agora: <b>${esc(fQtd(saldoP(pid))+' '+un)}</b>. Entra no estoque do Combustível e aparece também no Almoxarifado. Sem foto ou sem valor, fica pendente para completar depois.</p>
+   <div class="campos">${campo('eiQ','Quantidade ('+esc(un)+') *','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
+   ${campo('eiV','Valor unitário (R$ por '+esc(un||'unidade')+')','<input id="eiV" inputmode="decimal" autocomplete="off" placeholder="pode pôr depois">')}
+   ${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" placeholder="ex.: balde de 20 L, caixa com 12 de 1 L">')}
+   ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="2" placeholder="marca, onde está guardado, para que é"></textarea>')}
+   <div class="cmp"><label>Foto do produto</label><div data-fotow></div>${campoFoto()}</div>
+   ${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}</div>`,
+  {ok:'Salvar',depois:async ctl=>{
+   const q=num(ctl.v,'#eiQ'),v=num(ctl.v,'#eiV'),dt=val(ctl.v,'#eiD')||hoje();
+   if(!(q>0))throw new Error('Informe a quantidade.');if(!isNaN(v)&&v<0)throw new Error('Valor inválido.');if(dt>hoje())throw new Error('A data não pode ser futura.');
+   const pp=parecidos(pid,q,dt);
+   if(pp.length&&!await confirmar('Possível lançamento em duplicidade','Confira antes de gravar: '+pr.nome+' '+fQtd(q)+' '+un+' já tem '+pp.join(', ')+'. Se for outro material, confirme; se já foi lançado, cancele.',{ok:'É outro, lançar'}))return false;
+   const s=saldoP(pid);const vu=!isNaN(v)&&v>0?Math.round(v*10000)/10000:null;const ag=agora();
+   const rec={id:novoId(),setor:SETOR,tipo:'Entrada',integrado:true,produtoId:pid,quantidade:r3(q),delta:r3(q),unidade:un,anterior:r3(s),atual:r3(s+q),valorUnit:vu,valorEntrada:vu?r2(vu*q):null,
+    embalagem:val(ctl.v,'#eiE'),obs:val(ctl.v,'#eiO'),foto:foto||null,motivo:'Entrada de produtos (estoque integrado)',data:dt,hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+   await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}
+   toast(pendenteE(rec)?'Lançado: '+fQtd(q)+' '+un+' de '+pr.nome+'. Falta '+txtPend(rec)+' (fica pendente nos dois setores).':'Lançado e completo: '+fQtd(q)+' '+un+' de '+pr.nome+'.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
+ await esperar(()=>document.querySelector('.ei-modal [data-fotow]'),2000);ligarFoto(document.querySelector('.ei-modal'),()=>foto,f=>{foto=f});
+ return p}
 function htmlEntradas(lim){
  const L=entradasIntegradas();const pend=L.filter(pendenteE);if(!L.length)return '';
  return `<h3 class="ei-sec">Entradas de produtos${pend.length?' · '+pend.length+' pendente(s) de foto ou valor':''}</h3>
   <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Produto</th><th class="num">Quantidade</th><th class="num">Valor unit.</th><th>Foto</th><th>Observação</th><th>Situação</th><th></th></tr></thead><tbody>
   ${L.slice(0,lim||60).map(m=>{const pr=PROD(m.produtoId)||{};return `<tr><td data-l="Data">${esc(fData(m.data))}</td><td data-l="Produto">${esc(pr.nome||'')}</td><td data-l="Quantidade" class="num">${esc(fQtd(m.quantidade)+' '+(m.unidade||pr.unidade||''))}</td>
-   <td data-l="Valor unit." class="num">${+m.valorUnit>0?esc(fMoeda(m.valorUnit)):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver</a>`:'—'}</td><td data-l="Observação">${esc(m.obs||'—')}</td>
+   <td data-l="Valor unit." class="num">${+m.valorUnit>0?esc(fMoeda(m.valorUnit)):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver</a>`:'—'}</td><td data-l="Observação">${esc([m.embalagem,m.obs].filter(Boolean).join(' · ')||'—')}</td>
    <td data-l="Situação">${pendenteE(m)?tag('Pendente: '+txtPend(m),'pe'):tag('Completa','ok')}</td><td>${pode('estoqueMov','e')?`<button type="button" class="btn min${pendenteE(m)?' pri':''}" data-je="comp" data-mid="${esc(m.id)}">${pendenteE(m)?'Completar':'Editar'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`}
 
 window.JB_ESTOQUE=Object.freeze({SETOR,CAT,classificar,destinoLinha,entradasNoSetor,movsAlmSaldo,htmlDestinoLinha,txtPassoEntrada,prepararLinhasEntrada,conferirEntradaAlm,antesCompraSetor,
- pendDoProd,garantirLigacao,criarMestres,mestreDoProduto,produtoDoItem,abrirEntradaLote,abrirCompletar,entradasIntegradas,custoExtra,pendenteE,parecidos,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
+ pendDoProd,abrirEntradaProduto,garantirLigacao,criarMestres,mestreDoProduto,produtoDoItem,abrirEntradaLote,abrirCompletar,entradasIntegradas,custoExtra,pendenteE,parecidos,abrirTransferir,abrirDevolver,abrirUsar,abrirRequisicao,abrirLigar,botoesProduto,ligarBotoes,linhasSaldo,linhasCentral,paraConferir,lerVersoes,reservar,
  _teste:{RX_CMB,RX_FICA,fator,prodLig,itemDoProd}});
 })();
 </script>
