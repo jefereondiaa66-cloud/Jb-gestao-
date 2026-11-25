@@ -1290,9 +1290,43 @@ teste('boletos', 'V166: Boletos e contas a pagar (linha digitável conferida, bo
   /* ligações (só acrescentam): menu do Financeiro, favoritos, gaveta da conta, leitura por foto e painel do dono */
   assert.ok(b.includes("{depois:'fcentral',r:'#/fBoletos',m:'fBoletos'") && b.includes("window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(k=>k!=='#/fBoletos'),'#/fBoletos'];"), 'no menu e nos favoritos do Financeiro');
   assert.ok(app.includes("try{if(window.JB_BOLETO&&JB_BOLETO.completarConf)JB_BOLETO.completarConf(C,L)}catch(e){console.warn('boleto lido',e)}") && app.includes("JB_BOLETO.linhaValida(C.linhaDig)") && app.includes("['linhaDigitavel','codigoBarras'].forEach(k=>{if(ev[k])erros.push(ev[k])})"), 'a leitura por foto passa pela mesma conferência');
-  assert.ok(app.includes("'fExtrato','fImport','fBoletos','fMeta','fGrade'];"), 'painel do dono: a tela nova vale na concessão e suspensão do Financeiro');
+  assert.ok((/const ROTAS_FIN=\[([^\]]*)\]/.exec(app) || [, ''])[1].includes("'fBoletos'"), 'painel do dono: a tela nova vale na concessão e suspensão do Financeiro');
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
   if (ci) assert.ok(ci.includes('node scripts/testar-boletos.mjs'), 'teste no navegador roda na conferência automática');
+});
+
+teste('caixa-dia', 'V167: Resumo financeiro do dia, fechamento, relatório ao proprietário e pagamentos avulsos: só o que foi pago ou recebido, transferência fora, Controle por grade no caixa sem repetir, nada apagado', () => {
+  const app = ler('app/jb-gestao.html');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  for (const id of ['<style id="caixa-dia-v167-css">', '<script id="caixa-dia-v167">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const b = /<script id="caixa-dia-v167">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(app.indexOf('<script id="caixa-dia-v167">') > app.indexOf('<script id="boletos-v166">') && app.indexOf('<script id="caixa-dia-v167">') > app.indexOf('<script id="grade-v156">'), 'vem depois dos boletos e do Controle por grade, que ele usa');
+  /* grava só o fechamento (coleção do Financeiro) e o avulso como compromisso já pago; nada apagado */
+  const grav = [...b.matchAll(/\bgravar\(\s*'([A-Za-z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(grav, ['fin'], 'grava só o registro do fechamento: ' + grav.join(','));
+  assert.equal((b.match(/gravarRegistro\(/g) || []).length, 1, 'um caminho só para o pagamento avulso');
+  assert.ok(b.includes("gravarRegistro('fTitulos',st,null,true)"), 'o avulso é um compromisso do Financeiro (mesmo caminho do Novo pagamento)');
+  assert.ok(!/\bapagar\(|bucketPut\(|Object\.assign\(DATA/.test(b), 'não apaga nem cria coleção');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  /* caixa: os outros módulos entram no movimento sem repetir a chave; o Controle por grade entra como saída realizada */
+  assert.ok(app.includes("try{(window.MOV_EXTRA||[]).forEach(f=>{try{(f()||[]).forEach(x=>{if(x&&x.k&&x.data&&!L.some(y=>y.k===x.k))add(x)})}catch(e){console.warn('movimento de outro módulo',e)}})}catch(e){}"), 'ponto de extensão no movimento do caixa');
+  assert.ok(b.includes("(DATA.pgPag||[]).filter(p=>p&&!p.estorno&&p.data&&r2(p.valor)>0).map(p=>({k:'pg:'+p.id,") && b.includes("tipo:'Saída'"), 'pagamento do Controle por grade (sem os estornados) é saída do caixa');
+  /* números do dia: transferência entre contas próprias não é receita nem despesa */
+  assert.ok(b.includes('const transf=doDia.filter(m=>m.transf),real=doDia.filter(m=>!m.transf);') && b.includes("const ent=real.filter(m=>m.tipo==='Entrada'),sai=real.filter(m=>m.tipo==='Saída');"), 'transferência fora das entradas e saídas');
+  /* fechamento: um registro por dia, histórico guardado, auditoria */
+  assert.ok(b.includes("const id='fech_'+d;") && b.includes("tipo:'fechamento'") && b.includes('versao:((ant&&ant.versao)||0)+1,hist,'), 'um fechamento por dia, com versão e histórico');
+  assert.ok(b.includes("logV('fFechamento',id,ant?'refez o fechamento do dia':'fechou o dia'"), 'fechamento na auditoria');
+  assert.ok(b.includes("if(!$('#fcE',v).checked||!$('#fcS',v).checked)"), 'conferir entradas e saídas é obrigatório');
+  /* relatório ao proprietário: documento da empresa e resumo para o WhatsApp */
+  assert.ok(b.includes("exportar(f,'Resumo_financeiro_'+d,R.cols,R.rows,R.titulo,{filtros:diaTxt(d),extras:R.extras})") && b.includes("'https://wa.me/?text='+encodeURIComponent(textoRel(d))"), 'relatório no padrão da empresa e envio pelo WhatsApp');
+  /* avulso: já pago, extra, quem autorizou; repetido pede confirmação (inclusive contra o Controle por grade) */
+  assert.ok(b.includes('pagamentos:[p],enc:{setor,modo:') && b.includes('extra:true') && b.includes('autorizadoPor:au'), 'avulso já pago, com quem autorizou');
+  assert.ok(b.includes("if(rep.length&&!q('avDupOk').checked)") && b.includes('O Controle por grade já tem um pagamento de '), 'repetido pede confirmação');
+  /* ligações: menu, favoritos, rotas do Financeiro (painel do dono) */
+  assert.ok(b.includes("{depois:'fOutros',r:'#/fPagAv',m:'fPagAv'") && b.includes("{depois:'fBoletos',r:'#/fResumo',m:'fResumo'") && b.includes("window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(x=>x!=='#/fResumo'),'#/fResumo'];"), 'no menu e nos favoritos do Financeiro');
+  const rotasFin = (/const ROTAS_FIN=\[([^\]]*)\]/.exec(app) || [, ''])[1];
+  assert.ok(rotasFin.includes("'fPagAv'") && rotasFin.includes("'fResumo'"), 'painel do dono: as telas novas valem na concessão e suspensão do Financeiro');
+  if (ci) assert.ok(ci.includes('node scripts/testar-caixa-dia.mjs'), 'teste no navegador roda na conferência automática');
 });
 
 teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {

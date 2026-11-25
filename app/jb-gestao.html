@@ -20098,6 +20098,8 @@ function movimentos(){
   add({k:'tr:'+t.id+':s',data:t.data,conta:t.contaDe,tipo:'Saída',valor:v,categoria:'Transferência entre contas',descricao:'Transferência para '+nomeConta(t.contaPara),origem:'Financeiro',transf:true,abrir:()=>{JBNAV.ir('#/fTransf/'+t.id)}});
   add({k:'tr:'+t.id+':e',data:t.data,conta:t.contaPara,tipo:'Entrada',valor:v,categoria:'Transferência entre contas',descricao:'Transferência de '+nomeConta(t.contaDe),origem:'Financeiro',transf:true,abrir:()=>{JBNAV.ir('#/fTransf/'+t.id)}})});
  DATA.fAvulso.forEach(a=>{if(a.cancelado)return;add({k:'av:'+a.id,data:a.data,conta:a.contaId,tipo:a.tipoMov==='Entrada'?'Entrada':'Saída',valor:r2(a.valor),categoria:a.categoria||'',descricao:a.descricao||'Lançamento avulso',origem:'Lançamento avulso',abrir:()=>{JBNAV.ir('#/fAvulso/'+a.id)}})});
+ /* V167: outros módulos acrescentam o que foi pago ou recebido de fato (ex.: pagamentos do Controle por grade) */
+ try{(window.MOV_EXTRA||[]).forEach(f=>{try{(f()||[]).forEach(x=>{if(x&&x.k&&x.data&&!L.some(y=>y.k===x.k))add(x)})}catch(e){console.warn('movimento de outro módulo',e)}})}catch(e){}
  return L.sort((a,b)=>String(a.data).localeCompare(String(b.data))||a.k.localeCompare(b.k));
 }
 const infoConta=id=>{const c=CONTA(id);return c?{id,nome:nomeConta(id),tipo:c.tipoConta||'',saldoInicial:c.saldoInicial,dataSaldo:c.dataSaldoInicial||'',situacao:c.situacao||'Ativa',rec:c}:id===CAIXA?{id,nome:nomeConta(id),tipo:'Caixa',saldoInicial:'',dataSaldo:'',situacao:'Ativa',rec:null}:null};
@@ -20316,6 +20318,7 @@ function aReceber(){if(!pode('receber'))return[];const out=[];
  DATA.vendas.filter(v=>!cancV(v)).forEach(v=>{const f=finVenda(v);if(!(f.saldo>0.004))return;const nome=((v.cliente||{}).nome)||'Cliente';
   if(Array.isArray(f.titulos)&&f.titulos.length)f.titulos.filter(t=>t.saldo>0.004).forEach(t=>out.push({data:t.venc||v.vencimento||v.data,valor:r2(t.saldo),desc:nome+' · pedido nº '+fNumV(v.numero),origem:'Setor de Vendas'}));
   else out.push({data:v.vencimento||v.data,valor:r2(f.saldo),desc:nome+' · venda nº '+fNumV(v.numero),origem:'Setor de Vendas'})});return out}
+window.aReceberV48=aReceber; /* V167: painel do caixa (contas a receber) */
 function telaFluxo(c){
  const h=hoje();const N=[7,15,30,60,90].includes(+UFX.dias)?+UFX.dias:30;const fim=addDias(h,N);const MV=movimentos();
  const CS=contasCx().filter(i=>i.situacao!=='Inativa'&&temSaldoIni(i));const base=r2(soma(CS,i=>saldoMov(i.id,h,MV)||0));
@@ -26033,7 +26036,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
  const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg',
   'pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção (V158: pgEmp, empreita do forno) */
- const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fBoletos','fMeta','fGrade'];   /* V156: Pagamento por grade */
+ const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fBoletos','fPagAv','fResumo','fMeta','fGrade'];   /* V156: Pagamento por grade */
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
   'admissoes','desligamentos','afastamentos','alteracoes','exames','dependentes','importar','advertencias','disciplinar','central','termos','doc','feriasctrl','conferencia'];
@@ -52879,6 +52882,436 @@ if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){co
  E.push({g:'Telas',t:'Boletos e contas a pagar',s:'Financeiro · boletos por foto, vencimentos, prioridades, pagar ou enviar para agendamento',ic:'boleto',k:NN('Boletos e contas a pagar boleto linha digitavel codigo de barras vencimento vencidos prioridade pagar agendamento fila contas a pagar'),ir:()=>JBNAV.ir('#/fBoletos'),h:'#/fBoletos',ix:E.length})}}catch(e){}return E}}
 
 window.BOLETOS_V166=Object.freeze({JB_BOLETO,prioridadeDe,sitB,faixaDe,naFila,agendadoG,podeEnviar,enviarFila,agendarFila,retirarFila,filaDe,dados,filtrar,UB,SEL,janelaEnviar,janelaAgendar,janelaRetirar,janelaPrioridade,boletoRepetido});
+})();
+</script>
+<style id="caixa-dia-v167-css">
+/* V167 · Resumo financeiro do dia, fechamento, relatório ao proprietário, painel do caixa e pagamentos avulsos (25/11/2026) */
+.rf-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.rf-nav input[type=date]{padding:8px 10px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit;min-height:40px;box-sizing:border-box;background:var(--pn-b,#fff);color:inherit}
+.rf-nav .rf-dia{font-weight:700;font-size:15px}
+.rf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:0 0 12px}
+.rf-k{background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:3px}
+.rf-k span{font-size:12.5px;color:var(--suave,#5B6168)}
+.rf-k b{font-size:19px;font-variant-numeric:tabular-nums}
+.rf-k small{font-size:12px;color:var(--suave,#5B6168)}
+.rf-k.ent b{color:#16784A}.rf-k.sai b{color:#B42318}.rf-k.neg b{color:#B42318}
+.rf-k.res{border-width:2px}
+.rf-resp{background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:12px 16px;margin:0 0 14px}
+.rf-resp h3{margin:0 0 8px;font-size:15px}
+.rf-resp ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px}
+.rf-resp li{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;border-bottom:1px dashed var(--pn-l,#DDE0E3);padding:5px 0}
+.rf-resp li b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rf-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin:0 0 12px}
+.rf-sec{background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:12px 14px;margin:0 0 12px;min-width:0}
+.rf-sec h3{margin:0 0 8px;font-size:15px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rf-sec h3 small{font-weight:400;color:var(--suave,#5B6168);font-size:12.5px}
+.rf-tab{width:100%;border-collapse:collapse;font-size:13.5px}
+.rf-tab td,.rf-tab th{padding:6px 4px;border-bottom:1px solid var(--pn-l,#EEF0F2);text-align:left;vertical-align:top}
+.rf-tab th{font-size:12px;color:var(--suave,#5B6168);font-weight:600}
+.rf-tab .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rf-tab tr.clic{cursor:pointer}.rf-tab tr.clic:hover td{background:rgba(0,0,0,.03)}
+.rf-tab tfoot td{font-weight:700;border-bottom:0}
+.rf-barra{height:6px;background:#EEF0F2;border-radius:3px;margin-top:3px;overflow:hidden}.rf-barra i{display:block;height:100%;background:#8A9099;border-radius:3px}
+.rf-vazio{font-size:13px;color:var(--suave,#5B6168);margin:2px 0}
+.rf-fech{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin:0 0 12px}
+.rf-fech .aviso{margin:0;flex:1;min-width:240px}
+.rf-chk{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+.rf-chk li{list-style:none}
+.rf-it{border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.rf-it b{display:block;margin-bottom:2px}
+.rf-it.ok{border-left:4px solid #16784A}.rf-it.at{border-left:4px solid #C98A00}.rf-it.pe{border-left:4px solid #B42318}
+.rf-it ul{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--suave,#5B6168)}
+.rf-it label{display:flex;gap:8px;align-items:center;font-weight:600;margin-top:6px}
+.rf-ch{position:relative;margin:4px 0 6px}
+.rf-ch-y{font-size:11.5px;color:var(--suave,#5B6168);margin:0 0 2px}
+.rf-ch-cols{display:flex;gap:3px}
+.rf-ch-c{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch}
+.rf-ch-b{height:170px;display:flex;align-items:flex-end;justify-content:center;gap:2px;border-bottom:1px solid #C9CDD2}
+.rf-ch-b i{display:block;width:min(16px,42%);border-radius:4px 4px 0 0;min-height:0}
+.rf-ch-b i.e{background:#257de0}.rf-ch-b i.s{background:#f47230}
+.rf-ch-c span{font-size:11px;color:var(--suave,#5B6168);text-align:center;white-space:nowrap;overflow:hidden;margin-top:4px}
+.rf-ch-c:hover .rf-ch-b{background:rgba(0,0,0,.035)}
+.rf-sec.larga{grid-column:1/-1}
+.rf-leg{display:flex;gap:14px;font-size:12.5px;margin:0 0 6px;flex-wrap:wrap}
+.rf-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.rf-seg{display:inline-flex;border:1px solid var(--linha,#DDE0E3);border-radius:8px;overflow:hidden}
+.rf-seg button{all:unset;cursor:pointer;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--suave,#5B6168)}
+.rf-seg button.on{background:var(--c2-preto,#0B0B0D);color:#fff}
+.rf-seg button:focus-visible{outline:2px solid #D3121C;outline-offset:-2px}
+.av-lista{display:flex;flex-direction:column;gap:8px}
+.av-card{background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:6px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px}
+.av-card .t{font-weight:700;font-size:15px;overflow-wrap:anywhere;cursor:pointer}
+.av-card .v{font-weight:700;font-size:16px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.av-card .s{grid-column:1/3;font-size:13px;color:var(--suave,#5B6168);overflow-wrap:anywhere}
+.av-card .tg{grid-column:1/3;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+.av-form .duas{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.av-form .tres{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px}
+.av-form textarea{min-height:56px}
+.av-tipos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.av-tipos button{all:unset;box-sizing:border-box;cursor:pointer;border:1px solid var(--linha,#DDE0E3);border-radius:999px;padding:6px 12px;font-size:13px}
+.av-tipos button.on{background:var(--c2-preto,#0B0B0D);color:#fff;border-color:var(--c2-preto,#0B0B0D)}
+.av-tipos button:focus-visible{outline:2px solid #D3121C}
+@media(max-width:640px){.rf-ch-c span:not(.m2){visibility:hidden}.rf-ch-b{height:140px}.av-form .duas,.av-form .tres{grid-template-columns:1fr}.rf-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rf-k b{font-size:17px}.rf-grade{grid-template-columns:1fr}.rf-resp ul{grid-template-columns:1fr}}
+</style>
+<script id="caixa-dia-v167">
+/* ================= V167 · Caixa do dia (pedido do Jeferson, 25/11/2026) =================
+   "Complemento – Fluxo de caixa e relatório financeiro diário" e "Pagamentos avulsos":
+   · RESUMO FINANCEIRO DO DIA (#/fResumo): saldo inicial e final, entradas, saídas, resultado, onde o dinheiro foi gasto
+     (categoria e setor), pessoal e produção, boletos liquidados, pagamentos avulsos, caixa e bancos, e o painel do mês;
+   · FECHAMENTO DO DIA: conferir entradas, saídas, pendências, comprovantes e divergências e confirmar. Depois de fechado,
+     o que mudar fica à vista (antes × agora) e na auditoria; refazer o fechamento guarda o anterior no histórico;
+   · ENVIAR RELATÓRIO AO PROPRIETÁRIO: o relatório do dia no padrão de documentos da empresa (visualizar, PDF, imprimir,
+     compartilhar, Excel) e o resumo pronto para o WhatsApp; os dias fechados ficam em "Relatórios anteriores";
+   · PAGAMENTOS AVULSOS (#/fPagAv): diárias, produção, compras pequenas e emergenciais, serviços, fretes, adiantamentos…,
+     gravados como compromisso já pago do Financeiro (mesmo caminho do "Novo pagamento"), com tipo, setor, centro de custo,
+     quem autorizou e quem pagou; repetido pede confirmação (inclusive contra o Controle por grade).
+   Regras: só entra o que foi pago ou recebido de fato (conta lançada, agendada ou venda a prazo não é dinheiro);
+   transferência entre contas próprias não é receita nem despesa; nada é apagado nem recalculado nos setores. */
+(function(){'use strict';
+const FS=window.FINANCEIRO_SETOR,CP=window.CPG_FIN;
+if(!FS||!FS.h||!FS.acoes||!CP){console.warn('Caixa do dia: Financeiro não carregado');return}
+const H=FS.h,A=FS.acoes;const {shellF,cabF,modalF,campoM,valM,optH,optsContas,nomeConta,abertaO,fcfg,r2,ig,CAIXA}=H;
+const FV=['admin','financeiro','gerente'],FE=['admin','financeiro'];
+const edF=()=>pode('fpagar','e');
+const eu=()=>APP.uid||'local',agoraI=()=>new Date().toISOString();
+const N=s=>semAcento(String(s||'')).replace(/\s+/g,' ').trim();
+const dgs=s=>String(s==null?'':s).replace(/\D/g,'');
+const CAT_PROD='Pagamentos da Produção';
+
+/* ---------- 1. pagamentos do Controle por grade entram no caixa como saída realizada ---------- */
+const TRABG=id=>(DATA.prodGradeTrab||[]).find(t=>t.id===id)||null;
+window.MOV_EXTRA=window.MOV_EXTRA||[];
+window.MOV_EXTRA.push(function(){if(!window.JB_GRADE||!(pode('fGrade')||pode('pgrade')))return [];
+ return (DATA.pgPag||[]).filter(p=>p&&!p.estorno&&p.data&&r2(p.valor)>0).map(p=>({k:'pg:'+p.id,data:p.data,conta:p.contaId||'',tipo:'Saída',valor:r2(p.valor),categoria:CAT_PROD,
+  descricao:((TRABG(p.trabId)||{}).nome||'Trabalhador')+' · Controle por grade',origem:'Setor de Produção',grade:true,trabId:p.trabId,pagId:p.id,forma:p.forma||'',abrir:()=>JBNAV.ir('#/fGrade/'+p.trabId)}))});
+/* o que cada pagamento do controle quitou: produção (enforna), desenforna ou empreita; o que sobra é crédito */
+function partesGrade(pagId,trabId,valor){const G=window.JB_GRADE;const out={producao:0,desenforna:0,empreita:0,credito:0};
+ try{const x=G.contaDe(trabId);let usado=0;(x.pecas||[]).filter(pc=>pc.p&&pc.p.id===pagId).forEach(pc=>{const l=pc.l||{};const k=l.emp?'empreita':l.setor==='Desenforna'?'desenforna':'producao';out[k]=r2(out[k]+pc.v);usado=r2(usado+pc.v)});
+  out.credito=r2(Math.max(0,r2(valor)-usado))}catch(e){out.credito=r2(valor)}
+ return out}
+
+/* ---------- 2. movimentos do dia ---------- */
+const MV=()=>{try{return typeof window.movimentosV48==='function'?window.movimentosV48():[]}catch(e){console.warn('movimentos',e);return []}};
+const saldoEm=(id,ate,mv)=>{try{return typeof window.saldoMovV48==='function'?window.saldoMovV48(id,ate,mv):null}catch(e){return null}};
+const contaRec=id=>DATA.fContas.find(c=>c.id===id)||null;
+const temSaldo=c=>!!c&&c.saldoInicial!==''&&c.saldoInicial!=null&&!!c.dataSaldoInicial;
+const contasIds=()=>[...new Set([CAIXA,...DATA.fContas.filter(c=>c.id!==CAIXA&&c.situacao!=='Inativa').map(c=>c.id)])];
+let TPM={b:null,m:null};
+function tituloDoPag(pagId){if(TPM.b!==DATA.fin){const m=new Map();DATA.fTitulos.forEach(t=>(t.pagamentos||[]).forEach(p=>{if(p&&p.id)m.set(p.id,t)}));TPM={b:DATA.fin,m}}return TPM.m.get(pagId)||null}
+const tituloDe=m=>{const k=String(m.k||'');if(!k.startsWith('tp:'))return null;return tituloDoPag(k.slice(3).split(':')[0])};
+const ROT_SETOR={'Setor Pessoal':'Pessoal','Setor de Combustível':'Combustível','Setor da Lenha':'Lenha','Almoxarifado / Cozinha':'Compras e almoxarifado','Setor de Produção':'Produção','Setor do Barro':'Barro','Setor de Vendas':'Vendas e entregas','Setor de Paletes':'Paletes'};
+const nomeSet=k=>{const s=(CP.SETS||[]).find(x=>x.k===k);return s?s.n:''};
+function setorDe(m){const k=String(m.k||'');
+ if(m.grade)return 'Produção';if(k.startsWith('dp:'))return 'Pessoal';if(k.startsWith('av:'))return 'Lançamento avulso (Caixa e bancos)';
+ const t=tituloDe(m);if(t){const e=t.enc||{};if(e.setor&&nomeSet(e.setor))return nomeSet(e.setor);if(t.avulso&&t.avulso.setor&&nomeSet(t.avulso.setor))return nomeSet(t.avulso.setor);return ROT_SETOR[t.setorOrigem]||t.setorOrigem||'Geral (Financeiro)'}
+ return ROT_SETOR[m.origem]||m.origem||'—'}
+const origemEntrada=m=>String(m.k||'').startsWith('vp:')?'Recebimentos de vendas':(m.categoria||'Outros recebimentos');
+const ehBoletoMov=m=>{const t=tituloDe(m);if(t)return t.docOrigemTipo==='Boleto'||!!(t.codigoBarras||t.linhaDigitavel)||m.forma==='Boleto';return m.forma==='Boleto'};
+const ehAvulsoMov=m=>{const t=tituloDe(m);return !!(t&&t.avulso)};
+function grupo(xs,f){const m=new Map();xs.forEach(x=>{const k=f(x)||'—';const g=m.get(k)||{k,n:0,v:0,xs:[]};g.n++;g.v=r2(g.v+x.valor);g.xs.push(x);m.set(k,g)});return [...m.values()].sort((a,b)=>b.v-a.v)}
+/* pessoal e produção: cada saída cai em uma linha só (sem contar duas vezes) */
+const RE_PES=/funcionari|salari|folha|pro.?labore|\bvales?\b|adiantamento|ferias|rescis|decimo|13o|inss|fgts|alimentacao dos funcionarios/;
+function pessoas(sai){const g={producao:0,desenforna:0,empreita:0,credito:0,maoObra:0,diarias:0,pessoal:0};
+ sai.forEach(m=>{if(m.grade){const p=partesGrade(m.pagId,m.trabId,m.valor);Object.keys(p).forEach(k=>g[k]=r2(g[k]+p[k]));return}
+  const t=tituloDe(m);const av=t&&t.avulso;const c=N(m.categoria)+' '+N(t&&t.descricao);
+  if(av&&av.tipo==='Diária'||/\bdiaria/.test(c)){g.diarias=r2(g.diarias+m.valor);return}
+  if(av&&av.tipo==='Pagamento de produção'||/mao de obra da producao|pagamentos da producao/.test(c)){g.maoObra=r2(g.maoObra+m.valor);return}
+  if(String(m.k).startsWith('dp:')||RE_PES.test(c))g.pessoal=r2(g.pessoal+m.valor)});
+ g.producaoTotal=r2(g.producao+g.desenforna+g.empreita+g.credito+g.maoObra);g.total=r2(g.producaoTotal+g.diarias+g.pessoal);return g}
+function infoConta(id){const c=contaRec(id);return{c,tem:temSaldo(c),dataSaldo:c?c.dataSaldoInicial||'':''}}
+function diaDados(d){const mv=MV();const doDia=mv.filter(m=>m.data===d);
+ const transf=doDia.filter(m=>m.transf),real=doDia.filter(m=>!m.transf);
+ const ent=real.filter(m=>m.tipo==='Entrada'),sai=real.filter(m=>m.tipo==='Saída');
+ const tE=r2(soma(ent,m=>m.valor)),tS=r2(soma(sai,m=>m.valor));const ontem=addDias(d,-1);
+ const contas=contasIds().map(id=>{const I=infoConta(id);const ini=I.tem&&ontem>=I.dataSaldo?saldoEm(id,ontem,mv):null;const fim=I.tem&&d>=I.dataSaldo?saldoEm(id,d,mv):null;
+  const e=r2(soma(doDia.filter(m=>m.conta===id&&m.tipo==='Entrada'),m=>m.valor)),s=r2(soma(doDia.filter(m=>m.conta===id&&m.tipo==='Saída'),m=>m.valor));
+  return{id,nome:nomeConta(id),ini,e,s,fim,tem:I.tem,desde:I.dataSaldo}}).filter(c=>c.tem||c.e||c.s);
+ const cs=contas.filter(c=>c.ini!=null&&c.fim!=null);
+ return{d,mv,doDia,real,ent,sai,tE,tS,res:r2(tE-tS),transf,contas,saldoIni:cs.length?r2(soma(cs,c=>c.ini)):null,saldoFim:cs.length?r2(soma(cs,c=>c.fim)):null,
+  semConta:real.filter(m=>!m.conta),porCat:grupo(sai,m=>m.categoria||'Sem categoria'),porSetor:grupo(sai,setorDe),porOrigemE:grupo(ent,origemEntrada),
+  pes:pessoas(sai),boletos:sai.filter(ehBoletoMov),avulsos:sai.filter(ehAvulsoMov),nE:ent.length,nS:sai.length}}
+const nP=n=>n+(n===1?' pagamento':' pagamentos'),nR=n=>n+(n===1?' recebimento':' recebimentos'),nL=n=>n+(n===1?' lançamento':' lançamentos');
+const diaTxt=d=>DIAS_SEM[dt(d).getDay()]+', '+fData(d);
+const fM=v=>v==null?'—':fMoeda(v);
+
+/* ---------- 3. fechamento do dia (um registro por dia na coleção do Financeiro; nada é apagado) ---------- */
+const fechs=()=>(DATA.fin||[]).filter(x=>x&&x.tipo==='fechamento'&&/^\d{4}-\d{2}-\d{2}$/.test(x.data||''));
+const fechDe=d=>fechs().find(x=>x.id==='fech_'+d)||null;
+const movLinha=m=>[m.k,m.tipo==='Entrada'?1:-1,r2(m.valor),m.conta||'',String(m.descricao||'').slice(0,90),m.categoria||''];
+function snap(D){return{saldoIni:D.saldoIni,ent:D.tE,sai:D.tS,res:D.res,saldoFim:D.saldoFim,nE:D.nE,nS:D.nS,
+ contas:D.contas.map(c=>[c.id,c.ini,c.e,c.s,c.fim]),movs:D.doDia.map(movLinha)}}
+function difs(F,D){if(!F||!F.snap)return [];const a=new Map((F.snap.movs||[]).map(x=>[x[0],x]));const b=new Map(D.doDia.map(m=>[m.k,movLinha(m)]));const out=[];
+ b.forEach((x,k)=>{const y=a.get(k);if(!y)out.push({t:'entrou depois',x});else if(y[1]!==x[1]||!ig(y[2],x[2])||y[3]!==x[3])out.push({t:'mudou',x,de:y})});
+ a.forEach((y,k)=>{if(!b.has(k))out.push({t:'saiu',x:y})});return out}
+const txtMov=x=>(x[1]>0?'entrada ':'saída ')+fMoeda(x[2])+' · '+x[4]+(x[3]?' · '+nomeConta(x[3]):'');
+/* o que conferir antes de fechar */
+function pendencias(D){const d=D.d;const P=[];
+ const semComp=[];D.sai.forEach(m=>{const t=tituloDe(m);if(t){const pid=String(m.k).slice(3).split(':')[0];if(String(m.k).includes(':multa')||String(m.k).includes(':juros'))return;
+   const tem=DATA.fDocs.some(x=>x.pagamentoId===pid&&!x.cancelado)||(t.avulso&&t.avulso.comp)||!!(t.anexo&&t.anexo.id&&t.extra);if(!tem)semComp.push(m)}
+  else if(m.grade){const p=(DATA.pgPag||[]).find(x=>x.id===m.pagId);if(!(p&&(p.comprovante||p.anexo)))semComp.push(m)}});
+ const venceHoje=FS.obrigacoes().filter(o=>abertaO(o)&&o.venc===d);
+ const div=FS.obrigacoes().filter(o=>!o.cancelado&&o.s.st==='Divergente'&&o.pagamentos.some(p=>p.data===d));
+ const conf=DATA.fConfSaldo?DATA.fConfSaldo.filter(c=>c.data===d):[];const confDif=conf.filter(c=>c.diferenca!=null&&Math.abs(+c.diferenca)>=0.01);
+ /* possíveis repetidos: mesmo valor no mesmo dia para o mesmo nome, vindos de lugares diferentes ou de dois lançamentos */
+ const dup=[];const chave=m=>{const nm=N(String(m.descricao||'').split(' · ')[0]);return nm.split(' ')[0]+'|'+r2(m.valor)};const vistos=new Map();
+ D.sai.forEach(m=>{if(String(m.k).includes(':multa')||String(m.k).includes(':juros'))return;const k=chave(m);if(vistos.has(k)){const o=vistos.get(k);if(o.k!==m.k)dup.push([o,m])}else vistos.set(k,m)});
+ P.push({k:'conta',n:D.semConta.length,cls:D.semConta.length?'at':'ok',t:D.semConta.length?nL(D.semConta.length)+' sem a conta (Caixa ou banco) informada':'Todos os lançamentos têm a conta informada',
+  it:D.semConta.slice(0,8).map(m=>(m.tipo==='Entrada'?'Entrada ':'Saída ')+fMoeda(m.valor)+' · '+m.descricao),aj:D.semConta.length?'Eles contam nas entradas e saídas do dia, mas não no saldo de nenhuma conta.':''});
+ P.push({k:'comp',n:semComp.length,cls:semComp.length?'at':'ok',t:semComp.length?nP(semComp.length)+' sem comprovante anexado':'Todos os pagamentos têm comprovante',it:semComp.slice(0,8).map(m=>fMoeda(m.valor)+' · '+m.descricao)});
+ P.push({k:'venc',n:venceHoje.length,cls:venceHoje.length?'at':'ok',t:venceHoje.length?(venceHoje.length===1?'1 conta venceu':venceHoje.length+' contas venceram')+' no dia e não foi paga ('+fMoeda(r2(soma(venceHoje,o=>o.s.saldo)))+')':'Nenhuma conta do dia ficou sem pagar',
+  it:venceHoje.slice(0,8).map(o=>(o.benef||o.descricao)+' · '+fMoeda(o.s.saldo))});
+ const nDiv=div.length+confDif.length+dup.length;
+ P.push({k:'div',n:nDiv,cls:nDiv?'pe':'ok',t:nDiv?nDiv+(nDiv===1?' divergência para conferir':' divergências para conferir'):'Nenhuma divergência encontrada',
+  it:[...div.map(o=>'Pagamento diferente do previsto: '+(o.benef||o.descricao)+' ('+o.s.div.join(' ')+')'),...confDif.map(c=>'Saldo conferido de '+nomeConta(c.contaId)+' com diferença de '+fMoeda(c.diferenca)),
+   ...dup.map(([a,b])=>'Pode ser repetido: '+fMoeda(b.valor)+' · '+a.descricao+' e '+b.descricao)].slice(0,10)});
+ const temConfCaixa=conf.some(c=>c.contaId===CAIXA);
+ P.push({k:'caixa',n:temConfCaixa?0:1,cls:temConfCaixa?'ok':'at',t:temConfCaixa?'Dinheiro do Caixa contado e registrado':'O dinheiro do Caixa ainda não foi contado neste dia',it:[],aj:temConfCaixa?'':'Conte o dinheiro e registre em Caixa e bancos › Conferências de saldo (o sistema compara com o saldo calculado).'});
+ return P}
+async function fecharDia(d,D,obs,P){const id='fech_'+d;const ant=fechDe(d);const agora=agoraI(),u=eu();const s=snap(D);
+ const hist=[...((ant&&ant.hist)||[]),...(ant&&ant.snap?[{em:ant.fechadoEm,por:ant.fechadoPor,ent:ant.snap.ent,sai:ant.snap.sai,res:ant.snap.res,saldoFim:ant.snap.saldoFim,obs:ant.obs||''}]:[])].slice(-20);
+ const rec={...(ant?clone(ant):{id,criadoEm:agora,criadoPor:u}),tipo:'fechamento',data:d,fechadoEm:agora,fechadoPor:u,obs:obs||'',snap:s,versao:((ant&&ant.versao)||0)+1,hist,
+  pend:P.filter(p=>p.n).map(p=>p.t),conferido:{entradas:true,saidas:true}};
+ await gravar('fin',rec,ant);
+ await logV('fFechamento',id,ant?'refez o fechamento do dia':'fechou o dia',[{c:'Dia',de:'',para:fData(d)},{c:'Entradas',de:ant&&ant.snap?fMoeda(ant.snap.ent):'',para:fMoeda(s.ent)},{c:'Saídas',de:ant&&ant.snap?fMoeda(ant.snap.sai):'',para:fMoeda(s.sai)},
+  {c:'Saldo final',de:ant&&ant.snap?fM(ant.snap.saldoFim):'',para:fM(s.saldoFim)},...(obs?[{c:'Observação',de:'',para:obs}]:[]),...(rec.pend.length?[{c:'Pendências registradas',de:'',para:rec.pend.join('; ')}]:[])]);
+ return rec}
+function janelaFechar(d){if(!edF()){toast('Seu perfil não fecha o dia do Financeiro.','erro');return}if(d>hoje()){toast('Não dá para fechar um dia que ainda não chegou.','erro');return}
+ const D=diaDados(d);const P=pendencias(D);const F=fechDe(d);const df=F?difs(F,D):[];
+ const item=p=>`<li class="rf-it ${p.cls}"><b>${p.cls==='ok'?'✓ ':''}${esc(p.t)}</b>${p.aj?`<span class="ajuda">${esc(p.aj)}</span>`:''}${p.it&&p.it.length?`<ul>${p.it.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}</li>`;
+ modalF((F?'Refazer o fechamento de ':'Fechamento do dia ')+fData(d),`<p class="cpg-conf">${esc(diaTxt(d))}<span>Entradas ${esc(fMoeda(D.tE))} (${esc(nR(D.nE))}) · Saídas ${esc(fMoeda(D.tS))} (${esc(nP(D.nS))}) · Resultado ${esc(fMoeda(D.res))}${D.saldoFim!=null?' · Saldo final '+esc(fMoeda(D.saldoFim)):''}</span></p>
+  ${F?`<div class="aviso ${df.length?'at':'in'}" style="margin:0 0 10px"><span>Fechado por ${esc(nomeUsuario(F.fechadoPor)||'—')} em ${esc(fDataHora(F.fechadoEm))}.${df.length?' Mudou depois: '+esc(df.length+(df.length===1?' lançamento':' lançamentos'))+'. O fechamento anterior fica guardado no histórico.':''}</span></div>`:''}
+  <ul class="rf-chk">
+   <li class="rf-it ${D.nE?'in':'ok'}"><b>Entradas: ${esc(fMoeda(D.tE))} · ${esc(nR(D.nE))}</b><label><input type="checkbox" id="fcE"> Conferi as entradas</label></li>
+   <li class="rf-it ${D.nS?'in':'ok'}"><b>Saídas: ${esc(fMoeda(D.tS))} · ${esc(nP(D.nS))}</b><label><input type="checkbox" id="fcS"> Conferi as saídas</label></li>
+   ${P.map(item).join('')}</ul>
+  ${campoM('fcO','Observação do fechamento (opcional)','<textarea id="fcO" maxlength="400" placeholder="Ex.: falta o comprovante do frete; Caixa conferido com o Gustavo"></textarea>')}
+  <p class="ajuda" style="margin:0">Fechar não apaga nem trava nada: o que mudar depois aparece no resumo do dia (antes × agora) e fica na auditoria.</p>`,F?'Fechar de novo':'Confirmar o fechamento',async v=>{
+  if(!$('#fcE',v).checked||!$('#fcS',v).checked){toast('Marque que conferiu as entradas e as saídas.','erro');return false}
+  const D2=diaDados(d);const rec=await fecharDia(d,D2,String(valM(v,'fcO')||'').trim(),pendencias(D2));
+  toast('Dia '+fData(d)+' fechado: resultado '+fMoeda(rec.snap.res)+(rec.pend.length?' · '+rec.pend.length+' pendência(s) registrada(s).':'.'),'ok')})}
+
+/* ---------- 4. relatório ao proprietário ---------- */
+const empresa=()=>{try{return typeof razaoMostra==='function'?razaoMostra():''}catch(e){return ''}};
+function dadosRel(d){const D=diaDados(d);const F=fechDe(d);
+ const cols=[{k:'tipo',l:'Tipo'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'setor',l:'Setor'},{k:'conta',l:'Conta'},{k:'forma',l:'Forma'},{k:'valor',l:'Valor',t:'moeda'}];
+ const rows=[...D.ent,...D.sai].map(m=>({tipo:m.tipo,descricao:m.descricao||'',categoria:m.tipo==='Entrada'?origemEntrada(m):(m.categoria||''),setor:m.tipo==='Entrada'?'':setorDe(m),conta:nomeConta(m.conta)||'(sem conta)',forma:m.forma||'',valor:m.valor}));
+ const P=D.pes;const g2=(xs)=>xs.map(g=>({k:g.k,n:g.n,valor:g.v}));const cG=(l)=>[{k:'k',l},{k:'n',l:'Lançamentos',t:'num'},{k:'valor',l:'Valor',t:'moeda'}];
+ const extras=[{tipo:'quadro',titulo:'Resultado do dia',itens:[['Saldo inicial do dia',fM(D.saldoIni)],['Total de entradas',fMoeda(D.tE)+' · '+nR(D.nE)],['Total de saídas',fMoeda(D.tS)+' · '+nP(D.nS)],['Resultado líquido',fMoeda(D.res)],['Saldo final do dia',fM(D.saldoFim)],
+   ...(D.semConta.length?[['Sem conta informada (fora do saldo)',fMoeda(r2(soma(D.semConta,m=>m.tipo==='Entrada'?m.valor:-m.valor)))]]:[]),['Fechamento',F?'fechado por '+(nomeUsuario(F.fechadoPor)||'—')+' em '+fDataHora(F.fechadoEm):'dia ainda não fechado']]},
+  {titulo:'Entradas por origem',cols:cG('Origem'),rows:g2(D.porOrigemE),vazio:'Nenhuma entrada no dia.'},
+  {titulo:'Despesas por categoria',cols:cG('Categoria'),rows:g2(D.porCat),vazio:'Nenhuma saída no dia.'},
+  {titulo:'Despesas por setor',cols:cG('Setor'),rows:g2(D.porSetor),vazio:'Nenhuma saída no dia.'},
+  {titulo:'Pessoal e produção',cols:[{k:'k',l:'Pagamento'},{k:'valor',l:'Valor',t:'moeda'}],rows:[['Produção (enforna · controle por grade)',P.producao],['Desenforna',P.desenforna],['Empreitas',P.empreita],['Crédito ou adiantamento a trabalhador da grade',P.credito],['Mão de obra da produção lançada no Financeiro',P.maoObra],['Diárias',P.diarias],['Folha, vales e outros pagamentos ao pessoal',P.pessoal]].filter(x=>x[1]>0).map(([k,valor])=>({k,valor})),vazio:'Nenhum pagamento de pessoal ou produção no dia.'},
+  {titulo:'Boletos liquidados',cols:[{k:'descricao',l:'Boleto'},{k:'valor',l:'Valor',t:'moeda'}],rows:D.boletos.map(m=>({descricao:m.descricao,valor:m.valor})),vazio:'Nenhum boleto pago no dia.'},
+  {titulo:'Pagamentos avulsos',cols:[{k:'descricao',l:'Pagamento'},{k:'valor',l:'Valor',t:'moeda'}],rows:D.avulsos.map(m=>({descricao:((tituloDe(m)||{}).avulso||{}).tipo+' · '+m.descricao,valor:m.valor})),vazio:'Nenhum pagamento avulso no dia.'},
+  {titulo:'Caixa e bancos',cols:[{k:'nome',l:'Conta'},{k:'ini',l:'Saldo inicial',t:'moeda'},{k:'e',l:'Entradas',t:'moeda'},{k:'s',l:'Saídas',t:'moeda'},{k:'fim',l:'Saldo final',t:'moeda'}],rows:D.contas.map(c=>({nome:c.nome,ini:c.ini==null?'':c.ini,e:c.e,s:c.s,fim:c.fim==null?'':c.fim})),vazio:'Nenhuma conta com saldo inicial cadastrado.'},
+  ...(D.transf.length?[{titulo:'Transferências entre contas (não são receita nem despesa)',cols:[{k:'descricao',l:'Transferência'},{k:'valor',l:'Valor',t:'moeda'}],rows:D.transf.filter(m=>m.tipo==='Saída').map(m=>({descricao:nomeConta(m.conta)+' → '+m.descricao.replace(/^Transferência para /,''),valor:m.valor}))}]:[])];
+ return{D,cols,rows,extras,titulo:'Resumo financeiro diário'+(empresa()?' — '+empresa():'')+' · '+fData(d)}}
+function textoRel(d){const R=dadosRel(d),D=R.D;const L=['*RESUMO FINANCEIRO DIÁRIO'+(empresa()?' — '+empresa().toUpperCase():'')+'*','Data: '+fData(d)+' ('+DIAS_SEM[dt(d).getDay()]+')',''];
+ L.push('*ENTRADAS*');if(D.porOrigemE.length)D.porOrigemE.forEach(g=>L.push('- '+g.k+': '+fMoeda(g.v)));else L.push('- Nenhuma entrada');L.push('Total de entradas: '+fMoeda(D.tE),'');
+ L.push('*SAÍDAS*');if(D.porCat.length)D.porCat.forEach(g=>L.push('- '+g.k+': '+fMoeda(g.v)));else L.push('- Nenhuma saída');L.push('Total de saídas: '+fMoeda(D.tS),'');
+ const P=D.pes;const pl=[['Produção (enforna)',P.producao],['Desenforna',P.desenforna],['Empreitas',P.empreita],['Mão de obra da produção',P.maoObra],['Diárias',P.diarias],['Pessoal (folha e vales)',P.pessoal]].filter(x=>x[1]>0);
+ if(pl.length){L.push('*PESSOAL E PRODUÇÃO*');pl.forEach(([k,v])=>L.push('- '+k+': '+fMoeda(v)));L.push('')}
+ L.push('*RESULTADO DO DIA*','- Entradas: '+fMoeda(D.tE),'- Saídas: '+fMoeda(D.tS),'- Resultado líquido: '+fMoeda(D.res),'');
+ L.push('Saldo inicial: '+fM(D.saldoIni),'Saldo final: '+fM(D.saldoFim));
+ if(D.contas.length>1)D.contas.forEach(c=>L.push('• '+c.nome+': '+fM(c.fim)));
+ const F=fechDe(d);L.push('',F?'Dia fechado por '+(nomeUsuario(F.fechadoPor)||'—')+' em '+fDataHora(F.fechadoEm)+'.':'Dia ainda não fechado.');
+ L.push('Gerado no '+(typeof SPOT_NOME!=='undefined'?SPOT_NOME:'JB ERP')+' por '+(APP.nome||'—'));return L.join('\n')}
+function menuRel(btn,d){const fx=f=>{const R=dadosRel(d);return exportar(f,'Resumo_financeiro_'+d,R.cols,R.rows,R.titulo,{filtros:diaTxt(d),extras:R.extras})};
+ abrirMenuMais(btn,[{l:'Visualizar o relatório',sub:diaTxt(d),fn:()=>fx('ver')},{l:'Gerar PDF',fn:()=>fx('pdf')},{l:'Imprimir',fn:()=>fx('imprimir')},
+  {l:'Compartilhar o PDF',sub:'WhatsApp, e-mail ou outro aplicativo',fn:()=>fx('compartilhar')},
+  {l:'Enviar ao proprietário pelo WhatsApp',sub:'resumo pronto: abre o WhatsApp para escolher o contato',fn:()=>{try{window.open('https://wa.me/?text='+encodeURIComponent(textoRel(d)),'_blank','noopener')}catch(e){toast('Não foi possível abrir o WhatsApp.','erro')}}},
+  {l:'Copiar o resumo',fn:async()=>{try{await navigator.clipboard.writeText(textoRel(d));toast('Resumo copiado.','ok')}catch(e){toast('Não foi possível copiar aqui.','erro')}}},
+  {l:'Baixar planilha (Excel)',fn:()=>fx('xlsx')},
+  {l:'Relatórios anteriores',sub:'dias fechados',fn:()=>{const x=$('#rfAnt');if(x)x.scrollIntoView({behavior:'smooth',block:'start'})}}])}
+
+/* ---------- 5. painel do caixa: dia, semana e mês ---------- */
+const COR_E='#257de0',COR_S='#f47230';   /* validados (azul e laranja, ordem fixa): entradas e saídas */
+function serie(modo,ate,mv){const out=[];
+ if(modo==='mes'){for(let i=5;i>=0;i--){const m=mesMenos(ate.slice(0,7),i);const xs=mv.filter(x=>!x.transf&&String(x.data).startsWith(m));out.push({rot:fMes(m),de:m+'-01',e:r2(soma(xs.filter(x=>x.tipo==='Entrada'),x=>x.valor)),s:r2(soma(xs.filter(x=>x.tipo==='Saída'),x=>x.valor))})}}
+ else if(modo==='sem'){const ini=addDias(ate,-((dt(ate).getDay()+6)%7));for(let i=7;i>=0;i--){const a=addDias(ini,-7*i),b=addDias(a,6);const xs=mv.filter(x=>!x.transf&&x.data>=a&&x.data<=b);out.push({rot:fData(a).slice(0,5),de:a,e:r2(soma(xs.filter(x=>x.tipo==='Entrada'),x=>x.valor)),s:r2(soma(xs.filter(x=>x.tipo==='Saída'),x=>x.valor))})}}
+ else{for(let i=13;i>=0;i--){const d=addDias(ate,-i);const xs=mv.filter(x=>!x.transf&&x.data===d);out.push({rot:fData(d).slice(0,5),de:d,e:r2(soma(xs.filter(x=>x.tipo==='Entrada'),x=>x.valor)),s:r2(soma(xs.filter(x=>x.tipo==='Saída'),x=>x.valor))})}}
+ return out}
+function grafico(S){const max=Math.max(0,...S.map(x=>Math.max(x.e,x.s)));const n=S.length;const pct=v=>max>0&&v>0?Math.max(1.5,Math.round(v/max*1000)/10):0;
+ return `<div class="rf-ch" role="img" aria-label="Entradas e saídas: ${esc(S.map(x=>x.rot+' entradas '+fMoeda(x.e)+', saídas '+fMoeda(x.s)).join('; '))}"><div class="rf-ch-y">${max>0?'até '+esc(fMoedaCurta(max)):'sem movimento no período'}</div>
+  <div class="rf-ch-cols">${S.map((x,i)=>`<div class="rf-ch-c" title="${esc(x.rot)} · Entradas ${esc(fMoeda(x.e))} · Saídas ${esc(fMoeda(x.s))}"><div class="rf-ch-b"><i class="e" style="height:${pct(x.e)}%"></i><i class="s" style="height:${pct(x.s)}%"></i></div><span class="${i%2===(n-1)%2||n<=8?'m2':''}">${esc(x.rot)}</span></div>`).join('')}</div></div>`}
+const UR={d:'',graf:'dia'};
+function painelMes(d,mv){const m=d.slice(0,7);const xs=mv.filter(x=>!x.transf&&String(x.data).startsWith(m)&&x.data<=d);
+ const rec=r2(soma(xs.filter(x=>x.tipo==='Entrada'),x=>x.valor)),desp=r2(soma(xs.filter(x=>x.tipo==='Saída'),x=>x.valor));
+ const ids=contasIds();const acc=ids.map(id=>{const I=infoConta(id);return I.tem&&d>=I.dataSaldo?saldoEm(id,d,mv):null}).filter(v=>v!=null);
+ const pagar=r2(soma(FS.obrigacoes().filter(abertaO),o=>o.s.saldo));let receber=0;try{receber=typeof window.aReceberV48==='function'?r2(soma(window.aReceberV48(),x=>x.valor)):0}catch(e){}
+ return{rec,desp,res:r2(rec-desp),saldo:acc.length?r2(soma(acc,v=>v)):null,pagar,receber}}
+
+/* ---------- 6. tela: Resumo financeiro do dia ---------- */
+function telaResumo(c){
+ const r=lerRota();const h=hoje();const d=/^\d{4}-\d{2}-\d{2}$/.test(r.id||'')&&r.id<=h?r.id:h;UR.d=d;
+ const D=diaDados(d);const F=fechDe(d);const df=F?difs(F,D):[];const PM=painelMes(d,D.mv);const S=serie(UR.graf,d,D.mv);const e=edF();
+ const k=(rot,v,sub,cls)=>`<div class="rf-k ${cls||''}"><span>${esc(rot)}</span><b>${esc(v)}</b>${sub?`<small>${esc(sub)}</small>`:''}</div>`;
+ const tab=(G,rotK,vazio,clic)=>G.length?`<table class="rf-tab"><thead><tr><th>${esc(rotK)}</th><th class="n">Lançamentos</th><th class="n">Valor</th></tr></thead><tbody>${G.map((g,i)=>{const pct=G[0].v?Math.round(g.v/G[0].v*100):0;return `<tr${clic?` class="clic" data-rfg="${clic}:${i}"`:''}><td>${esc(g.k)}<div class="rf-barra" aria-hidden="true"><i style="width:${pct}%"></i></div></td><td class="n">${g.n}</td><td class="n">${esc(fMoeda(g.v))}</td></tr>`}).join('')}</tbody></table>`:`<p class="rf-vazio">${esc(vazio)}</p>`;
+ const P=D.pes;const linhasP=[['Produção (enforna · controle por grade)',P.producao],['Desenforna (controle por grade)',P.desenforna],['Empreitas',P.empreita],['Crédito ou adiantamento a trabalhador da grade',P.credito],['Mão de obra da produção (lançada no Financeiro)',P.maoObra],['Diárias',P.diarias],['Folha, vales e outros pagamentos ao pessoal',P.pessoal]].filter(x=>x[1]>0);
+ const lista=(xs,vazio)=>xs.length?`<table class="rf-tab"><tbody>${xs.map(m=>`<tr class="clic" data-rfm="${esc(m.k)}"><td>${esc(m.descricao||'—')}<div class="ajuda">${esc([m.categoria,nomeConta(m.conta)||'sem conta',m.forma].filter(Boolean).join(' · '))}</div></td><td class="n">${esc(fMoeda(m.valor))}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n">${esc(fMoeda(r2(soma(xs,m=>m.valor))))}</td></tr></tfoot></table>`:`<p class="rf-vazio">${esc(vazio)}</p>`;
+ const banner=F?`<div class="aviso ${df.length?'at':'ok'}"><span>${df.length?`<b>Mudou depois do fechamento.</b> Fechado por ${esc(nomeUsuario(F.fechadoPor)||'—')} em ${esc(fDataHora(F.fechadoEm))}; depois disso: ${df.slice(0,4).map(x=>esc(x.t+': '+txtMov(x.x)+(x.de?' (antes '+fMoeda(x.de[2])+')':''))).join('; ')}${df.length>4?' e mais '+(df.length-4):''}. Feche de novo para registrar.`:`<b>Dia fechado</b> por ${esc(nomeUsuario(F.fechadoPor)||'—')} em ${esc(fDataHora(F.fechadoEm))}.${F.pend&&F.pend.length?' Pendências registradas: '+esc(F.pend.join('; '))+'.':''}${F.obs?' Observação: '+esc(F.obs):''}`}</span></div>`
+  :`<div class="aviso ${d<h?'at':'in'}"><span><b>Dia ${d<h?'não fechado':'aberto'}.</b> No fim do dia, confira e feche: entradas, saídas, pendências, comprovantes e divergências.</span></div>`;
+ const ants=fechs().slice().sort((a,b)=>b.data.localeCompare(a.data)).slice(0,15);
+ c.innerHTML=cabF('grafico','Resumo financeiro do dia','Quanto entrou, quanto saiu, onde o dinheiro foi gasto e quanto há em caixa e bancos. Só entra o que foi pago ou recebido de fato: conta lançada, agendada ou venda a prazo não é dinheiro.',
+  `<button type="button" class="btn" id="rfRel">${ic('doc')}Enviar relatório ao proprietário ▾</button>${e&&d<=h?`<button type="button" class="btn pri" id="rfFech">${ic('escudo')}${F?'Refazer o fechamento':'Fechamento do dia'}</button>`:''}`)+
+  `<div class="rf-nav"><button type="button" class="btn" data-rfd="-1" aria-label="Dia anterior">${ic('esquerda')}</button><input type="date" id="rfDia" value="${esc(d)}" max="${esc(h)}" aria-label="Dia"><button type="button" class="btn" data-rfd="1" aria-label="Próximo dia"${d>=h?' disabled':''}>${ic('direita')}</button>${d!==h?'<button type="button" class="btn" data-rfd="0">Hoje</button>':''}<span class="rf-dia">${esc(diaTxt(d))}</span></div>
+  <div class="rf-fech">${banner}</div>
+  <div class="rf-kpis">${k('Saldo inicial do dia',fM(D.saldoIni),D.saldoIni==null?'sem saldo inicial cadastrado':'Caixa e bancos')}${k('Entradas',fMoeda(D.tE),nR(D.nE),'ent')}${k('Saídas',fMoeda(D.tS),nP(D.nS),'sai')}${k('Resultado do dia',fMoeda(D.res),D.res<0?'saiu mais do que entrou':'entrou mais do que saiu',(D.res<0?'neg ':'')+'res')}${k('Saldo final do dia',fM(D.saldoFim),D.contas.length?D.contas.length+(D.contas.length===1?' conta':' contas'):'')}</div>
+  ${D.saldoIni==null?`<p class="cpg-nota">Para ver o saldo, informe o saldo inicial do Caixa (e dos bancos) em <a href="#/fcad">Cadastros › Contas financeiras</a>.</p>`:''}
+  ${D.semConta.length?`<p class="cpg-nota">${esc(nL(D.semConta.length))} sem a conta informada (${esc(fMoeda(r2(soma(D.semConta,m=>m.valor))))}): contam nas entradas e saídas, mas não no saldo de nenhuma conta.</p>`:''}
+  <section class="rf-resp" aria-label="Respostas rápidas"><h3>Em poucos segundos</h3><ul>
+   <li><span>Quanto entrou?</span><b>${esc(fMoeda(D.tE))}</b></li><li><span>Quanto saiu?</span><b>${esc(fMoeda(D.tS))}</b></li>
+   <li><span>Onde mais gastou?</span><b>${D.porCat[0]?esc(D.porCat[0].k+' · '+fMoeda(D.porCat[0].v)):'—'}</b></li><li><span>Gasto com produção</span><b>${esc(fMoeda(P.producaoTotal))}</b></li>
+   <li><span>Gasto com pessoal (folha, vales e diárias)</span><b>${esc(fMoeda(r2(P.pessoal+P.diarias)))}</b></li><li><span>Disponível em caixa e bancos</span><b>${esc(fM(D.saldoFim))}</b></li>
+   <li><span>Resultado do dia</span><b style="${D.res<0?'color:#B42318':''}">${esc(fMoeda(D.res))}</b></li></ul></section>
+  <div class="rf-grade">
+   <section class="rf-sec"><h3>Despesas por categoria <small>${esc(fMoeda(D.tS))}</small></h3>${tab(D.porCat,'Categoria','Nenhuma saída no dia.','cat')}</section>
+   <section class="rf-sec"><h3>Despesas por setor</h3>${tab(D.porSetor,'Setor','Nenhuma saída no dia.','set')}</section>
+   <section class="rf-sec"><h3>Entradas <small>${esc(fMoeda(D.tE))}</small></h3>${tab(D.porOrigemE,'Origem','Nenhuma entrada no dia.','ent')}</section>
+   <section class="rf-sec"><h3>Pessoal e produção <small>${esc(fMoeda(P.total))}</small></h3>${linhasP.length?`<table class="rf-tab"><tbody>${linhasP.map(([a,v])=>`<tr><td>${esc(a)}</td><td class="n">${esc(fMoeda(v))}</td></tr>`).join('')}</tbody></table>`:'<p class="rf-vazio">Nenhum pagamento de pessoal ou produção no dia.</p>'}</section>
+   <section class="rf-sec"><h3>Boletos liquidados <small>${esc(String(D.boletos.length))}</small></h3>${lista(D.boletos,'Nenhum boleto pago no dia.')}</section>
+   <section class="rf-sec"><h3>Pagamentos avulsos <small><a href="#/fPagAv">abrir</a></small></h3>${lista(D.avulsos,'Nenhum pagamento avulso no dia.')}</section>
+   <section class="rf-sec larga"><h3>Caixa e bancos</h3>${D.contas.length?`<table class="rf-tab"><thead><tr><th>Conta</th><th class="n">Inicial</th><th class="n">Entradas</th><th class="n">Saídas</th><th class="n">Final</th></tr></thead><tbody>${D.contas.map(x=>`<tr><td>${esc(x.nome)}</td><td class="n">${esc(fM(x.ini))}</td><td class="n">${esc(fMoeda(x.e))}</td><td class="n">${esc(fMoeda(x.s))}</td><td class="n"><b>${esc(fM(x.fim))}</b></td></tr>`).join('')}</tbody></table>`:'<p class="rf-vazio">Nenhuma conta com saldo inicial.</p>'}
+    ${D.transf.length?`<p class="ajuda" style="margin:8px 0 0">Transferências entre contas (não são receita nem despesa): ${D.transf.filter(m=>m.tipo==='Saída').map(m=>esc(nomeConta(m.conta)+' → '+String(m.descricao).replace(/^Transferência para /,'')+' '+fMoeda(m.valor))).join('; ')}.</p>`:''}</section>
+  </div>
+  <details class="rf-sec"><summary><b>Todos os lançamentos do dia</b> · ${esc(nL(D.real.length))}</summary>${D.real.length?`<table class="rf-tab" style="margin-top:8px"><thead><tr><th>Tipo</th><th>Descrição</th><th>Setor</th><th class="n">Valor</th></tr></thead><tbody>${[...D.ent,...D.sai].map(m=>`<tr class="clic" data-rfm="${esc(m.k)}"><td>${m.tipo==='Entrada'?'<span class="tag ok">Entrada</span>':'<span class="tag pe">Saída</span>'}</td><td>${esc(m.descricao||'—')}<div class="ajuda">${esc([m.tipo==='Entrada'?origemEntrada(m):m.categoria,nomeConta(m.conta)||'sem conta',m.forma].filter(Boolean).join(' · '))}</div></td><td>${esc(m.tipo==='Entrada'?'':setorDe(m))}</td><td class="n">${esc(fMoeda(m.valor))}</td></tr>`).join('')}</tbody></table>`:'<p class="rf-vazio">Nenhum lançamento.</p>'}</details>
+  <section class="rf-sec" aria-label="Painel do caixa"><h3>Painel do caixa · ${esc(fMes(d.slice(0,7)))} até ${esc(fData(d).slice(0,5))}<span class="rf-seg" role="group" aria-label="Período do gráfico">${[['dia','Dias'],['sem','Semanas'],['mes','Meses']].map(([v,l])=>`<button type="button" data-rfg2="${v}" class="${UR.graf===v?'on':''}" aria-pressed="${UR.graf===v}">${l}</button>`).join('')}</span></h3>
+   <div class="rf-kpis">${k('Saldo acumulado',fM(PM.saldo),'caixa e bancos no fim do dia')}${k('Receitas do mês',fMoeda(PM.rec),'','ent')}${k('Despesas do mês',fMoeda(PM.desp),'','sai')}${k('Resultado do mês',fMoeda(PM.res),'',PM.res<0?'neg':'')}${k('Contas a pagar',fMoeda(PM.pagar),'em aberto hoje')}${k('Contas a receber',fMoeda(PM.receber),'em aberto hoje')}</div>
+   <div class="rf-leg"><span><i style="background:${COR_E}"></i>Entradas</span><span><i style="background:${COR_S}"></i>Saídas</span></div>${grafico(S)}
+   <details><summary class="ajuda">Ver em tabela</summary><table class="rf-tab"><thead><tr><th>${UR.graf==='mes'?'Mês':UR.graf==='sem'?'Semana de':'Dia'}</th><th class="n">Entradas</th><th class="n">Saídas</th><th class="n">Resultado</th></tr></thead><tbody>${S.map(x=>`<tr><td>${esc(x.rot)}</td><td class="n">${esc(fMoeda(x.e))}</td><td class="n">${esc(fMoeda(x.s))}</td><td class="n">${esc(fMoeda(r2(x.e-x.s)))}</td></tr>`).join('')}</tbody></table></details></section>
+  <section class="rf-sec" id="rfAnt"><h3>Relatórios anteriores <small>dias fechados</small></h3>${ants.length?`<table class="rf-tab"><thead><tr><th>Dia</th><th class="n">Entradas</th><th class="n">Saídas</th><th class="n">Resultado</th><th class="n">Saldo final</th><th>Fechado por</th></tr></thead><tbody>${ants.map(f=>`<tr class="clic" data-rfdia="${esc(f.data)}"><td>${esc(diaTxt(f.data))}</td><td class="n">${esc(fMoeda(f.snap.ent))}</td><td class="n">${esc(fMoeda(f.snap.sai))}</td><td class="n">${esc(fMoeda(f.snap.res))}</td><td class="n">${esc(fM(f.snap.saldoFim))}</td><td>${esc(nomeUsuario(f.fechadoPor)||'—')}${f.versao>1?' · refeito':''}</td></tr>`).join('')}</tbody></table>`:'<p class="rf-vazio">Nenhum dia fechado ainda. Feche o dia para guardar o relatório.</p>'}</section>`;
+ const irDia=x=>{UR.d=x;JBNAV.subst('#/fResumo'+(x===h?'':'/'+x))};
+ $$('[data-rfd]',c).forEach(b=>b.onclick=()=>{const v=+b.dataset.rfd;irDia(v===0?h:addDias(d,v)>h?h:addDias(d,v))});
+ const di=$('#rfDia',c);if(di)di.onchange=()=>{if(/^\d{4}-\d{2}-\d{2}$/.test(di.value))irDia(di.value>h?h:di.value)};
+ const rb=$('#rfRel',c);if(rb)rb.onclick=()=>menuRel(rb,d);
+ const fb=$('#rfFech',c);if(fb)fb.onclick=()=>janelaFechar(d);
+ $$('[data-rfg2]',c).forEach(b=>b.onclick=()=>{UR.graf=b.dataset.rfg2;renderTela()});
+ $$('[data-rfdia]',c).forEach(t=>t.onclick=()=>{UR.d=t.dataset.rfdia;JBNAV.ir('#/fResumo/'+t.dataset.rfdia)});
+ const mapM=new Map(D.doDia.map(m=>[m.k,m]));
+ $$('[data-rfm]',c).forEach(t=>t.onclick=()=>{const m=mapM.get(t.dataset.rfm);if(!m)return;const tt=tituloDe(m);if(tt){A.abrirObrig('t:'+tt.id);return}try{if(typeof m.abrir==='function')m.abrir()}catch(e){}});
+ $$('[data-rfg]',c).forEach(t=>t.onclick=()=>{const [q,i]=t.dataset.rfg.split(':');const G=(q==='cat'?D.porCat:q==='set'?D.porSetor:D.porOrigemE)[+i];if(!G)return;
+  modalF(G.k+' · '+fData(d),`<table class="rf-tab"><tbody>${G.xs.map(m=>`<tr><td>${esc(m.descricao||'—')}<div class="ajuda">${esc([nomeConta(m.conta)||'sem conta',m.forma].filter(Boolean).join(' · '))}</div></td><td class="n">${esc(fMoeda(m.valor))}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n">${esc(fMoeda(G.v))}</td></tr></tfoot></table>`,'',async()=>{})});
+}
+
+/* ---------- 7. pagamentos avulsos ---------- */
+const TIPOS_AV=['Diária','Pagamento de produção','Compra pequena','Compra emergencial','Serviço de terceiros','Frete','Pequenos materiais','Adiantamento','Despesa operacional','Outro'];
+const COM_QTD=['Diária','Pagamento de produção'];
+const CAT_SUG={'Diária':['Mão de obra da produção','Funcionários'],'Pagamento de produção':['Mão de obra da produção','Funcionários'],'Compra pequena':['Materiais','Peças e materiais'],'Compra emergencial':['Peças e materiais','Manutenção','Materiais'],
+ 'Serviço de terceiros':['Serviços contratados','Manutenção de máquinas','Manutenção','Outras despesas'],'Frete':['Fretes','Frete de entrega'],'Pequenos materiais':['Materiais','Peças e materiais','Material de escritório'],
+ 'Adiantamento':['Funcionários'],'Despesa operacional':['Outras despesas','Outras despesas administrativas'],'Outro':['Outras despesas']};
+const UNIDS=['diária(s)','grade(s)','milheiro(s)','hora(s)','unidade(s)','carrada(s)','metro(s)','dia(s)'];
+const SET_AV=['producao','almox','combustivel','barro','paletes','vendas','dp','adm','fin'];
+const SET_PAD={'Diária':'producao','Pagamento de produção':'producao','Compra pequena':'almox','Compra emergencial':'almox','Serviço de terceiros':'adm','Frete':'vendas','Pequenos materiais':'almox','Adiantamento':'dp','Despesa operacional':'adm','Outro':'adm'};
+const catSug=tipo=>{const C=fcfg().categorias;return (CAT_SUG[tipo]||[]).find(x=>C.includes(x))||(C.includes('Outras despesas')?'Outras despesas':C[0]||'')};
+const formasDin=()=>(window.FORMAS_F||FORMAS_V).filter(f=>f!==window.PERMUTA_V48&&!(typeof window.formaSemDinheiroV62==='function'&&window.formaSemDinheiroV62(f)));
+const avulsos=()=>DATA.fTitulos.filter(t=>t&&t.avulso&&typeof t.avulso==='object');
+function nomesConhecidos(){const s=new Set();try{if(pode('funcionarios'))(DATA.funcionarios||[]).filter(f=>f.situacao!=='Desligado').forEach(f=>f.nome&&s.add(f.nome))}catch(e){}
+ (DATA.prodGradeTrab||[]).forEach(t=>t.nome&&s.add(t.nome));avulsos().forEach(t=>t.beneficiarioNome&&s.add(t.beneficiarioNome));return [...s].sort((a,b)=>a.localeCompare(b,'pt-BR')).slice(0,400)}
+/* repetido: mesmo nome e mesmo dia com o mesmo valor (ou outra diária); também contra o Controle por grade */
+function repetidosAv(x){const nm=N(x.benef);const out=[];if(!nm)return out;const p1=nm.split(' ')[0];
+ DATA.fTitulos.forEach(t=>{if(t.cancelado||t.id===x.id)return;if(N(t.beneficiarioNome||t.beneficiario)!==nm)return;
+  (t.pagamentos||[]).forEach(p=>{if(p.estornado||p.data!==x.data)return;
+   if(ig(p.valor,x.valor))out.push('Já existe um pagamento de '+fMoeda(p.valor)+' para '+(t.beneficiarioNome||x.benef)+' em '+fData(p.data)+' (compromisso nº '+t.numero+(t.avulso?' · '+t.avulso.tipo:'')+').');
+   else if(x.tipo==='Diária'&&t.avulso&&t.avulso.tipo==='Diária')out.push('Já existe uma diária para '+(t.beneficiarioNome||x.benef)+' em '+fData(p.data)+' ('+fMoeda(p.valor)+', compromisso nº '+t.numero+').')})});
+ (DATA.pgPag||[]).forEach(p=>{if(!p||p.estorno||p.data!==x.data)return;const tr=TRABG(p.trabId);if(!tr)return;const ns=[tr.nome,tr.apelido].map(N).filter(Boolean);
+  if(ns.some(n=>n===nm||(n.split(' ')[0]===p1&&ig(p.valor,x.valor))))out.push('O Controle por grade já tem um pagamento de '+fMoeda(p.valor)+' para '+tr.nome+' em '+fData(p.data)+'.')});
+ return [...new Set(out)]}
+function novoAvulso(pre){pre=pre||{};if(!edF()){toast('Seu perfil não lança pagamentos.','erro');return}
+ const id='av'+novoId();const C=fcfg();const tipo0=TIPOS_AV.includes(pre.tipo)?pre.tipo:'Diária';let tipo=tipo0;
+ const ultForma=(()=>{try{return localStorage.getItem('jb_av_forma')||''}catch(e){return ''}})();
+ modalF('Pagamento avulso',`<div class="av-form"><p class="ajuda" style="margin:0 0 8px">Despesa paga na hora, sem boleto: diária, produção, compra pequena, frete, adiantamento… Entra no Financeiro já paga, no caixa do dia e nos relatórios.</p>
+  <div class="av-tipos" role="group" aria-label="Tipo">${TIPOS_AV.map(t=>`<button type="button" data-avt="${esc(t)}" class="${t===tipo0?'on':''}" aria-pressed="${t===tipo0}">${esc(t)}</button>`).join('')}</div>
+  ${campoM('avDs','Descrição<i> *</i>','<input id="avDs" maxlength="160" placeholder="Ex.: diária na limpeza do forno 6">')}
+  <div class="duas">${campoM('avB','Beneficiário (quem recebeu)<i> *</i>',`<input id="avB" list="avBl" maxlength="120" autocomplete="off"><datalist id="avBl">${nomesConhecidos().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
+   ${campoM('avDoc','CPF ou CNPJ (opcional)','<input id="avDoc" inputmode="numeric" maxlength="20">')}</div>
+  <div id="avQw"><div class="duas">${campoM('avAt','Atividade realizada<i> *</i>','<input id="avAt" maxlength="120" placeholder="Ex.: enforna do forno 6; limpeza do pátio">')}${campoM('avAu','Quem autorizou<i> *</i>','<input id="avAu" maxlength="80" list="avAul">')}</div>
+   <div class="tres">${campoM('avQ','Quantidade','<input id="avQ" type="number" step="any" min="0" inputmode="decimal">')}${campoM('avU','Unidade',`<select id="avU">${optH(UNIDS,'diária(s)')}</select>`)}${campoM('avVu','Valor unitário','<input id="avVu" data-masc="moeda" inputmode="decimal" placeholder="0,00">')}</div></div>
+  <div class="duas">${campoM('avV','Valor pago<i> *</i>','<input id="avV" data-masc="moeda" inputmode="decimal" placeholder="0,00">','<span id="avVt"></span>')}${campoM('avD','Data do pagamento<i> *</i>',`<input id="avD" type="date" max="${hoje()}" value="${esc(pre.data&&pre.data<=hoje()?pre.data:hoje())}">`)}</div>
+  <div class="duas">${campoM('avS','Setor responsável<i> *</i>',`<select id="avS">${optH(SET_AV.map(k=>[k,nomeSet(k)||k]),SET_PAD[tipo0])}</select>`)}${campoM('avCc','Centro de custo',`<select id="avCc"><option value="">—</option>${optH(C.centros||[],'')}</select>`)}</div>
+  <div class="duas">${campoM('avC','Categoria<i> *</i>',`<select id="avC">${optH(C.categorias,catSug(tipo0))}</select>`)}${campoM('avF','Forma de pagamento<i> *</i>',`<select id="avF">${optH(formasDin(),formasDin().includes(ultForma)?ultForma:'Dinheiro')}</select>`)}</div>
+  <div class="duas">${campoM('avCt','Saiu de (Caixa ou banco)<i> *</i>',`<select id="avCt">${optH(optsContas(),CAIXA)}</select>`)}${campoM('avPp','Quem pagou',`<input id="avPp" maxlength="80" value="${esc(APP.nome||'')}">`)}</div>
+  <div id="avAuOw">${campoM('avAuO','Quem autorizou (opcional)','<input id="avAuO" maxlength="80" list="avAul">')}</div><datalist id="avAul">${[...new Set([...(DATA.fResp||[]).map(r=>r.nome),APP.nome].filter(Boolean))].map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  ${campoM('avA','Comprovante ou foto (opcional)',APP.assets?'<input id="avA" type="file" accept="application/pdf,image/*">':'<input id="avL" placeholder="Link do comprovante no Google Drive">')}
+  ${campoM('avO','Observações','<textarea id="avO" maxlength="400"></textarea>')}
+  <div id="avDup" class="aviso at" hidden style="display:block;margin:6px 0"><span id="avDupT"></span><label style="display:flex;gap:8px;align-items:center;margin-top:6px;font-weight:600"><input type="checkbox" id="avDupOk"> É outro pagamento: salvar assim mesmo</label></div></div>`,'Registrar pagamento',async v=>{
+  const q=i=>$('#'+i,v);const desc=valM(v,'avDs').trim(),nome=valM(v,'avB').trim(),val=r2(lerMoeda(valM(v,'avV'))),d=valM(v,'avD'),setor=valM(v,'avS'),cat=valM(v,'avC'),forma=valM(v,'avF'),conta=valM(v,'avCt');
+  const comQ=COM_QTD.includes(tipo);const at=valM(v,'avAt').trim(),au=(comQ?valM(v,'avAu'):valM(v,'avAuO')).trim();const doc=dgs(valM(v,'avDoc'));
+  if(DATA.fTitulos.some(t=>t.id===id)){toast('Este pagamento já foi salvo.','ok');return}
+  if(!desc){toast('Informe a descrição.','erro');q('avDs').focus();return false}
+  if(!nome){toast('Informe quem recebeu.','erro');q('avB').focus();return false}
+  if(comQ&&!at){toast('Informe a atividade realizada.','erro');q('avAt').focus();return false}
+  if(comQ&&!au){toast('Informe quem autorizou.','erro');q('avAu').focus();return false}
+  if(!(val>0)){toast('Informe o valor pago.','erro');q('avV').focus();return false}
+  if(!d||d>hoje()){toast('Informe a data do pagamento (até hoje).','erro');q('avD').focus();return false}
+  if(!cat){toast('Escolha a categoria.','erro');return false}if(!conta){toast('Escolha de onde saiu o dinheiro.','erro');return false}
+  if(doc&&!(doc.length===11?cpfValido(doc):doc.length===14?cnpjValido(doc):false)){toast('CPF ou CNPJ inválido. Confira ou deixe em branco.','erro');q('avDoc').focus();return false}
+  const rep=repetidosAv({id,benef:nome,data:d,valor:val,tipo});
+  if(rep.length&&!q('avDupOk').checked){q('avDup').hidden=false;q('avDupT').textContent='Parece repetido. '+rep.join(' ');toast('Parece repetido. Confira o aviso antes de salvar.','erro');return false}
+  let arq=null;try{const f=q('avA')&&q('avA').files[0];if(f){toast('Enviando o comprovante…');arq=await H.subirComprovante(f)}}catch(e){toast(e&&e.code==='grande'?'Arquivo maior que 20 MB.':'Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}
+  const lk=String(valM(v,'avL')||'').trim();const agora=agoraI(),u=eu();const qtd=+valM(v,'avQ')||0,vu=r2(lerMoeda(valM(v,'avVu'))||0);
+  const p={id:novoId(),data:d,valor:val,forma,contaId:conta,quitacao:true,motivoDif:'',obsDif:'',por:u,em:agora,obs:'Pagamento avulso'};
+  const st={id,data:d,descricao:desc,categoria:cat,setorOrigem:'Geral (Financeiro)',centroCusto:valM(v,'avCc'),beneficiarioTipo:'Outro',beneficiario:nome,...(doc?{cnpjCpf:doc}:{}),
+   valor:val,vencimento:d,dataPrevista:'',formaPrevista:forma,contaId:conta,docOrigemTipo:arq||lk?'Recibo':'Sem documento',condicaoT:'À vista (já pago)',extra:true,repetir:'Não repete',obs:valM(v,'avO').trim(),
+   pagamentos:[p],enc:{setor,modo:'manual',regra:'Informado no pagamento avulso',st:'ok',motivo:'',em:agora,por:u,hist:[{em:agora,por:u,de:'',para:setor,modo:'manual',regra:'Informado no pagamento avulso'}]},
+   avulso:{tipo,setor,atividade:comQ?at:'',qtd:comQ&&qtd>0?qtd:'',unidade:comQ&&qtd>0?valM(v,'avU'):'',valorUnit:comQ&&vu>0?vu:'',autorizadoPor:au,pagoPor:valM(v,'avPp').trim(),comp:!!(arq||lk)}};
+  const rec=await gravarRegistro('fTitulos',st,null,true);try{localStorage.setItem('jb_av_forma',forma)}catch(e){}
+  try{await H.logF('fTitulos',rec.id,'registrou pagamento avulso',[{c:'Pagamento',de:'',para:tipo+' · '+fMoeda(val)+' · '+forma+' · '+fData(d)+' · '+nomeConta(conta)},{c:'Setor',de:'',para:nomeSet(setor)},...(au?[{c:'Autorizado por',de:'',para:au}]:[]),...(rep.length?[{c:'Aviso de repetido',de:'',para:'confirmado como outro pagamento'}]:[])])}catch(e){console.warn('histórico do avulso',e)}
+  if(arq||lk){try{const oN=FS.obrigacoes().find(o=>o.ref==='t:'+rec.id)||null;await H.criarDoc(oN,{tipoDoc:/PIX/.test(forma)?'Comprovante de PIX':/Transfer/.test(forma)?'Comprovante de transferência':'Recibo',data:d,valor:val,arquivo:arq,linkDrive:lk,pagamentoId:p.id,contaId:conta})}catch(e){toast('Pagamento registrado, mas o comprovante não foi salvo: '+msgErro(e),'erro')}}
+  toast(tipo+' de '+fMoeda(val)+' registrada para '+nome+'.','ok');if(typeof pre.depois==='function'){try{pre.depois(rec)}catch(e){}}},{depois:v=>{
+  const q=i=>$('#'+i,v);
+  const vis=()=>{const c=COM_QTD.includes(tipo);q('avQw').hidden=!c;q('avAuOw').hidden=c};vis();
+  $$('[data-avt]',v).forEach(b=>b.onclick=()=>{tipo=b.dataset.avt;$$('[data-avt]',v).forEach(x=>{const on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',String(on))});
+   q('avC').value=catSug(tipo);q('avS').value=SET_PAD[tipo]||'adm';q('avU').value=tipo==='Pagamento de produção'?'grade(s)':'diária(s)';vis();calc()});
+  const calc=()=>{const n=+q('avQ').value||0,u=lerMoeda(q('avVu').value)||0;const t=q('avVt');if(n>0&&u>0){const tot=r2(n*u);q('avV').value=fMoedaCampo(tot);t.textContent=n+' × '+fMoeda(u)+' = '+fMoeda(tot)}else t.textContent=''};
+  ['avQ','avVu'].forEach(i=>q(i).addEventListener('input',calc));
+  ['avB','avV','avD'].forEach(i=>q(i).addEventListener('change',()=>{q('avDup').hidden=true;q('avDupOk').checked=false}));
+  const bn=q('avB');bn.addEventListener('change',()=>{const tr=(DATA.prodGradeTrab||[]).find(t=>N(t.nome)===N(bn.value));if(tr&&!q('avDoc').value){}})}})}
+const UA={de:'',ate:'',tipo:'',setor:'',q:'',lim:50};
+function telaAvulsos(c){const h=hoje();if(!UA.de)UA.de=h.slice(0,7)+'-01';if(!UA.ate)UA.ate=h;const e=edF();
+ const q=N(UA.q);const pg=t=>(t.pagamentos||[]).filter(p=>!p.estornado);const dataT=t=>(pg(t)[0]||{}).data||t.data||'';
+ const base=avulsos().filter(t=>!t.cancelado&&dataT(t)>=UA.de&&dataT(t)<=UA.ate);
+ const xs=base.filter(t=>(!UA.tipo||t.avulso.tipo===UA.tipo)&&(!UA.setor||(t.avulso.setor||(t.enc||{}).setor)===UA.setor)&&(!q||N([t.beneficiarioNome,t.descricao,t.avulso.atividade,t.avulso.tipo,t.categoria,t.avulso.autorizadoPor].join(' ')).includes(q)))
+  .sort((a,b)=>dataT(b).localeCompare(dataT(a))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));
+ const tot=t=>r2(soma(pg(t),p=>p.valor));const som=f=>r2(soma(base.filter(f),tot));
+ const k=(rot,v,sub)=>`<div class="rf-k"><span>${esc(rot)}</span><b>${esc(v)}</b>${sub?`<small>${esc(sub)}</small>`:''}</div>`;
+ const vis=xs.slice(0,UA.lim);
+ c.innerHTML=cabF('moeda','Pagamentos avulsos','Despesas pagas na hora, sem boleto: diárias, pagamentos de produção, compras pequenas e emergenciais, serviços, fretes, adiantamentos. Cada uma entra no Financeiro já paga, com setor, centro de custo, quem autorizou e quem pagou.',
+  `<button type="button" class="btn" id="avExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn pri" id="avNovo">${ic('mais')}Novo pagamento avulso</button>`:''}`)+
+  `<div class="rf-kpis">${k('Total no período',fMoeda(som(()=>true)),base.length+(base.length===1?' pagamento':' pagamentos'))}${k('Diárias',fMoeda(som(t=>t.avulso.tipo==='Diária')),'')}${k('Pagamentos de produção',fMoeda(som(t=>t.avulso.tipo==='Pagamento de produção')),'')}${k('Outros avulsos',fMoeda(som(t=>!COM_QTD.includes(t.avulso.tipo))),'')}</div>
+  <div class="bol-filtros"><input type="search" id="avQ0" placeholder="Pesquisar beneficiário, descrição, atividade ou quem autorizou" value="${esc(UA.q)}" aria-label="Pesquisar">
+   <label>De <input type="date" id="avDe" value="${esc(UA.de)}"></label><label>até <input type="date" id="avAte" value="${esc(UA.ate)}"></label>
+   <select id="avTp" aria-label="Tipo"><option value="">Tipo: todos</option>${optH(TIPOS_AV,UA.tipo)}</select><select id="avSt" aria-label="Setor"><option value="">Setor: todos</option>${optH(SET_AV.map(k2=>[k2,nomeSet(k2)||k2]),UA.setor)}</select></div>
+  <p class="bol-resumo">${esc(xs.length+(xs.length===1?' pagamento':' pagamentos'))} · ${esc(fMoeda(r2(soma(xs,tot))))}</p>
+  <div class="av-lista">${vis.length?vis.map(t=>{const a=t.avulso;const p=pg(t)[0]||{};const sN=nomeSet(a.setor||(t.enc||{}).setor);
+   return `<article class="av-card"><div class="t" data-avab="${esc(t.id)}" tabindex="0" role="button">${esc(t.beneficiarioNome||t.beneficiario||'—')}</div><div class="v">${esc(fMoeda(tot(t)))}</div>
+    <div class="s">${esc([t.descricao,a.atividade&&a.atividade!==t.descricao?a.atividade:'',a.qtd?(a.qtd+' '+(a.unidade||'')+(a.valorUnit?' × '+fMoeda(a.valorUnit):'')):''].filter(Boolean).join(' · '))}</div>
+    <div class="tg"><span class="tag in">${esc(a.tipo)}</span><span>${esc(fData(p.data||t.data))}</span><span class="ajuda">· ${esc([p.forma,nomeConta(p.contaId)].filter(Boolean).join(' · '))}${sN?' · '+esc(sN):''}${t.centroCusto?' · '+esc(t.centroCusto):''}</span>
+     <span class="ajuda">· lançado por ${esc(nomeUsuario(t.criadoPor)||'—')}${a.autorizadoPor?' · autorizado por '+esc(a.autorizadoPor):''}${a.pagoPor?' · pago por '+esc(a.pagoPor):''}</span>${a.comp||DATA.fDocs.some(x=>x.pagamentoId===p.id)?'':' <span class="tag at">sem comprovante</span>'}</div></article>`}).join(''):'<div class="vazio"><b>Nenhum pagamento avulso no período</b>Use “Novo pagamento avulso” para lançar diárias, produção, compras pequenas e outras despesas pagas na hora.</div>'}</div>
+  ${xs.length>vis.length?`<p class="bol-mais"><button type="button" class="btn" id="avMais">Mostrar mais (${xs.length-vis.length} restantes)</button></p>`:''}`;
+ const nv=$('#avNovo',c);if(nv)nv.onclick=()=>novoAvulso({});
+ const qq=$('#avQ0',c);let tq=null;if(qq)qq.oninput=()=>{clearTimeout(tq);tq=setTimeout(()=>{UA.q=qq.value;UA.lim=50;renderTela();setTimeout(()=>{const n=$('#avQ0');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},0)},350)};
+ [['avDe','de'],['avAte','ate'],['avTp','tipo'],['avSt','setor']].forEach(([i,k2])=>{const x=$('#'+i,c);if(x)x.onchange=()=>{UA[k2]=x.value;UA.lim=50;renderTela()}});
+ const mm=$('#avMais',c);if(mm)mm.onclick=()=>{UA.lim+=50;renderTela()};
+ $$('[data-avab]',c).forEach(b=>{const f=()=>A.abrirObrig('t:'+b.dataset.avab);b.onclick=f;b.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f()}}});
+ const ex=$('#avExp',c);if(ex)ex.onclick=()=>{const cols=[{k:'data',l:'Data',t:'data'},{k:'tipo',l:'Tipo'},{k:'benef',l:'Beneficiário'},{k:'doc',l:'CPF/CNPJ'},{k:'descricao',l:'Descrição'},{k:'atividade',l:'Atividade'},{k:'qtd',l:'Quantidade'},{k:'setor',l:'Setor'},{k:'centro',l:'Centro de custo'},{k:'forma',l:'Forma'},{k:'conta',l:'Conta'},{k:'aut',l:'Autorizado por'},{k:'pago',l:'Pago por'},{k:'lanc',l:'Lançado por'},{k:'valor',l:'Valor',t:'moeda'}];
+  const rows=xs.map(t=>{const a=t.avulso,p=pg(t)[0]||{};return{data:p.data||t.data,tipo:a.tipo,benef:t.beneficiarioNome||'',doc:t.cnpjCpf||'',descricao:t.descricao,atividade:a.atividade||'',qtd:a.qtd?a.qtd+' '+(a.unidade||''):'',setor:nomeSet(a.setor||(t.enc||{}).setor),centro:t.centroCusto||'',forma:p.forma||'',conta:nomeConta(p.contaId)||'',aut:a.autorizadoPor||'',pago:a.pagoPor||'',lanc:nomeUsuario(t.criadoPor)||'',valor:tot(t)}});
+  const t='Pagamentos avulsos · '+fData(UA.de)+' a '+fData(UA.ate);const fx=f=>exportar(f,'Pagamentos_avulsos_'+UA.de+'_'+UA.ate,cols,rows,t,{filtros:[UA.tipo,nomeSet(UA.setor)].filter(Boolean).join(' · ')||'Todos'});
+  abrirMenuMais(ex,[{l:'Visualizar',fn:()=>fx('ver')},{l:'Gerar PDF',fn:()=>fx('pdf')},{l:'Imprimir',fn:()=>fx('imprimir')},{l:'Compartilhar',fn:()=>fx('compartilhar')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}}
+
+/* ---------- 8. ligações com o resto do programa (só acrescentam) ---------- */
+Object.assign(PERM,{fResumo:{v:FV,e:FE},fPagAv:{v:FV,e:FE}});['fResumo','fPagAv'].forEach(x=>{if(!ROTAS_SETOR.includes(x))ROTAS_SETOR.push(x)});
+Object.assign(TELAS_V,{fResumo:el=>shellF(el,'fResumo',telaResumo),fPagAv:el=>shellF(el,'fPagAv',telaAvulsos)});
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fPagAv'))window.FIN_ABAS_EXTRA.push({depois:'fOutros',r:'#/fPagAv',m:'fPagAv',ic:'moeda',l:'Pagamentos avulsos',at:['fPagAv']});   /* depois dos módulos de sempre: os 4 atalhos favoritos de antes continuam */
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fResumo'))window.FIN_ABAS_EXTRA.push({depois:'fBoletos',r:'#/fResumo',m:'fResumo',ic:'grafico',l:'Resumo financeiro do dia',at:['fResumo']});
+window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(x=>x!=='#/fResumo'),'#/fResumo'];
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(t,s,i,h,x)=>E.push({g:'Telas',t,s,ic:i,k:NN(t+' '+s+' '+x),ir:()=>JBNAV.ir(h),h,ix:E.length});
+ if(pode('fResumo'))add('Resumo financeiro do dia','Financeiro · entradas, saídas, saldo, fechamento do dia e relatório ao proprietário','grafico','#/fResumo','caixa do dia fluxo de caixa saldo entradas saidas fechamento relatorio proprietario dono whatsapp');
+ if(pode('fPagAv'))add('Pagamentos avulsos','Financeiro · diárias, produção, compras pequenas, fretes e adiantamentos pagos na hora','moeda','#/fPagAv','diaria diarias producao avulso compra pequena frete adiantamento')}catch(e){}return E}}
+/* novo pagamento avulso também pelo "Mais ▾" da Central de Pagamentos */
+window.CAIXA_DIA_V167=Object.freeze({diaDados,pendencias,fecharDia,fechDe,difs,snap,dadosRel,textoRel,serie,painelMes,partesGrade,pessoas,setorDe,novoAvulso,repetidosAv,avulsos,TIPOS_AV,UR,UA});
 })();
 </script>
 </body>
