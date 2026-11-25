@@ -1,5 +1,8 @@
 # V160 · Controle de almoço da Cozinha (24/11/2026)
 
+> Desde a V162 (25/11/2026) o controle é de **café, almoço e janta** e quem não foi marcado conta como NÃO:
+> veja [refeicoes-cozinha-v162.md](refeicoes-cozinha-v162.md). O resto continua como descrito aqui.
+
 Pedido do Jeferson (24/11/2026): dentro do **Setor do Almoxarifado / Cozinha**, só na parte da **Cozinha** (sem
 misturar com o almoxarifado: telas, menus, tabelas e relatórios separados), registrar todo dia quem almoçou na
 fábrica e descontar sozinho o valor da refeição na folha de cada funcionário, no Setor Pessoal.

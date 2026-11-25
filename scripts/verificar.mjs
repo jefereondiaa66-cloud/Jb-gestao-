@@ -1258,7 +1258,7 @@ teste('grade', 'Empreita do forno (V158): valor digitado em cada empreita, divis
   assert.ok(b.includes('const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&'), 'a empreita não conta como grade repetida do dia');
 });
 
-teste('almoco', 'Controle de almoço da Cozinha (V160): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
+teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), adm = ler('nuvem/admin.html');
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
   assert.equal((app.match(/<script id="almoco-v160">/g) || []).length, 1, 'um bloco só');
@@ -1279,12 +1279,18 @@ teste('almoco', 'Controle de almoço da Cozinha (V160): telas só da Cozinha, de
   /* a parte do mês só é criada quando ainda não existe (erro de um lançamento volta para a tela) */
   assert.ok(b.includes("const g=await ref.get().catch(()=>null);if(g&&g.exists)throw e}"), 'cria a parte do mês só quando falta');
   /* Setor Pessoal: "Desconto refeição" na folha, no extrato, no recibo e no holerite (as telas sem almoço ficam iguais) */
-  assert.ok(app.includes('function refeicaoMes(fid,mes){') && app.includes("linhas.push(['(–) Desconto refeição ('+txtAlmocos(refeicao.qtd)+' na fábrica)',-refeicao.valor])")
-    && app.includes("addD('530','Desconto refeição',txtAlmocos(ex.refeicao.qtd),ex.refeicao.valor)") && app.includes('descRefeicao:dRefeicao')
+  assert.ok(app.includes('function refeicaoMes(fid,mes){') && app.includes("linhas.push(['(–) Desconto refeição ('+txtRefeicoes(refeicao)+' na fábrica)',-refeicao.valor])")
+    && app.includes("addD('530','Desconto refeição',txtRefeicoes(ex.refeicao,true),ex.refeicao.valor)") && app.includes('descRefeicao:dRefeicao')
     && app.includes('refeicao:round2(soma(it,x=>+x.descRefeicao||0))'), 'desconto refeição ligado à folha do Pessoal');
   /* nuvem: setor do almoxarifado também para quem só tem a Cozinha; perfil novo no painel */
   assert.ok(nv.includes("almox: ['almox', 'cozinha']") && nv.includes('atualizarCompartilhados: function () { return atualizarCompartilhados(); },'), 'nuvem: setor e dados compartilhados');
-  assert.ok(adm.includes("['cozinha', 'Cozinha (só o controle de almoço)']"), 'perfil Cozinha no painel de usuários');
+  assert.ok(adm.includes("['cozinha', 'Cozinha (controle de refeições: café, almoço e janta)']"), 'perfil Cozinha no painel de usuários');
+  /* V162: café, almoço e janta; quem não foi marcado conta como NÃO; o almoço antigo (sem "ref") continua almoço */
+  assert.ok(b.includes("{k:'cafe',l:'Café',") && b.includes("{k:'almoco',l:'Almoço',") && b.includes("{k:'janta',l:'Janta',")
+    && b.includes("const refOk=k=>REF[k]?k:'almoco';") && b.includes("const ID=(d,fid,ref)=>REF[refOk(ref)].pre+'-'+d+'-'+fid;"), 'três refeições; sem "ref" é almoço');
+  assert.ok(b.includes("const estado=r=>r&&r.sim===true?'sim':'nao';") && !/'falta'/.test(b), 'quem não foi marcado conta como NÃO (sem "sem marcação")');
+  assert.ok(b.includes("function vigente(d,ref){const k=refOk(ref);") && b.includes('const temValor=ref=>'), 'um valor para cada refeição');
+  assert.ok(app.includes('const txtRefeicoes=(x,curto)=>') && !app.includes('txtAlmocos'), 'folha com o texto das refeições (café, almoço e janta)');
   /* banco: coleções, regras e cadastro rápido, com reversão e sem apagar nada
      (o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório) */
   if (existsSync(join(RAIZ, 'supabase/migrations'))) {
@@ -1296,6 +1302,15 @@ teste('almoco', 'Controle de almoço da Cozinha (V160): telas só da Cozinha, de
       && sql.includes('docs_almoco_proteger_iu') && sql.includes('docs_almoco_cfg_proteger_iu') && sql.includes("using errcode = 'JB423'"), 'coleções, gatilhos e cadastro rápido');
     assert.ok(!/\b(drop|truncate)\b|\bdelete\s+from\b/i.test(limpo), 'a migração só acrescenta (gatilho de exclusão é para recusar, não para apagar)');
     assert.ok(/revoke all on function public\.jb_almoco_cadastrar\(jsonb\) from public, anon;/.test(sql), 'cadastro rápido só para quem entrou');
+  }
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const n2 = 'supabase/migrations/20261125120000_seg_refeicoes_cozinha.sql';
+    assert.ok(existsSync(join(RAIZ, n2)) && existsSync(join(RAIZ, n2.replace('.sql', '.down.sql'))), 'V162: migração com reversão');
+    const sql2 = ler(n2), limpo2 = sql2.replace(/--.*$/gm, '');
+    assert.ok(sql2.includes('create or replace function seg.almoco_preco(p_dia date, p_ref text)') && sql2.includes("select seg.almoco_preco(p_dia, 'almoco')")
+      && sql2.includes("v_pre := case v_ref when 'cafe' then 'cf' when 'janta' then 'jt' else 'al' end;") && sql2.includes("'ref', v_ref, 'sim', v_sim")
+      && sql2.includes('seg.almoco_ref(x->>\'ref\') is not distinct from v_ref'), 'V162: valor e lançamento por refeição no banco');
+    assert.ok(!/\b(drop|truncate)\b|\bdelete\s+from\b/i.test(limpo2), 'V162: a migração só acrescenta');
   }
   if (ci) assert.ok(ci.includes('node scripts/testar-almoco.mjs'), 'teste no navegador roda na conferência automática');
 });

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Teste de ponta a ponta do Controle de almoço da Cozinha (V160), no navegador, com o programa REAL
-// (saida/claude.html) e o banco central simulado (scripts/lib/servidor-falso.mjs, com o gatilho do almoço imitado:
-// mês com folha fechada não muda, lançamento não se apaga, o banco carimba o histórico e o valor do dia). Dados fictícios.
+// Teste de ponta a ponta do Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta), no navegador,
+// com o programa REAL (saida/claude.html) e o banco central simulado (scripts/lib/servidor-falso.mjs, com o gatilho
+// das refeições imitado: mês com folha fechada não muda, lançamento não se apaga nem muda de refeição, o banco carimba
+// o histórico e o valor da refeição no dia). Dados fictícios.
+//  - V162: três refeições (café, almoço e janta), cada uma com o seu valor; quem não foi marcado conta como NÃO
 //  - o controle fica só na parte da Cozinha do Setor do Almoxarifado / Cozinha (botões, menu Módulos, telas próprias)
 //  - lista do dia: só os ativos do Setor Pessoal, em ordem alfabética, com busca; afastado, demitido e admitido
 //    depois do dia ficam fora (quem saiu depois aparece nos dias em que trabalhava)
 //  - SIM fica verde e lança na hora, NÃO fica cinza e não desconta, troca de SIM/NÃO com o histórico de quem marcou,
-//    "Marcar todos como SIM" (só quem está sem marcação) e "Desfazer", rodapé com almoços e valor do dia
+//    "Marcar todos como SIM" (todos que estão NÃO) e "Desfazer", rodapé com a refeição, o valor dela e o total do dia
 //  - valor do almoço: só daqui pra frente (os dias já lançados guardam o valor antigo), agendar e cancelar
 //  - cadastro rápido: vai para o cadastro do Setor Pessoal (sem lista separada) e aparece na lista do dia
 //  - folha: evento "Desconto refeição" no extrato, na folha, no recibo e no holerite; folha fechada trava o mês
@@ -85,7 +87,8 @@ async function abrir(docs, mobile) {
     let srv = null;
     const doc = (c, i) => { const d = srv.estado.docs.get(c + '/' + i); return d ? d.dados : null; };
     const erroSrv = (codigo, msg) => { const e = new Error(msg); e.codigo = codigo; return e; };
-    const precoSrv = (d) => { const t = ((doc('almocoCfg', 'valor') || {}).tabela || []).map((e, i) => ({ e, i })).filter((x) => x.e && !x.e.cancelado && x.e.desde <= d);
+    const REFS = { cafe: ['cf', 'do café'], almoco: ['al', 'do almoço'], janta: ['jt', 'da janta'] };
+    const precoSrv = (d, ref) => { const t = ((doc('almocoCfg', 'valor') || {}).tabela || []).map((e, i) => ({ e, i })).filter((x) => x.e && !x.e.cancelado && x.e.desde <= d && (x.e.ref || 'almoco') === ref);
       t.sort((a, b) => b.e.desde.localeCompare(a.e.desde) || String(b.e.em || '').localeCompare(String(a.e.em || '')) || b.i - a.i); return t.length ? +t[0].e.valor : null; };
     const travaSrv = (m) => { const f = doc('folhas', m); return (f && f.situacao && f.situacao !== 'Aberta') || window.__travaSrv === m; };
     /* o mesmo que o gatilho seg.almoco_proteger faz no banco real */
@@ -96,17 +99,20 @@ async function abrir(docs, mobile) {
         const va = a[k], vb = b[k], ea = !!va && typeof va === 'object', eb = !!vb && typeof vb === 'object';
         if (!ea && !eb) continue; if (ea && eb && JSON.stringify(va) === JSON.stringify(vb)) continue;
         if (ea) meses.add(String(va.data).slice(0, 7));
-        if (!eb) throw erroSrv('JB409', 'Lançamento de almoço não se apaga: para corrigir, marque SIM ou NÃO.');
+        if (!eb) throw erroSrv('JB409', 'Lançamento de refeição não se apaga: para corrigir, marque SIM ou NÃO.');
+        const ref = vb.ref == null ? 'almoco' : vb.ref;
+        if (!REFS[ref] || k !== REFS[ref][0] + '-' + vb.data + '-' + vb.funcionarioId) throw erroSrv('22023', 'dados inválidos');
+        if (ea && (va.ref || 'almoco') !== ref) throw erroSrv('22023', 'O lançamento da refeição não muda de pessoa, de dia nem de refeição.');
         if (window.__recusaFid && vb.funcionarioId === window.__recusaFid) throw erroSrv('22023', 'Funcionário não encontrado no Setor Pessoal.');
         meses.add(String(vb.data).slice(0, 7));
         const simAnt = ea ? (va.sim === undefined ? null : va.sim) : undefined;
         let valor = 0;
-        if (vb.sim === true) { valor = ea && va.sim === true ? +va.valor || 0 : precoSrv(vb.data); if (valor == null) throw erroSrv('JB422', 'O valor do almoço ainda não foi definido para ' + vb.data + '.'); }
+        if (vb.sim === true) { valor = ea && va.sim === true ? +va.valor || 0 : precoSrv(vb.data, ref); if (valor == null) throw erroSrv('JB422', 'O valor ' + REFS[ref][1] + ' ainda não foi definido para ' + vb.data + '.'); }
         const hist = ea && Array.isArray(va.hist) ? va.hist.slice() : [];
         if (!ea || simAnt !== vb.sim) hist.push([vb.sim === true ? 1 : vb.sim === false ? 0 : null, 'u_DONO', new Date().toISOString()]);
-        b[k] = { id: k, funcionarioId: vb.funcionarioId, data: vb.data, sim: vb.sim, valor, hist };
+        b[k] = { id: k, funcionarioId: vb.funcionarioId, data: vb.data, ref, sim: vb.sim, valor, hist };
       }
-      for (const m of meses) if (travaSrv(m)) throw erroSrv('JB423', 'A folha de ' + m.slice(5, 7) + '/' + m.slice(0, 4) + ' já foi fechada no Setor Pessoal. Os almoços desse mês não mudam mais: para corrigir, o Pessoal precisa reabrir a folha.');
+      for (const m of meses) if (travaSrv(m)) throw erroSrv('JB423', 'A folha de ' + m.slice(5, 7) + '/' + m.slice(0, 4) + ' já foi fechada no Setor Pessoal. As refeições desse mês não mudam mais: para corrigir, o Pessoal precisa reabrir a folha.');
       if (depois) depois.items = b;
       return depois;
     };
@@ -130,11 +136,13 @@ async function abrir(docs, mobile) {
       sincronizado: async () => { await T.esperar(() => !APP.central || APP.central.estado().pendentes === 0, 10000); await T.dorme(300); },
       confirmar: async () => { await T.esperar(() => document.querySelector('.veu .modal [data-r="1"]')); document.querySelector('.veu .modal [data-r="1"]').click(); await T.dorme(250); },
       linha: (fid) => document.querySelector('.alm-lin[data-fid="' + fid + '"]'),
-      st: (fid) => { const l = T.linha(fid); return l ? (l.classList.contains('sim') ? 'sim' : l.classList.contains('nao') ? 'nao' : 'falta') : 'ausente'; },
+      st: (fid) => { const l = T.linha(fid); return l ? (l.classList.contains('sim') ? 'sim' : l.classList.contains('nao') ? 'nao' : 'outro') : 'ausente'; },
+      refeicao: async (k) => { document.querySelector('[data-alm-ref="' + k + '"]').click(); await T.esperar(() => document.querySelector('.alm-tela[data-ref="' + k + '"]')); await T.dorme(150); },
+      refs: () => Object.fromEntries([...document.querySelectorAll('[data-alm-ref]')].map((b) => [b.dataset.almRef, b.querySelector('em').textContent.trim()])),
       tocar: async (fid, k) => { const b = T.linha(fid).querySelector(k === 'sim' ? '.bs' : '.bn'); b.click(); await T.dorme(150); },
       rod: () => [...document.querySelectorAll('#almRod b')].map((b) => b.textContent.trim()),
       nomes: () => [...document.querySelectorAll('.alm-lin:not([hidden]) .alm-nm b')].map((b) => b.textContent.trim()),
-      item: (d, fid) => { for (const x of window.__srv.estado.docs.values()) { if (x.colecao === 'almoco' && x.dados.items && x.dados.items['al-' + d + '-' + fid]) return x.dados.items['al-' + d + '-' + fid]; } return null; },
+      item: (d, fid, ref) => { const k = ({ cafe: 'cf', janta: 'jt' }[ref] || 'al') + '-' + d + '-' + fid; for (const x of window.__srv.estado.docs.values()) { if (x.colecao === 'almoco' && x.dados.items && x.dados.items[k]) return x.dados.items[k]; } return null; },
       toasts: () => [...document.querySelectorAll('#toasts .toast')].map((t) => t.textContent),
       fora: () => JSON.stringify([...window.__srv.estado.docs.values()].filter((d) => !['almoco', 'almocoCfg', 'funcionarios', 'sensivel', 'log', 'ws', 'diagnostico', 'uso'].includes(d.colecao)).map((d) => [d.colecao, d.id, d.dados]).sort((a, b) => (a[0] + a[1]).localeCompare(b[0] + b[1]))),
       semRolagemLateral: () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -154,18 +162,25 @@ try {
   await ir('#/setor-almox', '[data-alm-bt]');
   const ini = await avaliar(() => { const a = [...document.querySelector('[data-alm-bt]').parentElement.querySelectorAll('a')].map((x) => x.textContent.trim());
     const abas = [...document.querySelectorAll('.sv-abas a')].map((x) => x.textContent.trim()); return { a, abas }; });
-  ok(ini.a.indexOf('Almoço do dia') === ini.a.indexOf('Cozinha') + 1, 'no início do setor, o botão "Almoço do dia" fica logo depois do "Cozinha": ' + ini.a.join(' | '));
+  ok(ini.a.indexOf('Refeições do dia') === ini.a.indexOf('Cozinha') + 1, 'no início do setor, o botão "Refeições do dia" fica logo depois do "Cozinha": ' + ini.a.join(' | '));
   const iC = ini.abas.indexOf('Cozinha');
-  ok(iC >= 0 && ini.abas.slice(iC + 1, iC + 5).join() === 'Almoço do dia,Relatórios do almoço,Histórico do almoço,Valor do almoço', 'no menu Módulos do setor, as 4 telas do almoço ficam juntas, logo depois da Cozinha (separadas do almoxarifado)');
+  ok(iC >= 0 && ini.abas.slice(iC + 1, iC + 5).join() === 'Refeições do dia,Relatórios das refeições,Histórico das refeições,Valor das refeições', 'no menu Módulos do setor, as 4 telas das refeições ficam juntas, logo depois da Cozinha (separadas do almoxarifado)', ini.abas);
   await ir('#/almCozinha', '[data-alm-bt]');
-  ok(await avaliar(() => document.querySelector('[data-alm-bt]').textContent.trim() === 'Controle de almoço'), 'a tela da Cozinha (estoque da cozinha) tem o botão "Controle de almoço"');
+  ok(await avaliar(() => document.querySelector('[data-alm-bt]').textContent.trim() === 'Controle de refeições'), 'a tela da Cozinha (estoque da cozinha) tem o botão "Controle de refeições"');
 
   console.log('Lista do dia');
   await ir('#/almoco', '.alm-tela .alm-lin');
+  const rp = await avaliar(() => { const h = new Date().getHours(); return { auto: document.querySelector('.alm-tela').dataset.ref, esperado: h < 10 ? 'cafe' : h < 16 ? 'almoco' : 'janta',
+    rotulos: [...document.querySelectorAll('[data-alm-ref] span')].map((x) => x.textContent.trim()) }; });
+  ok(rp.rotulos.join() === 'Café,Almoço,Janta' && rp.auto === rp.esperado, 'três refeições no alto (Café, Almoço e Janta) e a da hora já vem escolhida: ' + rp.auto);
+  await avaliar(() => T.refeicao('almoco'));
   await foto('01-dia-vazio');
-  const l0 = await avaliar(() => ({ nomes: T.nomes(), preco: document.querySelector('.alm-preco').textContent, rod: T.rod(), data: document.querySelector('.alm-dt b').textContent, todos: !!document.querySelector('[data-alm-todos]:not([hidden])') }));
+  const l0 = await avaliar(() => ({ nomes: T.nomes(), preco: document.querySelector('.alm-preco').textContent, rod: T.rod(), data: document.querySelector('.alm-dt b').textContent, todos: !!document.querySelector('[data-alm-todos]:not([hidden])'),
+    sts: ['f_ana', 'f_bru', 'f_car'].map(T.st), nao: [...document.querySelectorAll('.alm-lin .bn')].every((b) => b.getAttribute('aria-pressed') === 'true'),
+    chips: [...document.querySelectorAll('[data-alm-f]')].map((b) => b.textContent.replace(/\s+/g, ' ').trim()), rotRod: [...document.querySelectorAll('#almRod span')].map((x) => x.textContent.trim()) }));
   ok(l0.nomes.join() === 'Ana Teste Ativa,Bruno Teste Ativo,Carla Teste Ativa', 'só os ativos do Setor Pessoal, em ordem alfabética (afastado, demitido e admitido depois ficam fora): ' + l0.nomes.join(', '));
-  ok(/R\$ 5,00/.test(l0.preco) && l0.rod.join() === '0,R$ 0,00,3', 'mostra o valor do almoço do dia e o rodapé zerado (almoços, valor do dia, faltam marcar): ' + l0.rod.join(' | '));
+  ok(l0.sts.join() === 'nao,nao,nao' && l0.nao && l0.chips.join() === 'Todos 3,SIM 0,NÃO 3', 'quem não foi marcado já aparece como NÃO (sem "sem marcação"): ' + l0.chips.join(' | '));
+  ok(/R\$ 5,00/.test(l0.preco) && l0.rod.join() === '0,R$ 0,00,R$ 0,00' && l0.rotRod.join() === 'Almoços do dia,Valor do almoço,Total do dia', 'mostra o valor do almoço do dia e o rodapé zerado (almoços, valor do almoço e total do dia): ' + l0.rod.join(' | '));
   ok(l0.data.length === 10 && l0.todos, 'a data de hoje no alto e o botão "Marcar todos como SIM"');
   const funcao = await avaliar(() => [...document.querySelectorAll('.alm-lin .fn')].map((x) => x.textContent));
   ok(funcao.join() === 'Cozinheira,Ajudante de produção,Queima', 'cada linha mostra a função do cadastro (sem função, o setor): ' + funcao.join(', '));
@@ -180,15 +195,18 @@ try {
     await T.tocar('f_ana', 'sim'); await T.sincronizado(); const i4 = T.item(HOJE, 'f_ana');
     return { v1, i1, i2, v2, i3, v3, i4, st: T.st('f_ana'), marc: T.linha('f_ana').querySelector('.mc').textContent };
   }, { HOJE });
-  ok(m1.v1.st === 'sim' && m1.v1.rod.join() === '1,R$ 5,00,2', 'SIM: a linha fica verde e o rodapé soma na hora (antes de o banco responder)');
-  ok(m1.i1 && m1.i1.sim === true && m1.i1.valor === 5 && m1.i1.funcionarioId === 'f_ana' && m1.i1.hist.length === 1 && m1.i1.hist[0][1] === 'u_DONO', 'o SIM vira lançamento ligado ao funcionário e ao dia, com o valor do dia e quem marcou');
-  ok(m1.v2.st === 'nao' && m1.i2.sim === false && m1.i2.valor === 0 && m1.v2.rod.join() === '1,R$ 5,00,1', 'NÃO: a linha fica cinza e nada é descontado');
-  ok(m1.i3.sim === false && m1.i3.valor === 0 && m1.i3.hist.length === 2 && m1.v3.join() === '0,R$ 0,00,1', 'trocar SIM por NÃO corrige o lançamento (sai do desconto) e o histórico guarda as duas marcações');
+  ok(m1.v1.st === 'sim' && m1.v1.rod.join() === '1,R$ 5,00,R$ 5,00', 'SIM: a linha fica verde e o rodapé soma na hora (antes de o banco responder)', m1.v1);
+  ok(m1.i1 && m1.i1.sim === true && m1.i1.valor === 5 && m1.i1.ref === 'almoco' && m1.i1.funcionarioId === 'f_ana' && m1.i1.hist.length === 1 && m1.i1.hist[0][1] === 'u_DONO', 'o SIM vira lançamento do almoço ligado ao funcionário e ao dia, com o valor do dia e quem marcou');
+  ok(m1.v2.st === 'nao' && m1.i2.sim === false && m1.i2.valor === 0 && m1.v2.rod.join() === '1,R$ 5,00,R$ 5,00', 'NÃO tocado: fica guardado como NÃO, cinza, e nada é descontado');
+  ok(m1.i3.sim === false && m1.i3.valor === 0 && m1.i3.hist.length === 2 && m1.v3.join() === '0,R$ 0,00,R$ 0,00', 'trocar SIM por NÃO corrige o lançamento (sai do desconto) e o histórico guarda as duas marcações');
   ok(m1.i4.sim === true && m1.i4.valor === 5 && m1.i4.hist.length === 3 && m1.st === 'sim', 'trocar de volta para SIM volta a descontar: histórico com 3 marcações');
   ok(/SIM · Dono às \d\d:\d\d/.test(m1.marc), 'a linha mostra quem marcou e a hora: ' + m1.marc);
   const hm = await avaliar(async () => { document.querySelector('[data-alm-ver="f_ana"]').click(); await T.dorme(250);
-    const t = [...document.querySelectorAll('.veu .alm-hist li')].map((li) => li.textContent.replace(/\s+/g, ' ')); document.querySelector('.veu [data-x]').click(); await T.dorme(200); return t; });
-  ok(hm.length === 3 && /^SIM/.test(hm[0]) && /^NÃO/.test(hm[1]) && /^SIM/.test(hm[2]) && hm.every((x) => /Dono · \d\d\/\d\d\/\d{4} às \d\d:\d\d/.test(x)), 'tocar no nome mostra as marcações do dia com quem marcou, a data e a hora');
+    const t = [...document.querySelectorAll('.veu .alm-vref[data-ref="almoco"] .alm-hist li')].map((li) => li.textContent.replace(/\s+/g, ' '));
+    const blocos = [...document.querySelectorAll('.veu .alm-vref')].map((b) => [...b.querySelector('.alm-vref-t').children].map((x) => x.textContent.trim()).filter(Boolean).join(' '));
+    document.querySelector('.veu [data-x]').click(); await T.dorme(200); return { t, blocos }; });
+  ok(hm.t.length === 3 && /^SIM/.test(hm.t[0]) && /^NÃO/.test(hm.t[1]) && /^SIM/.test(hm.t[2]) && hm.t.every((x) => /Dono · \d\d\/\d\d\/\d{4} às \d\d:\d\d/.test(x)), 'tocar no nome mostra as marcações do dia com quem marcou, a data e a hora');
+  ok(hm.blocos.length === 3 && /^Café NÃO/.test(hm.blocos[0]) && /^Almoço SIM R\$ 5,00/.test(hm.blocos[1]) && /^Janta NÃO/.test(hm.blocos[2]), 'e mostra as três refeições do dia (sem marcação conta como NÃO): ' + hm.blocos.join(' | '));
 
   console.log('Marcar todos como SIM e Desfazer');
   const mt = await avaliar(async ({ HOJE }) => {
@@ -199,10 +217,10 @@ try {
     document.querySelector('.alm-desf button').click(); await T.dorme(300); await T.sincronizado();
     return { txt, sts, rod, desf, car, depois: ['f_ana', 'f_bru', 'f_car'].map(T.st), car2: T.item(HOJE, 'f_car'), todos: !!document.querySelector('[data-alm-todos]:not([hidden])') };
   }, { HOJE });
-  ok(/Marcar 1 pessoa como SIM/.test(mt.txt) && /continua NÃO/.test(mt.txt), 'pede confirmação dizendo quantos e que quem está NÃO continua NÃO');
-  ok(mt.sts.join() === 'sim,nao,sim' && mt.rod.join() === '2,R$ 10,00,0' && mt.car.sim === true && mt.car.valor === 5, 'marca SIM só quem estava sem marcação (o NÃO continua NÃO)');
-  ok(mt.desf && mt.depois.join() === 'sim,nao,falta' && mt.car2.sim === null && mt.car2.hist.length === 2 && mt.car2.hist[1][0] === null, '"Desfazer" volta quem foi marcado pelo botão para sem marcação, sem apagar o histórico');
-  ok(mt.todos, 'com alguém sem marcação, o "Marcar todos" volta a aparecer');
+  ok(/Marcar 2 pessoas como SIM/.test(mt.txt) && /Almoço de/.test(mt.txt) && /tocar em NÃO para quem não comeu/.test(mt.txt), 'pede confirmação dizendo quantos, a refeição, e que depois é só tocar em NÃO para quem não comeu');
+  ok(mt.sts.join() === 'sim,sim,sim' && mt.rod.join() === '3,R$ 15,00,R$ 15,00' && mt.car.sim === true && mt.car.valor === 5, 'marca SIM todos que estavam NÃO');
+  ok(mt.desf && mt.depois.join() === 'sim,nao,nao' && mt.car2.sim === false && mt.car2.hist.length === 2 && mt.car2.hist[1][0] === 0, '"Desfazer" volta para NÃO quem foi marcado pelo botão, sem apagar o histórico');
+  ok(mt.todos, 'com alguém como NÃO, o "Marcar todos" volta a aparecer');
 
   console.log('Busca');
   const bu = await avaliar(async () => { const q = document.querySelector('#almBusca'); q.value = 'bru'; q.dispatchEvent(new Event('input', { bubbles: true })); await T.dorme(100);
@@ -230,16 +248,16 @@ try {
   ok(od.futuro === HOJE && od.max === HOJE && od.seta === ONTEM && od.hoje === HOJE, 'dia que ainda não chegou não abre (fica em hoje); as setas andam um dia');
 
   console.log('Folha fechada no banco (outro aparelho fechou antes de a tela saber)');
-  const fb = await avaliar(async ({ MES }) => { window.__travaSrv = MES; await T.tocar('f_car', 'nao'); await T.esperar(() => T.toasts().some((t) => /folha/.test(t)), 8000); await T.dorme(400);
+  const fb = await avaliar(async ({ MES }) => { window.__travaSrv = MES; await T.tocar('f_car', 'sim'); await T.esperar(() => T.toasts().some((t) => /folha/.test(t)), 8000); await T.dorme(400);
     const r = { st: T.st('f_car'), msg: T.toasts().find((t) => /folha/.test(t)) }; window.__travaSrv = ''; return r; }, { MES });
-  ok(fb.st === 'falta' && /já foi fechada no Setor Pessoal/.test(fb.msg), 'o banco recusa o mês fechado; a linha volta como estava e a mensagem explica: ' + (fb.msg || '').slice(0, 90));
+  ok(fb.st === 'nao' && /já foi fechada no Setor Pessoal/.test(fb.msg), 'o banco recusa o mês fechado; a linha volta como estava e a mensagem explica: ' + (fb.msg || '').slice(0, 90));
 
   console.log('Recusa do banco num lançamento (sem criar a parte do mês de novo)');
   const rc = await avaliar(async ({ HOJE }) => { window.__recusaFid = 'f_car'; const antes = JSON.stringify(T.item(HOJE, 'f_ana'));
     await T.tocar('f_car', 'sim'); await T.esperar(() => T.toasts().some((t) => /não encontrado/.test(t)), 8000); await T.dorme(400);
     const r = { st: T.st('f_car'), msg: T.toasts().find((t) => /não encontrado/.test(t)), ana: JSON.stringify(T.item(HOJE, 'f_ana')) === antes };
     window.__recusaFid = ''; return r; }, { HOJE });
-  ok(rc.st === 'falta' && /Carla Teste Ativa: Funcionário não encontrado no Setor Pessoal/.test(rc.msg) && rc.ana, 'erro de um lançamento volta para a tela com a mensagem do banco, e os outros lançamentos do mês ficam como estavam', rc);
+  ok(rc.st === 'nao' && /Carla Teste Ativa: Funcionário não encontrado no Setor Pessoal/.test(rc.msg) && rc.ana, 'erro de um lançamento volta para a tela com a mensagem do banco, e os outros lançamentos do mês ficam como estavam', rc);
 
   console.log('Cadastro rápido de funcionário');
   const cr = await avaliar(async ({ CPF_ANA, CPF_NOVO }) => {
@@ -263,32 +281,66 @@ try {
   ok(cr.sens && cr.sens.dados.cpf === CPF_NOVO && Object.keys(cr.sens.dados).sort().join() === 'cpf,id', 'o CPF vai para a parte protegida do Setor Pessoal (só números)');
   ok(cr.log && cr.naLista && cr.novo && cr.n === 7, 'fica no histórico do Pessoal e já aparece (destacado) na lista do dia');
 
-  console.log('Valor do almoço: só daqui pra frente');
+  console.log('Valor das refeições: só daqui pra frente');
   await ir('#/almocoValor', '#almVOk');
   await foto('03-valor');
   const va = await avaliar(async ({ ONTEM, HOJE, d3 }) => {
     const set = (sel, x) => { const e = document.querySelector(sel); e.value = x; e.dispatchEvent(new Event('input', { bubbles: true })); };
-    const antes = document.querySelector('.alm-val .grande').textContent;
+    const cards = [...document.querySelectorAll('.alm-val>div')].map((c) => c.dataset.ref + ' ' + c.querySelector('.grande').textContent.trim());
+    const sel0 = document.querySelector('#almVR').value;
+    const sel = document.querySelector('#almVR'); sel.value = 'almoco'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const antes = document.querySelector('.alm-val>div[data-ref="almoco"] .grande').textContent;
     set('#almVV', '6,00'); set('#almVD', ONTEM); document.querySelector('#almVOk').click(); await T.dorme(250); const eOntem = document.querySelector('#almVE').textContent;
     await T.dorme(750); set('#almVD', HOJE); document.querySelector('#almVOk').click(); await T.dorme(200); await T.confirmar(); await T.sincronizado();
-    const depois = document.querySelector('.alm-val .grande').textContent;
+    const depois = document.querySelector('.alm-val>div[data-ref="almoco"] .grande').textContent;
+    { const s2 = document.querySelector('#almVR'); s2.value = 'almoco'; s2.dispatchEvent(new Event('change', { bubbles: true })); }
     await T.dorme(750); set('#almVV', '7,50'); set('#almVD', d3); document.querySelector('#almVOk').click(); await T.dorme(200); await T.confirmar(); await T.sincronizado();
-    const agendado = document.querySelector('.alm-val>div:nth-child(2)').textContent.replace(/\s+/g, ' ');
+    const agendado = document.querySelector('.alm-val>div[data-ref="almoco"]').textContent.replace(/\s+/g, ' ');
     document.querySelector('[data-alm-canc]').click(); await T.dorme(200); await T.confirmar(); await T.sincronizado();
     /* o programa redesenha a tela logo depois de gravar (espera a janela de confirmação sumir) */
     await T.esperar(() => [...document.querySelectorAll('.alm-tb tbody tr')].some((tr) => /Cancelado/.test(tr.textContent)), 5000).catch(() => {});
     const tab = window.__srv.estado.docs.get('almocoCfg/valor').dados.tabela;
     const linhas = [...document.querySelectorAll('.alm-tb tbody tr')].map((tr) => tr.textContent.replace(/\s+/g, ' '));
-    return { antes, eOntem, depois, agendado, tab, linhas, preco: JB_ALMOCO.precoDe(d3) };
+    return { cards, sel0, antes, eOntem, depois, agendado, tab, linhas, preco: JB_ALMOCO.precoDe(d3) };
   }, { ONTEM, HOJE, d3: dia(3) });
+  ok(va.cards.join() === 'cafe —,almoco R$ 5,00,janta —' && va.sel0 === 'cafe', 'um cartão para cada refeição (café e janta ainda sem valor); o formulário já vem na primeira sem valor', va.cards);
   ok(/R\$ 5,00/.test(va.antes) && /só daqui pra frente/.test(va.eOntem), 'com um valor já definido, o novo valor não pode começar num dia que já passou');
   ok(/R\$ 6,00/.test(va.depois) && va.tab.length === 3 && va.tab[0].valor === 5 && va.tab[1].valor === 6 && va.tab[1].desde === HOJE && va.tab[1].por === 'u_DONO', 'salva o novo valor a partir de hoje, guardando o antigo e quem salvou');
   ok(/7,50/.test(va.agendado) && va.tab[2].cancelado && va.tab[2].cancelado.por === 'u_DONO' && va.preco === 6, 'valor agendado para depois aparece em "Próxima mudança" e pode ser cancelado (fica no histórico como cancelado)');
-  ok(va.linhas.length === 3 && va.linhas.some((l) => /Cancelado/.test(l)) && va.linhas.some((l) => /Vale hoje/.test(l)), 'a tabela de valores mostra todos, com a situação de cada um', va.linhas);
+  ok(va.linhas.length === 3 && va.linhas.some((l) => /Cancelado/.test(l)) && va.linhas.some((l) => /Vale hoje/.test(l)) && va.linhas.every((l) => /Almoço/.test(l)), 'a tabela de valores mostra todos, com a refeição e a situação de cada um', va.linhas);
+  const vc = await avaliar(async ({ ONTEM }) => {
+    const set = (sel, x) => { const e = document.querySelector(sel); e.value = x; e.dispatchEvent(new Event('input', { bubbles: true })); };
+    await T.dorme(750); const s = document.querySelector('#almVR'); s.value = 'cafe'; s.dispatchEvent(new Event('change', { bubbles: true }));
+    const ajuda = document.querySelector('#almVA').textContent, min = document.querySelector('#almVD').min, bt = document.querySelector('#almVOk').textContent;
+    set('#almVV', '3,00'); set('#almVD', ONTEM); document.querySelector('#almVOk').click(); await T.dorme(200); await T.confirmar(); await T.sincronizado();
+    await T.esperar(() => /R\$ 3,00/.test(document.querySelector('.alm-val>div[data-ref="cafe"] .grande').textContent), 5000).catch(() => {});
+    const tab = window.__srv.estado.docs.get('almocoCfg/valor').dados.tabela;
+    return { ajuda, min, bt, cafe: document.querySelector('.alm-val>div[data-ref="cafe"] .grande').textContent, janta: document.querySelector('.alm-val>div[data-ref="janta"]').textContent.replace(/\s+/g, ' '),
+      ult: tab[tab.length - 1], n: tab.length, preco: [JB_ALMOCO.precoDe(ONTEM, 'cafe'), JB_ALMOCO.precoDe(ONTEM, 'janta'), JB_ALMOCO.precoDe(ONTEM)] };
+  }, { ONTEM });
+  ok(/primeiro valor do café/.test(vc.ajuda) && vc.min === '' && /café/.test(vc.bt), 'o primeiro valor do café pode começar num dia que já passou (para lançar os dias anteriores)', vc);
+  ok(/R\$ 3,00/.test(vc.cafe) && vc.n === 4 && vc.ult.ref === 'cafe' && vc.ult.valor === 3 && vc.ult.desde === ONTEM && vc.preco[0] === 3 && vc.preco[1] === null && vc.preco[2] === 5 && /Ainda não definido/.test(vc.janta), 'o café tem o valor dele; a janta continua sem valor e o almoço com o dele', vc);
   await ir('#/almoco', '.alm-tela .alm-lin');
   const nv = await avaliar(async ({ HOJE }) => { const p = document.querySelector('.alm-preco').textContent;
     await T.tocar('f_bru', 'sim'); await T.sincronizado(); return { p, bru: T.item(HOJE, 'f_bru'), ana: T.item(HOJE, 'f_ana'), rod: T.rod() }; }, { HOJE });
   ok(/R\$ 6,00/.test(nv.p) && nv.bru.valor === 6 && nv.ana.valor === 5 && nv.rod[1] === 'R$ 11,00', 'depois da mudança, o novo SIM vale R$ 6,00 e o almoço já lançado continua com R$ 5,00');
+
+  console.log('Café e janta');
+  const cj = await avaliar(async ({ HOJE }) => {
+    await T.refeicao('cafe');
+    const c0 = { preco: document.querySelector('.alm-preco').textContent, sts: ['f_ana', 'f_bru', 'f_car'].map(T.st), rod: T.rod(), rot: [...document.querySelectorAll('#almRod span')].map((x) => x.textContent.trim()) };
+    await T.tocar('f_ana', 'sim'); await T.sincronizado();
+    const c1 = { item: T.item(HOJE, 'f_ana', 'cafe'), alm: T.item(HOJE, 'f_ana'), rod: T.rod(), refs: T.refs() };
+    await T.refeicao('janta');
+    const j0 = { aviso: (document.querySelector('.alm-aviso') || {}).textContent || '', simOff: [...document.querySelectorAll('.alm-lin .bs')].every((b) => b.disabled), naoOn: [...document.querySelectorAll('.alm-lin .bn')].every((b) => !b.disabled), todos: !!document.querySelector('[data-alm-todos]'), sts: ['f_ana', 'f_bru', 'f_car'].map(T.st) };
+    await T.refeicao('almoco');
+    return { c0, c1, j0, alm: { sts: ['f_ana', 'f_bru', 'f_car'].map(T.st), rod: T.rod() } };
+  }, { HOJE });
+  ok(/Café neste dia: R\$ 3,00/.test(cj.c0.preco) && cj.c0.sts.join() === 'nao,nao,nao' && cj.c0.rod.join() === '0,R$ 0,00,R$ 11,00' && cj.c0.rot.join() === 'Cafés do dia,Valor do café,Total do dia', 'no café, todos começam como NÃO; o rodapé mostra o café e o total do dia (com o almoço)', cj.c0);
+  ok(cj.c1.item && cj.c1.item.ref === 'cafe' && cj.c1.item.sim === true && cj.c1.item.valor === 3 && cj.c1.alm.valor === 5 && cj.c1.rod.join() === '1,R$ 3,00,R$ 14,00', 'SIM no café: lançamento próprio do café, com o valor do café, sem mexer no almoço', cj.c1);
+  ok(cj.c1.refs.cafe === '1' && cj.c1.refs.almoco === '2' && cj.c1.refs.janta === '0', 'cada refeição mostra quantos têm SIM no dia', cj.c1.refs);
+  ok(/valor da janta ainda não foi definido/.test(cj.j0.aviso) && cj.j0.simOff && cj.j0.naoOn && !cj.j0.todos && cj.j0.sts.join() === 'nao,nao,nao', 'janta sem valor: aviso, SIM travado (o NÃO continua livre) e sem "Marcar todos"', cj.j0);
+  ok(cj.alm.sts.join() === 'sim,sim,nao' && cj.alm.rod.join() === '2,R$ 11,00,R$ 14,00', 'voltando ao almoço, as marcações do almoço continuam as mesmas', cj.alm);
 
   console.log('Desconto Refeição na folha do Setor Pessoal');
   const fo = await avaliar(async ({ MES, MES_FECHADO }) => {
@@ -306,13 +358,13 @@ try {
     return { ana: [ana.descRefeicao, ana.qtdRefeicao, ana.total, ana.descontos], bru: [bru.descRefeicao, bru.qtdRefeicao], car: [car.descRefeicao], tt: tt.refeicao,
       linha: ex.linhas.find((l) => /Desconto refeição/.test(l[0])), h530: H.descontos.find((x) => x.cod === '530'), th, kpis, rec, dfHead: DF.blocos[0].head, thF };
   }, { MES, MES_FECHADO });
-  ok(fo.ana[0] === 5 && fo.ana[1] === 1 && fo.bru[0] === 6 && fo.bru[1] === 1 && fo.car[0] === 0 && fo.tt === 11, 'a folha de cada um soma os almoços do mês × o valor de cada dia (Ana 1 × R$ 5,00; Bruno 1 × R$ 6,00; Carla nenhum)');
-  ok(fo.ana[2] === 2000 - 5 && fo.ana[3] === 5, 'o desconto entra nos descontos e baixa o líquido a pagar');
-  ok(fo.linha && fo.linha[1] === -5 && /1 almoço na fábrica/.test(fo.linha[0]), 'o extrato do funcionário mostra a linha "(–) Desconto refeição"');
+  ok(fo.ana[0] === 8 && fo.ana[1] === 2 && fo.bru[0] === 6 && fo.bru[1] === 1 && fo.car[0] === 0 && fo.tt === 14, 'a folha de cada um soma as refeições do mês × o valor de cada uma (Ana 1 café R$ 3,00 + 1 almoço R$ 5,00; Bruno 1 almoço R$ 6,00; Carla nenhuma)', fo);
+  ok(fo.ana[2] === 2000 - 8 && fo.ana[3] === 8, 'o desconto entra nos descontos e baixa o líquido a pagar');
+  ok(fo.linha && fo.linha[1] === -8 && /1 café e 1 almoço na fábrica/.test(fo.linha[0]), 'o extrato do funcionário mostra a linha "(–) Desconto refeição" com cada refeição: ' + (fo.linha && fo.linha[0]));
   ok(fo.h530 && fo.h530.d === 'Desconto refeição' && fo.h530.v === 6 && fo.h530.ref === '1 almoço', 'o holerite traz o evento 530 "Desconto refeição"');
   ok(fo.th.includes('Refeição') && fo.kpis.includes('Desconto refeição'), 'o fechamento da folha mostra a coluna "Refeição" e o total "Desconto refeição"');
-  ok(fo.rec.some((l) => /Desconto refeição \(1 almoço\) = -R\$ 5,00/.test(l)) && fo.dfHead.includes('(–) Refeição'), 'o recibo e o documento da folha levam o desconto');
-  ok(!fo.thF.includes('Refeição'), 'folha de mês sem almoço (fechada antes) continua igual, sem a coluna nova');
+  ok(fo.rec.some((l) => /Desconto refeição \(2 refeições\) = -R\$ 8,00/.test(l)) && fo.dfHead.includes('(–) Refeição'), 'o recibo e o documento da folha levam o desconto', fo.rec);
+  ok(!fo.thF.includes('Refeição'), 'folha de mês sem refeição (fechada antes) continua igual, sem a coluna nova');
 
   console.log('Fechar a folha trava o mês na cozinha');
   const fe = await avaliar(async ({ MES }) => {
@@ -323,7 +375,7 @@ try {
     const r = { sit: fc.situacao, congelado: it && it.descRefeicao, trava: !!document.querySelector('.alm-aviso.trava'), desab: [...document.querySelectorAll('.alm-bts button')].every((b) => b.disabled), todos: !!document.querySelector('[data-alm-todos]') };
     /* o banco também recusa (mesmo que a tela tente) */
     let recusa = '';
-    try { await JB_ALMOCO.marcar(F('f_car'), hoje(), false); } catch (e) {}
+    try { await JB_ALMOCO.marcar(F('f_car'), hoje(), true, 'almoco'); } catch (e) {}
     await T.dorme(300); recusa = T.toasts().slice(-1)[0] || '';
     JBNAV.ir('#/folha'); await T.esperar(() => document.querySelector('#bReabrir')); document.querySelector('#bReabrir').click(); await T.dorme(200); await T.confirmar(); await T.sincronizado();
     JBNAV.ir('#/almoco'); await T.esperar(() => document.querySelector('.alm-tela')); await T.dorme(300);
@@ -345,20 +397,29 @@ try {
     document.querySelector('#almRx').click(); await T.dorme(150); [...document.querySelectorAll('.dc-pop button')].find((b) => /Relatório completo \(PDF\)/.test(b.textContent)).click(); await T.dorme(150);
     const ex = window.__exp.slice();
     const R = JB_ALMOCO.dadosRel({ de: hoje(), ate: hoje(), fid: '' });
-    return { pf, pfT, pd, itens, ex, tot: R.tot };
+    document.querySelector('[data-alm-aba="func"]').click(); await T.dorme(250);
+    const s = document.querySelector('[data-alm-p="ref"]'); s.value = 'almoco'; s.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(300);
+    const so = { th: [...document.querySelectorAll('.alm-tb thead th')].map((x) => x.textContent.trim()), pf: lin(), foot: document.querySelector('.alm-tb tfoot').textContent.replace(/\s+/g, ' ') };
+    document.querySelector('[data-alm-aba="lanc"]').click(); await T.dorme(250);
+    const la = { th: [...document.querySelectorAll('.alm-tb thead th')].map((x) => x.textContent.trim()), n: lin().length };
+    const s2 = document.querySelector('[data-alm-p="ref"]'); s2.value = ''; s2.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(300);
+    la.todas = lin().map((r) => r[1]);
+    return { pf, pfT, pd, itens, ex, tot: R.tot, so, la };
   });
-  ok(re.pf.length === 2 && re.pf[0][0] === 'Ana Teste Ativa' && re.pf[0][3] === '1' && re.pf[0][4] === 'R$ 5,00' && re.pf[1][4] === 'R$ 6,00' && /Total de 2 pessoas\s*2\s*R\$ 11,00/.test(re.pfT), 'resumo por funcionário: dias que almoçou e valor a descontar, com o total', [re.pf, re.pfT]);
-  ok(re.pd.length === 1 && re.pd[0][2] === '2' && re.pd[0][4] === 'R$ 11,00', 'resumo por dia: quantos almoçaram e o valor do dia');
+  ok(re.pf.length === 2 && re.pf[0][0] === 'Ana Teste Ativa' && re.pf[0].slice(3).join() === '1,1,0,2,R$ 8,00' && re.pf[1].slice(3).join() === '0,1,0,1,R$ 6,00' && /Total de 2 pessoas\s*1\s*2\s*0\s*3\s*R\$ 14,00/.test(re.pfT), 'resumo por funcionário: cafés, almoços, jantas, total de refeições e valor a descontar, com o total', [re.pf, re.pfT]);
+  ok(re.pd.length === 1 && re.pd[0].slice(2).join() === '1,2,0,3,R$ 14,00', 'resumo por dia: quantos comeram em cada refeição e o valor do dia', re.pd);
+  ok(re.so.th.join() === 'Funcionário,Matrícula,Função,Almoços,Valor a descontar' && re.so.pf.length === 2 && /Total de 2 pessoas\s*2\s*R\$ 11,00/.test(re.so.foot), 'o filtro "Refeição" mostra só uma refeição (aqui o almoço)', re.so);
+  ok(re.la.th.includes('Refeição') && re.la.n === 2 && re.la.todas.join() === 'Café,Almoço,Almoço', 'as refeições lançadas mostram de qual refeição é cada uma (só os SIM)', re.la);
   ok(['Visualizar', 'Imprimir', 'Exportar PDF', 'Exportar Excel'].every((x) => re.itens.includes(x)), 'exporta em PDF e Excel (e visualiza e imprime)');
-  ok(re.ex[0].f === 'xlsx' && re.ex[0].cols.join() === 'Data,Dia da semana,Almoçaram,Não almoçaram,Valor do dia' && /Período:/.test(re.ex[0].opc.filtros) && re.ex[1].f === 'pdf' && re.ex[1].opc.extras.length === 1, 'o Excel leva a tabela e os filtros; o relatório completo leva por funcionário e por dia');
+  ok(re.ex[0].f === 'xlsx' && re.ex[0].cols.join() === 'Data,Dia da semana,Cafés,Almoços,Jantas,Refeições,Valor do dia' && /Período:/.test(re.ex[0].opc.filtros) && re.ex[1].f === 'pdf' && re.ex[1].opc.extras.length === 1, 'o Excel leva a tabela e os filtros; o relatório completo leva por funcionário e por dia', re.ex.map((x) => x.cols));
   await ir('#/almocoHist', '.alm-hl');
   const hi = await avaliar(() => ({ n: document.querySelectorAll('.alm-hl>div').length, txt: document.querySelector('.alm-hl').textContent, valores: document.querySelectorAll('.alm-tb tbody tr').length }));
-  ok(hi.n === 7 && /Desmarcado/.test(hi.txt) && /Carla Teste Ativa/.test(hi.txt) && hi.valores === 3, 'o histórico lista cada marcação (com o "desmarcado" do Desfazer) e as mudanças no valor', hi);
+  ok(hi.n === 10 && /Café de/.test(hi.txt) && /Almoço de/.test(hi.txt) && /Carla Teste Ativa/.test(hi.txt) && !/Desmarcado/.test(hi.txt) && hi.valores === 4, 'o histórico lista cada marcação, com a refeição, e as mudanças nos valores', { n: hi.n, valores: hi.valores });
 
   console.log('Nada fora do controle e da folha');
   const depois = await avaliar(() => T.fora());
   const semFolha = (j) => JSON.stringify(JSON.parse(j).filter((d) => !['folhas', 'despesas', 'producao', 'vales', 'horasExtras'].includes(d[0])));
-  ok(semFolha(antes) === semFolha(depois), 'o controle de almoço não grava fora das coleções dele (e do cadastro do Setor Pessoal)');
+  ok(semFolha(antes) === semFolha(depois), 'o controle de refeições não grava fora das coleções dele (e do cadastro do Setor Pessoal)');
 
   console.log('Perfil Cozinha');
   const pc = await avaliar(async () => {
@@ -373,29 +434,32 @@ try {
     APP.papel = 'admin'; renderTela(); await T.dorme(200);
     return { r1, r2, valor, dia, card, rotaAdmin: s.rota };
   });
-  ok(pc.r1 === '#/almoco' && pc.r2 === '#/almoco', 'o perfil Cozinha só abre o almoço: o Setor Pessoal e o almoxarifado voltam para o almoço do dia');
-  ok(!pc.valor.form && pc.valor.aviso, 'o perfil Cozinha vê o valor do almoço, mas não altera');
-  ok(pc.dia.novo && pc.dia.sim && pc.dia.mods.join() === 'Almoço do dia,Relatórios do almoço,Histórico do almoço,Valor do almoço', 'o perfil Cozinha lança, faz o cadastro rápido e só tem as telas do almoço no menu');
-  ok(pc.card.v && pc.card.rota === '#/almoco' && pc.rotaAdmin === '#/setor-almox', 'o cartão do setor aparece para a Cozinha e entra direto no almoço (o administrador continua entrando no início do setor)');
+  ok(pc.r1 === '#/almoco' && pc.r2 === '#/almoco', 'o perfil Cozinha só abre as refeições: o Setor Pessoal e o almoxarifado voltam para as refeições do dia');
+  ok(!pc.valor.form && pc.valor.aviso, 'o perfil Cozinha vê os valores das refeições, mas não altera');
+  ok(pc.dia.novo && pc.dia.sim && pc.dia.mods.join() === 'Refeições do dia,Relatórios das refeições,Histórico das refeições,Valor das refeições', 'o perfil Cozinha lança, faz o cadastro rápido e só tem as telas das refeições no menu', pc.dia.mods);
+  ok(pc.card.v && pc.card.rota === '#/almoco' && pc.rotaAdmin === '#/setor-almox', 'o cartão do setor aparece para a Cozinha e entra direto nas refeições (o administrador continua entrando no início do setor)');
   ok(erros.length === 0, 'computador: nenhum erro de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 
   console.log('Celular');
   const docs2 = [...await page.evaluate(() => [...window.__srv.estado.docs.values()].map((d) => [d.colecao, d.id, d.dados]))];
   const m = await abrir(docs2, true);
   await m.page.evaluate(() => JBNAV.ir('#/almoco')); await m.page.waitForSelector('.alm-tela .alm-lin', { timeout: 15000 }); await m.page.waitForTimeout(500);
+  await m.page.evaluate(() => T.refeicao('almoco')); await m.page.waitForTimeout(300);
   if (FOTOS) await m.page.screenshot({ path: join(FOTOS, '05-celular.png') });
   const ce = await m.page.evaluate(async () => {
     const b = document.querySelector('.alm-lin .bs').getBoundingClientRect(); const rod = document.querySelector('#almRod').getBoundingClientRect();
     const lin = document.querySelector('.alm-lin').getBoundingClientRect();
+    const rf = [...document.querySelectorAll('[data-alm-ref]')].map((x) => x.getBoundingClientRect());
     /* a barra de baixo do celular (e o botão redondo do meio) não pode cobrir o rodapé */
     const barra = document.querySelector('#c2mob'); let lim = innerHeight;
     if (barra && getComputedStyle(barra).display !== 'none') lim = Math.min(barra.getBoundingClientRect().top, ...[...barra.querySelectorAll('.c2-fab span')].map((x) => x.getBoundingClientRect().top));
     const lado = T.semRolagemLateral();
     await T.tocar('f_car', 'sim'); await T.sincronizado();
-    return { alt: b.height, larg: b.width, rodVisivel: rod.bottom <= lim + 1 && rod.top < lim, primeira: lin.bottom <= Math.min(rod.top, lim) + 1, lado, car: T.st('f_car'), volta: T.nomes().length, med: [Math.round(lin.top), Math.round(lin.bottom), Math.round(rod.top), Math.round(rod.bottom), Math.round(lim)] };
+    return { refAlt: Math.min(...rf.map((x) => x.height)), refLarg: Math.min(...rf.map((x) => x.width)), alt: b.height, larg: b.width, rodVisivel: rod.bottom <= lim + 1 && rod.top < lim, primeira: lin.bottom <= Math.min(rod.top, lim) + 1, lado, car: T.st('f_car'), volta: T.nomes().length, med: [Math.round(lin.top), Math.round(lin.bottom), Math.round(rod.top), Math.round(rod.bottom), Math.round(lim)] };
   });
   ok(ce.alt >= 48 && ce.larg >= 60, `botões SIM e NÃO grandes para o dedo (${Math.round(ce.larg)} × ${Math.round(ce.alt)} px)`);
-  ok(ce.rodVisivel && ce.primeira && ce.lado, 'o rodapé com os almoços e o valor do dia fica à vista (acima da barra de baixo), a primeira pessoa aparece sem rolar e nada rola para o lado', ce.med);
+  ok(ce.refAlt >= 48 && ce.refLarg >= 100, `botões Café, Almoço e Janta grandes, lado a lado (${Math.round(ce.refLarg)} × ${Math.round(ce.refAlt)} px)`);
+  ok(ce.rodVisivel && ce.primeira && ce.lado, 'o rodapé com a refeição, o valor e o total do dia fica à vista (acima da barra de baixo), a primeira pessoa aparece sem rolar e nada rola para o lado', ce.med);
   ok(ce.car === 'sim' && ce.volta === 4, 'no celular, os dados voltam iguais do banco central e o SIM funciona');
   for (const r of ['#/almocoRel', '#/almocoHist', '#/almocoValor']) {
     await m.page.evaluate((x) => JBNAV.ir(x), r); await m.page.waitForTimeout(600);
