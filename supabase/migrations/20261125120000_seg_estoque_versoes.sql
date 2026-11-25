@@ -12,6 +12,7 @@
 -- Só acrescenta: tabela nova, funções novas e um gatilho que nunca impede uma
 -- gravação (se falhar, a gravação segue). Nenhum dado existente muda.
 -- Reversão: 20261125120000_seg_estoque_versoes.down.sql
+-- Aplicada em 25/11/2026 com a cópia de segurança nº 79 antes.
 -- =====================================================================
 
 create table if not exists seg.estoque_versao (
