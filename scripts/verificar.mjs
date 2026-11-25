@@ -1116,6 +1116,23 @@ teste('almox', 'Estoque / Produtos (V140): lista com saldo, cadastro por foto, s
   if (ci) assert.ok(ci.includes('node scripts/testar-almox-produtos.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('almox', 'Marca e edição completa (V172): marca diferente é outro produto; o lançamento se edita e se exclui por inteiro', () => {
+  const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  const corte = (de, ate) => { const a = app.indexOf(de); assert.ok(a >= 0, 'não achei: ' + de); const b = app.indexOf(ate, a + de.length); assert.ok(b > a, 'não achei o fim: ' + ate); return app.slice(a, b); };
+  // o cadastro só barra o mesmo nome com a MESMA marca
+  assert.ok(app.includes("normT(x.nome)===n&&x.categoria===st.categoria&&normT(x.marca||'')===mb"), 'repetido é o mesmo nome com a mesma marca');
+  // cadastro por foto: mesma marca soma; marca nova é produto novo no mesmo grupo; sem marca pergunta
+  const foto = corte('function modalFotoPr(ini){', '/* depois de salvar: limpa');
+  assert.ok(foto.includes("caso='nova'") && foto.includes('<b>Marca nova.</b>') && foto.includes('data-alvo=') && foto.includes("if(esD.falta){toast("), 'aviso de marca nova e escolha obrigatória quando não dá para saber');
+  // entrada por nota: a marca citada não liga ao item de outra marca
+  assert.ok(app.includes('function marcasCitadas(desc){') && app.includes('const outra=i=>ms.size>0&&!!mI(i)&&!ms.has(mI(i))'), 'nota não junta marcas diferentes');
+  // edição completa: quantidade (zero tira), valor, embalagens, foto, dados do produto e excluir
+  const ed = corte('function editarAjPr(a){', 'async function excluirAjPr(a){');
+  assert.ok(ed.includes('data-eq=') && ed.includes('data-ef=') && ed.includes("details class=\"apr-ed-pr\"") && ed.includes('data-exaj') && ed.includes("conferirRegistro('almAjustes',n)") && ed.includes("conferirRegistro('almItens'"), 'campos da edição completa, com as regras de cada cadastro');
+  assert.ok(ed.includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9") && ed.includes("await registrarLog('almAjustes',x.id,'excluiu')"), 'tirar a quantidade nunca deixa saldo negativo e fica no histórico');
+  if (ci) assert.ok(ci.includes('node scripts/testar-almox-marca-editar.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 teste('fichas', 'Setor de Fichas e Documentação (V145): só a estrutura, sem ficha inventada, sem banco e sem painel', () => {
   /* a pasta .github não vai para a publicação da nuvem: lá esta conferência do CI é pulada */
   const app = ler('app/jb-gestao.html'), ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;

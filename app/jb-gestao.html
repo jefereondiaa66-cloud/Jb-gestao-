@@ -21223,8 +21223,15 @@ const un=u=>u==='unidade'?'un':String(u||'');
 const ativo=x=>!!x&&x.ativo!==false&&x.ativo!=='false';
 const ITEM=id=>DATA.almItens.find(x=>x.id===id);
 const FORNA=id=>DATA.almFornecedores.find(x=>x.id===id);
-const nomeItem=i=>i?String(i.nome||''):'(item removido)';
-const rotItem=i=>i?(i.codigo?i.codigo+' · ':'')+String(i.nome||''):'(item removido)';
+/* V172 (25/11/2026, pedido do Jeferson): marca diferente é outro produto. Quando dois produtos ativos têm o mesmo
+   nome, a marca vai junto ("Óleo 15W40 · Mobil") nas listas, nos lançamentos e nos comprovantes. */
+let NREP={b:null,m:null};
+const nomesRep=()=>{const b=DATA.almItens;if(NREP.b===b)return NREP.m;const m=new Map();b.forEach(i=>{if(ativo(i)){const k=normT(i.nome);m.set(k,(m.get(k)||0)+1)}});NREP={b,m};return m};
+const marcaI=i=>String((i&&i.marca)||'').trim();
+const sufMarca=i=>marcaI(i)&&(nomesRep().get(normT(i.nome))||0)>1?' · '+marcaI(i):'';
+const nomeItem=i=>i?String(i.nome||'')+sufMarca(i):'(item removido)';
+const rotItem=i=>i?(i.codigo?i.codigo+' · ':'')+String(i.nome||'')+sufMarca(i):'(item removido)';
+const rotItemM=i=>i?(i.codigo?i.codigo+' · ':'')+String(i.nome||'')+(marcaI(i)?' · '+marcaI(i):''):'(item removido)';
 const nomeFornA=id=>{const f=FORNA(id);return f?String(f.nome||''):(id?'(fornecedor removido)':'—')};
 const optsItens=(filtro,manter)=>DATA.almItens.filter(i=>(ativo(i)&&(!filtro||filtro(i)))||i.id===manter).slice()
  .sort((a,b)=>String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true})).map(i=>[i.id,rotItem(i)+' ('+un(i.unidade)+')'+(ativo(i)?'':' · inativo')]);
@@ -21418,7 +21425,9 @@ MODS.almItens={titulo:'Itens do almoxarifado',sing:'item',ic:'livro',
   if(k==='grupoId'&&st.grupoId){const g=GRUPO(st.grupoId);if(g){if(!st.categoria)st.categoria=g.categoria;if(!st.local&&g.local)st.local=g.local}}
   if(k==='categoria'&&st.grupoId){const g=GRUPO(st.grupoId);if(g&&g.categoria!==st.categoria)st.grupoId=''}},
  validar(st){const e={};const n=normT(st.nome);
-  if(n){const d=DATA.almItens.find(x=>x.id!==st.id&&normT(x.nome)===n&&x.categoria===st.categoria);if(d)e.nome='Já existe este item nesta categoria: '+rotItem(d)+'.'}
+  /* V172: o mesmo nome com outra marca é outro produto (cadastro separado); repetido é o mesmo nome com a mesma marca */
+  if(n){const mb=normT(st.marca||'');const d=DATA.almItens.find(x=>x.id!==st.id&&normT(x.nome)===n&&x.categoria===st.categoria&&normT(x.marca||'')===mb);
+   if(d)e.nome='Já existe este item nesta categoria'+(mb?', da mesma marca':'')+': '+rotItemM(d)+'.'+(mb?'':' Se for de outra marca, escreva a marca.')}
   if(st.minimo!==''&&st.minimo!=null&&!(+st.minimo>=0))e.minimo='Não pode ser negativo.';
   const nv=x=>x!==''&&x!=null&&!isNaN(+x);
   if(nv(st.maximo)&&!(+st.maximo>0))e.maximo='Informe um número maior que zero ou deixe em branco.';else if(nv(st.maximo)&&nv(st.minimo)&&+st.maximo<+st.minimo)e.maximo='O máximo não pode ser menor que o mínimo.';
@@ -23111,7 +23120,7 @@ function abaLancPr(cp,sc){
   <label class="apr-dt">De <input type="date" id="prDe" value="${esc(U.de)}"></label><label class="apr-dt">Até <input type="date" id="prAte" value="${esc(U.ate)}"></label></div>
   <div class="apr-lista" id="prLm"></div><button type="button" class="btn apr-mais" id="prMm" hidden>Mostrar mais</button>`;
  const pinta=()=>{const {L}=filtraLancPr(sc);const el=$('#prLm',cp);
-  el.innerHTML=L.length?L.slice(0,U.nm).map((x,k)=>`<div class="apr-lc ${x.cls}"><div class="apr-lc-t"><span class="apr-tp">${esc(x.tipo)}</span>${x.semValor?'<em class="apr-sv">Sem valor</em>':''}<b>${esc(x.titulo)}</b><small>${esc(fData(x.data))}${x.para?' · '+esc(x.para):x.quem?' · '+esc(x.quem):''}</small><small class="apr-lc-i">${esc(x.itensTxt||'—')}</small></div>
+  el.innerHTML=L.length?L.slice(0,U.nm).map((x,k)=>`<div class="apr-lc ${x.cls}"><div class="apr-lc-t"${typeof x.editar==='function'||x.href?` data-abre="${k}" role="button" tabindex="0" aria-label="${esc(typeof x.editar==='function'?'Editar o lançamento':'Ver o lançamento')}"`:''}><span class="apr-tp">${esc(x.tipo)}</span>${x.semValor?'<em class="apr-sv">Sem valor</em>':''}<b>${esc(x.titulo)}</b><small>${esc(fData(x.data))}${x.para?' · '+esc(x.para):x.quem?' · '+esc(x.quem):''}</small><small class="apr-lc-i">${esc(x.itensTxt||'—')}</small></div>
    <div class="apr-lc-v">${x.semValor&&!(x.valor>0)?'sem valor':(x.sinal<0?'−':'+')+' '+esc(fMoeda(x.valor))}</div>
    <div class="apr-lc-a">${x.semValor&&x.porValor?`<button type="button" class="btn min apr-pv" data-a="valor" data-k="${k}">${ic('moeda')}Pôr valor</button>`:''}${x.href?`<button type="button" class="btn min" data-a="ver" data-k="${k}">${ic('olho')}Ver</button>`:''}${x.doc?`<button type="button" class="btn min" data-a="cupom" data-k="${k}">${ic('recibo')}Cupom</button><button type="button" class="btn min" data-a="a4" data-k="${k}">${ic('imprimir')}A4</button>`:''}${x.editar?`<button type="button" class="btn min" data-a="editar" data-k="${k}">${ic('editar')}Editar</button>`:''}${x.excluir?`<button type="button" class="btn min perigo" data-a="excluir" data-k="${k}" aria-label="Excluir">${ic('lixo')}</button>`:''}</div></div>`).join('')
    :noNada(U.tm==='semvalor'?'Nenhum lançamento sem valor':'Nenhum lançamento encontrado',U.tm==='semvalor'?'Tudo o que foi lançado aqui já tem valor.':'As entradas e as saídas aparecem aqui assim que forem lançadas.');
@@ -23119,6 +23128,9 @@ function abaLancPr(cp,sc){
    if(a==='valor'){if(typeof x.porValor==='function')x.porValor();else if(x.porValor)JBNAV.ir(x.porValor)}
    else if(a==='ver')JBNAV.ir(x.href);else if(a==='cupom'||a==='a4'){const D=x.doc();if(D)verDoc(D,{formato:a==='a4'?'a4':''})}
    else if(a==='editar'){if(typeof x.editar==='function')x.editar();else JBNAV.ir(x.editar)}else if(a==='excluir')x.excluir()});
+  /* V172: tocar no cartão abre o lançamento (a entrada ou saída sem compra abre direto para editar) */
+  $$('[data-abre]',el).forEach(t=>{const abre=()=>{const x=L[+t.dataset.abre];if(!x)return;if(typeof x.editar==='function')x.editar();else if(x.href)JBNAV.ir(x.href)};
+   t.onclick=abre;t.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();abre()}}});
   const m=$('#prMm',cp);m.hidden=L.length<=U.nm;m.onclick=()=>{U.nm+=50;pinta()}};
  $('#prQm',cp).oninput=e=>{U.qm=e.target.value;U.nm=50;pinta()};
  $('#prTm',cp).onchange=e=>{U.tm=e.target.value;U.nm=50;pinta()};
@@ -23130,15 +23142,18 @@ function abaLancPr(cp,sc){
 function fichaPr(id){
  const i=ITEM(id);if(!i)return;const e=estI(id);const p=ativo(i)?repI(i):null;const sv=ativo(i)&&semValorI(i);const edI=pode('almItens','e');
  const movs=movsAlm().filter(m=>m.itemId===id).slice(-8).reverse();
+ /* V172: a entrada ou saída sem compra se edita por completo daqui também */
+ const ajEd=m=>{if(!pode('almAjustes','e')||!/^a/.test(String(m.k||'')))return null;const a=DATA.almAjustes.find(x=>x.id===String(m.k).slice(1));return a&&!a.inventarioId?a:null};
  const kv=(l,v)=>v===''||v==null?'':`<div><small>${esc(l)}</small><b>${esc(v)}</b></div>`;
  modalPr(i.nome,`<div class="apr-fi">${temFotoI(i)?`<div class="apr-fi-ft">${fotoPr(i)}</div>`:''}<div class="apr-fi-sd"><small>Tem agora</small><b>${esc(qtdUn(e.saldo,i))}</b>${e.emp?`<small>${esc(qtdUn(e.emp,i))} emprestado(s)</small>`:''}${sv?'<em class="apr-sv">Sem valor</em>':''}</div></div>
   <div class="apr-kv">${kv('Código',i.codigo)}${kv('Estoque',NOME_ESC[escI(i)])}${kv('Grupo',nomeGrupo(i.grupoId)||'—')}${kv('Categoria',i.categoria)}${ehCoz(i)?kv('Tipo',i.tipoCoz||'—'):''}${kv('Marca',i.marca)}${kv('Local',i.local)}${kv('Especificação',i.especificacao)}${i.categoria==='EPI'?kv('Nº do CA',i.ca||'—'):''}
    ${kv('Custo médio',sv?'sem valor':fMoeda(e.cm))}${kv('Valor em estoque',sv?'sem valor':fMoeda(e.valor))}${temMin(i)?kv('Mínimo',qtdUn(+i.minimo,i)):''}${p&&p.comprar>0?kv('Comprar',qtdUn(p.comprar,i)):''}</div>
-  <div class="apr-fi-ac">${sv&&edI?`<button type="button" class="btn pri apr-pv" data-f="valor">${ic('moeda')}Pôr valor</button>`:''}${!temFotoI(i)&&edI&&APP.assets?`<label class="btn" style="cursor:pointer">${ic('camera')}Tirar foto<input type="file" accept="image/*" capture="environment" hidden data-ffoto></label>`:''}${pode('almSaida','e')&&ativo(i)&&e.disp>0?`<button type="button" class="btn${sv?'':' pri'}" data-f="sai">${ic('saida')}Saída</button>`:''}${pode('almAjustes','e')&&ativo(i)?`<button type="button" class="btn" data-f="ent">${ic('entrada')}Entrada</button>`:''}<button type="button" class="btn" data-f="ed">${ic('editar')}Editar cadastro</button><button type="button" class="btn" data-f="mov">${ic('lupa')}Todas as movimentações</button></div>
-  <h4 class="apr-h4">Últimos lançamentos</h4>${movs.length?`<div class="apr-mv">${movs.map(m=>`<div><span>${esc(fData(m.data))}</span><b class="${m.q<0?'sai':'ent'}">${m.q<0?'−':'+'}${esc(qtdUn(Math.abs(m.q),i))}</b><small>${esc(m.rot||m.tipo)}${m.doc?' · '+esc(m.doc):''}</small>${m.href?`<button type="button" class="btn min" data-go="${esc(m.href)}">Ver</button>`:''}</div>`).join('')}</div>`:'<p class="ajuda">Nenhum lançamento ainda.</p>'}`,'',null,
+  <div class="apr-fi-ac">${sv&&edI?`<button type="button" class="btn pri apr-pv" data-f="valor">${ic('moeda')}Pôr valor</button>`:''}${edI&&APP.assets?`<label class="btn" style="cursor:pointer">${ic('camera')}${temFotoI(i)?'Trocar foto':'Tirar foto'}<input type="file" accept="image/*" capture="environment" hidden data-ffoto></label>`:''}${pode('almSaida','e')&&ativo(i)&&e.disp>0?`<button type="button" class="btn${sv?'':' pri'}" data-f="sai">${ic('saida')}Saída</button>`:''}${pode('almAjustes','e')&&ativo(i)?`<button type="button" class="btn" data-f="ent">${ic('entrada')}Entrada</button>`:''}<button type="button" class="btn" data-f="ed">${ic('editar')}Editar cadastro</button><button type="button" class="btn" data-f="mov">${ic('lupa')}Todas as movimentações</button></div>
+  <h4 class="apr-h4">Últimos lançamentos</h4>${movs.length?`<div class="apr-mv">${movs.map(m=>`<div><span>${esc(fData(m.data))}</span><b class="${m.q<0?'sai':'ent'}">${m.q<0?'−':'+'}${esc(qtdUn(Math.abs(m.q),i))}</b><small>${esc(m.rot||m.tipo)}${m.doc?' · '+esc(m.doc):''}</small>${ajEd(m)?`<button type="button" class="btn min" data-edaj="${esc(ajEd(m).id)}">${ic('editar')}Editar</button>`:m.href?`<button type="button" class="btn min" data-go="${esc(m.href)}">Ver</button>`:''}</div>`).join('')}</div>`:'<p class="ajuda">Nenhum lançamento ainda.</p>'}`,'',null,
   {depois:v=>{$$('[data-f]',v).forEach(b=>b.onclick=()=>{v.remove();const f=b.dataset.f;
     if(f==='sai')modalLancPr('saida',id);else if(f==='ent')modalLancPr('entrada',id);else if(f==='valor')modalValorPr([id]);else if(f==='ed')JBNAV.ir('#/almItens/'+id);else{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';UM2.esc='';JBNAV.ir('#/almMov')}});
    $$('[data-go]',v).forEach(b=>b.onclick=()=>{v.remove();JBNAV.ir(b.dataset.go)});
+   $$('[data-edaj]',v).forEach(b=>b.onclick=()=>{v.remove();const a=DATA.almAjustes.find(x=>x.id===b.dataset.edaj);if(a)editarAjPr(a)});
    const ff=$('[data-ffoto]',v);if(ff)ff.onchange=async()=>{const fl=ff.files&&ff.files[0];if(!fl)return;ff.disabled=true;toast('Guardando a foto…');
     try{const pq=await prepFotoPr(fl,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));const at=ITEM(id);
      await gravarRegistro('almItens',{...clone(at),foto:{id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}},clone(at),false);
@@ -23347,24 +23362,99 @@ async function gravarAjPr(st){
  /* o preço informado vira o custo de referência enquanto o produto não tiver compra com preço */
  if(st.tipo==='entrada'&&+st.precoUnit>0){const i=ITEM(st.itemId);if(i&&!(estI(i.id).eqc>0)&&+i.custoRef!==+st.precoUnit){try{await gravarRegistro('almItens',{...clone(i),custoRef:+st.precoUnit},clone(i),false)}catch(e){console.warn('custo de referência',e)}}}
  return rec}
+/* ---------- V172 (25/11/2026, pedido do Jeferson): editar o lançamento por completo ----------
+   Entrada ou saída sem compra (também a do cadastro por foto), no Estoque / Produtos, na Cozinha e na Limpeza:
+   quantidade (zero tira a quantidade deste lançamento; o produto continua cadastrado), embalagens, valor, foto e dados
+   do produto, data, motivo, quem e observação. O saldo nunca fica negativo e cada mudança fica no histórico. */
+const lerEmbTx=t=>{const m=/^\s*([\d.,]+)\s+([^\d]+?)(?:\s+de\s+([\d.,]+)\s*\S*)?\s*$/.exec(String(t||''));if(!m)return null;
+ const nb=x=>+String(x).replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.');
+ return{n:nb(m[1]),tipo:m[2].trim().replace(/s$/,'').replace(/õe$/,'ão').replace(/ore$/,'or'),c:m[3]?nb(m[3]):0}};
 function editarAjPr(a){
  const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const a0=L[0];const ent=a0.tipo!=='saida';
- modalPr('Editar '+(ent?'entrada':'saída')+' · '+codAj(a0),`<p class="ajuda" style="margin:0 0 10px">Corrija a quantidade, a data ou o motivo. O saldo é recalculado na hora.</p>
-  ${tabela(['Produto',['Quantidade',1],['Un.',0]],L.map((x,k)=>{const i=ITEM(x.itemId);return `<tr>${td('Produto',esc(rotItem(i)))}<td class="num" data-l="Quantidade"><input type="number" step="any" min="0" data-eq="${k}" value="${esc(x.qtd)}" style="width:110px;text-align:right" aria-label="Quantidade"></td>${td('Un.',esc(un((i||{}).unidade)))}</tr>`}))}
+ if(L.some(x=>x.inventarioId)){toast('O acerto de contagem se corrige no inventário.','erro');return}
+ const edI=pode('almItens','e');const fotoOk=edI&&!!(APP.assets&&APP.assets.upload);const fotos={},urls=[];const um=L.length===1;
+ const cardL=(x,k)=>{const i=ITEM(x.itemId)||{};const em=ent?lerEmbTx(x.embalagem):null;const emb=ent&&(UN_MEDIDA.includes(i.unidade)||!!x.embalagem);
+  const gs=[...new Set(DATA.almGrupos.filter(g=>ativo(g)&&g.categoria===i.categoria).map(g=>g.nome))].sort((p,q)=>String(p).localeCompare(String(q),'pt-BR'));
+  return `<div class="apr-ed" data-k="${k}"><div class="apr-ed-cab"><span class="apr-ed-ft" data-fv="${k}">${fotoPr(i)||ic(IC_ESC[escI(i)]||'caixa')}</span>
+   <div class="apr-ed-tx"><b>${esc(nomeItem(i))}</b><small>${esc([i.codigo,i.marca,nomeGrupo(i.grupoId)].filter(Boolean).join(' · ')||'—')}</small></div>
+   ${fotoOk?`<label class="btn min apr-ed-fb">${ic('camera')}<span>${temFotoI(i)?'Trocar foto':'Pôr foto'}</span><input type="file" accept="image/*" capture="environment" hidden data-ef="${k}"></label>`:''}</div>
+   <div class="duas">${H.campoM('eQ'+k,'Quantidade ('+esc(un(i.unidade))+')<i> *</i>',`<input id="eQ${k}" data-eq="${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(x.qtd)}">`,'0 tira a quantidade deste lançamento; o produto continua cadastrado.')}
+    ${ent?H.campoM('eP'+k,'Valor de uma unidade',`<input id="eP${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(+x.precoUnit>0?x.precoUnit:'')}" placeholder="sem valor">`,'Em branco: fica sem valor.'):'<div></div>'}</div>
+   ${emb?`<div class="duas">${H.campoM('eN'+k,'Quantas embalagens',`<input id="eN${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(em&&em.n?em.n:'')}" placeholder="ex.: 8">`)}${H.campoM('eT'+k,'Tipo de embalagem',`<input id="eT${k}" list="eEmbTL" autocomplete="off" value="${esc(em?em.tipo:'')}" placeholder="balde, galão, tambor…">`)}</div>
+    <div class="duas">${H.campoM('eC'+k,'Quanto tem em cada ('+esc(unCurta(i.unidade))+')',`<input id="eC${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(em&&em.c?em.c:'')}" placeholder="ex.: 20">`)}<p class="ajuda apr-ed-r" id="eR${k}"></p></div>`:''}
+   ${edI?`<details class="apr-ed-pr"${um?' open':''}><summary>Dados do produto</summary>
+    <div class="duas">${H.campoM('eNo'+k,'Nome<i> *</i>',`<input id="eNo${k}" autocomplete="off" value="${esc(i.nome||'')}">`)}${H.campoM('eMa'+k,'Marca',`<input id="eMa${k}" list="eMaL" autocomplete="off" value="${esc(i.marca||'')}">`)}</div>
+    <div class="duas">${H.campoM('eEs'+k,'Especificação',`<input id="eEs${k}" autocomplete="off" value="${esc(i.especificacao||'')}">`)}${H.campoM('eGr'+k,'Grupo',`<input id="eGr${k}" list="eGrL${k}" autocomplete="off" value="${esc(nomeGrupo(i.grupoId)||'')}"><datalist id="eGrL${k}">${gs.map(g=>`<option value="${esc(g)}">`).join('')}</datalist>`,'Se o grupo não existir, ele é criado ao salvar.')}</div>
+    ${H.campoM('eLo'+k,'Local de guarda',`<input id="eLo${k}" list="eLoL" autocomplete="off" value="${esc(i.local||'')}">`)}
+    <p class="ajuda" style="margin:0">Estes dados são do cadastro do produto e valem para todos os lançamentos dele.</p></details>`:''}</div>`};
+ const corpo=`<p class="ajuda" style="margin:0 0 10px">Corrija o que precisar: quantidade, valor, embalagens, foto, dados do produto, data e motivo. O saldo é recalculado na hora e tudo fica no histórico.</p>
+  ${L.map(cardL).join('')}
   <div class="duas">${H.campoM('eaD','Data<i> *</i>',`<input id="eaD" type="date" max="${hoje()}" value="${esc(a0.data)}">`)}${H.campoM('eaM','Motivo<i> *</i>',`<input id="eaM" value="${esc(a0.motivo||'')}">`)}</div>
-  <div class="duas">${H.campoM('eaR',ent?'Quem trouxe':'Quem retirou',`<input id="eaR" value="${esc(a0.responsavel||'')}">`)}${H.campoM('eaO','Observação',`<input id="eaO" value="${esc(a0.obs||'')}">`)}</div>`,'Salvar alterações',async v=>{
+  <div class="duas">${H.campoM('eaR',ent?'Quem trouxe':'Quem retirou',`<input id="eaR" value="${esc(a0.responsavel||'')}">`)}${H.campoM('eaO','Observação',`<input id="eaO" value="${esc(a0.obs||'')}">`)}</div>
+  <datalist id="eMaL">${[...new Set(DATA.almItens.map(marcaI).filter(Boolean))].sort().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+  <datalist id="eLoL">${locaisAlm().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+  <datalist id="eEmbTL">${['balde','galão','tambor','bombona','lata','caixa','frasco','pote','saco','fardo'].map(x=>`<option value="${x}">`).join('')}</datalist>`;
+ modalPr('Editar '+(ent?'entrada':'saída')+' · '+codAj(a0),corpo,'Salvar alterações',async v=>{
   const data=H.valM(v,'eaD'),mot=String(H.valM(v,'eaM')||'').trim();if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}if(!mot){toast('Informe o motivo.','erro');return false}
-  const novos=L.map((x,k)=>{const qv=$(`[data-eq="${k}"]`,v).value;const fs=ajFora(x)&&window.JB_ESTOQUE?JB_ESTOQUE.fatorItem(ITEM(x.itemId)):0;return{...clone(x),qtd:qv===''?NaN:r3(+qv),...(fs?{qtdSetor:r3((qv===''?0:+qv)*fs)}:{}),data,motivo:mot,responsavel:String(H.valM(v,'eaR')||'').trim(),obs:String(H.valM(v,'eaO')||'').trim()}});
-  for(const n of novos){if(!(n.qtd>0)){toast('Quantidade inválida em '+nomeItem(ITEM(n.itemId))+'. Para tirar o lançamento, use Excluir.','erro');return false}
-   const er=Object.values(conferirRegistro('almAjustes',n).erros);if(er.length){toast(nomeItem(ITEM(n.itemId))+': '+er[0],'erro');return false}}
-  for(let k=0;k<novos.length;k++){const n=novos[k],o=L[k];if(n.qtd===+o.qtd&&n.data===o.data&&n.motivo===o.motivo&&n.responsavel===(o.responsavel||'')&&n.obs===(o.obs||''))continue;await gravarRegistro('almAjustes',n,clone(o),false)}
-  refrescaPr();toast('Lançamento alterado.','ok')});
+  const resp=String(H.valM(v,'eaR')||'').trim(),obsL=String(H.valM(v,'eaO')||'').trim();const JE=window.JB_ESTOQUE;
+  const novos=[],tirar=[],prods=new Map();const pr=i=>prods.get(i.id)||(prods.set(i.id,{i,mud:{},grp:'',foto:null}),prods.get(i.id));
+  for(let k=0;k<L.length;k++){const x=L[k];const i=ITEM(x.itemId);if(!i){toast('Um produto deste lançamento não existe mais. Use Excluir.','erro');return false}const ni=nomeItem(i);
+   const qv=String(H.valM(v,'eQ'+k)||'').trim();const q=qv===''?NaN:r3(+qv);if(!(q>=0)){toast('Quantidade inválida em '+ni+'.','erro');return false}
+   let embTxt=x.embalagem||'';
+   if($('#eN'+k,v)){const eN=+H.valM(v,'eN'+k)||0,eC=+H.valM(v,'eC'+k)||0,eT=String(H.valM(v,'eT'+k)||'').trim();
+    if(q>0&&eN>0&&eC>0&&Math.abs(q-eN*eC)>1e-6){toast(ni+': a quantidade ('+fQtd(q)+') não bate com '+fQtd(eN)+' × '+fQtd(eC)+' = '+fQtd(r3(eN*eC))+'. Confira.','erro');return false}
+    if(q>0&&eN>0&&!(eC>0)&&UN_MEDIDA.includes(i.unidade)){toast(ni+': informe quanto tem em cada '+(eT||'embalagem')+' (ex.: balde de 20 L → 20).','erro');return false}
+    embTxt=eN>0?txtEmb(eN,eT,eC,i.unidade):''}
+   let preco='';if($('#eP'+k,v)){const ps=String(H.valM(v,'eP'+k)||'').trim();if(ps!==''){preco=+ps;if(!(preco>=0)){toast('Valor inválido em '+ni+'.','erro');return false}}}
+   if(q===0)tirar.push(x);
+   else{const n={...clone(x),qtd:q,data,motivo:mot,responsavel:resp,obs:obsL};
+    if(ent){if(preco>0)n.precoUnit=Math.round(preco*10000)/10000;else delete n.precoUnit;if(embTxt)n.embalagem=embTxt;else delete n.embalagem}
+    const fs=ajFora(x)&&JE?JE.fatorItem(i):0;
+    if(fs){n.qtdSetor=r3(q*fs);if(saldoP(x.produtoSetorId)-(+x.qtdSetor||0)+n.qtdSetor<-1e-9){toast(ni+': o estoque do Combustível ficaria negativo, porque parte já foi usada.','erro');return false}}
+    const er=Object.values(conferirRegistro('almAjustes',n).erros);if(er.length){toast(ni+': '+er[0],'erro');return false}
+    novos.push([n,x])}
+   if($('#eNo'+k,v)){const nome=String(H.valM(v,'eNo'+k)||'').replace(/\s+/g,' ').trim();if(!nome){toast('Escreva o nome do produto.','erro');return false}
+    const b=pr(i);[['nome',nome],['marca',String(H.valM(v,'eMa'+k)||'').trim()],['especificacao',String(H.valM(v,'eEs'+k)||'').trim()],['local',String(H.valM(v,'eLo'+k)||'').trim()]].forEach(([c,val])=>{if(String(i[c]||'')!==val)b.mud[c]=val});
+    const gn=String(H.valM(v,'eGr'+k)||'').trim();
+    if(normT(gn)!==normT(nomeGrupo(i.grupoId)||'')){if(!gn)b.mud.grupoId='';else{const gr=DATA.almGrupos.find(g=>ativo(g)&&normT(g.nome)===normT(gn)&&g.categoria===i.categoria);
+     if(gr)b.mud.grupoId=gr.id;else if(!pode('almGrupos','e')){toast('Seu perfil não cria grupos. Escolha um grupo que já existe.','erro');return false}else b.grp=gn}}}
+   if(fotos[k])pr(i).foto=fotos[k]}
+  for(const b of prods.values()){if(!Object.keys(b.mud).length)continue;const er=Object.values(conferirRegistro('almItens',{...clone(b.i),...b.mud}).erros);if(er.length){toast(nomeItem(b.i)+': '+er[0],'erro');return false}}
+  if(ent)for(const x of tirar){if(ajFora(x)?(saldoP(x.produtoSetorId)-(+x.qtdSetor||0)<-1e-9):estI(x.itemId).saldo-(+x.qtd||0)<-1e-9){toast('Não dá para tirar a quantidade de '+nomeItem(ITEM(x.itemId))+': parte dela já saiu do estoque.','erro');return false}}
+  if(tirar.length&&!await confirmar(tirar.length===L.length?'Tirar a quantidade deste lançamento?':'Tirar a quantidade destes produtos?',(tirar.length===L.length?'O lançamento '+codAj(a0)+' deixa de contar no estoque':'Sai do lançamento '+codAj(a0))+': '+textoItensPr(tirar)+'. O produto continua cadastrado e isso fica anotado no histórico.',{ok:'Sim, tirar',perigo:true}))return false;
+  let feitos=0;
+  try{
+   for(const b of prods.values()){const at=ITEM(b.i.id);if(!at)continue;const mud={...b.mud};
+    if(b.foto){try{const pq=await prepFotoPr(b.foto,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));mud.foto={id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}}
+     catch(e){console.warn('foto do produto',e);toast('A foto de '+nomeItem(at)+' não foi guardada agora. O resto é salvo.','aviso')}}
+    if(b.grp){let gr=DATA.almGrupos.find(g=>ativo(g)&&normT(g.nome)===normT(b.grp)&&g.categoria===at.categoria);
+     if(!gr){const sg={...MODS.almGrupos.padrao(),id:novoId(),nome:b.grp,categoria:at.categoria,local:mud.local||at.local||''};const er=Object.values(conferirRegistro('almGrupos',sg).erros);if(er.length)throw new Error('grupo '+b.grp+': '+er[0]);gr=await gravarRegistro('almGrupos',sg,null,true)}
+     mud.grupoId=gr.id}
+    if(Object.keys(mud).length){await gravarRegistro('almItens',{...clone(at),...mud},clone(at),false);feitos++}}
+   for(const[n,o]of novos){if(['qtd','qtdSetor','data','motivo','responsavel','obs','precoUnit','embalagem'].every(c=>String(n[c]??'')===String(o[c]??'')))continue;
+    await gravarRegistro('almAjustes',n,clone(o),false);feitos++;
+    if(ent&&+n.precoUnit>0){const i=ITEM(n.itemId);if(i&&!(estI(i.id).eqc>0)&&+i.custoRef!==+n.precoUnit){try{await gravarRegistro('almItens',{...clone(i),custoRef:+n.precoUnit},clone(i),false)}catch(e){console.warn('custo de referência',e)}}}}
+   for(const x of tirar){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu');feitos++}}
+  catch(err){refrescaPr();toast((feitos?'Parte foi salva. ':'')+'Não foi possível salvar '+(err&&err.message?'('+err.message+')':'agora: '+motivoErro(err))+'.','erro');return false}
+  refrescaPr();toast(!feitos?'Nada mudou.':tirar.length===L.length?'Quantidade tirada. O produto continua cadastrado.':'Lançamento atualizado.','ok')},
+  {depois:v=>{
+   L.forEach((x,k)=>{const N=$('#eN'+k,v);if(!N)return;const u=(ITEM(x.itemId)||{}).unidade;
+    const conta=muda=>{const n=+N.value||0,c=+$('#eC'+k,v).value||0;const r=$('#eR'+k,v);
+     if(n>0&&c>0){if(muda)$('#eQ'+k,v).value=r3(n*c);r.textContent=fQtd(n)+' × '+fQtd(c)+' '+unCurta(u)+' = '+fQtd(r3(n*c))+' '+unCurta(u)}
+     else if(n>0&&UN_MEDIDA.includes(u))r.innerHTML='<b style="color:#B42318">Falta quanto tem em cada '+esc($('#eT'+k,v).value||'embalagem')+'.</b>';else r.textContent=''};
+    ['eN'+k,'eC'+k,'eT'+k].forEach(id=>$('#'+id,v).addEventListener('input',()=>conta(true)));conta(false)});
+   $$('[data-ef]',v).forEach(inp=>inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const k=inp.dataset.ef;fotos[k]=f;const u=URL.createObjectURL(f);urls.push(u);
+    $(`[data-fv="${k}"]`,v).innerHTML=`<img src="${u}" alt="Foto nova do produto">`;const s=inp.parentElement.querySelector('span');if(s)s.textContent='Foto nova · trocar'});
+   const ob=new MutationObserver(()=>{if(!document.body.contains(v)){urls.forEach(u=>URL.revokeObjectURL(u));ob.disconnect()}});ob.observe(document.body,{childList:true});
+   /* V172: excluir o lançamento inteiro daqui mesmo (com a mesma conferência do botão da lista) */
+   const ac=$('.acoes',v);if(ac&&pode('almAjustes','e')){ac.insertAdjacentHTML('afterbegin',`<button type="button" class="btn perigo apr-ed-ex" data-exaj>${ic('lixo')}Excluir lançamento</button>`);
+    $('[data-exaj]',v).onclick=async()=>{if(await excluirAjPr(a0))v.remove()}}}});
 }
 async function excluirAjPr(a){
  const L=ajLote(DATA.almAjustes.find(x=>x.id===a.id)||a);if(!L.length)return;const ent=L[0].tipo!=='saida';
  if(ent){const neg=L.filter(x=>ajFora(x)?(saldoP(x.produtoSetorId)-(+x.qtdSetor||0)<-1e-9):estI(x.itemId).saldo-(+x.qtd||0)<-1e-9);if(neg.length){toast('Não dá para excluir: parte de '+neg.map(x=>nomeItem(ITEM(x.itemId))).join(', ')+' já saiu do estoque.','erro');return}}
  if(!await confirmar('Tem certeza que deseja excluir?',(ent?'A entrada':'A saída')+' '+codAj(L[0])+' ('+textoItensPr(L)+') será excluída e o saldo volta a ser o de antes. A exclusão fica anotada no histórico.',{ok:'Sim, excluir',perigo:true}))return;
- try{for(const x of L){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu')}refrescaPr();toast('Lançamento excluído.','ok')}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
+ try{for(const x of L){await apagar('almAjustes',x);await registrarLog('almAjustes',x.id,'excluiu')}refrescaPr();toast('Lançamento excluído.','ok');return true}catch(err){toast('Não foi possível excluir: '+motivoErro(err)+'.','erro')}}
 
 /* ---------- cadastrar por foto: uma foto do produto + a frase ("tem 10 desse, marca tal"); a IA preenche, a pessoa confere ---------- */
 async function prepFotoPr(file,max,q){
@@ -23400,7 +23490,7 @@ REGRAS
 4. "categoria": uma destas, exatamente como escrita: ${CAT_NOMES.join('; ')}. EPI (equipamento de proteção individual usado no corpo do trabalhador: luva, bota, botina, capacete, óculos de proteção, protetor auricular, máscara, respirador, avental, perneira, mangote, cinto de segurança) é SEMPRE "EPI". Alimento, tempero, bebida, gás de cozinha e material de copa são "Cozinha". Produto de limpeza e de higiene (detergente, sabão, desinfetante, água sanitária, vassoura, rodo, pano de chão, esponja, papel higiênico, saco de lixo) é "Limpeza".${sc==='lim'?' Este cadastro é de limpeza: use "Limpeza".':''}${sc==='coz'?' Este cadastro é da cozinha: use "Cozinha" e diga em "tipoCozinha" um destes: '+TIPOS_COZ.join('; ')+'.':''}
 5. "unidade": uma destas, exatamente: ${UNIDS.join('; ')}. Na dúvida, "unidade".
 6. "grupo": a família do produto, no plural (ex.: Rolamentos, Correias, Luvas, Lâmpadas, Parafusos, Detergentes). Se servir, use um destes que já existem: ${gs.length?gs.join('; '):'(nenhum ainda)'}.
-7. "existente": se o produto da foto for CLARAMENTE o mesmo de um destes já cadastrados, devolva o código dele (a primeira parte); senão null.
+7. "existente": se o produto da foto for CLARAMENTE o mesmo de um destes já cadastrados, E DA MESMA MARCA, devolva o código dele (a primeira parte); senão null. O mesmo produto de OUTRA marca é outro produto: null. Se o cadastrado não tem marca na lista, compare só o produto.
 ${its.length?its.join('\n'):'(nenhum produto cadastrado ainda)'}
 8. "local": só se a frase disser onde fica guardado.
 10. EMBALAGEM: óleo, graxa, Arla, combustível, tinta e outros líquidos usam a unidade "litro" (graxa e produto em pó: "kg"). Se o produto vem em balde, galão, tambor, bombona, lata ou caixa: "embalagens" = quantas embalagens a FRASE diz (ex.: "tem 8 tambor" → 8); "tipoEmbalagem" = o nome (balde, galão, tambor…); "conteudoEmbalagem" = quanto tem em CADA embalagem, lido no RÓTULO da foto, na unidade escolhida (ex.: "20 L" → 20; "balde 18 kg" → 18). Aí "quantidade" = embalagens × conteudoEmbalagem. NUNCA ponha o número de embalagens como se fosse litros ou quilos. Se não der para ler quanto tem em cada uma, deixe "conteudoEmbalagem" null e diga em "observacao" que falta conferir o volume.
@@ -23408,7 +23498,10 @@ ${its.length?its.join('\n'):'(nenhum produto cadastrado ainda)'}
 function modalFotoPr(ini){
  ini=ini||{};if(!pode('almItens','e')){toast('Seu perfil não cadastra produtos.','erro');return}
  const sc=ini.sc||ESC;const coz=sc==='coz';const fixa=CAT_ESC[sc]||'';const U=UXP(sc);
- let blob=null,url='',ctrl=null,exist='',n=0,caLido='',contaEmb=()=>{};
+ let blob=null,url='',ctrl=null,exist='',n=0,caLido='',contaEmb=()=>{},grpMan=false,catMan=false,escolheu=false;
+ /* V172: o que a pessoa marcou no aviso de produto já cadastrado (somar ou acertar num deles, ou cadastrar novo) */
+ const escDup=v=>{const r=v.querySelector('[name=fpModo]:checked');if(!r)return{modo:'',id:'',falta:!!v.querySelector('[name=fpModo]')};
+  return{modo:r.value,id:r.value==='novo'?'':(r.dataset.alvo||exist),falta:false}};
  const gs=()=>[...new Set(DATA.almGrupos.filter(ativo).map(g=>g.nome))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
  const corpo=`<div class="apr-foto"><label class="apr-fz" for="fpF"><input type="file" accept="image/*" capture="environment" id="fpF" hidden><span id="fpP">${ic('camera')}<b>Tirar foto do produto</b><small>${fixa?'opcional '+NA_ESC[sc]+' · ou da galeria':'obrigatória no almoxarifado · ou da galeria'}</small></span></label>
   <div>${H.campoM('fpT','O que é e quanto tem',`<textarea id="fpT" rows="3" placeholder="${sc==='lim'?'Ex.: tem 10 desse, fica no depósito':coz?'Ex.: tem 10 pacotes, fica na despensa':'Ex.: tem 10 desse, marca SKF, fica na prateleira B'}"></textarea>`)}
@@ -23429,12 +23522,13 @@ function modalFotoPr(ini){
   const ps=g('fpPreco');const preco=ps===''?'':+ps;if(ps!==''&&!(preco>=0)){toast('Preço inválido.','erro');return false}
   /* V171: embalagens × conteúdo */
   const eN=+g('fpEmbN')||0,eC=+g('fpEmbC')||0,eT=g('fpEmbT');const unSel=g('fpUn')||'unidade';
-  const exU=exist&&(v.querySelector('[name=fpModo]:checked')||{}).value!=='novo'&&ITEM(exist)?ITEM(exist).unidade:unSel;
+  const esD=escDup(v);if(esD.falta){toast('Marque no aviso amarelo se é o mesmo produto ou se é outro.','erro');return false}
+  const exU=esD.id&&ITEM(esD.id)?ITEM(esD.id).unidade:unSel;
   const temEmb=eN>0||RX_EMB.test(g('fpT'))||!!eT;
   if(temEmb&&UN_MEDIDA.includes(exU)&&!(eC>0)){toast('Informe quanto tem em CADA embalagem (ex.: balde de 20 L → 20). A quantidade fica em '+un(exU)+', não em baldes.','erro');return false}
   if(eN>0&&eC>0&&qtd!==''&&Math.abs(qtd-eN*eC)>1e-6){toast('A quantidade total ('+fQtd(qtd)+') não bate com '+fQtd(eN)+' × '+fQtd(eC)+' = '+fQtd(r3(eN*eC))+'. Confira.','erro');return false}
   const embTxt=txtEmb(eN,eT,eC,exU);const descr=[g('fpMarca'),g('fpEsp')].filter(Boolean).join(' · ');
-  const modo=(v.querySelector('[name=fpModo]:checked')||{}).value||'';const ie=exist&&modo!=='novo'?ITEM(exist):null;
+  const modo=esD.modo;const ie=esD.id?ITEM(esD.id):null;
   let fotoMeta=null;const subir=async()=>{if(!blob||!APP.assets||fotoMeta)return;try{const pq=await prepFotoPr(blob,900,.78);const r=await APP.assets.upload(new File([pq],'produto.jpg',{type:'image/jpeg'}));fotoMeta={id:r.id,nome:'produto.jpg',tipo:r.contentType||'image/jpeg',tam:r.sizeBytes||pq.size}}catch(e){console.warn('foto do produto',e);toast('A foto não foi guardada (o produto é salvo assim mesmo).','aviso')}};
   if(ie){
    if(qtd===''){toast('Informe a quantidade.','erro');return false}
@@ -23481,15 +23575,39 @@ function modalFotoPr(ini){
     else if(N>0&&UN_MEDIDA.includes(u)){r.innerHTML='<b style="color:#B42318">Falta quanto tem em cada '+esc($('#fpEmbT',v).value||'embalagem')+'.</b>'}
     else r.textContent=''};
    ['fpEmbN','fpEmbC','fpUn','fpEmbT'].forEach(id=>{const x=$('#'+id,v);if(x)x.addEventListener('input',contaEmb),x.addEventListener('change',contaEmb)});
-   const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome'));
-    const d=(exist&&ITEM(exist)?ITEM(exist):null)||(nm?DATA.almItens.find(i=>normT(i.nome)===nm):null);
-    const box=$('#fpDup',v);const ant=(v.querySelector('[name=fpModo]:checked')||{}).value||'somar';
-    if(!d){box.innerHTML='';exist='';return}exist=d.id;const e=estI(d.id);if(UNIDS.includes(d.unidade)){$('#fpUn',v).value=d.unidade;contaEmb()}
-    box.innerHTML=`<div class="aviso at apr-dup"><span><b>Este produto já está cadastrado:</b> ${esc(rotItem(d))}${d.marca?' · '+esc(d.marca):''} — tem ${esc(qtdUn(e.saldo,d))}. O que fazer com a quantidade?</span>
-     <label><input type="radio" name="fpModo" value="somar" ${ant==='somar'?'checked':''}> Somar ao que já tem (chegou mais)</label>
-     <label><input type="radio" name="fpModo" value="total" ${ant==='total'?'checked':''}> É o total que tem agora (acerta o saldo)</label>
-     <label><input type="radio" name="fpModo" value="novo" ${ant==='novo'?'checked':''}> É outro produto: cadastrar novo</label></div>`};
-   ['fpNome'].forEach(id=>$('#'+id,v).addEventListener('input',()=>{exist='';marcarDup()}));
+   /* V172 (pedido do Jeferson, 25/11/2026): é o mesmo produto quando o nome E a marca batem: soma nele, no grupo dele.
+      Marca diferente é produto novo, separado, no mesmo grupo do outro. O de lá sem marca: pergunta (somar grava a
+      marca nele). Vários com o mesmo nome e a marca não foi lida: a pessoa escolhe qual. */
+   const aplicarAlvo=()=>{const r=v.querySelector('[name=fpModo]:checked');const it=r&&r.value!=='novo'?ITEM(r.dataset.alvo||exist):null;if(it&&UNIDS.includes(it.unidade)){$('#fpUn',v).value=it.unidade;contaEmb()}};
+   const marcarDup=()=>{const nm=normT(H.valM(v,'fpNome'));const marcaTx=String(H.valM(v,'fpMarca')||'').trim();const mc=normT(marcaTx);
+    const box=$('#fpDup',v);const r0=v.querySelector('[name=fpModo]:checked');const ant=r0?r0.value+'|'+(r0.value==='novo'?'':r0.dataset.alvo||''):'';
+    const ia=exist&&ITEM(exist)?ITEM(exist):null;
+    let L=[...new Set([ia,...(nm?DATA.almItens.filter(i=>ativo(i)&&normT(i.nome)===nm):[])].filter(Boolean))];
+    if(!L.length){box.innerHTML='';return}
+    const mi=i=>normT(i.marca||'');const mesma=mc?L.filter(i=>mi(i)===mc):[],semM=L.filter(i=>!mi(i));
+    let caso='igual';if(mc){if(mesma.length)L=mesma;else if(semM.length){caso='sem';L=semM}else caso='nova'}else if(L.length>1)caso='varias';
+    const pad=caso==='nova'?'novo|':L.length===1&&caso!=='varias'?'somar|'+L[0].id:'';
+    const ks=['novo|',...L.flatMap(i=>['somar|'+i.id,'total|'+i.id])];const sel=escolheu&&ks.includes(ant)?ant:pad;const ch=k=>sel===k?'checked':'';
+    const tem=i=>esc(qtdUn(estI(i.id).saldo,i));const quem=i=>`<b>${esc(rotItemM(i))}</b> — tem ${tem(i)}`;
+    if(caso==='nova'){const g0=L.map(i=>GRUPO(i.grupoId)).find(Boolean);
+     box.innerHTML=`<div class="aviso in apr-dup"><span><b>Marca nova.</b> Já existe ${L.map(quem).join('; ')}. Este é da marca <b>${esc(marcaTx)}</b> e vai ser cadastrado como <b>produto novo</b>, separado${g0?', no mesmo grupo ('+esc(g0.nome)+')':''}.</span>
+      <label><input type="radio" name="fpModo" value="novo" ${ch('novo|')}> Cadastrar como produto novo (marca ${esc(marcaTx)})</label>
+      ${L.map(i=>`<label><input type="radio" name="fpModo" value="somar" data-alvo="${esc(i.id)}" ${ch('somar|'+i.id)}> Não, é o mesmo ${esc(rotItemM(i))}: somar ao que já tem</label>`).join('')}</div>`;
+     if(g0&&!grpMan)$('#fpGrp',v).value=g0.nome;
+     if(!fixa&&!catMan&&CAT_NOMES.includes(L[0].categoria))$('#fpCat',v).value=L[0].categoria}
+    else{const cab=caso==='sem'?`<b>Já existe este produto, ainda sem marca:</b> ${quem(L[0])}. Se for o mesmo, soma nele e grava a marca <b>${esc(marcaTx)}</b>. Se for de outra marca, marque “É outro produto”.`
+      :caso==='varias'?`<b>Já existem ${L.length} produtos com este nome.</b> Qual é este? (Escrever a marca também resolve.)`
+      :`<b>Este produto já está cadastrado:</b> ${esc(rotItem(L[0]))}${L[0].marca?' · '+esc(L[0].marca):''} — tem ${tem(L[0])}. O que fazer com a quantidade?`;
+     box.innerHTML=`<div class="aviso at apr-dup"><span>${cab}</span>
+      ${L.map(i=>`${L.length>1?`<small class="apr-dup-q">${quem(i)}</small>`:''}<label><input type="radio" name="fpModo" value="somar" data-alvo="${esc(i.id)}" ${ch('somar|'+i.id)}> Somar ao que já tem (chegou mais)</label>
+      <label><input type="radio" name="fpModo" value="total" data-alvo="${esc(i.id)}" ${ch('total|'+i.id)}> É o total que tem agora (acerta o saldo)</label>`).join('')}
+      <label><input type="radio" name="fpModo" value="novo" ${ch('novo|')}> É outro produto${caso==='igual'&&!mc?' (de outra marca: escreva a marca)':''}: cadastrar novo</label></div>`}
+    aplicarAlvo()};
+   ['fpNome'].forEach(id=>$('#'+id,v).addEventListener('input',()=>{exist='';escolheu=false;marcarDup()}));
+   $('#fpMarca',v).addEventListener('input',()=>{escolheu=false;marcarDup()});
+   $('#fpDup',v).addEventListener('change',()=>{escolheu=true;aplicarAlvo()});
+   $('#fpGrp',v).addEventListener('input',()=>{grpMan=true});
+   if(!fixa)$('#fpCat',v).addEventListener('change',()=>{catMan=true});
    $('#fpGrp',v).addEventListener('change',()=>{const gr=DATA.almGrupos.find(x=>normT(x.nome)===normT(H.valM(v,'fpGrp')));const c=$('#fpCat',v);if(gr&&!c.value&&!fixa)c.value=gr.categoria;const l=$('#fpLoc',v);if(gr&&gr.local&&!l.value)l.value=gr.local});
    const ler=async()=>{const frase=String(H.valM(v,'fpT')||'').trim();
     if(!blob&&!frase){st.textContent='Tire a foto ou escreva o que é o produto.';return}
@@ -23507,7 +23625,7 @@ function modalFotoPr(ini){
      if(fixa){if(coz&&TIPOS_COZ.includes(o.tipoCozinha))$('#fpTipo',v).value=o.tipoCozinha}else{const ca=catAuto(o.nome,CAT_NOMES.includes(o.categoria)?o.categoria:'');if(ca)$('#fpCat',v).value=ca}
      put('fpGrp',o.grupo);if(UNIDS.includes(o.unidade))$('#fpUn',v).value=o.unidade;if(+o.quantidade>=0&&o.quantidade!==null&&o.quantidade!=='')put('fpQtd',+o.quantidade);if(+o.embalagens>0)put('fpEmbN',+o.embalagens);put('fpEmbT',o.tipoEmbalagem);if(+o.conteudoEmbalagem>0)put('fpEmbC',+o.conteudoEmbalagem);contaEmb();if(+o.preco>0)put('fpPreco',+o.preco);put('fpLoc',o.local);
      const gr=o.grupo&&DATA.almGrupos.find(x=>normT(x.nome)===normT(o.grupo));if(gr&&!fixa&&!CAT_NOMES.includes(o.categoria)&&!$('#fpCat',v).value)$('#fpCat',v).value=gr.categoria;
-     const ex=o.existente&&DATA.almItens.find(i=>normT(i.codigo)===normT(o.existente));exist=ex?ex.id:'';marcarDup();
+     const ex=o.existente&&DATA.almItens.find(i=>normT(i.codigo)===normT(o.existente));exist=ex?ex.id:'';escolheu=false;marcarDup();
      st.textContent=(o.confianca==='baixa'?'Leitura com dúvida: confira com atenção. ':'Pronto. Confira e toque em “Salvar produto”. ')+(o.observacao?String(o.observacao):'')}
     catch(e){if(meu.signal.aborted)return;console.warn('cadastro por foto',e);st.textContent=(e&&e.message?e.message:'A leitura não deu certo agora.')+' Preencha à mão ou tente de novo.'}
     finally{if(ctrl===meu){bt.disabled=false;ctrl=null}}};
@@ -23517,7 +23635,7 @@ function modalFotoPr(ini){
    const obs=new MutationObserver(()=>{if(!document.body.contains(v)){if(ctrl)ctrl.abort();if(url)URL.revokeObjectURL(url);obs.disconnect();refrescaPr()}});obs.observe(document.body,{childList:true});
    if(ini.nome)marcarDup()}});
  /* depois de salvar: limpa para o próximo produto e mostra o que já foi feito */
- function limpar(v,feito){if(ctrl)ctrl.abort();blob=null;exist='';if(url){URL.revokeObjectURL(url);url=''}
+ function limpar(v,feito){if(ctrl)ctrl.abort();blob=null;exist='';escolheu=false;grpMan=false;catMan=false;if(url){URL.revokeObjectURL(url);url=''}
   ['fpNome','fpMarca','fpEsp','fpQtd','fpPreco','fpT','fpGrp','fpEmbN','fpEmbT','fpEmbC'].forEach(id=>{const x=$('#'+id,v);if(x)x.value=''});caLido='';$('#fpF',v).value='';$('#fpDup',v).innerHTML='';
   $('#fpP',v).innerHTML=`${ic('camera')}<b>Foto do próximo produto</b><small>ou escolher da galeria</small>`;$('#fpSt',v).textContent='Salvo. Tire a foto do próximo produto.';
   const gl=$('#fpGrpL',v);if(gl)gl.innerHTML=gs().map(x=>`<option value="${esc(x)}">`).join('');
@@ -23527,13 +23645,13 @@ function modalFotoPr(ini){
 /* ================= para os testes e para as telas ================= */
 window.ALMOX_V52={calcAlm,estI,finDe,movsAlm,sitItem,abaixoMin,parcelasDe,conferirE,calcE,rascunhoE,conferirS,docEntrada,docSaida,proxCodigo,
  consumoAlm,repI,aRepor,novoItemGrupo,variosItens:modalVariosItens,
- GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
+ GRUPO,nomeGrupo,optsGrupos,temMin,un,ativo,ITEM,rotItem,rotItemM,nomeItem,CAT_NOMES,UNIDS,setoresAlm,valorSaida,fReq,
  saidaRapida:saidaRapidaAlm,contagem:{itens:itensDaContagem,difs:difsContagem,salvar:salvarContagemAlm,fechar:fecharContagemAlm},
- cadastroFoto:ini=>modalFotoPr({sc:'alm',...(ini||{})}),lancar:(tipo,pre)=>{if(!pre&&!['almProdutos','almCozinha','almLimpeza'].includes(lerRota().mod))ESC='alm';return modalLancPr(tipo,pre)},fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,
+ cadastroFoto:ini=>modalFotoPr({sc:'alm',...(ini||{})}),lancar:(tipo,pre)=>{if(!pre&&!['almProdutos','almCozinha','almLimpeza'].includes(lerRota().mod))ESC='alm';return modalLancPr(tipo,pre)},fichaProduto:fichaPr,docAjuste:docAjusteAlm,lancamentos:lancamentosPr,editarLanc:editarAjPr,
  verMov:id=>{UM2.item=id;UM2.cat='';UM2.tipo='';UM2.de='';UM2.ate='';if(typeof fecharGaveta==='function')fecharGaveta();JBNAV.ir('#/almMov')},
  rascunho:()=>({RE,RS}),setRE:d=>{RE=d},setRS:d=>{RS=d}};
 /* V65: o Lançamento Inteligente por Foto usa estas mesmas rotinas (nada de cópia paralela) */
-window.ALM_IA_BASE={catAuto,ITEM,FORNA,estI,un,rotItem,ativo,CAT_NOMES,UNIDS,normT,proxCodigo,sincFinEntrada,catAlm,juntarLinhasE,conferirE,calcE,finDe,tagFin,TIT,shellS,cab,ABA_ALM,respP,fmtDoc,nomeFornA,SETS};
+window.ALM_IA_BASE={catAuto,ITEM,FORNA,estI,un,rotItem,rotItemM,ativo,CAT_NOMES,UNIDS,normT,proxCodigo,sincFinEntrada,catAlm,juntarLinhasE,conferirE,calcE,finDe,tagFin,TIT,shellS,cab,ABA_ALM,respP,fmtDoc,nomeFornA,SETS};
 /* ================= V146 (20/11/2026, pedido do Jeferson): valor depois, saída para a pessoa e requisição semanal =================
    · Produto "sem valor" (preço ainda em pesquisa): o valor posto depois vira o custo de referência do produto (vale
      enquanto ele não tiver compra com preço) e completa as saídas que saíram sem valor. A compra lançada sem preço
@@ -23701,7 +23819,17 @@ window.PALETES_V52={calcPal,calcPalDe,estP,cliP,totPal,avisosPal,novosNegativos,
 .apr-ler{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .apr-modal{max-height:calc(100dvh - 24px);max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain}
 @supports (height:100dvh){.apr-modal{max-height:calc(100dvh - 24px)}}
-.apr-dup{flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:10px}.apr-dup label{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
+.apr-dup{flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:10px}.apr-dup label{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}.apr-dup .apr-dup-q{display:block;margin-top:6px;font-size:12.5px}
+/* V172 · editar o lançamento por completo */
+.apr-ed{border:1px solid var(--linha,#E8E1DA);border-radius:14px;padding:10px 12px;margin-bottom:10px;background:var(--branco,#fff)}
+.apr-ed-cab{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.apr-ed-ft{width:56px;height:56px;border-radius:12px;overflow:hidden;flex:0 0 auto;background:var(--suave,#F4EFEA);display:flex;align-items:center;justify-content:center;color:var(--brasa,#A3461F)}
+.apr-ed-ft img{width:100%;height:100%;object-fit:cover}.apr-ed-ft svg{width:24px;height:24px}
+.apr-ed-tx{flex:1;min-width:140px}.apr-ed-tx b{display:block;overflow-wrap:anywhere}.apr-ed-tx small{display:block;font-size:12px;color:var(--fraco,#7a7068)}
+.apr-ed-fb{cursor:pointer;white-space:nowrap}
+.apr-ed-pr{margin-top:2px}.apr-ed-pr summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:6px 0;color:var(--brasa,#A3461F)}
+.apr-ed-r{align-self:center;margin:0}.acoes .apr-ed-ex{margin-right:auto}
+.apr-lc-t[data-abre]{cursor:pointer}.apr-lc-t[data-abre]:focus-visible{outline:2px solid var(--brasa,#A3461F);outline-offset:2px;border-radius:8px}
 /* ===== V146 · cozinha, sem valor, grupos, saída de EPI e requisição semanal ===== */
 .apr-sv{display:inline-block;margin:4px 6px 0 0;font-style:normal;font-size:11.5px;font-weight:700;color:var(--at,#b26a00);background:var(--at-bg,#FFF3DF);border-radius:999px;padding:1px 8px;line-height:1.5}
 .apr-lc-t .apr-sv{margin:0 0 2px 6px;vertical-align:1px}
@@ -24081,13 +24209,23 @@ const UN_MAP={un:'unidade',und:'unidade',unid:'unidade',unidade:'unidade',pc:'un
  m:'metro',mt:'metro',mts:'metro',metro:'metro',kg:'kg',quilo:'kg',l:'litro',lt:'litro',litro:'litro',rl:'rolo',rolo:'rolo',pct:'pacote',pt:'pacote',pacote:'pacote',fd:'fardo',fardo:'fardo',
  sc:'saco',saco:'saco',bj:'botijão',botijao:'botijão',dz:'dúzia',duzia:'dúzia',lata:'lata',lta:'lata',mc:'maço',maco:'maço',bd:'bandeja',bandeja:'bandeja'};
 function unSistema(it){if(it.unSis&&B.UNIDS.includes(it.unSis))return it.unSis;const k=semAcento(String(it.un||'')).toLowerCase().replace(/[^a-z]/g,'');return UN_MAP[k]||''}
+/* V172 (pedido do Jeferson, 25/11/2026): marca diferente é outro produto. A linha que cita uma marca já conhecida
+   não se liga ao item de OUTRA marca (fica como item novo); entre itens com o mesmo nome vale o da marca citada, e a
+   marca sai da descrição antes de comparar com o nome. Linha sem marca conhecida: igual a antes. */
+function marcasCitadas(desc){const T=new Set(toks(desc));const ms=new Set();
+ DATA.almItens.forEach(i=>{const m=B.normT(i.marca||'');if(!m)return;const mt=m.split(' ').filter(Boolean);if(mt.length&&mt.every(t=>T.has(t)))ms.add(m)});return ms}
+const semMarcaTx=(desc,m)=>{const mt=new Set(String(m||'').split(' ').filter(Boolean));return toks(desc).filter(t=>!mt.has(t)).join(' ')};
 function vincular(it,docF){
  const itens=DATA.almItens.filter(B.ativo);const nd=B.normT(it.desc);
  const ap=i=>Array.isArray(i.apelidos)?i.apelidos:[];
  if(it.cod&&docF){const x=itens.find(i=>ap(i).some(a=>a.d===docF&&a.c&&a.c===it.cod));if(x)return{id:x.id,como:'aprendido',score:1}}
+ const ms=marcasCitadas(it.desc);const mI=i=>B.normT(i.marca||'');
+ const outra=i=>ms.size>0&&!!mI(i)&&!ms.has(mI(i)),daMarca=i=>!!mI(i)&&ms.has(mI(i));
  if(nd){const x=itens.find(i=>ap(i).some(a=>a.n===nd));if(x)return{id:x.id,como:'aprendido',score:1}
-  const y=itens.find(i=>B.normT(i.nome)===nd);if(y)return{id:y.id,como:'igual',score:1}}
- let best=null;itens.forEach(i=>{const s=semelhanca(it.desc,i.nome);if(s>=0.6&&(!best||s>best.score))best={id:i.id,como:'parecido',score:s}});
+  const ys=itens.filter(i=>B.normT(i.nome)===nd&&!outra(i));const y=ys.find(daMarca)||ys[0];if(y)return{id:y.id,como:'igual',score:1}}
+ let best=null;itens.forEach(i=>{if(outra(i))return;
+  const s=daMarca(i)?Math.max(semelhanca(it.desc,i.nome),semelhanca(semMarcaTx(it.desc,mI(i)),i.nome)):semelhanca(it.desc,i.nome);
+  if(s>=0.6&&(!best||s>best.score||(s===best.score&&daMarca(i))))best={id:i.id,como:'parecido',score:s}});
  return best||{id:'',como:'novo',score:0}}
 function fornecedorDe(f){
  const d=f.doc;const docOk=d.length===14?cnpjValido(d):d.length===11?cpfValido(d):false;
@@ -24251,7 +24389,7 @@ function telaCaptura(){
   ${J.fase==='erro'?`<div class="aviso pe" style="margin-top:12px"><span>${esc(J.erro)}</span></div><div class="inline" style="margin-top:8px"><button type="button" class="btn pri" id="liaDeNovo">Tentar de novo</button></div>`:''}
   ${J.fase==='captura'&&J.arqs.length?`<div class="inline" style="margin-top:12px"><button type="button" class="btn pri" id="liaLer">Ler o documento</button></div>`:''}
  </section>`}
-function opItens(sel){return `<option value="novo"${sel==='novo'?' selected':''}>＋ Cadastrar como item novo</option>`+DATA.almItens.filter(i=>B.ativo(i)||i.id===sel).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(i=>`<option value="${esc(i.id)}"${i.id===sel?' selected':''}>${esc(B.rotItem(i)+' ('+B.un(i.unidade)+')')}</option>`).join('')}
+function opItens(sel){return `<option value="novo"${sel==='novo'?' selected':''}>＋ Cadastrar como item novo</option>`+DATA.almItens.filter(i=>B.ativo(i)||i.id===sel).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(i=>`<option value="${esc(i.id)}"${i.id===sel?' selected':''}>${esc((B.rotItemM||B.rotItem)(i)+' ('+B.un(i.unidade)+')')}</option>`).join('')}
 function telaConf(){
  const C=J.C,L=J.L;const al=alertas(J);const K=al.K;const almox=C.destino==='almox';
  const forn=C.forn;const optF=DATA.almFornecedores.filter(B.ativo).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
@@ -52176,10 +52314,14 @@ const tipoItemDe=n=>/graxa/.test(n)?'Graxa':/arla|aditivo|fluido/.test(n)?'Aditi
 async function criarProdutoSetor(i){
  if(!pode('produtos','e'))throw new Error('Para mandar “'+i.nome+'” para o Combustível ele precisa de um produto no setor, e o seu perfil não cadastra produtos. Peça ao gerente ou deixe no Almoxarifado.');
  const n=N(i.nome);const un=UN_SETOR[i.unidade]||String(i.unidade||'un');
- const igual=DATA.produtos.find(p=>p.setor===SETOR&&p.situacao!=='Inativo'&&N(p.nome)===n&&String(p.unidade||'')===un&&!itemDoProd(p.id));
+ /* V172: marca diferente é outro produto. Liga ao produto livre do setor com o nome (ou nome + marca); se o nome
+    já é de outro produto do setor (outra marca), o novo leva a marca no nome ("Óleo 15W40 Mobil") */
+ const mca=String(i.marca||'').trim();const livre=p=>p.setor===SETOR&&p.situacao!=='Inativo'&&String(p.unidade||'')===un&&!itemDoProd(p.id);
+ const igual=(mca&&DATA.produtos.find(p=>livre(p)&&N(p.nome)===N(i.nome+' '+mca)))||DATA.produtos.find(p=>livre(p)&&N(p.nome)===n);
  if(igual)return igual;
+ const nomeP=String(i.nome).trim()+(mca&&DATA.produtos.some(p=>p.setor===SETOR&&p.situacao!=='Inativo'&&N(p.nome)===n)?' '+mca:'');
  const ti=tipoItemDe(n);const ag=agora();
- const p={id:novoId(),nome:String(i.nome).trim(),setor:SETOR,tipoItem:ti,tipoComb:ti==='Combustível'?(/gasolina/.test(n)?'Gasolina':/etanol/.test(n)?'Etanol':'Diesel'):'',unidade:un,controlaEstoque:'Sim',situacao:'Ativo',
+ const p={id:novoId(),nome:nomeP,setor:SETOR,tipoItem:ti,tipoComb:ti==='Combustível'?(/gasolina/.test(n)?'Gasolina':/etanol/.test(n)?'Etanol':'Diesel'):'',unidade:un,controlaEstoque:'Sim',situacao:'Ativo',
   almItemId:i.id,obs:'Criado pelo cadastro mestre do almoxarifado ('+(i.codigo||i.nome)+').',criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
  await gravar('produtos',p,null);try{await registrarLog('produtos',p.id,'criou',null,p)}catch(e){}
  return p}
@@ -52480,7 +52622,7 @@ async function mestreDoProduto(p){
  if(!p||p.setor!==SETOR||p.almItemId||p.situacao==='Inativo'||itemDoProd(p.id)||!pode('almItens','e'))return null;
  const un=p.unidade==='L'?'litro':p.unidade==='kg'?'kg':String(p.unidade||'unidade');const ag=agora();
  /* já existe no almoxarifado com o mesmo nome e unidade: só liga (não cria outro) */
- const igual=(DATA.almItens||[]).find(i=>ativoI(i)&&!i.produtoSetorId&&N(i.nome)===N(p.nome)&&i.unidade===un);
+ const igual=(DATA.almItens||[]).find(i=>ativoI(i)&&!i.produtoSetorId&&i.unidade===un&&(N(i.nome)===N(p.nome)||(!!String(i.marca||'').trim()&&N(i.nome+' '+i.marca)===N(p.nome))));
  if(igual){const it=await ligarItem(igual,p,1);toast(p.nome+' ligado ao item '+(igual.codigo||igual.nome)+' do Almoxarifado.','ok');return it}
  const rec={...(MODS.almItens&&MODS.almItens.padrao?MODS.almItens.padrao():{}),id:novoId(),nome:String(p.nome||'').trim(),categoria:CAT,unidade:un,codigo:proxCMB(),ativo:true,data:hoje(),
   produtoSetorId:p.id,setorEstoque:SETOR,fatorSetor:1,ligadoEm:ag,obs:'Criado sozinho ao cadastrar o produto no Setor de Combustível.',criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
