@@ -11,7 +11,8 @@
 //    6. só a confirmação grava a marcação                                 13. os dados continuam depois de recarregar
 //    7. a sequência entrada → intervalo → retorno → saída funciona        14. funciona em celular e em computador
 // e ainda: cadastro sem foto, foto do momento em cada marcação (V127), aba Pontos do funcionário, termo de ciência, registro sem reconhecimento, tratamento (conferir e anular),
-// fase de testes x registro definitivo (Diário do DP), teste de reconhecimento, senha, tela travada e câmera solta ao sair.
+// fase de testes x registro definitivo (Diário do DP), teste de reconhecimento, senha, tela travada e câmera solta ao sair,
+// e o MEI (prestador de serviços, V163): cadastro facial, marcação, sem jornada e fora do Diário do DP.
 // Uso: npm install --no-save playwright @vladmandic/face-api@1.7.15 && node scripts/construir.mjs && node scripts/testar-ponto-facial.mjs
 import { readFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -181,12 +182,12 @@ try {
   const r1 = await page.evaluate(() => ({ itens: MITENS.filter((m) => /ponto|rosto|relogio/i.test(m.m)).map((m) => m.m + ':' + m.l), telas: ['pontoFoto', 'relogioPonto'].filter((t) => TELAS_V[t]), velhos: [typeof PONTO_FOTO_V78, typeof PONTO_FACIAL_V100, typeof RELOGIO_PONTO_V79].join() }));
   ok(r1.itens.includes('pontoFacial:Ponto facial') && r1.itens.includes('pontoGestao:Gestão do ponto') && r1.itens.includes('ponto:Espelho de ponto'), `menu do ponto: Ponto facial, Gestão do ponto e Espelho de ponto (${r1.itens.join(', ')})`);
   ok(!r1.itens.some((i) => /pontoFoto|relogioPonto|cadastrarRosto/.test(i)) && !r1.telas.length && r1.velhos === 'undefined,undefined,undefined', 'saíram: Ponto com foto, Fotos do dia, Relógio de digital e a tela separada de cadastrar rosto');
-  ok(await page.evaluate(() => /Fazer o cadastro facial/.test(atalhosFunc(F('f1'))) && !/cadastro facial/.test(atalhosFunc(F('f4'))) && !/cadastro facial/.test(atalhosFunc(F('f5')))), 'ficha do funcionário: atalho do cadastro facial (não para prestador nem desligado)');
+  ok(await page.evaluate(() => /Fazer o cadastro facial/.test(atalhosFunc(F('f1'))) && /Fazer o cadastro facial/.test(atalhosFunc(F('f4'))) && !/cadastro facial/.test(atalhosFunc(F('f5')))), 'ficha do funcionário: atalho do cadastro facial, também para o prestador de serviços (MEI, V163); não para desligado');
 
   /* ---------- 2. cadastro facial pela área administrativa ---------- */
   await page.evaluate(() => { location.hash = '#/pontoGestao/funcionarios'; });
   await page.waitForSelector('#pgTabRostos [data-rosto="f1"]', { timeout: 15000 });
-  ok((await page.$$eval('#pgTabRostos [data-rosto]', (b) => b.map((x) => x.dataset.rosto))).join() === 'f1,f2,f3', 'cadastro facial lista os empregados ativos do DP (sem prestador e sem desligado): não há segunda base de funcionários');
+  ok((await page.$$eval('#pgTabRostos [data-rosto]', (b) => b.map((x) => x.dataset.rosto))).join() === 'f1,f2,f3,f4', 'cadastro facial lista os ativos do DP, inclusive o prestador de serviços (MEI, V163), sem o desligado: não há segunda base de funcionários');
   const t0 = Date.now();
   await acaoDaLinha(page, '[data-rosto="f1"]', '[data-a="cadastrar"]');
   await page.waitForSelector('#pzTermoOk', { timeout: 5000 });
@@ -238,6 +239,8 @@ try {
   await page.screenshot({ path: join(TELAS, 'ponto-1-procurando.png') });
 
   /* ---------- 4. identifica, mostra e espera: nada é gravado antes do toque ---------- */
+  // o relógio do teste anda: em máquina lenta o cadastro facial leva mais de um minuto e 07:02 virava 07:03
+  await relogio('07:02');
   await rosto(0);
   await cartao('Ana Teste Souza');
   const r4 = await page.evaluate(() => { const c = document.getElementById('pzCard'), b = document.getElementById('pzConf').getBoundingClientRect(); return { txt: c.textContent, tipo: document.getElementById('pzTipo').textContent, hora: document.getElementById('pzAgora').textContent, st: document.getElementById('pzSt').textContent, botao: b.bottom <= innerHeight && b.width > 200, aro: document.querySelector('.pz').dataset.aro }; });
@@ -252,6 +255,7 @@ try {
   await cartao('Ana Teste Souza', 60000);
 
   /* ---------- 5. confirmar grava uma vez só ---------- */
+  await relogio('07:02');
   await page.evaluate(() => { const b = document.getElementById('pzConf'); b.click(); b.click(); b.click(); });   // três toques seguidos
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && !document.getElementById('pzRes').hidden, null, { timeout: 20000 });
   await page.screenshot({ path: join(TELAS, 'ponto-3-registrada.png') });
@@ -301,18 +305,20 @@ try {
   await rosto(0);
   await cartao('Ana Teste Souza');
   ok((await page.textContent('#pzTipo')) === 'Saída para intervalo' && /Trocar/.test(await page.textContent('#pzCard')), 'AUDITORIA 7 · depois da entrada, às 12:01 da jornada dela (07:00 às 17:00), sugere "Saída para intervalo" e deixa trocar');
+  await relogio('12:01');
   await page.click('#pzConf');
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && !document.getElementById('pzRes').hidden, null, { timeout: 20000 });
   // retorno pelo registro sem reconhecimento (alternativa), autorizado por quem está logado como responsável
   await rosto('vazio'); await relogio('13:00'); await semPainel();
   await page.click('#pzManual');
   await page.waitForSelector('.pz-lista [data-f="f1"]', { timeout: 5000 });
-  ok((await page.$$eval('.pz-lista [data-f]', (b) => b.map((x) => x.dataset.f))).join() === 'f1,f2,f3', 'registro sem reconhecimento: lista só os empregados ativos, com motivo');
+  ok((await page.$$eval('.pz-lista [data-f]', (b) => b.map((x) => x.dataset.f))).join() === 'f1,f2,f3,f4' && /Diego Prestador.*Prestador de serviços/.test(await page.textContent('.pz-lista [data-f="f4"]')), 'registro sem reconhecimento: lista os ativos do DP (empregados e o prestador, com "Prestador de serviços"), com motivo');
   await page.selectOption('.pz-lista select', 'camera');
   await page.click('.pz-lista [data-f="f1"]');
   await cartao('Ana Teste Souza', 8000);
   ok(await page.evaluate(() => { const r = JB_PONTO.estado().pronto.resta; return r > 30000 && r <= 45000; }), 'o cartão do registro sem reconhecimento some sozinho em 45 s sem toque (ninguém confirma por engano depois)');
   ok(/Registro sem reconhecimento/.test(await page.textContent('#pzCard')) && (await page.textContent('#pzTipo')) === 'Retorno do intervalo', 'AUDITORIA 7 · em seguida sugere "Retorno do intervalo"; o registro manual também pede a confirmação');
+  await relogio('13:00');
   await page.click('#pzConf');
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && /responsável vai conferir/.test(document.getElementById('pzRes').textContent), null, { timeout: 20000 });
   await relogio('17:05'); await semPainel();
@@ -320,6 +326,7 @@ try {
   await rosto(0);
   await cartao('Ana Teste Souza');
   ok((await page.textContent('#pzTipo')) === 'Saída', 'AUDITORIA 7 · por último, "Saída"');
+  await relogio('17:05');
   await page.click('#pzConf');
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && /17:05/.test(document.getElementById('pzRes').textContent), null, { timeout: 20000 });
   ms = await marcs();
@@ -356,7 +363,7 @@ try {
   await page.click('.modal [data-r="0"]');
   await page.click('[data-a="trocarFunc"]');
   await page.waitForSelector('#pgListaPontos .pg-fc[data-id="f2"]');
-  ok((await page.$$eval('#pgListaPontos .pg-fc', (b) => b.map((x) => x.dataset.id))).join() === 'f1,f2,f3' && /Marcações no mês4/.test(await page.textContent('#pgListaPontos .pg-fc[data-id="f1"]')), 'V127 · a aba lista os funcionários em cartões, com a entrada e a saída de hoje e as marcações do mês');
+  ok((await page.$$eval('#pgListaPontos .pg-fc', (b) => b.map((x) => x.dataset.id))).join() === 'f1,f2,f3,f4' && /Marcações no mês4/.test(await page.textContent('#pgListaPontos .pg-fc[data-id="f1"]')), 'V127 · a aba lista os funcionários em cartões, com a entrada e a saída de hoje e as marcações do mês');
   await page.click('#pgListaPontos .pg-fc[data-id="f1"]');
   await page.waitForSelector('#pgPontos .pg-dia');
   await page.evaluate(() => { location.hash = '#/pontoGestao/historico'; });
@@ -465,6 +472,7 @@ try {
   await abrirPonto();
   ok(await page.evaluate(() => document.getElementById('pzFase').hidden), 'registro definitivo: some o aviso de fase de testes da tela do funcionário');
   await cartao('Bruna Teste Lima');
+  await relogio('08:10');
   await page.click('#pzConf');
   await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && !document.getElementById('pzRes').hidden, null, { timeout: 20000 });
   await page.waitForFunction(() => Array.from(window.__srv.estado.docs.values()).some((d) => d.colecao === 'diario'), null, { timeout: 8000 });
@@ -473,6 +481,64 @@ try {
   ok(await page.evaluate((H) => JB_PONTO.lancarNoDiario('f2', H).then((x) => x === false), H) && (await diario()).length === 1, 'lançar de novo no Diário não duplica nada');
   ok(await page.evaluate((H) => { const e = espelho('f2', H.slice(0, 7)).find((x) => x.data === H); return e && e.entrada === '08:10'; }, H), 'o Espelho de ponto do DP mostra a entrada lançada');
   ok(d16.every((x) => x.funcionarioId !== 'f1'), 'as marcações feitas na fase de testes (Ana) não entram no Diário depois da virada');
+
+  /* ---------- 16b. V163 · MEI (prestador de serviços): cadastro facial, marcação, nada no Diário do DP e sem jornada ---------- */
+  await rosto('vazio'); await semPainel();
+  await page.click('#pzMenu'); await page.click('.pz-folha [data-m="gestao"]');
+  await page.waitForSelector('#pgTabHoje', { timeout: 10000 });
+  const tm16 = await page.evaluate(() => ({ p: JB_PONTO.termo('f4'), e: JB_PONTO.termo('f1'), prest: JB_PONTO.prestador('f4'), clt: JB_PONTO.prestador('f1') }));
+  ok(tm16.prest && !tm16.clt && /registro da minha presença \(entrada e saída\)/.test(tm16.p) && /terminar a prestação de serviços/.test(tm16.p) && /Assinatura do\(a\) prestador\(a\) de serviços/.test(tm16.p)
+    && /no registro de ponto\./.test(tm16.e) && /eu deixar a empresa/.test(tm16.e) && /Assinatura do\(a\) trabalhador\(a\)/.test(tm16.e), 'V163 · o termo de ciência do MEI fala em prestação de serviços e registro de presença; o do empregado não muda');
+  await page.evaluate(() => { location.hash = '#/pontoGestao/funcionarios'; });
+  await page.waitForSelector('#pgTabRostos [data-rosto="f4"]', { timeout: 8000 });
+  await acaoDaLinha(page, '[data-rosto="f4"]', '[data-a="cadastrar"]');
+  await page.waitForSelector('#pzTermoOk', { timeout: 5000 });
+  ok(/Diego Prestador leu e assinou o termo/.test(await page.textContent('.modal')), 'V163 · o cadastro facial do MEI começa (pede o termo de ciência), em vez de recusar');
+  await page.click('.modal [data-r="0"]');
+  // o código do rosto do MEI entra direto (as 5 capturas de verdade já foram testadas com a Ana); é o rosto que antes ficava sem cadastro
+  const r16b = await page.evaluate(async (q) => { const P = JB_PONTO, i = new Image(); i.src = q; await i.decode(); const v = await P.ver(i);
+    await APP.db.doc('rostos/f4').set({ id: 'f4', funcionarioId: 'f4', cods: [P.codificar(v.desc)], fotos: 1, ativo: true, termo: { em: new Date().toISOString(), por: 'u_DONO' } });
+    await new Promise((r) => setTimeout(r, 800)); return P.comparar(v.desc); }, quadros[2]);
+  ok(r16b.fid === 'f4', 'V163 · o rosto do MEI entra no reconhecimento');
+  await relogio('08:20'); await rosto(2);
+  await abrirPonto();
+  await cartao('Diego Prestador');
+  ok(/Prestador identificado!/.test(await page.textContent('#pzCard')) && /Matrícula 104/.test(await page.textContent('#pzCard')) && (await page.textContent('#pzTipo')) === 'Entrada', 'V163 · a câmera identifica o MEI sozinha: "Prestador identificado!", nome, matrícula e "Entrada"');
+  await relogio('08:20');
+  await page.click('#pzConf');
+  await page.waitForFunction(() => /Marcação registrada com sucesso!/.test(document.getElementById('pzRes').textContent) && /Diego/.test(document.getElementById('pzRes').textContent) && !document.getElementById('pzRes').hidden, null, { timeout: 20000 });
+  await rosto('vazio'); await semPainel();
+  const m16b = (await marcs()).filter((m) => m.funcionarioId === 'f4');
+  ok(m16b.length === 1 && m16b[0].k === 'entrada' && m16b[0].hora === '08:20' && m16b[0].origem === 'facial' && m16b[0].fase === 'oficial', 'V163 · o MEI bate o ponto facial: a entrada é gravada como marcação original, igual à dos empregados');
+  // a saída do fim do dia (sem reconhecimento), para conferir as horas
+  await page.evaluate(async (H) => { await JB_PONTO.registrarMarcacao('f4', 'saida', { data: H }, new Date(H + 'T18:30:00'), { origem: 'manual', motivo: 'camera' }); }, H);
+  await page.waitForTimeout(800);
+  ok((await diario()).length === 1 && (await diario()).every((x) => x.funcionarioId !== 'f4') && (await page.evaluate((H) => JB_PONTO.lancarNoDiario('f4', H).then((x) => x === false), H)) && (await page.evaluate(() => !JB_PONTO.foraDoDiario().some((d) => d.fid === 'f4'))),
+    'V163 · no registro definitivo, as marcações do MEI não vão para o Diário do DP (nem pelo "Lançar agora"): ficam fora do espelho do DP, das horas extras e da folha');
+  const r16c = await page.evaluate((H) => { const x = JB_PONTO.diaCalc(F('f4'), H), R = (k, f) => JB_PONTO.relatorio(k, H.slice(0, 7), f), e = R('espelho', 'f4');
+    return { trab: x.c && x.c.trab, atraso: x.c && x.c.atraso, extra: x.c && x.c.extra, esp: x.esp, m: R('mensal').rows.find((r) => r.nome === 'Diego Prestador'), extras: R('extras').rows.some((r) => r.nome === 'Diego Prestador'), aus: R('ausencias').rows.some((r) => r.nome === 'Diego Prestador'), et: e.titulo, ec: e.cols.map((c) => c.k).join() }; }, H);
+  ok(r16c.trab === 610 && r16c.atraso === 0 && r16c.extra === 0 && r16c.esp === null && !!r16c.m && r16c.m.dias === 1 && r16c.m.trab === 610 && r16c.m.extra === 0 && r16c.m.previsto === 0 && r16c.m.aus === 0 && !r16c.extras && !r16c.aus,
+    `V163 · MEI sem jornada: as horas do dia contam (${r16c.trab} min), sem atraso, hora além da jornada nem ausência, e ele fica fora dos relatórios de horas extras e de ausências`);
+  ok(/^Registro de presença \(prestador de serviços\) · Diego Prestador/.test(r16c.et) && !/previsto|atraso|extra|noturno/.test(r16c.ec), 'V163 · o espelho do MEI sai como "Registro de presença", sem as colunas da jornada');
+  await page.click('#pzMenu'); await page.click('.pz-folha [data-m="gestao"]');
+  await page.waitForSelector('#pgTabHoje tr[data-id="f4"]', { timeout: 10000 });
+  const r16d = await page.evaluate(() => Array.from(document.querySelector('#pgTabHoje tr[data-id="f4"]').cells).map((c) => c.textContent.trim().replace(/\s+/g, ' ')));
+  ok(/Diego Prestador.*Prestador de serviços/.test(r16d[0]) && r16d[1] === 'Cadastrado' && r16d[2] === '08:20' && /^18:30/.test(r16d[5]) && r16d[6] === '2' && r16d[8] === 'Jornada encerrada', `V163 · Controle do dia: o MEI aparece com "Prestador de serviços", o cadastro facial e os horários (${r16d.slice(1).join(' · ')})`);
+  await page.click('#pgTabHoje tr[data-id="f4"] td:nth-child(3)');
+  await page.waitForSelector('#pgPontos .pg-dia', { timeout: 8000 });
+  const r16e = await page.evaluate(() => ({ resumo: document.querySelector('#pgCorpo .resumo').textContent, cab: document.querySelector('#pgCorpo .painel').textContent }));
+  ok(/Horas registradas/.test(r16e.resumo) && /10:10/.test(r16e.resumo) && !/Atrasos|Além da jornada|Ausências/.test(r16e.resumo) && /Prestador de serviços: sem jornada/.test(r16e.cab), 'V163 · Pontos do funcionário do MEI: dias e horas registradas, sem atrasos, horas além da jornada nem ausências');
+  await page.evaluate(() => { location.hash = '#/pontoGestao/historico'; });
+  await page.waitForSelector('#pgTabMarc', { timeout: 8000 });
+  await acaoDaLinha(page, `#pgTabMarc tr[data-marc="${m16b[0].id}"]`, '[data-a="comprovante"]');
+  await page.waitForSelector('.pg-comp');
+  const cp16 = await page.textContent('.pg-comp');
+  ok(/Contratante/.test(cp16) && /Prestador de serviços.*Diego Prestador/.test(cp16) && !/Empregador|Trabalhador/.test(cp16), 'V163 · comprovante da marcação do MEI: "Contratante" e "Prestador de serviços", não "empregador" e "trabalhador"');
+  await page.click('.modal [data-r="0"]');
+  await page.evaluate(() => { location.hash = '#/pontoGestao/implantacao'; });
+  await page.waitForSelector('#pgCorpo .pg-sec', { timeout: 8000 });
+  ok(/[^\d]2 funcionários? sem jornada|[^\d]2 funcionário\(s\) sem jornada/.test(await page.textContent('#pgCorpo')), 'V163 · implantação: o MEI não conta como "funcionário sem jornada" (só a Bruna e a Carla)');
+  await abrirPonto();
 
   /* ---------- 17. permissões por perfil ---------- */
   await rosto('vazio'); await semPainel();

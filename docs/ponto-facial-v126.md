@@ -169,3 +169,31 @@ Pedido do dono: ver, por funcionário, as fotos e a hora de cada marcação.
 - **Limites**: as fotos aparecem na versão da nuvem (no Claude o armazenamento é outro); marcações anteriores não têm foto;
   40 funcionários com 4 marcações por dia ocupam cerca de 40 MB por mês no armazenamento.
 - Nenhuma migração de banco: usa a coleção `pontoEventos` e o armazenamento que já existiam.
+
+## V163 (25/11/2026) · MEI no ponto facial
+
+Pedido do dono: os MEI também batem o ponto facial.
+
+No cadastro do Departamento Pessoal os MEI são **prestadores de serviços** (tipo de contratação "Prestador de serviços
+PJ" ou "Prestador de serviços autônomo"). Até a V162 o ponto facial deixava todos os prestadores de fora. Agora:
+
+- **Cadastro facial**: o prestador aparece na aba Cadastro facial, no atalho da ficha e no "Testar o reconhecimento",
+  com o mesmo termo de ciência (LGPD). O texto do termo fala em prestação de serviços e em registro de presença
+  (entrada e saída), e a assinatura é do(a) prestador(a) de serviços.
+- **Câmera**: identifica o prestador como qualquer pessoa ("Prestador identificado!") e grava a marcação só com o toque em
+  CONFIRMAR MARCAÇÃO. O registro sem reconhecimento também lista os prestadores.
+- **Sem jornada**: prestador não tem jornada controlada (é o que o próprio DP já diz na ficha). O ponto mostra a presença e
+  as horas registradas, sem previsto, atraso, saída antecipada, hora além da jornada, noturno ou ausência. Ele não entra
+  nos relatórios de atrasos, horas extras e ausências, não conta como "funcionário sem jornada" na Implantação, e o
+  espelho dele sai como "Registro de presença".
+- **Fora do Diário do DP**: mesmo no registro definitivo, a marcação do prestador fica só no ponto (`pontoMarcacoes`). Ela
+  não vai para o Diário, que alimenta o espelho, as horas extras e a folha dos empregados, nem pelo "Lançar agora".
+- **Comprovante**: "Contratante" e "Prestador de serviços" no lugar de "Empregador" e "Trabalhador".
+- Nas listas da gestão, o nome do prestador leva a indicação "Prestador de serviços".
+
+Cuidado (dito ao dono): para MEI, o ponto serve como controle de presença. Exigir horário e cobrar jornada de quem é
+prestador, como se fosse empregado, pode caracterizar vínculo de emprego. Na dúvida, confirme com o contador ou com um
+advogado trabalhista.
+
+Nenhuma migração de banco e nenhum dado alterado: as regras do banco não olham o tipo de contratação.
+`node scripts/testar-ponto-facial.mjs` confere o prestador de ponta a ponta (parte 16b).

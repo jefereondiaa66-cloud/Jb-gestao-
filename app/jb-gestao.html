@@ -39502,6 +39502,10 @@ img.pg-ft-x{opacity:.15}
      atos administrativos. Também só entra.
    · diario (já existia): continua sendo o registro tratado pelo DP (espelho, horas extras, folha). No registro
      definitivo, cada marcação confirmada é lançada lá; na fase de testes, só se o DP ligar essa opção.
+   · V163 (25/11/2026, pedido do dono): os MEI (prestadores de serviços no cadastro do DP) também usam o ponto facial:
+     cadastro do rosto, reconhecimento e marcação iguais aos dos empregados. Prestador não tem jornada controlada: o ponto
+     mostra a presença e as horas dele, sem atraso, hora além da jornada nem ausência, e não lança nada no Diário do DP
+     (que alimenta o espelho, as horas extras e a folha dos empregados).
    Não é um REP-P homologado (Portaria MTP 671/2021): ver docs/ponto-facial-v126.md. */
 (()=>{
 const ROTA='pontoFacial',ROTA_G='pontoGestao',ROTA_CAD='cadastrarRosto',PAPEL='celularPonto',PAPEL_R='respPonto';
@@ -39552,6 +39556,8 @@ const CFG_PF={fase:'teste',lancarDiario:false,provaVida:false,rigor:'padrao',min
 const cfgP=()=>({...CFG_PF,...((CFG&&CFG.pontoFacial)||{})});
 const oficial=()=>cfgP().fase==='oficial';
 const lancaDiario=()=>oficial()||!!cfgP().lancarDiario;
+/* V163 · MEI e outros prestadores de serviços: registram no ponto facial, mas sem jornada e fora do Diário do DP */
+const prest=f=>!!f&&ehPrestador(f.tipoContratacao);
 /* distância entre dois códigos de rosto: a mesma pessoa costuma ficar abaixo de 0,45; pessoas diferentes, acima de 0,6 */
 const FIRME=.42,MARGEM=.07,PARECIDO=.42,MESMA=.6,TAM_MIN=.24,MIN_FOTOS=3;
 const limite=()=>cfgP().rigor==='alto'?.44:.48;
@@ -39663,7 +39669,7 @@ function alvo(fid,ag){
 const ULT=new Map();   // última marcação feita neste aparelho (a lista local leva um instante para atualizar)
 function conferir(fid,ag){
  if(!APP.carregado)return{ok:false,cod:'carregando',msg:'Ainda carregando os dados. Tente de novo em alguns segundos.'};
- const f=F(fid);if(!f||f.situacao==='Desligado'||ehPrestador(f.tipoContratacao))return{ok:false,cod:'funcionario',msg:'Funcionário não encontrado. Procure a responsável pelo ponto.'};
+ const f=F(fid);if(!f||f.situacao==='Desligado')return{ok:false,cod:'funcionario',msg:'Funcionário não encontrado. Procure a responsável pelo ponto.'};
  const a=alvo(fid,ag),u=ULT.get(fid)||0,t=ag.getTime(),min=Math.max(1,+cfgP().minIntervalo||2)*60000;
  const ts=[u,...ORDEM.map(k=>msDe(a.st,k))].filter(x=>Number.isFinite(x)&&x>0);
  if(ts.some(x=>Math.abs(t-x)<min)){const k=ORDEM.filter(x=>a.st[x]).pop();
@@ -39693,12 +39699,14 @@ async function registrarMarcacao(fid,k,c,ag,extra){
  await gravar(COL_M,m,null);
  ULT.set(fid,ag.getTime());
  let noDiario=null;
- if(lancaDiario()){try{noDiario=await lancarNoDiario(fid,c.data,[m],true)}catch(e){noDiario=false;console.warn('ponto: marcação gravada, mas o Diário não recebeu',e&&e.code)}}
+ if(lancaDiario()&&!prest(F(fid))){try{noDiario=await lancarNoDiario(fid,c.data,[m],true)}catch(e){noDiario=false;console.warn('ponto: marcação gravada, mas o Diário não recebeu',e&&e.code)}}
  return{...m,noDiario};
 }
 /* leva para o Diário do DP as marcações do dia que ainda não foram lançadas lá. Só preenche campo vazio:
    o que o DP já escreveu ou corrigiu fica como está. Pode ser chamada de novo sem duplicar nada. */
 async function lancarNoDiario(fid,data,extras,soEstas){
+ /* V163: prestador de serviços (MEI) não tem jornada no Diário do DP: a marcação dele fica só no ponto */
+ if(prest(F(fid)))return false;
  /* soEstas: na confirmação entra só a marcação que acabou de ser feita; as antigas do dia que estiverem fora do
     Diário (falha de rede, registro apagado pelo DP) ficam para o "Lançar agora" da gestão, que mostra antes o que vai entrar */
  const ja=marcsDia(fid,data),ms=(soEstas?(extras||[]):ja.concat((extras||[]).filter(x=>!ja.some(y=>y.id===x.id)))).filter(m=>!anulada(m));
@@ -39720,7 +39728,7 @@ async function lancarNoDiario(fid,data,extras,soEstas){
 /* marcações válidas que ainda não estão no Diário (só quando o ponto lança lá) */
 function foraDoDiario(){
  if(!lancaDiario())return[];const out=[],visto=new Set();
- for(const m of DATA[COL_M]){if(anulada(m))continue;const r=regDiario(m.funcionarioId,m.data);if(r&&r.pontoIds&&Object.values(r.pontoIds).includes(m.id))continue;
+ for(const m of DATA[COL_M]){if(anulada(m)||prest(F(m.funcionarioId)))continue;const r=regDiario(m.funcionarioId,m.data);if(r&&r.pontoIds&&Object.values(r.pontoIds).includes(m.id))continue;
   if(m.fase!=='oficial'&&!cfgP().lancarDiario)continue;
   const ult=marcsDia(m.funcionarioId,m.data).filter(x=>x.k===m.k&&!anulada(x)).pop();if(ult!==m)continue;
   const k=m.funcionarioId+'|'+m.data;if(!visto.has(k)){visto.add(k);out.push({fid:m.funcionarioId,data:m.data})}}
@@ -39854,7 +39862,8 @@ const codificar=d=>{const a=new Int16Array(128);for(let i=0;i<128;i++)a[i]=Math.
 const decodificar=t=>{try{const s=atob(String(t||''));if(s.length!==256)return null;const u=new Uint8Array(256);for(let i=0;i<256;i++)u[i]=s.charCodeAt(i);
  const a=new Int16Array(u.buffer),f=new Float32Array(128);for(let i=0;i<128;i++)f[i]=a[i]/20000;return f}catch(e){return null}};
 const dist=(a,b)=>{let s=0;for(let i=0;i<128;i++){const x=a[i]-b[i];s+=x*x}return Math.sqrt(s)};
-const ativos=()=>DATA.funcionarios.filter(f=>f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao));
+/* quem usa o ponto: todos os ativos do DP, empregados e prestadores de serviços (MEI, V163) */
+const ativos=()=>DATA.funcionarios.filter(f=>f.situacao!=='Desligado');
 const rostoDe=fid=>R.docs.find(d=>d.id===fid)||null;
 const rostoAtivo=d=>!!(d&&d.ativo!==false&&Array.isArray(d.cods)&&d.cods.length);
 /* só entra na comparação quem está ativo no DP e com o reconhecimento ligado. Os códigos são abertos uma vez e reaproveitados. */
@@ -40177,7 +40186,7 @@ function mostrarCard(fid,inf){
    <div class="pz-linha"><div><small>Confiança</small><b>${confianca(inf.d)}%</b></div><div><small>Tempo para identificar</small><b>${inf.ms?fNum(inf.ms/1000,1)+' s':'—'}</b></div></div>
    <button type="button" class="pz-conf" data-c="acerto">${CHECK}<span>RECONHECEU CERTO</span></button>
    <div class="pz-card2"><button type="button" class="pz-nao" data-c="erro">Reconheceu a pessoa errada</button></div>`;
- else c.innerHTML=`<div class="pz-ok">${inf.manual?EXCL:CHECK}<span>${inf.manual?'Registro sem reconhecimento':'Funcionário identificado!'}</span></div><div class="pz-nome">${esc(f.nome)}</div><div class="pz-det">${esc(det)}</div>
+ else c.innerHTML=`<div class="pz-ok">${inf.manual?EXCL:CHECK}<span>${inf.manual?'Registro sem reconhecimento':prest(f)?'Prestador identificado!':'Funcionário identificado!'}</span></div><div class="pz-nome">${esc(f.nome)}</div><div class="pz-det">${esc(det)}</div>
    <div class="pz-linha"><div><small>Horário</small><b id="pzAgora">${hhmm(agora())}</b></div><div><small>Tipo de marcação</small><b id="pzTipo">${esc(rotuloEsc(K.pronto,0))}</b>${K.pronto.op.length>1?`<button type="button" class="pz-troca" data-c="tipo">Não é isso? Trocar</button>`:''}</div></div>
    <button type="button" class="pz-conf" id="pzConf" data-c="confirmar">${CHECK}<span>CONFIRMAR MARCAÇÃO</span></button>
    <div class="pz-card2"><button type="button" class="pz-nao" data-c="nao">${inf.manual?'Cancelar':'Não sou eu'}</button></div>`;
@@ -40240,7 +40249,7 @@ async function abrirManual(){
  const armar=()=>{clearTimeout(tm);tm=setTimeout(fechar,45000)};
  const desenhar=()=>{const ps=normal(p.querySelector('input').value).trim().split(/\s+/).filter(Boolean);
   const fs=filtroSetor(ativos(),f=>f.setor).sort((a,b)=>a.nome.localeCompare(b.nome)).filter(f=>{if(!ps.length)return true;const t=normal(f.nome)+' '+normal(f.matricula);return ps.every(x=>t.includes(x))});
-  p.querySelector('.pz-lg').innerHTML=fs.length?fs.map(f=>`<button type="button" class="pz-pes" data-f="${esc(f.id)}">${avatarFunc(f)}<span><b>${esc(f.nome)}</b><small>${esc([f.matricula?'Matrícula '+f.matricula:'',f.setor].filter(Boolean).join(' · '))}</small></span></button>`).join('')
+  p.querySelector('.pz-lg').innerHTML=fs.length?fs.map(f=>`<button type="button" class="pz-pes" data-f="${esc(f.id)}">${avatarFunc(f)}<span><b>${esc(f.nome)}</b><small>${esc([f.matricula?'Matrícula '+f.matricula:'',f.setor,prest(f)?'Prestador de serviços':''].filter(Boolean).join(' · '))}</small></span></button>`).join('')
    :'<p>Ninguém encontrado. Confira o nome ou a matrícula.</p>'};
  p.addEventListener('input',()=>{armar();desenhar()});p.addEventListener('pointerdown',armar);
  p.addEventListener('click',e=>{if(e.target.closest('[data-v]')){fechar();return}
@@ -40432,8 +40441,8 @@ function fecharCad(){
  if(!K.vivo)desligarCamera(0);
  try{if(lerRota().mod===ROTA_G)renderTela()}catch(e){}
 }
-function textoTermo(f){const e=(CFG&&CFG.empresa)||{};
- return `Eu, ${f.nome}${f.matricula?', matrícula '+f.matricula:''}, declaro que fui informado(a) por ${e.razao||e.fantasia||'meu empregador'}${e.cnpj?' (CNPJ '+e.cnpj+')':''} de que:\n\n1. Meu rosto será usado para criar um código numérico (modelo biométrico), com a única finalidade de me identificar no registro de ponto.\n2. No cadastro, nenhuma fotografia do meu rosto é guardada: fica apenas o código numérico, que não permite reconstruir a imagem. A cada marcação de ponto, o sistema guarda uma foto pequena do momento, como comprovante de que fui eu que marquei.\n3. O acesso a esse código e a essas fotos é restrito às pessoas autorizadas do Departamento Pessoal e ao aparelho do ponto.\n4. O código é apagado quando eu deixar a empresa ou quando o reconhecimento facial deixar de ser usado. Posso pedir informações, correção ou a exclusão a qualquer momento ao Departamento Pessoal.\n5. Se eu não quiser ou não puder usar o reconhecimento facial, existe o registro alternativo, feito pela pessoa responsável pelo ponto.\n\nBase legal: Lei 13.709/2018 (LGPD), art. 11.\n\nLocal e data: ____________________________\n\nAssinatura do(a) trabalhador(a): ____________________________`}
+function textoTermo(f){const e=(CFG&&CFG.empresa)||{},p=prest(f);
+ return `Eu, ${f.nome}${f.matricula?', matrícula '+f.matricula:''}, declaro que fui informado(a) por ${e.razao||e.fantasia||(p?'a contratante':'meu empregador')}${e.cnpj?' (CNPJ '+e.cnpj+')':''} de que:\n\n1. Meu rosto será usado para criar um código numérico (modelo biométrico), com a única finalidade de me identificar no ${p?'registro da minha presença (entrada e saída) na empresa, como prestador(a) de serviços':'registro de ponto'}.\n2. No cadastro, nenhuma fotografia do meu rosto é guardada: fica apenas o código numérico, que não permite reconstruir a imagem. A cada marcação${p?'':' de ponto'}, o sistema guarda uma foto pequena do momento, como comprovante de que fui eu que marquei.\n3. O acesso a esse código e a essas fotos é restrito às pessoas autorizadas do Departamento Pessoal e ao aparelho do ponto.\n4. O código é apagado quando ${p?'terminar a prestação de serviços':'eu deixar a empresa'} ou quando o reconhecimento facial deixar de ser usado. Posso pedir informações, correção ou a exclusão a qualquer momento ao Departamento Pessoal.\n5. Se eu não quiser ou não puder usar o reconhecimento facial, existe o registro alternativo, feito pela pessoa responsável pelo ponto.\n\nBase legal: Lei 13.709/2018 (LGPD), art. 11.\n\nLocal e data: ____________________________\n\nAssinatura do(a) ${p?'prestador(a) de serviços':'trabalhador(a)'}: ____________________________`}
 function imprimirTexto(titulo,texto){
  try{const fr=document.createElement('iframe');fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(fr);
   const d=fr.contentWindow.document;d.open();d.write(`<!doctype html><meta charset="utf-8"><title>${esc(titulo)}</title><style>body{font:14px/1.6 Georgia,serif;margin:28mm 22mm;color:#000}h1{font-size:18px;margin:0 0 18px}pre{white-space:pre-wrap;font:inherit;margin:0}</style><h1>${esc(titulo)}</h1><pre>${esc(texto)}</pre>`);d.close();
@@ -40448,7 +40457,7 @@ function pedirTermo(f){
    <label class="inline" style="font-size:14px;margin:10px 0 14px"><input type="checkbox" id="pzTermoOk"> ${esc(f.nome)} leu e assinou o termo.</label>
    <div class="acoes"><button type="button" class="btn" data-r="0">Cancelar</button><button type="button" class="btn" data-r="p">${ic('doc')}Imprimir o termo</button><button type="button" class="btn pri" data-r="1">Continuar</button></div></div>`;
   v.addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(e.target===v){v.remove();res(false);return}if(!b)return;
-   if(b.dataset.r==='p'){imprimirTexto('Termo de ciência: reconhecimento facial no registro de ponto',textoTermo(f));return}
+   if(b.dataset.r==='p'){imprimirTexto('Termo de ciência: reconhecimento facial no registro de '+(prest(f)?'presença':'ponto'),textoTermo(f));return}
    if(b.dataset.r==='1'&&!v.querySelector('#pzTermoOk').checked){toast('Marque que o termo foi assinado para continuar.','erro');return}
    v.remove();res(b.dataset.r==='1')});
   document.body.appendChild(v)});
@@ -40456,7 +40465,7 @@ function pedirTermo(f){
 async function abrirCadastro(fid){
  if(CAD||K.vivo)return;const f=F(fid);
  if(!f||!podeGerir()){toast(f?'Seu perfil não faz cadastro facial.':'Funcionário não encontrado.','erro');return}
- if(f.situacao==='Desligado'||ehPrestador(f.tipoContratacao)){toast('O cadastro facial é só para empregados ativos.','erro');return}
+ if(f.situacao==='Desligado'){toast('O cadastro facial é só para quem está ativo no Departamento Pessoal.','erro');return}
  const ant=rostoDe(fid);let termo=(ant&&ant.termo)||null;
  if(!termo&&cfgP().exigirTermo){if(!await pedirTermo(f))return;termo={em:new Date().toISOString(),por:APP.uid||'local'}}
  if(CAD||K.vivo)return;
@@ -40579,7 +40588,7 @@ const filtraG=fs=>{const ps=normal(UIG.busca).trim().split(/\s+/).filter(Boolean
  return fs.filter(f=>(!UIG.setor||f.setor===UIG.setor)&&(!ps.length||ps.every(p=>(normal(f.nome)+' '+normal(f.matricula)).includes(p))))};
 const optSet=()=>`<option value="">Todos os setores</option>${setoresG().map(s=>`<option ${s===UIG.setor?'selected':''}>${esc(s)}</option>`).join('')}`;
 const optFunc=(vazio)=>`<option value="">${esc(vazio)}</option>${funcsG().map(f=>`<option value="${esc(f.id)}" ${f.id===UIG.func?'selected':''}>${esc(f.nome)}${f.matricula?' · '+esc(f.matricula):''}</option>`).join('')}`;
-const pessoa=f=>`<span class="pg-pessoa">${avatarFunc(f)}<span><b>${esc(f.nome)}</b><small>${esc([f.matricula?'Matrícula '+f.matricula:'',f.setor].filter(Boolean).join(' · '))}</small></span></span>`;
+const pessoa=f=>`<span class="pg-pessoa">${avatarFunc(f)}<span><b>${esc(f.nome)}</b><small>${esc([f.matricula?'Matrícula '+f.matricula:'',f.setor,prest(f)?'Prestador de serviços':''].filter(Boolean).join(' · '))}</small></span></span>`;
 const hora=h=>h?`<span class="pg-hora">${esc(h)}</span>`:'<span class="pg-hora pg-vazia">—</span>';
 const tagRosto=d=>!d?tag('Sem cadastro','pe'):rostoAtivo(d)?tag('Cadastrado','ok'):tag('Desativado','at');
 const sitMarc=m=>anulada(m)?['Anulada','pe']:pendente(m)?['Pendente de tratamento','at']:conferida(m)?['Conferida','ok']:['Válida','ok'];
@@ -40589,8 +40598,10 @@ const mesDe=ts=>{const d=new Date(ts);return Number.isFinite(d.getTime())?isoDe(
 const diasDoMes=mes=>{const [y,m]=mes.split('-').map(Number);return diasEntre(mes+'-01',mes+'-'+pad(new Date(y,m,0).getDate()))};
 /* o dia de uma pessoa já calculado: usa as mesmas contas do Espelho de ponto (jornada da ficha, tolerâncias) */
 function diaCalc(f,data){
- const st=estadoDia(f.id,data),esp=esperadoDia(f,data),tem=st.n>0;
- const c=tem?calcDia({funcionarioId:f.id,data,entrada:st.entrada,saidaIntervalo:st.saidaIntervalo,retornoIntervalo:st.retornoIntervalo,saida:st.saida,tipo:(st.reg&&st.reg.tipo)||'Presença normal'}):null;
+ const st=estadoDia(f.id,data),p=prest(f),esp=p?null:esperadoDia(f,data),tem=st.n>0;
+ let c=tem?calcDia({funcionarioId:f.id,data,entrada:st.entrada,saidaIntervalo:st.saidaIntervalo,retornoIntervalo:st.retornoIntervalo,saida:st.saida,tipo:(st.reg&&st.reg.tipo)||'Presença normal'}):null;
+ /* V163 · prestador (MEI): só a presença e as horas, sem previsto, atraso, saída antecipada, hora além da jornada nem noturno */
+ if(c&&p)c={...c,esperado:0,atraso:0,antecipada:0,extra:0,noturno:0};
  const oc=DATA.diario.filter(x=>x.funcionarioId===f.id&&x.data===data&&x.tipo!=='Presença normal').map(x=>x.tipo);
  const og=[...new Set(ORDEM.filter(k=>st[k]).map(k=>st.m[k]?ORIGEM[st.m[k].origem]||'Facial':'Lançado pelo DP'))].join(' + ');
  /* presença com horário lançada à mão no Diário, num dia sem marcação do ponto facial (comum na fase de testes): não é ausência */
@@ -40601,6 +40612,7 @@ function situacaoDia(st,f,ehHoje){
  if(st.saida)return['Jornada encerrada','ok'];
  if(st.saidaIntervalo&&!st.retornoIntervalo)return ehHoje?['Em intervalo','at']:['Incompleta','pe'];
  if(st.entrada)return ehHoje?['Trabalhando','in']:['Incompleta','pe'];
+ if(prest(f))return[ehHoje?'Ainda não marcou':'Sem marcação',''];   // V163: prestador não tem jornada nem falta
  if(!esperadoDia(f,st.data))return['Sem jornada neste dia',''];
  return ehHoje?['Ainda não marcou','']:['Sem marcação','pe'];
 }
@@ -40622,7 +40634,7 @@ function abaHoje(){
   ${ls.map(({f,st,sit,ult})=>`<tr class="clic" data-a="verFunc" data-id="${esc(f.id)}"><td data-l="Funcionário">${pessoa(f)}</td><td data-l="Cadastro facial">${tagRosto(rostoDe(f.id))}</td>
    ${ORDEM.map(k=>`<td data-l="${esc(NOME_K(k))}">${hora(st[k])}${st.m[k]&&st.m[k].origem==='manual'?' '+tag('manual','at'):''}</td>`).join('')}
    <td class="num" data-l="Marcações">${st.n}</td><td data-l="Última marcação">${ult?esc(CURTO[ult]+' '+st[ult]):'—'}</td><td data-l="Situação">${tag(sit[0],sit[1])}</td></tr>`).join('')}</tbody></table></div>`
-  :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui os empregados ativos do cadastro do Departamento Pessoal (prestadores não registram ponto).</div>'}</div>`;
+  :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui as pessoas ativas do cadastro do Departamento Pessoal: empregados e prestadores de serviços (MEI).</div>'}</div>`;
 }
 
 /* ---------- V127 · Pontos do funcionário: tudo de uma pessoa num lugar só (dias, horários, fotos e totais) ---------- */
@@ -40644,10 +40656,10 @@ function abaPontos(){
    <input type="search" id="pgBusca" data-f="busca" value="${esc(UIG.busca)}" placeholder="Procurar funcionário ou matrícula" aria-label="Procurar funcionário ou matrícula"></div>
   ${ls.length?`<div class="pg-fl" id="pgListaPontos">${ls.map(x=>{const st=estadoDia(x.id,H),sit=situacaoDia(st,x,true);
    return `<button type="button" class="pg-fc" data-a="verFunc" data-id="${esc(x.id)}">${pessoa(x)}<span class="pg-fc-h"><span>Entrada hoje<b>${esc(st.entrada||'—')}</b></span><span>Saída hoje<b>${esc(st.saida||'—')}</b></span><span>Marcações no mês<b>${conta.get(x.id)||0}</b></span></span>${tag(sit[0],sit[1])}</button>`}).join('')}</div>`
-   :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui os empregados ativos do cadastro do Departamento Pessoal.</div>'}</div>
+   :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Aparecem aqui as pessoas ativas do cadastro do Departamento Pessoal: empregados e prestadores de serviços (MEI).</div>'}</div>
   <p class="ajuda" style="margin-top:10px">Toque no funcionário para ver os pontos dele: cada dia, a hora de cada marcação e a foto do momento.</p>`;
  }
- const mes=/^\d{4}-\d{2}$/.test(UIG.pmes)&&UIG.pmes<=H.slice(0,7)?UIG.pmes:H.slice(0,7),t=totaisMes(f,mes,H),e=esperadoDia(f,H);
+ const mes=/^\d{4}-\d{2}$/.test(UIG.pmes)&&UIG.pmes<=H.slice(0,7)?UIG.pmes:H.slice(0,7),t=totaisMes(f,mes,H),p=prest(f),e=p?null:esperadoDia(f,H);
  const pend=DATA[COL_M].filter(m=>m.funcionarioId===f.id&&String(m.data).startsWith(mes)&&pendente(m)).length;
  const dias=diasDoMes(mes).filter(d=>d<=H).reverse().map(d=>{const x=diaCalc(f,d);if(!x.tem&&!x.esp&&!x.oc.length)return '';const s=situacaoDia(x.st,f,d===H);
   return `<div class="pg-dia" data-dia="${d}"><div class="pg-dia-c"><b>${fData(d)}</b><small>${DIAS[dt(d).getDay()]}</small>${x.oc.length?tag(x.oc.join(', '),'in'):x.presDiario?tag('Presença lançada no Diário do DP','in'):tag(s[0],s[1])}
@@ -40659,8 +40671,8 @@ function abaPontos(){
  return `${faixaFase()}<div class="painel"><div class="filtros pg-filtros"><button type="button" class="btn min" data-a="trocarFunc">${ic('esquerda')}Todos os funcionários</button><select data-f="func" aria-label="Funcionário">${optFunc('Escolher outro funcionário')}</select>
    <input type="month" data-f="pmes" value="${esc(mes)}" max="${H.slice(0,7)}" aria-label="Mês"><span style="flex:1"></span>
    <button type="button" class="btn min" data-a="expPontos" data-x="ver">${ic('doc')}Espelho do mês</button><button type="button" class="btn min" data-a="expPontos" data-x="pdf">${ic('baixar')}PDF</button><button type="button" class="btn min" data-a="expPontos" data-x="xlsx">${ic('baixar')}Excel</button></div>
-  <div style="padding:12px 14px;border-bottom:1px solid var(--linha);display:flex;gap:10px;flex-wrap:wrap;align-items:center">${pessoa(f)}${tagRosto(rostoDe(f.id))}<small style="color:var(--suave)">${e?'Jornada de hoje: '+fHm(e.e)+' às '+fHm(e.s):'Sem jornada prevista para hoje'}</small></div></div>
-  <div class="resumo">${[[t.dias,'Dias com marcação'],[fHm(t.trab),'Horas trabalhadas'],[t.atraso?fHm(t.atraso):'—','Atrasos'],[t.extra?fHm(t.extra):'—','Além da jornada'],[t.aus,'Ausências'],[pend+t.inc,'A conferir (manual ou dia incompleto)']].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  <div style="padding:12px 14px;border-bottom:1px solid var(--linha);display:flex;gap:10px;flex-wrap:wrap;align-items:center">${pessoa(f)}${tagRosto(rostoDe(f.id))}<small style="color:var(--suave)">${p?'Prestador de serviços: sem jornada; o ponto mostra a presença e as horas':e?'Jornada de hoje: '+fHm(e.e)+' às '+fHm(e.s):'Sem jornada prevista para hoje'}</small></div></div>
+  <div class="resumo">${(p?[[t.dias,'Dias com marcação'],[fHm(t.trab),'Horas registradas'],[pend+t.inc,'A conferir (manual ou dia incompleto)']]:[[t.dias,'Dias com marcação'],[fHm(t.trab),'Horas trabalhadas'],[t.atraso?fHm(t.atraso):'—','Atrasos'],[t.extra?fHm(t.extra):'—','Além da jornada'],[t.aus,'Ausências'],[pend+t.inc,'A conferir (manual ou dia incompleto)']]).map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   <div class="painel" id="pgPontos" style="padding-top:12px">${dias||'<div class="vazio"><b>Nenhum ponto neste mês</b>As marcações confirmadas no ponto facial aparecem aqui, na hora.</div>'}</div>
   <p class="ajuda" style="margin-top:10px">Toque numa marcação para ver a foto maior, o comprovante e os detalhes. ${window.JB_NUVEM?'':'As fotos aparecem na versão da nuvem. '}${cfgP().foto===false?'A foto da marcação está desligada em Configurações.':'Marcações anteriores a 16/11/2026 não têm foto.'}</p>`;
 }
@@ -40681,7 +40693,7 @@ function abaFuncionarios(){
    <td data-l="Termo">${d?(d.termo?esc('Assinado · registrado em '+fData(String(d.termo.em).slice(0,10))):`${tag('Não registrado','at')}${podeGerir()?` <button type="button" class="btn min" data-a="termo" data-id="${esc(f.id)}">Registrar</button>`:''}`):'—'}</td>
    <td>${podeGerir()?`<span class="acoes"><button type="button" class="btn min${d?'':' pri'}" data-a="cadastrar" data-id="${esc(f.id)}">${ic('camera')}${d?'Atualizar':'Cadastrar'}</button>${d?`<button type="button" class="btn min" data-a="${rostoAtivo(d)?'desativar':'reativar'}" data-id="${esc(f.id)}">${rostoAtivo(d)?'Desativar':'Reativar'}</button><button type="button" class="btn min perigo" data-a="apagarRosto" data-id="${esc(f.id)}">Apagar</button>`:''}</span>`:''}</td></tr>`}).join('')}</tbody></table></div>`
   :'<div class="vazio"><b>Nenhum funcionário encontrado</b>Mude os filtros ou confira o cadastro no Departamento Pessoal.</div>'}</div>
- <p class="ajuda" style="margin-top:10px">O cadastro é feito por pessoa autorizada, com o funcionário diante da câmera. São de 3 a 5 capturas; o sistema guarda só um código numérico de cada uma, nunca a fotografia.</p>`;
+ <p class="ajuda" style="margin-top:10px">O cadastro é feito por pessoa autorizada, com o funcionário diante da câmera. São de 3 a 5 capturas; o sistema guarda só um código numérico de cada uma, nunca a fotografia. Prestadores de serviços (MEI) também são cadastrados aqui.</p>`;
 }
 async function registrarTermo(fid){
  const f=F(fid),d=rostoDe(fid);if(!f||!d||!podeGerir())return;
@@ -40721,8 +40733,8 @@ function abaHistorico(){
  <p class="ajuda" style="margin-top:10px">A marcação original nunca é alterada nem apagada. Para corrigir, use "Tratar": a marcação pode ser conferida ou anulada, com justificativa e o nome de quem tratou. Ajustes de horário são feitos no Diário do DP, com aprovação.</p>`;
 }
 function comprovante(id){
- const m=DATA[COL_M].find(x=>x.id===id);if(!m)return;const f=F(m.funcionarioId)||{},e=(CFG&&CFG.empresa)||{},s=sitMarc(m);
- const linhas=[['Empregador',(e.razao||e.fantasia||'—')+(e.cnpj?' · CNPJ '+e.cnpj:'')],['Trabalhador',(f.nome||'(removido)')+(f.matricula?' · matrícula '+f.matricula:'')],['Data',fData(m.data)],['Hora da marcação',hms(m.em)||m.hora],['Tipo',NOME_K(m.k)],
+ const m=DATA[COL_M].find(x=>x.id===id);if(!m)return;const f=F(m.funcionarioId)||{},e=(CFG&&CFG.empresa)||{},s=sitMarc(m),p=prest(F(m.funcionarioId));
+ const linhas=[[p?'Contratante':'Empregador',(e.razao||e.fantasia||'—')+(e.cnpj?' · CNPJ '+e.cnpj:'')],[p?'Prestador de serviços':'Trabalhador',(f.nome||'(removido)')+(f.matricula?' · matrícula '+f.matricula:'')],['Data',fData(m.data)],['Hora da marcação',hms(m.em)||m.hora],['Tipo',NOME_K(m.k)],
   ['Origem',(ORIGEM[m.origem]||m.origem)+(m.conf&&m.conf.pct!=null?' · confiança '+m.conf.pct+'%':'')],['Número sequencial (NSR)',m.nsr!=null?String(m.nsr):'aguardando o servidor'],['Hora do servidor',m.srv?fDataHora(m.srv)+':'+pad(new Date(m.srv).getSeconds()):'—'],['Código de verificação',m.hash?String(m.hash).slice(0,32):'—'],['Foto do momento',fotoDe(m)?'Guardada':'Sem foto'],['Situação',s[0]+(m.fase!=='oficial'?' · fase de testes':'')]];
  const v=document.createElement('div');v.className='veu';v.style.alignItems='center';v.style.justifyContent='center';
  v.innerHTML=`<div class="modal" role="dialog" aria-modal="true" style="max-width:520px"><h3>Comprovante de marcação de ponto</h3>${imgFoto(m,'pg-ft pg-fotoG')}<dl class="pg-comp">${linhas.map(([a,b])=>`<dt>${esc(a)}</dt><dd${a==='Código de verificação'?' class="pg-mono"':''}>${esc(b)}</dd>`).join('')}</dl>
@@ -40768,7 +40780,7 @@ const RELS={
      else if(x.esp&&d<H&&!x.presDiario)o.aus++}
     return o})}}},
  espelho:{n:'Espelho de ponto individual',d:'Dia a dia de um funcionário no mês, com as marcações e as horas calculadas pela jornada da ficha.',um:1,
-  b(mes,fs,H){const f=fs[0];return{cols:[{k:'data',l:'Data',t:'data'},{k:'dia',l:'Dia'},{k:'entrada',l:'Entrada'},{k:'saidaIntervalo',l:'Saída int.'},{k:'retornoIntervalo',l:'Retorno'},{k:'saida',l:'Saída'},hmC('trab'),hmC('previsto'),hmC('atraso'),hmC('antecipada'),hmC('extra'),hmC('noturno'),{k:'og',l:'Origem'},{k:'obs',l:'Ocorrência'}],
+  b(mes,fs,H){const f=fs[0],p=prest(f);return{cols:[{k:'data',l:'Data',t:'data'},{k:'dia',l:'Dia'},{k:'entrada',l:'Entrada'},{k:'saidaIntervalo',l:'Saída int.'},{k:'retornoIntervalo',l:'Retorno'},{k:'saida',l:'Saída'},hmC('trab'),...(p?[]:[hmC('previsto'),hmC('atraso'),hmC('antecipada'),hmC('extra'),hmC('noturno')]),{k:'og',l:'Origem'},{k:'obs',l:'Ocorrência'}],
    rows:!f?[]:diasDoMes(mes).map(d=>{const x=diaCalc(f,d),c=x.c||{};return{data:d,dia:DIAS_SEM[dt(d).getDay()]+(feriado(d)?' (feriado)':''),entrada:x.st.entrada,saidaIntervalo:x.st.saidaIntervalo,retornoIntervalo:x.st.retornoIntervalo,saida:x.st.saida,
     trab:c.trab||0,previsto:x.esp?x.esp.min:0,atraso:c.atraso||0,antecipada:c.antecipada||0,extra:c.extra||0,noturno:c.noturno||0,og:x.og,obs:x.oc.join(', ')||(x.presDiario?'Presença lançada no Diário do DP':!x.tem&&x.esp&&d<H?'Sem marcação':'')+(c.incompleto&&d<H?'Incompleto':'')}})}}},
  entsai:{n:'Entradas e saídas',d:'Todas as marcações do mês, uma por linha, na ordem em que aconteceram.',
@@ -40811,7 +40823,7 @@ function relAtual(){
  let fs=funcsG().filter(f=>!UIG.setor||f.setor===UIG.setor);
  if(R0.um){if(!UIG.func||!fs.some(f=>f.id===UIG.func))UIG.func=fs.length?fs[0].id:'';fs=fs.filter(f=>f.id===UIG.func)}else if(UIG.func&&!R0.todos)fs=fs.filter(f=>f.id===UIG.func);
  const r=R0.b(mes,fs,H),um=R0.um&&fs[0];
- return{...r,R0,mes,titulo:R0.n+(um?' · '+um.nome:'')+' · '+fMes(mes)+(oficial()?'':' (fase de testes)'),filtros:[UIG.setor?'Setor: '+UIG.setor:'',!R0.um&&UIG.func&&!R0.todos?'Funcionário: '+nomeF(UIG.func):''].filter(Boolean).join(' · ')};
+ return{...r,R0,mes,titulo:(um&&prest(um)?'Registro de presença (prestador de serviços)':R0.n)+(um?' · '+um.nome:'')+' · '+fMes(mes)+(oficial()?'':' (fase de testes)'),filtros:[UIG.setor?'Setor: '+UIG.setor:'',!R0.um&&UIG.func&&!R0.todos?'Funcionário: '+nomeF(UIG.func):''].filter(Boolean).join(' · ')};
 }
 function abaRelatorios(){
  const H=isoDe(agora()),r=relAtual(),fmt=(c,v)=>c.t==='data'?fData(v):c.t==='hm'?(v?fHm(v):''):esc(v==null?'':String(v));
@@ -40822,7 +40834,7 @@ function abaRelatorios(){
  ${r.rows.length?`<div class="tabwrap"><table class="tbl cartao" id="pgTabRel"><thead><tr>${r.cols.map(c=>`<th class="${c.t==='hm'||c.t==='num'?'num':''}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>
   ${r.rows.slice(0,300).map(x=>`<tr>${r.cols.map(c=>`<td class="${c.t==='hm'||c.t==='num'?'num':''}" data-l="${esc(c.l)}">${fmt(c,x[c.k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${r.rows.length>300?`<p class="ajuda" style="padding:10px 14px">Mostrando 300 de ${r.rows.length} linhas. O arquivo exportado traz todas.</p>`:''}`
   :'<div class="vazio"><b>Nada para mostrar neste mês</b>O relatório usa só as marcações e a jornada que existem de verdade: sem dados, ele fica vazio.</div>'}</div>
- <p class="ajuda" style="margin-top:10px">Atrasos, horas além da jornada e ausências dependem da jornada cadastrada na ficha de cada funcionário. Quem não tem jornada na ficha não aparece nesses três relatórios.</p>`;
+ <p class="ajuda" style="margin-top:10px">Atrasos, horas além da jornada e ausências dependem da jornada cadastrada na ficha de cada funcionário. Quem não tem jornada na ficha não aparece nesses três relatórios. Prestadores de serviços (MEI) aparecem só com a presença e as horas: sem jornada, atraso, hora além da jornada ou ausência.</p>`;
 }
 
 /* ---------- Implantação: fase de testes e acompanhamento ---------- */
@@ -40833,11 +40845,11 @@ function numerosTeste(){
   testados:new Set(ac.map(e=>e.funcionarioId)).size,falhas30:DATA[COL_E].filter(e=>e.tipo==='falha'&&e.ts>=d30).length};
 }
 function abaImplantacao(){
- const n=numerosTeste(),todos=funcsG(),com=todos.filter(f=>rostoAtivo(rostoDe(f.id))),semT=com.filter(f=>!rostoDe(f.id).termo).length,semJ=todos.filter(f=>!f.jornadaId&&!(f.entrada&&f.saida)).length;
+ const n=numerosTeste(),todos=funcsG(),com=todos.filter(f=>rostoAtivo(rostoDe(f.id))),semT=com.filter(f=>!rostoDe(f.id).termo).length,semJ=todos.filter(f=>!prest(f)&&!f.jornadaId&&!(f.entrada&&f.saida)).length;
  const ms=DATA[COL_M].filter(m=>!anulada(m)),man=ms.filter(m=>m.origem==='manual').length,rel=REL.medida==null?null:Math.round(Math.abs(REL.medida)/1000);
  const it=(ok,t,d)=>`<li>${tag(ok===null?'Conferir':ok?'Pronto':'Falta',ok===null?'in':ok?'ok':'at')}<span><b>${esc(t)}</b><br>${d}</span></li>`;
  return `<div class="pg-sec"><h2>Fase atual: ${oficial()?'registro definitivo':'testes e acompanhamento'}</h2>
-  <p>${oficial()?'As marcações confirmadas no ponto facial entram no Diário do DP e alimentam o espelho, as horas extras e a folha.':'A responsável acompanha o funcionamento com os funcionários. As marcações ficam guardadas e aparecem no Controle do dia e nos relatórios, marcadas como "fase de testes". Elas não são o registro oficial de jornada.'}</p>
+  <p>${oficial()?'As marcações confirmadas no ponto facial entram no Diário do DP e alimentam o espelho, as horas extras e a folha. As dos prestadores de serviços (MEI) ficam só no ponto.':'A responsável acompanha o funcionamento com os funcionários. As marcações ficam guardadas e aparecem no Controle do dia e nos relatórios, marcadas como "fase de testes". Elas não são o registro oficial de jornada.'}</p>
   <div class="acoes"><a class="btn pri" href="#/${ROTA}/teste">${ic('camera')}Testar o reconhecimento</a>${podeTec()?`<button type="button" class="btn" data-a="fase">${oficial()?'Voltar para a fase de testes':'Passar para o registro definitivo'}</button>`:''}</div>
   <p class="ajuda" style="margin-top:10px">No teste, a câmera identifica a pessoa e a responsável diz se acertou. Nenhuma marcação é registrada.</p></div>
  <div class="resumo">${[[n.ts.length,'Testes realizados'],[n.taxa==null?'—':n.taxa+'%','Taxa de acerto nos testes'],[n.er,'Erros nos testes'],[n.tempo==null?'—':fNum(n.tempo,1)+' s','Tempo médio para identificar'],[n.falhas30,'Falhas de identificação (30 dias)'],[ms.length?Math.round(man/ms.length*100)+'%':'—','Marcações sem reconhecimento']].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>
@@ -40866,13 +40878,13 @@ async function salvarCfgPonto(patch,txt){
 }
 function abaConfig(){
  if(!podeTec())return '<div class="vazio"><b>Configurações técnicas</b>Só o administrador, o RH e o Departamento Pessoal alteram as configurações do ponto.</div>';
- const c=cfgP(),semJ=funcsG().filter(f=>!f.jornadaId&&!(f.entrada&&f.saida)).length;
+ const c=cfgP(),semJ=funcsG().filter(f=>!prest(f)&&!f.jornadaId&&!(f.entrada&&f.saida)).length;
  const op=(t,d,ctl)=>`<div class="pg-op"><div><b>${t}</b><small>${d}</small></div>${ctl}</div>`;
  const sel=(k,ops)=>`<select data-cfg="${k}" aria-label="${k}">${ops.map(([v,l])=>`<option value="${v}" ${String(c[k])===String(v)?'selected':''}>${l}</option>`).join('')}</select>`;
  return `<div class="pg-grade2"><div>
  <div class="pg-sec"><h2>Funcionamento</h2>
   ${op('Fase','Testes e acompanhamento ou registro definitivo. A troca é feita na aba Implantação.',`<a class="btn min" href="#/${ROTA_G}/implantacao">${oficial()?'Registro definitivo':'Fase de testes'}</a>`)}
-  ${op('Lançar as marcações no Diário do DP durante os testes','Desligado: as marcações de teste ficam só no ponto. Ligado: entram também no Diário, no espelho e na folha. No registro definitivo isso é sempre ligado.',sel('lancarDiario',[['false','Desligado'],['true','Ligado']]).replace('<select','<select '+(oficial()?'disabled ':'')))}
+  ${op('Lançar as marcações no Diário do DP durante os testes','Desligado: as marcações de teste ficam só no ponto. Ligado: entram também no Diário, no espelho e na folha. No registro definitivo isso é sempre ligado. As dos prestadores de serviços (MEI) nunca entram no Diário.',sel('lancarDiario',[['false','Desligado'],['true','Ligado']]).replace('<select','<select '+(oficial()?'disabled ':'')))}
   ${op('Câmera padrão','A que abre primeiro. O botão de alternar continua na tela; o aparelho lembra a escolha por 12 horas.',sel('camera',[['environment','Traseira'],['user','Da frente']]))}
   ${op('Intervalo mínimo entre duas marcações da mesma pessoa','Evita marcação repetida por engano.',sel('minIntervalo',[[1,'1 minuto'],[2,'2 minutos'],[5,'5 minutos'],[10,'10 minutos']]))}</div>
  <div class="pg-sec"><h2>Reconhecimento e segurança</h2>
@@ -40881,7 +40893,7 @@ function abaConfig(){
   ${op('Exigir o termo de ciência antes do cadastro facial','Rosto é dado pessoal sensível (LGPD). Com isso ligado, o cadastro só começa depois de registrar que o funcionário assinou o termo.',sel('exigirTermo',[['true','Exigir'],['false','Não exigir']]))}
   ${op('Foto no momento da marcação','Guarda uma foto pequena de quem marcou, ligada à marcação. Aparece em Pontos do funcionário e no comprovante, só para quem tem acesso ao Departamento Pessoal. O termo de ciência precisa falar dessa foto: quem assinou o termo antigo deve assinar o novo.',sel('foto',[['true','Guardar a foto'],['false','Não guardar']]))}
   ${op('Senha do ponto','Trava a tela do ponto e autoriza o registro sem reconhecimento. Fica guardada embaralhada, nunca em texto.',`<button type="button" class="btn min" data-a="senha">${R.senha?'Trocar a senha':'Criar a senha'}</button>`)}</div>
- <div class="pg-sec"><h2>Jornadas</h2><p>Cada funcionário segue a jornada da própria ficha. O ponto usa essa jornada para sugerir o tipo da marcação e para calcular atraso, ausência e hora extra. ${semJ?'<b>'+semJ+' funcionário(s) estão sem jornada na ficha.</b>':'Todos os funcionários têm jornada na ficha.'}</p>
+ <div class="pg-sec"><h2>Jornadas</h2><p>Cada funcionário segue a jornada da própria ficha. O ponto usa essa jornada para sugerir o tipo da marcação e para calcular atraso, ausência e hora extra. Prestadores de serviços (MEI) não têm jornada: o ponto só mostra a presença e as horas deles. ${semJ?'<b>'+semJ+' funcionário(s) estão sem jornada na ficha.</b>':'Todos os funcionários têm jornada na ficha.'}</p>
   <div class="acoes"><a class="btn min" href="#/config">Jornadas e horários</a><a class="btn min" href="#/funcionarios">Fichas dos funcionários</a></div>
   <p class="ajuda" style="margin-top:10px">Hoje a jornada é por dia da semana. Escalas que não fecham em sete dias (12x36, por exemplo) ainda não existem no sistema.</p></div></div>
  <div><div class="pg-sec"><h2>Situação legal (Portaria MTP 671/2021)</h2><p><b>Este sistema não é um registrador eletrônico de ponto homologado.</b> Ele foi preparado para chegar lá, mas a conformidade só pode ser declarada depois da verificação técnica e documental. Use-o como controle de acompanhamento até lá.</p>
@@ -41003,7 +41015,7 @@ window.addEventListener('hashchange',()=>{
 
 /* ---------- ficha do funcionário, Espelho de ponto, menu do Setor Pessoal e pesquisa ---------- */
 try{const a0=atalhosFunc;atalhosFunc=function(f){let h=a0.apply(this,arguments);
- try{if(f&&f.situacao!=='Desligado'&&!ehPrestador(f.tipoContratacao)&&podeGerir())h+=`<a class="btn" href="#/${ROTA_G}/funcionarios/${encodeURIComponent(f.id)}">${rostoDe(f.id)?'Atualizar o cadastro facial':'Fazer o cadastro facial'}</a>`}catch(e){}
+ try{if(f&&f.situacao!=='Desligado'&&podeGerir())h+=`<a class="btn" href="#/${ROTA_G}/funcionarios/${encodeURIComponent(f.id)}">${rostoDe(f.id)?'Atualizar o cadastro facial':'Fazer o cadastro facial'}</a>`}catch(e){}
  return h}}catch(e){console.warn('ponto facial: ficha',e)}
 const _telaPontoPZ=telaPonto;
 telaPonto=function(el0){const r=_telaPontoPZ.apply(this,arguments);
@@ -41025,7 +41037,7 @@ porNoMenu(ROTA,'Ponto facial','','camera','facial rosto reconhecimento face biom
 porNoMenu(ROTA_G,'Gestão do ponto',ROTA,'relogio','controle de ponto pontos do funcionario fotos marcacoes historico cadastro facial rosto biometria relatorio espelho atraso ausencia hora extra falhas implantacao teste auditoria configuracao','Controle do dia, cadastro facial, histórico, relatórios, implantação, configurações e auditoria do ponto.');
 
 window.JB_PONTO={aberto:()=>K.vivo||!!CAD,travada:()=>K.vivo?K.travada:!!lerTrava(),modo:()=>K.modo,estado:()=>({vivo:K.vivo,cand:K.cand,n:K.n,sem:K.sem,falhas:K.falhas,pronto:K.pronto?{fid:K.pronto.fid,resta:Math.round(K.pronto.ate-seg()),op:K.pronto.op.map(x=>x.k),ki:K.pronto.ki,manual:!!K.pronto.manual}:null,ocupado:K.ocupado,travada:K.travada,rostos:R.pronto}),
- cfg:cfgP,oficial,estadoDia,conferir,alvo,opcoes,registrarMarcacao,lancarNoDiario,foraDoDiario,agora,relogio:REL,
+ cfg:cfgP,oficial,estadoDia,conferir,alvo,opcoes,registrarMarcacao,lancarNoDiario,foraDoDiario,agora,relogio:REL,diaCalc,prestador:fid=>prest(F(fid)),termo:fid=>textoTermo(F(fid)),
  comparar,codificar,decodificar,dist,ver,achar,carregarIA,pronta:()=>IA_PRONTA,modoIA:()=>MODO,limites:()=>({LIMITE:limite(),FIRME,MARGEM,PARECIDO,TAM_MIN}),
  camera:()=>({ligada:camViva(),abrindo:!!CAM.p,lado:CAM.lado,cameras:CAM.n,medidas:CAM.med.slice()}),medidas:()=>({modo:MODO,achar:MED.achar.slice(),ver:MED.ver.slice(),identificar:MED.identificar.slice(),quedasOperario:MED.quedas}),
  abrir:abrirQuiosque,fechar:fecharQuiosque,abrirCadastro,rostos:()=>R.docs.map(d=>({id:d.id,capturas:d.cods.length,ativo:rostoAtivo(d),termo:!!d.termo})),senha:()=>!!R.senha,relatorio:(k,mes,fid)=>{const a={rel:UIG.rel,mes:UIG.mes,func:UIG.func};Object.assign(UIG,{rel:k,mes:mes||'',func:fid||''});try{return relAtual()}finally{Object.assign(UIG,a)}},

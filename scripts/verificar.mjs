@@ -203,6 +203,17 @@ teste('programa', 'ponto facial (V126/V127): reconhecimento com versão fixa, ca
     assert.ok(existsSync(join(RAIZ, 'supabase/migrations/20261115200000_seg_ponto_marcacoes.down.sql')), 'a migração do ponto precisa do arquivo de reversão');
   }
 });
+teste('programa', 'ponto facial (V163): os MEI (prestadores de serviços) também batem o ponto facial, sem jornada e fora do Diário do DP', () => {
+  const app = ler('app/jb-gestao.html');
+  const pz = /<script id="ponto-facial-v126">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(pz.includes('const prest=f=>!!f&&ehPrestador(f.tipoContratacao);'), 'quem é prestador de serviços');
+  assert.ok(pz.includes("const ativos=()=>DATA.funcionarios.filter(f=>f.situacao!=='Desligado');"), 'prestador ativo entra no reconhecimento, nas listas e no cadastro facial');
+  assert.ok(!/ehPrestador\(f\.tipoContratacao\)\)(return\{ok:false|\{toast)/.test(pz) && !pz.includes("&&!ehPrestador(f.tipoContratacao)&&podeGerir()"), 'marcar, cadastrar o rosto e o atalho da ficha não recusam mais o prestador');
+  assert.ok(pz.includes('if(prest(F(fid)))return false;') && pz.includes('if(lancaDiario()&&!prest(F(fid)))') && pz.includes('if(anulada(m)||prest(F(m.funcionarioId)))continue;'),
+    'a marcação do prestador nunca vai para o Diário do DP (espelho, horas extras e folha são dos empregados)');
+  assert.ok(pz.includes('esp=p?null:esperadoDia(f,data)') && pz.includes('if(c&&p)c={...c,esperado:0,atraso:0,antecipada:0,extra:0,noturno:0};'), 'prestador sem jornada prevista, atraso, hora além da jornada nem ausência');
+  assert.ok(pz.includes("Assinatura do(a) ${p?'prestador(a) de serviços':'trabalhador(a)'}: ") && pz.includes("[p?'Contratante':'Empregador',"), 'termo de ciência e comprovante com o texto do prestador');
+});
 teste('programa', 'Setor do Barro (V124): o valor do barro entra junto da tonelada, também com a parte de extração ligada', () => {
   const app = ler('app/jb-gestao.html');
   const trecho = (ini, fim) => { const i = app.indexOf(ini); assert.ok(i >= 0, ini); const j = app.indexOf(fim, i + ini.length); assert.ok(j > i, fim); return app.slice(i, j); };
