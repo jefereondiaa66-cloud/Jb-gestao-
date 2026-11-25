@@ -720,6 +720,43 @@ teste('lenha', 'V159: Contas a pagar da Lenha com um cartão por fornecedor (mes
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
   if (ci) assert.ok(ci.includes('node scripts/testar-pagar-lenha-fornecedor.mjs'), 'teste no navegador roda na conferência automática');
 });
+teste('lenha', 'V173: preço do combustível para o fornecedor de lenha vem do cadastro do combustível; sem ele, o custo por litro; o custo do estoque não muda', () => {
+  const app = ler('app/jb-gestao.html');
+  const i = app.indexOf('function precoFornLenhaV(pid)'); const j = app.indexOf('const valorEstoqueP=', i);
+  assert.ok(i > 0 && j > i, 'funções da V173 junto do custo por litro');
+  const b = app.slice(i, j);
+  for (const proibido of ['gravar(', 'apagar(', 'gravarRegistro(', 'bucketPut(', 'location.hash', 'localStorage']) assert.ok(!b.includes(proibido), 'o cálculo só lê: não pode usar ' + proibido);
+  // funções puras com dados de exemplo
+  const prods = {
+    s500: { id: 's500', setor: 'combustivel', tipoItem: 'Combustível', situacao: 'Ativo', precoFornLenha: 7.9 },
+    s10: { id: 's10', setor: 'combustivel', tipoItem: 'Combustível', situacao: 'Ativo' },
+    oleo: { id: 'oleo', setor: 'combustivel', tipoItem: 'Óleo lubrificante', situacao: 'Ativo', precoFornLenha: 30 },
+    vazio: { id: 'vazio', setor: 'combustivel', tipoItem: 'Combustível', situacao: 'Ativo', precoFornLenha: '' },
+  };
+  const custos = { s500: 7.79, s10: 7.9251, oleo: 25 };
+  const ehComb = (p) => !!p && p.setor === 'combustivel' && (!p.tipoItem || p.tipoItem === 'Combustível');
+  const fz = (lista) => new Function('PROD', 'ehCombustivelV', 'custoMedio', 'DATA', b + ';return {precoFornLenhaV,precoSugeridoFornLenhaV,prodFornLenhaPadraoV};')(
+    (id) => lista.find((p) => p.id === id), ehComb, (id) => custos[id] || 0, { produtos: lista });
+  const f = fz(Object.values(prods));
+  assert.equal(f.precoSugeridoFornLenhaV('s500'), 7.9, 'S500 com preço para fornecedor no cadastro: R$ 7,90 (não o custo de R$ 7,79)');
+  assert.equal(f.precoSugeridoFornLenhaV('s10'), 7.93, 'sem preço no cadastro: o custo por litro, arredondado');
+  assert.equal(f.precoFornLenhaV('oleo'), 0, 'só combustível tem preço para fornecedor');
+  assert.equal(f.precoSugeridoFornLenhaV('vazio'), '', 'sem preço e sem compra: em branco');
+  assert.equal(f.precoSugeridoFornLenhaV(''), '', 'sem combustível escolhido: em branco');
+  assert.equal(f.prodFornLenhaPadraoV(), 's500', 'o único combustível com preço vem escolhido no abastecimento do fornecedor');
+  assert.equal(fz([prods.s500, { ...prods.s10, precoFornLenha: 8.1 }]).prodFornLenhaPadraoV(), '', 'com dois combustíveis com preço, nenhum vem escolhido');
+  assert.equal(fz([{ ...prods.s500, situacao: 'Inativo' }, prods.s10]).prodFornLenhaPadraoV(), '', 'combustível inativo não vem escolhido');
+  // onde o preço é usado
+  assert.ok(app.includes('const precoCB=pid=>precoSugeridoFornLenhaV(pid);'), 'abastecimento para fornecedor de lenha (Setor de Combustível e "Combustível que ele levou" da Lenha) usa o preço do cadastro');
+  assert.ok(app.includes('const precoSugerido=pid=>precoSugeridoFornLenhaV(pid);'), 'pagamento de lenha com combustível (V62) também');
+  assert.ok(app.includes("{k:'precoFornLenha',l:'Preço para fornecedor de lenha (R$ por litro)',t:'moeda',sh:r=>ehCombustivelV(r)"), 'campo no cadastro do combustível, só para combustível');
+  assert.ok(app.includes("if(k==='produtoId'&&st.abastecidoEm===CBL&&!st.criadoEm&&veioSozinho())sugere()"), 'trocar o combustível troca só o preço que veio sozinho');
+  // o custo por litro (estoque, produção, abastecimentos) não usa o preço do fornecedor
+  const custo = app.slice(app.indexOf('function custoMedioNota(pid)'), app.indexOf('function custoMedio(pid)'));
+  assert.ok(custo.length > 100 && !custo.includes('precoFornLenha') && !custo.includes('FornLenha'), 'o custo por litro não usa o preço para fornecedor');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-preco-fornecedor-lenha.mjs'), 'teste no navegador roda na conferência automática');
+});
 
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
