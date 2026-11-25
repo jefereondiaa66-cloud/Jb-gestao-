@@ -1167,7 +1167,7 @@ teste('almox', 'Marca e edição completa (V172): marca diferente é outro produ
   const ed = corte('function editarAjPr(a){', 'async function excluirAjPr(a){');
   assert.ok(ed.includes('data-eq=') && ed.includes('data-ef=') && ed.includes("details class=\"apr-ed-pr\"") && ed.includes('data-exaj') && ed.includes("conferirRegistro('almAjustes',n)") && ed.includes("conferirRegistro('almItens'"), 'campos da edição completa, com as regras de cada cadastro');
   assert.ok(ed.includes("estI(x.itemId).saldo-(+x.qtd||0)<-1e-9") && ed.includes("await registrarLog('almAjustes',x.id,'excluiu')"), 'tirar a quantidade nunca deixa saldo negativo e fica no histórico');
-  // V173: Editar e Excluir no próprio cartão do produto; o produto só é apagado quando aquele lançamento era o único registro dele
+  // V174: Editar e Excluir no próprio cartão do produto; o produto só é apagado quando aquele lançamento era o único registro dele
   assert.ok(app.includes('data-edp="${esc(i.id)}"') && app.includes('data-exp="${esc(i.id)}"') && app.includes('function excluirDoCartaoPr(id){') && app.includes("await apagar('almItens',at)") && app.includes("presoA=i.produtoSetorId?'ligado ao Setor de Combustível'"), 'Editar e Excluir no cartão do produto, sem apagar produto ligado ou com outros lançamentos');
   if (ci) assert.ok(ci.includes('node scripts/testar-almox-marca-editar.mjs'), 'teste no navegador roda na conferência automática');
 });

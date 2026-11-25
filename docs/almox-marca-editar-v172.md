@@ -42,7 +42,7 @@ para o estoque do Combustível, a quantidade do setor é refeita pelo fator do p
 
 A ficha do produto ganhou **Trocar foto** também para quem já tem foto.
 
-## V173 · Editar e Excluir no cartão do produto
+## V174 · Editar e Excluir no cartão do produto
 
 Pedido do Jeferson no mesmo dia: os botões ficam no próprio cartão, ao lado de **Saída** e **Entrada** (no celular,
 numa segunda linha, com o Excluir só com o ícone da lixeira).

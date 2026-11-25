@@ -239,7 +239,7 @@ try {
   }
   await foto('03-limpeza');
 
-  console.log('6. Editar e Excluir no cartão do produto (V173)');
+  console.log('6. Editar e Excluir no cartão do produto (V174)');
   await ir('#/almProdutos', '#prFoto'); await page.click('[data-aba="prod"]'); await page.waitForSelector('#prL');
   const cartao = (nome) => page.locator('#prL .apr-card', { hasText: nome });
   const busca = async (q) => { await page.fill('#prQ', q); await page.waitForTimeout(250); };
