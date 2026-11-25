@@ -438,6 +438,21 @@ try {
   ok(!pc.valor.form && pc.valor.aviso, 'o perfil Cozinha vê os valores das refeições, mas não altera');
   ok(pc.dia.novo && pc.dia.sim && pc.dia.mods.join() === 'Refeições do dia,Relatórios das refeições,Histórico das refeições,Valor das refeições', 'o perfil Cozinha lança, faz o cadastro rápido e só tem as telas das refeições no menu', pc.dia.mods);
   ok(pc.card.v && pc.card.rota === '#/almoco' && pc.rotaAdmin === '#/setor-almox', 'o cartão do setor aparece para a Cozinha e entra direto nas refeições (o administrador continua entrando no início do setor)');
+  /* nuvem: outro perfil (gerente) que tem no servidor só a Cozinha, sem o Almoxarifado (ex.: quem cuida da lenha e passou a marcar as refeições) */
+  const sc = await avaliar(async () => {
+    APP.papel = 'gerente'; window.JB_MODULO_SRV = (m) => m !== 'almox';
+    const s = SETORES.find((x) => x.id === 'almox'); const rota = s.rota;
+    JBNAV.ir('#/almEntradas'); await T.dorme(600); const r1 = location.hash;
+    JBNAV.ir('#/setor-almox'); await T.dorme(600); const r2 = location.hash;
+    await T.esperar(() => document.querySelector('.alm-tela')); await T.dorme(200);
+    const mods = [...document.querySelectorAll('.sv-abas a')].map((a) => a.textContent.trim()), sim = !document.querySelector('.alm-bts .bs').disabled;
+    JBNAV.ir('#/vendas'); await T.dorme(500); const r3 = location.hash;
+    delete window.JB_MODULO_SRV; const rotaCom = s.rota;
+    APP.papel = 'admin'; JBNAV.ir('#/almoco'); await T.esperar(() => document.querySelector('.alm-tela')); await T.dorme(200);
+    return { rota, r1, r2, r3, mods, sim, rotaCom };
+  });
+  ok(sc.rota === '#/almoco' && sc.r1 === '#/almoco' && sc.r2 === '#/almoco' && sc.sim && sc.mods.join() === 'Refeições do dia,Relatórios das refeições,Histórico das refeições,Valor das refeições', 'quem tem no servidor só a Cozinha (sem o Almoxarifado) entra direto nas refeições, marca SIM e só vê as telas das refeições no setor', sc);
+  ok(sc.r3 === '#/vendas' && sc.rotaCom === '#/setor-almox', 'as outras telas dessa pessoa seguem o perfil dela, e com o Almoxarifado liberado o setor abre no início', sc);
   ok(erros.length === 0, 'computador: nenhum erro de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 
   console.log('Celular');

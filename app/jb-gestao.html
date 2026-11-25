@@ -51231,6 +51231,9 @@ if(window.ROTAS_SETOR_V52&&Array.isArray(ROTAS_SETOR_V52.almox))ROTAS.forEach(r=
 const podeLancar=()=>pode('almoco','e');
 const podeCadastrar=()=>podeLancar()&&CADASTRA.includes(APP.papel);
 const podeValor=()=>pode('almocoValor','e');
+/* nuvem (25/11/2026): quem tem no servidor só a Cozinha, sem o Almoxarifado, usa só as telas das refeições, seja qual
+   for o perfil (as telas do almoxarifado ficariam vazias para essa pessoa) */
+const soCozinha=()=>{try{return typeof window.JB_MODULO_SRV==='function'&&!window.JB_MODULO_SRV('almox')&&!!window.JB_MODULO_SRV('cozinha')}catch(e){return false}};
 
 /* ---------- 3. utilidades ---------- */
 const r2=v=>round2(v);
@@ -51719,15 +51722,15 @@ Object.assign(TELAS_V,{
  almocoValor:el=>{GUARDA_V=CAMPOS_V.map(id=>{const e=el.querySelector('#'+id);return e?{id,v:e.value,f:document.activeElement===e}:null}).filter(Boolean);shell(el,'almocoValor',telaValor)}});
 /* menu "Módulos" do setor: o controle de refeições fica junto da Cozinha, separado das telas do almoxarifado */
 if(B.SETS&&B.SETS.almox&&typeof B.SETS.almox.abas==='function'){const a0=B.SETS.almox.abas;
- B.SETS.almox.abas=function(){const L=a0.apply(this,arguments)||[];if(L.some(a=>a&&a.m==='almoco'))return L;
+ B.SETS.almox.abas=function(){const L=a0.apply(this,arguments)||[];if(L.some(a=>a&&a.m==='almoco'))return soCozinha()?L.filter(a=>a&&ROTAS.includes(a.m)):L;
   const i=L.findIndex(a=>a&&a.m==='almCozinha');
   L.splice(i>=0?i+1:L.length,0,{r:'#/almoco',m:'almoco',ic:'prato',l:'Refeições do dia',at:['almoco']},{r:'#/almocoRel',m:'almocoRel',ic:'grafico',l:'Relatórios das refeições',at:['almocoRel']},
    {r:'#/almocoHist',m:'almocoHist',ic:'relogio',l:'Histórico das refeições',at:['almocoHist']},{r:'#/almocoValor',m:'almocoValor',ic:'moeda',l:'Valor das refeições',at:['almocoValor']});
-  return L}}
+  return soCozinha()?L.filter(a=>a&&ROTAS.includes(a.m)):L}}
 /* cartão do setor: quem só tem a Cozinha também vê o setor, e entra direto nas refeições */
 {const s=(typeof SETORES!=='undefined'?SETORES:[]).find(x=>x&&x.id==='almox');
  if(s){const v0=s.v,r0=s.rota;s.v=()=>{try{if(!v0||v0())return true}catch(e){}return pode('almoco')};
-  Object.defineProperty(s,'rota',{configurable:true,enumerable:true,get(){try{if(!pode('setor-almox')&&pode('almoco'))return '#/almoco'}catch(e){}return r0}})}}
+  Object.defineProperty(s,'rota',{configurable:true,enumerable:true,get(){try{if((!pode('setor-almox')||soCozinha())&&pode('almoco'))return '#/almoco'}catch(e){}return r0}})}}
 /* botão "Refeições do dia" no início do setor e "Controle de refeições" na tela da Cozinha (estoque da cozinha) */
 function botaoAlmoco(el,rot){if(!pode('almoco'))return;const a=el.querySelector('.sec-cab .acoes');if(!a||a.querySelector('[data-alm-bt]'))return;
  const b=document.createElement('a');b.className='btn';b.href='#/almoco';b.dataset.almBt='1';b.innerHTML=ic('prato')+'<span>'+esc(rot)+'</span>';
@@ -51738,6 +51741,9 @@ function botaoAlmoco(el,rot){if(!pode('almoco'))return;const a=el.querySelector(
 const LIVRES=[...ROTAS,'documento','setores'];
 {const rc0=renderCasca;renderCasca=function(){const r=rc0.apply(this,arguments);
  try{if(acessoOk()&&APP.papel===PAPEL&&!LIVRES.includes(lerRota().mod))setTimeout(()=>{if(APP.papel===PAPEL&&!LIVRES.includes(lerRota().mod))JBNAV.subst('#/almoco')},0)}catch(e){console.warn('refeições: perfil Cozinha',e)}
+ /* só a Cozinha no servidor: as telas do almoxarifado voltam para as refeições do dia (as outras telas seguem o perfil) */
+ try{const tAlm=()=>{const m=lerRota().mod;return soCozinha()&&pode('almoco')&&!ROTAS.includes(m)&&(m==='setor-almox'||(window.ROTAS_SETOR_V52&&Array.isArray(ROTAS_SETOR_V52.almox)&&ROTAS_SETOR_V52.almox.includes(m)))};
+  if(acessoOk()&&tAlm())setTimeout(()=>{if(tAlm())JBNAV.subst('#/almoco')},0)}catch(e){console.warn('refeições: só a Cozinha',e)}
  return r}}
 /* busca geral (Ctrl K) */
 if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{if(pode('almoco')){

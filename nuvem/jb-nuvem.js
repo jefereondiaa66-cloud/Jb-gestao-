@@ -405,6 +405,12 @@
     if (!ms) return true;   // setores sem módulo próprio (Controle Central, Inventário): valem as regras do programa
     return ms.some(function (m) { var p = eu.permissoes && eu.permissoes[m]; return !!(p && p.ler); });
   };
+  /* 25/11/2026: o programa pergunta se a pessoa tem um módulo no servidor (quem tem só a Cozinha, sem o Almoxarifado,
+     usa só as telas das refeições). Administrador tem todos. */
+  window.JB_MODULO_SRV = function (m) {
+    if (!eu || eu.admin) return true;
+    var p = eu.permissoes && eu.permissoes[m]; return !!(p && p.ler);
+  };
   function ligarTempoReal() {
     sb.channel('jb-docs').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, function (p) {
       var r = p.new && p.new.colecao ? p.new : p.old;

@@ -1291,6 +1291,8 @@ teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, a
   assert.ok(b.includes("const estado=r=>r&&r.sim===true?'sim':'nao';") && !/'falta'/.test(b), 'quem não foi marcado conta como NÃO (sem "sem marcação")');
   assert.ok(b.includes("function vigente(d,ref){const k=refOk(ref);") && b.includes('const temValor=ref=>'), 'um valor para cada refeição');
   assert.ok(app.includes('const txtRefeicoes=(x,curto)=>') && !app.includes('txtAlmocos'), 'folha com o texto das refeições (café, almoço e janta)');
+  /* 25/11/2026: na nuvem, quem tem só a Cozinha no servidor (sem o Almoxarifado) usa só as telas das refeições */
+  assert.ok(nv.includes('window.JB_MODULO_SRV = function (m) {') && b.includes("const soCozinha=()=>{try{return typeof window.JB_MODULO_SRV==='function'&&!window.JB_MODULO_SRV('almox')&&!!window.JB_MODULO_SRV('cozinha')}"), 'só a Cozinha: direto para as refeições');
   /* banco: coleções, regras e cadastro rápido, com reversão e sem apagar nada
      (o pacote que vai para o Netlify não leva a pasta supabase/: a migração é conferida só no repositório) */
   if (existsSync(join(RAIZ, 'supabase/migrations'))) {
