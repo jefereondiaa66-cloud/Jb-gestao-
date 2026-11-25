@@ -21,6 +21,23 @@ Continua tudo o que a V160 fez ([almoco-cozinha-v160.md](almoco-cozinha-v160.md)
 - Rodapé: **<refeição> do dia** (quantos SIM), **Valor <da refeição>** e **Total do dia** (as três refeições).
 - Tocar no nome mostra as três refeições daquele dia, cada uma com SIM/NÃO, o valor e quem marcou.
 
+## Lançar por foto (V164, 25/11/2026)
+
+- Pedido: a Viviane recebe da cozinha uma lista de quem tomou café, almoçou e jantou; fica mais fácil lançar pela foto,
+  como no Almoxarifado.
+- **Refeições do dia → "Lançar por foto"** (no celular, botão **Foto** ao lado da busca): escolhe o dia, tira a foto da
+  lista (ou várias folhas, até 6) e toca em **Ler com IA**. Se a lista não disser de qual refeição é, vale a escolhida
+  ("Se a lista não disser, é do…").
+- A IA recebe a foto e a lista dos funcionários ativos do dia (só nome e função) e devolve cada nome escrito ligado ao
+  cadastro, com café/almoço/janta. Na **conferência**, cada linha mostra o nome como está na foto, o funcionário
+  achado (pode trocar; nome sem funcionário fica em amarelo e de fora até escolher) e os botões Café, Almoço e Janta.
+- Antes de salvar mostra o que vai marcar, o que já estava SIM e quantos nomes ficam de fora. **Só marca SIM**: quem
+  não está na foto continua como está; refeição sem valor no dia fica travada. A foto não é guardada.
+- Leitor: o mesmo do Almoxarifado (`window.ALM_IA_LER`). Na nuvem, a função `jb-ler-documento` passou a atender
+  também quem tem a Cozinha (lançar).
+- Na nuvem, quem tem no servidor só a Cozinha (sem o Almoxarifado) entra direto nas refeições e só vê as telas delas
+  no setor (V162.1).
+
 ## Valores
 
 - **Valor das refeições**: um cartão para cada refeição e o formulário com a escolha da refeição.

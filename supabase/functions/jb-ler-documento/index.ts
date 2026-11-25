@@ -12,7 +12,8 @@
 //   (ANTHROPIC_API_KEY). Ela nunca vai para o navegador nem para o repositório.
 // · Só atende quem está com a sessão do JB válida e pode lançar no
 //   almoxarifado, no financeiro ou nas compras e consumos (lenha e combustível;
-//   V74: lançar abastecimentos por foto), ou é administrador.
+//   V74: lançar abastecimentos por foto), ou na Cozinha (25/11/2026: a lista das refeições
+//   por foto), ou é administrador.
 // · Não lê nem grava dados do sistema. Não guarda as imagens.
 //
 // Corpo: {prompt: string, paginas: [{tipo: "image/jpeg"|"image/png", dados: base64}], fluxo?: true}
@@ -68,7 +69,9 @@ async function quem(auth: string) {
   const eu = await r.json().catch(() => null);
   if (!eu || !eu.uid) return null;
   const p = eu.permissoes || {};
-  const pode = !!eu.admin || !!(p.almox && p.almox.criar) || !!(p.financeiro && p.financeiro.criar) || !!(p.compras && p.compras.criar);
+  // 25/11/2026: a Cozinha também lê por foto (a lista de quem tomou café, almoçou e jantou)
+  const pode = !!eu.admin || !!(p.almox && p.almox.criar) || !!(p.financeiro && p.financeiro.criar) || !!(p.compras && p.compras.criar)
+    || !!(p.cozinha && p.cozinha.criar);
   return { uid: String(eu.uid), pode };
 }
 
@@ -86,7 +89,7 @@ Deno.serve(async (req: Request) => {
   if ("falhou" in a) return falha(503, "servidor", "O servidor não confirmou o seu acesso agora. Tente de novo.");
   const eu = a.v;
   if (!eu) return falha(401, "sessao", "Sua sessão terminou. Entre de novo no sistema.");
-  if (!eu.pode) return falha(403, "permissao", "Seu acesso não permite lançar no Almoxarifado, no Financeiro nem no Combustível.");
+  if (!eu.pode) return falha(403, "permissao", "Seu acesso não permite lançar no Almoxarifado, na Cozinha, no Financeiro nem no Combustível.");
   if (!CHAVE_IA) {
     return falha(503, "sem_chave", "A leitura por IA ainda não foi ativada no servidor: falta guardar a chave da API do Claude (ANTHROPIC_API_KEY) nos segredos das funções do Supabase. Avise o administrador.");
   }

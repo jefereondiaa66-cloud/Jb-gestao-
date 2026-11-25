@@ -453,6 +453,46 @@ try {
   });
   ok(sc.rota === '#/almoco' && sc.r1 === '#/almoco' && sc.r2 === '#/almoco' && sc.sim && sc.mods.join() === 'Refeições do dia,Relatórios das refeições,Histórico das refeições,Valor das refeições', 'quem tem no servidor só a Cozinha (sem o Almoxarifado) entra direto nas refeições, marca SIM e só vê as telas das refeições no setor', sc);
   ok(sc.r3 === '#/vendas' && sc.rotaCom === '#/setor-almox', 'as outras telas dessa pessoa seguem o perfil dela, e com o Almoxarifado liberado o setor abre no início', sc);
+  console.log('Lançar por foto (a lista da cozinha)');
+  const lf = await avaliar(async ({ HOJE }) => {
+    /* a IA é imitada: devolve o que leria numa lista com Ana, Carla e um nome que não está no cadastro */
+    window.__prompts = [];
+    const l0 = window.ALM_IA_LER;
+    window.ALM_IA_LER = { motor: async () => ({ tipo: 'teste', maxImgs: 4, ler: async (prompt, imgs) => { window.__prompts.push({ prompt, n: imgs.length, tipos: imgs.map((b) => b.type) }); await T.dorme(150);
+      return 'Aqui está: ' + JSON.stringify({ data: HOJE, pessoas: [{ lido: 'Ana', n: 1, cafe: true, almoco: true, janta: null }, { lido: 'Carla', n: 3, cafe: true, almoco: true, janta: true }, { lido: 'Zé da Silva', n: null, cafe: true, almoco: false, janta: null }], obs: '' }); } }) };
+    JBNAV.ir('#/almoco'); await T.esperar(() => document.querySelector('[data-alm-foto]')); await T.refeicao('almoco');
+    const antes = { car: T.item(HOJE, 'f_car'), bruC: T.item(HOJE, 'f_bru', 'cafe') };
+    document.querySelector('[data-alm-foto]').click(); await T.esperar(() => document.querySelector('.veu:not(.saindo) .alm-foto #almFF'));
+    const m = () => document.querySelector('.veu:not(.saindo) .alm-foto');
+    const lerOff = m().querySelector('#almFL').disabled;
+    /* uma "foto" de verdade (imagem PNG feita aqui), como se viesse da câmera */
+    const cv = document.createElement('canvas'); cv.width = 600; cv.height = 800; const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 600, 800); x.fillStyle = '#000'; x.font = '40px sans-serif'; x.fillText('Ana  Carla  Zé', 40, 100);
+    const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
+    const dt = new DataTransfer(); dt.items.add(new File([blob], 'lista.png', { type: 'image/png' }));
+    const inp = m().querySelector('#almFF'); inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(150);
+    const fotos = m().querySelectorAll('.alm-fts img').length;
+    m().querySelector('#almFL').click(); await T.esperar(() => m() && m().querySelector('.alm-fr'), 8000);
+    const pr = window.__prompts[0];
+    const linhas = [...m().querySelectorAll('.alm-fr')].map((r) => ({ lido: r.querySelector('small').textContent, sel: r.querySelector('select').value, falta: r.classList.contains('semfunc'),
+      rf: [...r.querySelectorAll('[data-alm-fr]')].map((b) => b.textContent + (b.disabled ? '-' : b.getAttribute('aria-pressed') === 'true' ? '+' : '0')).join(' ') }));
+    const res1 = m().querySelector('#almFRes').textContent, bt1 = m().querySelector('#almFOk').textContent, avisoJ = /Janta: o valor ainda não foi definido/.test(m().textContent);
+    /* o nome que a IA não achou: a pessoa escolhe quem é */
+    const s = m().querySelectorAll('.alm-fr select')[2]; s.value = 'f_bru'; s.dispatchEvent(new Event('change', { bubbles: true })); await T.dorme(100);
+    const res2 = m().querySelector('#almFRes').textContent, bt2 = m().querySelector('#almFOk').textContent;
+    await T.dorme(750); m().querySelector('#almFOk').click(); await T.esperar(() => !m(), 8000); await T.sincronizado();
+    const r = { lerOff, fotos, pr: { n: pr.n, tipos: pr.tipos, temLista: /1: Ana Teste Ativa · Cozinheira/.test(pr.prompt) && /3: Carla Teste Ativa/.test(pr.prompt), semCpf: !/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/.test(pr.prompt), almoco: /considere que é do ALMOÇO/.test(pr.prompt) },
+      linhas, res1, bt1, avisoJ, res2, bt2, antes,
+      carA: T.item(HOJE, 'f_car'), carC: T.item(HOJE, 'f_car', 'cafe'), carJ: T.item(HOJE, 'f_car', 'janta'), bruC: T.item(HOJE, 'f_bru', 'cafe'), anaA: T.item(HOJE, 'f_ana'),
+      toast: T.toasts().slice(-1)[0] || '', log: DATA.log.some((l) => l.recId === HOJE && l.acao === 'lançou por foto'), sts: ['f_ana', 'f_bru', 'f_car'].map(T.st) };
+    window.ALM_IA_LER = l0; return r;
+  }, { HOJE });
+  ok(lf.lerOff && lf.fotos === 1 && lf.pr.n === 1 && lf.pr.tipos[0] === 'image/jpeg', 'botão "Lançar por foto": tira a foto (fica a miniatura) e manda para a IA já preparada em JPG', lf.pr);
+  ok(lf.pr.temLista && lf.pr.semCpf && lf.pr.almoco, 'a IA recebe a lista dos funcionários ativos do dia (nome e função, sem CPF) para ligar cada nome escrito ao cadastro', lf.pr);
+  ok(lf.linhas.length === 3 && lf.linhas[0].sel === 'f_ana' && lf.linhas[1].sel === 'f_car' && lf.linhas[2].sel === '' && lf.linhas[2].falta && lf.linhas[1].rf === 'Café+ Almoço+ Janta-', 'conferência: cada nome da foto com o funcionário achado; o nome que não bate fica para escolher; janta sem valor fica travada', lf.linhas);
+  ok(/Vai marcar SIM: 1 café, 1 almoço\./.test(lf.res1) && /Já estavam com SIM: 1 café, 1 almoço/.test(lf.res1) && /1 nome sem funcionário escolhido fica de fora/.test(lf.res1) && lf.bt1 === 'Lançar SIM (2)' && lf.avisoJ, 'antes de salvar mostra o que vai marcar, o que já estava SIM e o nome que fica de fora: ' + lf.res1);
+  ok(/Vai marcar SIM: 2 cafés, 1 almoço\./.test(lf.res2) && lf.bt2 === 'Lançar SIM (3)', 'escolhendo quem é o nome, ele entra na conta: ' + lf.res2);
+  ok(lf.carA.sim === true && lf.carA.valor === 6 && lf.carC.sim === true && lf.carC.valor === 3 && lf.carC.ref === 'cafe' && !lf.carJ && lf.bruC.sim === true && lf.anaA.valor === 5 && lf.anaA.hist.length === 3, 'salva SIM com o valor de cada refeição; quem já estava SIM fica como estava; a janta sem valor não entra', lf);
+  ok(lf.sts.join() === 'sim,sim,sim' && /Lista de .+ lançada: 2 cafés, 1 almoço com SIM/.test(lf.toast) && lf.log, 'a tela mostra na hora, avisa o que foi lançado e fica no histórico: ' + lf.toast);
   ok(erros.length === 0, 'computador: nenhum erro de JavaScript' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 
   console.log('Celular');
