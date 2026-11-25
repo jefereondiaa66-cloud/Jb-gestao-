@@ -113,7 +113,7 @@ try {
   console.log('Telas e menu');
   await ir('#/pgrade', '.pg-passos');
   ok(await avaliar(() => document.querySelector('#conteudo h1').textContent.includes('Controle por grade')), 'a tela do controle abre pela Produção, com os 3 passos para começar');
-  ok(await avaliar(() => (window.PROD_ABAS_EXTRA || []).some((a) => a.r === '#/pgrade' && a.sub.map((x) => x[2]).join() === 'Painel,Lançar o dia,Empreita do forno,Lançamentos,Trabalhadores,Pagamentos,Extrato,Relatórios')), 'a Produção tem a aba "Controle por grade" com Painel, Lançar o dia, Empreita do forno, Lançamentos, Trabalhadores, Pagamentos, Extrato e Relatórios');
+  ok(await avaliar(() => (window.PROD_ABAS_EXTRA || []).some((a) => a.r === '#/pgrade' && a.sub.map((x) => x[2]).join() === 'Painel,Lançar o dia,Empreita do forno,Lançamentos,Conferir e enviar,Trabalhadores,Pagamentos,Extrato,Relatórios')), 'a Produção tem a aba "Controle por grade" com Painel, Lançar o dia, Empreita do forno, Lançamentos, Conferir e enviar (V169), Trabalhadores, Pagamentos, Extrato e Relatórios');
   ok(await avaliar(() => (window.FIN_ABAS_EXTRA || []).some((a) => a.r === '#/fGrade')), 'o Financeiro tem o módulo "Pagamento por grade"');
   ok(await avaliar(() => !MODS.pgTrab.fields.some((f) => /valor|pre[cç]o/i.test(f.k + ' ' + (f.l || '')))), 'o cadastro do trabalhador não tem valor por grade (nem tabela de preços)');
   await foto('01-painel-vazio');

@@ -18909,7 +18909,8 @@ function situacao(o){
 let MEMO_O={k:null,v:null};
 function obrigacoes(){
  const k=[DATA.fin,DATA.compras,DATA.despesas,DATA.funcionarios,APP.papel,DATA.consumos,DATA.clCtrl].map(x=>x); /* V117: combustível do fornecedor de lenha muda o que resta pagar */
- if(MEMO_O.k&&MEMO_O.k.every((x,i)=>x===k[i])&&MEMO_O.dia===hoje())return MEMO_O.v;
+ FIN_ORIGENS.forEach(o=>{try{k.push(typeof o.chave==='function'?o.chave():null)}catch(e){k.push(null)}});   /* V169: as origens de outros setores também refazem a lista quando mudam */
+ if(MEMO_O.k&&MEMO_O.k.length===k.length&&MEMO_O.k.every((x,i)=>x===k[i])&&MEMO_O.dia===hoje())return MEMO_O.v;
  const L=[];
  DATA.fTitulos.forEach(t=>L.push(obT(t)));
  if(pode('pagar'))DATA.compras.filter(c=>c.tipoOp==='compra'&&!c.historico&&(typeof liberadoV!=='function'||liberadoV(c.setor))).forEach(c=>L.push(obC(c)));
@@ -19211,6 +19212,7 @@ async function criarDoc(o,dados){
 function pagar(ref){
  const o=OB(ref);if(!o)return;
  if(!o.podePagar){toast(o.fonte==='despesa'&&o.vinculado?'Esta despesa é gerada por outro módulo do DP: registre o pagamento lá.':'Seu perfil não registra pagamentos nesta origem.','erro');return}
+ if(typeof o.pagarFn==='function')return o.pagarFn(o);   /* V169: origem com pagamento próprio (Pagamentos da Produção → Controle por grade) */
  if(o.fonte==='compra'){modalPagamentoV(o.rec);return}
  if(o.fonte==='despesa')return pagarDespesa(o);
  const s=o.s;const t=o.rec;
@@ -19352,7 +19354,7 @@ function abrirObrig(ref){
  <div class="gav-corpo">
   <p style="margin:0 0 10px">${tagSit(s.st)} ${s.vencido&&s.st!=='Vencido'?tagF('vencido','pe'):''} ${tagF(o.origem,'')} ${o.parcela?tagF('parcela '+o.parcela,'in'):''} ${o.retencao?tagF('retenção a recolher',''):''}</p>
   <div class="fi-det-val"><div><span>Valor previsto</span><b>${esc(fMoeda(o.valor))}</b></div><div><span>Pago informado</span><b>${esc(fMoeda(s.P))}</b></div><div><span>Identificado no banco</span><b>${esc(fMoeda(s.Bt))}</b></div><div><span>Saldo</span><b>${esc(fMoeda(s.saldo))}</b></div></div>
-  ${(()=>{if(o.cancelado||o.fonte==='despesa')return '';const tx=txtPrevisaoEncV(previsaoEncV(s.saldo,o.venc,hoje(),o.rec.fornecedorId,o.rec));return tx?`<div class="aviso ${s.vencido?'pe':'in'}" style="margin-bottom:12px"><span><b>Previsão de multa e juros.</b> ${esc(tx)}</span></div>`:''})()}
+  ${(()=>{if(o.cancelado||o.fonte==='despesa'||o.semEncargos)return '';const tx=txtPrevisaoEncV(previsaoEncV(s.saldo,o.venc,hoje(),o.rec.fornecedorId,o.rec));return tx?`<div class="aviso ${s.vencido?'pe':'in'}" style="margin-bottom:12px"><span><b>Previsão de multa e juros.</b> ${esc(tx)}</span></div>`:''})()}
   ${s.div.length?`<div class="aviso ${s.just?'in':'pe'}" style="margin-bottom:12px"><span><b>${s.just?'Divergência conferida':'Divergência a conferir'}.</b> ${esc(s.div.join(' '))}${s.just?' Conclusão: '+esc(s.just.motivo+' — '+s.just.texto)+' ('+esc(nomeUsuario(s.just.por))+', '+esc(fDataHora(s.just.em))+').':''}</span></div>`:''}
   ${o.cancelado?`<div class="aviso at" style="margin-bottom:12px"><span><b>Cancelado.</b> ${esc(o.cancelado.motivo||'')}</span></div>`:''}
   <div class="fx-dl" style="margin-bottom:14px">${[['Descrição',o.descricao],['Beneficiário',o.benef],['Categoria',o.categoria],['Centro de custo',o.centro],['Vencimento',o.venc?fData(o.venc):(o.fonte==='despesa'?'não informado (competência '+fMes(o.rec.competencia)+')':'—')],['Programado para',o.prog?fData(o.prog):'—'],['Forma prevista',o.forma],['Conta prevista',nomeConta(o.conta)],['Documento de origem',o.docOrigem||'—'],['Lançamento',fData(o.lanc)],['Número',o.num]].map(([a,b])=>`<div><span>${esc(a)}</span><b>${esc(b||'—')}</b></div>`).join('')}</div>
@@ -26037,9 +26039,9 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  const listaAgentes=()=>[...new Set([...Object.keys(AG_PAD),...Object.keys(AG.docs)])].filter(id=>!AG_REMOVIDOS.has(id)).map(agente);
 
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
- const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg',
+ const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg','pgConf',
   'pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção (V158: pgEmp, empreita do forno) */
- const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fBoletos','fPagAv','fResumo','fMeta','fGrade'];   /* V156: Pagamento por grade */
+ const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fBoletos','fPagAv','fResumo','fProd','fMeta','fGrade'];   /* V156: Pagamento por grade */
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
   'admissoes','desligamentos','afastamentos','alteracoes','exames','dependentes','importar','advertencias','disciplinar','central','termos','doc','feriasctrl','conferencia'];
@@ -46429,6 +46431,7 @@ const ed=()=>pode('fpagar','e');
 
 /* ---------- em qual módulo cada conta mora (uma regra só, usada em todas as telas) ---------- */
 function moduloDe(o){const r=o.rec||{};
+ if(o.fonte==='producao'&&MOD('prod'))return 'prod';   /* V169: Pagamentos da Produção */
  if(o.fonte==='titulo'&&r.enc&&r.enc.setor==='combustivel')return 'comb';
  if(o.fonte==='titulo'&&r.enc&&r.enc.setor==='lenha')return r.fornecedorId||r.adiantamentoLenha?'lenha':'outros';
  if(o.fonte==='titulo'&&['comb','gerais','outros'].includes(r.moduloFin))return r.moduloFin;
@@ -47219,7 +47222,7 @@ function telaInicio(c){const B=baldes();const e=ed();const LP=listaNoPainel();co
   ['atras','c6','aviso','Em atraso',fMoeda(somaS(B.atras)),B.atras.length?q(B.atras.length):'nenhuma'],['agend','c2','relogio','Agendadas',fMoeda(somaS(B.agend)),q(B.agend.length)],
   ['parc','c3','moeda','Parcialmente pagas',fMoeda(somaS(B.parc)),B.parc.length?q(B.parc.length)+' com saldo':'nenhuma'],['pagas','c4','recibo','Pago neste mês',fMoeda(B.valPagoMes),q(B.pagosMes.length)],
   ['todas','c2','carteira','Total pendente',fMoeda(somaS(B.ab)),q(B.ab.length)+' em aberto']];
- const mods=MODULOS.map(m=>{const xs2=B.ab.filter(o=>moduloDe(o)===m.k);const vc=xs2.filter(o=>o.s.vencido);
+ const mods=MODULOS.filter(m=>typeof m.so!=='function'||m.so()).map(m=>{const xs2=B.ab.filter(o=>moduloDe(o)===m.k);   /* V169: módulo que só aparece quando tem uso */const vc=xs2.filter(o=>o.s.vencido);
   return `<a href="#/${m.rota}" data-cpgmod="${m.k}"><span>${ic(m.ic)}${esc(m.n)}</span><b>${esc(fMoeda(somaS(xs2)))}</b><small>${xs2.length?q(xs2.length)+' em aberto':'nada em aberto'}</small>${vc.length?`<small class="pe">${esc(fMoeda(somaS(vc)))} em atraso</small>`:`<small>${esc(m.d)}</small>`}</a>`}).join('');
  c.innerHTML=cabF('moeda','Painel do Financeiro','O que pagar, quando, quanto e para quem. Toque num número para ver as contas; em cada conta dá para pagar, agendar e ver o histórico.',
   `<a class="btn" href="#/fagenda" id="cpgAg">${ic(IC.quinzena?'quinzena':'calendario')}${esc(nomeAgenda())}</a><button type="button" class="btn" id="cpgExp">${ic('baixar')}Exportar ▾</button>${e?`<button type="button" class="btn" id="cpgNova">${ic('mais')}Nova conta ▾</button><button type="button" class="btn pri" id="cpgNovoP">${ic('mais')}Novo pagamento</button>`:''}`)+
@@ -50190,7 +50193,7 @@ function docExtrato(tid,U){
 
 /* ---------- 12. registrar pagamento (Produção e Financeiro: a mesma janela, o mesmo registro) ---------- */
 const PAGANDO=new Set();
-function abrirPagamento(tid,origem){
+function abrirPagamento(tid,origem,opc){opc=opc||{};   /* V169: opc.valor = valor sugerido (Pagamentos da Produção: o conferido e em aberto) */
  if(!podePagar()){toast('Seu perfil não registra pagamentos.','erro');return}
  const lista=DATA[COL_T].slice().sort((a,b)=>contaDe(b.id).saldo-contaDe(a.id).saldo||porNome(a,b));
  if(!lista.length){toast('Cadastre os trabalhadores primeiro.','erro');return}
@@ -50213,6 +50216,8 @@ function abrirPagamento(tid,origem){
   if(!(valor>0)){toast('Informe o valor pago.','erro');return false}
   if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
   if(ehFin&&ctas.length&&!val(v,'pgC')&&!await confirmar('Sem a conta de saída?','Não foi escolhido de onde saiu o dinheiro (Caixa ou banco). Registrar assim mesmo?',{ok:'Registrar sem a conta'}))return false;
+  /* V169: a parte do pagamento que iria para lançamentos que a Produção ainda não conferiu pede confirmação */
+  try{const PC=window.PG_CONF_V169;if(PC&&typeof PC.antesDePagar==='function'&&!await PC.antesDePagar(id,valor,origem))return false}catch(e){console.warn('conferência da produção',e)}
   const x=contaDe(id);const saldo=x.saldo;let exc=null;
   if(valor>Math.max(0,saldo)+0.004){
    if(!$('#pgExcOk',v).checked){$('#pgExc',v).hidden=false;toast('O valor passa do que ele tem a receber: marque a confirmação e escreva o motivo.','erro');return false}
@@ -50238,11 +50243,11 @@ function abrirPagamento(tid,origem){
   const atual=()=>{const id=tidDe(v);const res=$('#pgResumo',v),pv=$('#pgPrev',v);if(!id){res.innerHTML='';pv.hidden=true;return}
    const x=contaDe(id);const valor=r2(lerMoeda(val(v,'pgV'))||0);
    res.innerHTML=`<div class="cpl-conta"><div><span>Lançado</span><b>${esc(fMoeda(x.lancado))}</b></div><div><span>Já pago</span><b>${esc(fMoeda(x.pago))}</b></div><div class="tot"><span>Falta receber</span><b>${esc(x.saldo<-0.004?fMoeda(-x.saldo)+' crédito':fMoeda(x.saldo))}</b></div></div>`+
-    (x.abertos.length?`<p class="pg-hist">Em aberto: ${esc(x.abertos.slice(0,4).map(a=>fData(a.l.data).slice(0,5)+' '+a.l.setor+' '+fMoeda(a.resta)).join(' · '))}${x.abertos.length>4?' e mais '+(x.abertos.length-4):''}. O pagamento quita primeiro os mais antigos.</p>`:'');
+    (x.abertos.length?`<p class="pg-hist">Em aberto: ${esc(x.abertos.slice(0,4).map(a=>fData(a.l.data).slice(0,5)+' '+a.l.setor+' '+fMoeda(a.resta)).join(' · '))}${x.abertos.length>4?' e mais '+(x.abertos.length-4):''}. O pagamento quita primeiro os mais antigos.</p>`:'')+(()=>{try{const PC=window.PG_CONF_V169;return PC&&typeof PC.resumo==='function'?PC.resumo(id):''}catch(e){return ''}})();   /* V169 */
    if(valor>0){const d=r2(x.saldo-valor);pv.hidden=false;pv.className='pg-prev'+(d<-0.004?' at':'');pv.innerHTML=d>0.004?`Depois deste pagamento, falta receber <b>${esc(fMoeda(d))}</b>.`:d<-0.004?`Este valor passa do que ele tem a receber em <b>${esc(fMoeda(-d))}</b>, que fica como crédito para os próximos lançamentos.`:'Este pagamento <b>quita tudo</b> o que ele tem a receber.'}else pv.hidden=true;
    const exc=$('#pgExc',v);if(exc){const pass=valor>Math.max(0,x.saldo)+0.004;exc.hidden=!pass;if(pass)$('#pgExcTxt',v).textContent='Confirmo: pagar '+fMoeda(r2(valor-Math.max(0,x.saldo)))+' a mais do que '+nomeT(id)+' tem a receber.'}};
   const vI=$('#pgV',v);const sel=$('#pgT',v);
-  const pre=()=>{const id=tidDe(v);if(!id)return;const s=contaDe(id).saldo;if(s>0.004&&!vI.dataset.digitou2)vI.value=fMoedaCampo(s)};
+  const pre=()=>{const id=tidDe(v);if(!id)return;const s=tid&&n0(opc.valor)>0?r2(n0(opc.valor)):contaDe(id).saldo;if(s>0.004&&!vI.dataset.digitou2)vI.value=fMoedaCampo(s)};
   vI.addEventListener('input',()=>{vI.dataset.digitou2='1';atual()});
   if(sel)sel.addEventListener('change',()=>{delete vI.dataset.digitou2;pre();atual()});
   pre();atual()}})}
@@ -50440,7 +50445,7 @@ function telaFin(c){
      <td data-l="Falta pagar" class="num">${valSaldo(o.x.saldo)}</td><td data-l="Situação">${tagSit(o.x)}</td>
      <td class="acs">${pg&&o.x.saldo>0.004?`<button type="button" class="btn min pri" data-pgfpagar="${esc(o.t.id)}">Pagar</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`
     :`<div class="vazio"><b>${todas.length?'Ninguém nesta lista':'Nenhum trabalhador por grade'}</b>${todas.length?'Toque em “Todos” para ver os demais.':'Os trabalhadores e as grades são lançados na Produção › Controle por grade.'}</div>`)}
- c.innerHTML=cabG('pgGrade','Pagamento por grade','O que cada trabalhador da Enforna e da Desenforna tem a receber. As grades são lançadas na Produção (Controle por grade); o pagamento registrado aqui é o mesmo de lá. Estes valores ficam neste módulo: não entram no Total pendente nem nas outras contas do Financeiro.',
+ c.innerHTML=cabG('pgGrade','Pagamento por grade','O que cada trabalhador da Enforna e da Desenforna tem a receber. As grades são lançadas na Produção (Controle por grade); o pagamento registrado aqui é o mesmo de lá. O que a Produção conferiu e enviou também está em Pagamentos da Produção (e no Total pendente); o que ainda não foi conferido fica só aqui.',
    `<button type="button" class="btn" id="pgFx">${ic('baixar')}Exportar ▾</button>${pg&&DATA[COL_T].length?`<button type="button" class="btn" id="pgFout">${ic('carteira')}Pagar outro trabalhador</button>`:''}`)+
   htmlPer(UIF,'fin')+
   `<div class="cpl-cards" role="tablist" aria-label="Resumo do pagamento por grade">${cards.map(q2=>`<button type="button" role="tab" data-pgfv="${esc(q2.k)}" aria-selected="${sel===q2.k}" class="${esc(q2.cls||'')}"><span class="rot">${esc(q2.rot)}</span><b>${esc(q2.v)}</b>${q2.sub?`<small>${esc(q2.sub)}</small>`:''}<span class="ver" aria-hidden="true">›</span></button>`).join('')}</div>`+
@@ -52737,9 +52742,10 @@ window.JB_BOLETO=JB_BOLETO;
 /* ---------- 4. prioridade: a escolhida pelo responsável ou a calculada ---------- */
 const PRIOS=['Crítica','Alta','Média','Baixa'];const RANK={'Crítica':0,'Alta':1,'Média':2,'Baixa':3};
 /* despesas que não podem atrasar: energia, água, impostos e guias, financiamentos, salários e arrendamento */
-const ESSENC=/energia|agua|saneamento|imposto|tribut|\bdas\b|simples nacional|inss|fgts|darf|icms|\biss\b|ipva|licenciamento|financiamento|emprestimo|parcela|salario|folha|pro.?labore|arrendamento|aluguel/;
+const ESSENC=/energia|agua|saneamento|imposto|tribut|\bdas\b|simples nacional|inss|fgts|darf|icms|\biss\b|ipva|licenciamento|financiamento|emprestimo|parcela|salario|folha|pro.?labore|arrendamento|aluguel|pagamentos da producao|mao de obra da producao/;   /* V169: pagamento da produção é salário de quem produziu */
 const essencial=o=>ESSENC.test(N((o.categoria||'')+' '+(o.descricao||'')));
-const metaO=o=>o.fonte==='titulo'?(o.rec||{}):((DATA.fMeta||[]).find(x=>x&&x.id==='m_'+refSeg(o.ref))||{});
+const metaO=o=>{if(o.fonte==='titulo')return o.rec||{};const m=(DATA.fMeta||[]).find(x=>x&&x.id==='m_'+refSeg(o.ref))||{};
+ return o.filaPadrao&&!(m.fila&&typeof m.fila==='object')?{...m,fila:o.filaPadrao}:m};   /* V169: a conferência da Produção já manda para a fila */
 function prioridadeDe(o){
  if(!o||o.cancelado||!abertaO(o))return{p:'',auto:true};
  const m=metaO(o);if(PRIOS.includes(m.prioridade))return{p:m.prioridade,auto:false,info:m.prioridadeInfo||null};
@@ -53443,6 +53449,476 @@ if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){co
  if(pode('fPagAv'))add('Pagamentos avulsos','Financeiro · diárias, produção, compras pequenas, fretes e adiantamentos pagos na hora','moeda','#/fPagAv','diaria diarias producao avulso compra pequena frete adiantamento')}catch(e){}return E}}
 /* novo pagamento avulso também pelo "Mais ▾" da Central de Pagamentos */
 window.CAIXA_DIA_V167=Object.freeze({diaDados,pendencias,fecharDia,fechDe,difs,snap,dadosRel,textoRel,serie,painelMes,partesGrade,pessoas,setorDe,novoAvulso,repetidosAv,avulsos,TIPOS_AV,UR,UA});
+})();
+</script>
+<style id="pagamentos-producao-v169-css">
+/* V169 · Pagamentos da Produção: conferência na Produção, painel no Financeiro e fila de quem paga (25/11/2026) */
+.pv-cards5{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:1100px){.pv-cards5{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.pv-cards5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pv-ativ{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.pv-ativ>div{border:1px solid var(--linha,#DDE0E3);border-radius:10px;padding:9px 12px;background:var(--pn-b,#fff);display:flex;flex-direction:column;gap:2px;min-width:0}
+.pv-ativ span{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--suave,#5B6168)}
+.pv-ativ b{font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pv-ativ small{font-size:12px;color:var(--suave,#5B6168)}
+@media(max-width:560px){.pv-ativ{gap:6px}.pv-ativ>div{padding:7px 8px}.pv-ativ span{font-size:9.5px;letter-spacing:.02em}.pv-ativ b{font-size:13.5px}.pv-ativ small{font-size:11px}}
+.pv-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.pv-filtros input,.pv-filtros select{padding:8px 10px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit;min-height:40px;box-sizing:border-box;background:var(--pn-b,#fff);color:inherit;max-width:100%}
+.pv-filtros input[type=search]{flex:1;min-width:170px}
+.pv-filtros label{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--suave,#5B6168)}
+.pv-sub{display:block;font-size:12px;color:var(--suave,#5B6168);font-weight:400;margin-top:2px}
+.pv-tags{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.pv-acs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pv-aviso{margin:0 0 12px}
+/* conferência na Produção */
+.pc-t{border:1px solid var(--linha,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);margin:0 0 10px;overflow:hidden}
+.pc-t-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--linha,#EEF0F2);background:rgba(0,0,0,.02)}
+.pc-t-cab label{display:flex;gap:8px;align-items:center;font-weight:700;cursor:pointer;flex:1;min-width:180px}
+.pc-t-cab .pc-t-v{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-ls{list-style:none;margin:0;padding:0}
+.pc-l{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--linha,#EEF0F2);font-size:13.5px}
+.pc-l:last-child{border-bottom:0}
+.pc-l>label{display:flex;gap:10px;align-items:center;flex:1;min-width:0;cursor:pointer;flex-wrap:wrap}
+.pc-l .pc-d{font-variant-numeric:tabular-nums;min-width:44px;color:var(--suave,#5B6168)}
+.pc-l .pc-a{font-weight:600;min-width:92px}
+.pc-l .pc-x{flex:1;min-width:140px}
+.pc-l .pc-v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-l.fora{opacity:.55}
+.pc-l input[type=checkbox],.pc-t-cab input[type=checkbox]{width:20px;height:20px;flex:none}
+.pc-barra{position:sticky;bottom:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;margin:12px 0 0;border:1px solid var(--linha,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);box-shadow:0 -4px 14px -8px rgba(0,0,0,.25)}
+.pc-barra span{font-size:13.5px}
+.pc-lote{border:1px solid var(--linha,#DDE0E3);border-radius:10px;background:var(--pn-b,#fff);padding:10px 12px;margin:0 0 8px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:start}
+.pc-lote .pc-lote-t{font-weight:700}
+.pc-lote .pc-lote-v{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-lote .pc-lote-v small{display:block;font-weight:400;font-size:12px;color:var(--suave,#5B6168)}
+.pc-lote .pc-lote-s,.pc-lote .pc-lote-ac,.pc-lote .pc-lote-ls{grid-column:1/-1}
+.pc-lote .pc-lote-ac{display:flex;gap:6px;flex-wrap:wrap}
+.pc-lote ul{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--suave,#5B6168)}
+.pc-conf-tab{width:100%;border-collapse:collapse;font-size:13.5px;margin:0 0 10px}
+.pc-conf-tab td,.pc-conf-tab th{padding:5px 4px;border-bottom:1px solid var(--linha,#EEF0F2);text-align:left}
+.pc-conf-tab .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-conf-tab tfoot td{font-weight:800;border-bottom:0}
+.pc-faixa{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 12px}
+.pc-faixa .aviso{margin:0;flex:1;min-width:240px}
+</style>
+<script id="pagamentos-producao-v169">
+/* ================= V169 · Pagamentos da Produção (pedido do Jeferson, 25/11/2026) =================
+   "Complemento do prompt – Integração financeira com produção" e o combinado no mesmo dia: "o pagamento da produção
+   vai ser conferido primeiro no departamento de produção. Após o responsável conferir... aí vai mandar pro Gustavo.
+   Mas vai criar igual um painelzinho lá, igual você tá com a lenha e combustível."
+   · Produção (Controle por grade › Conferir e enviar, #/pgConf): o responsável confere as grades, as desenfornas e as
+     empreitas lançadas e manda para o Financeiro. A conferência fica no próprio lançamento (campo conf: envio, quem,
+     quando, observação e "pagar até"); quem confere e quando ficam registrados. Lançamento conferido não muda mais de
+     dia, pessoa, setor, grades ou valor: para corrigir, desfaz a conferência (se ainda não foi pago nem agendado) ou
+     cancela e lança de novo. A Produção vê a situação de cada um: a conferir, na fila, agendado, pago em parte, pago.
+   · Financeiro (Pagamentos da Produção, #/fProd, e "A pagar por módulo"): cada conferência de cada trabalhador vira um
+     compromisso (origem do Financeiro, FIN_ORIGENS), na categoria Pagamentos da Produção, com identificador fixo
+     pp:<trabalhador>:<envio>: o mesmo lançamento não entra duas vezes. O compromisso já chega na fila
+     "Encaminhados para agendamento" da agenda de quem paga (o Gustavo), que agenda e paga como as outras contas.
+   · Pagar é registrar o pagamento do Controle por grade (o mesmo recibo, o mesmo extrato): os pagamentos quitam primeiro
+     os lançamentos mais antigos, então o compromisso mostra o que já foi pago dele. Nada é copiado: o Financeiro não
+     grava nos lançamentos da Produção e a Produção não grava no Financeiro.
+   · Indicadores e filtros (trabalhador, equipe, período, atividade e centro de custo): devido por produção (Enforna),
+     desenforna e empreita, total pendente, enviado para agendamento, agendado e pago. */
+(function(){'use strict';
+const G=window.JB_GRADE,FS=window.FINANCEIRO_SETOR,CP=window.CPG_FIN,BV=window.BOLETOS_V166;
+if(!G||!FS||!FS.h||!FS.acoes||!CP||!Array.isArray(window.FIN_ORIGENS)){console.warn('Pagamentos da Produção: módulos não carregados');return}
+const H=FS.h,A=FS.acoes;const {modalF,campoM,valM,optH,cabF,shellF,abertaO,r2}=H;
+const PV=[...TODOS,...(typeof PAP_NOVOS!=='undefined'?PAP_NOVOS:[])];
+const PE=['admin','gerente','estoquista','gestor'];   /* confere: os mesmos que lançam as grades na Produção */
+const FV=['admin','financeiro','gerente'];             /* vê o painel no Financeiro */
+const CAT='Pagamentos da Produção',ORIG_FIN='Financeiro · Pagamento por grade';
+const ATIV={producao:'Produção (Enforna)',desenforna:'Desenforna',empreita:'Empreita do forno'};
+const ATIV_C={producao:'Produção',desenforna:'Desenforna',empreita:'Empreitas'};
+const n0=x=>x===''||x==null||isNaN(+x)?0:+x;
+const ehEmp=l=>!!(l&&l.emp&&typeof l.emp==='object');
+const tot=l=>G.tot(l);
+const TRAB=id=>(DATA.prodGradeTrab||[]).find(t=>t.id===id)||null;
+const nomeT=id=>{const t=TRAB(id);return t?t.nome:'Trabalhador'};
+const ordL=(a,b)=>String(a.data||'').localeCompare(String(b.data||''))||String(a.criadoEm||'').localeCompare(String(b.criadoEm||''))||String(a.id).localeCompare(String(b.id));
+const eu=()=>APP.uid||'local',agoraI=()=>new Date().toISOString();
+const N=s=>semAcento(String(s||'')).toLowerCase().replace(/\s+/g,' ').trim();
+const fG=n=>fQtd(n0(n));const plG=n=>fG(n)+(n0(n)===1?' grade':' grades');
+const pl=(n,s,p)=>fNum(n)+' '+(n===1?s:(p||s+'s'));
+const nL=n=>pl(n,'lançamento');
+const nomeForno=e=>String((e&&e.fornoNome)||'forno');
+const ativDe=l=>ehEmp(l)?'empreita':l.setor==='Desenforna'?'desenforna':'producao';
+const descL=l=>ehEmp(l)?'Empreita · '+nomeForno(l.emp)+(l.emp.modo==='resp'?' (responsável pelo grupo)':n0(l.emp.n)>1?' (parte de '+n0(l.emp.n)+')':''):plG(l.grades)+' × '+fMoeda(l.valorGrade);
+const enviado=l=>!!(l&&l.conf&&typeof l.conf==='object'&&l.conf.st==='enviado'&&l.conf.envio);
+const refDe=(tid,env)=>'pp:'+tid+':'+env;
+const rs=ref=>String(ref).replace(/[^A-Za-z0-9_\-]/g,'_');
+const metaDe=ref=>(DATA.fMeta||[]).find(x=>x&&x.id==='m_'+rs(ref))||null;
+const nomeAg=()=>{try{return CP.nomeAgenda()}catch(e){return 'Agenda de Pagamentos'}};
+const dia=iso=>String(iso||'').slice(0,10);
+const fDM=d=>d?fData(d).slice(0,5):'';
+const quem=uid=>uid?nomeUsuario(uid):'';
+const podeConferir=()=>pode('pgConf','e');
+const podePagarG=()=>pode('pgPag','e');
+const edFin=()=>pode('fpagar','e');
+const tagH=(t,c)=>`<span class="tag ${c||''}">${esc(t)}</span>`;
+
+/* ---------- 1. a conta de cada lançamento: os pagamentos quitam primeiro os mais antigos (a mesma conta do controle) ---------- */
+function restaDe(l){if(!l||l.cancelamento)return 0;const x=G.contaDe(l.trabId);const a=(x.abertos||[]).find(z=>z.l&&z.l.id===l.id);return a?r2(a.resta):0}
+function pagosDe(l){const x=G.contaDe(l.trabId);return (x.pecas||[]).filter(pc=>pc.l&&pc.l.id===l.id&&pc.p)}
+/* tudo de uma vez, refeito só quando os lançamentos, os pagamentos, o cadastro ou o Financeiro mudam */
+let MB={a:null,b:null,c:null,v:null};
+function base(){const a=DATA.prodGrade,b=DATA.prodGradeTrab,c=DATA.fin;
+ if(MB.v&&MB.a===a&&MB.b===b&&MB.c===c)return MB.v;
+ const L=(DATA.pgLanc||[]).filter(l=>l&&l.trabId).slice().sort(ordL);
+ const pend=[],envs=new Map();
+ L.forEach(l=>{
+  if(enviado(l)){const ref=refDe(l.trabId,l.conf.envio);let e=envs.get(ref);if(!e){e={ref,trabId:l.trabId,envio:l.conf.envio,conf:l.conf,lancs:[]};envs.set(ref,e)}e.lancs.push(l);return}
+  if(l.cancelamento)return;const resta=restaDe(l);if(resta<=0.004)return;   /* já pago (ex.: antes da conferência existir) */
+  pend.push({l,resta,ativ:ativDe(l)})});
+ const lotes=[...envs.values()].map(e=>{const ativos=e.lancs.filter(l=>!l.cancelamento);const ids=new Set(e.lancs.map(l=>l.id));
+  const x=G.contaDe(e.trabId);const pg=new Map();
+  (x.pecas||[]).filter(pc=>pc.l&&ids.has(pc.l.id)&&pc.p).forEach(pc=>{const p=pc.p;const g=pg.get(p.id)||{id:p.id,data:p.data||'',valor:0,forma:p.forma||'',conta:p.contaId||'',quitacao:false,por:p.criadoPor||'',comp:!!p.comprovante};g.valor=r2(g.valor+pc.v);pg.set(p.id,g)});
+  const partes={producao:{v:0,ab:0,n:0,g:0},desenforna:{v:0,ab:0,n:0,g:0},empreita:{v:0,ab:0,n:0,g:0}};
+  ativos.forEach(l=>{const P=partes[ativDe(l)];P.v=r2(P.v+tot(l));P.ab=r2(P.ab+restaDe(l));P.n++;if(!ehEmp(l))P.g+=n0(l.grades)});
+  const ds=ativos.map(l=>l.data).filter(Boolean).sort();
+  return{...e,ativos,valor:r2(soma(ativos,tot)),aberto:r2(soma(ativos,restaDe)),pagamentos:[...pg.values()].sort((p,q)=>String(p.data).localeCompare(String(q.data))),
+   partes,de:ds[0]||'',ate:ds[ds.length-1]||'',n:ativos.length,nCanc:e.lancs.length-ativos.length,em:e.conf.em||'',por:e.conf.por||'',obs:e.conf.obs||'',pagarAte:e.conf.pagarAte||''}})
+  .sort((p,q)=>String(p.em).localeCompare(String(q.em))||String(p.ref).localeCompare(String(q.ref)));
+ MB={a,b,c,v:{pend,lotes,porRef:new Map(lotes.map(x=>[x.ref,x]))}};return MB.v}
+const ativsDe=x=>Object.keys(x.partes).filter(k=>x.partes[k].n);
+function resumoLote(x){const P=x.partes;const it=[];
+ if(P.producao.n)it.push('Enforna '+plG(P.producao.g));if(P.desenforna.n)it.push('Desenforna '+plG(P.desenforna.g));if(P.empreita.n)it.push(pl(P.empreita.n,'empreita'));
+ const per=x.de&&x.ate?(x.de===x.ate?fDM(x.de):fDM(x.de)+' a '+fDM(x.ate)):'';
+ return (it.join(' + ')||'Lançamentos cancelados')+(per?' ('+per+')':'')}
+const centroDe=x=>{const a=ativsDe(x);return a.length===1?'Produção · '+ATIV[a[0]]:a.length?'Produção · '+a.map(k=>ATIV_C[k]).join(' e '):'Produção'};
+/* situação na fila e na agenda (o registro de apoio do Financeiro; a Produção o lê, não grava) */
+function sitLote(x){if(!x.n)return{k:'canc',t:'Cancelado',cls:'pe'};
+ if(x.aberto<=0.004)return{k:'pago',t:'Pago',cls:'ok'};
+ const m=metaDe(x.ref)||{};const f=m.fila&&typeof m.fila==='object'?m.fila:null;
+ const parc=x.aberto<x.valor-0.004;
+ if(m.naAgenda===true&&m.dataPrevista)return{k:'ag',t:'Agendado para '+fData(m.dataPrevista),cls:'in',parc};
+ if(parc)return{k:'parc',t:'Pago em parte',cls:'br'};
+ if(f&&f.st==='retirado')return{k:'fin',t:'No Financeiro (fora da fila)',cls:'at'};
+ return{k:'fila',t:'Na fila de pagamento',cls:'in'}}
+function sitL(l){if(!l)return{k:'',t:'',cls:''};
+ if(l.cancelamento)return{k:'canc',t:'Cancelado',cls:'pe'};
+ const resta=restaDe(l),v=tot(l);
+ if(resta<=0.004)return{k:'pago',t:'Pago',cls:'ok'};
+ if(!enviado(l))return{k:'conf',t:resta<v-0.004?'A conferir · pago em parte':'A conferir',cls:'at'};
+ if(resta<v-0.004)return{k:'parc',t:'Pago em parte',cls:'br'};
+ const x=base().porRef.get(refDe(l.trabId,l.conf.envio));return x?sitLote(x):{k:'fila',t:'Na fila de pagamento',cls:'in'}}
+
+/* ---------- 2. no Financeiro: cada conferência de cada trabalhador é um compromisso (sem cópia) ---------- */
+function obLote(x){const m=metaDe(x.ref)||{};const c=x.conf||{};
+ return{ref:x.ref,fonte:'producao',rec:{id:x.ref,trabId:x.trabId,envio:x.envio,criadoEm:c.em||'',criadoPor:c.por||'',multaPct:0,jurosMesPct:0},origem:'Setor de Produção',
+  num:'Conferência de '+fData(dia(c.em)),descricao:resumoLote(x),categoria:CAT,benef:nomeT(x.trabId),centro:m.centroCusto||centroDe(x),lanc:dia(c.em),
+  venc:m.vencimento||c.pagarAte||'',prog:m.dataPrevista||'',valor:x.valor,forma:m.formaPrevista||'',conta:m.contaId||'',
+  docOrigem:nL(x.n)+' conferido'+(x.n===1?'':'s')+' na Produção',temDocOrigem:false,pagamentos:x.pagamentos,estornados:[],
+  cancelado:x.n?null:{motivo:'Os lançamentos desta conferência foram cancelados na Produção.',em:'',por:''},justif:m.justificativa||null,parcela:'',
+  resp:c.por||'',href:'#/fGrade/'+x.trabId,podePagar:podePagarG(),hist:[['pgConf',rs(x.ref)],...x.lancs.map(l=>['pgLanc',l.id])],meta:m,
+  filaPadrao:{st:'aguardando',em:c.em||'',por:c.por||'',obs:'Conferido na Produção'+(c.obs?': '+c.obs:''),hist:[{a:'enviado',em:c.em||'',por:c.por||'',obs:'Conferido na Produção'}]},
+  semEncargos:true,pagarFn:pagarLote,prod:x}}
+let CH={a:null,b:null,c:null,o:null};
+const chave=()=>{const a=DATA.prodGrade,b=DATA.prodGradeTrab,c=DATA.fin;if(!CH.o||CH.a!==a||CH.b!==b||CH.c!==c)CH={a,b,c,o:{}};return CH.o};
+if(!window.FIN_ORIGENS.some(o=>o&&o.id==='producao'))window.FIN_ORIGENS.push({id:'producao',chave,listar(){if(!pode('fGrade'))return [];return base().lotes.map(obLote)}});
+const obsProd=()=>{try{return FS.obrigacoes().filter(o=>o.fonte==='producao')}catch(e){console.warn('pagamentos da produção',e);return []}};
+/* módulo "Pagamentos da Produção" em "A pagar por módulo" (aparece quando a Produção já enviou alguma conferência) */
+if(!CP.MODULOS.some(m=>m.k==='prod'))CP.MODULOS.push({k:'prod',rota:'fProd',n:'Pagamentos da Produção',ic:'pgGrade',d:'Produção, desenforna e empreitas conferidas',
+ t:'Pagamentos da Produção',p:'O que a Produção conferiu e mandou pagar: produção (Enforna), desenforna e empreitas.',so:()=>pode('fGrade')&&base().lotes.length>0});
+
+/* ---------- 3. pagar: o pagamento do Controle por grade (o mesmo recibo e o mesmo extrato) ---------- */
+function pagarLote(o){const x=o&&o.prod;if(!x)return;
+ if(!podePagarG()){toast('Seu perfil não registra pagamentos.','erro');return}
+ /* o pagamento quita primeiro os mais antigos: sugere o que está conferido e em aberto até esta conferência */
+ const xs=obsProd().filter(y=>y.prod.trabId===x.trabId&&abertaO(y)&&String(y.prod.em)<=String(x.em));
+ const v=r2(soma(xs,y=>y.s.saldo));
+ G.abrirPagamento(x.trabId,ORIG_FIN,{valor:v>0.004?v:o.s.saldo,ref:o.ref})}
+function pagarTrab(tid){if(!podePagarG()){toast('Seu perfil não registra pagamentos.','erro');return}
+ const v=r2(soma(obsProd().filter(y=>y.prod.trabId===tid&&abertaO(y)),y=>y.s.saldo));G.abrirPagamento(tid,ORIG_FIN,{valor:v})}
+/* o que já foi conferido e falta pagar, e quanto de um pagamento iria para lançamentos que a Produção não conferiu */
+function contaConf(tid){const x=G.contaDe(tid);let conf=0,naoConf=0;(x.abertos||[]).forEach(a=>{if(enviado(a.l))conf=r2(conf+a.resta);else naoConf=r2(naoConf+a.resta)});return{conf,naoConf,abertos:x.abertos||[]}}
+function simular(tid,valor){const R=contaConf(tid);let resta=r2(valor),semConf=0,antes=0,vistoConf=false;
+ for(const a of R.abertos){if(resta<=0.004)break;const v=r2(Math.min(resta,a.resta));if(!enviado(a.l)){semConf=r2(semConf+v);if(!vistoConf)antes=r2(antes+v)}else vistoConf=true;resta=r2(resta-v)}
+ return{...R,semConf,antes,credito:resta>0.004?resta:0}}
+window.PG_CONF_V169=Object.freeze({
+ resumo(tid){try{const R=contaConf(tid);if(!(R.conf>0.004||base().lotes.some(x=>x.trabId===tid)))return '';
+  return `<p class="pg-hist">Conferido pela Produção e em aberto: <b>${esc(fMoeda(R.conf))}</b>${R.naoConf>0.004?` · ainda não conferido: ${esc(fMoeda(R.naoConf))}`:''}.</p>`}catch(e){return ''}},
+ /* só depois que a Produção começou a conferir (antes disso, o Controle por grade segue como sempre) */
+ async antesDePagar(tid,valor){const S=simular(tid,valor);if(S.semConf<=0.004||!base().lotes.length)return true;
+  return await confirmar('Parte deste pagamento ainda não foi conferida',
+   (S.antes>0.004?'O pagamento quita primeiro os lançamentos mais antigos, e '+nomeT(tid)+' tem '+fMoeda(S.antes)+' lançados antes que a Produção ainda não conferiu. ':'')+
+   fMoeda(S.semConf)+' deste pagamento vai para lançamentos que ainda não foram conferidos na Produção (Controle por grade › Conferir e enviar). Registrar assim mesmo?',{ok:'Registrar assim mesmo'})}});
+
+/* ---------- 4. conferir e enviar (Produção) ---------- */
+const UIC={vis:'conf',fora:new Set(),q:'',ativ:'',sit:'',per:'mes',de:'',ate:'',aberto:new Set()};
+let CONFERINDO=false;
+function porTrab(pend){const M=new Map();pend.forEach(p=>{const t=p.l.trabId;let g=M.get(t);if(!g){g={tid:t,nome:nomeT(t),itens:[]};M.set(t,g)}g.itens.push(p)});
+ return [...M.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'))}
+const filtraPend=p=>(!UIC.ativ||p.ativ===UIC.ativ)&&(!UIC.q||N(nomeT(p.l.trabId)).includes(N(UIC.q)));
+/* a conferência segue a ordem do controle: não dá para conferir um lançamento deixando um mais antigo do mesmo trabalhador para trás */
+function marcar(id,on){const P=base().pend;const it=P.find(p=>p.l.id===id);if(!it)return;const doT=P.filter(p=>p.l.trabId===it.l.trabId);const i=doT.findIndex(p=>p.l.id===id);
+ if(on)doT.slice(0,i+1).forEach(p=>UIC.fora.delete(p.l.id));else doT.slice(i).forEach(p=>UIC.fora.add(p.l.id))}
+/* o que vai na conferência: os marcados e, do mesmo trabalhador, os mais antigos que estiverem fora do filtro da tela */
+const marcados=()=>{const P=base().pend;const porT=new Map();P.forEach(p=>{const a=porT.get(p.l.trabId)||[];a.push(p);porT.set(p.l.trabId,a)});const out=[];
+ porT.forEach(xs=>{let ult=-1;xs.forEach((p,i)=>{if(filtraPend(p)&&!UIC.fora.has(p.l.id))ult=i});for(let i=0;i<=ult;i++)if(!UIC.fora.has(xs[i].l.id))out.push(xs[i])});return out};
+function intervaloC(U){const h=hoje(),m=h.slice(0,7);
+ if(U.per==='mes')return{de:m+'-01',ate:h,txt:'este mês'};
+ if(U.per==='ant'){const a=mesMenos(m,1);return{de:a+'-01',ate:addDias(m+'-01',-1),txt:'mês passado'}}
+ if(U.per==='sem')return{de:addDias(h,-6),ate:h,txt:'últimos 7 dias'};
+ if(U.per==='per')return{de:U.de||'',ate:U.ate||'',txt:(U.de?fData(U.de):'início')+' a '+(U.ate?fData(U.ate):'hoje')};
+ return{de:'',ate:'',txt:'todo o período'}}
+const noPer=(d,I)=>(!I.de||String(d)>=I.de)&&(!I.ate||String(d)<=I.ate);
+const selPer=(id,U)=>`<select id="${id}" aria-label="Período">${optH([['mes','Este mês'],['ant','Mês passado'],['sem','Últimos 7 dias'],['tudo','Tudo'],['per','Escolher datas']],U.per)}</select>${U.per==='per'?`<label>De <input type="date" id="${id}De" value="${esc(U.de)}"></label><label>até <input type="date" id="${id}Ate" value="${esc(U.ate)}"></label>`:''}`;
+function ligarPer(c,id,U){const s=$('#'+id,c);if(s)s.onchange=()=>{U.per=s.value;renderTela()};const a=$('#'+id+'De',c),b=$('#'+id+'Ate',c);if(a)a.onchange=()=>{U.de=a.value;renderTela()};if(b)b.onchange=()=>{U.ate=b.value;renderTela()}}
+function cabP(t,p,acoes){return `<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('pgGrade')}</span><div><h1>${esc(t)}</h1><p>${p}</p></div></div><div class="acoes">${acoes||''}</div></div>`}
+function telaConf(c){
+ if(!pode('pgConf')){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Seu perfil não inclui esta tela. Fale com o administrador.</div>';return}
+ const B=base();const ed=podeConferir();const I=intervaloC(UIC);
+ const pend=B.pend.filter(filtraPend);const grupos=porTrab(pend);
+ const lotes=B.lotes.filter(x=>(!UIC.q||N(nomeT(x.trabId)).includes(N(UIC.q)))&&(!UIC.ativ||x.partes[UIC.ativ].n));
+ const ab=lotes.filter(x=>x.n&&x.aberto>0.004);const ag=ab.filter(x=>sitLote(x).k==='ag');
+ const pagosMes=(DATA.pgPag||[]).filter(p=>!p.estorno&&noPer(p.data,I));
+ const vis=['conf','env'].includes(UIC.vis)?UIC.vis:'conf';
+ const cards=[
+  {k:'conf',rot:'A conferir',v:fMoeda(soma(pend,p=>p.resta)),sub:pend.length?nL(pend.length)+' de '+pl(grupos.length,'trabalhador','trabalhadores'):'nada para conferir',cls:pend.length?'':'ok'},
+  {k:'env',rot:'Enviado ao Financeiro',v:fMoeda(soma(ab,x=>x.aberto)),sub:ab.length?pl(ab.length,'conferência')+' aguardando pagamento':'nada aguardando'},
+  {k:'env',s:'ag',rot:'Agendado',v:fMoeda(soma(ag,x=>x.aberto)),sub:ag.length?pl(ag.length,'conferência')+' com dia marcado':'nenhum agendado'},
+  {k:'env',s:'pago',rot:'Pago · '+I.txt,v:fMoeda(soma(pagosMes,p=>n0(p.valor))),sub:pl(pagosMes.length,'pagamento'),cls:'ok'}];
+ let corpo='';
+ if(vis==='conf'){
+  const M=marcados();const ocultos=M.filter(p=>!filtraPend(p)).length;
+  corpo=grupos.length?grupos.map(g=>{const sel=g.itens.filter(p=>!UIC.fora.has(p.l.id));const todos=sel.length===g.itens.length;
+   return `<section class="pc-t" data-pct="${esc(g.tid)}"><div class="pc-t-cab"><label>${ed?`<input type="checkbox" data-pcall="${esc(g.tid)}"${todos?' checked':''} aria-label="Marcar todos de ${esc(g.nome)}">`:''}<span>${esc(g.nome)}<span class="pv-sub">${esc(((TRAB(g.tid)||{}).setor||'')+' · '+nL(g.itens.length))}</span></span></label>
+    <span class="pc-t-v">${esc(fMoeda(soma(sel,p=>p.resta)))}${sel.length!==g.itens.length?`<span class="pv-sub">de ${esc(fMoeda(soma(g.itens,p=>p.resta)))}</span>`:''}</span></div>
+    <ul class="pc-ls">${g.itens.map(p=>{const l=p.l;const on=!UIC.fora.has(l.id);const v=tot(l);
+     return `<li class="pc-l${on?'':' fora'}" data-pcl="${esc(l.id)}"><label>${ed?`<input type="checkbox" data-pcsel="${esc(l.id)}"${on?' checked':''} aria-label="Conferir ${esc(fData(l.data))}">`:''}<span class="pc-d">${esc(fDM(l.data))}</span><span class="pc-a">${esc(ATIV[p.ativ])}</span>
+      <span class="pc-x">${esc(descL(l))}${p.resta<v-0.004?`<span class="pv-sub">já pago ${esc(fMoeda(r2(v-p.resta)))} (crédito ou adiantamento)</span>`:''}${l.criadoPor?`<span class="pv-sub">lançado por ${esc(quem(l.criadoPor))}</span>`:''}</span><b class="pc-v">${esc(fMoeda(p.resta))}</b></label>
+      <button type="button" class="btn min" data-pcab="${esc(l.id)}" title="Abrir o lançamento para corrigir">Abrir</button></li>`}).join('')}</ul></section>`}).join('')+
+   (ed?`<div class="pc-barra"><span id="pcTot"><b>${esc(nL(M.length))}</b> marcado${M.length===1?'':'s'} · <b>${esc(fMoeda(soma(M,p=>p.resta)))}</b>${ocultos?`<span class="pv-sub">inclui ${esc(nL(ocultos))} mais antigo${ocultos===1?'':'s'} fora do filtro (a ordem do controle)</span>`:''}</span><span class="pv-acs"><button type="button" class="btn" id="pcTodos">${pend.every(p=>!UIC.fora.has(p.l.id))?'Desmarcar todos':'Marcar todos'}</button><button type="button" class="btn pri" id="pcEnviar"${M.length?'':' disabled'}>${ic('enviar')}Conferir e enviar ao Financeiro</button></span></div>`:'')
+   :`<div class="vazio"><b>${B.pend.length?'Nada com este filtro':'Tudo conferido'}</b>${B.pend.length?'Limpe a pesquisa ou a atividade para ver os demais.':'Os lançamentos de grades, desenfornas e empreitas aparecem aqui até serem conferidos e enviados ao Financeiro.'}</div>`}
+ else{const s=UIC.sit;const L=lotes.filter(x=>noPer(dia(x.em),I)||x.aberto>0.004).filter(x=>{const k=sitLote(x).k;return !s||(s==='ab'?x.aberto>0.004&&x.n:s==='ag'?k==='ag':s==='pago'?k==='pago':true)}).slice().reverse();
+  const chips=[['','Todas'],['ab','Em aberto'],['ag','Agendadas'],['pago','Pagas']];
+  corpo=`<div class="cpl-chips" role="group" aria-label="Situação">${chips.map(([k,l])=>`<button type="button" class="btn min${s===k?' pri':''}" data-pcs="${k}" aria-pressed="${s===k}">${esc(l)}</button>`).join('')}</div>`+
+   (L.length?L.map(x=>{const S=sitLote(x);const podeDesf=ed&&x.n&&!x.pagamentos.length&&S.k!=='ag';const aberto=UIC.aberto.has(x.ref);
+    return `<article class="pc-lote" data-pclote="${esc(x.ref)}"><div class="pc-lote-t">${esc(nomeT(x.trabId))}<span class="pv-sub">${esc(resumoLote(x))} · conferido em ${esc(fDataHora(x.em))}${x.por?' por '+esc(quem(x.por)):''}${x.pagarAte?' · pagar até '+esc(fData(x.pagarAte)):''}</span>${x.obs?`<span class="pv-sub">“${esc(x.obs)}”</span>`:''}</div>
+     <div class="pc-lote-v">${esc(fMoeda(x.valor))}${x.aberto>0.004&&x.aberto<x.valor-0.004?`<small>falta ${esc(fMoeda(x.aberto))}</small>`:''}</div>
+     <div class="pc-lote-s pv-tags">${tagH(S.t,S.cls)}${S.parc&&S.k==='ag'?tagH('pago em parte','br'):''}${x.nCanc?tagH(pl(x.nCanc,'cancelado'),'pe'):''}${x.pagamentos.length?`<span class="pv-sub">pago ${esc(x.pagamentos.map(p=>fMoeda(p.valor)+' em '+fDM(p.data)).join(', '))}</span>`:''}</div>
+     <div class="pc-lote-ac"><button type="button" class="btn min" data-pcver="${esc(x.ref)}" aria-expanded="${aberto}">${aberto?'Esconder':'Ver'} os lançamentos</button>${x.pagamentos.length?`<button type="button" class="btn min" data-pcrec="${esc(x.ref)}">${ic('doc')}Recibo</button>`:''}${podeDesf?`<button type="button" class="btn min perigo" data-pcdesf="${esc(x.ref)}">Desfazer a conferência</button>`:''}</div>
+     ${aberto?`<div class="pc-lote-ls"><ul>${x.lancs.map(l=>`<li>${esc(fData(l.data))} · ${esc(ATIV[ativDe(l)])} · ${esc(descL(l))} · ${esc(fMoeda(tot(l)))}${l.cancelamento?' · cancelado':' · '+esc(sitL(l).t.toLowerCase())}</li>`).join('')}</ul></div>`:''}</article>`}).join('')
+    :`<div class="vazio"><b>Nenhuma conferência ${s?'nesta situação':'no período'}</b>As conferências enviadas ao Financeiro aparecem aqui, com a situação do pagamento.</div>`)}
+ const selK=vis==='conf'?'conf':UIC.sit==='ag'?'ag':UIC.sit==='pago'?'pago':'env';
+ c.innerHTML=cabP('Conferir e enviar ao Financeiro',`Confira as grades, as desenfornas e as empreitas lançadas. O que você conferir vai para o Financeiro, na fila de pagamento da ${esc(nomeAg())}; quem conferiu e quando ficam registrados.`,
+   `<button type="button" class="btn" id="pcExp">${ic('baixar')}Exportar ▾</button><a class="btn" href="#/pgLanc">${ic('planilha')}Lançamentos</a>`)+
+  `<div class="cpl-cards" role="tablist" aria-label="Situação dos pagamentos da produção">${cards.map(q=>{const on=(q.k==='conf'&&selK==='conf')||(q.k==='env'&&!q.s&&selK==='env')||(q.s&&selK===q.s);
+   return `<button type="button" role="tab" data-pcv="${esc(q.k)}" data-pcvs="${esc(q.s||'')}" aria-selected="${on}" class="${esc(q.cls||'')}"><span class="rot">${esc(q.rot)}</span><b>${esc(q.v)}</b><small>${esc(q.sub)}</small><span class="ver" aria-hidden="true">›</span></button>`}).join('')}</div>`+
+  `<div class="pv-filtros"><input type="search" id="pcQ" placeholder="Localizar trabalhador" value="${esc(UIC.q)}" aria-label="Localizar trabalhador">
+   <select id="pcA" aria-label="Atividade"><option value="">Todas as atividades</option>${optH(Object.entries(ATIV),UIC.ativ)}</select>${vis==='env'?selPer('pcP',UIC):''}</div>`+corpo+
+  `<p class="cpl-nota">A conferência segue a ordem do controle: os pagamentos quitam primeiro os lançamentos mais antigos, então não dá para enviar um lançamento deixando um mais antigo do mesmo trabalhador para trás. Lançamento conferido não muda mais: se estiver errado, desfaça a conferência (enquanto não for pago nem agendado) ou cancele o lançamento e lance de novo.</p>`;
+ /* ligações */
+ const qi=$('#pcQ',c);if(qi)qi.oninput=e=>{UIC.q=e.target.value;clearTimeout(telaConf.t);telaConf.t=setTimeout(()=>{renderTela();const i=$('#pcQ');if(i){i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(er){}}},250)};
+ const sa=$('#pcA',c);if(sa)sa.onchange=()=>{UIC.ativ=sa.value;renderTela()};
+ ligarPer(c,'pcP',UIC);
+ $$('[data-pcv]',c).forEach(b=>b.onclick=()=>{UIC.vis=b.dataset.pcv;UIC.sit=b.dataset.pcvs||(b.dataset.pcv==='env'?'ab':'');renderTela()});
+ $$('[data-pcs]',c).forEach(b=>b.onclick=()=>{UIC.sit=b.dataset.pcs;renderTela()});
+ $$('[data-pcsel]',c).forEach(i=>i.onchange=()=>{marcar(i.dataset.pcsel,i.checked);renderTela()});
+ $$('[data-pcall]',c).forEach(i=>i.onchange=()=>{const P=base().pend.filter(p=>p.l.trabId===i.dataset.pcall);P.forEach(p=>{if(i.checked)UIC.fora.delete(p.l.id);else UIC.fora.add(p.l.id)});renderTela()});
+ $$('[data-pcab]',c).forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();JBNAV.ir('#/pgLanc/'+b.dataset.pcab)});
+ const bt=$('#pcTodos',c);if(bt)bt.onclick=()=>{const vs=pend;const todos=vs.every(p=>!UIC.fora.has(p.l.id));vs.forEach(p=>{if(todos)UIC.fora.add(p.l.id);else UIC.fora.delete(p.l.id)});renderTela()};
+ const be=$('#pcEnviar',c);if(be)be.onclick=()=>janelaConferir(marcados());
+ $$('[data-pcver]',c).forEach(b=>b.onclick=()=>{const r=b.dataset.pcver;if(UIC.aberto.has(r))UIC.aberto.delete(r);else UIC.aberto.add(r);renderTela()});
+ $$('[data-pcdesf]',c).forEach(b=>b.onclick=()=>janelaDesfazer(b.dataset.pcdesf));
+ $$('[data-pcrec]',c).forEach(b=>b.onclick=()=>{const x=base().porRef.get(b.dataset.pcrec);if(!x)return;const ps=x.pagamentos.map(p=>(DATA.pgPag||[]).find(q=>q.id===p.id)).filter(Boolean);
+  abrirMenuMais(b,ps.map(p=>({l:'Recibo de '+fMoeda(p.valor)+' · '+fData(p.data),sub:p.forma||'',fn:()=>acaoDocumento(()=>G.docRecibo(p),'ver')})))});
+ $('#pcExp',c).onclick=()=>exportarConf($('#pcExp',c),vis,vis==='conf'?pend:lotes,I)}
+function exportarConf(btn,vis,xs,I){let cols,rows,tit,nome;
+ if(vis==='conf'){cols=[{k:'nome',l:'Trabalhador'},{k:'data',l:'Data',t:'data'},{k:'ativ',l:'Atividade'},{k:'desc',l:'Lançamento'},{k:'valor',l:'Valor',t:'moeda'},{k:'aberto',l:'A conferir',t:'moeda'},{k:'por',l:'Lançado por'}];
+  rows=xs.map(p=>({nome:nomeT(p.l.trabId),data:p.l.data,ativ:ATIV[p.ativ],desc:descL(p.l),valor:tot(p.l),aberto:p.resta,por:quem(p.l.criadoPor)}));tit='Lançamentos a conferir';nome='A_conferir_'+hoje()}
+ else{cols=[{k:'nome',l:'Trabalhador'},{k:'em',l:'Conferido em'},{k:'por',l:'Conferido por'},{k:'desc',l:'Atividades'},{k:'n',l:'Lançamentos',t:'num'},{k:'valor',l:'Valor',t:'moeda'},{k:'aberto',l:'Falta pagar',t:'moeda'},{k:'sit',l:'Situação'}];
+  rows=xs.map(x=>({nome:nomeT(x.trabId),em:fDataHora(x.em),por:quem(x.por),desc:resumoLote(x),n:x.n,valor:x.valor,aberto:x.aberto,sit:sitLote(x).t}));tit='Conferências enviadas ao Financeiro';nome='Conferencias_producao_'+hoje()}
+ const fx=f=>exportar(f,nome,cols,rows,tit,{filtros:vis==='conf'?'Aguardando conferência':'Período: '+I.txt});
+ abrirMenuMais(btn,[{l:'Visualizar',sub:rows.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}
+function janelaConferir(itens){
+ if(!podeConferir()){toast('Seu perfil não confere os lançamentos da Produção.','erro');return}
+ if(CONFERINDO){toast('Já há uma conferência sendo gravada. Aguarde.','erro');return}
+ if(!itens.length){toast('Marque os lançamentos conferidos.','erro');return}
+ const gs=porTrab(itens);const total=r2(soma(itens,p=>p.resta));
+ modalF('Conferir e enviar ao Financeiro',`<p class="ajuda" style="margin:0 0 10px">Vai para o Financeiro, na fila de pagamento da ${esc(nomeAg())}. Quem conferiu e quando ficam registrados.</p>
+  <table class="pc-conf-tab"><thead><tr><th>Trabalhador</th><th>Lançamentos</th><th class="n">Valor</th></tr></thead><tbody>${gs.map(g=>`<tr><td>${esc(g.nome)}</td><td>${esc(nL(g.itens.length))}<span class="pv-sub">${esc([...new Set(g.itens.map(p=>ATIV[p.ativ]))].join(', '))}</span></td><td class="n">${esc(fMoeda(soma(g.itens,p=>p.resta)))}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td>Total</td><td>${esc(nL(itens.length))}</td><td class="n">${esc(fMoeda(total))}</td></tr></tfoot></table>
+  <div class="duas">${campoM('pcPa','Pagar até (opcional)',`<input id="pcPa" type="date" min="${hoje()}">`,'Se tiver dia combinado para o pagamento.')}${campoM('pcO','Observação (opcional)','<input id="pcO" maxlength="200" placeholder="Ex.: semana de 18 a 23/11">')}</div>
+  <label class="cpg-chk" style="display:flex;gap:8px;align-items:center;margin:4px 0 0"><input type="checkbox" id="pcOk"> <b>Conferi as quantidades e os valores destes lançamentos.</b></label>`,'Conferir e enviar',async v=>{
+  if(!$('#pcOk',v).checked){toast('Marque que conferiu as quantidades e os valores.','erro');return false}
+  const pa=valM(v,'pcPa');if(pa&&pa<hoje()){toast('O “pagar até” não pode ser no passado.','erro');return false}
+  const obs=String(valM(v,'pcO')||'').trim();
+  return await conferir(itens.map(p=>p.l.id),{obs,pagarAte:pa})})}
+async function conferir(ids,opc){opc=opc||{};if(CONFERINDO)return false;CONFERINDO=true;
+ const envio=novoId(),em=agoraI(),por=eu();let n=0,falha=null;const feitos=new Map();
+ try{
+  /* na ordem do controle (do mais antigo para o mais novo), um lançamento de cada vez; o que já estiver conferido não é tocado */
+  const L=ids.map(id=>DATA.pgLanc.find(l=>l.id===id)).filter(Boolean).sort(ordL);
+  for(const l0 of L){const l=DATA.pgLanc.find(x=>x.id===l0.id)||l0;if(enviado(l)||l.cancelamento)continue;
+   const c0=l.conf&&typeof l.conf==='object'?l.conf:{};
+   const conf={st:'enviado',envio,em,por,obs:opc.obs||'',pagarAte:opc.pagarAte||'',desfeitoEm:'',desfeitoPor:'',motivo:'',hist:Array.isArray(c0.hist)?c0.hist.slice(-19):[]};
+   try{await gravar('pgLanc',{...clone(l),conf},l);n++;const g=feitos.get(l.trabId)||{n:0,v:0};g.n++;g.v=r2(g.v+tot(l));feitos.set(l.trabId,g)}catch(e){falha=e;break}}
+  for(const [tid,g] of feitos)try{await logV('pgConf',rs(refDe(tid,envio)),'conferiu e enviou ao Financeiro',[{c:'Trabalhador',de:'',para:nomeT(tid)},{c:'Lançamentos',de:'',para:nL(g.n)+' · '+fMoeda(g.v)},
+   ...(opc.pagarAte?[{c:'Pagar até',de:'',para:fData(opc.pagarAte)}]:[]),...(opc.obs?[{c:'Observação',de:'',para:opc.obs}]:[])])}catch(e){console.warn('histórico da conferência',e)}
+ }finally{CONFERINDO=false}
+ ids.forEach(id=>UIC.fora.delete(id));
+ if(falha){toast('Foram conferidos '+n+' de '+ids.length+' lançamentos. Os que faltam continuam na lista. '+(typeof msgFalhaSalvar==='function'?msgFalhaSalvar(falha):''),'erro');renderTela();return true}
+ toast(n?nL(n)+' conferido'+(n===1?'':'s')+' e enviado'+(n===1?'':'s')+' ao Financeiro ('+pl(feitos.size,'trabalhador','trabalhadores')+').':'Esses lançamentos já tinham sido conferidos.','ok');renderTela();return true}
+function janelaDesfazer(ref){
+ if(!podeConferir()){toast('Seu perfil não mexe na conferência.','erro');return}
+ const x=base().porRef.get(ref);if(!x)return;const S=sitLote(x);
+ if(x.pagamentos.length){toast('Já há pagamento nesta conferência: ela não pode ser desfeita. Para corrigir um lançamento, cancele-o e lance de novo.','erro');return}
+ if(S.k==='ag'){toast('O pagamento já está agendado no Financeiro. Peça para tirar do agendamento antes de desfazer.','erro');return}
+ modalF('Desfazer a conferência?',`<p class="ajuda" style="margin:0 0 10px">${esc(nomeT(x.trabId))} · ${esc(resumoLote(x))} · <b>${esc(fMoeda(x.valor))}</b>. Os lançamentos voltam para “A conferir” e saem da fila do Financeiro. Nada é apagado: fica no histórico.</p>
+  ${campoM('pcDm','Motivo<i> *</i>','<input id="pcDm" maxlength="200" placeholder="Ex.: grade lançada no dia errado">')}`,'Desfazer a conferência',async v=>{
+  const mot=String(valM(v,'pcDm')||'').trim();if(mot.length<4){toast('Escreva o motivo.','erro');return false}
+  const at=base().porRef.get(ref);if(!at||at.pagamentos.length||sitLote(at).k==='ag'){toast('A situação mudou: confira de novo.','erro');return}
+  const em=agoraI(),por=eu();let n=0;
+  for(const l0 of at.lancs){const l=DATA.pgLanc.find(y=>y.id===l0.id)||l0;if(!enviado(l)||l.conf.envio!==at.envio)continue;const c0=l.conf;
+   const conf={st:'desfeito',envio:'',em:'',por:'',obs:'',pagarAte:'',desfeitoEm:em,desfeitoPor:por,motivo:mot,hist:[...(Array.isArray(c0.hist)?c0.hist:[]).slice(-18),{a:'conferido',envio:c0.envio,em:c0.em,por:c0.por},{a:'desfeito',em,por,motivo:mot}]};
+   await gravar('pgLanc',{...clone(l),conf},l);n++}
+  try{await logV('pgConf',rs(ref),'desfez a conferência',[{c:'Situação',de:'Enviado ao Financeiro',para:'A conferir'},{c:'Motivo',de:'',para:mot}])}catch(e){}
+  toast('Conferência desfeita: '+nL(n)+' de volta para “A conferir”.','ok')},{perigo:true})}
+
+/* ---------- 5. painel "Pagamentos da Produção" no Financeiro (#/fProd e #/fProd/<trabalhador>) ---------- */
+const UIF={vis:'apagar',q:'',trab:'',eq:'',ativ:'',cc:'',per:'mes',de:'',ate:''};
+const EQUIPES=['Enforna','Desenforna','Enforna e Desenforna'];
+const passaF=o=>{const x=o.prod;const t=TRAB(x.trabId)||{};
+ return (!UIF.trab||x.trabId===UIF.trab)&&(!UIF.eq||t.setor===UIF.eq)&&(!UIF.ativ||x.partes[UIF.ativ].n)&&(!UIF.cc||o.centro===UIF.cc)&&(!UIF.q||N(o.benef+' '+(t.apelido||'')).includes(N(UIF.q)))};
+const naFilaO=o=>{try{return BV?BV.naFila(o):false}catch(e){return false}};
+const agendadoO=o=>{try{return BV?BV.agendadoG(o):!!o.prog}catch(e){return false}};
+function tagsO(o){const t=[];const s=o.s;
+ if(o.cancelado)t.push(tagH('Cancelado','pe'));else if(s.saldo<=0.004)t.push(tagH('Pago','ok'));
+ else{if(agendadoO(o))t.push(tagH('Agendado para '+fData(o.prog),'in'));else if(naFilaO(o))t.push(tagH('Na fila da '+nomeAg(),'in'));else t.push(tagH(o.prog?'Programado para '+fData(o.prog):'Em aberto','at'));
+  if(s.pagoEf>0.004)t.push(tagH('pago em parte','br'));if(s.vencido)t.push(tagH('venceu em '+fData(o.venc),'pe'));else if(o.venc)t.push(tagH('pagar até '+fData(o.venc),''))}
+ return t.join('')}
+function telaProd(c){
+ if(!pode('fGrade')){c.innerHTML='<div class="vazio"><b>Sem acesso</b>Seu perfil não inclui esta tela. Fale com o administrador.</div>';return}
+ const r=lerRota();if(r.id&&TRAB(r.id))return telaProdTrab(c,r.id);
+ const I=intervaloC(UIF);const OS=obsProd();const todosF=OS.filter(passaF);const ab=todosF.filter(abertaO);
+ const fila=ab.filter(naFilaO),ag=ab.filter(agendadoO);const B=base();
+ const pend=B.pend.filter(p=>(!UIF.trab||p.l.trabId===UIF.trab)&&(!UIF.ativ||p.ativ===UIF.ativ)&&(!UIF.eq||(TRAB(p.l.trabId)||{}).setor===UIF.eq)&&(!UIF.q||N(nomeT(p.l.trabId)).includes(N(UIF.q))));
+ const pagos=(DATA.pgPag||[]).filter(p=>!p.estorno&&noPer(p.data,I)&&(!UIF.trab||p.trabId===UIF.trab)&&(!UIF.eq||(TRAB(p.trabId)||{}).setor===UIF.eq)&&(!UIF.q||N(nomeT(p.trabId)).includes(N(UIF.q))));
+ const parte=k=>r2(soma(ab,o=>o.prod.partes[k].ab));
+ const sel=['apagar','fila','agendado','pago','conferir'].includes(UIF.vis)?UIF.vis:'apagar';
+ const cards=[
+  {k:'apagar',rot:'A pagar (conferido)',v:fMoeda(soma(ab,o=>o.s.saldo)),sub:ab.length?pl(new Set(ab.map(o=>o.prod.trabId)).size,'trabalhador','trabalhadores')+' · '+pl(ab.length,'conferência'):'nada em aberto',cls:ab.some(o=>o.s.vencido)?'pe':ab.length?'':'ok'},
+  {k:'fila',rot:'Enviado para agendamento',v:fMoeda(soma(fila,o=>o.s.saldo)),sub:fila.length?pl(fila.length,'conferência')+' na fila':'fila vazia'},
+  {k:'agendado',rot:'Agendado',v:fMoeda(soma(ag,o=>o.s.saldo)),sub:ag.length?pl(ag.length,'conferência')+' com dia':'nada agendado'},
+  {k:'pago',rot:'Pago · '+I.txt,v:fMoeda(soma(pagos,p=>n0(p.valor))),sub:pl(pagos.length,'pagamento'),cls:'ok'},
+  {k:'conferir',rot:'A conferir na Produção',v:fMoeda(soma(pend,p=>p.resta)),sub:pend.length?nL(pend.length)+' ainda não conferido'+(pend.length===1?'':'s'):'nada esperando'}];
+ let corpo;
+ if(sel==='pago'){
+  corpo=pagos.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Trabalhador</th><th>Data</th><th>Forma</th><th>Saiu de</th><th>Registrado em</th><th class="num">Valor</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+   ${pagos.slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(p=>`<tr class="clic" data-go="#/fProd/${esc(p.trabId)}" tabindex="0"><td data-l="Trabalhador"><b>${esc(nomeT(p.trabId))}</b></td><td data-l="Data">${esc(fData(p.data))}</td><td data-l="Forma">${esc(p.forma||'—')}</td>
+    <td data-l="Saiu de">${esc(H.nomeConta(p.contaId)||'—')}</td><td data-l="Registrado em">${esc(p.origem||'')}</td><td data-l="Valor" class="num"><b>${esc(fMoeda(p.valor))}</b></td><td class="acs"><button type="button" class="btn min" data-pvrec="${esc(p.id)}">${ic('doc')}Recibo</button></td></tr>`).join('')}</tbody></table></div>`
+   :'<div class="vazio"><b>Nenhum pagamento no período</b>Os pagamentos registrados aqui, na agenda ou no Controle por grade aparecem nesta lista.</div>'}
+ else if(sel==='conferir'){const gs=porTrab(pend);
+  corpo=gs.length?`<div class="aviso in pv-aviso"><span>Estes lançamentos ainda não foram conferidos pela Produção. Eles entram aqui quando o responsável conferir e enviar (Controle por grade › Conferir e enviar).</span></div><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Trabalhador</th><th>Lançamentos</th><th>Desde</th><th class="num">A conferir</th></tr></thead><tbody>
+   ${gs.map(g=>`<tr class="clic" data-go="#/fProd/${esc(g.tid)}" tabindex="0"><td data-l="Trabalhador"><b>${esc(g.nome)}</b><span class="pv-sub">${esc([...new Set(g.itens.map(p=>ATIV[p.ativ]))].join(', '))}</span></td><td data-l="Lançamentos">${esc(nL(g.itens.length))}</td><td data-l="Desde">${esc(fData(g.itens[0].l.data))}</td><td data-l="A conferir" class="num"><b>${esc(fMoeda(soma(g.itens,p=>p.resta)))}</b></td></tr>`).join('')}</tbody></table></div>`
+   :'<div class="vazio"><b>Nada esperando conferência</b>Tudo o que foi lançado na Produção já foi conferido e enviado.</div>'}
+ else{const xs=sel==='fila'?fila:sel==='agendado'?ag:ab;const M=new Map();xs.forEach(o=>{const t=o.prod.trabId;const g=M.get(t)||{tid:t,nome:o.benef,os:[]};g.os.push(o);M.set(t,g)});
+  const gs=[...M.values()].sort((a,b)=>soma(b.os,o=>o.s.saldo)-soma(a.os,o=>o.s.saldo)||a.nome.localeCompare(b.nome,'pt-BR'));const pg=podePagarG()&&edFin(),e=edFin();
+  corpo=gs.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Trabalhador</th><th>Conferências</th><th class="num">Conferido</th><th class="num">Já pago</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
+   ${gs.map(g=>{const v=r2(soma(g.os,o=>o.valor)),pago=r2(soma(g.os,o=>o.s.pagoEf)),falta=r2(soma(g.os,o=>o.s.saldo));const refs=g.os.map(o=>o.ref);const podeAg=e&&g.os.some(o=>!agendadoO(o));
+    return `<tr class="clic" data-go="#/fProd/${esc(g.tid)}" tabindex="0"><td data-l="Trabalhador"><b>${esc(g.nome)}</b><span class="pv-sub">${esc(((TRAB(g.tid)||{}).setor||'')+' · '+[...new Set(g.os.flatMap(o=>ativsDe(o.prod).map(k=>ATIV[k])))].join(', '))}</span></td>
+     <td data-l="Conferências">${g.os.map(o=>`<span class="pv-sub">${esc(fDM(o.lanc))} · ${esc(o.descricao)}</span>`).join('')}</td><td data-l="Conferido" class="num">${esc(fMoeda(v))}</td><td data-l="Já pago" class="num">${esc(fMoeda(pago))}</td>
+     <td data-l="Falta pagar" class="num"><b>${esc(fMoeda(falta))}</b></td><td data-l="Situação"><span class="pv-tags">${[...new Set(g.os.map(tagsO))].join('')}</span></td>
+     <td class="acs"><span class="pv-acs">${pg?`<button type="button" class="btn min pri" data-pvpagar="${esc(g.tid)}">Pagar</button>`:''}${podeAg&&BV?`<button type="button" class="btn min" data-pvag="${esc(refs.join(','))}">${ic('calendario')}Agendar</button>`:''}</span></td></tr>`}).join('')}</tbody></table></div>`
+   :`<div class="vazio"><b>${sel==='fila'?'Fila vazia':sel==='agendado'?'Nada agendado':'Nada a pagar'}</b>${OS.length?'As conferências que a Produção enviar aparecem aqui.':'Quando a Produção conferir e enviar as grades, as desenfornas e as empreitas, elas aparecem aqui para pagar.'}</div>`}
+ const ccs=[...new Set(OS.map(o=>o.centro).filter(Boolean))].sort();
+ c.innerHTML=cabF('pgGrade','Pagamentos da Produção',`O que a Produção conferiu e mandou pagar: produção (Enforna), desenforna e empreitas. Cada conferência entra na fila da ${esc(nomeAg())}; o pagamento é o do Controle por grade, com recibo, e a Produção vê a situação.`,
+   `<button type="button" class="btn" id="pvExp">${ic('baixar')}Exportar ▾</button><a class="btn" href="#/fGrade">${ic('recibo')}Extratos e recibos</a>${podePagarG()&&edFin()?`<button type="button" class="btn" id="pvOutro">${ic('carteira')}Pagar outro trabalhador</button>`:''}`)+
+  `<div class="cpl-cards pv-cards5" role="tablist" aria-label="Resumo dos pagamentos da produção">${cards.map(q=>`<button type="button" role="tab" data-pvv="${esc(q.k)}" aria-selected="${sel===q.k}" class="${esc(q.cls||'')}"><span class="rot">${esc(q.rot)}</span><b>${esc(q.v)}</b><small>${esc(q.sub)}</small><span class="ver" aria-hidden="true">›</span></button>`).join('')}</div>`+
+  `<div class="pv-ativ" aria-label="Devido por atividade (conferido e em aberto)">${['producao','desenforna','empreita'].map(k=>`<div><span>Devido · ${esc(ATIV_C[k])}</span><b>${esc(fMoeda(parte(k)))}</b><small>${esc(k==='empreita'?pl(ab.filter(o=>o.prod.partes.empreita.ab>0.004).length,'conferência'):plG(soma(ab,o=>o.prod.partes[k].g)))}</small></div>`).join('')}</div>`+
+  `<div class="pv-filtros"><input type="search" id="pvQ" placeholder="Localizar trabalhador" value="${esc(UIF.q)}" aria-label="Localizar trabalhador">
+   <select id="pvT" aria-label="Trabalhador"><option value="">Todos os trabalhadores</option>${optH((DATA.prodGradeTrab||[]).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(t=>[t.id,t.nome]),UIF.trab)}</select>
+   <select id="pvE" aria-label="Equipe"><option value="">Todas as equipes</option>${optH(EQUIPES.map(x=>[x,x]),UIF.eq)}</select>
+   <select id="pvA" aria-label="Atividade"><option value="">Todas as atividades</option>${optH(Object.entries(ATIV),UIF.ativ)}</select>
+   <select id="pvC" aria-label="Centro de custo"><option value="">Todos os centros de custo</option>${optH(ccs.map(x=>[x,x]),UIF.cc)}</select>${selPer('pvP',UIF)}</div>`+corpo+
+  `<p class="cpl-nota">A pagar = o que a Produção conferiu e ainda não foi pago. O pagamento quita primeiro os lançamentos mais antigos do trabalhador. O período vale para os pagamentos; o que está em aberto aparece sempre. Os valores ainda não conferidos ficam em “A conferir na Produção” e não entram no total a pagar.</p>`;
+ const qi=$('#pvQ',c);qi.oninput=e=>{UIF.q=e.target.value;clearTimeout(telaProd.t);telaProd.t=setTimeout(()=>{renderTela();const i=$('#pvQ');if(i){i.focus();try{i.setSelectionRange(i.value.length,i.value.length)}catch(er){}}},250)};
+ [['#pvT','trab'],['#pvE','eq'],['#pvA','ativ'],['#pvC','cc']].forEach(([s,k])=>{const x=$(s,c);if(x)x.onchange=()=>{UIF[k]=x.value;renderTela()}});
+ ligarPer(c,'pvP',UIF);
+ $$('[data-pvv]',c).forEach(b=>b.onclick=()=>{UIF.vis=b.dataset.pvv;renderTela()});
+ ligarLinhasP(c);ligarAcoesP(c);
+ const bo=$('#pvOutro',c);if(bo)bo.onclick=()=>G.abrirPagamento('',ORIG_FIN);
+ $('#pvExp',c).onclick=()=>exportarProd($('#pvExp',c),sel,todosF,pagos,I)}
+function ligarLinhasP(c){$$('tr[data-go]',c).forEach(tr=>{const ir=()=>JBNAV.ir(tr.dataset.go);tr.onclick=e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,label'))return;ir()};tr.onkeydown=e=>{if(e.key==='Enter'&&e.target===tr)ir()}})}
+function ligarAcoesP(c){
+ $$('[data-pvpagar]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();pagarTrab(b.dataset.pvpagar)});
+ $$('[data-pvpl]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const o=obsProd().find(x=>x.ref===b.dataset.pvpl);if(o)A.pagar(o.ref)});
+ $$('[data-pvag]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();if(BV)BV.janelaAgendar(b.dataset.pvag.split(','))});
+ $$('[data-pvenv]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();if(BV)BV.janelaEnviar([b.dataset.pvenv])});
+ $$('[data-pvret]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();if(BV)BV.janelaRetirar(b.dataset.pvret)});
+ $$('[data-pvabre]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();A.abrirObrig(b.dataset.pvabre)});
+ $$('[data-pvrec]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();const p=(DATA.pgPag||[]).find(x=>x.id===b.dataset.pvrec);if(p)abrirMenuMais(b,itensAcaoDoc(()=>G.docRecibo((DATA.pgPag||[]).find(x=>x.id===p.id)||p),'Recibo de '+nomeT(p.trabId)))})}
+function telaProdTrab(c,tid){const t=TRAB(tid);const OS=obsProd().filter(o=>o.prod.trabId===tid).sort((a,b)=>String(b.prod.em).localeCompare(String(a.prod.em)));
+ const ab=OS.filter(abertaO);const B=base();const pend=B.pend.filter(p=>p.l.trabId===tid);const x=G.contaDe(tid);const e=edFin(),pg=podePagarG()&&e;
+ const mes=hoje().slice(0,7);const pagosM=(DATA.pgPag||[]).filter(p=>!p.estorno&&p.trabId===tid&&String(p.data).slice(0,7)===mes);
+ const lin=o=>{const s=o.s;const acs=[];if(abertaO(o)){if(pg)acs.push(`<button type="button" class="btn min pri" data-pvpl="${esc(o.ref)}">Pagar</button>`);
+   if(e&&BV){if(naFilaO(o))acs.push(`<button type="button" class="btn min" data-pvag="${esc(o.ref)}">${ic('calendario')}Agendar</button><button type="button" class="btn min" data-pvret="${esc(o.ref)}">Tirar da fila</button>`);
+    else if(agendadoO(o))acs.push(`<button type="button" class="btn min" data-pvag="${esc(o.ref)}">Mudar o dia</button><button type="button" class="btn min" data-pvret="${esc(o.ref)}">Tirar do agendamento</button>`);
+    else acs.push(`<button type="button" class="btn min" data-pvenv="${esc(o.ref)}">${ic('calendario')}Enviar para agendamento</button>`)}}
+  acs.push(`<button type="button" class="btn min" data-pvabre="${esc(o.ref)}">Ver</button>`);
+  return `<tr><td data-l="Conferência"><b>${esc(fData(o.lanc))}</b><span class="pv-sub">${esc(o.descricao)}${o.prod.por?' · por '+esc(quem(o.prod.por)):''}</span>${o.prod.obs?`<span class="pv-sub">“${esc(o.prod.obs)}”</span>`:''}</td>
+   <td data-l="Valor" class="num">${esc(fMoeda(o.valor))}</td><td data-l="Já pago" class="num">${esc(fMoeda(s.pagoEf))}</td><td data-l="Falta pagar" class="num"><b>${esc(fMoeda(s.saldo))}</b></td><td data-l="Situação"><span class="pv-tags">${tagsO(o)}</span></td><td class="acs"><span class="pv-acs">${acs.join('')}</span></td></tr>`};
+ c.innerHTML=cabF('pgGrade',t.nome,`${esc(t.setor||'')} · Pagamentos da Produção. O pagamento quita primeiro os lançamentos mais antigos e sai com recibo.`,
+   `<button type="button" class="btn" id="pvVolta">${ic('esquerda')}Voltar</button><a class="btn" href="#/fGrade/${esc(tid)}">${ic('recibo')}Extrato e recibos</a>${pg&&ab.length?`<button type="button" class="btn pri" id="pvPagarT">${ic('carteira')}Pagar ${esc(fMoeda(soma(ab,o=>o.s.saldo)))}</button>`:''}`)+
+  `<div class="cpl-cards" role="group" aria-label="Resumo de ${esc(t.nome)}"><button type="button" class="${ab.some(o=>o.s.vencido)?'pe':''}" tabindex="-1"><span class="rot">A pagar (conferido)</span><b>${esc(fMoeda(soma(ab,o=>o.s.saldo)))}</b><small>${esc(pl(ab.length,'conferência'))}</small></button>
+   <button type="button" tabindex="-1"><span class="rot">A conferir na Produção</span><b>${esc(fMoeda(soma(pend,p=>p.resta)))}</b><small>${esc(nL(pend.length))}</small></button>
+   <button type="button" class="ok" tabindex="-1"><span class="rot">Pago neste mês</span><b>${esc(fMoeda(soma(pagosM,p=>n0(p.valor))))}</b><small>${esc(pl(pagosM.length,'pagamento'))}</small></button>
+   <button type="button" class="${x.saldo<-0.004?'ok':''}" tabindex="-1"><span class="rot">${x.saldo<-0.004?'Crédito (pago a mais)':'Falta receber (tudo)'}</span><b>${esc(fMoeda(Math.abs(x.saldo)))}</b><small>lançado − pago no controle</small></button></div>`+
+  `<h3 class="grupo-t">Conferências enviadas pela Produção</h3>`+
+  (OS.length?`<div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Conferência</th><th class="num">Valor</th><th class="num">Já pago</th><th class="num">Falta pagar</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>${OS.map(lin).join('')}</tbody></table></div>`
+   :'<div class="vazio"><b>Nenhuma conferência ainda</b>Quando a Produção conferir e enviar os lançamentos deste trabalhador, eles aparecem aqui.</div>')+
+  (pend.length?`<h3 class="grupo-t">Ainda não conferido na Produção · ${esc(fMoeda(soma(pend,p=>p.resta)))}</h3><div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Atividade</th><th>Lançamento</th><th class="num">A conferir</th></tr></thead><tbody>
+   ${pend.map(p=>`<tr><td data-l="Data">${esc(fData(p.l.data))}</td><td data-l="Atividade">${esc(ATIV[p.ativ])}</td><td data-l="Lançamento">${esc(descL(p.l))}</td><td data-l="A conferir" class="num">${esc(fMoeda(p.resta))}</td></tr>`).join('')}</tbody></table></div>`:'');
+ $('#pvVolta',c).onclick=()=>JBNAV.voltar();
+ const bp=$('#pvPagarT',c);if(bp)bp.onclick=()=>pagarTrab(tid);
+ ligarAcoesP(c)}
+function exportarProd(btn,sel,OS,pagos,I){let cols,rows,tit,nome;
+ if(sel==='pago'){cols=[{k:'nome',l:'Trabalhador'},{k:'data',l:'Data',t:'data'},{k:'forma',l:'Forma'},{k:'conta',l:'Saiu de'},{k:'valor',l:'Valor',t:'moeda'}];
+  rows=pagos.map(p=>({nome:nomeT(p.trabId),data:p.data,forma:p.forma||'',conta:H.nomeConta(p.contaId)||'',valor:n0(p.valor)}));tit='Pagamentos da Produção · pagos ('+I.txt+')';nome='Pagamentos_producao_pagos_'+hoje()}
+ else{cols=[{k:'nome',l:'Trabalhador'},{k:'em',l:'Conferido em',t:'data'},{k:'desc',l:'Atividades'},{k:'centro',l:'Centro de custo'},{k:'valor',l:'Valor',t:'moeda'},{k:'pago',l:'Já pago',t:'moeda'},{k:'saldo',l:'Falta pagar',t:'moeda'},{k:'sit',l:'Situação'},{k:'prog',l:'Agendado para',t:'data'}];
+  rows=OS.filter(o=>sel==='fila'?naFilaO(o)&&abertaO(o):sel==='agendado'?agendadoO(o)&&abertaO(o):sel==='apagar'?abertaO(o):true).map(o=>({nome:o.benef,em:o.lanc,desc:o.descricao,centro:o.centro,valor:o.valor,pago:o.s.pagoEf,saldo:o.s.saldo,
+   sit:tagsO(o).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),prog:agendadoO(o)?o.prog:''}));tit='Pagamentos da Produção';nome='Pagamentos_producao_'+hoje()}
+ const fx=f=>exportar(f,nome,cols,rows,tit,{filtros:[UIF.trab?'Trabalhador: '+nomeT(UIF.trab):'',UIF.eq?'Equipe: '+UIF.eq:'',UIF.ativ?'Atividade: '+ATIV[UIF.ativ]:'',UIF.cc?'Centro de custo: '+UIF.cc:''].filter(Boolean).join(' · ')||'Todos'});
+ abrirMenuMais(btn,[{l:'Visualizar',sub:rows.length+' linha(s)',fn:()=>fx('ver')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Exportar Excel',fn:()=>fx('xlsx')}])}
+
+/* ---------- 6. na Produção: a situação de cada lançamento e o lançamento conferido travado ---------- */
+{const M=MODS.pgLanc;if(M){
+ if(!M.cols.some(x=>x.k==='_pgto')){const i=M.cols.findIndex(x=>x.k==='_sit');M.cols.splice(i<0?M.cols.length:i+1,0,{k:'_pgto',l:'Pagamento',v:r=>{const s=sitL(r);return s.t?tagH(s.t,s.cls):''},o:r=>sitL(r).t})}
+ if(!M.filtros.some(x=>x.k==='_pgto'))M.filtros.splice(Math.max(0,M.filtros.length-1),0,{k:'_pgto',l:'Pagamento',op:['A conferir','Na fila de pagamento','Agendado','Pago em parte','Pago'],
+  fn:(r,v)=>{const s=sitL(r);return v==='A conferir'?s.k==='conf':v==='Na fila de pagamento'?s.k==='fila'||s.k==='fin':v==='Agendado'?s.k==='ag':v==='Pago em parte'?s.k==='parc':v==='Pago'?s.k==='pago':true}});
+ const f=M.fields.find(x=>x.k==='_sit');if(f&&!f.v169){const c0=f.calc;f.v169=true;f.calc=r=>{let h='';try{h=c0(r)}catch(e){}const l=DATA.pgLanc.find(x=>x.id===r.id);if(!l||l.cancelamento)return h;const s=sitL(l);
+  return h+`<br>Pagamento: ${tagH(s.t,s.cls)}`+(enviado(l)?` <span class="ajuda">Conferido em ${esc(fDataHora(l.conf.em))}${l.conf.por?' por '+esc(quem(l.conf.por)):''} e enviado ao Financeiro. Para mudar dia, pessoa, setor, grades ou valor: desfaça a conferência (se ainda não foi pago nem agendado) ou cancele e lance de novo.</span>`:` <span class="ajuda">Ainda não conferido: confira em <a href="#/pgConf">Conferir e enviar</a>.</span>`)}}
+ const v0=M.validar;if(!M.v169){M.v169=true;M.validar=function(st){const e=(typeof v0==='function'?v0.apply(this,arguments):{})||{};const ant=DATA.pgLanc.find(l=>l.id===st.id);
+  if(ant&&enviado(ant)&&!ant.cancelamento){const mud=['data','trabId','setor'].some(k=>String(st[k]==null?'':st[k])!==String(ant[k]==null?'':ant[k]))||(!ehEmp(ant)&&(r2(n0(st.grades))!==r2(n0(ant.grades))||r2(n0(st.valorGrade))!==r2(n0(ant.valorGrade))));
+   if(mud&&!e.data)e.data='Este lançamento já foi conferido e enviado ao Financeiro em '+fDataHora(ant.conf.em)+'. Para corrigir: desfaça a conferência em Conferir e enviar (se ainda não foi pago nem agendado) ou cancele o lançamento e lance de novo.'}
+  return e}}}}
+
+/* ---------- 7. telas, menus e ligações (só acrescentam) ---------- */
+Object.assign(PERM,{pgConf:{v:PV,e:PE},fProd:{v:FV,e:['admin','financeiro','gerente']}});
+['pgConf','fProd'].forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+function shellProdV(el,ativa,corpo){const S=window.PRODUCAO_SETOR;if(S&&typeof S.shellP==='function'){S.shellP(el,ativa,corpo);return}el.innerHTML='<main class="sv-corpo" id="svCorpo"></main>';corpo($('#svCorpo',el))}
+Object.assign(TELAS_V,{pgConf:el=>shellProdV(el,'pgConf',telaConf),fProd:el=>shellF(el,'fProd',telaProd)});
+/* Produção › Controle por grade: "Conferir e enviar" logo depois de Lançamentos */
+{const ab=(window.PROD_ABAS_EXTRA||[]).find(a=>a&&a.m==='pgrade');if(ab){if(Array.isArray(ab.at)&&!ab.at.includes('pgConf'))ab.at.push('pgConf');
+ if(Array.isArray(ab.sub)&&!ab.sub.some(x=>x[1]==='pgConf')){const i=ab.sub.findIndex(x=>x[1]==='pgLanc');ab.sub.splice(i<0?ab.sub.length:i+1,0,['#/pgConf','pgConf','Conferir e enviar',['pgConf']])}}}
+/* painel do controle (Produção): o que está esperando conferência, logo no alto */
+{const t0=TELAS_V.pgrade;if(typeof t0==='function')TELAS_V.pgrade=function(el){const x=t0.apply(this,arguments);try{const c=$('#svCorpo',el);if(c&&!c.querySelector('#pcFaixa')&&pode('pgConf')){const P=base().pend;if(P.length){
+  const cab=c.querySelector(':scope>.sec-cab');const h=`<div class="pc-faixa" id="pcFaixa"><div class="aviso at"><span><b>${esc(fMoeda(soma(P,p=>p.resta)))}</b> lançados esperando conferência (${esc(nL(P.length))}). Só o que for conferido vai para o pagamento no Financeiro.</span></div><a class="btn pri" href="#/pgConf">${ic('enviar')}Conferir e enviar</a></div>`;
+  if(cab)cab.insertAdjacentHTML('afterend',h);else c.insertAdjacentHTML('afterbegin',h)}}}catch(e){console.warn('conferência no painel do controle',e)}return x}}
+/* Financeiro: módulo no menu, nos favoritos e no painel (o cartão antigo do controle sai quando o módulo novo aparece) */
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fProd'))window.FIN_ABAS_EXTRA.push({depois:'fGrade',r:'#/fProd',m:'fProd',ic:'pgGrade',l:'Pagamentos da Produção',at:['fProd']});
+window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(x=>x!=='#/fProd'),'#/fProd'];
+{const tf0=TELAS_V['setor-financeiro'];if(typeof tf0==='function')TELAS_V['setor-financeiro']=function(el){const r=tf0.apply(this,arguments);
+ try{if(el.querySelector('[data-cpgmod="prod"]'))el.querySelectorAll('.pg-fmods,.pg-fmods-t').forEach(x=>x.remove())}catch(e){}return r}}
+/* busca geral (Ctrl K) */
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(t,s,i,h,x)=>E.push({g:'Telas',t,s,ic:i,k:NN(t+' '+s+' '+x),ir:()=>JBNAV.ir(h),h,ix:E.length});
+ if(pode('pgConf'))add('Conferir e enviar ao Financeiro','Produção · Controle por grade · conferir grades, desenfornas e empreitas antes do pagamento','pgGrade','#/pgConf','conferir conferencia enviar financeiro pagamento producao grade desenforna empreita');
+ if(pode('fProd'))add('Pagamentos da Produção','Financeiro · produção, desenforna e empreitas conferidas, fila do agendamento e pagamento','pgGrade','#/fProd','pagamentos producao desenforna empreita grade conferido pagar agendar')}catch(e){}return E}}
+window.PAG_PROD_V169=Object.freeze({base,sitL,sitLote,obLote,obsProd,conferir,marcar,marcados,janelaConferir,janelaDesfazer,pagarLote,pagarTrab,simular,contaConf,UIC,UIF,refDe,ATIV});
 })();
 </script>
 </body>

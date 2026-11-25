@@ -1329,6 +1329,46 @@ teste('caixa-dia', 'V167: Resumo financeiro do dia, fechamento, relatório ao pr
   if (ci) assert.ok(ci.includes('node scripts/testar-caixa-dia.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('pagamentos-producao', 'V169: Pagamentos da Produção (conferência na Produção, compromisso no Financeiro sem cópia, fila de quem paga, pagamento pelo Controle por grade, lançamento conferido travado, sem duplicar)', () => {
+  const app = ler('app/jb-gestao.html');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  for (const id of ['<style id="pagamentos-producao-v169-css">', '<script id="pagamentos-producao-v169">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const b = /<script id="pagamentos-producao-v169">([\s\S]*?)<\/script>/.exec(app)[1];
+  const pos = (id) => app.indexOf('<script id="' + id + '">');
+  assert.ok(pos('pagamentos-producao-v169') > pos('grade-v156') && pos('pagamentos-producao-v169') > pos('boletos-v166') && pos('pagamentos-producao-v169') > pos('central-pagamentos'), 'vem depois do Controle por grade, dos boletos e da Central, que ele usa');
+  /* a Produção grava só a conferência no próprio lançamento; o Financeiro não grava na Produção; nada apagado */
+  const grav = [...b.matchAll(/\bgravar(?:Registro)?\(\s*'([A-Za-z]+)'/g)].map((m) => m[1]);
+  assert.ok(grav.length === 2 && grav.every((c) => c === 'pgLanc'), 'grava só a conferência nos lançamentos (conferir e desfazer): ' + grav.join(','));
+  assert.ok(!/\bapagar\(|bucketPut\(|Object\.assign\(DATA/.test(b), 'não apaga nem cria coleção');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  /* sem duplicar: identificador fixo por trabalhador e envio; o que já está conferido não é tocado */
+  assert.ok(b.includes("const refDe=(tid,env)=>'pp:'+tid+':'+env;") && b.includes('if(enviado(l)||l.cancelamento)continue;'), 'identificador fixo e conferência que não repete');
+  assert.ok(b.includes("const conf={st:'enviado',envio,em,por,obs:opc.obs||'',pagarAte:opc.pagarAte||'',desfeitoEm:'',desfeitoPor:'',motivo:''"), 'quem conferiu, quando e a observação ficam no lançamento');
+  /* a ordem do controle (os pagamentos quitam primeiro os mais antigos) */
+  assert.ok(b.includes('if(on)doT.slice(0,i+1).forEach(p=>UIC.fora.delete(p.l.id));else doT.slice(i).forEach(p=>UIC.fora.add(p.l.id))'), 'não confere um lançamento deixando um mais antigo para trás');
+  /* lançamento conferido travado; desfazer só sem pagamento e sem agendamento */
+  assert.ok(b.includes('Este lançamento já foi conferido e enviado ao Financeiro em ') && b.includes("if(x.pagamentos.length){toast('Já há pagamento nesta conferência"), 'conferido não muda; desfazer só sem pagamento');
+  /* Financeiro: origem de compromissos, fila aberta pela conferência, pagamento pelo controle */
+  assert.ok(b.includes("window.FIN_ORIGENS.push({id:'producao',chave,listar(){") && b.includes("fonte:'producao'") && b.includes("categoria:CAT") && b.includes("const CAT='Pagamentos da Produção'"), 'compromissos de origem da Produção, categoria Pagamentos da Produção');
+  assert.ok(b.includes("filaPadrao:{st:'aguardando'") && app.includes("return o.filaPadrao&&!(m.fila&&typeof m.fila==='object')?{...m,fila:o.filaPadrao}:m};"), 'a conferência já entra na fila de quem paga');
+  assert.ok(app.includes("if(typeof o.pagarFn==='function')return o.pagarFn(o);") && b.includes('G.abrirPagamento(x.trabId,ORIG_FIN,{valor:'), 'pagar abre o pagamento do Controle por grade (o mesmo recibo e extrato)');
+  assert.ok(app.includes("FIN_ORIGENS.forEach(o=>{try{k.push(typeof o.chave==='function'?o.chave():null)}catch(e){k.push(null)}});") && app.includes('if(MEMO_O.k&&MEMO_O.k.length===k.length&&MEMO_O.k.every((x,i)=>x===k[i])'), 'a lista de compromissos se refaz quando a Produção muda');
+  assert.ok(app.includes("if(o.fonte==='producao'&&MOD('prod'))return 'prod';") && app.includes("const mods=MODULOS.filter(m=>typeof m.so!=='function'||m.so())"), 'módulo próprio em "A pagar por módulo" (só quando há conferência)');
+  assert.ok(app.includes('function abrirPagamento(tid,origem,opc){opc=opc||{};') && app.includes("PC.antesDePagar(id,valor,origem)"), 'o pagamento por grade avisa a parte ainda não conferida');
+  /* ligações (só acrescentam): menu e sub-aba, painel do dono */
+  assert.ok(b.includes("['#/pgConf','pgConf','Conferir e enviar',['pgConf']]") && b.includes("{depois:'fGrade',r:'#/fProd',m:'fProd'"), 'na Produção e no Financeiro');
+  assert.ok(app.includes("'prel','pcfg','pgConf',") && (/const ROTAS_FIN=\[([^\]]*)\]/.exec(app) || [, ''])[1].includes("'fProd'"), 'painel do dono: as telas novas valem na concessão e suspensão da Produção e do Financeiro');
+  /* banco: só acrescenta leitura (a Produção vê a fila e a agenda dos pagamentos que conferiu) */
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const mig = join(RAIZ, 'supabase/migrations/20261125160000_seg_pagamentos_producao.sql');
+    assert.ok(existsSync(mig) && existsSync(mig.replace('.sql', '.down.sql')), 'migração com reversão');
+    const sql = ler('supabase/migrations/20261125160000_seg_pagamentos_producao.sql');
+    assert.ok(sql.includes("when coalesce(p_item->>'ref', '') like 'pp:%' then array['producao']") && !/escrita_item/.test(sql.replace(/--.*$/gm, '')), 'só a leitura dos registros de apoio dos pagamentos da produção');
+    assert.ok(!/\b(drop|delete|truncate)\b/i.test(sql.replace(/--.*$/gm, '')), 'a migração só acrescenta');
+  }
+  if (ci) assert.ok(ci.includes('node scripts/testar-pagamentos-producao.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), adm = ler('nuvem/admin.html');
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
