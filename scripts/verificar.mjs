@@ -1269,6 +1269,32 @@ teste('grade', 'Empreita do forno (V158): valor digitado em cada empreita, divis
   assert.ok(b.includes('const jaNoDia=(tid,d,s)=>DATA.pgLanc.filter(l=>!l.cancelamento&&!ehEmp(l)&&'), 'a empreita não conta como grade repetida do dia');
 });
 
+teste('boletos', 'V166: Boletos e contas a pagar (linha digitável conferida, boleto repetido bloqueado, prioridades, fila de agendamento) sobre os compromissos do Financeiro, sem coleção nova e sem apagar', () => {
+  const app = ler('app/jb-gestao.html');
+  for (const id of ['<style id="boletos-v166-css">', '<script id="boletos-v166">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const b = /<script id="boletos-v166">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(app.indexOf('<script id="boletos-v166">') > app.indexOf('<script id="central-pagamentos">'), 'vem depois da Central de Pagamentos, que ele usa');
+  /* nenhum cadastro novo: grava só no compromisso do Financeiro (fTitulos) ou no registro de apoio (fMeta) */
+  assert.ok(!/Object\.assign\(DATA/.test(b) && !/BUCKET|PARTES/.test(b), 'nenhuma coleção nova');
+  const gravacoes = [...b.matchAll(/\bgravar\(\s*'([A-Za-z]+)'/g)].map((m) => m[1]);
+  assert.ok(gravacoes.length && gravacoes.every((c) => c === 'fTitulos' || c === 'fMeta'), 'grava só no compromisso ou no registro de apoio: ' + gravacoes.join(','));
+  assert.ok(!/\bapagar\(|gravarRegistro\(|bucketPut\(/.test(b), 'não apaga nem cria registros por outro caminho');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  /* leitura da linha digitável pelos dígitos verificadores (módulo 10, módulo 11 e a virada do fator em 22/02/2025) */
+  assert.ok(b.includes("const d=11-(s%11);return d===0||d===10||d===11?1:d") && b.includes("return r<=1?0:11-r") && b.includes("somaDias('2025-02-22',f-1000)") && b.includes("somaDias('1997-10-07',f)"), 'dígitos verificadores e fator de vencimento');
+  /* boleto repetido: os 44 números do código de barras, contra todos os compromissos não cancelados */
+  assert.ok(b.includes('function boletoRepetido(barras,id){') && b.includes('O mesmo boleto não pode entrar duas vezes.'), 'o mesmo boleto não entra duas vezes');
+  /* enviar para o agendamento nunca paga: a fila só marca a situação; agendar grava dia e marca da agenda */
+  assert.ok(b.includes("fila:{st:'aguardando'") && b.includes("const mud={dataPrevista:d,naAgenda:true,fila:{...f0,st:'agendado'") && !/pagamentos\s*:/.test(b), 'fila e agenda sem pagamento');
+  assert.ok(b.includes("'enviou para agendamento'") && b.includes("'agendou o pagamento'") && b.includes("'retirou do agendamento'") && b.includes("'definiu a prioridade'"), 'cada passo fica no histórico');
+  /* ligações (só acrescentam): menu do Financeiro, favoritos, gaveta da conta, leitura por foto e painel do dono */
+  assert.ok(b.includes("{depois:'fcentral',r:'#/fBoletos',m:'fBoletos'") && b.includes("window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(k=>k!=='#/fBoletos'),'#/fBoletos'];"), 'no menu e nos favoritos do Financeiro');
+  assert.ok(app.includes("try{if(window.JB_BOLETO&&JB_BOLETO.completarConf)JB_BOLETO.completarConf(C,L)}catch(e){console.warn('boleto lido',e)}") && app.includes("JB_BOLETO.linhaValida(C.linhaDig)") && app.includes("['linhaDigitavel','codigoBarras'].forEach(k=>{if(ev[k])erros.push(ev[k])})"), 'a leitura por foto passa pela mesma conferência');
+  assert.ok(app.includes("'fExtrato','fImport','fBoletos','fMeta','fGrade'];"), 'painel do dono: a tela nova vale na concessão e suspensão do Financeiro');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-boletos.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), adm = ler('nuvem/admin.html');
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;

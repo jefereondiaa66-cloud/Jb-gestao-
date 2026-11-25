@@ -24075,6 +24075,7 @@ function montarConf(job){
   linhas,data:hoje(),nota:L.doc.numero,serie:L.doc.serie,chave:L.doc.chave,emissao:L.doc.emissao,frete:L.val.frete||0,
   categoria:catFin,catSugerida:destino!=='almox'&&!!L.catFin&&cats.includes(L.catFin),centro,pag,
   vencs:L.vencs.filter(v=>v.data),vencManual:'',linhaDig:L.linhaDig,obs:'',forcarDup:false};
+ try{if(window.JB_BOLETO&&JB_BOLETO.completarConf)JB_BOLETO.completarConf(C,L)}catch(e){console.warn('boleto lido',e)} /* V166: linha digitável conferida pelos dígitos */
  return C}
 const catAlmDe=linhas=>{const cats=H.fcfg().categorias||[];const cs=linhas.map(l=>l.alvo&&l.alvo!=='novo'?((B.ITEM(l.alvo)||{}).categoria):l.catNovo);
  const so=cs.length&&cs.every(c=>c==='Cozinha');const pref=so?['Alimentação dos funcionários','Alimentação']:['Peças e materiais','Materiais'];return pref.find(c=>cats.includes(c))||pref[0]};
@@ -24141,14 +24142,15 @@ function alertas(job){
   if(fid){const dd=DATA.almEntradas.find(x=>x.fornecedorId===fid&&x.data===C.data&&ig(x.total,K.total));if(dd&&!C.forcarDup)avisos.push('Já existe uma entrada deste fornecedor hoje com o mesmo total ('+fMoeda(dd.total)+'). Confira se não é repetida.')}
  }else{
   if(!podeFin())erros.push('Seu perfil não lança compromissos no Financeiro.');
-  if(!(K.totalDoc>0)&&!(K.total>0))erros.push('O valor total do documento não foi lido. Informe o valor a pagar.');
+  if(!(valorFin(job)>0))erros.push('O valor total do documento não foi lido. Informe o valor a pagar.'); /* V166: vale também o valor digitado ou tirado do código do boleto */
   const st=rascunhoTitulo(job,{n:1,valor:valorFin(job),venc:parcelas(job,valorFin(job)).ls[0].venc},1);
-  try{const ev=MODS.fTitulos.validar(st)||{};if(ev.docOrigemNum&&!C.forcarDup)erros.push(ev.docOrigemNum+' Para lançar de novo mesmo assim, marque a opção no fim da página.');if(ev._aviso)avisos.push(ev._aviso)}catch(e){}
+  try{const ev=MODS.fTitulos.validar(st)||{};if(ev.docOrigemNum&&!C.forcarDup)erros.push(ev.docOrigemNum+' Para lançar de novo mesmo assim, marque a opção no fim da página.');['linhaDigitavel','codigoBarras'].forEach(k=>{if(ev[k])erros.push(ev[k])});if(ev._aviso)avisos.push(ev._aviso)}catch(e){}
+  try{const xb=window.JB_BOLETO&&JB_BOLETO.alertasLeitura?JB_BOLETO.alertasLeitura(C):null;if(xb){xb.avisos.forEach(x=>avisos.push(x));xb.info.forEach(x=>info.push(x))}}catch(e){} /* V166 */
   if(!C.categoria)erros.push('Escolha a categoria da despesa.');else if(C.catSugerida)info.push('Categoria "'+C.categoria+'" sugerida pela leitura. Confira.');
  }
  if(L.val.produtos!=null&&almox&&!ig(L.val.produtos,K.somaL)&&!L.val.desconto)avisos.push('A soma dos itens lidos ('+fMoeda(K.somaL)+') é diferente do total de produtos do documento ('+fMoeda(L.val.produtos)+'). Pode faltar ou sobrar item: confira.');
  if(almox&&K.totalDoc!=null&&Math.abs(K.dif)>=0.02)avisos.push('A soma dos itens + frete + impostos ('+fMoeda(K.total)+') não bate com o total do documento ('+fMoeda(K.totalDoc)+'): diferença de '+fMoeda(Math.abs(K.dif))+'.');
- if(K.totalDoc==null)avisos.push('O total do documento não foi lido: o lançamento usa a soma dos itens.');
+ if(K.totalDoc==null&&!(!almox&&C.valorManual>0))avisos.push('O total do documento não foi lido: o lançamento usa a soma dos itens.');
  if(almox&&K.acres)info.push((K.acres>0?'Impostos e despesas da nota (':'Desconto da nota (')+fMoeda(Math.abs(K.acres))+') distribuídos no custo dos itens, proporcional ao valor de cada um.');
  if(C.pag.fonte==='pergunta'&&!C.pag.sit)erros.push('Responda: como foi realizado o pagamento?');
  if(C.pag.sit==='pago'&&!C.pag.forma)erros.push('Escolha a forma de pagamento.');
@@ -24243,7 +24245,7 @@ function telaConf(){
   <div class="lia-sec"><h3>Documento ${tagLido(TIPO_TXT[L.tipo]||'Documento')}</h3><div class="lia-kv">
    ${kv('Número',C.nota?esc(C.nota)+(C.serie?' · série '+esc(C.serie):''):'<span class="tag at">não lido</span>')}${kv('Emissão',C.emissao?esc(fData(C.emissao)):'<span class="tag at">não lida</span>')}
    ${C.chave?kv('Chave de acesso','<small>'+esc(C.chave.replace(/(\d{4})/g,'$1 ').trim())+'</small>'):''}${kv('Total do documento',valorTxt(K.totalDoc))}
-   ${C.linhaDig?kv('Linha digitável','<small>'+esc(C.linhaDig)+'</small>'):''}${kv('Lido por',J.motor==='nuvem'?'IA do servidor da nuvem':'Claude desta página')}</div></div>
+   ${C.linhaDig?kv('Linha digitável','<small>'+esc(C.linhaDig)+'</small>'+(window.JB_BOLETO?JB_BOLETO.tagLinha(C.linhaDig):'')):''}${kv('Lido por',J.motor==='nuvem'?'IA do servidor da nuvem':'Claude desta página')}</div></div>
   <div class="lia-sec"><h3>Fornecedor ${forn.escolha!=='novo'&&fSel?tagLido('já cadastrado'):tagPres('será cadastrado')}</h3>
    <div class="campos"><div class="cmp"><label for="liaForn">Fornecedor</label><select id="liaForn"><option value="novo">${esc(forn.nome?'＋ Cadastrar “'+forn.nome+'”':'＋ Cadastrar novo')}</option>${optF.map(f=>`<option value="${esc(f.id)}"${f.id===forn.escolha?' selected':''}>${esc(f.nome+(f.doc?' · '+B.fmtDoc(f.doc):''))}</option>`).join('')}</select>
     ${forn.finId&&!almox?'<span class="ajuda">Já está nos fornecedores do Financeiro: o compromisso fica ligado a esse cadastro.</span>':''}</div>
@@ -24360,9 +24362,9 @@ function rascunhoTitulo(job,p,n){
  const fAlm=C.forn.escolha!=='novo'?B.FORNA(C.forn.escolha):null;const nome=fAlm?fAlm.nome:String(C.forn.nome||'').trim();
  const tipoDoc=docTipoFin(L.tipo);
  return{id:novoId(),data:C.data,descricao:(TIPO_TXT[L.tipo]||'Documento')+(C.nota?' nº '+C.nota:'')+(nome?' · '+nome:''),categoria:C.categoria,setorOrigem:'Geral (Financeiro)',centroCusto:C.centro||'',
-  ...(fin?{beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:fin.id}:{beneficiarioTipo:'Outro',beneficiario:nome||'Fornecedor não identificado'}),
+  ...(fin?{beneficiarioTipo:'Fornecedor cadastrado',fornecedorId:fin.id}:{beneficiarioTipo:'Outro',beneficiario:nome||'Fornecedor não identificado',...(C.forn.docOk&&C.forn.doc?{cnpjCpf:C.forn.doc}:{})}),
   valor:r2(p.valor),vencimento:p.venc,dataPrevista:!pago&&p.venc>=hoje()?p.venc:'',formaPrevista:pago?C.pag.forma:(C.pag.forma||(C.linhaDig?'Boleto':'PIX')),contaId:pago?C.pag.conta:'',
-  docOrigemTipo:tipoDoc,docOrigemNum:tipoDoc?String(C.nota||''):'',linhaDigitavel:C.linhaDig||'',condicaoT:pago?'À vista (já pago)':'A prazo',repetir:'Não repete',
+  docOrigemTipo:tipoDoc,docOrigemNum:tipoDoc?String(C.nota||''):'',linhaDigitavel:(window.JB_BOLETO&&C.linhaDig?JB_BOLETO.linhaValida(C.linhaDig):C.linhaDig)||'',dataEmissao:C.emissao||'',condicaoT:pago?'À vista (já pago)':'A prazo',repetir:'Não repete',
   pagamentos:pago?[{id:novoId(),data:C.pag.data&&C.pag.data<=hoje()?C.pag.data:C.data,valor:r2(p.valor),forma:C.pag.forma,contaId:C.pag.conta,quitacao:true,motivoDif:'',obsDif:'',por:eu(),em:agoraIso(),obs:'Pago, conforme o documento lido no Lançamento Inteligente por Foto'}]:[],
   ...(n>1?{parcela:p.n,parcelas:n}:{})}}
 async function efetivar(btn){
@@ -26031,7 +26033,7 @@ window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes
  /* ---------- setores e rotas (lidos das regras que já existem; nada é recriado) ---------- */
  const ROTAS_PROD=['setor-producao','plancar','pmes','pmaromba','pparadas','psecagem','psecmov','pfornadas','pdesenf','ppronto','pprontomov','plenha','prel','pcfg',
   'pgrade','pgDia','pgEmp','pgLanc','pgTrab','pgPag','pgExtrato','pgRel'];   /* V156: Controle por grade é da Produção (V158: pgEmp, empreita do forno) */
- const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fMeta','fGrade'];   /* V156: Pagamento por grade */
+ const ROTAS_FIN=['setor-financeiro','fdia','fcal','fpagar','fTitulos','fextrato','fContas','fconc','fDocs','frel','faud','fcfg','fExtrato','fImport','fBoletos','fMeta','fGrade'];   /* V156: Pagamento por grade */
  const COMPART=['setores','documento','breve','grupo','ficha','instalar'];
  const DP_LANCA=['funcionarios','diario','horasExtras','ferias','folha','quinzena','lancar','vales','adicionais','despesas','documentos','contratos','producao','alimentacao','diarias',
   'admissoes','desligamentos','afastamentos','alteracoes','exames','dependentes','importar','advertencias','disciplinar','central','termos','doc','feriasctrl','conferencia'];
@@ -52409,5 +52411,475 @@ window.JB_ESTOQUE=Object.freeze({SETOR,CAT,classificar,destinoLinha,entradasNoSe
 })();
 </script>
 
+<style id="boletos-v166-css">
+/* V166 · Boletos e contas a pagar e fila de agendamento na agenda de quem paga (25/11/2026).
+   Só o que os componentes do sistema não trazem: cartões da lista, faixas de vencimento e prioridades. */
+.bol-topo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.bol-topo .btn{gap:6px}
+.bol-topo label.btn{cursor:pointer}
+.bol-faixas{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;margin:0 0 12px}
+.bol-fx{all:unset;box-sizing:border-box;cursor:pointer;background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-height:62px}
+.bol-fx b{font-size:16px;font-variant-numeric:tabular-nums}
+.bol-fx span{font-size:12.5px;color:var(--suave,#5B6168);line-height:1.3}
+.bol-fx.on{outline:2px solid var(--c2-preto,#0B0B0D);outline-offset:-2px}
+.bol-fx.pe b{color:#B42318}.bol-fx.at b{color:#8A5A00}.bol-fx.ok b{color:#16784A}
+.bol-fx:focus-visible{outline:2px solid #D3121C}
+.bol-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.bol-filtros input,.bol-filtros select{padding:8px 10px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit;background:var(--pn-b,#fff);color:inherit;min-height:40px;box-sizing:border-box}
+.bol-filtros input[type=search]{flex:1;min-width:200px}
+.bol-filtros .bol-vl{width:120px}
+.bol-filtros label{display:flex;gap:6px;align-items:center;font-size:13px}
+.bol-resumo{font-size:13px;color:var(--suave,#5B6168);margin:0 2px 8px}
+.bol-lista{display:flex;flex-direction:column;gap:8px}
+.bol-card{background:var(--pn-b,#fff);border:1px solid var(--pn-l,#DDE0E3);border-left:4px solid #C9CDD2;border-radius:6px;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start}
+.bol-card.p0{border-left-color:#B42318;background:#FFF8F7}.bol-card.p1{border-left-color:#E07A12}.bol-card.p2{border-left-color:#C9A227}.bol-card.p3{border-left-color:#8A9099}
+.bol-card.sem-chk{grid-template-columns:minmax(0,1fr) auto}.bol-card.sem-chk .bol-sub,.bol-card.sem-chk .bol-tags,.bol-card.sem-chk .bol-ac{grid-column:1/3}
+.bol-chk{grid-row:1/span 3;padding-top:1px}.bol-chk input{width:18px;height:18px;margin:0}
+.bol-tit{font-size:15px;font-weight:700;overflow-wrap:anywhere;cursor:pointer}
+.bol-val{font-size:16px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bol-val small{display:block;font-size:11.5px;font-weight:500;color:var(--suave,#5B6168)}
+.bol-sub{grid-column:2/4;font-size:13px;color:var(--suave,#5B6168);overflow-wrap:anywhere}
+.bol-tags{grid-column:2/4;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px}
+.bol-ac{grid-column:2/4;display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.bol-ac .btn{font-size:13px}
+.bol-ac .bol-3p{font-size:18px;line-height:1;padding-left:14px;padding-right:14px;letter-spacing:1px}
+.tag.bol-pr0{background:#B42318;color:#fff}.tag.bol-pr1{background:#FCE7D3;color:#9A4A00}.tag.bol-pr2{background:#FBF1D0;color:#7A5B00}.tag.bol-pr3{background:#EEF0F2;color:#4B5058}
+.bol-barra{position:sticky;bottom:8px;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--c2-preto,#0B0B0D);color:#fff;border-radius:8px;padding:10px 14px;margin-top:10px}
+.bol-barra .btn{background:#fff;color:#0B0B0D}
+.bol-mais{margin:12px 0 0;text-align:center}
+.bol-nota{font-size:12.5px;color:var(--suave,#5B6168);margin:10px 2px 0;line-height:1.45}
+.bol-fila{border:1px solid var(--pn-l,#DDE0E3);border-left:4px solid var(--c2-preto,#0B0B0D);border-radius:8px;background:var(--pn-b,#fff);margin:0 0 14px;padding:12px 14px}
+.bol-fila-cab{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;justify-content:space-between}
+.bol-fila-cab h3{margin:0;font-size:15px}
+.bol-fila-cab .bol-fila-n{font-size:13px;color:var(--suave,#5B6168);font-weight:400;margin-left:6px}
+.bol-fila-ac{display:flex;gap:8px;flex-wrap:wrap}
+.bol-fila .bol-lista{margin-top:10px}
+.bol-conf{font-size:13px;line-height:1.5}
+.bol-conf .tag{margin-right:6px}
+.bol-lin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;overflow-wrap:anywhere}
+.bol-hist{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--suave,#5B6168)}
+@media(max-width:640px){.bol-card{grid-template-columns:auto minmax(0,1fr)}.bol-card.sem-chk{grid-template-columns:minmax(0,1fr)}.bol-val{grid-column:2;text-align:left}.bol-card.sem-chk .bol-val{grid-column:1}
+ .bol-sub,.bol-tags,.bol-ac{grid-column:1/3!important}.bol-card.sem-chk .bol-sub,.bol-card.sem-chk .bol-tags,.bol-card.sem-chk .bol-ac{grid-column:1!important}
+ .bol-ac .btn{flex:1 1 auto}.bol-ac .bol-3p{flex:0 0 auto}.bol-faixas{grid-template-columns:repeat(2,minmax(0,1fr))}.bol-filtros input[type=search]{min-width:0;width:100%}.bol-topo .btn{flex:1 1 auto}}
+</style>
+<script id="boletos-v166">
+/* ================= V166 · Boletos e contas a pagar (pedido do Jeferson, 25/11/2026) =================
+   "Central Inteligente de Contas a Pagar": cadastro de boleto por foto (o Lançamento Inteligente por Foto que já existe),
+   conferência da linha digitável pelos dígitos verificadores, bloqueio de boleto repetido, prioridades, faixas de
+   vencimento, a decisão de cada conta (PAGAR ou ENVIAR PARA AGENDAMENTO) e a fila de agendamento na agenda de quem paga.
+   Regras:
+   · nenhum cadastro novo: a lista é a base única de compromissos do Financeiro (FINANCEIRO_SETOR.obrigacoes) e a
+     gravação vai pelos mesmos caminhos de sempre (no próprio compromisso ou no registro de apoio fMeta);
+   · nada é inventado: valor, vencimento e banco só saem do próprio código do boleto, e só quando ele confere;
+   · o mesmo boleto (mesmos 44 números do código de barras) não entra duas vezes;
+   · enviar para agendamento nunca marca como pago; quem paga escolhe o dia e a conta; pago é só com o pagamento registrado;
+   · retirar da fila ou da agenda não apaga nada: fica no histórico da conta, com quem fez, quando e o motivo. */
+(function(){'use strict';
+const FS=window.FINANCEIRO_SETOR,CP=window.CPG_FIN;
+if(!FS||!FS.h||!FS.acoes||!CP){console.warn('Boletos: Financeiro não carregado');return}
+const H=FS.h,A=FS.acoes;const {shellF,cabF,modalF,campoM,valM,optH,optsContas,nomeConta,abertaO,fcfg,r2,ig}=H;
+const FV=['admin','financeiro','gerente'],FE=['admin','financeiro'];
+const ed=()=>pode('fpagar','e');
+const eu=()=>APP.uid||'local',agoraI=()=>new Date().toISOString();
+const refSeg=ref=>String(ref).replace(/[^A-Za-z0-9_\-]/g,'_');
+const N=s=>semAcento(String(s||'')).replace(/\s+/g,' ').trim();
+if(typeof IC==='object'&&!IC.boleto)IC.boleto='<path d="M3.5 6v12M6.5 6v12M9 6v12M12.5 6v12M15 6v12M17.5 6v12M20.5 6v12"/>';
+
+/* ---------- 1. leitura da linha digitável e do código de barras (FEBRABAN), sem internet ---------- */
+const JB_BOLETO=(()=>{
+ const dg=s=>String(s==null?'':s).replace(/\D/g,'');
+ function mod10(n){let s=0,p=2;for(let i=n.length-1;i>=0;i--){let x=(+n[i])*p;if(x>9)x=Math.floor(x/10)+(x%10);s+=x;p=p===2?1:2}const r=s%10;return r===0?0:10-r}
+ function mod11Banco(n){let s=0,p=2;for(let i=n.length-1;i>=0;i--){s+=(+n[i])*p;p=p===9?2:p+1}const d=11-(s%11);return d===0||d===10||d===11?1:d}
+ function mod11Arrec(n){let s=0,p=2;for(let i=n.length-1;i>=0;i--){s+=(+n[i])*p;p=p===9?2:p+1}const r=s%11;return r<=1?0:11-r}
+ const BANCOS={'001':'Banco do Brasil','003':'Banco da Amazônia','004':'Banco do Nordeste','021':'Banestes','033':'Santander','037':'Banpará','041':'Banrisul','047':'Banese','070':'BRB','077':'Banco Inter',
+  '085':'Ailos','104':'Caixa Econômica Federal','133':'Cresol','136':'Unicred','197':'Stone','208':'BTG Pactual','212':'Banco Original','218':'Banco BS2','237':'Bradesco','246':'Banco ABC Brasil',
+  '260':'Nubank','290':'PagBank','323':'Mercado Pago','336':'C6 Bank','341':'Itaú','380':'PicPay','389':'Banco Mercantil','403':'Cora','422':'Safra','623':'Banco Pan','633':'Banco Rendimento',
+  '637':'Banco Sofisa','655':'Banco Votorantim','707':'Banco Daycoval','745':'Citibank','746':'Banco Modal','748':'Sicredi','756':'Sicoob'};
+ const SEGMENTOS={'1':'Prefeitura','2':'Saneamento (água e esgoto)','3':'Energia elétrica e gás','4':'Telecomunicações','5':'Órgão do governo','6':'Carnê ou empresa','7':'Multa de trânsito','9':'Uso do banco'};
+ const iso=d=>d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+ const somaDias=(base,n)=>{const d=new Date(base+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return iso(d)};
+ /* fator de vencimento: dias desde 07/10/1997; chegou a 9999 em 21/02/2025 e voltou a 1000 em 22/02/2025.
+    Das duas datas possíveis fica a mais perto do dia de referência (hoje). Fator 0000: sem vencimento no código. */
+ function vencDoFator(f,ref){f=+f;if(!(f>0))return '';const a=somaDias('1997-10-07',f);const b=f>=1000?somaDias('2025-02-22',f-1000):'';if(!b)return a;
+  const r=Date.parse((ref||hoje())+'T00:00:00Z');return Math.abs(Date.parse(a+'T00:00:00Z')-r)<=Math.abs(Date.parse(b+'T00:00:00Z')-r)?a:b}
+ const fmtBanc=l=>l.slice(0,5)+'.'+l.slice(5,10)+' '+l.slice(10,15)+'.'+l.slice(15,21)+' '+l.slice(21,26)+'.'+l.slice(26,32)+' '+l.slice(32,33)+' '+l.slice(33);
+ const fmtArrec=l=>[0,12,24,36].map(i=>l.slice(i,i+11)+'-'+l.slice(i+11,i+12)).join(' ');
+ function linhaDeBarrasBanc(b){const c1=b.slice(0,4)+b.slice(19,24),c2=b.slice(24,34),c3=b.slice(34,44);return c1+mod10(c1)+c2+mod10(c2)+c3+mod10(c3)+b[4]+b.slice(5,19)}
+ const barrasDeLinhaBanc=l=>l.slice(0,4)+l[32]+l.slice(33,47)+l.slice(4,9)+l.slice(10,20)+l.slice(21,31);
+ function linhaDeBarrasArrec(b){const m=(b[2]==='6'||b[2]==='7')?mod10:mod11Arrec;let l='';for(let i=0;i<44;i+=11){const p=b.slice(i,i+11);l+=p+m(p)}return l}
+ const barrasDeLinhaArrec=l=>l.slice(0,11)+l.slice(12,23)+l.slice(24,35)+l.slice(36,47);
+ /* devolve {ok, erro, tipo, barras, linha, banco, valor, venc, segmento}; o que o código não traz fica vazio */
+ function decodificar(txt,ref){
+  const n=dg(txt);const R={ok:false,erro:'',tipo:'',barras:'',linha:'',bancoCod:'',banco:'',valor:null,venc:'',segmento:''};
+  if(!n){R.erro='vazio';return R}
+  if(n[0]==='8'){ /* arrecadação: contas de consumo, tributos e guias */
+   let b;if(n.length===48){const m=(n[2]==='6'||n[2]==='7')?mod10:(n[2]==='8'||n[2]==='9')?mod11Arrec:null;if(!m){R.erro='o terceiro número da guia não é válido';return R}
+    const ruim=[0,12,24,36].findIndex(i=>m(n.slice(i,i+11))!==+n[i+11]);if(ruim>=0){R.erro='o dígito do '+(ruim+1)+'º bloco não confere';return R}b=barrasDeLinhaArrec(n)}
+   else if(n.length===44)b=n;else{R.erro='tem '+n.length+' números (a guia tem 48 na linha digitável ou 44 no código de barras)';return R}
+   const m=(b[2]==='6'||b[2]==='7')?mod10:(b[2]==='8'||b[2]==='9')?mod11Arrec:null;if(!m){R.erro='o terceiro número da guia não é válido';return R}
+   if(m(b.slice(0,3)+b.slice(4))!==+b[3]){R.erro='o dígito verificador geral não confere';return R}
+   R.ok=true;R.tipo='arrecadacao';R.barras=b;R.linha=fmtArrec(linhaDeBarrasArrec(b));R.segmento=SEGMENTOS[b[1]]||'';
+   if(b[2]==='6'||b[2]==='8'){const v=+b.slice(4,15)/100;R.valor=v>0?Math.round(v*100)/100:null}
+   return R}
+  let b;
+  if(n.length===47){const ruim=[[0,9,9],[10,20,20],[21,31,31]].findIndex(([i,f,d])=>mod10(n.slice(i,f))!==+n[d]);if(ruim>=0){R.erro='o dígito do '+(ruim+1)+'º campo não confere';return R}b=barrasDeLinhaBanc(n)}
+  else if(n.length===44)b=n;else{R.erro='tem '+n.length+' números (o boleto tem 47 na linha digitável ou 44 no código de barras)';return R}
+  if(mod11Banco(b.slice(0,4)+b.slice(5))!==+b[4]){R.erro='o dígito verificador geral não confere';return R}
+  R.ok=true;R.tipo='bancario';R.barras=b;R.linha=fmtBanc(linhaDeBarrasBanc(b));R.bancoCod=b.slice(0,3);R.banco=BANCOS[R.bancoCod]||('Banco '+R.bancoCod);
+  const v=+b.slice(9,19)/100;R.valor=v>0?Math.round(v*100)/100:null;R.venc=vencDoFator(b.slice(5,9),ref);return R}
+ const chave=txt=>{const r=decodificar(txt);return r.ok?r.barras:''};
+ return{dg,mod10,mod11Banco,mod11Arrec,decodificar,chave,vencDoFator,linhaDeBarrasBanc,linhaDeBarrasArrec,BANCOS,SEGMENTOS}})();
+const dec=JB_BOLETO.decodificar;
+const codigoDe=r=>String((r&&(r.linhaDigitavel||r.codigoBarras))||'').trim();
+/* o mesmo boleto já lançado em outro compromisso (vale também para os pagos; os cancelados não contam) */
+function boletoRepetido(barras,id){if(!barras)return null;return DATA.fTitulos.find(t=>t.id!==id&&!t.cancelado&&(JB_BOLETO.chave(t.codigoBarras||'')===barras||JB_BOLETO.chave(t.linhaDigitavel||'')===barras))||null}
+const descT=t=>(t.beneficiarioNome||t.beneficiario||'')+(t.vencimento?' · venc. '+fData(t.vencimento):'')+' · '+fMoeda(t.valor);
+
+/* ---------- 2. o compromisso do Financeiro ganha os dados do boleto (só acrescenta campos) ---------- */
+const DOCS_COD=['Boleto','Guia de imposto','Fatura / conta de consumo'];
+function htmlConf(r){const t=codigoDe(r);if(!t)return '<span class="ajuda">Digite ou cole a linha digitável: o sistema confere os números e mostra o valor e o vencimento que estão no código.</span>';
+ const b=dec(t);if(!b.ok)return `<div class="bol-conf"><span class="tag pe">Não confere</span>A sequência ${esc(b.erro)}. Confira os números no documento.</div>`;
+ const it=[b.tipo==='bancario'?'Boleto · '+b.banco:'Guia de arrecadação'+(b.segmento?' · '+b.segmento:''),'valor no código: '+(b.valor?fMoeda(b.valor):'não informado'),'vencimento no código: '+(b.venc?fData(b.venc):'não informado')];
+ const av=[];if(b.valor&&r2(r.valor)>0&&!ig(b.valor,r.valor))av.push('o valor informado ('+fMoeda(r.valor)+') é diferente do código');if(b.venc&&r.vencimento&&b.venc!==r.vencimento)av.push('o vencimento informado ('+fData(r.vencimento)+') é diferente do código');
+ const dup=boletoRepetido(b.barras,r.id);
+ return `<div class="bol-conf"><span class="tag ok">Conferida</span>${esc(it.join(' · '))}${av.length?`<br><span class="tag at">Confira</span>${esc(av.join('; '))}.`:''}${dup?`<br><span class="tag pe">Repetido</span>Este boleto já está no compromisso nº ${esc(dup.numero)} (${esc(descT(dup))}).`:''}</div>`}
+const M=MODS.fTitulos;
+if(M&&Array.isArray(M.fields)&&!M.fields.some(f=>f.k==='codigoBarras')){
+ const fl=M.fields.find(f=>f.k==='linhaDigitavel');
+ if(fl){fl.l='Linha digitável';fl.sh=r=>DOCS_COD.includes(r.docOrigemTipo);fl.aj='Os números que ficam em cima do código de barras. Pode colar com pontos e espaços.'}
+ const iL=M.fields.indexOf(fl);
+ M.fields.splice(iL<0?M.fields.length:iL+1,0,
+  {k:'codigoBarras',l:'Ou: código de barras (44 números)',t:'txt',w2:1,sh:r=>DOCS_COD.includes(r.docOrigemTipo),aj:'Basta um dos dois. Quando a linha digitável confere, o código de barras é preenchido sozinho.',s:'Documento'},
+  {k:'_bol',l:'Conferência do código',t:'html',vivo:1,w2:1,calc:htmlConf,sh:r=>DOCS_COD.includes(r.docOrigemTipo),s:'Documento'},
+  {k:'bancoEmissor',l:'Banco emissor',t:'txt',sh:r=>r.docOrigemTipo==='Boleto',aj:'Vem do próprio código quando ele confere.',s:'Documento'},
+  {k:'dataEmissao',l:'Data de emissão do documento',t:'data',sh:r=>!!r.docOrigemTipo&&r.docOrigemTipo!=='Sem documento',s:'Documento'});
+ const iB=M.fields.findIndex(f=>f.k==='beneficiario');
+ M.fields.splice(iB<0?M.fields.length:iB+1,0,{k:'cnpjCpf',l:'CNPJ ou CPF de quem recebe',t:'txt',sh:r=>r.beneficiarioTipo==='Outro',aj:'Opcional. Só se estiver no documento.',s:'Beneficiário'});
+ const iJ=M.fields.findIndex(f=>f.k==='jurosMesPct');
+ M.fields.splice(iJ<0?M.fields.length:iJ+1,0,{k:'prioridade',l:'Prioridade',t:'sel',op:[['Crítica','Crítica'],['Alta','Alta'],['Média','Média'],['Baixa','Baixa']],aj:'Em branco: o sistema calcula pelo vencimento e pela importância da despesa.',s:'Valores e datas'});
+ const m0=M.aoMudar;M.aoMudar=function(st,k){if(m0)m0.apply(this,arguments);
+  try{if(k==='linhaDigitavel'||k==='codigoBarras'){const b=dec(st[k]);
+   if(!b.ok){if(k==='linhaDigitavel')st.codigoBarras='';return}
+   if(k==='linhaDigitavel')st.codigoBarras=b.barras;else st.linhaDigitavel=b.linha;
+   if(!(r2(st.valor)>0)&&b.valor>0)st.valor=b.valor;
+   if(!st.vencimento&&b.venc){st.vencimento=b.venc;if(m0)m0.call(this,st,'vencimento')}
+   if(b.tipo==='bancario'&&!String(st.bancoEmissor||'').trim())st.bancoEmissor=b.banco;
+   if(!st.formaPrevista||st.formaPrevista==='PIX')st.formaPrevista='Boleto'}}catch(e){console.warn('boleto: preencher',e)}};
+ const v0=M.validar;M.validar=function(st){const e=(v0?v0.apply(this,arguments):null)||{};
+  try{const lin=String(st.linhaDigitavel||'').trim(),cod=String(st.codigoBarras||'').trim();
+   if(lin||cod){const a=lin?dec(lin):null,b=cod?dec(cod):null;const ok=a&&a.ok?a:b&&b.ok?b:null;
+    if(a&&a.ok&&b&&b.ok&&a.barras!==b.barras)e.codigoBarras='A linha digitável e o código de barras são de documentos diferentes. Deixe só um ou confira os números.';
+    if(ok){const dup=boletoRepetido(ok.barras,st.id);if(dup)e[a&&a.ok?'linhaDigitavel':'codigoBarras']='Este boleto já está lançado no compromisso nº '+dup.numero+' ('+descT(dup)+'). O mesmo boleto não pode entrar duas vezes.';
+     const av=[];if(ok.valor>0&&r2(st.valor)>0&&!ig(ok.valor,st.valor))av.push('o valor do código ('+fMoeda(ok.valor)+') é diferente do valor informado ('+fMoeda(st.valor)+')');
+     if(ok.venc&&st.vencimento&&ok.venc!==st.vencimento)av.push('o vencimento do código ('+fData(ok.venc)+') é diferente do informado ('+fData(st.vencimento)+')');
+     if(av.length)e._aviso=(e._aviso?e._aviso+' ':'')+'Confira: '+av.join(' e ')+'.'}
+    const ruim=a&&!a.ok?['a linha digitável',a]:b&&!b.ok?['o código de barras',b]:null;
+    if(ruim&&!ok)e._aviso=(e._aviso?e._aviso+' ':'')+'A sequência d'+ruim[0].slice(2)+' não confere ('+ruim[1].erro+'): confira os números no documento.'}
+   const doc=JB_BOLETO.dg(st.cnpjCpf);if(st.beneficiarioTipo==='Outro'&&doc&&!(doc.length===14?cnpjValido(doc):doc.length===11?cpfValido(doc):false))e.cnpjCpf='CNPJ ou CPF inválido. Confira os números ou deixe em branco.';
+  }catch(x){console.warn('boleto: validar',x)}
+  return e};
+ const p0=M.preparar;M.preparar=function(rec){const x=p0?p0.apply(this,arguments):undefined;
+  try{const lin=String(rec.linhaDigitavel||'').trim(),cod=String(rec.codigoBarras||'').trim();const b=lin?dec(lin):cod?dec(cod):null;
+   if(b&&b.ok){rec.linhaDigitavel=b.linha;rec.codigoBarras=b.barras;if(b.tipo==='bancario'&&!String(rec.bancoEmissor||'').trim())rec.bancoEmissor=b.banco}
+   else if(!lin&&!cod&&'codigoBarras' in rec)rec.codigoBarras='';
+   if('cnpjCpf' in rec)rec.cnpjCpf=rec.beneficiarioTipo==='Outro'?JB_BOLETO.dg(rec.cnpjCpf):'';
+   if('prioridade' in rec&&!PRIOS.includes(rec.prioridade))rec.prioridade=''}catch(e){console.warn('boleto: preparar',e)}
+  return x}}
+
+/* ---------- 3. leitura por foto: a linha lida passa pela mesma conferência (chamado pelo Lançamento Inteligente) ---------- */
+JB_BOLETO.completarConf=function(C,L){if(!C||!C.linhaDig)return;const b=dec(C.linhaDig);C.boleto=b;
+ if(!b.ok)return;C.linhaDig=b.linha;
+ /* só o que está no próprio código: nada inventado */
+ if(b.valor>0&&(!L||!L.val||L.val.total==null)&&!(C.valorManual>0))C.valorManual=b.valor;
+ if(b.venc&&!(C.vencs||[]).some(v=>v&&v.data))C.vencs=[{data:b.venc,valor:b.valor}]};
+JB_BOLETO.alertasLeitura=function(C){const out={avisos:[],info:[]};if(!C||!C.linhaDig)return out;const b=C.boleto||dec(C.linhaDig);
+ if(!b.ok)out.avisos.push('A linha digitável lida não confere pelos dígitos verificadores ('+b.erro+'): ela não será gravada. Confira no documento e digite depois, em Editar dados.');
+ else out.info.push('Linha digitável conferida pelos dígitos verificadores'+(b.banco?' · '+b.banco:b.segmento?' · '+b.segmento:'')+(b.valor?' · valor '+fMoeda(b.valor):'')+(b.venc?' · vencimento '+fData(b.venc):'')+'.');
+ return out};
+JB_BOLETO.linhaValida=t=>{const b=dec(t);return b.ok?b.linha:''};
+JB_BOLETO.tagLinha=t=>{const b=dec(t);return b.ok?' <span class="tag ok">conferida</span>':' <span class="tag pe">não confere</span>'};
+window.JB_BOLETO=JB_BOLETO;
+
+/* ---------- 4. prioridade: a escolhida pelo responsável ou a calculada ---------- */
+const PRIOS=['Crítica','Alta','Média','Baixa'];const RANK={'Crítica':0,'Alta':1,'Média':2,'Baixa':3};
+/* despesas que não podem atrasar: energia, água, impostos e guias, financiamentos, salários e arrendamento */
+const ESSENC=/energia|agua|saneamento|imposto|tribut|\bdas\b|simples nacional|inss|fgts|darf|icms|\biss\b|ipva|licenciamento|financiamento|emprestimo|parcela|salario|folha|pro.?labore|arrendamento|aluguel/;
+const essencial=o=>ESSENC.test(N((o.categoria||'')+' '+(o.descricao||'')));
+const metaO=o=>o.fonte==='titulo'?(o.rec||{}):((DATA.fMeta||[]).find(x=>x&&x.id==='m_'+refSeg(o.ref))||{});
+function prioridadeDe(o){
+ if(!o||o.cancelado||!abertaO(o))return{p:'',auto:true};
+ const m=metaO(o);if(PRIOS.includes(m.prioridade))return{p:m.prioridade,auto:false,info:m.prioridadeInfo||null};
+ const d=o.venc?diasEntre(hoje(),o.venc):null;const ess=essencial(o);let p;
+ if(d!=null&&d<=0)p='Crítica';else if(d!=null&&d<=2&&ess)p='Crítica';else if(d!=null&&d<=3)p='Alta';else if(d!=null&&d<=7&&ess)p='Alta';else if(d!=null&&d<=15)p='Média';else if(ess)p='Média';else p='Baixa';
+ return{p,auto:true,ess}}
+const tagPrio=P=>P.p?`<span class="tag bol-pr${RANK[P.p]}" title="${P.auto?'Calculada pelo vencimento'+(P.ess?' e pela importância da despesa':''):'Definida pelo responsável'}">${esc(P.p)}${P.auto?'':' ✎'}</span>`:'';
+
+/* ---------- 5. fila de agendamento: enviada por quem confere as contas, agendada por quem paga ---------- */
+const filaDe=o=>{const f=metaO(o).fila;return f&&typeof f==='object'?f:null};
+const naAg=o=>{try{return CP.naAg(o)}catch(e){return false}};
+const agendadoG=o=>abertaO(o)&&naAg(o)&&!!o.prog;            /* na agenda de quem paga, com dia */
+const naFila=o=>{const f=filaDe(o);return !!f&&f.st==='aguardando'&&abertaO(o)&&!naAg(o)};
+const podeEnviar=o=>abertaO(o)&&!naFila(o)&&!agendadoG(o);
+const todasO=()=>FS.obrigacoes();
+const OBR=ref=>todasO().find(o=>o.ref===ref)||null;
+/* grava no próprio compromisso do Financeiro ou no registro de apoio (conta que nasceu em outro setor) */
+async function gravarO(o,mud,acao,campos){const agora=agoraI(),u=eu();
+ if(o.fonte==='titulo'){const t=DATA.fTitulos.find(x=>x.id===o.rec.id);if(!t)throw new Error('Conta não encontrada.');
+  const n={...clone(t),...mud,alteradoEm:agora,alteradoPor:u};await gravar('fTitulos',n,t);await logV('fTitulos',t.id,acao,campos||[]);return}
+ const id='m_'+refSeg(o.ref);const ant=DATA.fMeta.find(x=>x.id===id)||null;
+ const n={...(ant?clone(ant):{id,ref:o.ref,data:hoje(),criadoEm:agora,criadoPor:u}),...mud,alteradoEm:agora,alteradoPor:u};
+ await gravar('fMeta',n,ant);await logV('fMeta',refSeg(o.ref),acao,campos||[])}
+const histF=(f0,ev)=>[...((f0&&f0.hist)||[]).slice(-29),ev];
+async function enviarFila(refs,obs){let n=0;
+ for(const ref of refs){const o=OBR(ref);if(!o||!podeEnviar(o))continue;const f0=filaDe(o)||{};const ev={a:'enviado',em:agoraI(),por:eu(),obs:obs||''};
+  await gravarO(o,{fila:{st:'aguardando',em:ev.em,por:ev.por,obs:obs||'',hist:histF(f0,ev)}},'enviou para agendamento',
+   [{c:'Agendamento',de:f0.st==='retirado'?'Retirado':'—',para:'Aguardando agendamento ('+nomeAg()+')'},...(obs?[{c:'Observação',de:'',para:obs}]:[])]);n++}
+ return n}
+async function agendarFila(refs,d,forma,conta){let n=0;
+ for(const ref of refs){const o=OBR(ref);if(!o||!abertaO(o))continue;const f0=filaDe(o)||{};const ev={a:'agendado',em:agoraI(),por:eu(),para:d};
+  const mud={dataPrevista:d,naAgenda:true,fila:{...f0,st:'agendado',agEm:ev.em,agPor:ev.por,agPara:d,hist:histF(f0,ev)}};if(forma)mud.formaPrevista=forma;if(conta)mud.contaId=conta;
+  await gravarO(o,mud,'agendou o pagamento',[{c:'Agendado para',de:o.prog&&naAg(o)?fData(o.prog):'—',para:fData(d)},...(forma?[{c:'Forma prevista',de:o.forma||'',para:forma}]:[]),...(conta?[{c:'Conta prevista',de:nomeConta(o.conta)||'',para:nomeConta(conta)}]:[])]);n++}
+ return n}
+async function retirarFila(ref,motivo){const o=OBR(ref);if(!o)return false;const f0=filaDe(o)||{};const tinhaAg=agendadoG(o);const ev={a:'retirado',em:agoraI(),por:eu(),obs:motivo||''};
+ const mud={fila:{...f0,st:'retirado',retEm:ev.em,retPor:ev.por,motivo:motivo||'',hist:histF(f0,ev)}};if(tinhaAg)Object.assign(mud,{dataPrevista:'',naAgenda:false});
+ await gravarO(o,mud,'retirou do agendamento',[{c:'Agendamento',de:tinhaAg?'Agendado para '+fData(o.prog):'Aguardando agendamento',para:'Retirado (a conta continua em aberto)'},...(motivo?[{c:'Motivo',de:'',para:motivo}]:[])]);return true}
+const nomeAg=()=>{try{return CP.nomeAgenda()}catch(e){return 'Agenda de Pagamentos'}};
+
+/* ---------- 6. janelas ---------- */
+const nC=n=>n+(n===1?' conta':' contas');
+function janelaEnviar(refs,depois){if(!ed()){toast('Seu perfil não encaminha contas para agendamento.','erro');return}
+ const L=refs.map(OBR).filter(o=>o&&podeEnviar(o));if(!L.length){toast('Nenhuma destas contas pode ir para o agendamento (já está na fila, agendada ou paga).','erro');return}
+ const tot=r2(soma(L,o=>o.s.saldo));
+ modalF('Enviar para agendamento',`<p class="cpg-conf">${esc(nC(L.length))} · <b>${esc(fMoeda(tot))}</b><span>Vai para a fila de “${esc(nomeAg())}”: lá se escolhe o dia e a conta de pagamento. <b>Enviar não marca como pago.</b></span></p>
+  ${L.length<=6?`<ul class="bol-hist" style="margin:0 0 10px">${L.map(o=>`<li>${esc(o.benef||o.descricao)} · ${esc(fMoeda(o.s.saldo))}${o.venc?' · vence '+esc(fData(o.venc)):''}</li>`).join('')}</ul>`:''}
+  ${campoM('bolObs','Observação para quem paga (opcional)','<input id="bolObs" maxlength="160" placeholder="Ex.: pagar até sexta; conferir o desconto">')}`,'Enviar para agendamento',async v=>{
+  const n=await enviarFila(L.map(o=>o.ref),String(valM(v,'bolObs')||'').trim());
+  toast(n?(n===1?'Conta enviada':n+' contas enviadas')+' para o agendamento. Continua em aberto até o pagamento ser registrado.':'Nada foi enviado: as contas mudaram enquanto a janela estava aberta.',n?'ok':'erro');if(depois)depois(n)})}
+function janelaAgendar(refs,depois){if(!ed()){toast('Seu perfil não agenda pagamentos.','erro');return}
+ const L=refs.map(OBR).filter(o=>o&&abertaO(o));if(!L.length){toast('Marque ao menos uma conta em aberto.','erro');return}
+ const tot=r2(soma(L,o=>o.s.saldo));const U=CP.UI||{};const dP=U.cal==='dia'&&/^\d{4}-\d{2}-\d{2}$/.test(U.dia||'')&&U.dia>=hoje()?U.dia:hoje();
+ const forma1=L.every(o=>o.forma===L[0].forma)?L[0].forma:'',conta1=L.every(o=>o.conta===L[0].conta)?L[0].conta:'';
+ modalF(L.length===1?'Agendar pagamento':'Agendar '+nC(L.length),`<p class="cpg-conf">${esc(nC(L.length))} · <b>${esc(fMoeda(tot))}</b><span>Entra na agenda no dia escolhido. <b>Agendar não marca como pago.</b></span></p>
+  <div class="duas">${campoM('bolD','Dia do pagamento<i> *</i>',`<input id="bolD" type="date" min="${hoje()}" value="${esc(dP)}">`)}
+  ${campoM('bolF','Forma de pagamento',`<select id="bolF"><option value="">${L.length>1?'— (manter a de cada conta)':'—'}</option>${optH(window.FORMAS_F||FORMAS_V,forma1)}</select>`)}
+  ${campoM('bolC','Conta de saída',`<select id="bolC"><option value="">${L.length>1?'— (manter a de cada conta)':'—'}</option>${optH(optsContas(),conta1)}</select>`)}</div>
+  <p class="ajuda" id="bolDiaTot" style="margin:0"></p>`,'Agendar',async v=>{
+  const d=valM(v,'bolD');if(!d){toast('Informe o dia do pagamento.','erro');return false}if(d<hoje()){toast('O dia agendado não pode ser no passado.','erro');return false}
+  const n=await agendarFila(L.map(o=>o.ref),d,valM(v,'bolF'),valM(v,'bolC'));
+  toast(n?(n===1?'Pagamento agendado':n+' pagamentos agendados')+' para '+fData(d)+'. A conta continua em aberto até o pagamento ser registrado.':'Nada foi agendado.',n?'ok':'erro');if(depois)depois(n,d)},{depois:v=>{
+  const dia=()=>{const d=valM(v,'bolD');const p=$('#bolDiaTot',v);if(!p)return;if(!d){p.textContent='';return}
+   const ja=todasO().filter(o=>agendadoG(o)&&o.prog===d);p.textContent='Já agendado para '+fData(d)+': '+fMoeda(r2(soma(ja,o=>o.s.saldo)))+' ('+nC(ja.length)+'). Com estas: '+fMoeda(r2(soma(ja,o=>o.s.saldo)+tot))+'.'};
+  const i=$('#bolD',v);if(i){i.addEventListener('input',dia);i.addEventListener('change',dia)}dia()}})}
+function janelaRetirar(ref){if(!ed()){toast('Seu perfil não mexe no agendamento.','erro');return}const o=OBR(ref);if(!o)return;const ag=agendadoG(o);
+ modalF(ag?'Retirar da agenda':'Tirar da fila de agendamento',`<p class="cpg-conf">${esc(o.benef||o.descricao)} · <b>${esc(fMoeda(o.s.saldo))}</b><span>${ag?'Agendada para '+esc(fData(o.prog))+'. ':''}A conta continua em aberto, sem dia marcado. Fica no histórico quem retirou, quando e o motivo.</span></p>
+  ${campoM('bolMot','Motivo (opcional)','<input id="bolMot" maxlength="160" placeholder="Ex.: fornecedor vai mandar outro boleto">')}`,ag?'Retirar da agenda':'Tirar da fila',async v=>{
+  await retirarFila(ref,String(valM(v,'bolMot')||'').trim());toast(ag?'Retirada da agenda. A conta continua em aberto.':'Tirada da fila. A conta continua em aberto.','ok')})}
+function janelaPrioridade(ref){if(!ed()){toast('Seu perfil não altera a prioridade.','erro');return}const o=OBR(ref);if(!o||!abertaO(o))return;
+ const P=prioridadeDe(o);const auto=(()=>{const m=metaO(o);const s=m.prioridade;try{m.prioridade='';return prioridadeDe(o).p}finally{m.prioridade=s}})();
+ modalF('Prioridade da conta',`<p class="cpg-conf">${esc(o.benef||o.descricao)} · <b>${esc(fMoeda(o.s.saldo))}</b><span>${o.venc?'Vence '+esc(fData(o.venc))+'. ':''}Pelo vencimento e pela importância da despesa, a prioridade calculada é <b>${esc(auto)}</b>.</span></p>
+  <div class="duas">${campoM('bolP','Prioridade',`<select id="bolP"><option value="">Automática (${esc(auto)})</option>${optH(PRIOS,P.auto?'':P.p)}</select>`)}
+  ${campoM('bolPm','Motivo (opcional)','<input id="bolPm" maxlength="160" placeholder="Ex.: fornecedor corta o fornecimento">')}</div>`,'Salvar',async v=>{
+  const p=valM(v,'bolP');const mot=String(valM(v,'bolPm')||'').trim();const at=OBR(ref);if(!at)return;
+  await gravarO(at,{prioridade:p,prioridadeInfo:p?{em:agoraI(),por:eu(),motivo:mot}:null},'definiu a prioridade',[{c:'Prioridade',de:P.auto?'automática ('+P.p+')':P.p,para:p||'automática ('+auto+')'},...(mot?[{c:'Motivo',de:'',para:mot}]:[])]);
+  toast(p?'Prioridade definida: '+p+'.':'A prioridade volta a ser calculada.','ok')})}
+const verNaAgenda=d=>{try{const U=CP.UI;U.cal='dia';U.dia=d}catch(e){}JBNAV.ir('#/fagenda')};
+
+/* ---------- 7. situação nesta tela (agendado = na agenda de quem paga) ---------- */
+function sitB(o){if(o.cancelado)return 'Cancelado';const s=o.s;if(s.saldo<=0.004)return 'Pago';if(s.vencido)return 'Vencido';if(s.pagoEf>0.004)return 'Parcialmente pago';if(agendadoG(o))return 'Agendado';if(naFila(o))return 'Aguardando agendamento';return 'Pendente'}
+const COR_B={Pendente:'at',Agendado:'in','Aguardando agendamento':'in',Vencido:'pe','Parcialmente pago':'br',Pago:'ok',Cancelado:''};
+const tagB=s=>`<span class="tag ${COR_B[s]||''}">${esc(s)}</span>`;
+const pagsMes=(o,m)=>(o.pagamentos||[]).filter(p=>String(p.data||'').slice(0,7)===m&&p.forma!==(window.COMB_V62||'Combustível da fábrica'));
+function faixaDe(o,h){if(!abertaO(o))return '';if(!o.venc)return 'futuros';const d=diasEntre(h,o.venc);if(d<0)return 'vencidos';if(d===0)return 'hoje';if(d<=3)return 'ate3';if(d<=7)return 'ate7';if(d<=15)return 'ate15';return 'futuros'}
+const FAIXAS=[['vencidos','Vencidos','pe'],['hoje','Vencem hoje','at'],['ate3','Vencem em até 3 dias',''],['ate7','Vencem de 4 a 7 dias',''],['ate15','Vencem de 8 a 15 dias',''],['futuros','Vencimentos futuros',''],['fila','Aguardando agendamento','in'],['agendados','Agendados',''],['pagos','Já pagos no mês','ok']];
+const SITS=[['','Em aberto'],['Pendente','Pendentes'],['Aguardando agendamento','Aguardando agendamento'],['Agendado','Agendados'],['Vencido','Vencidos'],['Parcialmente pago','Parcialmente pagos'],['Pago','Pagos'],['Cancelado','Cancelados'],['todas','Todas']];
+const UB={fx:'',q:'',cat:'',sit:'',de:'',ate:'',vmin:'',vmax:'',so:false,lim:50,filtros:false};
+const SEL=new Set();
+const docLinha=o=>{const r=o.rec||{};return o.fonte==='titulo'?codigoDe(r):''};
+const ehBoleto=o=>{const r=o.rec||{};return o.fonte==='titulo'&&(r.docOrigemTipo==='Boleto'||!!codigoDe(r)||r.formaPrevista==='Boleto')||o.forma==='Boleto'};
+function dados(){const h=hoje(),m=h.slice(0,7);const OS=todasO();
+ const ab=OS.filter(abertaO);const F={};FAIXAS.forEach(([k])=>F[k]={n:0,v:0});
+ ab.forEach(o=>{const k=faixaDe(o,h);if(F[k]){F[k].n++;F[k].v=r2(F[k].v+o.s.saldo)}if(naFila(o)){F.fila.n++;F.fila.v=r2(F.fila.v+o.s.saldo)}if(agendadoG(o)){F.agendados.n++;F.agendados.v=r2(F.agendados.v+o.s.saldo)}});
+ const pagos=OS.filter(o=>!o.cancelado&&o.s.saldo<=0.004&&pagsMes(o,m).length);F.pagos.n=pagos.length;F.pagos.v=r2(soma(pagos,o=>soma(pagsMes(o,m),p=>p.valor)));
+ const semVenc=ab.filter(o=>!o.venc).length;
+ return{h,m,OS,ab,F,pagos,semVenc}}
+function filtrar(D){const U=UB,h=D.h;const q=N(U.q);const qd=JB_BOLETO.dg(U.q);
+ let xs=D.OS;
+ if(U.fx==='pagos')xs=D.pagos;else if(U.fx==='fila')xs=D.ab.filter(naFila);else if(U.fx==='agendados')xs=D.ab.filter(agendadoG);else if(U.fx)xs=D.ab.filter(o=>faixaDe(o,h)===U.fx);
+ else if(!U.sit)xs=D.ab;
+ if(U.sit&&U.sit!=='todas')xs=xs.filter(o=>sitB(o)===U.sit);
+ if(U.cat)xs=xs.filter(o=>o.categoria===U.cat);
+ if(U.de)xs=xs.filter(o=>!!o.venc&&o.venc>=U.de);if(U.ate)xs=xs.filter(o=>!!o.venc&&o.venc<=U.ate);
+ const vmin=lerMoeda(U.vmin),vmax=lerMoeda(U.vmax);const val=o=>abertaO(o)?o.s.saldo:o.valor;
+ if(vmin>0)xs=xs.filter(o=>val(o)>=vmin-0.004);if(vmax>0)xs=xs.filter(o=>val(o)<=vmax+0.004);
+ if(U.so)xs=xs.filter(ehBoleto);
+ /* pesquisa: texto (fornecedor, descrição, número, categoria, banco); valor com vírgula (ex.: 95,50); ou um pedaço da linha digitável ou do código de barras */
+ const ehValor=/^\s*(R\$\s*)?\d{1,3}(\.\d{3})*(,\d{1,2})?\s*$|^\s*(R\$\s*)?\d+,\d{1,2}\s*$/.test(U.q)&&/,|R\$/.test(U.q);const vq=ehValor?lerMoeda(U.q):0;
+ if(q)xs=xs.filter(o=>{const r=o.rec||{};const t=N([o.benef,o.descricao,o.num,o.categoria,o.origem,o.docOrigem,r.bancoEmissor].join(' '));if(t.includes(q))return true;
+  if(vq>0)return ig(o.valor,vq)||ig(o.s.saldo,vq);
+  return qd.length>=5&&!/,/.test(U.q)&&(JB_BOLETO.dg(r.linhaDigitavel).includes(qd)||JB_BOLETO.dg(r.codigoBarras).includes(qd))});
+ const rank=o=>{const P=prioridadeDe(o);return P.p?RANK[P.p]:9};
+ if(U.fx==='pagos'||U.sit==='Pago')return xs.slice().sort((a,b)=>String((b.pagamentos.map(p=>p.data).sort().pop())||'').localeCompare(String((a.pagamentos.map(p=>p.data).sort().pop())||'')));
+ return xs.slice().sort((a,b)=>rank(a)-rank(b)||String(a.venc||'9999').localeCompare(String(b.venc||'9999'))||b.s.saldo-a.s.saldo)}
+function quandoVence(o){if(!o.venc)return 'sem vencimento';if(!abertaO(o))return 'vencimento '+fData(o.venc);const d=diasEntre(hoje(),o.venc);
+ return d<0?'venceu há '+(-d)+(d===-1?' dia':' dias')+' ('+fData(o.venc)+')':d===0?'vence hoje':d===1?'vence amanhã ('+fData(o.venc)+')':'vence em '+d+' dias ('+fData(o.venc)+')'}
+function cartao(o,opc){opc=opc||{};const e=ed();const ab=abertaO(o);const P=prioridadeDe(o);const s=sitB(o);const r=o.rec||{};const f=filaDe(o);
+ const chk=opc.chk&&e&&(opc.fila?ab:podeEnviar(o));
+ const tags=[tagPrio(P),tagB(s)];
+ if(s==='Vencido'&&naFila(o))tags.push('<span class="tag in">na fila de agendamento</span>');
+ if(s!=='Agendado'&&agendadoG(o))tags.push(`<span class="tag in">agendado para ${esc(fData(o.prog))}</span>`);
+ if(s==='Agendado')tags[1]=`<span class="tag in">Agendado para ${esc(fData(o.prog))}</span>`;
+ if(naFila(o)&&f)tags.push(`<span class="ajuda">enviado ${esc(fDataHora(f.em))}${f.por?' por '+esc(nomeUsuario(f.por)):''}${f.obs?' · “'+esc(f.obs)+'”':''}</span>`);
+ const lin=docLinha(o);const doc=[o.docOrigem,r.bancoEmissor,o.num&&!String(o.docOrigem||'').includes(o.num)?o.num:''].filter(Boolean).join(' · ');
+ const pago=!ab&&!o.cancelado?r2(soma(o.pagamentos,p=>p.valor)):0;
+ const acoes=[];
+ if(e&&ab&&o.podePagar)acoes.push(`<button type="button" class="btn pri" data-bolpag="${esc(o.ref)}">${ic('moeda')}Pagar</button>`);
+ if(opc.fila){if(e&&ab)acoes.push(`<button type="button" class="btn" data-bolag="${esc(o.ref)}">${ic('calendario')}Agendar</button>`);if(e)acoes.push(`<button type="button" class="btn" data-bolret="${esc(o.ref)}">Tirar da fila</button>`)}
+ else{if(e&&podeEnviar(o))acoes.push(`<button type="button" class="btn" data-bolenv="${esc(o.ref)}">${ic('calendario')}Enviar para agendamento</button>`);
+  if(e&&naFila(o))acoes.push(`<button type="button" class="btn" data-bolret="${esc(o.ref)}">Tirar da fila</button>`);
+  if(agendadoG(o))acoes.push(`<button type="button" class="btn" data-bolveag="${esc(o.prog)}">Ver na agenda</button>`)}
+ acoes.push(`<button type="button" class="btn bol-3p" data-bolmais="${esc(o.ref)}" aria-label="Mais ações" title="Mais ações">⋯</button>`);
+ return `<article class="bol-card p${P.p?RANK[P.p]:3}${chk?'':' sem-chk'}" data-ref="${esc(o.ref)}">
+  ${chk?`<label class="bol-chk"><input type="checkbox" data-bolsel="${esc(o.ref)}"${SEL.has(o.ref)?' checked':''} aria-label="Selecionar ${esc(o.benef||o.descricao)}"></label>`:''}
+  <div class="bol-tit" data-bolabre="${esc(o.ref)}" tabindex="0" role="button">${esc(o.benef||o.descricao||'—')}</div>
+  <div class="bol-val">${esc(fMoeda(ab?o.s.saldo:o.cancelado?o.valor:pago))}${ab&&o.s.pagoEf>0.004?`<small>de ${esc(fMoeda(o.valor))}</small>`:!ab&&!o.cancelado?'<small>pago</small>':''}</div>
+  <div class="bol-sub">${esc([o.benef?o.descricao:'',o.categoria,o.origem&&o.origem!=='Geral (Financeiro)'?o.origem:''].filter(Boolean).join(' · '))}</div>
+  <div class="bol-tags">${tags.filter(Boolean).join(' ')}<span>${esc(quandoVence(o))}</span>${doc?`<span class="ajuda">· ${esc(doc)}</span>`:''}${lin?`<span class="ajuda">· linha ${dec(lin).ok?'conferida':'<b style="color:#B42318">não confere</b>'}</span>`:''}${o.temDocOrigem?`<span class="ajuda">· ${ic('clip','style="width:13px;height:13px;vertical-align:-2px"')} documento anexado</span>`:''}</div>
+  <div class="bol-ac">${acoes.join('')}</div></article>`}
+function menuCartao(btn,ref){const o=OBR(ref);if(!o)return;const e=ed(),r=o.rec||{},ab=abertaO(o);const lin=docLinha(o);
+ const L=[{l:'Ver detalhes e histórico',fn:()=>A.abrirObrig(ref)}];
+ if(e&&ab)L.push({l:'Prioridade…',sub:(()=>{const P=prioridadeDe(o);return P.p+(P.auto?' (calculada)':' (definida)')})(),fn:()=>janelaPrioridade(ref)});
+ if(e&&agendadoG(o))L.push({l:'Retirar da agenda',fn:()=>janelaRetirar(ref)});
+ if(lin)L.push({l:'Copiar a linha digitável',sub:dec(lin).ok?dec(lin).linha:lin,fn:async()=>{try{await navigator.clipboard.writeText(JB_BOLETO.dg(lin));toast('Linha digitável copiada (só os números).','ok')}catch(x){toast('Não foi possível copiar aqui.','erro')}}});
+ const anexo=r.anexo&&r.anexo.id?r.anexo:null;if(anexo)L.push({l:'Ver o documento anexado',sub:anexo.nome||'',fn:()=>{try{window.open('/_blob/'+anexo.id,'_blank','noopener')}catch(x){}}});
+ if(e)L.push({l:'Anexar documento ou comprovante',fn:()=>A.anexar(ref)});
+ if(o.fonte==='titulo'&&e&&!o.cancelado)L.push({l:'Editar dados',fn:()=>JBNAV.ir('#/fTitulos/'+r.id)});
+ if(o.href)L.push({l:'Abrir na origem',sub:o.origem,fn:()=>JBNAV.ir(o.href)});
+ if(o.fonte==='titulo'&&r.beneficiarioTipo==='Outro'&&pode('fornecedores','e')&&r.beneficiario)L.push({l:'Cadastrar como fornecedor',sub:r.beneficiario,fn:()=>{PREFILL={mod:'fornecedores',dados:{nome:r.beneficiario,...(JB_BOLETO.dg(r.cnpjCpf).length===14?{tipoPessoa:'Jurídica',cnpj:JB_BOLETO.dg(r.cnpjCpf)}:{})}};JBNAV.ir('#/fornecedores/novo')}});
+ abrirMenuMais(btn,L)}
+
+/* ---------- 8. tela: Boletos e contas a pagar ---------- */
+function abrirLeitura(files){const X=window.LANC_IA_V65;if(!X||typeof X.adicionar!=='function'){JBNAV.ir('#/fIA');return}
+ const J=typeof X.estado==='function'?X.estado():null;
+ if(J&&(J.fase==='lendo'||J.fase==='gravando'||(J.fase==='conferir'&&J.C))){JBNAV.ir('#/fIA');toast('Há um documento em andamento no Lançamento por Foto: termine ou descarte antes de ler outro.','erro');return}
+ JBNAV.ir('#/fIA');setTimeout(()=>{try{if(J&&typeof X.novo==='function')X.novo();X.adicionar(files)}catch(e){console.warn('boleto: leitura',e);toast('Não foi possível abrir o documento para leitura.','erro')}},60)}
+/* vários boletos de uma vez: um documento por arquivo, lidos um depois do outro (cada um é conferido antes de lançar) */
+const VARIOS={fila:[],tot:0};
+function proximoVarios(){const X=window.LANC_IA_V65;if(!VARIOS.fila.length)return;const f=VARIOS.fila.shift();JBNAV.ir('#/fIA');setTimeout(()=>{try{if(X.estado&&X.estado()&&X.novo)X.novo();X.adicionar([f])}catch(e){console.warn(e)}},60)}
+function telaBoletos(c){
+ const e=ed();const D=dados();const xs=filtrar(D);const vis=xs.slice(0,UB.lim);
+ for(const r of [...SEL])if(!D.ab.some(o=>o.ref===r&&podeEnviar(o)))SEL.delete(r);
+ const cats=[...new Set(D.OS.map(o=>o.categoria).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ const fx=k=>{const [,l,cls]=FAIXAS.find(x=>x[0]===k);const g=D.F[k];return `<button type="button" class="bol-fx ${cls}${UB.fx===k?' on':''}" data-bolfx="${k}" aria-pressed="${UB.fx===k}"><b>${esc(fMoeda(g.v))}</b><span>${esc(l)} · ${esc(String(g.n))}</span></button>`};
+ const temF=UB.cat||UB.sit||UB.de||UB.ate||UB.vmin||UB.vmax||UB.so;
+ const aviso=D.semVenc?`<p class="bol-nota">${esc(nC(D.semVenc))} em aberto sem vencimento entram em “Vencimentos futuros”.</p>`:'';
+ c.innerHTML=cabF('boleto','Boletos e contas a pagar','Cadastre o boleto pela foto, pela galeria, em PDF ou à mão. O sistema confere a linha digitável, não deixa lançar o mesmo boleto duas vezes e mostra o que é mais urgente. Em cada conta: pagar ou enviar para o agendamento de '+esc(nomeAg().replace(/^Agenda (do|da|de) /i,''))+'.',
+  `<button type="button" class="btn" id="bolExp">${ic('baixar')}Exportar ▾</button>`)+
+  (e?`<div class="bol-topo">
+   <label class="btn pri">${ic('camera')}<span>Fotografar boleto</span><input type="file" accept="image/*" capture="environment" hidden data-bolarq="1"></label>
+   <label class="btn">${ic('clip')}<span>Galeria ou PDF</span><input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple hidden data-bolarq="1"></label>
+   <label class="btn">${ic('boleto')}<span>Vários boletos</span><input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple hidden data-bolvarios="1"></label>
+   <button type="button" class="btn" id="bolManual">${ic('mais')}Cadastrar à mão</button></div>`:'')+
+  `<div class="bol-faixas" role="group" aria-label="Faixas de vencimento">${FAIXAS.map(([k])=>fx(k)).join('')}</div>${aviso}
+  <div class="bol-filtros"><input type="search" id="bolQ" placeholder="Pesquisar fornecedor, descrição, número, valor ou linha digitável" value="${esc(UB.q)}" aria-label="Pesquisar">
+   <button type="button" class="btn" id="bolFt" aria-expanded="${UB.filtros||temF?'true':'false'}">Filtros${temF?' ●':''} ▾</button>${UB.fx||temF||UB.q?'<button type="button" class="btn" id="bolLimpa">Limpar</button>':''}</div>
+  <div class="bol-filtros" id="bolFiltros"${UB.filtros||temF?'':' hidden'}>
+   <select id="bolSit" aria-label="Situação">${SITS.map(([v,l])=>`<option value="${esc(v)}"${UB.sit===v?' selected':''}>${esc(v?l:'Situação: em aberto')}</option>`).join('')}</select>
+   <select id="bolCat" aria-label="Categoria"><option value="">Categoria: todas</option>${optH(cats,UB.cat)}</select>
+   <label>Vence de <input type="date" id="bolDe" value="${esc(UB.de)}"></label><label>até <input type="date" id="bolAte" value="${esc(UB.ate)}"></label>
+   <label>Valor de <input class="bol-vl" id="bolVmin" inputmode="decimal" data-masc="moeda" value="${esc(UB.vmin)}" placeholder="0,00"></label><label>até <input class="bol-vl" id="bolVmax" inputmode="decimal" data-masc="moeda" value="${esc(UB.vmax)}" placeholder="0,00"></label>
+   <label><input type="checkbox" id="bolSo"${UB.so?' checked':''}> Só boletos</label></div>
+  <p class="bol-resumo">${esc(nC(xs.length))}${xs.length?' · '+esc(fMoeda(r2(soma(xs,o=>abertaO(o)?o.s.saldo:o.cancelado?0:soma(o.pagamentos,p=>p.valor)))))+(UB.fx==='pagos'?' pagos no mês':abertaO(xs[0]||{s:{saldo:0}})?' a pagar':''):''}${UB.fx?' · '+esc(FAIXAS.find(x=>x[0]===UB.fx)[1].toLowerCase()):''}. A lista começa pelo mais urgente.</p>
+  <div class="bol-lista">${vis.length?vis.map(o=>cartao(o,{chk:true})).join(''):`<div class="vazio"><b>Nenhuma conta aqui</b>${UB.fx||temF||UB.q?'Mude a faixa ou os filtros.':'Cadastre um boleto pela foto ou à mão.'}</div>`}</div>
+  ${xs.length>vis.length?`<p class="bol-mais"><button type="button" class="btn" id="bolMais">Mostrar mais (${esc(String(xs.length-vis.length))} restantes)</button></p>`:''}
+  <div class="bol-barra" id="bolBarra"${SEL.size?'':' hidden'}><span id="bolSelT"></span><span class="bol-fila-ac"><button type="button" class="btn" id="bolSelX">Desmarcar</button><button type="button" class="btn" id="bolSelEnv">${ic('calendario')}Enviar para agendamento</button></span></div>
+  <p class="bol-nota"><b>Prioridade:</b> Crítica = vencida ou vence hoje (ou despesa essencial em até 2 dias); Alta = vence em até 3 dias (essencial em até 7); Média = até 15 dias; Baixa = depois disso. Essenciais: energia, água, impostos e guias, financiamentos, salários e arrendamento. O responsável pode mudar no botão ⋯ › Prioridade.</p>`;
+ const re=()=>renderTela();
+ const barra=()=>{const b=$('#bolBarra',c);if(!b)return;b.hidden=!SEL.size;const L=[...SEL].map(OBR).filter(Boolean);$('#bolSelT',c).textContent=nC(L.length)+' marcada'+(L.length===1?'':'s')+' · '+fMoeda(r2(soma(L,o=>o.s.saldo)))};barra();
+ $$('[data-bolfx]',c).forEach(b=>b.onclick=()=>{const k=b.dataset.bolfx;UB.fx=UB.fx===k?'':k;UB.lim=50;if(UB.fx)UB.sit='';re()});
+ const q=$('#bolQ',c);let tq=null;if(q)q.oninput=()=>{clearTimeout(tq);tq=setTimeout(()=>{UB.q=q.value;UB.lim=50;re();setTimeout(()=>{const n=$('#bolQ');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},0)},350)};
+ const ft=$('#bolFt',c);if(ft)ft.onclick=()=>{UB.filtros=!UB.filtros;const f=$('#bolFiltros',c);if(f)f.hidden=!UB.filtros&&!temF;ft.setAttribute('aria-expanded',String(!f.hidden))};
+ const lp=$('#bolLimpa',c);if(lp)lp.onclick=()=>{Object.assign(UB,{fx:'',q:'',cat:'',sit:'',de:'',ate:'',vmin:'',vmax:'',so:false,lim:50});re()};
+ [['bolSit','sit'],['bolCat','cat'],['bolDe','de'],['bolAte','ate']].forEach(([id,k])=>{const x=$('#'+id,c);if(x)x.onchange=()=>{UB[k]=x.value;UB.lim=50;if(k==='sit'&&x.value)UB.fx='';re()}});
+ [['bolVmin','vmin'],['bolVmax','vmax']].forEach(([id,k])=>{const x=$('#'+id,c);if(x)x.onchange=()=>{UB[k]=x.value;UB.lim=50;re()}});
+ const so=$('#bolSo',c);if(so)so.onchange=()=>{UB.so=so.checked;UB.lim=50;re()};
+ const mm=$('#bolMais',c);if(mm)mm.onclick=()=>{UB.lim+=50;re()};
+ $$('[data-bolarq]',c).forEach(i=>i.onchange=()=>{const f=Array.from(i.files||[]);i.value='';if(f.length)abrirLeitura(f)});
+ $$('[data-bolvarios]',c).forEach(i=>i.onchange=()=>{const f=Array.from(i.files||[]);i.value='';if(!f.length)return;if(f.length===1){abrirLeitura(f);return}
+  VARIOS.fila=f.slice(1);VARIOS.tot=f.length;toast(f.length+' boletos: cada um é lido e conferido antes de lançar. Depois de lançar um, toque em “Próximo boleto”.','ok');abrirLeitura([f[0]])});
+ const man=$('#bolManual',c);if(man)man.onclick=()=>{PREFILL={mod:'fTitulos',dados:{docOrigemTipo:'Boleto',formaPrevista:'Boleto',beneficiarioTipo:'Outro'}};JBNAV.ir('#/fTitulos/novo')};
+ ligarCartoes(c,{depois:re,barra});
+ const sx=$('#bolSelX',c);if(sx)sx.onclick=()=>{SEL.clear();re()};
+ const se=$('#bolSelEnv',c);if(se)se.onclick=()=>janelaEnviar([...SEL],n=>{if(n)SEL.clear()});
+ const ex=$('#bolExp',c);if(ex)ex.onclick=()=>{const cols=[{k:'prio',l:'Prioridade'},{k:'sit',l:'Situação'},{k:'venc',l:'Vencimento',t:'data'},{k:'benef',l:'Fornecedor ou beneficiário'},{k:'descricao',l:'Descrição'},{k:'categoria',l:'Categoria'},{k:'origem',l:'Origem'},{k:'doc',l:'Documento'},{k:'linha',l:'Linha digitável'},{k:'saldo',l:'A pagar',t:'moeda'},{k:'valor',l:'Valor original',t:'moeda'}];
+  const rows=xs.map(o=>({prio:prioridadeDe(o).p||'',sit:sitB(o),venc:o.venc||'',benef:o.benef,descricao:o.descricao,categoria:o.categoria,origem:o.origem,doc:o.docOrigem||'',linha:docLinha(o),saldo:abertaO(o)?o.s.saldo:0,valor:o.valor}));
+  const t='Boletos e contas a pagar'+(UB.fx?' · '+FAIXAS.find(x=>x[0]===UB.fx)[1]:'');const fx2=f=>exportar(f,'Boletos_e_contas_a_pagar_'+hoje(),cols,rows,t,{filtros:'Emitido em '+fData(hoje())});
+  abrirMenuMais(ex,[{l:'Visualizar',fn:()=>fx2('ver')},{l:'Gerar PDF',fn:()=>fx2('pdf')},{l:'Imprimir',fn:()=>fx2('imprimir')},{l:'Compartilhar',fn:()=>fx2('compartilhar')},{l:'Exportar Excel',fn:()=>fx2('xlsx')}])};
+}
+/* ações dos cartões (as mesmas na tela de boletos e na fila da agenda) */
+function ligarCartoes(c,opc){opc=opc||{};
+ $$('[data-bolsel]',c).forEach(i=>i.onchange=()=>{if(i.checked)SEL.add(i.dataset.bolsel);else SEL.delete(i.dataset.bolsel);if(opc.barra)opc.barra()});
+ $$('[data-bolpag]',c).forEach(b=>b.onclick=()=>CP.pagar(b.dataset.bolpag));
+ $$('[data-bolenv]',c).forEach(b=>b.onclick=()=>janelaEnviar([b.dataset.bolenv]));
+ $$('[data-bolret]',c).forEach(b=>b.onclick=()=>janelaRetirar(b.dataset.bolret));
+ $$('[data-bolag]',c).forEach(b=>b.onclick=()=>janelaAgendar([b.dataset.bolag]));
+ $$('[data-bolveag]',c).forEach(b=>b.onclick=()=>verNaAgenda(b.dataset.bolveag));
+ $$('[data-bolmais]',c).forEach(b=>b.onclick=()=>menuCartao(b,b.dataset.bolmais));
+ $$('[data-bolabre]',c).forEach(b=>{const f=()=>A.abrirObrig(b.dataset.bolabre);b.onclick=f;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}})}
+
+/* ---------- 9. agenda de quem paga: a fila "Encaminhados para agendamento" no alto ---------- */
+const SELF=new Set();const FMIN_K='jb_bol_fila_min';
+const filaMin=()=>{try{return localStorage.getItem(FMIN_K)==='1'}catch(e){return false}};
+function painelFila(c){if(!c||c.querySelector('#bolFila'))return;
+ const L=todasO().filter(naFila).sort((a,b)=>(RANK[prioridadeDe(a).p]??9)-(RANK[prioridadeDe(b).p]??9)||String(a.venc||'9999').localeCompare(String(b.venc||'9999')));
+ for(const r of [...SELF])if(!L.some(o=>o.ref===r))SELF.delete(r);
+ if(!L.length)return;const min=filaMin();const tot=r2(soma(L,o=>o.s.saldo));const e=ed();
+ const html=`<section class="bol-fila" id="bolFila" aria-label="Encaminhados para agendamento"><div class="bol-fila-cab"><h3>Encaminhados para agendamento<span class="bol-fila-n">${esc(nC(L.length))} · ${esc(fMoeda(tot))}</span></h3>
+  <span class="bol-fila-ac">${e&&!min?`<button type="button" class="btn" id="bolFTodas">Marcar todas</button><button type="button" class="btn pri" id="bolFAg" disabled>${ic('calendario')}Agendar marcadas</button>`:''}<button type="button" class="btn" id="bolFMin" aria-expanded="${!min}">${min?'Mostrar ▾':'Ocultar ▴'}</button></span></div>
+  ${min?'':`<p class="bol-nota" style="margin-top:6px">Contas enviadas para você agendar. Marque as que vão ser pagas no mesmo dia e toque em “Agendar marcadas”, ou pague direto. Agendar não marca como pago.</p><div class="bol-lista">${L.map(o=>cartao(o,{chk:true,fila:true})).join('')}</div>`}</section>`;
+ const cab=c.querySelector(':scope>.sec-cab');if(cab)cab.insertAdjacentHTML('afterend',html);else c.insertAdjacentHTML('afterbegin',html);
+ const P=$('#bolFila',c);
+ $$('[data-bolsel]',P).forEach(i=>{i.checked=SELF.has(i.dataset.bolsel);i.onchange=()=>{if(i.checked)SELF.add(i.dataset.bolsel);else SELF.delete(i.dataset.bolsel);bot()}});
+ const bot=()=>{const b=$('#bolFAg',P);if(!b)return;const xs=[...SELF].map(OBR).filter(Boolean);b.disabled=!xs.length;b.innerHTML=ic('calendario')+(xs.length?'Agendar '+nC(xs.length)+' · '+esc(fMoeda(r2(soma(xs,o=>o.s.saldo)))):'Agendar marcadas')};bot();
+ ligarCartoes(P,{});$$('[data-bolsel]',P).forEach(i=>{i.onchange=()=>{if(i.checked)SELF.add(i.dataset.bolsel);else SELF.delete(i.dataset.bolsel);bot()}});
+ const td=$('#bolFTodas',P);if(td)td.onclick=()=>{const all=L.every(o=>SELF.has(o.ref));L.forEach(o=>{if(all)SELF.delete(o.ref);else SELF.add(o.ref)});$$('[data-bolsel]',P).forEach(i=>i.checked=SELF.has(i.dataset.bolsel));bot()};
+ const ag=$('#bolFAg',P);if(ag)ag.onclick=()=>janelaAgendar([...SELF],n=>{if(n)SELF.clear()});
+ const mn=$('#bolFMin',P);if(mn)mn.onclick=()=>{try{localStorage.setItem(FMIN_K,filaMin()?'0':'1')}catch(e){}renderTela()}}
+{const ft0=window.finTopo;window.finTopo=(c,ativa)=>{if(typeof ft0==='function')ft0(c,ativa);
+ try{if(ativa==='fagenda')painelFila(c)}catch(e){console.warn('fila de agendamento',e)}
+ try{if(ativa==='fIA'&&(VARIOS.fila.length||VARIOS.tot))avisoVarios(c)}catch(e){console.warn('vários boletos',e)}}}
+function avisoVarios(c){if(c.querySelector('#bolVarios'))return;const X=window.LANC_IA_V65;const J=X&&X.estado?X.estado():null;const feito=VARIOS.tot-VARIOS.fila.length;
+ if(!VARIOS.fila.length){if(J&&J.fase==='pronto'){VARIOS.tot=0;c.insertAdjacentHTML('afterbegin',`<div class="aviso ok" id="bolVarios" style="margin-bottom:12px"><span>Os boletos escolhidos foram todos abertos para lançamento. <a href="#/fBoletos">Voltar aos boletos</a>.</span></div>`)}return}
+ const pronto=!J||J.fase==='pronto'||J.fase==='erro'||J.fase==='captura'&&!(J.arqs||[]).length;
+ c.insertAdjacentHTML('afterbegin',`<div class="aviso in" id="bolVarios" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span>Vários boletos: este é o ${esc(String(feito))}º de ${esc(String(VARIOS.tot))}. ${pronto?'Pode abrir o próximo.':'Confira e lance este; depois abra o próximo.'}</span>
+  <button type="button" class="btn${pronto?' pri':''}" id="bolProx">Próximo boleto (${esc(String(VARIOS.fila.length))} restante${VARIOS.fila.length===1?'':'s'})</button><button type="button" class="btn" id="bolParar">Parar</button></div>`);
+ const p=$('#bolProx',c);if(p)p.onclick=async()=>{const j=X&&X.estado?X.estado():null;if(j&&j.fase==='conferir'&&!await confirmar('Abrir o próximo boleto?','O boleto que está na tela ainda não foi lançado e será descartado.',{ok:'Descartar e abrir o próximo'}))return;proximoVarios()};
+ const s=$('#bolParar',c);if(s)s.onclick=()=>{VARIOS.fila=[];VARIOS.tot=0;renderTela()}}
+
+/* ---------- 10. na janela da conta: boleto, prioridade e o histórico do agendamento ---------- */
+const ROT_F={enviado:'enviado para agendamento',agendado:'agendado',retirado:'retirado do agendamento'};
+function blocoBoleto(o){if(!o)return '';const r=o.rec||{};const f=filaDe(o);const P=prioridadeDe(o);const lin=docLinha(o);const b=lin?dec(lin):null;
+ const rows=[];if(P.p)rows.push(['Prioridade',P.p+(P.auto?' (calculada pelo vencimento'+(P.ess?' e pela importância da despesa':'')+')':' (definida'+(P.info&&P.info.por?' por '+nomeUsuario(P.info.por):'')+(P.info&&P.info.em?' em '+fDataHora(P.info.em):'')+(P.info&&P.info.motivo?': '+P.info.motivo:'')+')')]);
+ if(lin)rows.push(['Linha digitável',(b&&b.ok?b.linha:lin)+(b?(b.ok?' (conferida)':' (não confere: '+b.erro+')'):'')]);
+ if(r.codigoBarras)rows.push(['Código de barras',r.codigoBarras]);if(r.bancoEmissor)rows.push(['Banco emissor',r.bancoEmissor]);if(r.dataEmissao)rows.push(['Emissão',fData(r.dataEmissao)]);
+ if(r.cnpjCpf)rows.push([r.cnpjCpf.length===14?'CNPJ':'CPF',r.cnpjCpf]);
+ const st=naFila(o)?'Aguardando agendamento':agendadoG(o)?'Agendado para '+fData(o.prog):f&&f.st==='retirado'?'Retirado do agendamento':'';if(st)rows.push(['Agendamento',st]);
+ if(!rows.length&&!(f&&f.hist&&f.hist.length))return '';
+ return `<h3 class="grupo-t">Boleto e agendamento</h3><div class="fx-dl" style="margin-bottom:10px">${rows.map(([a,v])=>`<div><span>${esc(a)}</span><b class="${a==='Linha digitável'?'bol-lin':''}">${esc(v)}</b></div>`).join('')}</div>
+  ${f&&f.hist&&f.hist.length?`<ul class="bol-hist">${f.hist.slice().reverse().map(h=>`<li>${esc(fDataHora(h.em))} · ${esc(ROT_F[h.a]||h.a)}${h.para?' para '+esc(fData(h.para)):''}${h.por?' · '+esc(nomeUsuario(h.por)):''}${h.obs?' · “'+esc(h.obs)+'”':''}</li>`).join('')}</ul>`:''}`}
+{const br0=CP.blocoRastreio;CP.blocoRastreio=function(o){let h='';try{h=typeof br0==='function'?br0.apply(this,arguments)||'':''}catch(e){}try{h+=blocoBoleto(o)}catch(e){console.warn('bloco do boleto',e)}return h}}
+
+/* ---------- 11. ligações com o resto do programa (só acrescentam) ---------- */
+Object.assign(PERM,{fBoletos:{v:FV,e:FE}});if(!ROTAS_SETOR.includes('fBoletos'))ROTAS_SETOR.push('fBoletos');
+Object.assign(TELAS_V,{fBoletos:el=>shellF(el,'fBoletos',telaBoletos)});
+window.FIN_ABAS_EXTRA=window.FIN_ABAS_EXTRA||[];
+if(!window.FIN_ABAS_EXTRA.some(a=>a.m==='fBoletos'))window.FIN_ABAS_EXTRA.push({depois:'fcentral',r:'#/fBoletos',m:'fBoletos',ic:'boleto',l:'Boletos e contas a pagar',at:['fBoletos']});
+window.C2_FAV_FIXOS=[...(window.C2_FAV_FIXOS||[]).filter(k=>k!=='#/fBoletos'),'#/fBoletos'];
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{if(pode('fBoletos')){
+ const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ E.push({g:'Telas',t:'Boletos e contas a pagar',s:'Financeiro · boletos por foto, vencimentos, prioridades, pagar ou enviar para agendamento',ic:'boleto',k:NN('Boletos e contas a pagar boleto linha digitavel codigo de barras vencimento vencidos prioridade pagar agendamento fila contas a pagar'),ir:()=>JBNAV.ir('#/fBoletos'),h:'#/fBoletos',ix:E.length})}}catch(e){}return E}}
+
+window.BOLETOS_V166=Object.freeze({JB_BOLETO,prioridadeDe,sitB,faixaDe,naFila,agendadoG,podeEnviar,enviarFila,agendarFila,retirarFila,filaDe,dados,filtrar,UB,SEL,janelaEnviar,janelaAgendar,janelaRetirar,janelaPrioridade,boletoRepetido});
+})();
+</script>
 </body>
 </html>
