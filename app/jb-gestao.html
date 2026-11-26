@@ -14265,7 +14265,7 @@ function inicioConsumoV(c,s){
   <div class="ex2">
    <div class="bloco"><h3>${cb?'Abastecimentos':'Consumo'} dos últimos 30 dias<a href="#/consumos">Ver lançamentos</a></h3><div class="cv"><canvas id="gSc1"></canvas></div></div>
    <div class="bloco"><h3>${cb?'Por veículo e máquina':'Por forno e local'} em ${esc(fMes(m))}<a href="#/locais">${esc(S.locais)}</a></h3>${lstV(Object.values(porLocal).sort((a,b)=>b.custo-a.custo).slice(0,6).map(t=>({href:t.id==='__cbl'?'#/combLenha':'#/consumos',ic:cb?'bomba':'chama',t:t.id==='__cbl'?'Fornecedores de lenha':nomeLocal(LOCAL(t.id))||'Sem local',s:t.n+' lançamento(s) · '+fMoeda(t.custo),v:txtUnid(t.qtd)})),'Nenhum lançamento neste mês.')}</div>
-   <div class="bloco"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+' · '+rotCustoV(p.id)+' '+fMoeda(custoMedio(p.id)),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}}),'Nenhum item cadastrado.')}</div>
+   <div class="bloco je-ini"><h3>Estoque<a href="#/estoque">Ver estoque</a></h3>${lstV(N.prods.map(p=>{const st=situacaoEstoque(p);return{href:'#/produtos/'+p.id,ic:'caixa',cls:st==='Normal'?'a-ok':'a-pe',t:p.nome,s:st+' · '+(p.setor==='combustivel'&&window.JB_ESTOQUE&&JB_ESTOQUE.txtValorProd?JB_ESTOQUE.txtValorProd(p.id):rotCustoV(p.id)+' '+fMoeda(custoMedio(p.id))),v:fQtd(saldoP(p.id))+' '+(p.unidade||'')}   /* V176: no início do Combustível, embalagens, preço de cada uma e valor total */}),'Nenhum item cadastrado.')}</div>
   </div>
   <div class="${escContas&&!cb?'ex2':'ex3'}">
    ${escContas?blocoEnt:''}${cb&&window.CB_LENHA?window.CB_LENHA.blocoComb(m):''}
@@ -52440,6 +52440,15 @@ window.JB_ALMOCO=Object.freeze({COL,COL_CFG,COL_FL,REFS:Object.freeze(REFS.map(r
 .ei-ops{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .ei-ops .btn{justify-content:center;width:100%}
 /* V176: embaixo do nome do produto do Combustível: embalagens, preço de cada uma e valor total */
+/* V176: Entrada de produtos (várias linhas) cabe na janela do celular: produto em cima, quantidade e valor embaixo */
+.ei-lin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:0 0 12px;padding:0 0 12px;border-bottom:1px solid var(--linha,#E4E7EC)}
+.ei-lin>*{min-width:0;max-width:100%;box-sizing:border-box;margin:0}
+.ei-lin .ei-l2{grid-column:1/-1}
+.ei-lc>input,.ei-lc>select{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.ei-lin .ei-lc{align-self:end}
+/* V176: no início do Combustível a linha das embalagens e do valor aparece inteira (quebra a linha em vez de cortar) */
+.je-ini .lst .tx{min-width:0}
+.je-ini .lst .tx small{white-space:normal;overflow:visible;text-overflow:clip;display:block;line-height:1.35}
 .je-vtot{display:block;font-size:12.5px;font-weight:400;line-height:1.35;color:var(--pn-s,#565A63);margin-top:3px}
 </style>
 <script id="estoque-integrado-v165">
@@ -52930,10 +52939,40 @@ function parecidos(pid,q,data){
  entradasNoSetor().forEach(x=>{if(x.produtoId===pid&&perto(x.data)&&igual(x.qtd))L.push(x.tipo.toLowerCase()+' de '+fData(x.data))});
  return L}
 const prodsComb=()=>DATA.produtos.filter(p=>p.setor===SETOR&&p.situacao!=='Inativo').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(p=>[p.id,nomeProduto(p)+' ('+(p.unidade||'')+')']);
-function linhaLote(k){return `<div class="ei-lin" data-lk="${k}" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;margin:0 0 6px">
-  <select data-lp aria-label="Produto ${k+1}"><option value="">Produto…</option>${opt(prodsComb(),'')}</select>
-  <input data-lq inputmode="decimal" placeholder="Quantidade" aria-label="Quantidade ${k+1}"><input data-lv inputmode="decimal" placeholder="Valor unit. (depois)" aria-label="Valor ${k+1}">
-  <input data-lo placeholder="Observação / descrição (opcional)" aria-label="Observação ${k+1}" style="grid-column:1/-1"></div>`}
+/* V176 (26/11/2026, pedido do Jeferson): cada linha no mesmo padrão do lançamento de um produto: embalagens × quanto tem
+   em cada uma = quantidade; valor de cada embalagem ↔ valor do litro; a conta e o total aparecem na hora. No celular
+   os campos ficam em duas colunas, dentro da janela (antes saíam para fora). */
+function linhaLote(k){const c=(a,rot,ph,cls)=>`<div class="cmp ei-lc${cls?' '+cls:''}"><label>${rot}</label><input ${a} inputmode="decimal" autocomplete="off" placeholder="${ph}" aria-label="${rot} ${k+1}"></div>`;
+ return `<div class="ei-lin" data-lk="${k}">
+  <div class="cmp ei-lc ei-l2"><label>Produto ${k+1}</label><select data-lp aria-label="Produto ${k+1}"><option value="">Escolha o produto…</option>${opt(prodsComb(),'')}</select></div>
+  ${c('data-len','Embalagens','ex.: 10')}${c('data-lec','Cada uma tem','ex.: 20')}
+  ${c('data-lq','Quantidade total','litros ou kg')}${c('data-lev','Valor de cada embalagem (R$)','pode pôr depois')}
+  ${c('data-lv','Valor de 1 litro ou kg (R$)','calculado sozinho','ei-l2')}
+  <div class="cmp ei-lc ei-l2"><label>Observação (opcional)</label><input data-lo autocomplete="off" placeholder="marca, onde está guardado" aria-label="Observação ${k+1}"></div>
+  <p class="ei-saldo ei-l2" data-lr></p></div>`}
+function ligarLote(r){if(!r||r.dataset.lig)return;r.dataset.lig='1';const g=s=>r.querySelector(s);const res=g('[data-lr]');
+ const P=()=>PROD(g('[data-lp]').value)||null;const un=()=>(P()||{}).unidade||'';
+ const tipo=()=>r.dataset.tipo||'embalagem';
+ const conta=()=>{const p=P();const N=num(r,'[data-len]'),C=num(r,'[data-lec]'),EV=num(r,'[data-lev]');const u=un();
+  if(N>0&&C>0)g('[data-lq]').value=fNumC(r3(N*C));
+  const Q=num(r,'[data-lq]'),V=num(r,'[data-lv]');
+  if(!p){res.textContent='';return}
+  const partes=[];if(N>0&&C>0)partes.push(fQtd(N)+' '+plE(tipo(),N)+' de '+fQtd(C)+' '+u+' = '+fQtd(Q)+' '+u);else if(Q>0)partes.push(fQtd(Q)+' '+u);
+  if(Q>0&&V>0)partes.push('valor total '+fMoeda(r2(Q*V))+(C>0?' · '+fMoeda(r2(V*C))+' '+artE(tipo())+' '+tipo():'')+' · '+fMoeda(V)+' '+porUnE(u));
+  if(N>0&&!(C>0)&&['L','kg'].includes(u))res.innerHTML='<b style="color:#B42318">Falta quanto tem em cada embalagem.</b>';
+  else res.textContent=partes.join(' · ')||('Tem agora: '+txtValorProd(p.id))};
+ const deEmb=()=>{const C=num(r,'[data-lec]'),EV=num(r,'[data-lev]');if(C>0&&EV>0)g('[data-lv]').value=fNumC4(EV/C)};
+ const deUn=()=>{const C=num(r,'[data-lec]'),V=num(r,'[data-lv]');if(C>0&&V>0)g('[data-lev]').value=fNumC2(V*C)};
+ g('[data-lp]').addEventListener('change',()=>{const p=P();const e=p?embPadrao(p.id):null;r.dataset.tipo=e&&e.tipo?e.tipo:'';
+  if(e&&e.c>0&&!g('[data-lec]').value)g('[data-lec]').value=fNumC(e.c);
+  const u=un()||'unidade';r.querySelectorAll('.ei-lc>label').forEach(s=>{const i=s.parentNode.querySelector('input');if(!i)return;
+   if(i.matches('[data-lec]'))s.textContent='Cada '+(e&&e.tipo?e.tipo:'uma')+' tem ('+u+')';if(i.matches('[data-len]'))s.textContent=e&&e.tipo?'Quant'+artE(e.tipo)+'s '+plE(e.tipo,2):'Embalagens';
+   if(i.matches('[data-lq]'))s.textContent='Quantidade total ('+u+')';if(i.matches('[data-lev]'))s.textContent='Valor de cada '+(e&&e.tipo?e.tipo:'embalagem')+' (R$)';if(i.matches('[data-lv]'))s.textContent='Valor de 1 '+(u==='L'?'litro':u)+' (R$)'});
+  deUn();conta()});
+ ['[data-len]','[data-lq]'].forEach(s=>g(s).addEventListener('input',conta));
+ g('[data-lec]').addEventListener('input',()=>{if(num(r,'[data-lev]')>0)deEmb();else deUn();conta()});
+ g('[data-lev]').addEventListener('input',()=>{deEmb();conta()});
+ g('[data-lv]').addEventListener('input',()=>{deUn();conta()})}
 async function abrirEntradaLote(pre){
  if(!pode('estoqueMov','e')){toast('Seu perfil não lança entrada no estoque do Combustível.','erro');return}
  let n=Math.max(3,(pre||[]).length);
@@ -52942,9 +52981,15 @@ async function abrirEntradaLote(pre){
    <div data-lotes>${Array.from({length:n},(_,k)=>linhaLote(k)).join('')}</div><button type="button" class="btn min" data-maislin>Mais uma linha</button>
    ${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}`,
   {ok:'Lançar no estoque',depois:async ctl=>{
-   const ls=[...ctl.v.querySelectorAll('[data-lk]')].map(w=>({pid:w.querySelector('[data-lp]').value,q:num(w,'[data-lq]'),v:num(w,'[data-lv]'),o:val(w,'[data-lo]')})).filter(l=>l.pid||!isNaN(l.q));
+   const ls=[...ctl.v.querySelectorAll('[data-lk]')].map(w=>{const N=num(w,'[data-len]'),C=num(w,'[data-lec]'),EV=num(w,'[data-lev]');let q=num(w,'[data-lq]'),v=num(w,'[data-lv]');
+     if(!(q>0)&&N>0&&C>0)q=r3(N*C);if(!(v>0)&&EV>0&&C>0)v=EV/C;
+     return{pid:w.querySelector('[data-lp]').value,q,v,o:val(w,'[data-lo]'),N,C,tipo:w.dataset.tipo||'embalagem'}}).filter(l=>l.pid||!isNaN(l.q)||l.N>0);
    if(!ls.length)throw new Error('Escolha pelo menos um produto com a quantidade.');
-   for(const l of ls){if(!l.pid)throw new Error('Escolha o produto em todas as linhas com quantidade.');if(!(l.q>0))throw new Error('Informe a quantidade de '+(PROD(l.pid)||{}).nome+'.');if(!isNaN(l.v)&&l.v<0)throw new Error('Valor inválido.')}
+   for(const l of ls){if(!l.pid)throw new Error('Escolha o produto em todas as linhas com quantidade.');const pr=PROD(l.pid)||{};
+    if(l.N>0&&!(l.C>0)&&['L','kg'].includes(pr.unidade))throw new Error(pr.nome+': informe quanto tem em cada embalagem (ex.: balde de 20 L → 20). A quantidade é em '+pr.unidade+', não em baldes.');
+    if(!(l.q>0))throw new Error('Informe a quantidade de '+pr.nome+'.');if(!isNaN(l.v)&&l.v<0)throw new Error('Valor inválido.');
+    if(l.N>0&&l.C>0&&Math.abs(l.q-l.N*l.C)>1e-6)throw new Error(pr.nome+': a quantidade total ('+fQtd(l.q)+') não bate com '+fQtd(l.N)+' × '+fQtd(l.C)+' = '+fQtd(r3(l.N*l.C))+'. Confira.')}
+   for(const l of ls){if(!isNaN(l.v)&&l.v>0&&!await conferirValorE(l.pid,l.v,(PROD(l.pid)||{}).unidade||''))return false}
    const dt=val(ctl.v,'#eiD')||hoje();if(dt>hoje())throw new Error('A data não pode ser futura.');
    /* duplicidade: no próprio lote e nos lançamentos dos últimos dias */
    const avis=[];const vistos={};ls.forEach(l=>{const k=l.pid+'|'+l.q;if(vistos[k])avis.push((PROD(l.pid)||{}).nome+': está duas vezes nesta lista');vistos[k]=1;
@@ -52953,13 +52998,13 @@ async function abrirEntradaLote(pre){
    const sd={};ls.forEach(l=>{sd[l.pid]=sd[l.pid]==null?saldoP(l.pid):sd[l.pid]});const ag=agora();let feitos=0;
    for(const l of ls){const pr=PROD(l.pid)||{};const ant=r3(sd[l.pid]);sd[l.pid]=r3(ant+l.q);const v=!isNaN(l.v)&&l.v>0?Math.round(l.v*10000)/10000:null;
     const rec={id:novoId(),setor:SETOR,tipo:'Entrada',integrado:true,produtoId:l.pid,quantidade:r3(l.q),delta:r3(l.q),unidade:pr.unidade||'',anterior:ant,atual:sd[l.pid],
-     valorUnit:v,valorEntrada:v?r2(v*l.q):null,obs:l.o,foto:null,motivo:'Entrada de produtos (estoque integrado)',data:dt,hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
+     valorUnit:v,valorEntrada:v?r2(v*l.q):null,...(l.N>0&&l.C>0?{embalagem:fNumC(l.N)+' '+plE(l.tipo,l.N)+' de '+fNumC(l.C)+' '+(pr.unidade||'')}:{}),obs:l.o,foto:null,motivo:'Entrada de produtos (estoque integrado)',data:dt,hora:hh(),criadoEm:ag,criadoPor:eu(),alteradoEm:ag,alteradoPor:eu()};
     await gravar('estoqueMov',rec,null);try{await registrarLog('estoqueMov',rec.id,'criou',null,rec)}catch(e){}feitos++}
    toast(feitos+' entrada(s) lançada(s) no estoque. As que estão sem foto ou valor ficam pendentes no Combustível e no Almoxarifado.','ok');setTimeout(()=>{try{renderTela()}catch(e){}},300);return true}});
  await esperar(()=>document.querySelector('.ei-modal [data-maislin]'),2000);
  const w=document.querySelector('.ei-modal');
- if(w){const b=w.querySelector('[data-maislin]');if(b)b.onclick=()=>{w.querySelector('[data-lotes]').insertAdjacentHTML('beforeend',linhaLote(n++))};
-  (pre||[]).forEach((x,k)=>{const r=w.querySelector('[data-lk="'+k+'"]');if(!r)return;r.querySelector('[data-lp]').value=x.produtoId||'';r.querySelector('[data-lq]').value=x.qtd==null?'':String(x.qtd).replace('.',',');if(x.obs)r.querySelector('[data-lo]').value=x.obs})}
+ if(w){const b=w.querySelector('[data-maislin]');const lig=()=>w.querySelectorAll('[data-lk]').forEach(ligarLote);lig();if(b)b.onclick=()=>{w.querySelector('[data-lotes]').insertAdjacentHTML('beforeend',linhaLote(n++));lig()};
+  (pre||[]).forEach((x,k)=>{const r=w.querySelector('[data-lk="'+k+'"]');if(!r)return;r.querySelector('[data-lp]').value=x.produtoId||'';r.querySelector('[data-lq]').value=x.qtd==null?'':String(x.qtd).replace('.',',');if(x.obs)r.querySelector('[data-lo]').value=x.obs;if(x.produtoId)r.querySelector('[data-lp]').dispatchEvent(new Event('change'))})}
  return p}
 async function abrirCompletar(id){
  if(String(id).indexOf('j:')===0)return abrirCompletarAj(String(id).slice(2));
@@ -53005,9 +53050,10 @@ async function abrirEntradaProduto(pid){
  let foto=null;const un=pr.unidade||'';
  const p=janela('Lançar · '+pr.nome,
   `<p class="ei-saldo">Tem agora: <b>${esc(txtValorProd(pid))}</b>. Entra no estoque do Combustível e aparece também no Almoxarifado. Sem foto ou sem valor, fica pendente para completar depois.</p>
-   <div class="campos">${campo('eiQ','Quantidade ('+esc(un)+') *','<input id="eiQ" inputmode="decimal" autocomplete="off">')}
-   ${campo('eiV','Valor unitário (R$ por '+esc(un||'unidade')+')','<input id="eiV" inputmode="decimal" autocomplete="off" placeholder="pode pôr depois">')}
-   ${campoEmb(un)}${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" placeholder="ex.: balde de 20 L, caixa com 12 de 1 L">')}
+   <div class="campos">${campoEmb(un)}
+   ${campo('eiQ','Quantidade total ('+esc(un)+') *','<input id="eiQ" inputmode="decimal" autocomplete="off">','Com as embalagens preenchidas, a conta é feita sozinha.')}
+   ${campo('eiV','Valor de 1 '+esc(un==='L'?'litro':un||'unidade')+' (R$)','<input id="eiV" inputmode="decimal" autocomplete="off" placeholder="pode pôr depois">')}
+   ${campo('eiE','Peso / embalagem','<input id="eiE" autocomplete="off" placeholder="ex.: balde de 20 L, caixa com 12 de 1 L">')}
    ${campo('eiO','Observação / descrição','<textarea id="eiO" rows="2" placeholder="marca, onde está guardado, para que é"></textarea>')}
    <div class="cmp"><label>Foto do produto</label><div data-fotow></div>${campoFoto()}</div>
    ${campo('eiD','Data','<input id="eiD" type="date" max="'+hoje()+'" value="'+hoje()+'">')}</div>`,
@@ -53049,7 +53095,7 @@ function txtValorProd(pid,curto){const p=PROD(pid);if(!p)return '';const s=r3(sa
 /* valor do litro (ou kg) muito diferente do custo médio: pergunta antes de gravar (ex.: o valor do tambor inteiro posto como valor do litro) */
 async function conferirValorE(pid,vu,un){const cm=custoMedio(pid);if(!(vu>0)||!(cm>0))return true;const r=vu/cm;if(r<=3&&r>=1/3)return true;   /* só o que é bem fora (3 vezes): o valor da embalagem inteira dá 20, 200 vezes */
  const e=embPadrao(pid);const a=e?artE(e.tipo):'o';
- return confirmar('Valor fora do normal',((PROD(pid)||{}).nome||'')+': '+fMoeda(vu)+' '+porUnE(un)+', bem '+(r>1?'acima':'abaixo')+' do custo médio ('+fMoeda(cm)+' '+porUnE(un)+').'+(r>1&&e&&e.c>0?' Confira se não é o valor '+(a==='a'?'da ':'do ')+e.tipo+' inteir'+a+' ('+fQtd(e.c)+' '+un+'): o campo Valor unitário é de 1 '+(un==='L'?'litro':un||'unidade')+'.':' Confira o valor antes de gravar.'),{ok:'Está certo, gravar'})}
+ return confirmar('Valor fora do normal',((PROD(pid)||{}).nome||'')+': '+fMoeda(vu)+' '+porUnE(un)+', bem '+(r>1?'acima':'abaixo')+' do custo médio ('+fMoeda(cm)+' '+porUnE(un)+').'+(r>1&&e&&e.c>0?' Confira se não é o valor '+(a==='a'?'da ':'do ')+e.tipo+' inteir'+a+' ('+fQtd(e.c)+' '+un+'): o valor pedido é o de 1 '+(un==='L'?'litro':un||'unidade')+'.':' Confira o valor antes de gravar.'),{ok:'Está certo, gravar'})}
 /* "R$ 575,00 o galão (R$ 28,75 o litro)" */
 function txtPrecoProd(pid){const p=PROD(pid);const cm=p?custoMedio(pid):0;return cm>0?txtPrecoE(cm,p.unidade||'',embPadrao(pid)):''}
 function htmlEntradas(lim){
@@ -53058,7 +53104,7 @@ function htmlEntradas(lim){
   <div class="painel tabwrap"><table class="tbl cartao"><thead><tr><th>Data</th><th>Produto</th><th class="num">Quantidade</th><th>Preço</th><th class="num">Valor total</th><th>Foto</th><th>Observação</th><th>Situação</th><th></th></tr></thead><tbody>
   ${L.slice(0,lim||60).map(m=>{const pr=PROD(m.produtoId)||{};const un=m.unidade||pr.unidade||'';const e=lerEmbE(m.embalagem);const vu=+m.valorUnit>0?+m.valorUnit:0;const q=+m.quantidade||0;
    return `<tr><td data-l="Data">${esc(fData(m.data))}</td><td data-l="Produto">${esc(pr.nome||'')}</td><td data-l="Quantidade" class="num">${esc(fQtd(q)+' '+un+(e?' ('+fQtd(e.n)+' '+plE(e.tipo,e.n)+' de '+fQtd(e.c)+' '+un+')':''))}</td>
-   <td data-l="Preço">${vu?esc(txtPrecoE(vu,un,e)):'—'}</td><td data-l="Valor total" class="num">${vu?esc(fMoeda(r2(vu*q))):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver</a>`:'—'}</td><td data-l="Observação">${esc((e?m.obs:[m.embalagem,m.obs].filter(Boolean).join(' · '))||'—')}</td>
+   <td data-l="Preço">${vu?esc(txtPrecoE(vu,un,e)):'—'}</td><td data-l="Valor total" class="num">${vu?esc(fMoeda(r2(vu*q))):'—'}</td><td data-l="Foto">${m.foto&&m.foto.id?`<a href="/_blob/${esc(m.foto.id)}" target="_blank" rel="noopener">ver foto</a>`:'—'}</td><td data-l="Observação">${esc((e?m.obs:[m.embalagem,m.obs].filter(Boolean).join(' · '))||'—')}</td>
    <td data-l="Situação">${pendenteE(m)?tag('Pendente: '+txtPend(m),'pe'):tag('Completa','ok')}</td><td>${pode(m.aj?'almAjustes':'estoqueMov','e')?`<button type="button" class="btn min${pendenteE(m)?' pri':''}" data-je="comp" data-mid="${esc(m.id)}">${pendenteE(m)?'Completar':'Editar'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`}
 
 /* ---------------- 13b. V171: embalagens × conteúdo também nos lançamentos do Combustível ----------------

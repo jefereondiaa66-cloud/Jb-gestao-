@@ -213,6 +213,24 @@ try {
   ok(c9.forn.some((x) => /^Fornecedores:.*POSTO FICTICIO/.test(x)), 'acha o fornecedor: ' + c9.forn.join(' ; '));
   ok(c9.diesel.some((x) => /^Produtos:.*Diesel S10 Teste/.test(x)), 'acha produto só do Combustível: ' + c9.diesel.join(' ; '));
 
+  console.log('10. Entrada de produtos (várias linhas): mesmo padrão, cabe na tela do celular e mostra a conta');
+  const c10 = await page.evaluate(async () => {
+    T.fecharJanelas(); const s0 = saldoP('p_graxa'); JB_ESTOQUE.abrirEntradaLote(); await T.esperar(() => document.querySelector('.ei-modal [data-lk="0"] [data-lev]')); await T.dorme(200);
+    const m = document.querySelector('.ei-modal'); const mr = m.getBoundingClientRect();
+    const fora = [...m.querySelectorAll('input,select,button')].filter((x) => { const b = x.getBoundingClientRect(); return b.width > 0 && (b.right > mr.right + 1 || b.left < mr.left - 1); }).length;
+    const r = m.querySelector('[data-lk="0"]'); const set = (s, v, ev) => { const x = r.querySelector(s); x.value = v; x.dispatchEvent(new Event(ev || 'input', { bubbles: true })); };
+    set('[data-lp]', 'p_graxa', 'change'); const pre = r.querySelector('[data-lec]').value; const rot = r.querySelector('[data-lec]').parentNode.querySelector('label').textContent;
+    set('[data-len]', '2'); set('[data-lev]', '613,27');
+    const q = r.querySelector('[data-lq]').value, v = r.querySelector('[data-lv]').value, res = T.sp(r.querySelector('[data-lr]').textContent);
+    m.querySelector('[data-r="1"]').click(); await T.esperar(() => saldoP('p_graxa') === Math.round((s0 + 36.8) * 1000) / 1000, 8000); await T.sinc();
+    const e = JB_ESTOQUE.entradasIntegradas().find((x) => x.produtoId === 'p_graxa' && x.quantidade === 36.8);
+    return { fora, larg: Math.round(mr.width), pre, rot, q, v, res, rec: e && [e.quantidade, e.valorUnit, e.embalagem] };
+  });
+  ok(c10.fora === 0, `nenhum campo sai da janela no celular (janela de ${c10.larg} px)`);
+  ok(c10.pre === '18,4' && /Cada balde tem \(kg\)/.test(c10.rot), 'escolher o produto já traz a embalagem de sempre: ' + c10.rot + ' = ' + c10.pre);
+  ok(c10.q === '36,8' && /2 baldes de 18,4 kg = 36,8 kg/.test(c10.res) && /valor total R\$ 1\.226,5/.test(c10.res), 'a conta aparece na linha: ' + c10.res);
+  ok(c10.rec && c10.rec[0] === 36.8 && Math.abs(c10.rec[1] - 33.33) < 0.005 && c10.rec[2] === '2 baldes de 18,4 kg', 'gravado em kg, com o valor do kg e a embalagem: ' + (c10.rec && c10.rec.join(' / ')));
+
   ok(erros.length === 0, 'nenhum erro de JavaScript na página' + (erros.length ? ': ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) { console.error(e); falhas++; }
 finally { await browser.close(); http.close(); }

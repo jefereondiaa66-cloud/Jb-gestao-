@@ -37,3 +37,11 @@ Em vez de dar o módulo inteiro de um setor ao outro, libera só o estoque integ
 Reversão: `20261126000000_seg_estoque_integrado_setores.down.sql` (as funções voltam letra por letra).
 
 Teste: `node scripts/testar-estoque-busca.mjs` (dados fictícios).
+
+## Complemento (26/11/2026, madrugada)
+- Início do Setor de Combustível: cada produto do bloco Estoque mostra as embalagens, o preço de cada uma e o valor
+  total (antes só "custo médio R$ 28,75"); a linha quebra em vez de cortar.
+- Entrada de produtos (várias linhas): no celular os campos saíam para fora da janela. Agora cada linha segue o
+  padrão do lançamento de um produto (quantas embalagens, quanto tem em cada uma, valor de cada uma, conta e total na
+  hora), em duas colunas dentro da janela; escolher o produto já traz a embalagem de sempre.
+- Lançar · produto: as embalagens vêm primeiro; a quantidade total e o valor de 1 litro são calculados.
