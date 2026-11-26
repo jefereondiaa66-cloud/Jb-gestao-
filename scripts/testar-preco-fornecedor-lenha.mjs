@@ -151,7 +151,8 @@ try {
   ok(/7,93/.test(ab.preco10) && /7,90/.test(ab.preco500), `trocar o combustível troca o preço que veio sozinho (S10 ${ab.preco10} → S500 ${ab.preco500})`);
   ok(/8,00/.test(ab.digitado), `o preço digitado pela pessoa não muda ao trocar o combustível (${ab.digitado})`);
   ok(ab.comb && ab.comb.precoUnit === 7.9 && ab.comb.valor === 553 && ab.banco === 553, 'abastecimento gravado a R$ 7,90: 70 L × R$ 7,90 = R$ 553,00 (também no banco central)');
-  ok(ab.custoUnit === 7.79 && ab.custoTotal === 545.3 && ab.custo500 === 7.79, `o custo do diesel no estoque continua R$ ${ab.custoUnit} por litro (R$ ${ab.custoTotal}); o acréscimo é só do fornecedor`);
+  /* V180 (pedido do dono): o custo do abastecimento para fornecedor de lenha é o preço dele (R$ 7,90); o custo por litro do estoque não muda */
+  ok(ab.custoUnit === 7.9 && ab.custoTotal === 553 && ab.custo500 === 7.79, `custo do abastecimento para a lenha: R$ ${ab.custoUnit} por litro (R$ ${ab.custoTotal}); o custo por litro do estoque continua R$ ${ab.custo500}`);
   ok(ab.saldoLenha === 3447 && ab.diesel === 930, `desconto na lenha pelo preço do fornecedor: R$ 4.000 − R$ 553 = R$ ${ab.saldoLenha} (diesel na bomba: ${ab.diesel} L)`);
   ok(!ab.tem_sug, 'o controle do preço sugerido (_cblSug) não é gravado');
 

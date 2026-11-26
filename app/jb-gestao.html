@@ -13690,7 +13690,8 @@ function txtCustoV(pid,un){const c=custoPartes(pid);const u=un?'/'+un:'';return 
    abastece na cerâmica paga R$ 7,90 o litro do S500 (o custo do programa mais um acréscimo), não o custo por litro.
    O preço mora no cadastro do combustível (precoFornLenha). Preenchido, ele vem sozinho no abastecimento para fornecedor
    de lenha (Setor de Combustível) e no "Combustível que ele levou" (Setor da Lenha); em branco, vem o custo por litro,
-   como antes. Só muda o que o fornecedor paga: o custo do combustível no estoque e na produção continua o mesmo. */
+   como antes. Só muda o que o fornecedor paga: o custo do combustível no estoque e na produção continua o mesmo.
+   V180 (26/11/2026): o "Custo do abastecimento" para fornecedor de lenha passa a ser esse preço (não média + custo de buscar). */
 function precoFornLenhaV(pid){const p=PROD(pid);if(!ehCombustivelV(p))return 0;const v=p.precoFornLenha;return v===''||v==null||!isFinite(+v)||+v<=0?0:Math.round(+v*100)/100}
 function precoSugeridoFornLenhaV(pid){if(!pid)return '';const f=precoFornLenhaV(pid);if(f>0)return f;const cm=custoMedio(pid);return cm>0?Math.round(cm*100)/100:''}
 /* combustível que já vem escolhido no abastecimento para fornecedor de lenha: o único com preço para fornecedor no cadastro */
@@ -14040,9 +14041,13 @@ MODS.consumos={get titulo(){return setorAtualV()==='combustivel'?'Abastecimentos
   {k:'_saldo',l:'Saldo',t:'html',vivo:1,w2:1,calc:r=>{const p=PROD(r.produtoId);if(!p)return '<span class="ajuda">Escolha o item para ver o saldo.</span>';if(r.criadoEm&&r.anterior!=null)return `Saldo antes: <b>${esc(fQtd(r.anterior))}</b> · depois: <b>${esc(fQtd(r.atual))}</b> ${esc(p.unidade||'')}`;const s=saldoP(p.id);return `Saldo atual: <b>${esc(fQtd(s))} ${esc(p.unidade||'')}</b>${+r.quantidade>0?` · depois: <b>${esc(fQtd(round3(s-r.quantidade)))}</b>`:''} · ${esc(txtCustoV(p.id,p.unidade||'un'))}`},s:'Consumo'},
   /* Pedido do Jeferson (05/11/2026): quanto custou cada abastecimento */
   {k:'_custoAb',l:'Custo do abastecimento',t:'html',vivo:1,w2:1,sh:()=>setorAtualV()==='combustivel',calc:r=>{const p=PROD(r.produtoId);const q=+r.quantidade||0;const un=esc((p&&p.unidade)||'L');
-   if(r.anterior!=null&&r.custoTotal!=null&&r.custoTotal!=='')return `<b>${esc(fMoeda(+r.custoTotal))}</b>${q&&+r.custoUnit?` <span class="ajuda">(${esc(fQtd(q))} ${un} × ${esc(fMoeda(+r.custoUnit))}/${un}${+r.custoBuscar>0?': média das compras '+esc(fMoeda(+r.custoMediaNota))+' + custo de buscar '+esc(fMoeda(+r.custoBuscar)):''})</span>`:''}`;
+   if(r.anterior!=null&&r.custoTotal!=null&&r.custoTotal!=='')return `<b>${esc(fMoeda(+r.custoTotal))}</b>${q&&+r.custoUnit?` <span class="ajuda">(${esc(fQtd(q))} ${un} × ${esc(fMoeda(+r.custoUnit))}/${un}${+r.custoBuscar>0?': média das compras '+esc(fMoeda(+r.custoMediaNota))+' + custo de buscar '+esc(fMoeda(+r.custoBuscar)):(r.combLenha||r.pagLenha)?': preço para fornecedor de lenha':''})</span>`:''}`;
    if(!p||!(q>0))return '<span class="ajuda">Informe o combustível e a quantidade para ver o custo.</span>';
-   const posto=r.origem==='Posto externo'&&+r.precoPosto>0;const cp=custoPartes(p.id);const cu=posto?+r.precoPosto:cp.custo;return `<b>${esc(fMoeda(round2(q*cu)))}</b> <span class="ajuda">(${esc(fQtd(q))} ${un} × ${esc(fMoeda(cu))}/${un}${!posto&&cp.buscar>0?': média das compras '+esc(fMoeda(cp.media))+' + custo de buscar '+esc(fMoeda(cp.buscar)):''})</span>`},s:'Consumo'},
+   const posto=r.origem==='Posto externo'&&+r.precoPosto>0;const cp=custoPartes(p.id);
+   /* V180: para fornecedor de lenha o custo é o preço combinado com ele (S500 a R$ 7,90), sem a conta "média + custo de buscar" */
+   const pfl=r.abastecidoEm==='Fornecedor de lenha'?+r.combLenhaPreco:r.abastecidoEm==='Pagamento de lenha'?+r.pagLenhaPreco:0;
+   if(!posto&&pfl>0)return `<b>${esc(fMoeda(round2(q*pfl)))}</b> <span class="ajuda">(${esc(fQtd(q))} ${un} × ${esc(fMoeda(pfl))}/${un}: preço para fornecedor de lenha)</span>`;
+   const cu=posto?+r.precoPosto:cp.custo;return `<b>${esc(fMoeda(round2(q*cu)))}</b> <span class="ajuda">(${esc(fQtd(q))} ${un} × ${esc(fMoeda(cu))}/${un}${!posto&&cp.buscar>0?': média das compras '+esc(fMoeda(cp.media))+' + custo de buscar '+esc(fMoeda(cp.buscar)):''})</span>`},s:'Consumo'},
   {k:'medidor',l:'Km ou horímetro',t:'num',sh:()=>setorAtualV()==='combustivel',s:'Detalhes'},
   {k:'operador',l:()=>setorAtualV()==='combustivel'?'Motorista ou operador':'Forneiro ou responsável',t:'txt',s:'Detalhes'},
   {k:'data',l:'Data',t:'data',req:1,s:'Detalhes'},
@@ -33382,7 +33387,8 @@ insAntes(fldK('abastecidoEm')?'abastecidoEm':'localId',[
  ['localId','medidor','terceiroId','terceiroNome','terceiroPlaca','terceiroFinalidade','postoId','cupom','precoPosto','formaPosto','condPosto','vencPosto','valorPosto','postoNome','tipoServico'].forEach(k=>delete rec[k]);
  rec.abastecidoEm='Pagamento de lenha';rec.origem='Estoque da fábrica';rec.categoria='Pagamento de lenha com combustível';rec.foraDaProducao=true;
  rec.pagLenhaPreco=r2(rec.pagLenhaPreco);
- rec.pagLenha={compraId:c.id,compraNumero:c.numero,fornecedorId:c.fornecedorId||'',fornecedorNome:parteSnap(c).nome||'',precoUnit:rec.pagLenhaPreco,valor:valorPag(rec),pagamentoId:'pl-'+rec.id}}}
+ rec.pagLenha={compraId:c.id,compraNumero:c.numero,fornecedorId:c.fornecedorId||'',fornecedorNome:parteSnap(c).nome||'',precoUnit:rec.pagLenhaPreco,valor:valorPag(rec),pagamentoId:'pl-'+rec.id};
+ if(rec.pagLenhaPreco>0){rec.custoUnit=rec.pagLenhaPreco;rec.custoTotal=valorPag(rec);delete rec.custoMediaNota;delete rec.custoBuscar}}} /* V180: custo = preço para o fornecedor de lenha */
 {const g0=Object.getOwnPropertyDescriptor(MC,'cols').get;Object.defineProperty(MC,'cols',{configurable:true,enumerable:true,get(){const c=g0.call(this);if(!noComb())return c;
  return c.map(x=>x.k!=='_l'?x:{...x,v:r=>r.pagLenha?tag('pagou lenha','br')+' '+esc(r.pagLenha.fornecedorNome||'')+' · nº '+esc(fNumV(r.pagLenha.compraNumero)):x.v(r),o:r=>r.pagLenha?'pagamento de lenha '+(r.pagLenha.fornecedorNome||''):x.o(r)})}})}
 {const f0=Object.getOwnPropertyDescriptor(MC,'filtros');const get0=f0&&f0.get?f0.get:(()=>f0.value);Object.defineProperty(MC,'filtros',{configurable:true,enumerable:true,get(){const f=get0.call(this);
@@ -35426,7 +35432,11 @@ insAntesMC('_saldo',[
  const f=FORN(rec.combLenhaForn);
  ['localId','medidor','terceiroId','terceiroNome','terceiroPlaca','terceiroFinalidade','postoId','cupom','precoPosto','formaPosto','condPosto','vencPosto','valorPosto','postoNome','tipoServico','pagLenhaCompra','pagLenhaPreco','pagLenha','fornadaId'].forEach(k=>delete rec[k]);
  rec.pagLenhaSim='Não';rec.origem='Estoque da fábrica';rec.categoria='Combustível para fornecedor de lenha';rec.foraDaProducao=true;rec.combLenhaPreco=r2(+rec.combLenhaPreco);
- rec.combLenha={fornecedorId:rec.combLenhaForn,fornecedorNome:nomeFornecedor(f),fornecedorDoc:docFornecedor(f)||'',precoUnit:rec.combLenhaPreco,valor:valorCB(rec)}}}
+ rec.combLenha={fornecedorId:rec.combLenhaForn,fornecedorNome:nomeFornecedor(f),fornecedorDoc:docFornecedor(f)||'',precoUnit:rec.combLenhaPreco,valor:valorCB(rec)};
+ /* V180 (26/11/2026, pedido do Jeferson): o custo do abastecimento para fornecedor de lenha é o preço combinado com ele
+    (S500 a R$ 7,90 o litro), igual ao que é descontado do que a cerâmica deve. O "custo de buscar" de R$ 0,30 vale só para
+    máquina da fábrica, caminhão etc. O custo por litro do estoque (custoMedio) não muda. */
+ if(rec.combLenhaPreco>0){rec.custoUnit=rec.combLenhaPreco;rec.custoTotal=valorCB(rec);delete rec.custoMediaNota;delete rec.custoBuscar}}}
 /* lista de abastecimentos: o fornecedor aparece no lugar do veículo */
 {const g0=Object.getOwnPropertyDescriptor(MC,'cols');if(g0&&g0.get)Object.defineProperty(MC,'cols',{configurable:true,enumerable:true,get(){const c=g0.get.call(this);if(!ehCb(setorAtualV()))return c;
  return c.map(x=>x.k!=='_l'?x:{...x,v:r=>r.combLenha?tag('fornecedor de lenha','br')+' '+esc(r.combLenha.fornecedorNome||''):x.v(r),o:r=>r.combLenha?'fornecedor de lenha '+(r.combLenha.fornecedorNome||''):(x.o?x.o(r):'')})}})}
