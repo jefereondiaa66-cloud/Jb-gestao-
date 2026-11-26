@@ -97,6 +97,12 @@ try {
   });
   const foto = async (nome) => { if (FOTOS) await page.screenshot({ path: join(FOTOS, nome), fullPage: true }); };
 
+  /* 0. o módulo aparece à vista no início do Setor de Combustível (cartão em Módulos) e no menu Módulos */
+  const p0 = await page.evaluate(async () => { location.hash = '#/setor-combustivel'; await T.dorme(1200);
+    const vis = [...document.querySelectorAll('a[href="#/despEnt"]')].filter((a) => (a.offsetWidth || a.offsetHeight) && /Despesas de entrega/.test(a.textContent)).length;
+    const b = [...document.querySelectorAll('button,a')].find((x) => /Módulos/.test(x.textContent) && x.offsetWidth); if (b) b.click(); await T.dorme(500);
+    const mega = /Despesas de entrega/.test((document.querySelector('.c2-mega') || {}).innerText || ''); document.body.click(); await T.dorme(200); return { vis, mega }; });
+  ok(p0.vis >= 1 && p0.mega, `início do Setor de Combustível mostra "Despesas de entrega" à vista (${p0.vis}) e no menu Módulos`);
   /* 1. painel */
   const p1 = await page.evaluate(async () => {
     await T.ir('#/despEnt', '.de-hero');
