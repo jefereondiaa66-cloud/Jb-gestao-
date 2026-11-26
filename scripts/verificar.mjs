@@ -1593,6 +1593,37 @@ teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, a
   if (ci) assert.ok(ci.includes('node scripts/testar-almoco.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('controladoria', 'V178: layout novo da Controladoria (DRE em tabela contínua, painel no alto do setor, números numa linha só): só aparência, as contas não mudam', () => {
+  const app = ler('app/jb-gestao.html');
+  const ini = app.indexOf('/* ================= Setor de Controladoria e Análise (V54)'); const fim = app.indexOf('window.CONTROLADORIA=', ini);
+  assert.ok(ini > 0 && fim > ini, 'bloco da Controladoria');
+  const b = app.slice(ini, fim);
+  /* as contas não mudaram: campos, números dos setores, calcMes, capital de giro, balanço, preço alvo, alertas e ajuda dos índices */
+  const ci0 = b.indexOf('/* ================= campos do mês'), cf0 = b.indexOf('/* ================= permissões, rotas');
+  assert.ok(ci0 > 0 && cf0 > ci0 && !/V178/.test(b.slice(ci0, cf0)), 'a parte de cálculo não foi tocada pela V178');
+  for (const f of ['function calcMes(m){', 'function G(R,C){', 'function B(R){', 'function alvo3(m){', 'function alertasMes(m){', 'function resolver(m,prev){', 'function setoresMes(m){']) assert.ok(b.includes(f), 'cálculo presente: ' + f);
+  /* tabelas contínuas: sem a classe que vira cartão no celular */
+  assert.ok(b.includes('const tabC=(head,linhas,cls)=>`<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ') && !/class="tbl cartao/.test(b), 'tabelas contínuas (sem a classe cartao)');
+  /* a DRE desenha as mesmas linhas de sempre (linhasDRE e linhasGer), e o relatório em PDF continua usando as mesmas */
+  assert.ok(b.includes('const tab=(fn,cls)=>tabDRE(fn(R),Q?fn(Q):null,R,m,cmp,cls);') && b.includes("${tab(linhasDRE,'ctl-dre-abs')}") && b.includes("${tab(linhasGer,'ctl-dre-ger')}"), 'a DRE usa as mesmas linhas');
+  assert.ok(b.includes("S('DRE por absorção',tR(['Linha','Valor','% receita líq.'],linhasDRE(R).map("), 'o PDF da DRE não mudou');
+  /* painel: com a classe hero (a casca o põe acima de "Atalhos favoritos" e "Módulos") e só lendo */
+  const p = b.slice(b.indexOf('const DASH=['), b.indexOf('/* ================= gravação ================='));
+  assert.ok(p.includes('<section class="hero ctl-dash"') && p.includes('painelD(R,al)+'), 'painel no alto do setor');
+  for (const proibido of ['gravar(', 'apagar(', 'salvarMes(', 'salvarPrem(', 'registrarLog(', 'localStorage', 'location.hash', 'location.replace(', 'history.back(']) assert.ok(!p.includes(proibido), 'o painel só lê: não pode usar ' + proibido);
+  /* estilos: tudo preso ao setor (.ctl ou .ctl-tx), sem buscar nada de fora */
+  const css = /<style id="ctl-layout-v178-css">([\s\S]*?)<\/style>/.exec(app);
+  assert.ok(css, 'estilo da V178');
+  const corpo = css[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]+\{/g, '');
+  assert.ok(!/url\(|@import/.test(corpo), 'nada buscado de fora');
+  const partes = (sel) => { const out = []; let d = 0, a = ''; for (const ch of sel) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(a); a = ''; } else a += ch; } out.push(a); return out.map((x) => x.trim()).filter(Boolean); };
+  const soltos = []; let n = 0;
+  for (const m of corpo.matchAll(/([^{}]+)\{[^{}]*\}/g)) { const s = m[1].trim(); if (!s) continue; n++; partes(s).forEach((x) => { if (!/\.ctl(\b|-tx\b)/.test(x)) soltos.push(x); }); }
+  assert.ok(n > 80 && !soltos.length, 'toda regra vale só para a Controladoria' + (soltos.length ? ': ' + soltos.slice(0, 3).join(' | ') : ''));
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-controladoria-layout.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

@@ -25548,6 +25548,30 @@ function shellC(el,ativa,corpo){
  ligarMes(c);
  $$('[data-aj]',c).forEach(b=>b.onclick=()=>abrirAjuda(b.dataset.aj,calcMes(mesSel())));
  $$('[data-pdf]',c).forEach(b=>b.onclick=()=>menuPdf(b,ativa));
+ try{acabarC(el.querySelector('.ctl'))}catch(e){console.warn('controladoria: acabamento',e)}
+}
+/* ---------- V178 (26/11/2026, pedido do Jeferson) · acabamento de cada tela: só aparência, nenhum número muda ---------- */
+let OBS_C=null;
+/* número grande numa linha só: a fonte diminui até caber no cartão (antes quebrava "R$ 156.249,1" numa linha e "7" na outra) */
+function caberNum(els){els.forEach(el=>{if(!el.isConnected)return;el.style.removeProperty('font-size');const w=el.clientWidth;if(!w)return;
+ let f=parseFloat(getComputedStyle(el).fontSize)||20,n=0;while(el.scrollWidth>w+1&&f>12&&n++<40){f-=1;el.style.setProperty('font-size',f+'px','important')}})}
+/* tabela mais larga que a tela: sombra na 1ª coluna (fixa) quando rolou e na borda direita quando ainda há colunas para ver */
+function rolagemTab(w){const o=w.parentNode;if(!o)return;const fim=w.scrollWidth-w.clientWidth;o.classList.toggle('ctl-rol-e',w.scrollLeft>2);o.classList.toggle('ctl-rol-d',fim>2&&w.scrollLeft<fim-2)}
+/* espaço no fim da tela: nada fica escondido atrás do selo do Netlify (versão da nuvem) nem da barra de baixo do celular.
+   Mede quanto o que fica fixo embaixo ocupa e quanto já sobra depois do último quadro, e completa só o que falta. */
+function folgaFundo(raiz){try{const H=innerHeight;let f=0;
+ ['#nl-badge-frame','#c2mob'].forEach(s=>{const e=document.querySelector(s);if(!e)return;const cs=getComputedStyle(e);if(cs.display==='none'||cs.visibility==='hidden'||cs.position!=='fixed')return;const r=e.getBoundingClientRect();if(r.height>0&&r.top<H&&r.top>H*.4)f=Math.max(f,H-r.top)});
+ raiz.style.setProperty('--ctl-fundo','0px');const c=raiz.querySelector('#svCorpo');const ks=c?[...c.children].filter(e=>e.offsetParent!==null):[];const u=ks[ks.length-1];
+ const sobra=u?document.documentElement.scrollHeight-(u.getBoundingClientRect().bottom+scrollY):0;
+ raiz.style.setProperty('--ctl-fundo',Math.max(0,Math.round(f+18-sobra))+'px')}catch(e){}}
+function acabarC(raiz){
+ if(OBS_C){OBS_C.disconnect();OBS_C=null}if(!raiz)return;
+ const nums=()=>[...raiz.querySelectorAll('.ctl-kpi .v,.ctl-gz-v')];const tabs=[...raiz.querySelectorAll('.ctl-tw')];
+ tabs.forEach(w=>w.addEventListener('scroll',()=>rolagemTab(w),{passive:true}));
+ const tudo=()=>{if(!raiz.isConnected)return;caberNum(nums());tabs.forEach(rolagemTab);folgaFundo(raiz)};
+ requestAnimationFrame(tudo);setTimeout(tudo,450);[2200,5000].forEach(t=>setTimeout(()=>{if(raiz.isConnected)folgaFundo(raiz)},t));
+ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(raiz.isConnected)caberNum(nums())});
+ if(window.ResizeObserver){let t=null;OBS_C=new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(tudo,80)});OBS_C.observe(raiz);[...raiz.querySelectorAll('.ctl-kpi'),...tabs].forEach(x=>OBS_C.observe(x))}
 }
 /* cabeçalho de cada tela: título, explicação, seletor do mês e ações */
 const cabC=(ico,t,p,acoes)=>`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic(ico)}</span><div><h1>${esc(t)}</h1><p>${p}</p></div></div><div class="acoes">${acoes||''}<button type="button" class="btn" data-pdf>${ic('baixar')}Relatório PDF</button></div></div>
@@ -25556,45 +25580,150 @@ const cabC=(ico,t,p,acoes)=>`<div class="sec-cab"><div class="sec-id"><span clas
 function avisoEsq(m){const e=esquecidos(m);return e.length?`<div class="aviso at ctl-av"><span><b>${e.length} lançamento(s) esquecido(s) em ${esc(fMes(m))}:</b> ${esc(e.slice(0,5).map(k=>ROT[k]).join(', '))}${e.length>5?'…':''}. <a href="#/ctlLanc" data-esq="${esc(e[0])}">Ir aos lançamentos</a></span></div>`:''}
 /* indicador com o botão de ajuda e o motivo quando falta dado */
 function kpiC(R,id,cls,ico,sub){const I=IND[id];const x=valInd(R,id);const sem=I.sem&&x!=null?semaforo(I.sem,x):'';const mot=x==null||!isFinite(x)?(R.falta[id]||(NO_B.has(id)?R.falta.bal:'')||'faltam dados'):'';
- return `<div class="kpi ${cls||'c3'} ctl-kpi${sem?' sem-'+sem:''}"><div class="ic">${ic(ico||'grafico')}</div><div class="l">${esc(I.n)} ${btnQ(id)}</div><div class="v">${x==null||!isFinite(x)?'—':esc(I.fmt(x))}</div>
+ return `<div class="kpi ${cls||'c3'} ctl-kpi${sem?' sem-'+sem:''}"><div class="ic">${ic(ico||'grafico')}</div><div class="l"><span>${esc(I.n)}</span> ${btnQ(id)}</div><div class="v">${x==null||!isFinite(x)?'—':esc(I.fmt(x))}</div>
   ${mot?`<div class="ctl-mot">${esc(mot)}</div>`:sub?`<div class="delta neutro"><b>${sub}</b></div>`:''}${sem?`<span class="ctl-sem ${sem}" title="Semáforo: ${esc(TXT_SEM[sem])}"></span>`:''}</div>`}
 /* linha de tabela de indicador */
 function linhaInd(R,id,extra){const I=IND[id];const x=valInd(R,id);const sem=I.sem&&x!=null?semaforo(I.sem,x):'';
  return `<tr><td data-l="Indicador">${esc(I.n)} ${btnQ(id)}</td><td class="num" data-l="${esc(mesLongo(R.m))}">${x==null||!isFinite(x)?`<span class="ctl-tr" title="${esc(R.falta[id]||R.falta.bal||'faltam dados')}">—</span>`:esc(I.fmt(x))}${sem?` <span class="ctl-sem ${sem} pq" title="${esc(TXT_SEM[sem])}"></span>`:''}</td><td data-l="Fórmula" class="ctl-f">${esc(I.f)}${extra?'<br>'+extra:''}</td></tr>`}
-const tabC=(head,linhas,cls)=>`<div class="painel tabwrap"><table class="tbl cartao dir-tab ctl-tb ${cls||''}"><thead><tr>${head.map(h=>{const[t,n]=Array.isArray(h)?h:[h,0];return `<th class="${n?'num':''}">${esc(t)}</th>`}).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+/* V178: tabela contínua, uma linha por item (antes, no celular, cada linha virava um cartão com os campos empilhados);
+   no celular a 1ª coluna fica fixa e as outras rolam de lado. Os textos e números das células são os mesmos. */
+const tabC=(head,linhas,cls)=>`<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ${cls||''}"><thead><tr>${head.map(h=>{const[t,n]=Array.isArray(h)?h:[h,0];return `<th class="${n?'num':''}">${esc(t)}</th>`}).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div></div>`;
 const tdC=(l,v,n,cls)=>`<td data-l="${esc(l)}" class="${n?'num':''} ${cls||''}">${v}</td>`;
 const blocoC=(t,inner,link)=>`<div class="bloco ctl-bl"><h3>${esc(t)}${link||''}</h3><div class="ctl-bl-c">${inner}</div></div>`;
 const vazioC=(t,s)=>`<div class="vazio"><b>${esc(t)}</b>${s||''}</div>`;
 function grafC(id,cfg){if(!window.Chart){const cv=document.getElementById(id);if(cv&&cv.parentNode)cv.parentNode.innerHTML='<div class="ex-vazio">O gráfico não carregou (biblioteca indisponível).</div>';return}grafV(id,cfg)}
 const corC=['#111114','#D3121C','#8A8A94','#3D5B66','#B47A0C','#2C7A52'];
+/* V178: valor escrito na ponta de cada barra deitada (só desenho: o número é o mesmo da barra) */
+const rotPontaC=()=>({id:'ctlPonta',afterDatasetsDraw(ch){const ctx=ch.ctx;ctx.save();ctx.font='600 11px Inter,system-ui,sans-serif';ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--suave').trim()||'#5E6A6D';ctx.textAlign='left';ctx.textBaseline='middle';
+ ch.data.datasets.forEach((ds,i)=>{const me=ch.getDatasetMeta(i);if(me.hidden)return;me.data.forEach((b,k)=>{const v=+ds.data[k];if(!isFinite(v))return;const p=b.getProps(['x','y','base'],true);ctx.fillText(fMoedaCurta(v),Math.max(p.x,p.base)+5,p.y)})});ctx.restore()}});
 
 /* ================= Painel ================= */
+/* V178 (26/11/2026, pedido do Jeferson): painel (dashboard) no início do setor, acima de "Atalhos favoritos" e
+   "Módulos". Mostra só números que a Controladoria já calcula (calcMes do mês do seletor de sempre e do mês anterior
+   da lista, R.prev): nenhuma conta nova de resultado. A comparação com o mês anterior é só a diferença entre os dois
+   números (como a coluna Variação da DRE). Os indicadores que estavam no alto do painel continuam todos aqui
+   (custo por milheiro, preço médio e liquidez corrente na segunda linha), e os alertas de sempre entram em
+   "Pontos de atenção", junto com o que falta lançar (as mesmas mensagens de "—" dos indicadores). */
+const DASH=[
+ {id:'receita',n:'Receita bruta',ic:'moeda',cls:'c2',ir:'#/ctlDRE',t:'r',bom:1,val:R=>R.v.receita,fmt:fR,sub:R=>R.v.vendidos!=null?fMil(R.v.vendidos)+' milheiros vendidos':''},
+ {id:'LL',n:'Lucro líquido',ic:'moeda',cls:'c1',ir:'#/ctlDRE',t:'r',bom:1,sub:R=>R.ml!=null?'margem líquida '+fPct(R.ml):''},
+ {id:'ml',n:'Margem líquida',ic:'grafico',cls:'c4',ir:'#/ctlDRE',t:'p',bom:1},
+ {id:'IMC',n:'IMC',ic:'grafico',cls:'c4',ir:'#/ctlPreco',t:'p',bom:1,sub:R=>R.MC!=null?'MC '+fR(R.MC):''},
+ {id:'PEc',n:'Ponto de equilíbrio',ic:'ctlAlvo',cls:'c5',ir:'#/ctlPE',t:'q',bom:-1,sub:R=>R.PEcR!=null?'contábil · '+fR(R.PEcR):'contábil'},
+ {id:'MS',n:'Margem de segurança',ic:'ctlAlvo',cls:'c5',ir:'#/ctlPE',t:'p',bom:1},
+ {id:'NCG',n:'NCG',ic:'ctlCiclo',cls:'c2',ir:'#/ctlGiro',t:'r',bom:-1,sub:R=>R.g&&R.g.ncgDias!=null?fNum(R.g.ncgDias,1)+' dias de vendas':''},
+ {id:'CO',n:'Ciclo operacional',ic:'relogio',cls:'c6',ir:'#/ctlGiro',t:'d',bom:-1,sub:R=>R.g&&R.g.CF!=null?'ciclo financeiro '+fDias(R.g.CF):''}];
+const DASH2=[
+ {id:'cpm',n:'Custo por milheiro bom',ic:'caixa',cls:'c3',ir:'#/ctlCustos',t:'r',bom:-1,sub:R=>R.bons!=null?fMil(R.bons)+' milheiros bons':''},
+ {id:'pm',n:'Preço médio praticado',ic:'recibo',cls:'c3',ir:'#/ctlPreco',t:'r',bom:1,sub:R=>R.precoSug!=null?'sugerido '+fR(R.precoSug):''},
+ {id:'lc',n:'Liquidez corrente',ic:'ctlBalanca',cls:'c2',ir:'#/ctlInd',t:'x',bom:1,so:R=>!!(R.b&&R.b.tem)}];
+const NOME_MOD={'#/ctlDRE':'DRE','#/ctlPreco':'Margem e preço','#/ctlPE':'Ponto de equilíbrio','#/ctlGiro':'Capital de giro','#/ctlCustos':'Custos','#/ctlInd':'Índices financeiros'};
+const valD=(R,d)=>d.val?d.val(R):valInd(R,d.id);
+const fmtD=(d,x)=>d.fmt?d.fmt(x):IND[d.id].fmt(x);
+const motD=(R,d)=>d.id==='receita'?MOTIVO.receita:(R.falta[d.id]||(NO_B.has(d.id)?R.falta.bal:'')||'faltam dados');
+/* comparação com o mês anterior: seta para onde foi; verde quando melhorou, vermelho quando piorou
+   (receita, lucro e margens: subir é bom; ponto de equilíbrio, NCG, ciclo e custo: descer é bom) */
+function compD(R,d){const P=R.prev;if(!P)return '';const x=valD(R,d),y=valD(P,d);if(x==null||y==null||!isFinite(x)||!isFinite(y))return '';
+ const dif=x-y,a=Math.abs(dif);const pc=(d.t==='r'||d.t==='q')&&y?a/Math.abs(y)*100:null;
+ const txt=d.t==='p'?fNum(a*100,1)+' p.p.':d.t==='d'?fNum(a,1)+' dias':d.t==='x'?fNum(a,2):pc!=null?fNum(pc,1)+'%':d.t==='r'?fMoedaCurta(a):fMil(a)+' mil.';
+ const ref=esc(fMes(P.m));if(/^(R\$\s)?0(,0+)?(\s|%|$)/.test(txt))return `<div class="ctl-dvar igual">igual a ${ref}</div>`;
+ const sobe=dif>0,bom=sobe===(d.bom>0);
+ return `<div class="ctl-dvar ${bom?'bom':'ruim'}" title="${sobe?'Subiu':'Desceu'} em relação a ${ref}: ${bom?'melhorou':'piorou'}"><b><i aria-hidden="true">${sobe?'▲':'▼'}</i> ${esc(txt)}</b> vs ${ref}</div>`}
+function cartaoD(R,d,pq){
+ const I=IND[d.id];const x=valD(R,d);const tem=x!=null&&isFinite(x);const sem=I&&I.sem&&tem?semaforo(I.sem,x):'';const sub=tem&&d.sub?d.sub(R):'';
+ const q=d.id==='receita'?`<button type="button" class="ctl-q" data-ctl-comp="receita" aria-label="De onde vem o número: Receita bruta" title="De onde vem o número">?</button>`:btnQ(d.id);
+ return `<div class="kpi ${d.cls} ctl-kpi ctl-dkc${pq?' pq':''}${sem?' sem-'+sem:''}" title="${esc((I?I.n:d.n)+' · abrir '+(NOME_MOD[d.ir]||''))}"><div class="ic">${ic(d.ic)}</div>
+  <div class="l"><a class="ctl-dk-ir" href="${d.ir}">${esc(d.n)}</a>${q}</div><div class="v">${tem?esc(fmtD(d,x)):'—'}</div>
+  ${tem?(sub?`<div class="ctl-dsub">${esc(sub)}</div>`:''):`<div class="ctl-mot">${esc(motD(R,d))}</div>`}${tem?compD(R,d):''}${sem?`<span class="ctl-sem ${sem}" title="Semáforo: ${esc(TXT_SEM[sem])}"></span>`:''}</div>`}
+/* o que falta lançar: as mensagens que já existem (as dos "—"), uma vez cada, com o botão que leva ao campo do lançamento */
+const CAMPO_MSG=(()=>{const o={};CAMPOS.forEach(c=>{o['falta '+c.l.toLowerCase()]=c.k});Object.entries(MOTIVO).forEach(([k,t])=>{o[t]=k});
+ Object.assign(o,{'falta o caixa do fim do mês (Capital de giro)':'caixa','o balanço do fim do mês não foi lançado':'receber','os milheiros bons do mês são zero':'produzidos','a receita líquida é zero':'receita','a receita é zero':'receita','os milheiros entregues são zero':'entregues','os km rodados são zero':'kmFrota'});return o})();
+function faltasD(R){const M=new Map();
+ [...DASH,...DASH2].forEach(d=>{if(d.so&&!d.so(R))return;const x=valD(R,d);if(x!=null&&isFinite(x))return;const msg=motD(R,d);
+  if(!M.has(msg))M.set(msg,{msg,nomes:[],ir:d.ir,campo:CAMPO_MSG[msg]||''});M.get(msg).nomes.push(d.n)});
+ return [...M.values()]}
+const maiusc=s=>String(s||'').replace(/^./,x=>x.toUpperCase());
+function atencaoD(R,al){
+ /* com os avisos das telas desligados (V81, Configurações › Avisos e pendências), os amarelos e azuis ficam só no botão
+    PENDÊNCIAS, como nas outras telas (o CSS de sempre esconde); os vermelhos e o que falta lançar aparecem */
+ const fs=faltasD(R);const ligados=typeof CFG!=='undefined'&&!!CFG&&CFG.avisosTela===true;const vis=al.filter(a=>a.n==='pe'||ligados);
+ if(!fs.length&&!al.length)return '';const pl=podeLancar()&&!R.fechado;
+ const lf=f=>`<li class="ctl-dal-f"><span class="ctl-dal-p" aria-hidden="true"></span><span class="tx"><b>${esc(maiusc(f.msg))}</b><small>${esc(f.nomes.join(' · '))}</small></span>${f.campo?`<button type="button" class="btn min${pl?' pri':''}" data-ctl-ir="#/ctlLanc" data-esq="${esc(f.campo)}">${pl?'Lançar':'Ver'}</button>`:`<button type="button" class="btn min" data-ctl-ir="${f.ir}">Ver</button>`}</li>`;
+ const la=a=>`<li class="aviso ${a.n} ctl-dal-a"><span class="ctl-dal-p" aria-hidden="true"></span><span class="tx"><b>${esc(a.t)}.</b><small>${esc(a.x)}</small></span>${a.href?`<button type="button" class="btn min" data-ctl-ir="${a.href}"${a.esq?` data-esq="${esc(a.esq[0])}"`:''}>Ver</button>`:''}</li>`;
+ const n=fs.length+vis.length;
+ return `<div class="ctl-dal"><div class="ctl-dal-t"><h3>Pontos de atenção</h3><span>${n} ${n===1?'item':'itens'}</span></div><ul class="ctl-dal-l">${fs.map(lf).join('')}${al.slice().sort((x,y)=>(ORD_AV[x.n]??3)-(ORD_AV[y.n]??3)).map(la).join('')}</ul></div>`}
+const ORD_AV={pe:0,at:1,in:2};
+/* composição de custos e despesas do mês: os mesmos valores dos lançamentos (barra do tamanho do valor) */
+function composicaoD(R){const v=R.v,cp=R.custoProd;
+ const CUS=['lenha','barro','energia','combustivel','insumos','arrend','mod','manut','deprec','cifOutros'],DES=['comissoes','fretes','adm','folhaAdm','comerciais','deprecAdm','frotaDeprec','frotaPecas','frotaOutros','financeiras'];
+ const its=[...CUS.map(k=>({k,g:'c'})),...DES.map(k=>({k,g:'d'}))].map(o=>({...o,x:+v[o.k]||0})).filter(o=>o.x>0).sort((a,b)=>b.x-a.x);
+ if(!its.length)return `<div class="ex-vazio">Nenhum custo ou despesa lançado em ${esc(fMes(R.m))}.</div>`;const mx=its[0].x;const corte=its.length>9?8:its.length;
+ /* no celular aparecem os 8 maiores; o botão mostra os outros (todos continuam na tela) */
+ return `<div class="ctl-cb-leg"><span class="c"><i></i>Custos de produção</span><span class="d"><i></i>Despesas</span></div><ul class="ctl-cb">${its.map((o,i)=>{const p=o.g==='c'?(cp?fPct(o.x/cp)+' do custo de produção':''):(v.receita?fPct(dv(o.x,v.receita))+' da receita':'');
+  return `<li class="${o.g}${i>=corte?' extra':''}" title="${esc(ROT[o.k]+' · '+fMoeda(o.x)+(p?' · '+p:''))}"><span class="n">${esc(ROT[o.k])}</span><span class="x">${esc(fMoeda(o.x))}</span><span class="b"><i style="width:${Math.max(1.5,o.x/mx*100).toFixed(1)}%"></i></span></li>`}).join('')}</ul>
+  ${corte<its.length?`<button type="button" class="btn min ctl-cb-mais" data-ctl-cb="${its.length-corte}" aria-expanded="false">Ver os outros ${its.length-corte} itens</button>`:''}`}
+/* medidor (gauge) de 0 a 100%, com as faixas do semáforo das Premissas (vermelho, amarelo, verde) */
+function medidorD(id,R,curto){const I=IND[id];const x=valInd(R,id);const tem=x!=null&&isFinite(x);const S=cfgC().sem[I.sem]||[0,0];
+ const cl=p=>Math.max(0,Math.min(100,+p||0));const a0=cl(S[1]),a1=Math.max(a0,cl(S[0]));
+ const pt=(p,r)=>{const t=Math.PI*(1-cl(p)/100);return[(100+r*Math.cos(t)).toFixed(2),(100-r*Math.sin(t)).toFixed(2)]};
+ const arco=(p0,p1,k)=>{if(!(p1>p0))return '';const[x0,y0]=pt(p0,78),[x1,y1]=pt(p1,78);return `<path d="M${x0} ${y0}A78 78 0 0 1 ${x1} ${y1}" class="${k}"/>`};
+ const sem=tem?semaforo(I.sem,x):'';const[nx,ny]=pt(tem?x*100:0,58);
+ return `<div class="ctl-gz${tem?'':' vazio-g'}"><svg viewBox="0 0 200 110" role="img" aria-label="${esc(I.n)}: ${esc(tem?I.fmt(x):'sem valor')}${sem?' ('+TXT_SEM[sem]+')':''}"><path d="M22 100A78 78 0 0 1 178 100" class="fd"/>${arco(0,a0,'pe')}${arco(a0,a1,'at')}${arco(a1,100,'ok')}${tem?`<line x1="100" y1="100" x2="${nx}" y2="${ny}" class="ag"/>`:''}<circle cx="100" cy="100" r="6" class="ag"/></svg>
+  <div class="ctl-gz-v ${sem}">${tem?esc(I.fmt(x)):'—'}</div><div class="ctl-gz-n">${esc(curto)} ${btnQ(id)}</div><small>${esc(tem?txtSemaforo(I.sem,x):(R.falta[id]||'faltam dados'))}</small></div>`}
+function painelD(R,al){const m=R.m;const d2=DASH2.filter(d=>!d.so||d.so(R));
+ return `<section class="hero ctl-dash" aria-label="Painel da Controladoria de ${esc(mesLongo(m))}">
+  <div class="ctl-dk">${DASH.map(d=>cartaoD(R,d)).join('')}</div>
+  <div class="ctl-dk ctl-dk2">${d2.map(d=>cartaoD(R,d,true)).join('')}</div>
+  ${atencaoD(R,al)}
+  <div class="ctl-dg">
+   ${blocoC('DRE em cascata · '+fMes(m),`<div class="cv ctl-cv-casc"><canvas id="cdCasc" aria-label="DRE em cascata: da receita bruta ao lucro líquido"></canvas></div>`,`<a href="#/ctlDRE">DRE</a>`)}
+   ${blocoC('NCG e ciclo financeiro',`<div class="cv"><canvas id="cdNcg" aria-label="NCG e ciclo financeiro por mês"></canvas></div>`,`<a href="#/ctlGiro">Capital de giro</a>`)}
+   ${blocoC('Custos e despesas de '+fMes(m),composicaoD(R),`<a href="#/ctlCustos">Custos</a>`)}
+   ${blocoC('Margem de segurança e IMC',`<div class="ctl-gzs">${medidorD('MS',R,'Margem de segurança')}${medidorD('IMC',R,'IMC')}</div>`,`<a href="#/ctlPE">Ponto de equilíbrio</a>`)}
+  </div></section>`}
+/* gráficos do painel: cascata da DRE (barras flutuantes) e NCG × ciclo financeiro (linha), com as cores do tema */
+const rgbaC=(cor,a)=>{const h=String(cor||'').trim().replace('#','');if(!/^[0-9a-f]{6}$/i.test(h))return cor;const n=parseInt(h,16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`};
+function grafDash(R,L){
+ const m=R.m,v=R.v;const cs=getComputedStyle(document.documentElement);const cor=(n,p)=>cs.getPropertyValue(n).trim()||p;
+ const tinta=cor('--carvao','#1C2427'),dest=cor('--brasa','#C8640F'),verde=cor('--ok','#2C7A52'),verm=cor('--pe','#B3302A'),suave=cor('--suave','#5E6A6D');
+ if(![v.receita,R.RL,R.CPV,R.LB,R.RO,R.LL].every(x=>x!=null&&isFinite(x)))vaziaCv('cdCasc','A cascata de '+fMes(m)+' precisa da DRE completa: '+(R.falta.LL||'faltam dados')+'.');
+ else{const cv=document.getElementById('cdCasc');const deitado=!!cv&&cv.parentNode.clientWidth<520;
+  /* [linha da DRE, de → até, valor (o mesmo da DRE), tipo, rótulo no computador, rótulo no celular] */
+  const P=[['Receita bruta',[0,v.receita],v.receita,'t',['Receita','bruta'],'Receita bruta'],['(−) Deduções',[R.RL,v.receita],-R.ded,'r',['Deduções'],'(−) Deduções'],['(−) CPV',[R.LB,R.RL],-R.CPV,'r',['CPV'],'(−) CPV'],
+   ['= Lucro bruto',[0,R.LB],R.LB,'s',['Lucro','bruto'],'= Lucro bruto'],['(−) Despesas variáveis e fixas',[R.RO,R.LB],-(R.DV+R.DF),'r',['Despesas'],'(−) Despesas'],['(−) Despesas financeiras',[R.LL,R.RO],-R.fin,'r',['Financeiras'],'(−) Financeiras'],
+   ['= Lucro líquido',[0,R.LL],R.LL,'f',['Lucro','líquido'],'= Lucro líquido']];
+  const fundo=p=>p[3]==='t'?tinta:p[3]==='s'?rgbaC(tinta,.72):p[3]==='f'?(R.LL<0?verm:verde):rgbaC(verm,.62);
+  /* valor escrito na ponta de cada barra (nas que tiram, sem o sinal: o rótulo já diz "(−)") */
+  const rot={id:'ctlCascRot',afterDatasetsDraw(ch){const ctx=ch.ctx,me=ch.getDatasetMeta(0);ctx.save();ctx.font='600 11px Inter,system-ui,sans-serif';ctx.fillStyle=suave;
+   me.data.forEach((b,i)=>{const p=b.getProps(['x','y','base'],true),t=fMoedaCurta(P[i][3]==='r'?Math.abs(P[i][2]):P[i][2]);
+    if(deitado){ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(t,Math.max(p.x,p.base)+6,p.y)}else{ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(t,p.x,Math.min(p.y,p.base)-4)}});ctx.restore()}};
+  const eixoV={ticks:{callback:x=>fMoedaCurta(x),maxRotation:0,maxTicksLimit:deitado?4:6},beginAtZero:true},eixoC={grid:{display:false},ticks:{autoSkip:false,maxRotation:0}};
+  grafC('cdCasc',{type:'bar',data:{labels:P.map(p=>deitado?p[5]:p[4]),datasets:[{label:'DRE',data:P.map(p=>p[1]),backgroundColor:P.map(fundo),borderRadius:4,borderSkipped:false,maxBarThickness:deitado?22:46}]},plugins:[rot],
+   options:{indexAxis:deitado?'y':'x',layout:{padding:deitado?{right:74,top:4}:{top:20}},plugins:{legend:{display:false},jbValores:false,tooltip:{callbacks:{title:x=>P[x[0].dataIndex][0],label:x=>fR(P[x.dataIndex][2])}}},
+    scales:deitado?{x:eixoV,y:eixoC}:{y:eixoV,x:eixoC}}})}
+ const ms=L.filter(x=>x<=m).slice(-12);const Qs=ms.map(calcMes);
+ if(Qs.some(q=>q.g&&q.g.NCG!=null))grafC('cdNcg',{type:'line',data:{labels:ms.map(fMes),datasets:[
+   {label:'NCG',data:Qs.map(q=>q.g.NCG),yAxisID:'y',borderColor:dest,backgroundColor:dest,tension:.25,spanGaps:true,pointRadius:3},
+   {label:'Ciclo financeiro (dias)',data:Qs.map(q=>q.g.CF),yAxisID:'y1',borderColor:tinta,backgroundColor:tinta,borderDash:[5,4],tension:.25,spanGaps:true,pointRadius:3}]},
+  options:{interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:14,boxHeight:3}},tooltip:{callbacks:{label:x=>x.dataset.yAxisID==='y1'?'Ciclo financeiro: '+fDias(x.raw):'NCG: '+fR(x.raw)}}},
+   scales:{y:{position:'left',ticks:{callback:x=>fMoedaCurta(x),maxTicksLimit:5}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:x=>fNum(x,1).replace(/,0$/,'')+' d',maxTicksLimit:5}},x:{grid:{display:false},ticks:{maxRotation:0}}}}});
+ else vaziaCv('cdNcg','Sem NCG nos últimos meses.');
+}
 function telaPainelC(c){
  const m=mesSel();const R=calcMes(m);const A=alvo3(m);const al=alertasMes(m);const L=listaMeses();
  const g=R.g;
  c.innerHTML=cabC('grafico','Controladoria e Análise','Indicadores gerenciais do mês com semáforo. Custeio por absorção na DRE e custeio variável na margem e no ponto de equilíbrio. Relatório gerencial: não substitui as demonstrações contábeis oficiais.',
   podeLancar()?`<a class="btn pri" href="#/ctlLanc">${ic('editar')}Lançamentos de ${esc(fMes(m))}</a>`:'')+
-  (al.length?`<div class="ctl-alertas">${al.map(a=>`<div class="aviso ${a.n}"><span><b>${esc(a.t)}.</b> ${esc(a.x)}${a.href?` <a href="${a.href}"${a.esq?` data-esq="${esc(a.esq[0])}"`:''}>Ver</a>`:''}</span></div>`).join('')}</div>`:'')+
   (!docMes(m)&&!Object.keys(R.orig).some(k=>R.orig[k]==='setores')?`<div class="aviso in"><span><b>Primeiros passos.</b> Lance os números de ${esc(mesLongo(m))} em Lançamentos. O que os outros setores já registraram (lenha, combustível, produção, vendas…) entra sozinho e aparece marcado. Nenhum número é inventado: o que falta aparece como “—” com o motivo.</span></div>`:'')+
-  `<div class="hero ctl-hero">
-   ${kpiC(R,'LL','c1','moeda',R.ml!=null?'margem líquida '+fPct(R.ml):'')}
-   ${kpiC(R,'ml','c4','grafico')}
-   ${kpiC(R,'IMC','c4','grafico',R.MC!=null?'MC '+fR(R.MC):'')}
-   ${kpiC(R,'cpm','c3','caixa',R.bons!=null?fMil(R.bons)+' milheiros bons':'')}
-   ${kpiC(R,'pm','c3','recibo',R.precoSug!=null?'sugerido '+fR(R.precoSug):'')}
-   ${kpiC(R,'PEc','c5','ctlAlvo',R.PEcR!=null?fR(R.PEcR):'')}
-   ${kpiC(R,'MS','c5','ctlAlvo')}
-   ${kpiC(R,'NCG','c2','ctlCiclo',g.ncgDias!=null?fNum(g.ncgDias,1)+' dias de vendas':'')}
-   ${R.b&&R.b.tem?kpiC(R,'lc','c2','ctlBalanca'):''}
-  </div>
-  <div class="ctl-g2">
+  painelD(R,al)+
+  `<div class="ctl-g2">
    ${blocoC('Receita × custo × lucro',`<div class="cv"><canvas id="cgRes" aria-label="Receita, custos e lucro por mês"></canvas></div>`)}
    ${blocoC('Preço praticado × sugerido × preço alvo',`<div class="cv"><canvas id="cgPreco" aria-label="Preço praticado, sugerido e alvo por mês"></canvas></div>`)}
   </div>
   <div class="ctl-g3">
    ${blocoC('Resultado de '+fMes(m),`<table class="ctl-mini dir-tab">${[['Receita bruta',fR(R.v.receita)],['Receita líquida',fR(R.RL)],['CPV',fR(R.CPV)],['Lucro bruto',fR(R.LB)],['Despesas variáveis e fixas',fR(R.DV+R.DF)],['Resultado operacional',fR(R.RO)],['Lucro líquido',fR(R.LL)],['EBITDA',fR(R.EBITDA)]].map(([l,x])=>`<tr><td>${esc(l)}</td><td class="num">${esc(x)}</td></tr>`).join('')}</table>`,`<a href="#/ctlDRE">DRE</a>`)}
    ${blocoC('Preço do milheiro',`<table class="ctl-mini dir-tab">${[['Praticado no mês',fR(R.pm)],['Sugerido geral',fR(R.precoSug)],['Retirada',fR(R.precoRet)],['Entrega',fR(R.precoEnt)],['Alvo de retirada (3 meses)',fR(A.ret)],['Alvo de entrega (3 meses)',fR(A.ent2)],['Piso (3 meses)',fR(A.piso)]].map(([l,x])=>`<tr><td>${esc(l)}</td><td class="num">${esc(x)}</td></tr>`).join('')}</table>`,`<a href="#/ctlPreco">Margem e preço</a>`)}
-   ${blocoC('Capital de giro',`<table class="ctl-mini dir-tab">${[['NCG',fR(g.NCG)],['Ciclo operacional',fDias(g.CO)],['Ciclo financeiro',fDias(g.CF)],['Saldo de tesouraria',fR(g.T)],['Tamanho da NCG',g.tamTxt||'—'],['Do lucro ao caixa',fR(R.caixaLivre)]].map(([l,x])=>`<tr><td>${esc(l)}</td><td class="num">${esc(x)}</td></tr>`).join('')}</table>`,`<a href="#/ctlGiro">Capital de giro</a>`)}
+   ${blocoC('Capital de giro',`<table class="ctl-mini dir-tab">${[['NCG',fR(g.NCG)],['Ciclo operacional',fDias(g.CO)],['Ciclo financeiro',fDias(g.CF)],['Saldo de tesouraria',fR(g.T)],['Tamanho da NCG',g.tamTxt||'—',1],['Do lucro ao caixa',fR(R.caixaLivre)]].map(([l,x,t])=>`<tr><td>${esc(l)}</td><td class="num${t?' txt':''}">${esc(x)}</td></tr>`).join('')}</table>`,`<a href="#/ctlGiro">Capital de giro</a>`)}
   </div>`;
  /* gráficos: os últimos 12 meses */
  const ms=L.filter(x=>x<=m).slice(-12);const Rs=ms.map(calcMes);
@@ -25612,7 +25741,14 @@ function telaPainelC(c){
    {label:'Alvo de retirada (3 meses)',data:al3,borderColor:corC[2],backgroundColor:corC[2],borderDash:[5,4],tension:.25,spanGaps:true}]},
   options:{plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,boxHeight:10}},tooltip:{callbacks:{label:x=>x.dataset.label+': '+fR(x.raw)}}},scales:{y:{ticks:{callback:v=>fMoedaCurta(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgPreco','Sem preço calculado nos últimos meses.');
+ try{grafDash(R,L)}catch(e){console.warn('controladoria: gráficos do painel',e)}
  $$('[data-esq]',c).forEach(a=>a.addEventListener('click',()=>{UC.foco=a.dataset.esq}));
+ /* V178: tocar no cartão abre o módulo do número (o "?" continua abrindo a explicação) */
+ $$('.ctl-dkc',c).forEach(k=>k.addEventListener('click',e=>{if(e.target.closest('a,button,input,select,label'))return;const a=k.querySelector('a.ctl-dk-ir');if(a)a.click()}));
+ $$('[data-ctl-comp]',c).forEach(b=>b.onclick=e=>{e.stopPropagation();verComposicao(m,b.dataset.ctlComp)});
+ /* pontos de atenção: "Lançar" abre os lançamentos já no campo que falta (o mesmo foco dos esquecidos); "Ver" abre o módulo */
+ $$('[data-ctl-ir]',c).forEach(b=>b.addEventListener('click',()=>{if(b.dataset.esq)UC.foco=b.dataset.esq;JBNAV.ir(b.dataset.ctlIr)}));
+ $$('[data-ctl-cb]',c).forEach(b=>b.onclick=()=>{const ul=b.parentNode.querySelector('.ctl-cb');const ab=ul.classList.toggle('aberto');b.setAttribute('aria-expanded',ab?'true':'false');b.textContent=ab?'Mostrar só os 8 maiores':'Ver os outros '+b.dataset.ctlCb+' itens'});
 }
 
 /* ================= gravação ================= */
@@ -25752,8 +25888,14 @@ function telaCustosC(c){
   <p class="ajuda" style="margin:6px 2px">Custo de produção ÷ milheiros bons de cada mês, a mesma conta do indicador acima e da planilha da Controladoria. Só entram os meses com dados até ${esc(fMes(m))}.</p>`:vazioC('Nenhum mês com dados até '+fMes(m),'')}`;
  const bx=$('#ccMesExp',c);if(bx)bx.onclick=()=>menuCpm(bx,m);
  const its=[...CV,...CF].map(k=>[ROT[k],+v[k]||0]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
- if(its.length)grafC('cgComp',{type:'bar',data:{labels:its.map(x=>x[0]),datasets:[{label:'Valor',data:its.map(x=>r2(x[1])),backgroundColor:its.map((x,i)=>i===0?corC[1]:corC[0])}]},
-  options:{indexAxis:'y',plugins:{tooltip:{callbacks:{label:x=>fMoeda(x.raw)+' · '+fPct(cp?x.raw/cp:null)}}},scales:{x:{ticks:{callback:v=>fMoedaCurta(v)}},y:{grid:{display:false}}}}});
+ /* V178: o valor vai escrito na ponta de cada barra (o rótulo geral desenhava em cima da barra de cima), sem a legenda "Valor"
+    e com altura para todos os itens aparecerem com o nome (antes metade dos nomes era pulada) */
+ const cvComp=document.getElementById('cgComp');const estreito=!!cvComp&&cvComp.parentNode.clientWidth<520;
+ if(cvComp&&its.length)cvComp.parentNode.style.height=Math.max(190,its.length*(estreito?32:26)+46)+'px';
+ /* no celular o nome comprido vai em duas linhas (o mesmo texto), em vez de ser cortado na borda */
+ const duasLinhas=t=>{if(!estreito||t.length<=14)return t;const ps=t.split(' ');let a='';while(ps.length>1&&(a+' '+ps[0]).trim().length<=14)a=(a+' '+ps.shift()).trim();return a?[a,ps.join(' ')]:t};
+ if(its.length)grafC('cgComp',{type:'bar',data:{labels:its.map(x=>duasLinhas(x[0])),datasets:[{label:'Valor',data:its.map(x=>r2(x[1])),backgroundColor:its.map((x,i)=>i===0?corC[1]:corC[0]),borderRadius:3,maxBarThickness:20}]},plugins:[rotPontaC()],
+  options:{indexAxis:'y',layout:{padding:{right:62}},plugins:{legend:{display:false},jbValores:false,tooltip:{callbacks:{label:x=>fMoeda(x.raw)+' · '+fPct(cp?x.raw/cp:null)}}},scales:{x:{ticks:{callback:v=>fMoedaCurta(v),maxRotation:0,maxTicksLimit:5}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
  else vaziaCv('cgComp','Nenhum custo lançado em '+fMes(m)+'.');
 }
 
@@ -25780,7 +25922,7 @@ function telaPerdasC(c){
   ${tabC(['Mês',['Moldados',1],['Secagem',1],['Enforna',1],['Forno',1],['Desenforna',1],['Total',1],['Bons',1]],L.slice(-12).reverse().map(x=>{const Q=calcMes(x);return `<tr>${tdC('Mês',esc(fMes(x)))}${tdC('Moldados',esc(fMil(Q.v.moldados)),1)}${tdC('Secagem',esc(fPct(Q.pSec)),1)}${tdC('Enforna',esc(fPct(Q.pEnf)),1)}${tdC('Forno',esc(fPct(Q.pForno)),1)}${tdC('Desenforna',esc(fPct(Q.pDes)),1)}${tdC('Total',esc(fPct(Q.pTotal)),1)}${tdC('Bons',esc(fMil(Q.bonsEtapa)),1)}</tr>`}))}`;
  const pas=[['Moldados',v.moldados],['Secos',v.moldados!=null&&v.perdaSec!=null?v.moldados-v.perdaSec:null],['Enfornados',v.enfornados],['Desenfornados',v.desenfornados],['Bons',R.bonsEtapa]];
  if(pas.some(x=>x[1]!=null))grafC('cgCam',{type:'bar',data:{labels:pas.map(x=>x[0]),datasets:[{label:'Milheiros',data:pas.map(x=>x[1]==null?null:Math.round(x[1]*10)/10),backgroundColor:pas.map((x,i)=>i===pas.length-1?corC[1]:corC[0])}]},
-  options:{plugins:{tooltip:{callbacks:{label:x=>fMil(x.raw)+' milheiros'}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMil(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>fMil(x.raw)+' milheiros'}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMil(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgCam','Perdas por etapa não lançadas em '+fMes(m)+'.');
 }
 
@@ -25841,7 +25983,7 @@ function telaPEC(c){
   <p class="ajuda">O resultado gerencial difere do lucro líquido da DRE quando o estoque de tijolos muda: na absorção parte do custo fixo fica guardada no estoque.</p>`;
  const xs=[['Vendido',v.vendidos],['PE financeiro',R.PEf],['PE contábil',R.PEc],['PE econômico',R.PEe]];
  if(xs.some(x=>x[1]!=null))grafC('cgPE',{type:'bar',data:{labels:xs.map(x=>x[0]),datasets:[{label:'Milheiros',data:xs.map(x=>x[1]==null?null:Math.round(x[1]*10)/10),backgroundColor:[corC[1],corC[2],corC[0],corC[3]]}]},
-  options:{plugins:{tooltip:{callbacks:{label:x=>fMil(x.raw)+' milheiros'}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMil(v)}},x:{grid:{display:false}}}}});
+  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>fMil(x.raw)+' milheiros'}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fMil(v)}},x:{grid:{display:false}}}}});
  else vaziaCv('cgPE','Sem dados para o ponto de equilíbrio em '+fMes(m)+'.');
 }
 
@@ -25852,21 +25994,39 @@ function linhasDRE(R){const v=R.v;const n=x=>x==null?null:-x;
   ['(−) Frota (depreciação, peças, motoristas, IPVA e seguro)',n(R.frotaFixa)],['= Resultado operacional',R.RO,'t'],['(−) Despesas financeiras',n(R.fin)],['= Lucro líquido',R.LL,'tt'],['EBITDA',R.EBITDA,'i']]}
 function linhasGer(R){const v=R.v;const n=x=>x==null?null:-x;const cvV=R.cvpm==null||v.vendidos==null?null:R.cvpm*v.vendidos;
  return[['Receita líquida',R.RL,'t'],['(−) Custo variável dos vendidos (custo variável por milheiro × vendidos)',n(cvV)],['(−) Despesas variáveis',n(R.DV)],['= Margem de contribuição',R.MC,'t'],['(−) Custos fixos de produção',n(R.CFprod)],['(−) Despesas fixas',n(R.DF)],['(−) Despesas financeiras',n(R.fin)],['= Resultado gerencial',R.resGer,'tt']]}
+/* V178 (26/11/2026, pedido do Jeferson): a DRE como demonstração contábil, em tabela contínua.
+   Descrição | mês | AV % (% da receita líquida) | mês de comparação | variação (R$ e %). Uma conta por linha; contas
+   redutoras recuadas e com o valor negativo em vermelho; subtotais em negrito, fundo leve e linha de cima mais grossa;
+   lucro líquido como linha final de destaque. As contas, os valores e as contas de variação são exatamente os de antes
+   (linhasDRE, linhasGer, fR, fPct e a mesma diferença x − y sobre |y|): muda só o desenho. */
+const nomeConta=t=>{const x=/^(.+?)\s+(\([^()]*\))$/.exec(t);return x&&!/^\([−+]\)$/.test(x[1])?`<span class="ctl-cn">${esc(x[1])}</span> <small>${esc(x[2])}</small>`:`<span class="ctl-cn">${esc(t)}</span>`};
+const valDRE=x=>`<span class="${x!=null&&isFinite(x)&&x<0?'ctl-neg':''}">${esc(fR(x))}</span>`;
+function varDRE(x,y,cmp){if(x==null||y==null)return '—';const d=x-y;const mo=fMoeda(d),pc=y?' ('+fPct(d/Math.abs(y))+')':'';
+ if(!(Math.abs(d)>=0.005))return esc(mo+pc);
+ return `<span class="ctl-var ${d>0?'sobe':'desce'}" title="${d>0?'Subiu':'Desceu'} em relação a ${esc(fMes(cmp))}"><i class="ctl-seta" aria-hidden="true">${d>0?'▲':'▼'}</i> ${esc(mo)}${pc?`<small>${esc(pc)}</small>`:''}</span>`}
+function tabDRE(a,b,R,m,cmp,cls){
+ const linha=(x,i)=>{const y=b?b[i][1]:null;const red=/^\(−\)/.test(x[0]);
+  const k=x[2]==='tt'?'ctl-tt':x[2]==='t'?(i===0?'ctl-ini':'ctl-sub'):x[2]==='i'?'ctl-memo':red?'ctl-red':'';
+  return `<tr class="${k}">${tdC('Descrição',nomeConta(x[0]),0,'ctl-dsc')}${tdC(fMes(m),valDRE(x[1]),1)}${tdC('AV %',`<span class="ctl-avp">${esc(x[1]==null||!R.RL?'—':fPct(x[1]/R.RL))}</span>`,1)}${b?tdC(fMes(cmp),valDRE(y),1)+tdC('Variação',varDRE(x[1],y,cmp),1):''}</tr>`};
+ return `<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ctl-dre ${cls||''}"><thead><tr><th class="ctl-dsc">Descrição</th><th class="num">${esc(fMes(m))}</th><th class="num" title="Análise vertical: % da receita líquida">AV %<small>% receita líq.</small></th>${b?`<th class="num">${esc(fMes(cmp))}</th><th class="num">Variação<small>R$ e %</small></th>`:''}</tr></thead><tbody>${a.map(linha).join('')}</tbody></table></div></div>`}
+/* "Do lucro ao caixa" no mesmo desenho (os mesmos valores de antes) */
+function tabCaixaC(R){const ls=[['Lucro líquido',R.LL],['(+) Depreciação',R.deprecTot],['(−) Retiradas dos sócios',-(+R.v.retiradas||0)],['(−) Parcelas de empréstimos e financiamentos',-(+R.v.parcelas||0)],['(−) Investimentos',-(+R.v.investimentos||0)],['= Sobra no caixa',R.caixaLivre]];
+ return `<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ctl-dre ctl-caixa"><thead><tr><th class="ctl-dsc">Descrição</th><th class="num">Valor</th></tr></thead><tbody>${ls.map(([a,v],i)=>`<tr class="${i===ls.length-1?'ctl-tt':i===0?'ctl-ini':/^\(−\)/.test(a)?'ctl-red':''}">${tdC('Descrição',nomeConta(a),0,'ctl-dsc')}${tdC('Valor',valDRE(v),1)}</tr>`).join('')}</tbody></table></div></div>`}
 function telaDREC(c){
  const m=mesSel();const R=calcMes(m);const L=listaMeses();const cmp=UC.cmp==='-'?'':(UC.cmp&&L.includes(UC.cmp)&&UC.cmp!==m?UC.cmp:(L[L.indexOf(m)-1]||''));const Q=cmp?calcMes(cmp):null;
- const tab=(fn,tit)=>{const a=fn(R),b=Q?fn(Q):null;return tabC(['Linha',[fMes(m),1],['% receita líq.',1],...(Q?[[fMes(cmp),1],['Variação',1]]:[])],a.map((x,i)=>{const y=b?b[i][1]:null;const cls=x[2]==='tt'?'ctl-tt':x[2]==='t'?'ctl-sub':'';
-  return `<tr class="${cls}">${tdC('Linha',x[2]?'<b>'+esc(x[0])+'</b>':esc(x[0]))}${tdC(fMes(m),esc(fR(x[1])),1)}${tdC('% receita líq.',esc(x[1]==null||!R.RL?'—':fPct(x[1]/R.RL)),1)}${Q?tdC(fMes(cmp),esc(fR(y)),1)+tdC('Variação',esc(x[1]==null||y==null?'—':fMoeda(x[1]-y)+(y?' ('+fPct((x[1]-y)/Math.abs(y))+')':'')),1):''}</tr>`}),tit)};
+ const tab=(fn,cls)=>tabDRE(fn(R),Q?fn(Q):null,R,m,cmp,cls);
  const obs=(R.doc&&R.doc.obs)||'';
  c.innerHTML=cabC('doc','DRE','Demonstração do resultado por absorção (societária e gerencial) e a visão do custeio variável. Regime de competência: receitas e custos entram no mês em que ocorrem.',
   `<label class="ctl-cmp-sel">Comparar com <select id="cdCmp">${['',...L.filter(x=>x!==m)].reverse().map(x=>`<option value="${x}" ${x===cmp?'selected':''}>${x?esc(mesLongo(x)):'nenhum mês'}</option>`).join('')}</select></label><button type="button" class="btn" id="cdDre12" data-tip="DRE mês a mês dos últimos 12 meses e o acumulado do ano, em PDF ou Excel">${ic('baixar')}DRE de 12 meses ▾</button>`)+avisoEsq(m)+
   (R.LL==null?`<div class="aviso at"><span>O resultado de ${esc(fMes(m))} não pôde ser calculado: ${esc(R.falta.LL||'faltam dados')}.</span></div>`:'')+
-  `<h3 class="grupo-t">DRE por absorção ${btnQ('LL')}</h3>${tab(linhasDRE)}
-  <div class="ctl-g2b">
-   <div><h3 class="grupo-t">Visão gerencial (custeio variável) ${btnQ('MC')}</h3>${tab(linhasGer)}</div>
+  `<h3 class="grupo-t">DRE por absorção ${btnQ('LL')}</h3>${tab(linhasDRE,'ctl-dre-abs')}
+  <p class="ajuda ctl-nota">AV %: quanto cada linha representa da receita líquida do mês.${Q?' Variação: diferença em relação a '+esc(fMes(cmp))+' (▲ subiu, ▼ desceu).':''}</p>
+  <h3 class="grupo-t">Visão gerencial (custeio variável) ${btnQ('MC')}</h3>${tab(linhasGer,'ctl-dre-ger')}
+  <div class="ctl-g2">
    <div><h3 class="grupo-t">Do lucro ao caixa ${btnQ('caixaLivre')}</h3>
-    ${tabC(['Linha',['Valor',1]],[['Lucro líquido',R.LL],['(+) Depreciação',R.deprecTot],['(−) Retiradas dos sócios',-(+R.v.retiradas||0)],['(−) Parcelas de empréstimos e financiamentos',-(+R.v.parcelas||0)],['(−) Investimentos',-(+R.v.investimentos||0)],['= Sobra no caixa',R.caixaLivre]].map(([a,b],i,arr)=>`<tr class="${i===arr.length-1?'ctl-tt':''}">${tdC('Linha',i===arr.length-1?'<b>'+esc(a)+'</b>':esc(a))}${tdC('Valor',esc(fR(b)),1)}</tr>`))}
-    <p class="ajuda" style="margin:6px 2px">Retiradas: gasto pessoal do sócio pago pela empresa não é custo (princípio da entidade).</p>
-    <h3 class="grupo-t">Observação do controller</h3>
+    ${tabCaixaC(R)}
+    <p class="ajuda ctl-nota">Retiradas: gasto pessoal do sócio pago pela empresa não é custo (princípio da entidade).</p></div>
+   <div><h3 class="grupo-t">Observação do controller</h3>
     <div class="ctl-obs">${obs?esc(obs).replace(/\n/g,'<br>'):'<span class="ajuda">Nenhuma observação para '+esc(fMes(m))+'. Escreva em Lançamentos.</span>'}</div>
    </div>
   </div>
@@ -25943,7 +26103,7 @@ function telaGiroC(c){
   <h3 class="grupo-t">Projeção do mês seguinte (${esc(fMes(mesMenos(m,-1)))})</h3>
   ${A.n?`<div class="ctl-sim">${H.campoM('cpProd','Milheiros a produzir',`<input id="cpProd" inputmode="decimal" value="${esc(fX(A.bons/A.n,1))}">`)}${H.campoM('cpVend','Milheiros a vender',`<input id="cpVend" inputmode="decimal" value="${esc(fX(A.vend/A.n,1))}">`)}${H.campoM('cpPreco','Preço médio (R$)',`<input id="cpPreco" inputmode="decimal" value="${esc(fMoedaCampo(r2(A.prat)))}">`)}</div><div id="cpRes"></div>`:vazioC('Sem base para projetar',esc(A.falta))}
   <h3 class="grupo-t">Evolução mês a mês</h3>
-  <div class="ctl-g2b"><div>${tabC(['Mês',['NCG',1],['Dias de vendas',1],['Ciclo operacional',1],['Ciclo financeiro',1],['Saldo de tesouraria',1]],L.slice(-12).reverse().map(x=>{const q=calcMes(x).g;return `<tr>${tdC('Mês',esc(fMes(x)))}${tdC('NCG',esc(fR(q.NCG)),1)}${tdC('Dias',esc(q.ncgDias==null?'—':fNum(q.ncgDias,1)),1)}${tdC('CO',esc(fX(q.CO,1)),1)}${tdC('CF',esc(fX(q.CF,1)),1)}${tdC('T',esc(fR(q.T)),1)}</tr>`}))}</div>
+  <div class="ctl-evo"><div>${tabC(['Mês',['NCG',1],['Dias de vendas',1],['Ciclo operacional',1],['Ciclo financeiro',1],['Saldo de tesouraria',1]],L.slice(-12).reverse().map(x=>{const q=calcMes(x).g;return `<tr>${tdC('Mês',esc(fMes(x)))}${tdC('NCG',esc(fR(q.NCG)),1)}${tdC('Dias',esc(q.ncgDias==null?'—':fNum(q.ncgDias,1)),1)}${tdC('CO',esc(fX(q.CO,1)),1)}${tdC('CF',esc(fX(q.CF,1)),1)}${tdC('T',esc(fR(q.T)),1)}</tr>`}))}</div>
    ${blocoC('NCG por mês',`<div class="cv"><canvas id="cgNcg" aria-label="NCG por mês"></canvas></div>`)}</div>`);
  if(g.NCG==null)return;
  const sim=()=>{const n=ncgCom(R,{PME:UC.sim.PME,PMF:UC.sim.PMF,PMV:UC.sim.PMV,PMR:UC.sim.PMR,PMP:UC.sim.PMP});const d=n.NCG-g.NCG;
@@ -55516,5 +55676,198 @@ window.DESP_ENTREGA_V177=Object.freeze({CFGD,mapaDe,catDe,destinoDe,situ,contasV
  aprovar,decidir,cancelar,corrigir,reenviar,lancarEscritorio,editarViagem,mudarViagem,registrarAdiant,fazerAcerto,desfazerAcerto,editarMotorista,UI});
 })();
 </script>
+<style id="ctl-layout-v178-css">
+/* ===== V178 · Setor de Controladoria e Análise: layout novo (pedido do Jeferson, 26/11/2026) =====
+   Só aparência. Nenhum número, conta, fórmula, cálculo ou dado muda: as telas mostram os mesmos valores de antes,
+   em tabelas contínuas (sem virar cartões no celular), com o painel no alto do setor. Tudo preso a .ctl (a raiz das
+   telas do setor) e só com as variáveis de cor do tema, para seguir a paleta escolhida (cores, botões, barra de baixo). */
+.ctl,.ctl-tx{--ctl-r:var(--pn-r,14px);--ctl-g:14px;--ctl-sombra:0 1px 2px color-mix(in srgb,var(--tinta) 7%,transparent);
+ --ctl-zebra:color-mix(in srgb,var(--papel) 55%,var(--branco));--ctl-sub:color-mix(in srgb,var(--linha2) 55%,var(--branco));--ctl-tt:color-mix(in srgb,var(--linha2) 95%,var(--branco));
+ --ctl-td:var(--branco)}
+.ctl{padding-bottom:var(--ctl-fundo,56px)}
+html.vis-vc .ctl,html.vis-vc .ctl-tx{--ctl-td:rgba(255,255,255,.94);--ctl-zebra:rgba(250,248,248,.96)}
+@media (max-width:720px){.ctl{--ctl-g:10px;padding-bottom:var(--ctl-fundo,calc(72px + env(safe-area-inset-bottom,0px)))}}
+
+/* ---------- cartões do setor: cantos iguais, borda fina e quase sem sombra ---------- */
+html:not(.vis-vc) .ctl .bloco,html:not(.vis-vc) .ctl .ctl-prem,html:not(.vis-vc) .ctl .ctl-sim,html:not(.vis-vc) .ctl .ctl-calc,
+html:not(.vis-vc) .ctl .sv-corpo .hero .kpi,html:not(.vis-vc) .ctl .ctl-ver{border:1px solid var(--linha)!important;border-radius:var(--ctl-r)!important;box-shadow:var(--ctl-sombra)!important}
+html:not(.vis-vc) .ctl .ctl-obs,html:not(.vis-vc) .ctl .ctl-fleur{border-radius:var(--ctl-r)!important;box-shadow:var(--ctl-sombra)!important}
+@media (min-width:721px){html:not(.vis-vc) .ctl .ctl-ver.ok{border-top:3px solid var(--ok)!important}html:not(.vis-vc) .ctl .ctl-ver.at{border-top:3px solid var(--at)!important}
+ html:not(.vis-vc) .ctl .ctl-ver.pe{border-top:3px solid var(--pe)!important}html:not(.vis-vc) .ctl .ctl-ver.in{border-top:3px solid var(--in)!important}}
+html .ctl .ctl-evo{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--ctl-g);margin-bottom:var(--ctl-g)}
+html .ctl .ctl-evo .ctl-tx{margin:0}
+html.casca2 .ctl .sv-corpo .hero .kpi:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--tinta) 10%,transparent)!important}
+html .ctl .bloco>h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
+html .ctl .bloco>h3 a{font-size:12.5px;font-weight:600;white-space:nowrap}
+html .ctl .hero.ctl-hero{margin-bottom:var(--ctl-g)}
+html .ctl .ctl-g2,html .ctl .ctl-g2b,html .ctl .ctl-g3{gap:var(--ctl-g);margin-bottom:var(--ctl-g)}
+html .ctl .ajuda.ctl-nota{margin:-4px 2px var(--ctl-g);font-size:12px}
+
+/* ---------- tabelas: uma linha por item, linhas finas, zebra bem suave; 1ª coluna fixa ao rolar de lado ---------- */
+html .ctl-tx{position:relative;margin:0 0 var(--ctl-g)}
+html .ctl-tx>.ctl-tw{overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch;margin:0!important;border:1px solid var(--linha)!important;border-radius:var(--ctl-r)!important;box-shadow:var(--ctl-sombra)!important;background:var(--ctl-td)}
+html.vis-vc .ctl-tx>.ctl-tw{border-color:rgba(255,255,255,.9)!important}
+/* a 1ª coluna fica fixa: o esmaecido das bordas da V82 apagaria a coluna fixa; aqui o aviso de "tem mais para o lado" é a sombra própria */
+html .ctl-tx>.ctl-tw.v82-rola-esq,html .ctl-tx>.ctl-tw.v82-rola-dir{-webkit-mask-image:none!important;mask-image:none!important}
+html .ctl-tx table.ctl-t{width:100%;border-collapse:separate;border-spacing:0;margin:0}
+/* no celular a folha base transforma toda tabela em cartões (cabeçalho escondido, rótulo antes de cada valor): aqui não */
+html .ctl-tx table.ctl-t>thead{display:table-header-group!important}
+html .ctl-tx table.ctl-t>tbody>tr{display:table-row!important;background:none!important;border:0!important;border-radius:0!important;margin:0!important;box-shadow:none!important;padding:0!important}
+html .ctl-tx table.ctl-t>tbody>tr>td{display:table-cell!important;text-align:left}
+html .ctl-tx table.ctl-t>tbody>tr>td::before{content:none!important;display:none!important}
+html .ctl-tx table.ctl-t>thead>tr>th{position:sticky;top:0;z-index:2;background:var(--ctl-sub)!important;color:var(--suave)!important;font-size:11px!important;font-weight:700!important;letter-spacing:.05em!important;text-transform:uppercase;padding:9px 12px!important;border:0!important;border-bottom:1px solid var(--linha)!important;white-space:nowrap;vertical-align:bottom;line-height:1.25;text-align:left}
+html .ctl-tx table.ctl-t>thead>tr>th.num{text-align:right}
+html .ctl-tx table.ctl-t>thead>tr>th small{display:block;font-size:10.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--fraco);white-space:normal}
+html .ctl-tx table.ctl-t>tbody>tr>td{padding:8px 12px!important;border:0!important;border-bottom:1px solid var(--linha2)!important;vertical-align:middle;font-size:13.5px;line-height:1.38;background:var(--ctl-td)!important;color:var(--tinta)}
+html .ctl-tx table.ctl-t>tbody>tr:nth-child(even)>td{background:var(--ctl-zebra)!important}
+html .ctl-tx table.ctl-t>tbody>tr:last-child>td{border-bottom:0!important}
+html .ctl-tx table.ctl-t>tbody>tr:hover>td{background:color-mix(in srgb,var(--brasa-bg) 55%,var(--branco))!important}
+html .ctl-tx table.ctl-t td.num,html .ctl-tx table.ctl-t th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+html .ctl-tx table.ctl-t td.num .ctl-tr,html .ctl-tx table.ctl-t td.num .nulo{color:var(--fraco)}
+html .ctl-tx table.ctl-t>thead>tr>th:first-child,html .ctl-tx table.ctl-t>tbody>tr>td:first-child{position:sticky;left:0;z-index:1}
+html .ctl-tx table.ctl-t>thead>tr>th:first-child{z-index:3}
+html .ctl-tx.ctl-rol-e table.ctl-t>*>tr>:first-child{box-shadow:6px 0 10px -8px color-mix(in srgb,var(--tinta) 40%,transparent)}
+html .ctl-tx.ctl-rol-d::after{content:"";position:absolute;top:1px;right:1px;bottom:1px;width:22px;pointer-events:none;border-radius:0 var(--ctl-r) var(--ctl-r) 0;background:linear-gradient(to left,color-mix(in srgb,var(--tinta) 12%,transparent),transparent)}
+/* subtotais e totais (Custos, Capital de giro e DRE): negrito, fundo leve e linha de cima mais grossa */
+html .ctl-tx table.ctl-t>tbody>tr.ctl-sub>td{font-weight:700;background:var(--ctl-sub)!important;border-top:2px solid var(--linha)!important}
+html .ctl-tx table.ctl-t>tbody>tr.ctl-tt>td{font-weight:800;background:var(--ctl-tt)!important;border-top:2px solid var(--tinta)!important;border-bottom:0!important}
+html .ctl-tx table.ctl-t>tbody>tr.ctl-tt>td:first-child{box-shadow:inset 3px 0 0 var(--brasa)}
+html .ctl-tx table.ctl-t>tbody>tr.ctl-tot>td{font-weight:700;border-top:2px solid var(--linha)!important}
+html .ctl-tx table.ctl-t td.ctl-f{color:var(--suave);font-size:12px;min-width:200px}
+
+/* ---------- DRE: demonstração contábil ---------- */
+html .ctl-tx table.ctl-dre td.ctl-dsc{min-width:230px}
+html .ctl-tx table.ctl-dre td.ctl-dsc small{display:block;font-size:11.5px;color:var(--fraco);font-weight:400;line-height:1.3}
+html .ctl-tx table.ctl-dre tr.ctl-red>td.ctl-dsc{padding-left:32px!important;color:var(--suave)}
+html .ctl-tx table.ctl-dre tr.ctl-ini>td{font-weight:700}
+html .ctl-tx table.ctl-dre tr.ctl-tt>td{font-size:14.6px}
+html .ctl-tx table.ctl-dre tr.ctl-memo>td{color:var(--suave);font-style:italic;border-top:1px dashed var(--linha)!important}
+.ctl-tx .ctl-neg{color:var(--pe)}
+.ctl-tx .ctl-avp{color:var(--suave);font-weight:500}
+.ctl-tx .ctl-var{font-weight:600;white-space:nowrap}
+.ctl-tx .ctl-var.sobe{color:var(--ok)}.ctl-tx .ctl-var.desce{color:var(--pe)}
+.ctl-tx .ctl-var .ctl-seta{font-style:normal;font-size:.78em}
+.ctl-tx .ctl-var small{font-size:.86em;font-weight:500;margin-left:3px}
+
+/* ---------- números grandes numa linha só (o programa diminui a fonte até caber no cartão) ---------- */
+html .ctl .ctl-kpi .v,html .ctl .ctl-gz-v{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;overflow-wrap:normal!important;word-break:normal!important;max-width:100%}
+html .ctl .sv-corpo .hero .ctl-kpi .v{font-size:22px!important;line-height:1.15}
+html .ctl .ctl-kpi .l{display:flex!important;align-items:flex-start;gap:6px;flex-wrap:nowrap!important}
+html .ctl .ctl-kpi .l>span,html .ctl .ctl-kpi .l>a{min-width:0}
+html .ctl .ctl-kpi .l .ctl-q{flex:none;margin-top:-1px}
+html .ctl .ctl-kpi[class*=" sem-"] .l{padding-right:16px}
+html .ctl .ctl-kpi .ctl-sem{top:13px;right:13px}
+.ctl .ctl-ver b{overflow-wrap:normal;word-break:normal}
+
+/* ---------- painel (dashboard) no alto do setor ---------- */
+html .ctl .sv-corpo .hero.ctl-dash,html.casca2 .ctl .sv-corpo .hero.ctl-dash{display:block!important;grid-template-columns:none!important;background:none!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0 0 var(--ctl-g)!important}
+html .ctl .ctl-dk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+html .ctl .ctl-dk2{margin-top:12px}
+html .ctl .ctl-dk>.kpi{margin:0;min-width:0;grid-column:auto!important;cursor:pointer}
+html .ctl .ctl-dk2>.kpi .v{font-size:19px!important}
+.ctl .ctl-dk-ir{color:inherit;text-decoration:none;font:inherit}
+.ctl .ctl-dk-ir:hover{text-decoration:underline}
+.ctl .ctl-dsub{font-size:12px;color:var(--suave);margin-top:3px;line-height:1.3}
+.ctl .ctl-dvar{font-size:11.8px;color:var(--fraco);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctl .ctl-dvar b{font-weight:700}.ctl .ctl-dvar b i{font-style:normal;font-size:.85em}
+.ctl .ctl-dvar.bom b{color:var(--ok)}.ctl .ctl-dvar.ruim b{color:var(--pe)}
+/* pontos de atenção: o que falta lançar (com o botão que leva ao campo) e os alertas de sempre */
+html .ctl .ctl-dal{margin:var(--ctl-g) 0 0;background:var(--ctl-td);border:1px solid var(--linha);border-radius:var(--ctl-r);box-shadow:var(--ctl-sombra);overflow:hidden}
+.ctl .ctl-dal-t{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;border-bottom:1px solid var(--linha2)}
+.ctl .ctl-dal-t h3{margin:0;font-size:14px;font-weight:700}
+.ctl .ctl-dal-t span{font-size:12px;color:var(--fraco)}
+.ctl .ctl-dal-l{list-style:none;margin:0;padding:0}
+html .ctl .ctl-dal-l>li{display:flex;align-items:center;gap:12px;margin:0!important;padding:10px 15px!important;border:0!important;border-top:1px solid var(--linha2)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:var(--tinta)!important;font-size:13px;line-height:1.4}
+html .ctl .ctl-dal-l>li:first-child{border-top:0!important}
+/* avisos das telas desligados (V81): sem nada à vista (só amarelos e azuis, que ficam no botão PENDÊNCIAS), o quadro some */
+html.jb-sem-avisos:not(.jb-rota-livre) #conteudo .ctl-dal:not(:has(.ctl-dal-f,.aviso.pe)){display:none!important}
+/* visual "Vidro claro" (teste do dono): no cartão vermelho em destaque o "?" fica translúcido, para não sumir branco no branco */
+html.vis-vc body .ctl .kpi.c2-kdest .ctl-q{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.65)!important}
+.ctl .ctl-dal-p{flex:none;align-self:flex-start;margin-top:5px;width:9px;height:9px;border-radius:50%;background:var(--at);box-shadow:0 0 0 3px var(--at-bg)}
+.ctl .ctl-dal-l>li.pe .ctl-dal-p{background:var(--pe);box-shadow:0 0 0 3px var(--pe-bg)}
+.ctl .ctl-dal-l>li.in .ctl-dal-p{background:var(--in);box-shadow:0 0 0 3px var(--in-bg)}
+.ctl .ctl-dal-l .tx{flex:1;min-width:0}
+.ctl .ctl-dal-l .tx b{display:block;font-weight:600;font-size:13.4px;color:var(--tinta)}
+.ctl .ctl-dal-l .tx small{display:block;color:var(--suave);font-size:12px;margin-top:1px}
+.ctl .ctl-dal-l .btn{flex:none;white-space:nowrap}
+/* gráficos do painel: grade de 2 no computador, largura total no celular */
+html .ctl .ctl-dg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ctl-g);margin:var(--ctl-g) 0 0}
+html .ctl .ctl-dg>.bloco{margin:0;min-width:0}
+html .ctl .ctl-dg .bloco .cv{height:270px}
+/* composição de custos e despesas */
+.ctl .ctl-cb-leg{display:flex;flex-wrap:wrap;gap:4px 16px;padding:0 15px 8px;font-size:12px;color:var(--suave)}
+.ctl .ctl-cb-leg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
+.ctl .ctl-cb-leg .c i,.ctl .ctl-cb li.c .b i{background:var(--brasa)}
+.ctl .ctl-cb-leg .d i,.ctl .ctl-cb li.d .b i{background:var(--fraco)}
+.ctl .ctl-cb{list-style:none;margin:0;padding:0 15px 15px;display:grid;grid-template-columns:minmax(0,1fr);gap:9px 24px}
+.ctl .ctl-cb li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:baseline;min-width:0}
+.ctl .ctl-cb .n{font-size:12.8px;color:var(--tinta);min-width:0}
+.ctl .ctl-cb .x{font-size:12.8px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ctl .ctl-cb .b{grid-column:1/-1;height:7px;border-radius:99px;background:var(--linha2);overflow:hidden}
+.ctl .ctl-cb .b i{display:block;height:100%;border-radius:99px}
+@media (min-width:1100px){.ctl .ctl-cb{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ctl .ctl-cb-mais{display:none;margin:0 15px 15px}
+@media (max-width:720px){.ctl .ctl-cb:not(.aberto)>li.extra{display:none}.ctl .ctl-cb-mais{display:inline-flex}}
+html .ctl .ctl-dg>.bloco{display:flex;flex-direction:column}
+html .ctl .ctl-dg>.bloco>.ctl-bl-c{flex:1;min-width:0}
+html .ctl .ctl-dg>.bloco>.ctl-bl-c:has(>.ctl-gzs){display:flex;align-items:center}
+html .ctl .ctl-dg>.bloco>.ctl-bl-c>.ctl-gzs{flex:1}
+html .ctl .ctl-dg .bloco .cv:has(>.ex-vazio){height:auto!important;min-height:0}
+/* medidores (gauge) da margem de segurança e do IMC, com as faixas do semáforo */
+.ctl .ctl-gzs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:4px 15px 16px}
+.ctl .ctl-gz{text-align:center;min-width:0}
+.ctl .ctl-gz svg{display:block;width:100%;max-width:230px;height:auto;margin:0 auto}
+.ctl .ctl-gz svg path{fill:none;stroke-width:15}
+.ctl .ctl-gz svg .fd{stroke:var(--linha2)}
+.ctl .ctl-gz svg .pe{stroke:var(--pe);opacity:.8}.ctl .ctl-gz svg .at{stroke:var(--at);opacity:.8}.ctl .ctl-gz svg .ok{stroke:var(--ok);opacity:.8}
+.ctl .ctl-gz svg line.ag{stroke:var(--tinta);stroke-width:3.5;stroke-linecap:round}
+.ctl .ctl-gz svg circle.ag{fill:var(--tinta)}
+.ctl .ctl-gz-v{font-size:24px;font-weight:700;line-height:1.1;margin-top:-4px;color:var(--tinta)}
+.ctl .ctl-gz-v.ok{color:var(--ok)}.ctl .ctl-gz-v.at{color:var(--at)}.ctl .ctl-gz-v.pe{color:var(--pe)}
+.ctl .ctl-gz-n{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:600;margin-top:4px}
+.ctl .ctl-gz small{display:block;font-size:11.5px;color:var(--suave);margin-top:4px;line-height:1.35}
+.ctl .ctl-gz.vazio-g svg{opacity:.45}
+/* quadros "Resultado", "Preço do milheiro" e "Capital de giro" do painel: texto longo quebra, número não */
+html .ctl .ctl-mini td{padding:8px 15px;font-size:13.4px}
+html .ctl .ctl-mini td:first-child{color:var(--suave)}
+html .ctl .ctl-mini tr:nth-child(even) td{background:var(--ctl-zebra)}
+html .ctl .ctl-mini td.num{white-space:nowrap}
+html .ctl .ctl-mini td.num.txt{white-space:normal;text-align:right;font-weight:600;font-size:12.6px}
+
+/* ---------- celular e tablet ---------- */
+@media (max-width:900px){html .ctl .ctl-dk{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}html .ctl .ctl-dk2{margin-top:10px}}
+@media (max-width:860px){html .ctl .ctl-dg{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:720px){
+ html .ctl-tx table.ctl-t>tbody>tr>td{padding:8px 9px!important;font-size:13px}
+ html .ctl-tx table.ctl-t>thead>tr>th{padding:8px 9px!important}
+ html .ctl-tx table.ctl-t>tbody>tr>td:first-child{max-width:46vw;white-space:normal}
+ html .ctl-tx table.ctl-dre td.ctl-dsc{min-width:132px;max-width:44vw}
+ html .ctl-tx table.ctl-dre tr.ctl-red>td.ctl-dsc{padding-left:20px!important}
+ html .ctl-tx table.ctl-dre tr.ctl-tt>td{font-size:13.8px}
+ html .ctl-tx table.ctl-t td.ctl-f{min-width:180px}
+ html .ctl-tx table.ctl-t>tbody>tr>td:not(:first-child):not(.num){min-width:150px}
+ html .ctl .ctl-dg .bloco .cv{height:250px}
+ html .ctl .ctl-dg .bloco .cv.ctl-cv-casc{height:300px}
+ /* veredito (capital de giro, simulador, calculadora): uma lista num cartão só, em vez de cartões empilhados */
+ html .ctl .ctl-veredito{display:block;background:var(--ctl-td);border:1px solid var(--linha);border-radius:var(--ctl-r);box-shadow:var(--ctl-sombra);overflow:hidden}
+ html .ctl .ctl-veredito>.ctl-ver{border:0!important;border-top:1px solid var(--linha2)!important;border-left:4px solid var(--linha)!important;border-radius:0!important;box-shadow:none!important;padding:10px 13px;background:transparent}
+ html .ctl .ctl-veredito>.ctl-ver:first-child{border-top:0!important}
+ html .ctl .ctl-veredito>.ctl-ver.ok{border-left-color:var(--ok)!important}html .ctl .ctl-veredito>.ctl-ver.at{border-left-color:var(--at)!important}
+ html .ctl .ctl-veredito>.ctl-ver.pe{border-left-color:var(--pe)!important}html .ctl .ctl-veredito>.ctl-ver.in{border-left-color:var(--in)!important}
+}
+@media (max-width:560px){
+ html.casca2 .ctl .sv-corpo .hero .kpi{grid-template-columns:minmax(0,1fr)!important;padding:11px 12px!important}
+ html.casca2 .ctl .sv-corpo .hero .kpi .ic{display:none!important}
+ html.casca2 .ctl .sv-corpo .hero .kpi>*{grid-column:1!important}
+ html .ctl .sv-corpo .hero .ctl-kpi .v{font-size:20px!important}
+ html .ctl .ctl-dk2>.kpi .v{font-size:17px!important}
+ .ctl .ctl-gzs{gap:6px;padding:4px 8px 14px}
+ .ctl .ctl-gz-v{font-size:20px}
+ .ctl .ctl-dal-l>li{flex-wrap:wrap}
+ .ctl .ctl-dal-l .tx{flex-basis:calc(100% - 22px)}
+ .ctl .ctl-dal-l .btn{margin-left:21px}
+}
+@media print{.ctl{padding-bottom:0}}
+</style>
 </body>
 </html>
