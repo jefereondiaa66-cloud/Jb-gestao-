@@ -1464,6 +1464,28 @@ teste('pagamentos-producao', 'V169: Pagamentos da Produção (conferência na Pr
   if (ci) assert.ok(ci.includes('node scripts/testar-pagamentos-producao.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+teste('estoque', 'V176: busca do almoxarifado por palavras, valor por embalagem no Combustível e servidor liberando só o estoque integrado', () => {
+  const app = ler('app/jb-gestao.html');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  assert.ok(app.includes('const JB_BUSCA=(()=>{') && app.includes('window.JB_BUSCA=JB_BUSCA;'), 'busca por palavras compartilhada');
+  assert.ok(app.includes('function txtValorProd(pid,curto)') && app.includes('function embPadrao(pid)') && app.includes('async function conferirValorE(pid,vu,un)'), 'valor por embalagem e aviso de valor fora do normal no Combustível');
+  assert.ok(app.includes("campo('eiEV','Valor de cada uma (R$)'"), 'campo do valor de cada embalagem');
+  assert.ok(/<th>Preço<\/th><th class="num">Valor total<\/th>/.test(app), 'Entradas de produtos com Preço e Valor total (o cartão do celular mostra o total)');
+  assert.ok(/NAO_SOMA=[^\n]*por litro/.test(app), 'custo por litro não é somado no rodapé');
+  assert.ok(app.includes("o[c.k]=c.xExp?c.xExp(r):c.v?txt(c.v(r)):r[c.k]"), 'exportação da lista sem a linha de embalagens');
+  assert.ok(!/location\.hash\s*=(?!=)/.test(app.slice(app.indexOf('function escolherItemAlm('), app.indexOf('window.JB_ESCOLHER_ITEM'))), 'navegação pelo JBNAV');
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const mig = 'supabase/migrations/20261126000000_seg_estoque_integrado_setores.sql';
+    assert.ok(existsSync(join(RAIZ, mig)) && existsSync(join(RAIZ, mig.replace('.sql', '.down.sql'))), 'migração com reversão');
+    const sql = ler(mig).replace(/--.*$/gm, '');
+    assert.ok(!/\b(drop|delete|truncate|insert|update|grant)\b/i.test(sql), 'a migração só recria funções');
+    assert.ok(sql.includes("when p_raiz in ('estoqueMov', 'compras', 'consumos') then") && sql.includes("case when p_item->>'setor' = 'combustivel' then array['almox']"), 'o Almoxarifado lê só o que é do Combustível');
+    assert.ok(sql.includes("p_item->>'integrado' = 'true' and p_item->>'setor' = 'combustivel'") && sql.includes("coalesce(p_item->>'almItemId', '') <> '' then 'almox'"), 'o Almoxarifado grava só a entrada integrada e o produto do item mestre');
+    assert.ok(sql.includes("array['fin', 'barro', 'estoqueMov', 'compras', 'consumos']") && sql.includes("d.dados->>'setor' = 'combustivel'"), 'compartilhados: só os registros do Combustível');
+  }
+  if (ci) assert.ok(ci.includes('node scripts/testar-estoque-busca.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {
   const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), adm = ler('nuvem/admin.html');
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
