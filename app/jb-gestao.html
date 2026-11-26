@@ -1360,6 +1360,8 @@ button.kpi:focus-visible{outline:none;box-shadow:var(--anel)}
 .lst b{display:block;font-size:13.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lst small{display:block;font-size:12px;color:var(--fraco);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lst .vl{font-size:12.6px;font-weight:600;color:var(--suave);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* V175 · início da Lenha, Contas a pagar por fornecedor: o nome e a conta de cada fornecedor aparecem inteiros (quebram a linha em vez de cortar) */
+.bloco.cpf175 .lst b,.bloco.cpf175 .lst small{white-space:normal}
 .lst .seta{color:#D6CCC2;flex:none;display:grid;place-items:center}
 .lst .seta svg{width:15px;height:15px}
 .lst a:hover .seta{color:var(--brasa)}
@@ -14252,7 +14254,7 @@ function inicioConsumoV(c,s){
   <div class="${escContas&&!cb?'ex2':'ex3'}">
    ${escContas?blocoEnt:''}${cb&&window.CB_LENHA?window.CB_LENHA.blocoComb(m):''}
    <div class="bloco"><h3>Últimas compras<a href="#/compras">Ver todas</a></h3>${lstV(N.vs.slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).slice(0,6).map(itemOpLst),'Nenhuma compra registrada ainda.')}</div>
-   ${escContas?'':`<div class="bloco"><h3>Contas a pagar${N.venc.length?`<span class="n">${N.venc.length}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${lstV(N.aberto.sort((a,b)=>String(a.v.vencimento).localeCompare(String(b.v.vencimento))).slice(0,6).map(x=>({href:'#/compra/'+x.v.id,ic:x.f.status==='Vencido'?'aviso':'calendario',cls:x.f.status==='Vencido'?'a-pe':'a-at',t:parteSnap(x.v).nome||'',s:'Nº '+fNumV(x.v.numero)+' · '+(x.f.status==='Vencido'?'venceu em ':'vence em ')+fData(x.v.vencimento),v:fMoeda(x.f.saldo)})),'Nenhuma conta em aberto.')}</div>`}
+   ${escContas?'':s==='lenha'?blocoPagarFornV(N):`<div class="bloco"><h3>Contas a pagar${N.venc.length?`<span class="n">${N.venc.length}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${lstV(N.aberto.sort((a,b)=>String(a.v.vencimento).localeCompare(String(b.v.vencimento))).slice(0,6).map(x=>({href:'#/compra/'+x.v.id,ic:x.f.status==='Vencido'?'aviso':'calendario',cls:x.f.status==='Vencido'?'a-pe':'a-at',t:parteSnap(x.v).nome||'',s:'Nº '+fNumV(x.v.numero)+' · '+(x.f.status==='Vencido'?'venceu em ':'vence em ')+fData(x.v.vencimento),v:fMoeda(x.f.saldo)})),'Nenhuma conta em aberto.')}</div>`}
    <div class="bloco"><h3>Últimos ${cb?'abastecimentos':'consumos'}<a href="#/consumos">Ver todos</a></h3>${lstV(cs.slice().sort((a,b)=>(b.data+(b.hora||'')).localeCompare(a.data+(a.hora||''))).slice(0,6).map(x=>({href:'#/consumos/'+x.id,ic:cb?'bomba':'chama',t:(cb&&x.combLenha?'Lenha: '+(x.combLenha.fornecedorNome||''):cb&&x.abastecidoEm==='Veículo de terceiro'?x.terceiroNome:nomeLocal(LOCAL(x.localId)))||'—',s:fData(x.data)+(x.hora?' '+x.hora:'')+(x.operador?' · '+x.operador:''),v:fQtd(x.quantidade)+' '+(x.unidade||'')+(cb&&x.custoTotal!=null&&x.custoTotal!==''?' · '+fMoeda(+x.custoTotal):'')})),'Nenhum lançamento ainda.')}</div>
   </div>`;
  JB_MES.ligar(c,s);
@@ -14799,6 +14801,28 @@ function gruposFornV(xs){
 }
 const comprasFornTxtV=g=>g.n?(g.nAb===g.n?plFinV(g.n,'compra')+' em aberto':plFinV(g.n,'compra')+(g.nAb?' · '+g.nAb+' em aberto':'')):plFinV(g.nCanc,'compra cancelada','compras canceladas');
 const atrasoTxtV=a=>a?a+(a===1?' dia':' dias')+' de atraso':'';
+/* ---------- V175 (25/11/2026) · Início do Setor da Lenha: Contas a pagar com o total de cada fornecedor ----------
+   Pedido do Jeferson: no início da Lenha, o cartão "Contas a pagar" mostrava uma linha por compra (o mesmo
+   fornecedor aparecia várias vezes) e o total de cada fornecedor só aparecia apertando em "Ver contas". Agora o cartão mostra cada
+   fornecedor uma vez só, com o total que falta pagar a ele e quanto disso já venceu; tocar no fornecedor abre as
+   compras dele (#/pagar/<fornecedor>), como na tela Contas a pagar. Os números e a ordem são os da V159 (gruposFornV
+   sobre o finVenda de cada compra em aberto: pagamentos, combustível do fornecedor, adiantamentos e descontos de acerto
+   já descontados). Só a tela muda; nada é gravado. O Combustível continua como estava. */
+const MAX_FORN_INI_V=8;
+function blocoPagarFornV(N){
+ const G=gruposFornV(N.aberto.map(x=>({v:x.v,f:x.f,atraso:atrasoFinV(x.v,x.f)}))).filter(g=>g.saldo>0.004);
+ const falta=round2(soma(G,g=>g.saldo)),venc=round2(soma(G,g=>g.vencido)),nVenc=G.filter(g=>g.vencido>0.004).length;
+ /* linha de baixo: quantas compras e quanto já venceu; sem nada vencido, o próximo vencimento */
+ const sub=g=>{const n=plFinV(g.nAb,'compra');
+  if(g.vencido>0.004)return n+' · '+(g.saldo-g.vencido<0.005?'tudo vencido':fMoeda(g.vencido)+' vencido');
+  const pv=g.xs.filter(x=>x.f.saldo>0.004&&x.v.vencimento).map(x=>String(x.v.vencimento)).sort()[0];
+  return n+' · '+(!pv?'sem vencimento':pv===hoje()?'vence hoje':'vence em '+fData(pv))};
+ const itens=G.slice(0,MAX_FORN_INI_V).map(g=>({href:'#/pagar/'+g.fid,ic:g.vencido>0.004?'aviso':'calendario',cls:g.vencido>0.004?'a-pe':'a-at',t:g.nome,s:sub(g),v:fMoeda(g.saldo)}));
+ const resto=G.slice(MAX_FORN_INI_V);
+ if(resto.length)itens.push({href:'#/pagar',ic:'carteira',t:'Mais '+plFinV(resto.length,'fornecedor','fornecedores'),s:'toque para ver todos',v:fMoeda(round2(soma(resto,g=>g.saldo)))});
+ const frase=falta>0.004?`Falta pagar <b>${esc(fMoeda(falta))}</b> a ${esc(plFinV(G.length,'fornecedor','fornecedores'))}${venc>0.004?` · <b style="color:var(--pe)">${esc(fMoeda(venc))} vencido</b>`:''}`:'';
+ return `<div class="bloco cpf175"><h3>Contas a pagar${nVenc?`<span class="n" title="${esc(plFinV(nVenc,'fornecedor','fornecedores')+' com conta vencida')}">${nVenc}</span>`:''}<a href="#/pagar">Ver contas</a></h3>${frase?`<p class="ajuda" style="margin:0 0 8px;padding:0 18px">${frase}</p>`:''}${lstV(itens,'Nenhuma conta em aberto.')}</div>`;
+}
 function telaFinV(el,O){
  shellV(el,O.modFin,(c,s)=>{
   if(!APP.carregado){carregandoV(c);return}

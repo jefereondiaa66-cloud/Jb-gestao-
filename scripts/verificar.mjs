@@ -757,6 +757,45 @@ teste('lenha', 'V173: preço do combustível para o fornecedor de lenha vem do c
   const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
   if (ci) assert.ok(ci.includes('node scripts/testar-preco-fornecedor-lenha.mjs'), 'teste no navegador roda na conferência automática');
 });
+teste('lenha', 'V175: início da Lenha mostra em “Contas a pagar” o total de cada fornecedor (um por linha, mesmos números do Ver contas, só leitura; Combustível sem mudança)', () => {
+  const app = ler('app/jb-gestao.html');
+  const a = app.indexOf('function inicioConsumoV(c,s){'); const ini = app.slice(a, app.indexOf('JB_MES.ligar(c,s);', a));
+  assert.ok(a > 0 && ini.includes("${escContas?'':s==='lenha'?blocoPagarFornV(N):`<div class=\"bloco\"><h3>Contas a pagar"), 'só o início da Lenha troca o cartão');
+  assert.ok(ini.includes("x.f.status==='Vencido'?'venceu em ':'vence em '"), 'o cartão de antes (uma linha por compra) continua para o Combustível com “Mostrar contas”');
+  const i = app.indexOf('const MAX_FORN_INI_V='); const j = app.indexOf('function telaFinV(', i); const k = app.indexOf('const SEM_FORN_V=');
+  assert.ok(k > 0 && i > app.indexOf('function gruposFornV(') && j > i, 'o cartão fica junto da V159 e usa o mesmo agrupamento por fornecedor');
+  const b = app.slice(i, j);
+  for (const proibido of ['gravar(', 'apagar(', 'gravarRegistro(', 'bucketPut(', 'registrarLog(', 'salvarCfg(', 'localStorage', 'location.hash', 'location.replace(', 'history.back(']) assert.ok(!b.includes(proibido), 'o cartão só lê: não pode usar ' + proibido);
+  assert.ok(b.includes('gruposFornV(N.aberto.map(x=>({v:x.v,f:x.f,atraso:atrasoFinV(x.v,x.f)})))'), 'os números são os da tela Contas a pagar (gruposFornV sobre o finVenda de cada compra em aberto)');
+  // função pura com dados de exemplo
+  const r2 = (v) => Math.round((+v || 0) * 100) / 100;
+  const fMoeda = (v) => 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fData = (d) => (d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : '');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const HOJE = '2026-11-25';
+  const bloco = new Function('FORN', 'nomeFornecedor', 'parteSnap', 'cancV', 'round2', 'soma', 'atrasoFinV', 'fMoeda', 'fData', 'hoje', 'esc', 'lstV', app.slice(k, j) + ';return blocoPagarFornV;')(
+    (id) => ({ f1: { nome: 'FORNECEDOR A' }, f2: { nome: 'FORNECEDOR B' }, f3: { nome: 'FORNECEDOR C' }, f4: { nome: 'FORNECEDOR D' } })[id], (f) => (f ? f.nome : ''), (v) => v.fornecedor || {}, (v) => v.status === 'Cancelada', r2,
+    (xs, fn) => xs.reduce((s, x) => s + (+fn(x) || 0), 0), (v, f) => (f.status === 'Vencido' ? 3 : 0), fMoeda, fData, () => HOJE, esc, (itens, vazio) => '<LST>' + JSON.stringify({ itens, vazio }) + '</LST>');
+  const lst = (html) => JSON.parse(/<LST>(.*)<\/LST>/.exec(html)[1]);
+  const x = (id, forn, venc, total, pago, st) => ({ v: { id, fornecedorId: forn, vencimento: venc, data: '2026-11-14' }, f: { total, pago, saldo: r2(total - pago), status: st } });
+  const h = bloco({ aberto: [x('a', 'f1', '2026-11-20', 1672.45, 0, 'Vencido'), x('b', 'f2', '2026-11-28', 2284.8, 0, 'Pendente'), x('c', 'f1', '2026-11-21', 1797.25, 0, 'Vencido'), x('d', 'f1', '2026-11-30', 1789.45, 0, 'Pendente'),
+    x('e', 'f3', '', 17220.95, 0, 'Pendente'), x('f', 'f2', HOJE, 100, 0, 'Pendente'), x('g', 'f4', '2026-11-10', 700, 200, 'Vencido')] });
+  const L = lst(h).itens;
+  assert.deepEqual(L.map((y) => [y.href, y.t, y.s, y.v, y.cls]), [
+    ['#/pagar/f4', 'FORNECEDOR D', '1 compra · tudo vencido', 'R$ 500,00', 'a-pe'],
+    ['#/pagar/f3', 'FORNECEDOR C', '1 compra · sem vencimento', 'R$ 17.220,95', 'a-at'],
+    ['#/pagar/f1', 'FORNECEDOR A', '3 compras · R$ 3.469,70 vencido', 'R$ 5.259,15', 'a-pe'],
+    ['#/pagar/f2', 'FORNECEDOR B', '2 compras · vence hoje', 'R$ 2.384,80', 'a-at']], 'um fornecedor por linha, na ordem da tela Contas a pagar, com o total, o vencido e o próximo vencimento');
+  assert.ok(h.includes('Falta pagar <b>R$ 25.364,90</b> a 4 fornecedores · <b style="color:var(--pe)">R$ 3.969,70 vencido</b>'), 'resumo: quanto falta pagar, a quantos fornecedores e quanto já venceu');
+  assert.ok(h.includes('<span class="n" title="2 fornecedores com conta vencida">2</span>') && h.includes('<a href="#/pagar">Ver contas</a>') && h.includes('class="bloco cpf175"'), 'número vermelho = fornecedores com conta vencida; “Ver contas” continua');
+  const muitos = lst(bloco({ aberto: Array.from({ length: 11 }, (_, n) => ({ v: { id: 'm' + n, fornecedorId: 'g' + n, fornecedor: { nome: 'F' + n }, vencimento: '2026-12-' + String(n + 1).padStart(2, '0'), data: HOJE }, f: { total: 10, pago: 0, saldo: 10, status: 'Pendente' } })) })).itens;
+  assert.deepEqual([muitos.length, muitos[8].href, muitos[8].t, muitos[8].v], [9, '#/pagar', 'Mais 3 fornecedores', 'R$ 30,00'], 'mais de 8 fornecedores: os outros somam numa linha que leva ao Ver contas');
+  const vazio = bloco({ aberto: [] });
+  assert.ok(lst(vazio).itens.length === 0 && lst(vazio).vazio === 'Nenhuma conta em aberto.' && !vazio.includes('Falta pagar') && !vazio.includes('class="n"'), 'sem conta em aberto: “Nenhuma conta em aberto.”');
+  assert.ok(app.includes('.bloco.cpf175 .lst b,.bloco.cpf175 .lst small{white-space:normal}'), 'no celular o nome e a linha de baixo quebram a linha em vez de cortar');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-inicio-lenha-contas.mjs'), 'teste no navegador roda na conferência automática');
+});
 
 /* ---------- execução ---------- */
 /* ---------- Centro de Inventário ---------- */
