@@ -25094,10 +25094,11 @@ function maqDe(id){const l=id&&typeof LOCAL==='function'?LOCAL(id):null;return l
 let MEMO_S={k:null,v:{}};
 function chaveDados(){return [DATA[COLC],DATA.compras,DATA.consumos,DATA.vendas,DATA.prodFab,DATA.fin,DATA.alm,DATA.pal,DATA.folhas,DATA.desligamentos,DATA.funcionarios,DATA.estoqueMov,DATA.produtos,DATA.locais,CFG,DATA.despEnt]}
 const mesmaChave=(a,b)=>a&&b&&a.length===b.length&&a.every((x,i)=>x===b[i]);
+const G_FCC='Folha com carteira (com encargos)',G_FSC='Folha sem carteira';
 function setoresMes(m){
  const k=chaveDados();if(!mesmaChave(MEMO_S.k,k))MEMO_S={k,v:{}};if(MEMO_S.v[m])return MEMO_S.v[m];
  const v={},det={},fora=[];
- const add=(c,val,o,t)=>{val=+val||0;if(Math.abs(val)<1e-9)return;v[c]=(v[c]||0)+val;(det[c]||(det[c]=[])).push({o,t,v:val})};
+ const add=(c,val,o,t,g)=>{val=+val||0;if(Math.abs(val)<1e-9)return;v[c]=(v[c]||0)+val;(det[c]||(det[c]=[])).push(g?{o,t,v:val,g}:{o,t,v:val})};   /* V179: g = subgrupo para abrir a conta na DRE (não muda valor nenhum) */
  const setQ=(c,val,o,t)=>{v[c]=(v[c]||0)+(+val||0);(det[c]||(det[c]=[])).push({o,t,v:+val||0})};
  /* Setor de Produção: só lançamentos confirmados; tijolos ÷ 1.000 = milheiros */
  try{if(window.PRODUCAO_SETOR&&PRODUCAO_SETOR.indicMes&&(DATA.prodFab||[]).length){const P=PRODUCAO_SETOR.indicMes(m);const o='Setor de Produção';const t=x=>fNum(x)+' tijolos';
@@ -25126,41 +25127,43 @@ function setoresMes(m){
   if(c.abastecidoEm==='Veículo de terceiro'){if(val)fora.push({o:'Setor de Combustível',t:nm+' em veículo de terceiro ('+fData(c.data)+')',v:val,porque:'fora da produção'});return}
   const mq=maqDe(c.localId);const oleo=['Óleo lubrificante','Graxa'].includes(p.tipoItem);const o='Setor de Combustível';const t=nm+' · '+(mq.nome||'máquina não informada')+' · '+fData(c.data);
   if(!val){fora.push({o,t,v:0,porque:'abastecimento sem custo gravado'});return}
-  if(mq.st==='Entrega')add(oleo?'frotaPecas':'fretes',val,o,t);
-  else if(mq.st==='Administrativo')add('adm',val,o,t);
-  else if(oleo)add('manut',val,o,t);
-  else if(mq.st==='Barro')add('barro',val,o,t);
-  else add('combustivel',val,o,t)})}catch(e){console.warn('ctl combustível',e)}
+  const gc=oleo?'Óleo lubrificante e graxa':'Combustível';
+  if(mq.st==='Entrega')add(oleo?'frotaPecas':'fretes',val,o,t,gc);
+  else if(mq.st==='Administrativo')add('adm',val,o,t,gc);
+  else if(oleo)add('manut',val,o,t,gc);
+  else if(mq.st==='Barro')add('barro',val,o,t,gc);
+  else add('combustivel',val,o,t,gc)})}catch(e){console.warn('ctl combustível',e)}
  /* Almoxarifado: requisições pelo custo médio (cozinha entra na compra, porque é consumida na hora) */
  try{if(window.ALMOX_V52&&DATA.almItens){const IT=id=>DATA.almItens.find(x=>x.id===id)||{};const cm=id=>ALMOX_V52.estI(id).cm||0;const o='Almoxarifado / Cozinha';
+  const gAlm=(dc,it)=>dc==='insumos'?(it.nome||'Item sem nome'):(it.categoria||'Outros');   /* V179: insumos abertos por item (filme, fita, EPI…); o resto pela categoria */
   const dest=(cat,st)=>{const b=CAT_ALM[cat]||'cifOutros';if(st==='Entrega'&&b==='manut')return'frotaPecas';if(st==='Administrativo')return'adm';return b};
   /* V148: saída para fornecedor de lenha é pagamento da lenha (já está no custo da lenha), não custo do almoxarifado */
   DATA.almSaidas.filter(s=>emMes(s.data,m)&&!s.pagLenha).forEach(s=>{const mq=maqDe(s.maquinaId);(s.itens||[]).forEach(l=>{if(!l||!l.itemId)return;const it=IT(l.itemId);if(it.categoria==='Cozinha')return;
-   const val=l.custoTotal!=null&&l.custoTotal!==''?+l.custoTotal:(+l.qtd||0)*cm(l.itemId);add(dest(it.categoria,mq.st),val,o,'Req. '+String(s.numero||'').padStart(4,'0')+' · '+(it.nome||'item')+' · '+(s.setor||'')+(mq.nome?' · '+mq.nome:''))})});
+   const val=l.custoTotal!=null&&l.custoTotal!==''?+l.custoTotal:(+l.qtd||0)*cm(l.itemId);const dc=dest(it.categoria,mq.st);add(dc,val,o,'Req. '+String(s.numero||'').padStart(4,'0')+' · '+(it.nome||'item')+' · '+(s.setor||'')+(mq.nome?' · '+mq.nome:''),gAlm(dc,it))})});
   DATA.almDevolucoes.filter(d=>emMes(d.data,m)).forEach(d=>{const s=DATA.almSaidas.find(x=>x.id===d.saidaId)||{};if(s.pagLenha)return;const mq=maqDe(s.maquinaId);(d.itens||[]).forEach(l=>{if(!l||!l.itemId)return;const it=IT(l.itemId);if(it.categoria==='Cozinha')return;
-   add(dest(it.categoria,mq.st),-(+l.qtd||0)*cm(l.itemId),o,'Devolução ao almoxarifado · '+(it.nome||'item'))})});
+   const dc=dest(it.categoria,mq.st);add(dc,-(+l.qtd||0)*cm(l.itemId),o,'Devolução ao almoxarifado · '+(it.nome||'item'),gAlm(dc,it))})});
   DATA.almEntradas.filter(e=>emMes(e.data,m)).forEach(e=>{const ls=(e.itens||[]).filter(l=>l&&l.itemId);const base=soma(ls,l=>(+l.qtd||0)*(+l.preco||0));const fr=+e.frete||0;
-   ls.forEach(l=>{const it=IT(l.itemId);if(it.categoria!=='Cozinha')return;const val=(+l.qtd||0)*(+l.preco||0);add('cifOutros',val+(fr&&base>0?fr*val/base:0),o,'Cozinha (compra de '+fData(e.data)+') · '+(it.nome||'item'))})})}}catch(e){console.warn('ctl almoxarifado',e)}
+   ls.forEach(l=>{const it=IT(l.itemId);if(it.categoria!=='Cozinha')return;const val=(+l.qtd||0)*(+l.preco||0);add('cifOutros',val+(fr&&base>0?fr*val/base:0),o,'Cozinha (compra de '+fData(e.data)+') · '+(it.nome||'item'),'Cozinha (alimentação)')})})}}catch(e){console.warn('ctl almoxarifado',e)}
  /* Paletes: compras e consertos */
- try{(DATA.paleteCompras||[]).filter(x=>emMes(x.data,m)).forEach(x=>add('insumos',+x.total||0,'Setor de Paletes',(x.kind==='conserto'?'Conserto':'Compra')+' de '+fNum(x.qtd||0)+' palete(s) · '+fData(x.data)))}catch(e){console.warn('ctl paletes',e)}
+ try{(DATA.paleteCompras||[]).filter(x=>emMes(x.data,m)).forEach(x=>add('insumos',+x.total||0,'Setor de Paletes',(x.kind==='conserto'?'Conserto':'Compra')+' de '+fNum(x.qtd||0)+' palete(s) · '+fData(x.data),'Paletes (compra e conserto)'))}catch(e){console.warn('ctl paletes',e)}
  /* Setor Pessoal: folha fechada do mês. Base com carteira × 1,29 (13º, férias + 1/3 e FGTS); sem carteira pelo bruto.
     Produção → Mão de obra da produção (custo); administrativo (escritório, vendas, gerência geral) → Folha administrativa (despesa). */
  try{const cf=typeof custoFolhaMes==='function'?custoFolhaMes(m):null;if(cf&&cf.fechada&&cf.pessoas){const o='Setor Pessoal';const p=cf.prod,a=cf.adm;
-  if(p.comFator)add('mod',p.comFator,o,'Folha de '+fMes(m)+' com carteira: base '+fMoeda(p.base)+' × 1,29');if(p.semCarteira)add('mod',p.semCarteira,o,'Folha de '+fMes(m)+' sem carteira: valor bruto');
-  if(a.comFator)add('folhaAdm',a.comFator,o,'Folha administrativa com carteira: base '+fMoeda(a.base)+' × 1,29');if(a.semCarteira)add('folhaAdm',a.semCarteira,o,'Folha administrativa sem carteira: valor bruto')}}catch(e){console.warn('ctl folha',e)}
+  if(p.comFator)add('mod',p.comFator,o,'Folha de '+fMes(m)+' com carteira: base '+fMoeda(p.base)+' × 1,29',G_FCC);if(p.semCarteira)add('mod',p.semCarteira,o,'Folha de '+fMes(m)+' sem carteira: valor bruto',G_FSC);
+  if(a.comFator)add('folhaAdm',a.comFator,o,'Folha administrativa com carteira: base '+fMoeda(a.base)+' × 1,29',G_FCC);if(a.semCarteira)add('folhaAdm',a.semCarteira,o,'Folha administrativa sem carteira: valor bruto',G_FSC)}}catch(e){console.warn('ctl folha',e)}
  /* Setor Pessoal: rescisões do mês. Só o custo novo (o que o fator 1,29 não guardou); sem carteira, o acerto inteiro */
  try{if(typeof classificarRescisao==='function')(DATA.desligamentos||[]).filter(r=>emMes(r.data,m)).forEach(r=>{const o='Setor Pessoal';const c=classificarRescisao(r);const nm='Rescisão de '+fData(r.data)+(r.tipo?' ('+r.tipo+')':'');
   if(!c.fonte){const v=+r.valorPago||+r.valorEstimado||0;if(v)fora.push({o,t:nm,v,porque:'faltam as verbas do TRCT no DP para separar o que já foi guardado e o que é custo novo'});return}
-  if(c.custo)add(c.adm?'folhaAdm':'mod',c.custo,o,nm+': custo de rescisão'+(c.fonte==='semCarteira'?' (acerto sem carteira)':'')+(c.atraso?' · inclui multa por atraso de '+fMoeda(c.atraso):''))})}catch(e){console.warn('ctl rescisões',e)}
+  if(c.custo)add(c.adm?'folhaAdm':'mod',c.custo,o,nm+': custo de rescisão'+(c.fonte==='semCarteira'?' (acerto sem carteira)':'')+(c.atraso?' · inclui multa por atraso de '+fMoeda(c.atraso):''),'Rescisões')})}catch(e){console.warn('ctl rescisões',e)}
  /* V177: Setor de Combustível · Despesas de entrega aprovadas, pela data do gasto e pela categoria de cada uma (o compromisso
     que elas geram no Financeiro não entra de novo; paga com o adiantamento também conta, porque é despesa da viagem) */
- try{const DE=window.DESP_ENTREGA_V177;if(DE&&typeof DE.controladoria==='function')DE.controladoria(m,CAT_FIN).forEach(x=>{if(x.fora)fora.push(x.fora);else add(x.c,x.v,x.o,x.t)})}catch(e){console.warn('ctl despesas de entrega',e)}
+ try{const DE=window.DESP_ENTREGA_V177;if(DE&&typeof DE.controladoria==='function')DE.controladoria(m,CAT_FIN).forEach(x=>{if(x.fora)fora.push(x.fora);else add(x.c,x.v,x.o,x.t,x.g)})}catch(e){console.warn('ctl despesas de entrega',e)}
  /* Financeiro: compromissos lançados no próprio Financeiro (os de outros setores já entraram acima) */
  try{(DATA.fTitulos||[]).filter(t=>!t.cancelado&&geral(t)&&compFin(t)===m).forEach(t=>{const o='Setor Financeiro';const txt=(t.numero?'Nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso')+(t.beneficiarioNome?' · '+t.beneficiarioNome:'');
   if(t.meiId||t.categoria==='DAS dos MEIs'){fora.push({o,t:txt,v:+t.valor||0,porque:'DAS de MEI: decida se é mão de obra ou outro custo e lance à mão'});return}
-  const c=CAT_FIN[t.categoria];if(c)add(c,+t.valor||0,o,txt+' ('+t.categoria+')');else fora.push({o,t:txt+(t.categoria?' ('+t.categoria+')':''),v:+t.valor||0,porque:CAT_FORA[t.categoria]||'categoria sem campo na Controladoria'})})}catch(e){console.warn('ctl financeiro',e)}
+  const c=CAT_FIN[t.categoria];if(c)add(c,+t.valor||0,o,txt+' ('+t.categoria+')',t.categoria);else fora.push({o,t:txt+(t.categoria?' ('+t.categoria+')':''),v:+t.valor||0,porque:CAT_FORA[t.categoria]||'categoria sem campo na Controladoria'})})}catch(e){console.warn('ctl financeiro',e)}
  /* V101: multa e juros pagos no mês (no Financeiro ou nas compras dos setores) = despesa financeira, pela data do pagamento */
- try{const encs=(lista,rot)=>lista.forEach(x=>(x.pagamentos||[]).forEach(p=>{if(p.estornado||!emMes(p.data,m))return;const e=r2((+p.multa||0)+(+p.juros||0));if(e>0)add('financeiras',e,'Setor Financeiro','Multa e juros pagos em '+fData(p.data)+' · '+rot(x)+' (multa '+fMoeda(+p.multa||0)+', juros '+fMoeda(+p.juros||0)+')')}));
+ try{const encs=(lista,rot)=>lista.forEach(x=>(x.pagamentos||[]).forEach(p=>{if(p.estornado||!emMes(p.data,m))return;const e=r2((+p.multa||0)+(+p.juros||0));if(e>0)add('financeiras',e,'Setor Financeiro','Multa e juros pagos em '+fData(p.data)+' · '+rot(x)+' (multa '+fMoeda(+p.multa||0)+', juros '+fMoeda(+p.juros||0)+')','Multa e juros')}));
   encs((DATA.fTitulos||[]).filter(t=>!t.cancelado),t=>(t.numero?'nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso'));
   encs((DATA.compras||[]).filter(c=>c.tipoOp==='compra'&&!cancV(c)),c=>'compra nº '+fNumV(c.numero)+' · '+nomeSetorV(c.setor))}catch(e){console.warn('ctl multa e juros',e)}
  Object.keys(v).forEach(c=>{v[c]=ehQtd(c)?Math.round(v[c]*1000)/1000:r2(v[c])});
@@ -25994,6 +25997,37 @@ function linhasDRE(R){const v=R.v;const n=x=>x==null?null:-x;
   ['(−) Frota (depreciação, peças, motoristas, IPVA e seguro)',n(R.frotaFixa)],['= Resultado operacional',R.RO,'t'],['(−) Despesas financeiras',n(R.fin)],['= Lucro líquido',R.LL,'tt'],['EBITDA',R.EBITDA,'i']]}
 function linhasGer(R){const v=R.v;const n=x=>x==null?null:-x;const cvV=R.cvpm==null||v.vendidos==null?null:R.cvpm*v.vendidos;
  return[['Receita líquida',R.RL,'t'],['(−) Custo variável dos vendidos (custo variável por milheiro × vendidos)',n(cvV)],['(−) Despesas variáveis',n(R.DV)],['= Margem de contribuição',R.MC,'t'],['(−) Custos fixos de produção',n(R.CFprod)],['(−) Despesas fixas',n(R.DF)],['(−) Despesas financeiras',n(R.fin)],['= Resultado gerencial',R.resGer,'tt']]}
+/* V179 (26/11/2026, pedido do Jeferson): DRE detalhada. Cada grupo abre nas contas que já existem (Lenha, Barro, Energia,
+   Arrendamento, Mão de obra da produção, Folha administrativa…) e, quando o valor veio dos setores, cada conta abre nos
+   subgrupos do próprio detalhamento (paletes, filme, fita, folha com e sem carteira, rescisões…). Os totais são os mesmos
+   de linhasDRE; os subgrupos somam exatamente a conta (o arredondamento vai para o maior). Linha: [rótulo, valor, tipo, nível]. */
+function gruposDetC(R,k){if(!R||R.orig[k]!=='setores'||!R.det||!R.det[k])return null;const tot=R.v[k];if(tot==null)return null;
+ const mp=new Map();R.det[k].forEach(d=>{const g=d.g||d.o||'Outros';mp.set(g,(mp.get(g)||0)+(+d.v||0))});
+ let xs=[...mp].filter(x=>Math.abs(x[1])>=0.005).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));if(xs.length<2)return null;
+ if(xs.length>8){const r=xs.slice(7);xs=xs.slice(0,7);xs.push(['Outros itens ('+r.length+')',r.reduce((a,x)=>a+x[1],0)])}
+ xs=xs.map(([g,v])=>[g,r2(v)]);const dif=r2(tot-xs.reduce((a,x)=>a+x[1],0));xs[0][1]=r2(xs[0][1]+dif);return new Map(xs)}
+function linhasDREDet(R,Q){const L=[];const n=x=>x==null?null:-x;const c=(X,k)=>X?+X.v[k]||0:null;
+ const row=(l,f,t,nv)=>L.push({l,f,t,nv});
+ const conta=(k,l,nv,soAbrir)=>{if(!soAbrir)row(l,X=>X?n(c(X,k)):null,'',nv);const gR=gruposDetC(R,k),gQ=gruposDetC(Q,k);if(!gR&&!gQ)return;
+  const nomes=[...(gR?gR.keys():[])];if(gQ)[...gQ.keys()].forEach(g=>{if(!nomes.includes(g))nomes.push(g)});
+  nomes.forEach(g=>row(g,X=>{const G=X===R?gR:gQ;if(!G)return null;return n(G.get(g)||0)},'',nv+1))};
+ row('Receita bruta de vendas',X=>X.v.receita,'t',0);row('(−) Devoluções e descontos',X=>n(+X.v.devolucoes||0),'',1);row('(−) DAS',X=>n(+X.v.das||0),'',1);row('(−) Outros tributos',X=>n(+X.v.outrosTrib||0),'',1);
+ row('= Receita líquida',X=>X.RL,'t',0);
+ row('(−) CPV (custo dos produtos vendidos)',X=>n(X.CPV),'g',0);
+ row('Custos variáveis de produção',X=>n(X.CVprod),'g2',1);
+ [['lenha','Lenha'],['barro','Barro'],['energia','Energia'],['combustivel','Combustível'],['insumos','Insumos (paletes, embalagens, EPIs…)']].forEach(([k,l])=>conta(k,l,2));
+ row('Custos fixos de produção',X=>n(X.CFprod),'g2',1);
+ [['arrend','Arrendamento'],['mod','Folha da produção (mão de obra, encargos e rescisões)'],['manut','Manutenção'],['deprec','Depreciação da produção'],['cifOutros','Outros custos indiretos']].forEach(([k,l])=>conta(k,l,2));
+ row('(±) Variação do estoque de tijolos (inicial − final)',X=>X.CPV==null?null:n(X.CPV-X.custoProd),'',1);
+ row('= Lucro bruto',X=>X.LB,'t',0);
+ row('(−) Despesas variáveis',X=>n(X.DV),'g',0);conta('comissoes','Comissões',1);conta('fretes','Fretes',1);
+ row('(−) Despesas fixas',X=>n(X.DFsf),'g',0);[['adm','Despesas administrativas'],['folhaAdm','Folha administrativa (salários, encargos e rescisões)'],['comerciais','Despesas comerciais'],['deprecAdm','Depreciação administrativa']].forEach(([k,l])=>conta(k,l,1));
+ row('(−) Frota',X=>n(X.frotaFixa),'g',0);[['frotaDeprec','Depreciação dos caminhões'],['frotaPecas','Peças da frota'],['frotaOutros','Motoristas, IPVA e seguro']].forEach(([k,l])=>conta(k,l,1));
+ row('= Resultado operacional',X=>X.RO,'t',0);
+ row('(−) Despesas financeiras',X=>n(X.fin),'g',0);conta('financeiras','',1,true);   /* a linha-mãe já é a conta: só a abertura */
+ row('= Lucro líquido',X=>X.LL,'tt',0);row('EBITDA',X=>X.EBITDA,'i',0);
+ const val=(r,X)=>{if(!X)return null;try{const v=r.f(X);return v==null||!isFinite(v)?null:v}catch(e){return null}};
+ return[L.map(r=>[r.l,val(r,R),r.t,r.nv]),Q?L.map(r=>[r.l,val(r,Q),r.t,r.nv]):null]}
 /* V178 (26/11/2026, pedido do Jeferson): a DRE como demonstração contábil, em tabela contínua.
    Descrição | mês | AV % (% da receita líquida) | mês de comparação | variação (R$ e %). Uma conta por linha; contas
    redutoras recuadas e com o valor negativo em vermelho; subtotais em negrito, fundo leve e linha de cima mais grossa;
@@ -26006,8 +26040,9 @@ function varDRE(x,y,cmp){if(x==null||y==null)return '—';const d=x-y;const mo=f
  return `<span class="ctl-var ${d>0?'sobe':'desce'}" title="${d>0?'Subiu':'Desceu'} em relação a ${esc(fMes(cmp))}"><i class="ctl-seta" aria-hidden="true">${d>0?'▲':'▼'}</i> ${esc(mo)}${pc?`<small>${esc(pc)}</small>`:''}</span>`}
 function tabDRE(a,b,R,m,cmp,cls){
  const linha=(x,i)=>{const y=b?b[i][1]:null;const red=/^\(−\)/.test(x[0]);
-  const k=x[2]==='tt'?'ctl-tt':x[2]==='t'?(i===0?'ctl-ini':'ctl-sub'):x[2]==='i'?'ctl-memo':red?'ctl-red':'';
-  return `<tr class="${k}">${tdC('Descrição',nomeConta(x[0]),0,'ctl-dsc')}${tdC(fMes(m),valDRE(x[1]),1)}${tdC('AV %',`<span class="ctl-avp">${esc(x[1]==null||!R.RL?'—':fPct(x[1]/R.RL))}</span>`,1)}${b?tdC(fMes(cmp),valDRE(y),1)+tdC('Variação',varDRE(x[1],y,cmp),1):''}</tr>`};
+  const k=x[2]==='tt'?'ctl-tt':x[2]==='t'?(i===0?'ctl-ini':'ctl-sub'):x[2]==='i'?'ctl-memo':x[2]==='g'?'ctl-grp':x[2]==='g2'?'ctl-grp2':red?'ctl-red':'';
+  const nv=x[3]!=null?' ctl-nv'+x[3]:'';   /* V179: nível da conta na DRE detalhada */
+  return `<tr class="${k}${nv}">${tdC('Descrição',nomeConta(x[0]),0,'ctl-dsc')}${tdC(fMes(m),valDRE(x[1]),1)}${tdC('AV %',`<span class="ctl-avp">${esc(x[1]==null||!R.RL?'—':fPct(x[1]/R.RL))}</span>`,1)}${b?tdC(fMes(cmp),valDRE(y),1)+tdC('Variação',varDRE(x[1],y,cmp),1):''}</tr>`};
  return `<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ctl-dre ${cls||''}"><thead><tr><th class="ctl-dsc">Descrição</th><th class="num">${esc(fMes(m))}</th><th class="num" title="Análise vertical: % da receita líquida">AV %<small>% receita líq.</small></th>${b?`<th class="num">${esc(fMes(cmp))}</th><th class="num">Variação<small>R$ e %</small></th>`:''}</tr></thead><tbody>${a.map(linha).join('')}</tbody></table></div></div>`}
 /* "Do lucro ao caixa" no mesmo desenho (os mesmos valores de antes) */
 function tabCaixaC(R){const ls=[['Lucro líquido',R.LL],['(+) Depreciação',R.deprecTot],['(−) Retiradas dos sócios',-(+R.v.retiradas||0)],['(−) Parcelas de empréstimos e financiamentos',-(+R.v.parcelas||0)],['(−) Investimentos',-(+R.v.investimentos||0)],['= Sobra no caixa',R.caixaLivre]];
@@ -26015,11 +26050,12 @@ function tabCaixaC(R){const ls=[['Lucro líquido',R.LL],['(+) Depreciação',R.d
 function telaDREC(c){
  const m=mesSel();const R=calcMes(m);const L=listaMeses();const cmp=UC.cmp==='-'?'':(UC.cmp&&L.includes(UC.cmp)&&UC.cmp!==m?UC.cmp:(L[L.indexOf(m)-1]||''));const Q=cmp?calcMes(cmp):null;
  const tab=(fn,cls)=>tabDRE(fn(R),Q?fn(Q):null,R,m,cmp,cls);
+ const det=UC.dreRes!==true;const tabAbs=()=>{if(!det)return tab(linhasDRE,'ctl-dre-abs');const [A,B]=linhasDREDet(R,Q);return tabDRE(A,B,R,m,cmp,'ctl-dre-abs ctl-dre-det')};   /* V179: detalhada (padrão) ou resumida */
  const obs=(R.doc&&R.doc.obs)||'';
  c.innerHTML=cabC('doc','DRE','Demonstração do resultado por absorção (societária e gerencial) e a visão do custeio variável. Regime de competência: receitas e custos entram no mês em que ocorrem.',
   `<label class="ctl-cmp-sel">Comparar com <select id="cdCmp">${['',...L.filter(x=>x!==m)].reverse().map(x=>`<option value="${x}" ${x===cmp?'selected':''}>${x?esc(mesLongo(x)):'nenhum mês'}</option>`).join('')}</select></label><button type="button" class="btn" id="cdDre12" data-tip="DRE mês a mês dos últimos 12 meses e o acumulado do ano, em PDF ou Excel">${ic('baixar')}DRE de 12 meses ▾</button>`)+avisoEsq(m)+
   (R.LL==null?`<div class="aviso at"><span>O resultado de ${esc(fMes(m))} não pôde ser calculado: ${esc(R.falta.LL||'faltam dados')}.</span></div>`:'')+
-  `<h3 class="grupo-t">DRE por absorção ${btnQ('LL')}</h3>${tab(linhasDRE,'ctl-dre-abs')}
+  `<h3 class="grupo-t ctl-dre-tit">DRE por absorção ${btnQ('LL')}<span class="ctl-dre-modo" role="group" aria-label="Como mostrar a DRE"><button type="button" data-dre-modo="det" class="${det?'on':''}" aria-pressed="${det}">Detalhada</button><button type="button" data-dre-modo="res" class="${det?'':'on'}" aria-pressed="${!det}">Resumida</button></span></h3>${tabAbs()}
   <p class="ajuda ctl-nota">AV %: quanto cada linha representa da receita líquida do mês.${Q?' Variação: diferença em relação a '+esc(fMes(cmp))+' (▲ subiu, ▼ desceu).':''}</p>
   <h3 class="grupo-t">Visão gerencial (custeio variável) ${btnQ('MC')}</h3>${tab(linhasGer,'ctl-dre-ger')}
   <div class="ctl-g2">
@@ -26032,6 +26068,7 @@ function telaDREC(c){
   </div>
   <h3 class="grupo-t">Margens</h3>${tabC(['Indicador',[mesLongo(m),1],'Fórmula'],['mb','mo','ml','me','lucroMil'].map(id=>linhaInd(R,id)))}`;
  const s=$('#cdCmp',c);if(s)s.onchange=e=>{UC.cmp=e.target.value||'-';renderTela()};
+ c.querySelectorAll('[data-dre-modo]').forEach(b=>b.onclick=()=>{UC.dreRes=b.dataset.dreModo==='res';renderTela()});
  const b12=$('#cdDre12',c);if(b12)b12.onclick=()=>menuDre12(b12,m);
 }
 
@@ -26320,7 +26357,7 @@ function secoesRel(aba,m){
   S('Preço alvo (média de 3 meses)',tR(['Preço','Valor'],A.n?[['Meses usados',A.meses.map(fMes).join(', ')],['Preço sugerido geral',fR(A.sug)],['Preço de retirada',fR(A.ret)],['Frete a cobrar por milheiro',fR(A.frete)],['Preço de entrega',fR(A.ent2)],['Preço piso',fR(A.piso)],['Preço de equilíbrio',fR(A.eq)],['Preço praticado no período',fR(A.prat)]]:[['Sem base',A.falta]]));
   S('Frete por distância (só ida)',tR(['Distância','Frete por milheiro · mês','Frete por milheiro · alvo'],[10,20,30,40,50,75,100,150].map(d=>[d+' km',fR(R.freteDist(d)),fR(A.n?A.freteDist(d):null)]),[1,2]))}
  if(aba==='ctlPE')S('Ponto de equilíbrio',tR(['Indicador','Valor','Fórmula'],indRows(R,['mcMil','PEc','PEf','PEe','MS','GAO','resGer'])),{nota:'Em R$: contábil '+fR(R.PEcR)+' · financeiro '+fR(R.PEfR)+' · econômico '+fR(R.PEeR)+'.'});
- if(aba==='ctlDRE'){S('DRE por absorção',tR(['Linha','Valor','% receita líq.'],linhasDRE(R).map(x=>[x[0],fR(x[1]),x[1]==null||!R.RL?'—':fPct(x[1]/R.RL)]),[1,2]));
+ if(aba==='ctlDRE'){S('DRE por absorção',tR(['Linha','Valor','% receita líq.'],(UC.dreRes===true?linhasDRE(R):linhasDREDet(R,null)[0].map(x=>[(x[3]>=2?'      ':x[3]===1?'   ':'')+x[0],x[1],x[2]])).map(x=>[x[0],fR(x[1]),x[1]==null||!R.RL?'—':fPct(x[1]/R.RL)]),[1,2]));
   S('Visão gerencial (custeio variável)',tR(['Linha','Valor'],linhasGer(R).map(x=>[x[0],fR(x[1])])));
   S('Do lucro ao caixa',tR(['Linha','Valor'],[['Lucro líquido',fR(R.LL)],['(+) Depreciação',fR(R.deprecTot)],['(−) Retiradas',fR(-(+v.retiradas||0))],['(−) Parcelas',fR(-(+v.parcelas||0))],['(−) Investimentos',fR(-(+v.investimentos||0))],['= Sobra no caixa',fR(R.caixaLivre)]]));
   if(R.doc&&R.doc.obs)out.push({tipo:'p',texto:'Observação do controller: '+R.doc.obs})}
@@ -26495,7 +26532,7 @@ telaSetores=function(el){tsC.apply(this,arguments);
   if(!podeVer()){b.innerHTML='Acesso restrito '+ic('direita');b.classList.remove('pri')}
   b.onclick=()=>{if(typeof marcarSetor==='function')marcarSetor('control');JBNAV.ir(podeVer()?'#/setor-control':'#/ctlRestrito')}}catch(e){console.warn('controladoria: cartão',e)}};
 
-window.CONTROLADORIA={CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes,resolver,calcMes,alvo3,esquecidos,alertasMes,simDesc,ncgCom,interpretar,montarBackup,deprMes,valorContabil,
+window.CONTROLADORIA={linhasDRE,linhasDREDet,gruposDetC,CAMPOS,GRUPOS,PADRAO,IND,cfgC,docMes,listaMeses,setoresMes,resolver,calcMes,alvo3,esquecidos,alertasMes,simDesc,ncgCom,interpretar,montarBackup,deprMes,valorContabil,
  limparMemo:()=>{MEMO_C={k:null,res:{},lista:null};MEMO_S={k:null,v:{}}}};
 })();
 </script>
@@ -55649,7 +55686,7 @@ function controladoria(m,CAT){
  DATA.deLanc.filter(d=>d.st==='aprovado'&&String(d.data||'').slice(0,7)===m).forEach(d=>{
   const cat=catDe(d),t=TIPO(d.tipoDesp),txt='Nº '+(d.numero||'—')+' · '+t.l+' · '+nomeMot(d.motoristaId)+(d.veiculoId?' · '+placaDe(d.veiculoId):'')+' · '+fData(d.data);
   const campo=cat?CAT[cat]:null;
-  if(campo)out.push({c:CAMPO_ALM(campo),v:r2(d.valor),o:'Setor de Combustível · Despesas de entrega',t:txt+' ('+cat+')'});
+  if(campo)out.push({c:CAMPO_ALM(campo),v:r2(d.valor),o:'Setor de Combustível · Despesas de entrega',t:txt+' ('+cat+')',g:'Despesas de entrega · '+t.l});
   else out.push({fora:{o:'Setor de Combustível · Despesas de entrega',t:txt+(cat?' ('+cat+')':''),v:r2(d.valor),porque:cat?'categoria sem campo na Controladoria':'despesa sem categoria (Despesas de entrega › Configurações)'}})});
  return out}
 
@@ -55742,6 +55779,20 @@ html .ctl-tx table.ctl-dre tr.ctl-red>td.ctl-dsc{padding-left:32px!important;col
 html .ctl-tx table.ctl-dre tr.ctl-ini>td{font-weight:700}
 html .ctl-tx table.ctl-dre tr.ctl-tt>td{font-size:14.6px}
 html .ctl-tx table.ctl-dre tr.ctl-memo>td{color:var(--suave);font-style:italic;border-top:1px dashed var(--linha)!important}
+/* V179: DRE detalhada · grupos, subgrupos e contas por nível */
+html .ctl-tx table.ctl-dre tr.ctl-grp>td{font-weight:700;border-top:1.5px solid var(--linha)!important}
+html .ctl-tx table.ctl-dre tr.ctl-grp>td.ctl-dsc{padding-left:14px!important}
+html .ctl-tx table.ctl-dre tr.ctl-grp2>td{font-weight:650;color:var(--texto)}
+html .ctl-tx table.ctl-dre tr.ctl-nv1>td.ctl-dsc{padding-left:30px!important}
+html .ctl-tx table.ctl-dre tr.ctl-nv2>td.ctl-dsc{padding-left:48px!important;color:var(--suave)}
+html .ctl-tx table.ctl-dre tr.ctl-nv3>td.ctl-dsc{padding-left:66px!important;color:var(--fraco);font-size:12.8px}
+html .ctl-tx table.ctl-dre tr.ctl-nv3>td{font-size:12.8px}
+html .ctl-tx table.ctl-dre tr.ctl-nv3>td.ctl-dsc .ctl-cn::before{content:"· ";color:var(--fraco)}
+.ctl .ctl-dre-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctl .ctl-dre-modo{margin-left:auto;display:inline-flex;border:1px solid var(--linha);border-radius:999px;overflow:hidden;font-size:12.5px;text-transform:none;letter-spacing:0}
+.ctl .ctl-dre-modo button{border:0;background:transparent;padding:5px 12px;font:inherit;font-weight:600;color:var(--suave);cursor:pointer;min-height:30px}
+.ctl .ctl-dre-modo button.on{background:var(--carvao);color:#fff}
+@media (max-width:700px){html .ctl-tx table.ctl-dre tr.ctl-grp>td.ctl-dsc{padding-left:10px!important}html .ctl-tx table.ctl-dre tr.ctl-nv1>td.ctl-dsc{padding-left:18px!important}html .ctl-tx table.ctl-dre tr.ctl-nv2>td.ctl-dsc{padding-left:28px!important}html .ctl-tx table.ctl-dre tr.ctl-nv3>td.ctl-dsc{padding-left:38px!important}}
 .ctl-tx .ctl-neg{color:var(--pe)}
 .ctl-tx .ctl-avp{color:var(--suave);font-weight:500}
 .ctl-tx .ctl-var{font-weight:600;white-space:nowrap}

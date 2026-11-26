@@ -1605,8 +1605,9 @@ teste('controladoria', 'V178: layout novo da Controladoria (DRE em tabela contí
   /* tabelas contínuas: sem a classe que vira cartão no celular */
   assert.ok(b.includes('const tabC=(head,linhas,cls)=>`<div class="ctl-tx"><div class="painel tabwrap ctl-tw"><table class="tbl dir-tab ctl-tb ctl-t ') && !/class="tbl cartao/.test(b), 'tabelas contínuas (sem a classe cartao)');
   /* a DRE desenha as mesmas linhas de sempre (linhasDRE e linhasGer), e o relatório em PDF continua usando as mesmas */
-  assert.ok(b.includes('const tab=(fn,cls)=>tabDRE(fn(R),Q?fn(Q):null,R,m,cmp,cls);') && b.includes("${tab(linhasDRE,'ctl-dre-abs')}") && b.includes("${tab(linhasGer,'ctl-dre-ger')}"), 'a DRE usa as mesmas linhas');
-  assert.ok(b.includes("S('DRE por absorção',tR(['Linha','Valor','% receita líq.'],linhasDRE(R).map("), 'o PDF da DRE não mudou');
+  /* V179 (pedido do dono): a DRE por absorção abre em contas e subgrupos (linhasDREDet); a resumida continua sendo linhasDRE */
+  assert.ok(b.includes('const tab=(fn,cls)=>tabDRE(fn(R),Q?fn(Q):null,R,m,cmp,cls);') && b.includes("if(!det)return tab(linhasDRE,'ctl-dre-abs');") && b.includes('function linhasDREDet(R,Q){') && b.includes("${tab(linhasGer,'ctl-dre-ger')}"), 'a DRE usa as mesmas linhas (resumida) ou a abertura delas (detalhada)');
+  assert.ok(b.includes("S('DRE por absorção',tR(['Linha','Valor','% receita líq.'],(UC.dreRes===true?linhasDRE(R):linhasDREDet(R,null)[0]"), 'o PDF da DRE acompanha a tela');
   /* painel: com a classe hero (a casca o põe acima de "Atalhos favoritos" e "Módulos") e só lendo */
   const p = b.slice(b.indexOf('const DASH=['), b.indexOf('/* ================= gravação ================='));
   assert.ok(p.includes('<section class="hero ctl-dash"') && p.includes('painelD(R,al)+'), 'painel no alto do setor');

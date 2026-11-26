@@ -177,6 +177,18 @@ try {
   /* =================== 4. DRE no computador =================== */
   console.log('\n4. DRE em tabela contínua');
   await A.ir('ctlDRE');
+  /* V179: a DRE abre detalhada (grupos → contas → subgrupos); os totais são os mesmos da resumida */
+  const DD = await A.page.evaluate(() => { const C = window.CONTROLADORIA; const R = C.calcMes('2026-10'), Q = C.calcMes('2026-09');
+    const [Aa] = C.linhasDREDet(R, Q); const t = document.querySelector('table.ctl-dre-abs'); const rows = [...t.tBodies[0].rows];
+    const tela = rows.map((r) => r.cells[1].textContent.trim()); const esper = Aa.map((x) => (x[1] == null || !isFinite(x[1]) || Math.abs(x[1]) < 0.005 ? '—' : fMoeda(x[1])));
+    const res = C.linhasDRE(R); const pega = (L, n) => (L.find((x) => x[0] === n) || [])[1];
+    const tot = [['= Receita líquida', '= Receita líquida'], ['(−) CPV', '(−) CPV (custo dos produtos vendidos)'], ['= Lucro bruto', '= Lucro bruto'], ['(−) Despesas variáveis (comissões e fretes)', '(−) Despesas variáveis'],
+      ['(−) Despesas fixas (administrativas, folha, comerciais, depreciação adm.)', '(−) Despesas fixas'], ['(−) Frota (depreciação, peças, motoristas, IPVA e seguro)', '(−) Frota'], ['= Resultado operacional', '= Resultado operacional'], ['= Lucro líquido', '= Lucro líquido'], ['EBITDA', 'EBITDA']].every(([a, b]) => pega(res, a) === pega(Aa, b));
+    const nomes = Aa.map((x) => x[0]);
+    return { det: !!document.querySelector('[data-dre-modo="det"].on'), igual: tela.length === esper.length && tela.every((v, i) => v === esper[i]), tot,
+      contas: ['Lenha', 'Barro', 'Energia', 'Arrendamento', 'Folha da produção (mão de obra, encargos e rescisões)', 'Folha administrativa (salários, encargos e rescisões)', 'Depreciação da produção', 'Custos fixos de produção', 'Custos variáveis de produção'].every((n) => nomes.some((x) => x.startsWith(n))) }; });
+  ok(DD.det && DD.igual && DD.tot && DD.contas, 'DRE detalhada: grupos abertos por conta (lenha, energia, arrendamento, folha da produção e administrativa…), com os mesmos totais da resumida');
+  await A.page.click('[data-dre-modo="res"]'); await A.page.waitForTimeout(600);
   const D1 = await A.page.evaluate(() => { const t = document.querySelector('table.ctl-dre-abs');
     return { th: [...t.tHead.rows[0].cells].map((c) => c.childNodes[0].textContent.trim()),
       rows: [...t.tBodies[0].rows].map((r) => ({ cls: r.className, nome: r.cells[0].textContent.replace(/\s+/g, ' ').trim(), v: r.cells[1].textContent.trim(), av: r.cells[2].textContent.trim(), ant: r.cells[3].textContent.trim(), varT: r.cells[4].textContent.trim(), neg: !!r.cells[1].querySelector('.ctl-neg'), sobe: !!r.cells[4].querySelector('.sobe'), desce: !!r.cells[4].querySelector('.desce') })) }; });
