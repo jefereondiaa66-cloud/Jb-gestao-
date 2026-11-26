@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Despesas de entrega · JB ERP</title>
+<link rel="manifest" href="motorista.webmanifest">
+<meta name="theme-color" content="#F2F8FB">
+<link rel="icon" type="image/png" sizes="192x192" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="JB Motorista">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://kdsaslmlvjllgzbzsnxt.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<!-- V177 · Despesas de Entrega: página do MOTORISTA (só pelo celular dele).
+     Mostra só o que é dele: o cadastro, os caminhões liberados, as viagens e os lançamentos. Tudo passa pelas funções
+     do servidor (jb_mot_*), que conferem a sessão, o motorista, o caminhão, a viagem e o valor; a leitura direta do
+     banco é recusada para login de motorista. Nenhuma senha fica guardada: a sessão fica só nesta aba
+     (sessionStorage, some ao fechar a aba ou ao tocar em Sair). O rascunho do lançamento fica neste celular até ser enviado. -->
+<style>
+:root{--papel:#F2F8FB;--papel2:#F7FBFD;--branco:#FFFFFF;--linha:#D3E0E8;--linha2:#E4EDF2;--tinta:#10222E;--suave:#465A67;--fraco:#5F7381;
+ --brasa:#0B74A8;--brasa2:#09628E;--brasa-bg:#E8F4FA;--brasa-bg2:#CFE7F3;--carvao:#0D3B57;
+ --ok:#1D7A4E;--ok-bg:#E3F3EA;--at:#8F5A00;--at-bg:#FBF0D9;--pe:#B3271F;--pe-bg:#FCE8E6;--in:#28618A;--in-bg:#E3EEF6;--br:#7A4B00;--br-bg:#FFF4E0;
+ --r:14px;--anel:0 0 0 3px rgba(11,116,168,.22);color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;height:100%}
+body{margin:0;min-height:100%;background:var(--papel);color:var(--tinta);font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid var(--brasa);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+svg.i{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* topo */
+.topo{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:var(--papel);border-bottom:1px solid transparent}
+body.rolou .topo{border-bottom-color:var(--linha);box-shadow:0 8px 18px -16px rgba(16,34,46,.5)}
+.topo .lg{width:40px;height:40px;border-radius:11px;flex:none;display:block}
+.topo .tt{min-width:0;flex:1}
+.topo .tt b{display:block;font-size:17px;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topo .tt small{display:block;font-size:13px;color:var(--fraco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topo .bt-ic{width:48px;height:48px;border-radius:12px;border:1px solid var(--linha);background:var(--branco);display:grid;place-items:center;color:var(--suave);cursor:pointer;flex:none;padding:0}
+.topo .bt-ic:active{background:var(--linha2)}
+
+main{max-width:560px;margin:0 auto;padding:6px 16px calc(96px + env(safe-area-inset-bottom,0px))}
+body.sem-nav main{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+h1.tit{font-size:24px;line-height:1.15;margin:8px 0 4px;font-weight:800;letter-spacing:-.01em}
+p.sub{margin:0 0 16px;color:var(--suave);font-size:15px}
+h2.sec{font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fraco);margin:22px 2px 10px}
+
+.cartao{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r);padding:14px 16px;margin:0 0 12px}
+.cartao.dest{border-color:var(--brasa-bg2);background:linear-gradient(180deg,var(--brasa-bg),var(--branco) 70%)}
+.linha-ic{display:flex;gap:12px;align-items:flex-start}
+.linha-ic>.ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--brasa-bg);color:var(--brasa);flex:none}
+.linha-ic .tx{min-width:0;flex:1}
+.linha-ic .tx b{display:block;font-size:16px;line-height:1.25}
+.linha-ic .tx small{display:block;color:var(--suave);font-size:14px;margin-top:2px}
+.rot{font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--fraco);margin-bottom:6px}
+
+/* botões */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:54px;padding:12px 16px;border-radius:12px;border:1px solid var(--linha);background:var(--branco);font-size:16.5px;font-weight:700;cursor:pointer;text-decoration:none;color:var(--tinta);touch-action:manipulation}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--brasa);border-color:var(--brasa);color:#fff}
+.btn.pri:active{background:var(--brasa2)}
+.btn.sec{color:var(--brasa);border-color:var(--brasa-bg2);background:var(--brasa-bg)}
+.btn.perigo{color:var(--pe);border-color:#F0C3BF;background:var(--pe-bg)}
+.btn.peq{min-height:44px;font-size:15px;padding:8px 12px;width:auto}
+.btn:disabled{opacity:.6;cursor:wait}
+.btns{display:grid;gap:10px;margin:16px 0 0}
+.btns.dois{grid-template-columns:1fr 1fr}
+
+/* atalhos de despesa */
+.atalhos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.atalho{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:10px;min-height:96px;padding:14px;border-radius:var(--r);border:1px solid var(--linha);background:var(--branco);cursor:pointer;text-align:left;touch-action:manipulation}
+.atalho .ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:var(--brasa-bg);color:var(--brasa)}
+.atalho b{font-size:15.5px;line-height:1.2}
+.atalho.grande{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;min-height:76px;background:var(--brasa);border-color:var(--brasa);color:#fff}
+.atalho.grande .ic{background:rgba(255,255,255,.18);color:#fff}
+.atalho.grande b{font-size:18px}
+.atalho:active{background:var(--linha2)}.atalho.grande:active{background:var(--brasa2)}
+
+/* situação (texto + ícone: não depende só da cor) */
+.st{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px 3px 7px;font-size:13px;font-weight:700;white-space:nowrap;line-height:1.3}
+.st svg{width:15px;height:15px;stroke-width:2.4}
+.st.ok{background:var(--ok-bg);color:var(--ok)}.st.at{background:var(--at-bg);color:var(--at)}.st.pe{background:var(--pe-bg);color:var(--pe)}
+.st.in{background:var(--in-bg);color:var(--in)}.st.br{background:var(--br-bg);color:var(--br)}.st.nt{background:var(--linha2);color:var(--suave)}
+
+/* lista de lançamentos */
+.lista{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:var(--r);border:1px solid var(--linha);background:var(--branco);cursor:pointer;text-align:left;width:100%}
+.item .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:var(--brasa-bg);color:var(--brasa)}
+.item .tx{min-width:0}
+.item .tx b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .tx small{display:block;font-size:13px;color:var(--fraco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .vl{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.item .vl b{font-size:16px;white-space:nowrap}
+.vazio{padding:22px 16px;text-align:center;color:var(--suave);border:1px dashed var(--linha);border-radius:var(--r);background:var(--papel2)}
+
+/* formulário */
+.etapas{display:flex;gap:6px;margin:4px 0 16px}
+.etapas i{flex:1;height:6px;border-radius:99px;background:var(--linha)}
+.etapas i.on{background:var(--brasa)}
+.cmp{margin:0 0 16px}
+.cmp>label,.cmp>.lb{display:block;font-size:15px;font-weight:700;margin:0 0 7px}
+.cmp>label small,.cmp>.lb small{font-weight:500;color:var(--fraco);font-size:13.5px}
+.cmp input,.cmp select,.cmp textarea{width:100%;min-height:54px;padding:12px 14px;border:1px solid var(--linha);border-radius:12px;background:var(--branco);font-size:17px}
+.cmp textarea{min-height:92px;resize:vertical;line-height:1.4}
+.cmp input:focus,.cmp select:focus,.cmp textarea:focus{outline:none;border-color:var(--brasa);box-shadow:var(--anel)}
+.cmp.erro input,.cmp.erro select,.cmp.erro textarea{border-color:var(--pe);background:var(--pe-bg)}
+.cmp .msg{display:none;color:var(--pe);font-size:14px;font-weight:600;margin-top:6px}
+.cmp.erro .msg{display:block}
+.cmp .aj{display:block;color:var(--fraco);font-size:13.5px;margin-top:6px}
+.valor{position:relative}
+.valor>span{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:24px;font-weight:700;color:var(--fraco);pointer-events:none}
+.valor input{font-size:32px!important;font-weight:800;padding-left:58px!important;min-height:72px!important;letter-spacing:-.01em}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fichas{display:flex;flex-wrap:wrap;gap:8px}
+.ficha{min-height:48px;padding:10px 14px;border-radius:999px;border:1px solid var(--linha);background:var(--branco);font-size:15px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ficha[aria-pressed="true"]{background:var(--brasa);border-color:var(--brasa);color:#fff}
+.ficha.lg{border-radius:12px;width:100%;justify-content:flex-start;text-align:left}
+.fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.previa{margin:12px 0 0;border:1px solid var(--linha);border-radius:var(--r);overflow:hidden;background:var(--papel2);position:relative}
+.previa img{display:block;width:100%;max-height:360px;object-fit:contain;background:#0B0F12}
+.previa .pdf{padding:22px;text-align:center;color:var(--suave)}
+.previa .sit{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:14px;font-weight:600;border-top:1px solid var(--linha);background:var(--branco)}
+.resumo{display:grid;gap:0;border:1px solid var(--linha);border-radius:var(--r);background:var(--branco);overflow:hidden}
+.resumo>div{display:flex;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid var(--linha2);font-size:15px}
+.resumo>div:last-child{border-bottom:0}
+.resumo span{color:var(--suave)}.resumo b{text-align:right;min-width:0;overflow-wrap:anywhere}
+.resumo .grande b{font-size:22px}
+.aviso{border-radius:12px;padding:12px 14px;font-size:14.5px;margin:0 0 14px;display:flex;gap:10px;align-items:flex-start;border:1px solid transparent}
+.aviso svg{width:22px;height:22px;margin-top:1px}
+.aviso.pe{background:var(--pe-bg);color:var(--pe);border-color:#F0C3BF}
+.aviso.at{background:var(--at-bg);color:var(--at);border-color:#F1D9A6}
+.aviso.ok{background:var(--ok-bg);color:var(--ok);border-color:#B9E0C9}
+.aviso.in{background:var(--in-bg);color:var(--in);border-color:#C3D8E8}
+.conf{text-align:center;padding:18px 4px 6px}
+.conf .ok{width:84px;height:84px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok)}
+.conf .ok svg{width:46px;height:46px;stroke-width:2.6}
+.conf h1{font-size:24px;margin:0 0 6px}
+.filtros{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;margin:0 -16px 6px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.filtros::-webkit-scrollbar{display:none}
+.filtros .ficha{flex:none;min-height:42px;padding:8px 14px;font-size:14.5px}
+.foto-doc{display:block;width:100%;border-radius:var(--r);border:1px solid var(--linha);background:#0B0F12;max-height:420px;object-fit:contain}
+.hist{margin:0;padding:0;list-style:none;border-left:2px solid var(--linha);margin-left:8px}
+.hist li{position:relative;padding:0 0 12px 16px;font-size:14px;color:var(--suave)}
+.hist li::before{content:"";position:absolute;left:-7px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--branco);border:2px solid var(--brasa)}
+.hist li b{color:var(--tinta)}
+
+/* barra de baixo */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(3,1fr);background:var(--branco);border-top:1px solid var(--linha);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 24px -18px rgba(16,34,46,.45)}
+.nav button{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:56px;border:0;background:none;border-radius:12px;color:var(--fraco);font-size:12.5px;font-weight:700;cursor:pointer;padding:6px 4px}
+.nav button[aria-current="page"]{color:var(--brasa);background:var(--brasa-bg)}
+body.sem-nav .nav{display:none}
+
+/* recado rápido e sem conexão */
+#recado{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;justify-content:center;pointer-events:none}
+#recado div{pointer-events:auto;max-width:520px;background:#10222E;color:#fff;border-radius:12px;padding:12px 16px;font-size:15px;box-shadow:0 14px 30px -12px rgba(0,0,0,.5)}
+#recado div.erro{background:var(--pe)}
+body.sem-nav #recado{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+#semrede{position:relative;z-index:25;background:var(--at-bg);color:var(--at);font-size:14px;font-weight:600;padding:calc(8px + env(safe-area-inset-top,0px)) 16px 8px;text-align:center;border-bottom:1px solid #F1D9A6}
+
+/* janela (começar/encerrar viagem, pedir correção) */
+.veu{position:fixed;inset:0;z-index:70;background:rgba(10,20,28,.5);display:flex;align-items:flex-end;justify-content:center}
+.janela{width:100%;max-width:560px;max-height:92vh;overflow-y:auto;background:var(--papel);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -20px 40px -20px rgba(0,0,0,.5)}
+.janela h2{font-size:20px;margin:0 0 6px}
+.janela .puxa{width:44px;height:5px;border-radius:9px;background:var(--linha);margin:-6px auto 14px}
+
+/* entrada */
+.entrada{min-height:100vh;display:flex;flex-direction:column}
+.entrada .f{flex:1;display:flex;justify-content:center;padding:calc(28px + env(safe-area-inset-top,0px)) 22px 20px}
+.entrada form{width:100%;max-width:420px}
+.entrada .m{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.entrada .m img{width:52px;height:52px;border-radius:14px}
+.entrada .m b{display:block;font-size:21px;font-weight:800;line-height:1.1}
+.entrada .m span{display:block;font-size:14px;color:var(--fraco)}
+.entrada h1{font-size:30px;line-height:1.1;margin:0 0 8px;font-weight:800;letter-spacing:-.015em}
+.entrada h1 em{font-style:normal;color:var(--brasa)}
+.entrada p.sub{font-size:16px}
+.olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:46px;height:46px;border:0;background:none;border-radius:10px;display:grid;place-items:center;color:var(--suave);cursor:pointer}
+.cs{position:relative}.cs input{padding-right:56px!important}
+.rodape{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-top:16px;font-size:13.5px;color:var(--fraco);text-align:left}
+.carregando{display:grid;place-items:center;min-height:60vh;color:var(--suave);gap:12px;text-align:center}
+.giro{width:38px;height:38px;border-radius:50%;border:4px solid var(--brasa-bg2);border-top-color:var(--brasa);animation:gira .9s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body class="sem-nav">
+<div id="semrede" hidden>Sem internet. O que você preencher fica guardado neste celular.</div>
+<div id="app"><div class="carregando"><div class="giro" aria-hidden="true"></div><span>Abrindo…</span></div></div>
+<nav class="nav" aria-label="Menu">
+ <button type="button" data-nav="inicio"><svg class="i" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Início</button>
+ <button type="button" data-nav="historico"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>Lançamentos</button>
+ <button type="button" data-nav="viagens"><svg class="i" viewBox="0 0 24 24"><path d="M2 7h11v9H2zM13 10h4l3.5 3.5V16H13"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>Viagens</button>
+</nav>
+<div id="recado" aria-live="polite" role="status"></div>
+<script>window.JB_NUVEM={url:"https://kdsaslmlvjllgzbzsnxt.supabase.co",chavePublica:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkc2FzbG1sdmpsbGd6Ynpzbnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTk1MjAsImV4cCI6MjEwODkzNTUyMH0.I2XLzCtp_4wP57NtXrVuTrCPZ90ZQyktzxRd67J1y6g"};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script id="jb-motorista">
+(function () {
+  'use strict';
+  var CFG = window.JB_NUVEM || {};
+  var AUTH = CFG.url + '/functions/v1/jb-auth/';
+  var K_SESS = 'jb_mot_sessao', K_PASS = 'jb_mot_passagem', K_RASC = 'jb_mot_rascunho:';
+  var app = document.getElementById('app');
+  var sb = null, sessao = null, EU = null, LISTA = null, UID = '', ultimaCarga = 0;
+  var TELA = { nome: 'inicio' }, F = null, ENVIANDO = false, CONF = null, FILTRO = 'todos';
+
+  /* ---------------- utilidades ---------------- */
+  function $(s, r) { return (r || document).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function erro(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
+  function n0(v) { return v === '' || v == null || isNaN(+v) ? 0 : +v; }
+  function moeda(v) { return n0(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function num(v, d) { return n0(v).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d == null ? 3 : d }); }
+  function dataBR(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+  function diaMes(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : ''; }
+  function somaDias(iso, d) { var x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); }
+  function hoje() { return (EU && EU.hoje) || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+  function agoraHora() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function lerNum(s) { s = String(s == null ? '' : s).trim().replace(/\s/g, ''); if (!s) return NaN; if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.'); return /^(\d+\.?\d*|\.\d+)$/.test(s) ? +s : NaN; }
+  function centavosTxt(v) { return n0(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function novoId(pre) { var a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', b = new Uint8Array(20); crypto.getRandomValues(b); return pre + Array.prototype.map.call(b, function (x) { return a[x % 62]; }).join(''); }
+  function hex32() { var b = new Uint8Array(16); crypto.getRandomValues(b); return Array.prototype.map.call(b, function (x) { return x.toString(16).padStart(2, '0'); }).join(''); }
+  function primeiroNome(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+  function recado(t, ehErro) { var r = $('#recado'); r.innerHTML = '<div' + (ehErro ? ' class="erro"' : '') + '>' + esc(t) + '</div>'; clearTimeout(recado.t); recado.t = setTimeout(function () { r.innerHTML = ''; }, ehErro ? 6000 : 3500); }
+
+  var IC = {
+    combustivel: '<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M6 8h7"/><path d="M15 10h2a2 2 0 0 1 2 2v4a1.5 1.5 0 0 0 3 0V8l-3-3"/>',
+    arla: '<path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>',
+    alimentacao: '<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7v4h3"/>',
+    pedagio: '<path d="M4 21V9M4 9h16v4H4"/><path d="M8 9l3 4M12 9l3 4M16 9l3 4"/><path d="M2 21h20"/>',
+    hospedagem: '<path d="M3 18V7M3 14h18v4M21 18v-4a3 3 0 0 0-3-3h-7v3"/><circle cx="7" cy="11" r="2"/>',
+    manutencao: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.3-.4-.4-2.3z"/>',
+    oleo: '<path d="M4 9h10l3 3 4-2v2l-4 5H4z"/><path d="M6 9V7h4v2"/><path d="M20.5 14.5s1 1.4 1 2.1a1 1 0 0 1-2 0c0-.7 1-2.1 1-2.1z"/>',
+    outros: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    caminhao: '<path d="M2 7h11v9H2zM13 10h4l3.5 3.5V16H13"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+    viagem: '<path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    galeria: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alerta: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.5"/>',
+    lapis: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    sair: '<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+    voltar: '<path d="M15 5l-7 7 7 7"/>',
+    olho: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    cadeado: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    atualizar: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+    mais: '<path d="M12 5v14M5 12h14"/>'
+  };
+  function ic(k, cls) { return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (IC[k] || IC.outros) + '</svg>'; }
+
+  var TIPOS = [
+    { k: 'combustivel', l: 'Combustível', s: 'Diesel ou gasolina', comb: true },
+    { k: 'arla', l: 'Arla 32', comb: true },
+    { k: 'alimentacao', l: 'Alimentação' },
+    { k: 'pedagio', l: 'Pedágio' },
+    { k: 'hospedagem', l: 'Hospedagem' },
+    { k: 'manutencao', l: 'Manutenção / borracharia' },
+    { k: 'oleo', l: 'Troca de óleo' },
+    { k: 'outros', l: 'Outros' }];
+  function TIPO(k) { for (var i = 0; i < TIPOS.length; i++) if (TIPOS[i].k === k) return TIPOS[i]; return { k: k, l: k || 'Despesa' }; }
+  var FORMAS = [['Dinheiro', 'Dinheiro'], ['Cartão', 'Cartão'], ['PIX', 'PIX'], ['Faturado', 'Faturado / conta da empresa'], ['Outro', 'Outro']];
+  var ORIGENS = [['adiantamento', 'Dinheiro do adiantamento da viagem'], ['motorista', 'Meu dinheiro (pedir reembolso)'], ['empresa', 'Pago pela empresa (cartão, PIX ou conta)']];
+  function rotOrigem(k) { for (var i = 0; i < ORIGENS.length; i++) if (ORIGENS[i][0] === k) return ORIGENS[i][1]; return 'Não informado'; }
+  function rotForma(k) { for (var i = 0; i < FORMAS.length; i++) if (FORMAS[i][0] === k) return FORMAS[i][1]; return 'Não informado'; }
+  var DESTINO = { entregas: 'Despesas com entregas', gerais: 'Despesas pagas gerais' };
+
+  /* situação de cada lançamento: o texto e o ícone dizem tudo (a cor só ajuda) */
+  function situ(d) {
+    var st = d.st;
+    if (st === 'aprovado') {
+      if (d.pago === 'pago') return { t: 'Aprovado · pago', c: 'ok', i: 'check' };
+      if (d.pago === 'adiantamento') return { t: 'Aprovado · no adiantamento', c: 'ok', i: 'check' };
+      if (d.pago === 'parcial') return { t: 'Aprovado · pago em parte', c: 'in', i: 'check' };
+      if (d.pago === 'aberto') return { t: 'Aprovado · a pagar', c: 'in', i: 'check' };
+      return { t: 'Aprovado', c: 'ok', i: 'check' };
+    }
+    if (st === 'rejeitado') return { t: 'Rejeitado', c: 'pe', i: 'x' };
+    if (st === 'correcao') return { t: 'Corrigir', c: 'br', i: 'lapis' };
+    if (st === 'cancelado') return { t: 'Cancelado', c: 'nt', i: 'x' };
+    return { t: 'Aguardando conferência', c: 'at', i: 'relogio' };
+  }
+  function tagSt(d) { var s = situ(d); return '<span class="st ' + s.c + '">' + ic(s.i) + esc(s.t) + '</span>'; }
+
+  /* ---------------- tema: as mesmas cores que o dono escolheu para o sistema (Personalizar aparência) ---------------- */
+  var cl = function (x, a, b) { return Math.min(b == null ? 1 : b, Math.max(a || 0, x)); };
+  function hexRgb(h) { h = String(h).replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join(''); var n = parseInt(h.slice(0, 6), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function rgbHex(a) { return '#' + a.map(function (v) { return Math.round(cl(v, 0, 255)).toString(16).padStart(2, '0'); }).join('').toUpperCase(); }
+  function rgbHsl(a) { var r = a[0] / 255, g = a[1] / 255, b = a[2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), h = 0, s = 0, l = (mx + mn) / 2;
+    if (mx !== mn) { var d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; }
+  function hslRgb(h, s, l) { h = ((h % 360) + 360) % 360; s = cl(s); l = cl(l); var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    var p = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return [(p[0] + m) * 255, (p[1] + m) * 255, (p[2] + m) * 255]; }
+  function hsl(h, s, l) { return rgbHex(hslRgb(h, s, l)); }
+  function hslDe(hex) { return rgbHsl(hexRgb(hex)); }
+  function lum(hex) { var c = hexRgb(hex).map(function (v) { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; }
+  function contraste(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+  function ajustaL(hex, d) { var t = hslDe(hex); return hsl(t[0], t[1], t[2] + d); }
+  function comContraste(fg, bg, min, dir) { var t = hslDe(fg), h = t[0], s = t[1], l = t[2], d = dir || (lum(bg) > .4 ? -1 : 1);
+    for (var i = 0; i < 120 && contraste(hsl(h, s, l), bg) < min; i++) l = cl(l + d * .005); return hsl(h, s, l); }
+  var PALETAS = {
+    branco: { h: 220, s: 0, lp: .982, a: '#3D4451', m: '#23272E' }, preto: { h: 0, s: 0, lp: .965, a: '#111111', m: '#000000' },
+    azul: { h: 214, s: .32, lp: .965, a: '#1F5FBF', m: '#12284A' }, marinho: { h: 222, s: .26, lp: .962, a: '#1E3A6E', m: '#0B1A33' },
+    azulclaro: { h: 200, s: .55, lp: .972, a: '#0E7FB8', m: '#0D3B57' }, verde: { h: 150, s: .2, lp: .962, a: '#17694A', m: '#0F2E22' },
+    verdeclaro: { h: 135, s: .42, lp: .972, a: '#2E8B4E', m: '#1B4029' }, roxo: { h: 265, s: .3, lp: .966, a: '#6D35C9', m: '#241640' },
+    lilas: { h: 282, s: .38, lp: .974, a: '#9A5BC5', m: '#3A2550' }, laranja: { h: 24, s: .42, lp: .968, a: '#E2601C', m: '#2B1A10' },
+    amarelo: { h: 46, s: .72, lp: .968, a: '#B7860B', m: '#3A2E0E' }, vermelho: { h: 355, s: .2, lp: .966, a: '#A4161A', m: '#2B0B0E' },
+    cinza: { h: 215, s: .08, lp: .952, a: '#4B5563', m: '#374151' }, grafite: { h: 210, s: .05, lp: .94, a: '#2F3640', m: '#1B1F24' },
+    marrom: { h: 25, s: .24, lp: .962, a: '#7A4A2A', m: '#2E1D13' }, padrao: { h: 240, s: .03, lp: .965, a: '#D3121C', m: '#000000' } };
+  function aplicarTema(t) {
+    try {
+      var p = PALETAS[(t && t.p) || 'azulclaro'] || PALETAS.azulclaro, S = p.s || 0, sl = Math.min(.3, S * .8), ha = hslDe(p.a)[0], sa = hslDe(p.a)[1];
+      var v = {}; v['--papel'] = hsl(p.h, S, p.lp || .965); v['--papel2'] = hsl(p.h, S, Math.min(.988, (p.lp || .965) + .015));
+      v['--linha'] = hsl(p.h, sl, .87); v['--linha2'] = hsl(p.h, sl, .92);
+      v['--tinta'] = comContraste(hsl(p.h, Math.min(.25, S * .4 + .08), .13), v['--papel'], 12);
+      v['--suave'] = comContraste(hsl(p.h, Math.min(.16, S * .4 + .05), .37), v['--papel'], 6);
+      v['--fraco'] = comContraste(hsl(p.h, Math.min(.12, S * .3 + .04), .45), v['--papel'], 4.6);
+      var b = comContraste(p.a, '#FFFFFF', 4.6); v['--brasa'] = b; v['--brasa2'] = ajustaL(b, -.07);
+      v['--brasa-bg'] = hsl(ha, Math.min(.7, sa) * .8, .955); v['--brasa-bg2'] = hsl(ha, Math.min(.7, sa) * .7, .88);
+      v['--carvao'] = comContraste(p.m, '#FFFFFF', 10, -1);
+      var r = hexRgb(b); v['--anel'] = '0 0 0 3px rgba(' + r[0] + ',' + r[1] + ',' + r[2] + ',.22)';
+      var root = document.documentElement; Object.keys(v).forEach(function (k) { root.style.setProperty(k, v[k]); });
+      var m = $('meta[name="theme-color"]'); if (m) m.setAttribute('content', v['--papel']);
+    } catch (e) { /* fica a cor padrão */ }
+  }
+
+  /* ---------------- sessão (só nesta aba) e servidor ---------------- */
+  function guardarSessao() { try { if (sessao) sessionStorage.setItem(K_SESS, JSON.stringify({ access_token: sessao.access_token, refresh_token: sessao.refresh_token, usuario: sessao.usuario || '', nome: sessao.nome || '' })); } catch (e) {} }
+  function esquecerSessao() { try { sessionStorage.removeItem(K_SESS); sessionStorage.removeItem(K_PASS); } catch (e) {} }
+  function falhaRede() { return erro('rede', 'Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  async function post(acao, corpo, token) {
+    var h = { 'Content-Type': 'application/json' }; if (token) h.Authorization = 'Bearer ' + token;
+    var r; try { r = await fetch(AUTH + acao, { method: 'POST', headers: h, body: JSON.stringify(corpo || {}) }); } catch (e) { throw falhaRede(); }
+    var j = {}; try { j = await r.json(); } catch (e) {}
+    if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || 'Não foi possível concluir.');
+    return j;
+  }
+  function limparMsg(m) { return String(m || '').replace(/^.*?ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '').trim(); }
+  async function rpc(fn, args) {
+    if (!sb) throw erro('sessao', 'Entre de novo.');
+    var r;
+    try { r = args === undefined ? await sb.rpc(fn) : await sb.rpc(fn, args); } catch (e) { throw falhaRede(); }
+    if (r.error) {
+      var m = r.error.message || '', c = r.error.code || '';
+      if (/Failed to fetch|NetworkError|network|Load failed|fetch/i.test(m) && !c) throw falhaRede();
+      if (c === '28000' || c === 'PGRST301' || /JWT|sess[aã]o encerrada/i.test(m)) { acabou('Sua sessão terminou. Entre de novo para continuar.'); throw erro('sessao', 'Sua sessão terminou.'); }
+      throw erro(c || 'erro', limparMsg(m) || 'Não foi possível concluir.');
+    }
+    return r.data;
+  }
+  async function abrirSessao(r) {
+    sessao = { access_token: r.access_token, refresh_token: r.refresh_token, usuario: r.usuario || '', nome: r.nome || '' };
+    sb = window.supabase.createClient(CFG.url, CFG.chavePublica, { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } });
+    var s = await sb.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
+    if (s.error || !s.data || !s.data.session) { esquecerSessao(); throw erro('sessao', 'Sua sessão terminou. Entre de novo.'); }
+    sessao.access_token = s.data.session.access_token; sessao.refresh_token = s.data.session.refresh_token;
+    UID = (s.data.user && s.data.user.id) || '';
+    sb.auth.onAuthStateChange(function (ev, nova) {
+      if (nova && sessao) { sessao.access_token = nova.access_token; sessao.refresh_token = nova.refresh_token; guardarSessao(); }
+      if (ev === 'SIGNED_OUT') acabou('Sua sessão terminou. Entre de novo para continuar.');
+    });
+    guardarSessao();
+    await carregar(true);
+  }
+  var acabando = false;
+  function acabou(msg) {
+    if (acabando) return; acabando = true;
+    esquecerSessao(); sb = null; sessao = null; EU = null; LISTA = null;
+    setTimeout(function () { acabando = false; telaEntrada(msg); }, 0);
+  }
+  async function sair() {
+    var t = sessao && sessao.access_token;
+    esquecerSessao();
+    if (t) { try { await post('logout', {}, t); } catch (e) {} }
+    sb = null; sessao = null; EU = null; LISTA = null;
+    telaEntrada('Você saiu. Até a próxima viagem!', true);
+  }
+  async function carregar(primeira) {
+    EU = await rpc('jb_mot_eu');
+    aplicarTema(EU && EU.tema);
+    LISTA = await rpc('jb_mot_lista', { p: { dias: 120 } });
+    ultimaCarga = Date.now();
+    if (primeira) { history.replaceState({ tela: 'inicio' }, '', location.pathname); ir('inicio', null, true); }
+  }
+  async function recarregar(silencioso) {
+    try { await carregar(false); desenhar(); if (!silencioso) recado('Atualizado.'); }
+    catch (e) { if (e.code !== 'sessao' && !silencioso) recado(e.message, true); }
+  }
+
+  /* ---------------- rascunho (fica neste celular até enviar) ---------------- */
+  function kRasc() { return K_RASC + (UID || 'x'); }
+  function lerRasc() { try { var x = JSON.parse(localStorage.getItem(kRasc()) || 'null'); return x && x.id ? x : null; } catch (e) { return null; } }
+  function gravarRasc() { if (!F || F.modo !== 'novo') return;
+    if (!F.valor && !(F.foto && F.foto.id) && !String(F.local || '').trim() && !String(F.descricao || '').trim() && !String(F.justificativa || '').trim()) { apagarRasc(); return; }   /* nada preenchido: nada a guardar */
+    try { var c = {}; Object.keys(F).forEach(function (k) { if (['fotoUrl', 'fotoBlob', 'erros', 'erroEnvio', 'fotoEstado'].indexOf(k) < 0) c[k] = F[k]; }); c.salvoEm = Date.now(); localStorage.setItem(kRasc(), JSON.stringify(c)); } catch (e) {} }
+  function apagarRasc() { try { localStorage.removeItem(kRasc()); } catch (e) {} }
+
+  /* ---------------- navegação interna (o botão "voltar" do Android funciona) ---------------- */
+  function estadoDe(nome, dados) { return { tela: nome, dados: dados || null }; }
+  function ir(nome, dados, substituir) {
+    TELA = { nome: nome, dados: dados || null };
+    try { if (substituir) history.replaceState(estadoDe(nome, dados), '', location.pathname); else history.pushState(estadoDe(nome, dados), '', location.pathname); } catch (e) {}
+    desenhar(); window.scrollTo(0, 0);
+  }
+  function ficar() { try { history.pushState(estadoDe(TELA.nome, TELA.dados), '', location.pathname); } catch (e) {} }
+  /* o lançamento inteiro é UM passo do histórico. Dentro dele, o "voltar" (o da tela e o do celular) volta uma etapa;
+     na primeira etapa, sai do lançamento (o que foi preenchido fica guardado neste celular). */
+  function passoForm() { gravarRasc(); desenhar(); window.scrollTo(0, 0); }
+  function voltarEtapa() { if (!F || ENVIANDO || F.etapa <= (F.min || 0)) return false; F.etapa--; passoForm(); return true; }
+  window.addEventListener('popstate', function (ev) {
+    if (!EU) return;
+    var s = ev.state || { tela: 'inicio' };
+    var j = document.querySelector('.veu');
+    if (j) { j.remove(); ficar(); return; }                                   /* com uma janela aberta, "voltar" só fecha a janela */
+    if (TELA.nome === 'despesa' && F && (ENVIANDO || voltarEtapa())) { ficar(); return; }
+    if (s.tela === 'despesa' && !F) { var r = lerRasc(); if (!r) { ir('inicio', null, true); return; } F = r; F.erros = {}; F.fotoEstado = F.foto && F.foto.id ? 'ok' : ''; }
+    if (s.tela === 'confirmacao' && !CONF) { ir('inicio', null, true); return; }
+    TELA = { nome: s.tela || 'inicio', dados: s.dados || null }; desenhar(); window.scrollTo(0, 0);
+  });
+  window.addEventListener('scroll', function () { document.body.classList.toggle('rolou', window.scrollY > 4); }, { passive: true });
+
+  /* ---------------- dados ---------------- */
+  function veiculos() { return (EU && EU.veiculos) || []; }
+  function VEIC(id) { var v = veiculos(); for (var i = 0; i < v.length; i++) if (v[i].id === id) return v[i]; return null; }
+  function nomeVeic(v) { return v ? [v.placa, v.nome].filter(Boolean).join(' · ') : ''; }
+  function viagensAbertas() { return (EU && EU.viagens) || []; }
+  function viagemAtiva() { var v = viagensAbertas(); for (var i = 0; i < v.length; i++) if (v[i].st === 'andamento') return v[i]; return null; }
+  function todasViagens() { return (LISTA && LISTA.viagens) || []; }
+  function VIAG(id) { var v = todasViagens().concat(viagensAbertas()); for (var i = 0; i < v.length; i++) if (v[i].id === id) return v[i]; return null; }
+  function despesas() { return (LISTA && LISTA.despesas) || []; }
+  function DESP(id) { var d = despesas(); for (var i = 0; i < d.length; i++) if (d[i].id === id) return d[i]; return null; }
+  function rotViagem(v) { return v ? 'Viagem nº ' + (v.numero || '—') + (v.destino ? ' · ' + v.destino : '') : 'Sem viagem'; }
+  function regras() { return (EU && EU.regras) || {}; }
+  function contaViagem(id) { var t = 0, n = 0; despesas().forEach(function (d) { if (d.viagemId === id && d.st !== 'rejeitado' && d.st !== 'cancelado') { t += n0(d.valor); n++; } }); return { t: Math.round(t * 100) / 100, n: n }; }
+
+  /* ---------------- telas ---------------- */
+  function marcarNav(nome) { $$('.nav [data-nav]').forEach(function (b) { if (b.getAttribute('data-nav') === nome) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }); }
+  function topo(tit, sub, voltar) {
+    return '<header class="topo">' + (voltar ? '<button type="button" class="bt-ic" data-acao="voltar" aria-label="Voltar">' + ic('voltar') + '</button>' : '<img class="lg" src="icone.svg" alt="" width="40" height="40">') +
+      '<div class="tt"><b>' + esc(tit) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' +
+      (voltar ? '' : '<button type="button" class="bt-ic" data-acao="sair" aria-label="Sair">' + ic('sair') + '</button>') + '</header>';
+  }
+  function desenhar() {
+    if (!EU) return;
+    var n = TELA.nome;
+    document.body.classList.toggle('sem-nav', n === 'despesa' || n === 'confirmacao' || n === 'detalhe' || n === 'viagem');
+    marcarNav(n === 'detalhe' ? 'historico' : n === 'viagem' ? 'viagens' : n);
+    if (n === 'historico') return telaHistorico();
+    if (n === 'viagens') return telaViagens();
+    if (n === 'viagem') return telaViagem(TELA.dados && TELA.dados.id);
+    if (n === 'detalhe') return telaDetalhe(TELA.dados && TELA.dados.id);
+    if (n === 'despesa') return telaDespesa();
+    if (n === 'confirmacao') return telaConfirmacao();
+    return telaInicio();
+  }
+
+  function telaInicio() {
+    var m = EU.motorista || {}, va = viagemAtiva(), pl = viagensAbertas().filter(function (v) { return v.st === 'planejada'; }), vs = veiculos();
+    var rec = despesas().slice(0, 5), r = lerRasc();
+    var veicTxt = vs.length === 1 ? nomeVeic(vs[0]) + (vs[0].modelo ? ' · ' + vs[0].modelo : '') : vs.length ? vs.length + ' caminhões liberados para você' : 'Nenhum caminhão liberado. Fale com o escritório.';
+    var h = topo('Olá, ' + (m.apelido || primeiroNome(m.nome) || 'motorista'), 'Despesas de entrega');
+    h += '<main>';
+    if (r) h += '<div class="aviso at">' + ic('alerta') + '<div><b>Lançamento não enviado</b><br>' + esc(TIPO(r.tipoDesp).l) + (r.valor ? ' de ' + esc(moeda(r.valor)) : '') + ' ficou guardado neste celular.<div class="btns dois" style="margin-top:10px"><button type="button" class="btn peq pri" data-acao="continuar">Continuar</button><button type="button" class="btn peq" data-acao="descartar">Descartar</button></div></div></div>';
+    h += '<div class="cartao"><div class="linha-ic"><span class="ic">' + ic('caminhao') + '</span><div class="tx"><span class="rot">Caminhão</span><b>' + esc(veicTxt) + '</b></div></div></div>';
+    if (va) {
+      h += '<div class="cartao dest"><div class="linha-ic"><span class="ic">' + ic('viagem') + '</span><div class="tx"><span class="rot">Viagem em andamento</span><b>' + esc(rotViagem(va)) + '</b><small>Saiu em ' + esc(dataBR(va.data)) + (va.hora ? ' às ' + esc(va.hora) : '') + (va.kmIni != null ? ' · km ' + esc(num(va.kmIni, 0)) : '') + (VEIC(va.veiculoId) ? ' · ' + esc(VEIC(va.veiculoId).placa || '') : '') + '</small></div></div>' +
+        '<div class="btns dois"><button type="button" class="btn peq" data-acao="abrir-viagem" data-id="' + esc(va.id) + '">Ver gastos</button><button type="button" class="btn peq sec" data-acao="encerrar" data-id="' + esc(va.id) + '">Encerrar viagem</button></div></div>';
+    } else if (pl.length) {
+      h += '<div class="cartao dest"><div class="linha-ic"><span class="ic">' + ic('viagem') + '</span><div class="tx"><span class="rot">Viagem marcada pelo escritório</span><b>' + esc(rotViagem(pl[0])) + '</b><small>' + esc(dataBR(pl[0].data)) + (pl[0].cliente ? ' · ' + esc(pl[0].cliente) : '') + '</small></div></div>' +
+        '<div class="btns"><button type="button" class="btn sec" data-acao="iniciar" data-id="' + esc(pl[0].id) + '">Começar esta viagem</button></div></div>';
+    } else if (regras().motoristaAbreViagem !== false) {
+      h += '<div class="cartao"><div class="linha-ic"><span class="ic">' + ic('viagem') + '</span><div class="tx"><span class="rot">Viagem</span><b>Nenhuma viagem em andamento</b><small>Comece a viagem para os gastos ficarem ligados a ela.</small></div></div><div class="btns"><button type="button" class="btn sec" data-acao="iniciar">Começar viagem</button></div></div>';
+    } else {
+      h += '<div class="cartao"><div class="linha-ic"><span class="ic">' + ic('viagem') + '</span><div class="tx"><span class="rot">Viagem</span><b>Nenhuma viagem em andamento</b><small>As viagens são abertas pelo escritório.</small></div></div></div>';
+    }
+    h += '<h2 class="sec">Lançar despesa</h2><div class="atalhos">';
+    h += '<button type="button" class="atalho grande" data-acao="nova" data-tipo="combustivel"><span class="ic">' + ic('combustivel') + '</span><b>Abastecimento<br><small style="font-weight:500;font-size:14px;opacity:.9">diesel ou gasolina</small></b></button>';
+    TIPOS.filter(function (t) { return t.k !== 'combustivel'; }).forEach(function (t) { h += '<button type="button" class="atalho" data-acao="nova" data-tipo="' + t.k + '"><span class="ic">' + ic(t.k) + '</span><b>' + esc(t.l) + '</b></button>'; });
+    h += '</div>';
+    h += '<h2 class="sec">Últimos lançamentos</h2>';
+    h += rec.length ? '<div class="lista">' + rec.map(itemDesp).join('') + '</div><div class="btns"><button type="button" class="btn" data-nav="historico">Ver todos os lançamentos</button></div>' : '<div class="vazio">Você ainda não lançou nenhuma despesa.</div>';
+    h += '</main>';
+    app.innerHTML = h;
+  }
+  function itemDesp(d) {
+    var t = TIPO(d.tipoDesp);
+    return '<button type="button" class="item" data-acao="abrir" data-id="' + esc(d.id) + '"><span class="ic">' + ic(t.k) + '</span><span class="tx"><b>' + esc(t.l) + (d.local ? ' · ' + esc(d.local) : '') + '</b><small>' + esc(diaMes(d.data)) + (d.hora ? ' ' + esc(d.hora) : '') + ' · nº ' + esc(d.numero || '—') + (d.viagemNumero ? ' · viagem ' + esc(d.viagemNumero) : '') + '</small></span><span class="vl"><b>' + esc(moeda(d.valor)) + '</b>' + tagSt(d) + '</span></button>';
+  }
+
+  function telaHistorico() {
+    var D = despesas(), F_ = { todos: function () { return true; }, aguardando: function (d) { return d.st === 'aguardando'; }, aprovado: function (d) { return d.st === 'aprovado'; }, correcao: function (d) { return d.st === 'correcao'; }, rejeitado: function (d) { return d.st === 'rejeitado'; } };
+    var cont = function (k) { return D.filter(F_[k]).length; };
+    var L = D.filter(F_[FILTRO] || F_.todos);
+    var h = topo('Meus lançamentos', 'Últimos ' + (LISTA && LISTA.desde ? 'desde ' + dataBR(LISTA.desde) : '120 dias'));
+    h += '<main><div class="filtros" role="group" aria-label="Filtrar">' + [['todos', 'Todos'], ['aguardando', 'Aguardando'], ['correcao', 'Para corrigir'], ['aprovado', 'Aprovados'], ['rejeitado', 'Rejeitados']].map(function (x) {
+      return '<button type="button" class="ficha" data-filtro="' + x[0] + '" aria-pressed="' + (FILTRO === x[0]) + '">' + esc(x[1]) + ' (' + cont(x[0]) + ')</button>'; }).join('') + '</div>';
+    h += L.length ? '<div class="lista">' + L.map(itemDesp).join('') + '</div>' : '<div class="vazio">Nenhum lançamento aqui.</div>';
+    h += '<div class="btns"><button type="button" class="btn" data-acao="atualizar">' + ic('atualizar') + 'Atualizar</button></div></main>';
+    app.innerHTML = h;
+  }
+
+  function telaDetalhe(id) {
+    var d = DESP(id); if (!d) { ir('historico', null, true); return; }
+    var t = TIPO(d.tipoDesp), s = situ(d), v = d.viagemId ? VIAG(d.viagemId) : null;
+    var h = topo(t.l + ' · nº ' + (d.numero || '—'), dataBR(d.data) + (d.hora ? ' às ' + d.hora : ''), true) + '<main>';
+    if (d.st === 'correcao') h += '<div class="aviso at">' + ic('lapis') + '<div><b>O escritório pediu correção</b>' + (d.motivo ? '<br>' + esc(d.motivo) : '') + '</div></div>';
+    if (d.st === 'rejeitado') h += '<div class="aviso pe">' + ic('x') + '<div><b>Rejeitado</b>' + (d.motivo ? '<br>' + esc(d.motivo) : '') + '</div></div>';
+    if (d.pedidoCorrecao && d.pedidoCorrecao.st === 'aberto') h += '<div class="aviso in">' + ic('relogio') + '<div><b>Você pediu correção</b><br>' + esc(d.pedidoCorrecao.texto || '') + '<br><small>O escritório vai conferir.</small></div></div>';
+    if (d.pedidoCorrecao && d.pedidoCorrecao.st && d.pedidoCorrecao.st !== 'aberto') h += '<div class="aviso ok">' + ic('check') + '<div><b>Seu pedido de correção foi ' + (d.pedidoCorrecao.st === 'atendido' ? 'atendido' : 'respondido') + '</b>' + (d.pedidoCorrecao.resposta ? '<br>' + esc(d.pedidoCorrecao.resposta) : '') + '</div></div>';
+    h += '<div class="resumo"><div class="grande"><span>Valor</span><b>' + esc(moeda(d.valor)) + '</b></div><div><span>Situação</span><b>' + tagSt(d) + '</b></div>' +
+      '<div><span>Categoria</span><b>' + esc(t.l) + (d.destino ? ' · ' + esc(DESTINO[d.destino] || '') : '') + '</b></div>' +
+      (d.litros != null ? '<div><span>Litros</span><b>' + esc(num(d.litros, 3)) + ' L</b></div>' : '') + (d.km != null ? '<div><span>Km do painel</span><b>' + esc(num(d.km, 0)) + '</b></div>' : '') +
+      '<div><span>Viagem</span><b>' + esc(d.viagemId ? 'nº ' + (d.viagemNumero || (v && v.numero) || '—') + ((d.viagemDestino || (v && v.destino)) ? ' · ' + (d.viagemDestino || v.destino) : '') : 'Sem viagem') + '</b></div>' +
+      (d.justificativa ? '<div><span>Motivo (sem viagem)</span><b>' + esc(d.justificativa) + '</b></div>' : '') +
+      '<div><span>Caminhão</span><b>' + esc([d.veiculoPlaca, d.veiculoNome].filter(Boolean).join(' · ') || '—') + '</b></div>' +
+      (d.local ? '<div><span>Local</span><b>' + esc(d.local) + '</b></div>' : '') + (d.descricao ? '<div><span>Descrição</span><b>' + esc(d.descricao) + '</b></div>' : '') +
+      '<div><span>Como foi pago</span><b>' + esc(d.forma ? rotForma(d.forma) : 'Não informado') + '</b></div><div><span>De onde saiu o dinheiro</span><b>' + esc(d.origem ? rotOrigem(d.origem) : 'Não informado') + '</b></div></div>';
+    h += '<h2 class="sec">Comprovante</h2>' + (d.foto && d.foto.id ? (/^image\//.test(d.foto.tipo || 'image/') ? '<img class="foto-doc" data-blob="' + esc(d.foto.id) + '" alt="Foto do comprovante">' : '<button type="button" class="btn" data-acao="ver-arq" data-id="' + esc(d.foto.id) + '">Abrir o arquivo</button>') : '<div class="vazio">Sem foto do comprovante.</div>');
+    h += '<div class="btns">';
+    if (d.st === 'aguardando' || d.st === 'correcao') h += '<button type="button" class="btn pri" data-acao="corrigir" data-id="' + esc(d.id) + '">' + ic('lapis') + 'Corrigir este lançamento</button>';
+    else if ((d.st === 'aprovado' || d.st === 'rejeitado') && !(d.pedidoCorrecao && d.pedidoCorrecao.st === 'aberto')) h += '<button type="button" class="btn sec" data-acao="pedir" data-id="' + esc(d.id) + '">Pedir correção ao escritório</button>';
+    h += '<button type="button" class="btn" data-acao="voltar">Voltar</button></div></main>';
+    app.innerHTML = h;
+    var img = $('img[data-blob]', app); if (img) verFoto(img, img.getAttribute('data-blob'));
+  }
+  async function verFoto(img, id) {
+    try { var r = await sb.storage.from('anexos').createSignedUrl(id, 3600); if (r.data && r.data.signedUrl) img.src = r.data.signedUrl; else img.replaceWith(Object.assign(document.createElement('div'), { className: 'vazio', textContent: 'Não foi possível abrir a foto agora.' })); }
+    catch (e) { img.replaceWith(Object.assign(document.createElement('div'), { className: 'vazio', textContent: 'Sem conexão para abrir a foto.' })); }
+  }
+
+  function telaViagens() {
+    var V = todasViagens().slice().sort(function (a, b) { var o = { andamento: 0, planejada: 1 }; return (o[a.st] == null ? 2 : o[a.st]) - (o[b.st] == null ? 2 : o[b.st]) || String(b.data).localeCompare(String(a.data)); });
+    var h = topo('Minhas viagens', 'Gastos de cada viagem') + '<main>';
+    if (!viagemAtiva() && regras().motoristaAbreViagem !== false) h += '<div class="btns" style="margin:4px 0 14px"><button type="button" class="btn sec" data-acao="iniciar">' + ic('viagem') + 'Começar viagem</button></div>';
+    h += V.length ? '<div class="lista">' + V.map(function (v) { var c = contaViagem(v.id), st = { andamento: ['Em andamento', 'in', 'viagem'], planejada: ['Marcada', 'at', 'relogio'], concluida: ['Concluída', 'ok', 'check'] }[v.st] || [v.st, 'nt', 'relogio'];
+      return '<button type="button" class="item" data-acao="abrir-viagem" data-id="' + esc(v.id) + '"><span class="ic">' + ic('viagem') + '</span><span class="tx"><b>Nº ' + esc(v.numero || '—') + (v.destino ? ' · ' + esc(v.destino) : '') + '</b><small>' + esc(dataBR(v.data)) + ' · ' + c.n + ' gasto(s)</small></span><span class="vl"><b>' + esc(moeda(c.t)) + '</b><span class="st ' + st[1] + '">' + ic(st[2]) + esc(st[0]) + '</span></span></button>'; }).join('') + '</div>' : '<div class="vazio">Nenhuma viagem ainda.</div>';
+    h += '</main>';
+    app.innerHTML = h;
+  }
+  function telaViagem(id) {
+    var v = VIAG(id); if (!v) { ir('viagens', null, true); return; }
+    var D = despesas().filter(function (d) { return d.viagemId === id && d.st !== 'cancelado'; }), c = contaViagem(id), vc = VEIC(v.veiculoId);
+    var porTipo = {}; D.forEach(function (d) { if (d.st === 'rejeitado') return; porTipo[d.tipoDesp] = (porTipo[d.tipoDesp] || 0) + n0(d.valor); });
+    var h = topo('Viagem nº ' + (v.numero || '—'), v.destino || '', true) + '<main>';
+    h += '<div class="resumo"><div class="grande"><span>Gasto na viagem</span><b>' + esc(moeda(c.t)) + '</b></div>' +
+      Object.keys(porTipo).map(function (k) { return '<div><span>' + esc(TIPO(k).l) + '</span><b>' + esc(moeda(porTipo[k])) + '</b></div>'; }).join('') +
+      '<div><span>Situação</span><b>' + esc({ andamento: 'Em andamento', planejada: 'Marcada', concluida: 'Concluída' }[v.st] || v.st) + '</b></div>' +
+      (v.cliente ? '<div><span>Cliente / entrega</span><b>' + esc(v.cliente) + '</b></div>' : '') +
+      '<div><span>Caminhão</span><b>' + esc(nomeVeic(vc) || '—') + '</b></div>' +
+      '<div><span>Saída</span><b>' + esc(dataBR(v.data)) + (v.hora ? ' ' + esc(v.hora) : '') + (v.kmIni != null ? ' · km ' + esc(num(v.kmIni, 0)) : '') + '</b></div>' +
+      (v.kmFim != null ? '<div><span>Chegada</span><b>km ' + esc(num(v.kmFim, 0)) + (v.kmIni != null ? ' · rodou ' + esc(num(v.kmFim - v.kmIni, 0)) + ' km' : '') + '</b></div>' : '') +
+      (v.adiantamento ? '<div><span>Adiantamento recebido</span><b>' + esc(moeda(v.adiantamento)) + '</b></div>' : '') + '</div>';
+    h += '<h2 class="sec">Gastos lançados</h2>' + (D.length ? '<div class="lista">' + D.map(itemDesp).join('') + '</div>' : '<div class="vazio">Nenhum gasto lançado nesta viagem.</div>');
+    h += '<div class="btns">';
+    if (v.st === 'andamento') h += '<button type="button" class="btn pri" data-acao="nova" data-viagem="' + esc(v.id) + '">' + ic('mais') + 'Lançar despesa nesta viagem</button><button type="button" class="btn sec" data-acao="encerrar" data-id="' + esc(v.id) + '">Encerrar viagem</button>';
+    if (v.st === 'planejada') h += '<button type="button" class="btn sec" data-acao="iniciar" data-id="' + esc(v.id) + '">Começar esta viagem</button>';
+    h += '<button type="button" class="btn" data-acao="voltar">Voltar</button></div></main>';
+    app.innerHTML = h;
+  }
+
+  /* ---------------- lançamento em etapas curtas ---------------- */
+  var ETAPAS = 4;
+  function novoForm(tipo, viagemId) {
+    var va = viagemAtiva(), vs = veiculos();
+    var vg = viagemId ? VIAG(viagemId) : va;
+    F = { modo: 'novo', id: novoId('de_'), etapa: tipo ? 1 : 0, min: tipo ? 1 : 0, tipoDesp: tipo || '', valor: '', litros: '', km: '', data: hoje(), hora: agoraHora(),
+      viagemId: vg ? vg.id : '', semViagem: !vg && !!(viagensAbertas().length === 0), justificativa: '', veiculoId: (vg && vg.veiculoId) || (vs.length === 1 ? vs[0].id : ''),
+      local: '', descricao: '', forma: '', origem: '', foto: null, erros: {} };
+    if (!vg && viagensAbertas().length) F.semViagem = false;
+  }
+  function formDe(d) {
+    F = { modo: 'corrigir', id: d.id, etapa: 1, min: 1, tipoDesp: d.tipoDesp, valor: d.valor, litros: d.litros != null ? String(d.litros).replace('.', ',') : '', km: d.km != null ? String(d.km) : '',
+      data: d.data, hora: d.hora || '', viagemId: d.viagemId || '', semViagem: !d.viagemId, justificativa: d.justificativa || '', veiculoId: d.veiculoId || '',
+      local: d.local || '', descricao: d.descricao || '', forma: d.forma || '', origem: d.origem || '', foto: d.foto || null, motivo: '', erros: {} };
+  }
+  function telaDespesa() {
+    if (!F) { ir('inicio', null, true); return; }
+    var t = TIPO(F.tipoDesp), corr = F.modo === 'corrigir';
+    var tit = F.etapa === 0 ? 'Nova despesa' : (corr ? 'Corrigir · ' : '') + t.l;
+    var h = topo(tit, corr ? 'Lançamento nº ' + ((DESP(F.id) || {}).numero || '—') : 'Etapa ' + Math.max(1, F.etapa) + ' de ' + ETAPAS, true) + '<main>';
+    if (F.etapa > 0) { h += '<div class="etapas" aria-hidden="true">'; for (var i = 1; i <= ETAPAS; i++) h += '<i class="' + (i <= F.etapa ? 'on' : '') + '"></i>'; h += '</div>'; }
+    if (F.etapa === 0) {
+      h += '<h1 class="tit">Que despesa foi?</h1><p class="sub">Toque no tipo de gasto.</p><div class="atalhos">' + TIPOS.map(function (x) { return '<button type="button" class="atalho" data-acao="tipo" data-tipo="' + x.k + '"><span class="ic">' + ic(x.k) + '</span><b>' + esc(x.l) + '</b></button>'; }).join('') + '</div>';
+    } else if (F.etapa === 1) h += etapaValor(t);
+    else if (F.etapa === 2) h += etapaOnde();
+    else if (F.etapa === 3) h += etapaPagamento();
+    else h += etapaComprovante() + etapaConferir();
+    h += '</main>';
+    app.innerHTML = h;
+    ligarCampos();
+  }
+  function campoErro(k) { var m = F.erros && F.erros[k]; return '<span class="msg" role="alert">' + esc(m || '') + '</span>'; }
+  function clsErro(k) { return F.erros && F.erros[k] ? ' erro' : ''; }
+  function etapaValor(t) {
+    var r = regras();
+    var h = '<h1 class="tit">Quanto foi?</h1><p class="sub">' + esc(t.l) + (t.s ? ' · ' + esc(t.s) : '') + '</p>';
+    h += '<div class="cmp' + clsErro('valor') + '"><label for="fValor">Valor total</label><div class="valor"><span>R$</span><input id="fValor" data-campo="valor" inputmode="numeric" autocomplete="off" placeholder="0,00" value="' + esc(F.valor ? centavosTxt(F.valor) : '') + '" aria-describedby="ajValor"></div>' + campoErro('valor') + '<span class="aj" id="ajValor">Digite só os números, os centavos entram sozinhos.</span></div>';
+    if (t.comb) h += '<div class="duas"><div class="cmp' + clsErro('litros') + '"><label for="fLitros">Litros <small>(se souber)</small></label><input id="fLitros" data-campo="litros" inputmode="decimal" autocomplete="off" placeholder="0,000" value="' + esc(F.litros) + '">' + campoErro('litros') + '</div>' +
+      (r.pedirKm !== false ? '<div class="cmp' + clsErro('km') + '"><label for="fKm">Km do painel <small>(se souber)</small></label><input id="fKm" data-campo="km" inputmode="numeric" autocomplete="off" placeholder="0" value="' + esc(F.km) + '">' + campoErro('km') + '</div>' : '') + '</div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-acao="seguir">Continuar</button></div>';
+    return h;
+  }
+  function etapaOnde() {
+    var r = regras(), V = viagensAbertas(), vs = veiculos(), dias = r.diasAtras == null ? 7 : +r.diasAtras;
+    var h = '<h1 class="tit">Quando e onde</h1><p class="sub">Confira a data, a viagem e o lugar.</p>';
+    if (r.ajustarData !== false) h += '<div class="duas"><div class="cmp' + clsErro('data') + '"><label for="fData">Data</label><input id="fData" type="date" data-campo="data" value="' + esc(F.data) + '" max="' + esc(hoje()) + '" min="' + esc(somaDias(hoje(), -dias)) + '">' + campoErro('data') + '</div><div class="cmp"><label for="fHora">Hora</label><input id="fHora" type="time" data-campo="hora" value="' + esc(F.hora) + '"></div></div>';
+    else h += '<div class="aviso in">' + ic('relogio') + '<div>Data e hora: <b>agora</b> (' + esc(dataBR(hoje())) + ').</div></div>';
+    if (r.exigirViagem && !V.length) h += '<div class="aviso at">' + ic('alerta') + '<div><b>Esta despesa precisa de uma viagem.</b><br>' + (r.motoristaAbreViagem !== false ? 'Comece a viagem e volte aqui: o que você já preencheu fica guardado.<div class="btns" style="margin-top:10px"><button type="button" class="btn peq sec" data-acao="iniciar">Começar viagem</button></div>' : 'Peça ao escritório para abrir a sua viagem. O que você já preencheu fica guardado.') + '</div></div>';
+    h += '<div class="cmp' + clsErro('viagem') + '"><span class="lb">Viagem</span><div class="fichas" role="group" aria-label="Viagem">' +
+      V.map(function (v) { return '<button type="button" class="ficha lg" data-viagem-op="' + esc(v.id) + '" aria-pressed="' + (!F.semViagem && F.viagemId === v.id) + '">' + ic('viagem') + esc(rotViagem(v)) + (v.st === 'planejada' ? ' (marcada)' : '') + '</button>'; }).join('') +
+      (r.exigirViagem ? '' : '<button type="button" class="ficha lg" data-viagem-op="" aria-pressed="' + !!F.semViagem + '">Sem viagem (despesa avulsa)</button>') + '</div>' + campoErro('viagem') + '</div>';
+    if (F.semViagem && !r.exigirViagem) h += '<div class="cmp' + clsErro('justificativa') + '"><label for="fJust">Por que não tem viagem?' + (r.avulsaJustificativa !== false ? '' : ' <small>(opcional)</small>') + '</label><textarea id="fJust" data-campo="justificativa" maxlength="300" placeholder="Ex.: almoço antes de sair, conserto na garagem…">' + esc(F.justificativa) + '</textarea>' + campoErro('justificativa') + '</div>';
+    var vgSel = !F.semViagem && F.viagemId ? VIAG(F.viagemId) : null;
+    if (vs.length > 1 && !(vgSel && vgSel.veiculoId)) h += '<div class="cmp' + clsErro('veiculo') + '"><label for="fVeic">Caminhão</label><select id="fVeic" data-campo="veiculoId"><option value="">Escolha o caminhão…</option>' + vs.map(function (v) { return '<option value="' + esc(v.id) + '"' + (F.veiculoId === v.id ? ' selected' : '') + '>' + esc(nomeVeic(v)) + '</option>'; }).join('') + '</select>' + campoErro('veiculo') + '</div>';
+    h += '<div class="cmp"><label for="fLocal">Local ou estabelecimento <small>(posto, restaurante…)</small></label><input id="fLocal" data-campo="local" maxlength="120" autocomplete="off" value="' + esc(F.local) + '"></div>';
+    h += '<div class="cmp"><label for="fDesc">Descrição ou observação <small>(opcional)</small></label><textarea id="fDesc" data-campo="descricao" maxlength="300">' + esc(F.descricao) + '</textarea></div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-acao="seguir">Continuar</button></div>';
+    return h;
+  }
+  function etapaPagamento() {
+    var h = '<h1 class="tit">Como foi pago?</h1><p class="sub">Se não souber, deixe em "Não sei". O escritório confere.</p>';
+    h += '<div class="cmp"><span class="lb">Forma de pagamento</span><div class="fichas" role="group" aria-label="Forma de pagamento">' + FORMAS.concat([['', 'Não sei']]).map(function (x) { return '<button type="button" class="ficha" data-forma="' + esc(x[0]) + '" aria-pressed="' + (F.forma === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="cmp"><span class="lb">De onde saiu o dinheiro?</span><div class="fichas" role="group" aria-label="De onde saiu o dinheiro">' + ORIGENS.concat([['', 'Não sei']]).map(function (x) { return '<button type="button" class="ficha lg" data-origem="' + esc(x[0]) + '" aria-pressed="' + (F.origem === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-acao="seguir">Continuar</button></div>';
+    return h;
+  }
+  function etapaComprovante() {
+    var r = regras(), f = F.foto, h = '<h1 class="tit">Comprovante</h1><p class="sub">Foto do cupom, nota ou recibo' + (r.fotoObrigatoria ? ' (obrigatória).' : ' (se tiver).') + '</p>';
+    h += '<div class="cmp' + clsErro('foto') + '"><div class="fotos"><label class="btn sec" style="margin:0">' + ic('camera') + 'Tirar foto<input type="file" accept="image/*" capture="environment" data-arquivo hidden></label><label class="btn" style="margin:0">' + ic('galeria') + 'Galeria<input type="file" accept="image/*,application/pdf" data-arquivo hidden></label></div>' + campoErro('foto');
+    if (F.fotoUrl || (f && f.id) || F.fotoEstado) {
+      h += '<div class="previa">' + (F.fotoUrl ? (F.fotoPdf ? '<div class="pdf">' + ic('galeria') + '<br>' + esc((f && f.nome) || 'arquivo.pdf') + '</div>' : '<img src="' + esc(F.fotoUrl) + '" alt="Prévia do comprovante">') : (f && f.id ? '<img data-blob="' + esc(f.id) + '" alt="Comprovante enviado">' : '')) +
+        '<div class="sit">' + (F.fotoEstado === 'enviando' ? '<span class="giro" style="width:20px;height:20px;border-width:3px"></span>Enviando a foto…' : F.fotoEstado === 'falhou' ? '<span style="color:var(--pe)">' + ic('alerta') + '</span><span style="color:var(--pe)">A foto não foi enviada.</span> <button type="button" class="btn peq" data-acao="reenviar-foto" style="margin-left:auto">Tentar de novo</button>' : '<span style="color:var(--ok)">' + ic('check') + '</span>Foto pronta' + '<button type="button" class="btn peq" data-acao="tirar-foto" style="margin-left:auto">Remover</button>') + '</div></div>';
+    }
+    h += '</div>';
+    return h;
+  }
+  function etapaConferir() {
+    var t = TIPO(F.tipoDesp), vg = !F.semViagem && F.viagemId ? VIAG(F.viagemId) : null, vc = VEIC(F.veiculoId) || (vg ? VEIC(vg.veiculoId) : null);
+    var h = '<h2 class="sec">Conferir</h2><div class="resumo"><div class="grande"><span>Valor</span><b>' + esc(moeda(F.valor)) + '</b></div><div><span>Tipo</span><b>' + esc(t.l) + '</b></div>' +
+      (F.litros ? '<div><span>Litros</span><b>' + esc(F.litros) + ' L</b></div>' : '') + (F.km ? '<div><span>Km do painel</span><b>' + esc(F.km) + '</b></div>' : '') +
+      '<div><span>Data</span><b>' + esc(dataBR(F.data)) + (F.hora ? ' às ' + esc(F.hora) : '') + '</b></div><div><span>Viagem</span><b>' + esc(vg ? rotViagem(vg) : 'Sem viagem') + '</b></div>' +
+      (vc ? '<div><span>Caminhão</span><b>' + esc(nomeVeic(vc)) + '</b></div>' : '') + (F.local ? '<div><span>Local</span><b>' + esc(F.local) + '</b></div>' : '') +
+      '<div><span>Pago com</span><b>' + esc(F.forma ? rotForma(F.forma) : 'Não informado') + '</b></div><div><span>Dinheiro de</span><b>' + esc(F.origem ? rotOrigem(F.origem) : 'Não informado') + '</b></div>' +
+      '<div><span>Comprovante</span><b>' + (F.foto && F.foto.id ? 'Com foto' : 'Sem foto') + '</b></div></div>';
+    if (F.modo === 'corrigir') h += '<div class="cmp" style="margin-top:16px"><label for="fMotivo">O que você corrigiu? <small>(opcional)</small></label><input id="fMotivo" data-campo="motivo" maxlength="300" value="' + esc(F.motivo || '') + '"></div>';
+    if (F.erroEnvio) h += '<div class="aviso pe" style="margin-top:14px" role="alert">' + ic('alerta') + '<div>' + esc(F.erroEnvio) + '</div></div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-acao="enviar"' + (ENVIANDO || F.fotoEstado === 'enviando' ? ' disabled' : '') + '>' + (ENVIANDO ? 'Enviando…' : F.fotoEstado === 'enviando' ? 'Esperando a foto…' : (F.modo === 'corrigir' ? 'Salvar correção' : 'Enviar despesa')) + '</button>' +
+      '<button type="button" class="btn" data-acao="voltar"' + (ENVIANDO ? ' disabled' : '') + '>Voltar</button></div>';
+    return h;
+  }
+  function ligarCampos() {
+    var v = $('#fValor', app);
+    if (v) {
+      v.addEventListener('input', function () { var d = v.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 9); var c = d ? +d / 100 : 0; F.valor = c ? c : ''; v.value = d ? centavosTxt(c) : ''; limparErro('valor'); gravarRasc(); });
+      if (!matchMedia('(pointer:coarse)').matches || !F.valor) setTimeout(function () { try { v.focus(); } catch (e) {} }, 60);
+    }
+    $$('[data-campo]', app).forEach(function (el) {
+      var k = el.getAttribute('data-campo'); if (k === 'valor') return;
+      el.addEventListener('input', function () { F[k] = el.value; limparErro(k === 'veiculoId' ? 'veiculo' : k); gravarRasc(); });
+      el.addEventListener('change', function () { F[k] = el.value; gravarRasc(); });
+    });
+    $$('[data-arquivo]', app).forEach(function (el) { el.addEventListener('change', function () { var f = el.files && el.files[0]; el.value = ''; if (f) escolherFoto(f); }); });
+    var img = $('.previa img[data-blob]', app); if (img) verFoto(img, img.getAttribute('data-blob'));
+  }
+  function limparErro(k) { if (F && F.erros && F.erros[k]) { delete F.erros[k]; var el = app.querySelector('[data-campo="' + k + '"]') || app.querySelector('[data-campo="' + (k === 'veiculo' ? 'veiculoId' : k) + '"]'); var c = el && el.closest('.cmp'); if (c) c.classList.remove('erro'); } }
+  function validarEtapa(n) {
+    var e = {}, r = regras(), t = TIPO(F.tipoDesp);
+    if (n === 1) {
+      if (!(n0(F.valor) > 0)) e.valor = 'Informe o valor (maior que zero).';
+      else if (n0(F.valor) > 50000) e.valor = 'Valor alto demais. Confira o número.';
+      if (t.comb && String(F.litros || '').trim()) { var l = lerNum(F.litros); if (!(l > 0 && l <= 3000)) e.litros = 'Confira os litros.'; }
+      if (String(F.km || '').trim()) { var k = lerNum(F.km); if (!(k >= 0 && k <= 9999999)) e.km = 'Confira o km.'; }
+    }
+    if (n === 2) {
+      var dias = r.diasAtras == null ? 7 : +r.diasAtras;
+      if (r.ajustarData !== false) { if (!/^\d{4}-\d{2}-\d{2}$/.test(F.data || '')) e.data = 'Informe a data.'; else if (F.data > hoje()) e.data = 'A data não pode ser depois de hoje.'; else if (F.data < somaDias(hoje(), -dias) && F.modo === 'novo') e.data = 'Só dá para lançar até ' + dias + ' dia(s) para trás. Fale com o escritório.'; }
+      if (!F.semViagem && !F.viagemId) e.viagem = r.exigirViagem ? 'Escolha a viagem.' : 'Escolha a viagem ou "Sem viagem".';
+      if (F.semViagem && r.avulsaJustificativa !== false && String(F.justificativa || '').trim().length < 5) e.justificativa = 'Escreva o motivo (pelo menos 5 letras).';
+      var vg = !F.semViagem && F.viagemId ? VIAG(F.viagemId) : null;
+      if (veiculos().length > 1 && !(vg && vg.veiculoId) && !F.veiculoId) e.veiculo = 'Escolha o caminhão.';
+    }
+    if (n === 4) { if (r.fotoObrigatoria && !(F.foto && F.foto.id)) e.foto = 'Tire a foto do comprovante.'; if (F.fotoEstado === 'enviando') e.foto = 'Espere a foto terminar de enviar.'; if (F.fotoEstado === 'falhou') e.foto = 'A foto não foi enviada: tente de novo ou remova.'; }
+    return e;
+  }
+  function seguir() {
+    var e = validarEtapa(F.etapa); F.erros = e;
+    if (Object.keys(e).length) { desenhar(); var c = $('.cmp.erro', app); if (c) c.scrollIntoView({ block: 'center' }); return; }
+    F.etapa++;
+    passoForm();
+  }
+
+  /* foto: diminui no celular (até 1600 px) e já envia; o lançamento só guarda o código do arquivo */
+  function comprimir(file, max, q) {
+    return new Promise(function (ok, falha) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try { var w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, max / Math.max(w, h)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); c.toBlob(function (b) { if (b) ok(b); else falha(new Error('foto')); }, 'image/jpeg', q); }
+        catch (e) { URL.revokeObjectURL(url); falha(e); } };
+      img.onerror = function () { URL.revokeObjectURL(url); falha(new Error('foto')); };
+      img.src = url;
+    });
+  }
+  async function escolherFoto(file) {
+    if (file.size > 20 * 1024 * 1024) { F.erros = { foto: 'Arquivo maior que 20 MB.' }; desenhar(); return; }
+    var pdf = file.type === 'application/pdf', blob = file;
+    if (!pdf && /^image\//.test(file.type) && file.type !== 'image/gif') { try { blob = await comprimir(file, 1600, 0.82); } catch (e) { blob = file; } }
+    if (F.fotoUrl) { try { URL.revokeObjectURL(F.fotoUrl); } catch (e) {} }
+    F.fotoBlob = blob; F.fotoPdf = pdf; F.fotoUrl = URL.createObjectURL(blob); F.fotoNome = pdf ? (file.name || 'comprovante.pdf') : 'comprovante.jpg'; F.foto = null;
+    if (F.erros) delete F.erros.foto;
+    subirFoto();
+  }
+  async function subirFoto() {
+    if (!F || !F.fotoBlob) return;
+    var alvo = F; F.fotoEstado = 'enviando'; desenhar();
+    try {
+      var id = hex32(), tipo = alvo.fotoBlob.type || (alvo.fotoPdf ? 'application/pdf' : 'image/jpeg');
+      var r = await sb.storage.from('anexos').upload(id, alvo.fotoBlob, { contentType: tipo, upsert: false });
+      if (r.error) throw r.error;
+      if (F !== alvo) return;
+      F.foto = { id: id, nome: alvo.fotoNome || 'comprovante.jpg', tipo: tipo, tam: alvo.fotoBlob.size }; F.fotoEstado = 'ok'; gravarRasc();
+    } catch (e) { if (F === alvo) F.fotoEstado = 'falhou'; }
+    if (F === alvo && TELA.nome === 'despesa') desenhar();
+  }
+  function payload() {
+    var vg = !F.semViagem && F.viagemId ? VIAG(F.viagemId) : null;
+    var p = { tipoDesp: F.tipoDesp, valor: Math.round(n0(F.valor) * 100) / 100, data: F.data, hora: F.hora, viagemId: vg ? vg.id : '', justificativa: F.semViagem ? String(F.justificativa || '').trim() : '',
+      veiculoId: F.veiculoId || (vg && vg.veiculoId) || '', local: String(F.local || '').trim(), descricao: String(F.descricao || '').trim(), forma: F.forma || '', origem: F.origem || '' };
+    var l = lerNum(F.litros); if (l > 0) p.litros = l;
+    var k = lerNum(F.km); if (k >= 0 && String(F.km || '').trim()) p.km = Math.round(k);
+    if (F.foto && F.foto.id) p.foto = F.foto;
+    return p;
+  }
+  async function enviar() {
+    if (ENVIANDO || !F) return;
+    var e = Object.assign({}, validarEtapa(1), validarEtapa(2), validarEtapa(4));
+    if (Object.keys(e).length) { F.erros = e; F.etapa = e.valor || e.litros || e.km ? 1 : e.data || e.viagem || e.justificativa || e.veiculo ? 2 : 4; desenhar(); var c = $('.cmp.erro', app); if (c) c.scrollIntoView({ block: 'center' }); return; }
+    ENVIANDO = true; F.erroEnvio = ''; desenhar();
+    try {
+      var r;
+      if (F.modo === 'corrigir') r = await rpc('jb_mot_corrigir', { p: { id: F.id, campos: payload(), motivo: String(F.motivo || '').trim() } });
+      else r = await rpc('jb_mot_lancar', { p: Object.assign({ id: F.id }, payload()) });
+      var modo = F.modo; ENVIANDO = false;
+      if (modo === 'novo') apagarRasc();
+      if (F.fotoUrl) { try { URL.revokeObjectURL(F.fotoUrl); } catch (x) {} }
+      F = null; CONF = { r: r, modo: modo };
+      try { await carregar(false); } catch (x) {}
+      ir('confirmacao', null, true);
+    } catch (err) {
+      ENVIANDO = false; if (err.code === 'sessao') return;
+      if (F) { F.erroEnvio = err.code === 'rede' ? 'Sem conexão. Os dados ficaram guardados neste celular: toque em "' + (F.modo === 'corrigir' ? 'Salvar correção' : 'Enviar despesa') + '" de novo quando o sinal voltar (não duplica).' : err.message; gravarRasc(); desenhar(); }
+    }
+  }
+  function telaConfirmacao() {
+    var c = CONF; if (!c) { ir('inicio', null, true); return; }
+    var d = c.r || {}, t = TIPO(d.tipoDesp);
+    var h = topo('Despesas de entrega', '', false) + '<main><div class="conf"><div class="ok">' + ic('check') + '</div><h1>' + (c.modo === 'corrigir' ? 'Correção salva' : 'Despesa registrada') + '</h1><p class="sub">' + (d.repetida ? 'Este lançamento já tinha chegado ao escritório: não foi lançado de novo.' : 'O escritório vai conferir.') + '</p></div>';
+    h += '<div class="resumo"><div class="grande"><span>Número</span><b>nº ' + esc(d.numero || '—') + '</b></div><div class="grande"><span>Valor</span><b>' + esc(moeda(d.valor)) + '</b></div>' +
+      '<div><span>Categoria</span><b>' + esc(t.l) + (d.destino ? ' · ' + esc(DESTINO[d.destino] || '') : '') + '</b></div>' +
+      '<div><span>Viagem</span><b>' + esc(d.viagemId ? 'nº ' + (d.viagemNumero || '—') + (d.viagemDestino ? ' · ' + d.viagemDestino : '') : 'Sem viagem') + '</b></div>' +
+      '<div><span>Situação</span><b>' + tagSt(d) + '</b></div></div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-acao="nova">' + ic('mais') + 'Lançar outra despesa</button><button type="button" class="btn" data-nav="inicio">Ir para o início</button></div></main>';
+    app.innerHTML = h;
+  }
+
+  /* ---------------- janelas: viagem e pedido de correção ---------------- */
+  function janela(html, aoOk) {
+    var v = document.createElement('div'); v.className = 'veu'; v.innerHTML = '<div class="janela" role="dialog" aria-modal="true"><div class="puxa"></div>' + html + '</div>';
+    document.body.appendChild(v);
+    var fechar = function () { v.remove(); };
+    v.addEventListener('click', async function (ev) {
+      if (ev.target === v || ev.target.closest('[data-fechar]')) { fechar(); return; }
+      var b = ev.target.closest('[data-ok]'); if (!b || b.disabled) return;
+      b.disabled = true; var t0 = b.textContent; b.textContent = 'Enviando…';
+      var m = $('.msg-j', v); if (m) { m.hidden = true; m.textContent = ''; }
+      try { var r = await aoOk(v); if (r === false) { b.disabled = false; b.textContent = t0; } else fechar(); }
+      catch (e) { b.disabled = false; b.textContent = t0; if (m) { m.hidden = false; m.textContent = e.code === 'rede' ? 'Sem conexão. Tente de novo quando o sinal voltar.' : e.message; } }
+    });
+    var i = $('input,textarea,select', v); if (i && !matchMedia('(pointer:coarse)').matches) setTimeout(function () { i.focus(); }, 40);
+    return v;
+  }
+  function abrirIniciar(idPlanejada) {
+    var r = regras(), vs = veiculos(), pl = idPlanejada ? VIAG(idPlanejada) : null, idNova = novoId('vg_');
+    var h = '<h2>' + (pl ? 'Começar a viagem nº ' + esc(pl.numero || '—') : 'Começar viagem') + '</h2><p class="sub">' + (pl ? esc(pl.destino || '') : 'Os gastos que você lançar ficam ligados a esta viagem.') + '</p>';
+    if (!pl) h += '<div class="cmp"><label for="jDest">Destino</label><input id="jDest" maxlength="120" placeholder="Cidade ou cliente"></div><div class="cmp"><label for="jCli">Cliente ou entrega <small>(opcional)</small></label><input id="jCli" maxlength="120"></div>';
+    if (vs.length > 1 && !(pl && pl.veiculoId)) h += '<div class="cmp"><label for="jVeic">Caminhão</label><select id="jVeic"><option value="">Escolha o caminhão…</option>' + vs.map(function (v) { return '<option value="' + esc(v.id) + '">' + esc(nomeVeic(v)) + '</option>'; }).join('') + '</select></div>';
+    if (r.pedirKm !== false) h += '<div class="cmp"><label for="jKm">Km do painel na saída <small>(se souber)</small></label><input id="jKm" inputmode="numeric" autocomplete="off"></div>';
+    h += '<div class="aviso pe msg-j" role="alert" hidden></div><div class="btns"><button type="button" class="btn pri" data-ok>Começar viagem</button><button type="button" class="btn" data-fechar>Cancelar</button></div>';
+    janela(h, async function (v) {
+      var dest = $('#jDest', v) ? $('#jDest', v).value.trim() : '', ve = $('#jVeic', v) ? $('#jVeic', v).value : '', km = $('#jKm', v) ? $('#jKm', v).value.trim() : '';
+      if (!pl && dest.length < 2) throw erro('dados', 'Informe o destino da viagem.');
+      if ($('#jVeic', v) && !ve) throw erro('dados', 'Escolha o caminhão.');
+      var kn = km ? lerNum(km) : null; if (km && !(kn >= 0)) throw erro('dados', 'Confira o km.');
+      var p = { acao: 'iniciar', id: pl ? pl.id : idNova, destino: dest, cliente: $('#jCli', v) ? $('#jCli', v).value.trim() : '', veiculoId: ve };
+      if (kn != null) p.km = Math.round(kn);
+      await rpc('jb_mot_viagem', { p: p });
+      await carregar(false);
+      if (F && TELA.nome === 'despesa' && !F.viagemId) { F.viagemId = p.id; F.semViagem = false; if (F.erros) delete F.erros.viagem; gravarRasc(); }
+      desenhar(); recado('Viagem começada. Boa viagem!');
+    });
+  }
+  function abrirEncerrar(id) {
+    var v0 = VIAG(id); if (!v0) return; var r = regras(), c = contaViagem(id);
+    var h = '<h2>Encerrar a viagem nº ' + esc(v0.numero || '—') + '</h2><p class="sub">' + esc(v0.destino || '') + ' · ' + c.n + ' gasto(s), ' + esc(moeda(c.t)) + '</p>';
+    if (r.pedirKm !== false) h += '<div class="cmp"><label for="jKm">Km do painel na chegada <small>(se souber)</small></label><input id="jKm" inputmode="numeric" autocomplete="off">' + (v0.kmIni != null ? '<span class="aj">Na saída: km ' + esc(num(v0.kmIni, 0)) + '</span>' : '') + '</div>';
+    h += '<div class="aviso pe msg-j" role="alert" hidden></div><div class="btns"><button type="button" class="btn pri" data-ok>Encerrar viagem</button><button type="button" class="btn" data-fechar>Cancelar</button></div>';
+    janela(h, async function (v) {
+      var km = $('#jKm', v) ? $('#jKm', v).value.trim() : '', kn = km ? lerNum(km) : null;
+      if (km && !(kn >= 0)) throw erro('dados', 'Confira o km.');
+      if (kn != null && v0.kmIni != null && kn < v0.kmIni) throw erro('dados', 'O km da chegada é menor que o da saída (' + num(v0.kmIni, 0) + '). Confira o painel.');
+      var p = { acao: 'encerrar', id: id }; if (kn != null) p.km = Math.round(kn);
+      await rpc('jb_mot_viagem', { p: p });
+      await carregar(false); desenhar(); recado('Viagem encerrada.');
+    });
+  }
+  function abrirPedido(id) {
+    var d = DESP(id); if (!d) return;
+    var h = '<h2>Pedir correção</h2><p class="sub">Lançamento nº ' + esc(d.numero || '—') + ' · ' + esc(TIPO(d.tipoDesp).l) + ' · ' + esc(moeda(d.valor)) + '. O escritório confere e corrige; o que estava antes fica guardado.</p>' +
+      '<div class="cmp"><label for="jTxt">O que está errado?</label><textarea id="jTxt" maxlength="500" placeholder="Ex.: o valor certo é R$ 800,00"></textarea></div><div class="aviso pe msg-j" role="alert" hidden></div>' +
+      '<div class="btns"><button type="button" class="btn pri" data-ok>Enviar pedido</button><button type="button" class="btn" data-fechar>Cancelar</button></div>';
+    janela(h, async function (v) {
+      var t = $('#jTxt', v).value.trim(); if (t.length < 5) throw erro('dados', 'Escreva o que precisa ser corrigido.');
+      await rpc('jb_mot_pedir_correcao', { p: { id: id, texto: t } });
+      await carregar(false); desenhar(); recado('Pedido enviado ao escritório.');
+    });
+  }
+
+  /* ---------------- toques ---------------- */
+  document.addEventListener('click', function (ev) {
+    var n = ev.target.closest('[data-nav]');
+    if (n && EU) { ev.preventDefault(); var nome = n.getAttribute('data-nav'); if (TELA.nome !== nome) ir(nome, null, TELA.nome === 'confirmacao'); return; }
+    var b = ev.target.closest('[data-acao]'); if (!b || !EU) return;
+    var a = b.getAttribute('data-acao'), id = b.getAttribute('data-id');
+    if (a === 'sair') { if (confirm('Sair desta conta neste celular?')) sair(); return; }
+    if (a === 'voltar') { if (ENVIANDO) return; if (TELA.nome === 'despesa' && voltarEtapa()) return; history.back(); return; }
+    if (a === 'nova') { var r0 = lerRasc(); if (r0 && !confirm('Há um lançamento não enviado guardado neste celular. Começar outro e descartar aquele?')) { F = r0; F.erros = {}; F.fotoEstado = F.foto && F.foto.id ? 'ok' : ''; ir('despesa', null, TELA.nome === 'confirmacao'); return; } apagarRasc(); novoForm(b.getAttribute('data-tipo') || '', b.getAttribute('data-viagem') || ''); ir('despesa', null, TELA.nome === 'confirmacao'); return; }
+    if (a === 'continuar') { var r1 = lerRasc(); if (r1) { F = r1; F.erros = {}; F.erroEnvio = ''; F.fotoEstado = F.foto && F.foto.id ? 'ok' : ''; ir('despesa'); } return; }
+    if (a === 'descartar') { if (confirm('Descartar o lançamento não enviado?')) { apagarRasc(); F = null; desenhar(); } return; }
+    if (a === 'tipo') { F.tipoDesp = b.getAttribute('data-tipo'); F.etapa = 1; passoForm(); return; }
+    if (a === 'seguir') { seguir(); return; }
+    if (a === 'enviar') { enviar(); return; }
+    if (a === 'abrir') { ir('detalhe', { id: id }); return; }
+    if (a === 'abrir-viagem') { ir('viagem', { id: id }); return; }
+    if (a === 'corrigir') { var d = DESP(id); if (d) { formDe(d); ir('despesa'); } return; }
+    if (a === 'pedir') { abrirPedido(id); return; }
+    if (a === 'iniciar') { abrirIniciar(id || ''); return; }
+    if (a === 'encerrar') { abrirEncerrar(id); return; }
+    if (a === 'atualizar') { recarregar(false); return; }
+    if (a === 'reenviar-foto') { subirFoto(); return; }
+    if (a === 'tirar-foto') { if (F) { if (F.fotoUrl) { try { URL.revokeObjectURL(F.fotoUrl); } catch (e) {} } F.foto = null; F.fotoBlob = null; F.fotoUrl = ''; F.fotoEstado = ''; gravarRasc(); desenhar(); } return; }
+    if (a === 'ver-arq') { (async function () { try { var r = await sb.storage.from('anexos').createSignedUrl(id, 600); if (r.data && r.data.signedUrl) window.open(r.data.signedUrl, '_blank', 'noopener'); } catch (e) { recado('Sem conexão para abrir o arquivo.', true); } })(); return; }
+  });
+  document.addEventListener('click', function (ev) {
+    if (!F || TELA.nome !== 'despesa') return;
+    var x;
+    if ((x = ev.target.closest('[data-viagem-op]'))) { var vid = x.getAttribute('data-viagem-op'); F.semViagem = !vid; F.viagemId = vid; var vg = vid ? VIAG(vid) : null; if (vg && vg.veiculoId) F.veiculoId = vg.veiculoId; if (F.erros) { delete F.erros.viagem; delete F.erros.justificativa; } gravarRasc(); desenhar(); return; }
+    if ((x = ev.target.closest('[data-forma]'))) { F.forma = x.getAttribute('data-forma'); gravarRasc(); $$('[data-forma]', app).forEach(function (b) { b.setAttribute('aria-pressed', String(b === x)); }); return; }
+    if ((x = ev.target.closest('[data-origem]'))) { F.origem = x.getAttribute('data-origem'); gravarRasc(); $$('[data-origem]', app).forEach(function (b) { b.setAttribute('aria-pressed', String(b === x)); }); return; }
+  });
+  document.addEventListener('click', function (ev) { var f = ev.target.closest('[data-filtro]'); if (!f) return; FILTRO = f.getAttribute('data-filtro'); telaHistorico(); });
+  window.addEventListener('online', function () { $('#semrede').hidden = true; });
+  window.addEventListener('offline', function () { $('#semrede').hidden = false; });
+  if (!navigator.onLine) $('#semrede').hidden = false;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (EU && Date.now() - ultimaCarga > 60000 && TELA.nome !== 'despesa') recarregar(true);
+    conferirVersao();
+  });
+
+  /* versão nova publicada: atualiza sozinha quando não há nada sendo preenchido (o rascunho fica guardado de qualquer forma) */
+  function conferirVersao() {
+    var meta = document.querySelector('meta[name="jb-site"]'); if (!meta) return;
+    fetch('versao.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.site || j.site === meta.getAttribute('content') || TELA.nome === 'despesa' || ENVIANDO || document.querySelector('.veu')) return;
+      try { var k = 'jb_mot_recarga', a = JSON.parse(sessionStorage.getItem(k) || 'null'); if (a && a.para === j.site && Date.now() - a.em < 600000) return; sessionStorage.setItem(k, JSON.stringify({ para: j.site, em: Date.now() })); } catch (e) {}
+      location.reload();
+    }, function () {});
+  }
+
+  /* ---------------- entrada (usuário e senha) ---------------- */
+  function campoEnt(id, rot, tipo, auto) {
+    var i = '<input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '" required' + (tipo === 'text' ? ' autocapitalize="none" spellcheck="false"' : '') + '>';
+    if (tipo === 'password') i = '<div class="cs">' + i + '<button type="button" class="olho" aria-label="Mostrar a senha" aria-pressed="false">' + ic('olho') + '</button></div>';
+    return '<div class="cmp"><label for="' + id + '">' + esc(rot) + '</label>' + i + '</div>';
+  }
+  function caixa(tit, sub, campos, botao, aviso, ok) {
+    document.body.classList.add('sem-nav');
+    app.innerHTML = '<div class="entrada"><div class="f"><form novalidate><div class="m"><img src="icone.svg" alt="" width="52" height="52"><div><b>JB ERP</b><span>Motorista · Cerâmica Concretiza</span></div></div>' +
+      '<h1>' + tit + '</h1><p class="sub">' + esc(sub) + '</p>' + campos + '<button type="submit" class="btn pri">' + esc(botao) + '</button>' +
+      '<div class="aviso ' + (ok ? 'ok' : 'pe') + ' msg" role="status" aria-live="polite" style="margin-top:14px"' + (aviso ? '' : ' hidden') + '>' + esc(aviso || '') + '</div>' +
+      '<div class="rodape">' + ic('cadeado') + '<span>Acesso só para motoristas cadastrados pelo escritório</span></div></form></div></div>';
+    $$('.olho', app).forEach(function (o) { o.addEventListener('click', function () { var i = o.parentNode.querySelector('input'), m = i.type === 'password'; i.type = m ? 'text' : 'password'; o.setAttribute('aria-pressed', String(m)); o.setAttribute('aria-label', m ? 'Esconder a senha' : 'Mostrar a senha'); }); });
+    var f = $('input', app); if (f) setTimeout(function () { try { f.focus(); } catch (e) {} }, 40);
+    return $('form', app);
+  }
+  function mostrarMsg(f, t, ok) { var m = $('.msg', f); m.hidden = !t; m.className = 'aviso ' + (ok ? 'ok' : 'pe') + ' msg'; m.textContent = t || ''; }
+  function telaEntrada(aviso, ok) {
+    var f = caixa('Despesas de <em>entrega</em>', 'Entre com o usuário e a senha que o escritório passou para você.', campoEnt('eU', 'Usuário', 'text', 'username') + campoEnt('eS', 'Senha', 'password', 'current-password'), 'Entrar', aviso, ok);
+    f.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      var b = $('button[type=submit]', f), u = $('#eU', f).value.trim().toLowerCase(), s = $('#eS', f).value;
+      if (!u || !s) { mostrarMsg(f, 'Informe usuário e senha.'); return; }
+      b.disabled = true; b.textContent = 'Conferindo…'; mostrarMsg(f, '');
+      try {
+        var r = await post('login', { usuario: u, senha: s });
+        $('#eS', f).value = '';
+        if (r.trocarSenha) { telaTrocar(r); return; }
+        b.textContent = 'Abrindo…';
+        await abrirSessao(r);
+      } catch (e) {
+        var msg = e.message;
+        if (/não é de motorista/i.test(msg)) msg = 'Este acesso é só para motoristas. Para o sistema completo, entre pela página principal do JB ERP.';
+        mostrarMsg(f, msg); b.disabled = false; b.textContent = 'Entrar';
+        if (sessao) { var t = sessao.access_token; esquecerSessao(); sessao = null; sb = null; post('logout', {}, t).catch(function () {}); }
+      }
+    });
+  }
+  function telaTrocar(r) {
+    var f = caixa('Crie sua <em>senha</em>', 'Primeiro acesso de ' + (r.nome || 'motorista') + ': troque a senha provisória.', campoEnt('tA', 'Senha provisória', 'password', 'current-password') + campoEnt('tN', 'Nova senha (mínimo 8 caracteres)', 'password', 'new-password') + campoEnt('tR', 'Repita a nova senha', 'password', 'new-password'), 'Salvar nova senha');
+    f.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      var a = $('#tA', f).value, n = $('#tN', f).value, rr = $('#tR', f).value, b = $('button[type=submit]', f);
+      if (n !== rr) { mostrarMsg(f, 'As duas senhas novas não são iguais.'); return; }
+      b.disabled = true; mostrarMsg(f, '');
+      try { await post('trocar-senha', { senhaAtual: a, senhaNova: n }, r.access_token); await post('logout', {}, r.access_token).catch(function () {}); telaEntrada('Senha criada. Entre agora com a senha nova.', true); }
+      catch (e) { mostrarMsg(f, e.message); b.disabled = false; }
+    });
+  }
+
+  /* ---------------- abertura ---------------- */
+  async function iniciar() {
+    if (!window.supabase || !window.supabase.createClient) { app.innerHTML = '<main><div class="aviso pe" style="margin-top:24px">' + ic('alerta') + '<div>Não foi possível abrir (falta a conexão com o servidor). Confira a internet e recarregue a página.</div></div><div class="btns"><button type="button" class="btn pri" onclick="location.reload()">Recarregar</button></div></main>'; return; }
+    var guardada = null;
+    try { guardada = JSON.parse(sessionStorage.getItem(K_PASS) || 'null'); sessionStorage.removeItem(K_PASS); } catch (e) {}
+    if (!guardada) { try { guardada = JSON.parse(sessionStorage.getItem(K_SESS) || 'null'); } catch (e) {} }
+    if (guardada && guardada.access_token && guardada.refresh_token) {
+      try { await abrirSessao(guardada); return; }
+      catch (e) { esquecerSessao(); sb = null; sessao = null; telaEntrada(e.code === 'rede' ? e.message : (/não é de motorista/i.test(e.message) ? 'Este acesso é só para motoristas.' : 'Entre de novo para continuar.')); return; }
+    }
+    telaEntrada('');
+  }
+  iniciar();
+})();
+</script>
+</body>
+</html>

@@ -17,7 +17,7 @@ export const VIEWPORT = '<meta name="viewport" content="width=device-width, init
 // envelope que o Claude usa para publicar um artifact (igual ao da ferramenta de publicação)
 export const ENVELOPE_CLAUDE = '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>';
 export const FIM_CLAUDE = '</body></html>';
-const ARQUIVOS_NUVEM = ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers'];
+const ARQUIVOS_NUVEM = ['jb-nuvem.js', 'admin.html', 'motorista.html', 'motorista.webmanifest', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers'];
 
 export const sha256 = (t) => createHash('sha256').update(t).digest('hex');
 // versão do SITE da nuvem (programa + cabeçalho + arquivos da nuvem). Vai numa <meta> dentro da própria
@@ -83,10 +83,11 @@ export function construir(saida = RAIZ) {
   if (juntarScripts(sep.pagina, (n) => lidos.get(n)) !== nuvem) throw new Error('separar os scripts mudou a página da nuvem');
   writeFileSync(join(dist, 'index.html'), sep.pagina);
   for (const f of ARQUIVOS_NUVEM) {
-    if (f !== 'admin.html') { copyFileSync(join(RAIZ, 'nuvem', f), join(dist, f)); continue; }
-    const adm = readFileSync(join(RAIZ, 'nuvem', f), 'utf8');   // o painel de administração também carrega o adaptador
-    if (!adm.includes('<head>\n')) throw new Error('nuvem/admin.html: não achei o <head>');
-    writeFileSync(join(dist, f), adm.replace('<head>\n', '<head>\n' + metaSite(site)));
+    /* o painel de administração e a página do motorista (V177) levam a versão do site: a página aberta sabe quando sai versão nova */
+    if (f !== 'admin.html' && f !== 'motorista.html') { copyFileSync(join(RAIZ, 'nuvem', f), join(dist, f)); continue; }
+    const pg = readFileSync(join(RAIZ, 'nuvem', f), 'utf8');
+    if (!pg.includes('<head>\n')) throw new Error('nuvem/' + f + ': não achei o <head>');
+    writeFileSync(join(dist, f), pg.replace('<head>\n', '<head>\n' + metaSite(site)));
   }
   const claude = montarClaude(app);
   writeFileSync(join(sai, 'claude.html'), claude);

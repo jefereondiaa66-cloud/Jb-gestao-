@@ -81,10 +81,12 @@ teste('programa', 'todo o JavaScript do programa compila', () => {
 teste('programa', 'arquivos da nuvem compilam', () => {
   compilar(ler('nuvem/jb-nuvem.js'), 'nuvem/jb-nuvem.js');
   scriptsEmbutidos(ler('nuvem/admin.html'), 'nuvem/admin.html').forEach((s) => compilar(s.codigo, s.nome));
+  scriptsEmbutidos(ler('nuvem/motorista.html'), 'nuvem/motorista.html').forEach((s) => compilar(s.codigo, s.nome));
   JSON.parse(ler('nuvem/manifest.webmanifest'));
+  JSON.parse(ler('nuvem/motorista.webmanifest'));
 });
 teste('programa', 'nenhum segredo no que é publicado', () => {
-  const textos = { app: ler('app/jb-gestao.html'), cab: ler('nuvem/cabecalho.html'), adm: ler('nuvem/admin.html'), js: ler('nuvem/jb-nuvem.js') };
+  const textos = { app: ler('app/jb-gestao.html'), cab: ler('nuvem/cabecalho.html'), adm: ler('nuvem/admin.html'), js: ler('nuvem/jb-nuvem.js'), mot: ler('nuvem/motorista.html') };
   for (const [n, t] of Object.entries(textos)) {
     assert.ok(!/service_role|sb_secret_[A-Za-z0-9]|BEGIN (RSA |EC )?PRIVATE KEY|SUPABASE_SERVICE/.test(t), `${n}: parece conter chave secreta`);
     for (const jwt of t.match(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g) || []) {
@@ -123,10 +125,12 @@ teste('construcao', 'nuvem e Claude levam exatamente o mesmo programa', () => {
     assert.ok(nuvem.indexOf('name="jb-site"') < nuvem.indexOf('jb-nuvem.js'), 'a versão do site precisa vir antes do adaptador da nuvem');
     const adm = readFileSync(join(tmp, 'dist/admin.html'), 'utf8');
     assert.equal(adm.replace(metaSite(v.site), ''), ler('nuvem/admin.html'), 'o admin.html só ganha a versão do site');
+    const mot = readFileSync(join(tmp, 'dist/motorista.html'), 'utf8');
+    assert.equal(mot.replace(metaSite(v.site), ''), ler('nuvem/motorista.html'), 'a página do motorista (V177) só ganha a versão do site');
     assert.ok(claude.startsWith(ENVELOPE_CLAUDE) && claude.endsWith(FIM_CLAUDE));
     assert.equal(extrairDoClaude(claude), app, 'ida e volta Claude ⇄ repositório perde algo');
     assert.equal(montarClaude(extrairDoClaude(claude)), claude);
-    for (const f of ['jb-nuvem.js', 'admin.html', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers', 'versao.json'])
+    for (const f of ['jb-nuvem.js', 'admin.html', 'motorista.html', 'motorista.webmanifest', 'manifest.webmanifest', 'icone.svg', 'icone-180.png', 'icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'entrada-celular.jpg', 'entrada-computador.jpg', '_headers', 'versao.json'])
       readFileSync(join(tmp, 'dist', f));
     const vj = JSON.parse(readFileSync(join(tmp, 'dist/versao.json'), 'utf8'));
     assert.equal(vj.versao, v.versao); assert.equal(vj.site, v.site); assert.match(vj.programa_sha256, /^[0-9a-f]{64}$/);
@@ -1484,6 +1488,46 @@ teste('estoque', 'V176: busca do almoxarifado por palavras, valor por embalagem 
     assert.ok(sql.includes("array['fin', 'barro', 'estoqueMov', 'compras', 'consumos']") && sql.includes("d.dados->>'setor' = 'combustivel'"), 'compartilhados: só os registros do Combustível');
   }
   if (ci) assert.ok(ci.includes('node scripts/testar-estoque-busca.mjs'), 'teste no navegador roda na conferência automática');
+});
+
+teste('despesas-entrega', 'V177: Despesas de Entrega (Combustível): coleções próprias, motorista só pela página dele, classificação automática, um compromisso por lançamento, nada apagado', () => {
+  const app = ler('app/jb-gestao.html'), nv = ler('nuvem/jb-nuvem.js'), mot = ler('nuvem/motorista.html');
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  for (const id of ['<style id="despesas-entrega-v177-css">', '<script id="despesas-entrega-v177">']) assert.equal(app.split(id).length - 1, 1, id + ' uma vez só');
+  const b = /<script id="despesas-entrega-v177">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(app.indexOf('<script id="despesas-entrega-v177">') > app.indexOf('<script id="pagamentos-producao-v169">'), 'vem depois do Financeiro e da Central, que ele usa');
+  assert.ok(b.includes("const COL='despEnt',COLC='despEntCad';") && b.includes("Object.assign(BUCKET,{[COL]:'mes'});Object.assign(PARTES,{[COL]:8});"), 'coleções próprias, por mês, em 8 partes (igual ao banco)');
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  assert.ok(b.includes("if(col===COL||col===COLC){const e=new Error('despesas de entrega')"), 'nada é apagado (cancelar ou inativar)');
+  /* só grava nas próprias coleções e nos compromissos do Financeiro */
+  const grav = [...new Set([...b.matchAll(/\bgravar(?:Registro)?\(\s*('?[A-Za-z]+'?)/g)].map((m) => m[1]))].sort().join(',');
+  assert.equal(grav, "'fTitulos',COL,COLC", 'grava só em despEnt, despEntCad e nos compromissos do Financeiro: ' + grav);
+  /* classificação automática e sem criar categoria */
+  assert.ok(b.includes("combustivel:{destino:'entregas',categoria:'Combustível para entrega'},arla:{destino:'entregas',categoria:'Combustível para entrega'}") && b.includes("pedagio:{destino:'gerais',categoria:''},hospedagem:{destino:'gerais',categoria:''}"), 'combustível e Arla → Despesas com entregas; o que não tem categoria fica pendente');
+  assert.ok(b.includes("const cat=catDe(d);if(!catExiste(cat))return{ok:false,motivo:'categoria',cat};") && !/categorias\.push|fCfg'/.test(b), 'categoria que não existe vira pendência: o módulo não cria categoria');
+  /* um compromisso por lançamento, com código fixo */
+  assert.ok(b.includes("const finIdDe=d=>(d.fin&&d.fin.id)||('ft_'+d.id);") && b.includes("const id=finIdDe(d),ja=titDe(id);") && b.includes('despEntId:d.id'), 'compromisso ft_<lançamento>: reenviar não duplica');
+  assert.ok(b.includes("const vaiProFin=d=>d.st==='aprovado'&&d.origem!=='adiantamento';") && b.includes("pagamentos:[],condicaoT:'A prazo'"), 'só o aprovado vai ao Financeiro, em aberto (aprovar não é pagar); pago com adiantamento não vira outra conta');
+  assert.ok(app.includes("&&!t.despEntId&&!t.despEntAdiant;") && app.includes("DE.controladoria(m,CAT_FIN)"), 'Controladoria conta a despesa uma vez só e o adiantamento não é despesa');
+  assert.ok(app.includes("['#/despEnt','frota','Despesas de entrega',['despEnt','deLanc','deViag','deRel','deCfg'],'despEnt'"), 'no menu do Setor de Combustível');
+  /* motorista: página própria, sessão só na aba, tudo pelas funções do servidor */
+  assert.ok(nv.includes("sb.rpc('jb_mot_sou')") && nv.includes("sessionStorage.setItem('jb_mot_passagem'") && nv.includes("window.location.href = 'motorista.html'"), 'login de motorista vai direto para a página do motorista');
+  for (const f of ['jb_mot_eu', 'jb_mot_lista', 'jb_mot_lancar', 'jb_mot_corrigir', 'jb_mot_pedir_correcao', 'jb_mot_viagem']) assert.ok(mot.includes("'" + f + "'"), 'a página do motorista usa ' + f);
+  assert.ok(!/\.from\('docs'\)|jb_gravar|jb_atualizar|jb_apagar/.test(mot), 'a página do motorista não lê nem grava direto no banco');
+  assert.ok(!/localStorage\.setItem\([^)]*(token|sess)/i.test(mot) && mot.includes("persistSession: false"), 'sessão do motorista só na aba');
+  assert.ok(mot.includes("novoId('de_')") && mot.includes('capture="environment"') && mot.includes('comprimir(file, 1600, 0.82)'), 'código único do lançamento, câmera e foto reduzida');
+  assert.match(ler('nuvem/_headers'), /\/motorista\.html\n  Cache-Control: no-cache/);
+  if (existsSync(join(RAIZ, 'supabase/migrations'))) {
+    const nomes = ['20261125230000_desp_entrega', '20261125233000_desp_entrega_politicas_rapidas', '20261125234000_desp_entrega_execucao', '20261125235000_desp_entrega_resumo', '20261126001000_desp_entrega_regras'];
+    for (const n of nomes) assert.ok(existsSync(join(RAIZ, 'supabase/migrations/' + n + '.sql')) && existsSync(join(RAIZ, 'supabase/migrations/' + n + '.down.sql')), n + ': migração com reversão');
+    const sql = ler('supabase/migrations/20261125230000_desp_entrega.sql'), limpo = sql.replace(/--.*$/gm, '');
+    assert.ok(sql.includes("('despEnt', 'compras', true, 'dados', true)") && sql.includes('create policy docs_motorista_nao_le on public.docs as restrictive') && sql.includes('create trigger docs_aa_motorista_nao_grava')
+      && sql.includes('create policy jb_anexos_motorista on storage.objects as restrictive') && sql.includes('docs_desp_proteger_iu'), 'coleções, motorista sem leitura nem gravação direta, fotos só as dele, proteção dos lançamentos');
+    assert.ok(!/\b(drop|truncate|alter)\b|\bdelete\s+from\b/i.test(limpo), 'a migração principal só acrescenta');
+    assert.ok(/h := h \* 31 \+ ascii\(substr\(p, i, 1\)\)/.test(sql) && sql.includes("(seg.desp_hash(p_id) % 8)"), 'mesma divisão por mês e parte do programa');
+    assert.ok(existsSync(join(RAIZ, 'scripts/testar-desp-banco.sql')), 'teste das regras do banco');
+  }
+  if (ci) assert.ok(ci.includes('node scripts/testar-despesas-entrega.mjs'), 'teste no navegador roda na conferência automática');
 });
 
 teste('almoco', 'Controle de refeições da Cozinha (V160 almoço; V162 café, almoço e janta): telas só da Cozinha, desconto na folha do Pessoal, mês fechado travado, nada apagado', () => {

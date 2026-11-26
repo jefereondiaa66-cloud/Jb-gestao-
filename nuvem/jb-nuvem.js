@@ -617,11 +617,15 @@
       if (ev === 'SIGNED_OUT') sessaoEncerrada();
     });
     avisarEtapa('Carregando os dados…');
+    // V177: login de motorista (Despesas de Entrega) abre só a página do motorista. A pergunta vai junto com as
+    // outras (não atrasa a entrada de ninguém); para o motorista o servidor não entrega dado nenhum do sistema.
+    var ehMotorista = sb.rpc('jb_mot_sou').then(function (x) { return !x.error && x.data === true; }, function () { return false; });
     // acesso e dados ao mesmo tempo (antes era um depois do outro). Os dados só ficam
     // disponíveis ao sistema depois que o acesso é confirmado (prontoRes, abaixo).
     var dados = carregarTudo().then(function () { return null; }, function (e) { return e; });
     var q = await sb.rpc('jb_eu');
     if (q.error || !q.data) { cache = new Map(); throw erro('sessao', 'Não foi possível confirmar seu acesso.'); }
+    if (await ehMotorista) { cache = new Map(); paraMotorista(); return; }
     eu = { uid: q.data.uid, nome: q.data.nome, usuario: q.data.usuario, admin: !!q.data.admin, permissoes: q.data.permissoes || {} };
     var falhaDados = await dados;
     if (falhaDados) throw falhaDados;
@@ -634,6 +638,16 @@
       document.body.appendChild(ad);
     }
     prontoRes();
+  }
+
+  /* V177: a sessão do motorista passa para a página dele só pelo armazenamento desta aba (sessionStorage), que a
+     página do motorista lê e apaga na hora. Nada vai para o localStorage nem para o endereço da página. */
+  function paraMotorista() {
+    try {
+      sessionStorage.setItem('jb_mot_passagem', JSON.stringify({ access_token: sessao.access_token, refresh_token: sessao.refresh_token, usuario: sessao.usuario || '', nome: sessao.nome || '' }));
+    } catch (e) {}
+    var v = document.getElementById('jbl'); if (v) etapa(v, 'Abrindo a página do motorista…');
+    window.location.href = 'motorista.html';
   }
 
   /* anexos: links "/_blob/<id>" abrem por um endereço temporário e privado */

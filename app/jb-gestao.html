@@ -25087,12 +25087,12 @@ const CAT_FIN={'Energia elétrica':'energia','Energia':'energia','Arrendamento':
 const CAT_FORA={'Lenha':'a lenha entra pela queima, no Setor da Lenha (a compra vira estoque)','Combustível para terceiros':'fora da produção (abastecimento de veículo de terceiro)'};
 const CAT_ALM={'Peças e manutenção':'manut','Ferramentas':'manut','Elétrico':'manut','EPI':'insumos','Material de produção':'insumos','Limpeza':'adm','Escritório':'adm','Produtos em geral':'cifOutros','Outros':'cifOutros'};
 const emMes=(d,m)=>String(d||'').slice(0,7)===m;
-const geral=t=>((t.setorOrigem||'Geral (Financeiro)')==='Geral (Financeiro)'||t.categoria==='Combustível para entrega')&&!t.consumoId&&!t.almEntradaId&&!t.paleteCompraId&&!t.compraId;
+const geral=t=>((t.setorOrigem||'Geral (Financeiro)')==='Geral (Financeiro)'||t.categoria==='Combustível para entrega')&&!t.consumoId&&!t.almEntradaId&&!t.paleteCompraId&&!t.compraId&&!t.despEntId&&!t.despEntAdiant;   /* V177: despesa de entrega entra pela data do gasto (abaixo); o adiantamento da viagem não é despesa */
 const compFin=t=>String(t.competencia||t.competenciaDas||t.data||'').slice(0,7);
 function maqDe(id){const l=id&&typeof LOCAL==='function'?LOCAL(id):null;return l?{nome:typeof nomeLocal==='function'?nomeLocal(l):l.nome,st:l.setorTrabalho||''}:{nome:'',st:''}}
 
 let MEMO_S={k:null,v:{}};
-function chaveDados(){return [DATA[COLC],DATA.compras,DATA.consumos,DATA.vendas,DATA.prodFab,DATA.fin,DATA.alm,DATA.pal,DATA.folhas,DATA.desligamentos,DATA.funcionarios,DATA.estoqueMov,DATA.produtos,DATA.locais,CFG]}
+function chaveDados(){return [DATA[COLC],DATA.compras,DATA.consumos,DATA.vendas,DATA.prodFab,DATA.fin,DATA.alm,DATA.pal,DATA.folhas,DATA.desligamentos,DATA.funcionarios,DATA.estoqueMov,DATA.produtos,DATA.locais,CFG,DATA.despEnt]}
 const mesmaChave=(a,b)=>a&&b&&a.length===b.length&&a.every((x,i)=>x===b[i]);
 function setoresMes(m){
  const k=chaveDados();if(!mesmaChave(MEMO_S.k,k))MEMO_S={k,v:{}};if(MEMO_S.v[m])return MEMO_S.v[m];
@@ -25152,6 +25152,9 @@ function setoresMes(m){
  try{if(typeof classificarRescisao==='function')(DATA.desligamentos||[]).filter(r=>emMes(r.data,m)).forEach(r=>{const o='Setor Pessoal';const c=classificarRescisao(r);const nm='Rescisão de '+fData(r.data)+(r.tipo?' ('+r.tipo+')':'');
   if(!c.fonte){const v=+r.valorPago||+r.valorEstimado||0;if(v)fora.push({o,t:nm,v,porque:'faltam as verbas do TRCT no DP para separar o que já foi guardado e o que é custo novo'});return}
   if(c.custo)add(c.adm?'folhaAdm':'mod',c.custo,o,nm+': custo de rescisão'+(c.fonte==='semCarteira'?' (acerto sem carteira)':'')+(c.atraso?' · inclui multa por atraso de '+fMoeda(c.atraso):''))})}catch(e){console.warn('ctl rescisões',e)}
+ /* V177: Setor de Combustível · Despesas de entrega aprovadas, pela data do gasto e pela categoria de cada uma (o compromisso
+    que elas geram no Financeiro não entra de novo; paga com o adiantamento também conta, porque é despesa da viagem) */
+ try{const DE=window.DESP_ENTREGA_V177;if(DE&&typeof DE.controladoria==='function')DE.controladoria(m,CAT_FIN).forEach(x=>{if(x.fora)fora.push(x.fora);else add(x.c,x.v,x.o,x.t)})}catch(e){console.warn('ctl despesas de entrega',e)}
  /* Financeiro: compromissos lançados no próprio Financeiro (os de outros setores já entraram acima) */
  try{(DATA.fTitulos||[]).filter(t=>!t.cancelado&&geral(t)&&compFin(t)===m).forEach(t=>{const o='Setor Financeiro';const txt=(t.numero?'Nº '+t.numero+' · ':'')+(t.descricao||t.categoria||'compromisso')+(t.beneficiarioNome?' · '+t.beneficiarioNome:'');
   if(t.meiId||t.categoria==='DAS dos MEIs'){fora.push({o,t:txt,v:+t.valor||0,porque:'DAS de MEI: decida se é mão de obra ou outro custo e lance à mão'});return}
@@ -34990,7 +34993,7 @@ function telaRel(c,s){
 function gruposMenu(s){
  const cb=ehCb(s);const nP=pendencias(s).length;const S=SETORES_V[s];
  const G=cb?[
-  {g:'Operações',it:[['#/setor-combustivel','painel','Início',['setor-combustivel'],'setor-combustivel'],['#/clLanc','mais','Central de lançamentos',['clLanc'],'clLanc'],['#/consumos/novo','bomba','Novo abastecimento',['consumo-novo'],'consumos',1],['#/compra/nova','entrada','Nova entrada (compra)',[],'compra',1],
+  {g:'Operações',it:[['#/setor-combustivel','painel','Início',['setor-combustivel'],'setor-combustivel'],['#/clLanc','mais','Central de lançamentos',['clLanc'],'clLanc'],['#/despEnt','frota','Despesas de entrega',['despEnt','deLanc','deViag','deRel','deCfg'],'despEnt',0,(DATA.deLanc||[]).filter(d=>d.st==='aguardando').length],['#/consumos/novo','bomba','Novo abastecimento',['consumo-novo'],'consumos',1],['#/compra/nova','entrada','Nova entrada (compra)',[],'compra',1],
    ['javascript:window.CL112.mov("Saída")','saida','Nova saída',[],'estoqueMov',1],['javascript:window.CL112.mov("Transferência")','transf','Transferência',[],'estoqueMov',1],['#/clFoto','camera','Fotografar comprovante',['clFoto'],'clFoto',1],['#/consLote','planilha','Lançar manualmente (vários)',['consLote'],'consumos',1],['javascript:window.CB_LENHA.novoAbast()','pessoas','Abastecer fornecedor de lenha',[],'consumos',1]]},
   {g:'Controle',it:[['#/movCombustivel','lupa','Movimentações',['movCombustivel'],'movCombustivel'],['#/consumos','livro','Abastecimentos',['consumos'],'consumos'],['#/combLenha','bomba','Combustível para lenha',['combLenha'],'combLenha'],['#/combEntrega','moeda','Despesa com combustível',['combEntrega'],'combEntrega'],['#/estoque','caixa','Estoque',['estoque','estoqueMov'],'estoque'],['#/locais','mapa','Veículos e máquinas',['locais'],'locais'],['#/frota','ferramenta','Revisões e manutenção',['frota','frRev','frPlano','frLeit'],'frota'],['#/responsaveis','pessoas','Motoristas e responsáveis',['responsaveis'],'responsaveis'],
    ['#/cTerceiros','pessoas','Terceiros que abastecem',['cTerceiros'],'cTerceiros'],['#/clProg','calendario','Programações',['clProg'],'clProg'],['#/bombasConf','bomba','Conferência das bombas',['bombasConf'],'consumos'],['#/produtos','livro',S.prodTit,['produtos'],'produtos']]},
@@ -54571,6 +54574,946 @@ if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){co
  if(pode('pgConf'))add('Conferir e enviar ao Financeiro','Produção · Controle por grade · conferir grades, desenfornas e empreitas antes do pagamento','pgGrade','#/pgConf','conferir conferencia enviar financeiro pagamento producao grade desenforna empreita');
  if(pode('fProd'))add('Pagamentos da Produção','Financeiro · produção, desenforna e empreitas conferidas, fila do agendamento e pagamento','pgGrade','#/fProd','pagamentos producao desenforna empreita grade conferido pagar agendar')}catch(e){}return E}}
 window.PAG_PROD_V169=Object.freeze({base,sitL,sitLote,obLote,obsProd,conferir,marcar,marcados,janelaConferir,janelaDesfazer,pagarLote,pagarTrab,simular,contaConf,UIC,UIF,refDe,ATIV});
+})();
+</script>
+<style id="despesas-entrega-v177-css">
+/* V177 · Despesas de Entrega (Setor de Combustível): painel, lançamentos, viagens, relatórios e configurações (25/11/2026) */
+.de-sub{display:flex;gap:4px;overflow-x:auto;margin:0 0 14px;padding:2px 0 8px;border-bottom:1px solid var(--linha,#DDE0E3);scrollbar-width:thin}
+.de-sub a{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 12px;border-radius:9px;color:var(--suave,#5B6168);text-decoration:none;font-weight:600;font-size:13.5px;min-height:40px}
+.de-sub a svg{width:17px;height:17px}
+.de-sub a:hover{background:var(--linha2,#EEF0F2);color:var(--tinta,#15181C)}
+.de-sub a.on{background:var(--brasa-bg,#FDECEC);color:var(--brasa,#D3121C)}
+.de-hero{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:1100px){.de-hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.de-hero{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.de-faixa{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 10px}
+.de-faixa .aviso{margin:0;flex:1;min-width:240px}
+html.jb-sem-avisos .de-faixa.auto{display:none}   /* avisos desligados (V81): estes dois ficam só no botão PENDÊNCIAS */
+.de-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:0 0 12px}
+.de-filtros label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--suave,#5B6168);font-weight:600}
+.de-filtros input,.de-filtros select{padding:7px 9px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit;font-size:13.5px;min-height:38px;background:var(--branco,#fff);color:inherit;max-width:100%}
+.de-filtros input[type=search]{min-width:180px}
+.de-tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 12px}
+.de-tot>div{border:1px solid var(--linha,#DDE0E3);border-radius:10px;padding:9px 12px;background:var(--branco,#fff);display:flex;flex-direction:column;gap:2px;min-width:0}
+.de-tot span{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--suave,#5B6168)}
+.de-tot b{font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.de-tot small{font-size:12px;color:var(--suave,#5B6168)}
+.de-acs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.de-acs .btn{min-height:34px;padding:6px 11px;font-size:12.5px}
+.de-sub2{display:block;font-size:12px;color:var(--suave,#5B6168);font-weight:400;margin-top:2px}
+.de-ficha{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:900px){.de-ficha{grid-template-columns:1fr}}
+.de-dados{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--linha,#DDE0E3);border:1px solid var(--linha,#DDE0E3);border-radius:10px;overflow:hidden;margin:0 18px 16px}
+.de-dados>div{background:var(--branco,#fff);padding:9px 12px;min-width:0}
+.de-dados span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--suave,#5B6168)}
+.de-dados b{display:block;font-size:14px;overflow-wrap:anywhere;font-weight:600}
+.de-dados .w2{grid-column:1/-1}
+@media(max-width:560px){.de-dados{grid-template-columns:1fr}}
+.de-foto{display:block;margin:0 18px 16px;border:1px solid var(--linha,#DDE0E3);border-radius:10px;overflow:hidden;background:#0B0F12}
+.de-foto img{display:block;width:100%;max-height:520px;object-fit:contain}
+.de-semfoto{margin:0 18px 16px;padding:18px;border:1px dashed var(--linha,#DDE0E3);border-radius:10px;text-align:center;color:var(--suave,#5B6168)}
+.de-hist{list-style:none;margin:0;padding:0 18px 16px}
+.de-hist li{position:relative;padding:0 0 12px 18px;border-left:2px solid var(--linha,#DDE0E3);margin-left:6px;font-size:13px}
+.de-hist li::before{content:"";position:absolute;left:-7px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--branco,#fff);border:2px solid var(--brasa,#D3121C)}
+.de-hist li b{display:block;font-size:13.5px}
+.de-hist li small{color:var(--suave,#5B6168)}
+.de-acoes{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 16px}
+.de-cfg{display:grid;gap:14px}
+.de-cfg .bloco>p.ajuda{margin:0 18px 12px}
+.de-lista-cfg{list-style:none;margin:0;padding:0 18px 14px;display:grid;gap:8px}
+.de-lista-cfg li{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--linha,#DDE0E3);border-radius:10px;padding:10px 12px;background:var(--branco,#fff)}
+.de-lista-cfg li .tx{flex:1;min-width:200px}
+.de-lista-cfg li .tx b{display:block}
+.de-lista-cfg li .tx small{display:block;color:var(--suave,#5B6168);font-size:12.5px}
+.de-mapa{width:100%;border-collapse:collapse;font-size:13.5px}
+.de-mapa th,.de-mapa td{padding:8px 10px;border-bottom:1px solid var(--linha,#EEF0F2);text-align:left;vertical-align:middle}
+.de-mapa select{padding:6px 8px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;font:inherit;font-size:13px;min-height:36px;max-width:100%;background:var(--branco,#fff);color:inherit}
+.de-chk{display:grid;gap:8px;padding:0 18px 14px}
+.de-chk label{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
+.de-chk input[type=checkbox]{width:20px;height:20px;flex:none;margin-top:1px}
+.de-chk small{display:block;color:var(--suave,#5B6168);font-size:12.5px}
+.de-veics{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;max-height:260px;overflow:auto;border:1px solid var(--linha,#DDE0E3);border-radius:10px;padding:8px}
+.de-veics label{display:flex;gap:8px;align-items:center;font-size:13.5px;padding:4px 2px;cursor:pointer}
+.de-veics input{width:18px;height:18px}
+.de-link{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 18px 14px}
+.de-link code{flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--linha,#DDE0E3);border-radius:8px;background:var(--papel,#F6F6F7);font-size:13px;overflow-wrap:anywhere}
+.de-acerto{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;padding:0 18px 12px}
+.de-acerto>div{border:1px solid var(--linha,#DDE0E3);border-radius:10px;padding:9px 12px;background:var(--branco,#fff)}
+.de-acerto span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--suave,#5B6168)}
+.de-acerto b{font-size:16px;font-variant-numeric:tabular-nums}
+.de-ic-t{display:inline-flex;align-items:center;gap:6px}
+.de-ic-t svg{width:16px;height:16px;flex:none;color:var(--brasa,#D3121C)}
+/* notas do próprio lançamento (motivo da correção, pedido do motorista, falha no Financeiro): fazem parte do registro, ficam sempre à vista */
+.de-nota{border:1px solid var(--linha,#DDE0E3);border-left:4px solid var(--brasa,#D3121C);border-radius:10px;padding:10px 14px;margin:0 0 12px;background:var(--branco,#fff);font-size:13.5px;overflow-wrap:anywhere}
+.de-nota b{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
+.de-nota small{display:block;color:var(--suave,#5B6168);font-size:12.5px;margin-top:3px}
+.de-nota.at{border-left-color:var(--at,#B47A0C)}.de-nota.at b{color:var(--at,#B47A0C)}
+.de-nota.in{border-left-color:var(--in,#2E6389)}.de-nota.in b{color:var(--in,#2E6389)}
+.de-nota.pe{border-left-color:var(--pe,#B3302A)}.de-nota.pe b{color:var(--pe,#B3302A)}
+.de-nota.ok{border-left-color:var(--ok,#2C7A52)}.de-nota.ok b{color:var(--ok,#2C7A52)}
+</style>
+<script id="despesas-entrega-v177">
+"use strict";
+/* ================= V177 · Despesas de Entrega (pedido do Jeferson, 25/11/2026) =================
+   Projeto "Módulo Despesas de Entrega" (PDF): os motoristas lançam pelo próprio celular as despesas das viagens e
+   entregas (combustível, Arla 32, alimentação, pedágio, hospedagem, manutenção/borracharia, troca de óleo, outros),
+   com foto do comprovante; o Setor de Combustível confere, aprova e acompanha; o Financeiro recebe o que é para pagar.
+   E o pedido do mesmo dia: "lá dentro tem as configurações desse módulo… eu posso fazer o cadastro, ver o que estou
+   lançando… o módulo do combustível vai ser o controle geral". Regras:
+   · dentro do Setor de Combustível (nenhum setor novo). Duas coleções só deste módulo, no módulo "compras" do banco
+     (o mesmo acesso do Combustível): despEnt (lançamentos e viagens, agrupados por mês) e despEntCad (motoristas e a
+     configuração). Caminhões = o cadastro que já existe em Veículos e máquinas (nada duplicado);
+   · o motorista entra pela página motorista.html (login próprio) e só vê o que é dele: o banco recusa a leitura direta
+     e toda gravação dele passa pelas funções jb_mot_* (que conferem motorista, caminhão, viagem, valor e foto);
+   · classificação automática pelo tipo (o motorista não escolhe): combustível e Arla 32 → "Despesas com entregas"
+     (categoria Combustível para entrega); os demais → "Despesas pagas gerais" (categoria do mapeamento). Categoria que
+     não existe no Financeiro vira pendência para o administrador (nada é criado sem ele). Mudar o mapeamento vale para
+     os lançamentos novos (cada lançamento guarda a categoria que recebeu);
+   · situações: aguardando conferência · correção pedida · aprovado · rejeitado · cancelado; aprovação e pagamento são
+     coisas separadas: aprovado com dinheiro do motorista ou da empresa vira UM compromisso no Financeiro (código fixo
+     ft_<lançamento>: reenviar nunca duplica) e "pago" vem dos pagamentos registrados lá; pago com o adiantamento da
+     viagem entra na prestação de contas do adiantamento (não vira outra conta a pagar);
+   · adiantamento da viagem é movimentação própria (compromisso fa_<viagem>, a pagar ao motorista), nunca despesa; o
+     acerto mostra recebido, despesas aceitas e o saldo a devolver ou a reembolsar (o complemento vira fc_<viagem>);
+   · nada é apagado: cancelar, rejeitar e corrigir ficam no histórico do lançamento (antes e depois, quem e quando) e
+     na auditoria do banco; o banco também trava (seg.desp_proteger): só quem aprova aprova, rejeita, pede correção,
+     cancela e mexe em adiantamento e acerto; aprovado só muda por quem aprova;
+   · custo gerencial da viagem = soma dos lançamentos ligados a ela (sem duplicar o que foi para o Financeiro); a
+     Controladoria conta as despesas aprovadas pela data do gasto e não conta de novo o compromisso que elas geram. */
+(()=>{
+if(typeof DATA==='undefined'||typeof TELAS_V==='undefined'||typeof PERM==='undefined'||typeof MODS==='undefined'||typeof gravar!=='function'){console.warn('Despesas de entrega: programa incompleto');return}
+const FS=window.FINANCEIRO_SETOR||null,H=FS&&FS.h?FS.h:null;
+const COL='despEnt',COLC='despEntCad';
+/* o que esta tela acabou de gravar vale até o banco devolver (o DATA chega um instante depois): sem isto, duas
+   gravações seguidas do mesmo lançamento (aprovar e ligar ao Financeiro) partiriam da versão antiga. Não compara
+   relógios: enquanto o DATA ainda mostra a versão de onde esta tela partiu, vale o que ela gravou; quando o DATA
+   mostra qualquer outra (a minha gravação chegou, ou outra pessoa gravou, como o motorista no celular), vale o DATA. */
+const ULT=new Map();
+function lembrar(k,n,at){const p=ULT.get(k);const bases=new Set(p?p.bases:[]);if(at&&String(at.alteradoEm||'')!==String(n.alteradoEm||''))bases.add(String(at.alteradoEm||''));ULT.set(k,{n,bases})}
+function maisNovo(d,k){const u=ULT.get(k);if(!u)return d||null;if(!d)return u.n;if(u.bases.has(String(d.alteradoEm||'')))return u.n;ULT.delete(k);return d}
+
+/* ---------- 1. banco: duas coleções só deste módulo ---------- */
+Object.assign(DATA,{[COL]:[],[COLC]:[]});
+Object.assign(BUCKET,{[COL]:'mes'});Object.assign(PARTES,{[COL]:8});Object.assign(CAMPO_DATA,{[COL]:'data'});
+if(typeof SEM_JANELA!=='undefined')SEM_JANELA.add(COL);   /* viagens e acertos antigos continuam somando */
+const MEMO={};
+const memo=(k,b,f)=>{const c=MEMO[k];if(c&&c.b===b)return c.v;const v=f(b||[]);MEMO[k]={b,v};return v};
+Object.defineProperty(DATA,'deLanc',{enumerable:false,configurable:true,get(){return memo('deLanc',DATA[COL],b=>b.filter(r=>r&&r.tipo==='desp'))}});
+Object.defineProperty(DATA,'deViag',{enumerable:false,configurable:true,get(){return memo('deViag',DATA[COL],b=>b.filter(r=>r&&r.tipo==='viagem'))}});
+Object.defineProperty(DATA,'deMot',{enumerable:false,configurable:true,get(){return memo('deMot',DATA[COLC],b=>b.filter(r=>r&&r.tipo==='motorista'))}});
+/* mudou o mês do lançamento: grava primeiro no mês novo e só depois tira do antigo (o banco não deixa sumir) */
+{const g0=gravar,a0=apagar;
+ gravar=async function(col,rec,ant){
+  if(col===COL&&ant&&BUCKET[COL]){const k=chaveBucket(COL,rec),ka=chaveBucket(COL,ant);
+   if(k!==ka){await bucketPut(COL,k,rec.id,limpa(rec));await bucketPut(COL,ka,ant.id,null);return}}
+  return g0.apply(this,arguments)};
+ apagar=async function(col,rec){if(col===COL||col===COLC){const e=new Error('despesas de entrega');e.clMsg='lançamentos, viagens e cadastros das Despesas de Entrega não são apagados: use Cancelar ou Inativo';throw e}return a0.apply(this,arguments)};}
+
+/* ---------- 2. permissões (o mesmo acesso do Setor de Combustível) ---------- */
+const PC=typeof PAP_C!=='undefined'?PAP_C:['admin','gerente','estoquista','financeiro'];
+const ED=['admin','gerente','estoquista'];
+Object.assign(PERM,{despEnt:{v:PC,e:ED},deLanc:{v:PC,e:ED},deViag:{v:PC,e:ED},deRel:{v:PC,e:[]},deCfg:{v:PC,e:['admin']}});
+const ROTAS=['despEnt','deLanc','deViag','deRel','deCfg'];
+if(typeof ROTAS_SETOR!=='undefined')ROTAS.forEach(r=>{if(!ROTAS_SETOR.includes(r))ROTAS_SETOR.push(r)});
+const API=()=>window.JB_NUVEM_API||null;
+const euSrv=()=>{try{const a=API();return a&&typeof a.eu==='function'?a.eu():null}catch(e){return null}};
+/* administrador: o dono no Claude; na nuvem, quem é administrador no servidor (é o que o banco confere) */
+const ehAdmin=()=>!!(APP.modo==='local'||APP.isOwner||(euSrv()?euSrv().admin:APP.papel==='admin'));
+const ehAprovador=()=>ehAdmin()||CFGD().aprovadores.includes(APP.uid);
+const podeE=()=>pode('deLanc','e');
+Object.assign(IC,{deGota:'<path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>',
+ deTalher:'<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7v4h3"/>',
+ dePedagio:'<path d="M4 21V9M4 9h16v4H4"/><path d="M8 9l3 4M12 9l3 4M16 9l3 4"/><path d="M2 21h20"/>',
+ deCama:'<path d="M3 18V7M3 14h18v4M21 18v-4a3 3 0 0 0-3-3h-7v3"/><circle cx="7" cy="11" r="2"/>',
+ deOleo:'<path d="M4 9h10l3 3 4-2v2l-4 5H4z"/><path d="M6 9V7h4v2"/>',
+ deEstrada:'<path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'});
+
+/* ---------- 3. tipos, classificação e regras ---------- */
+const TIPOS=[['combustivel','Combustível','bomba',1],['arla','Arla 32','deGota',1],['alimentacao','Alimentação','deTalher'],['pedagio','Pedágio','dePedagio'],
+ ['hospedagem','Hospedagem','deCama'],['manutencao','Manutenção / borracharia','ferramenta'],['oleo','Troca de óleo','deOleo'],['outros','Outros','mais']].map(([k,l,i,c])=>({k,l,i,comb:!!c}));
+const TIPO=k=>TIPOS.find(t=>t.k===k)||{k,l:k||'Despesa',i:'recibo',comb:false};
+const DESTINOS={entregas:'Despesas com entregas',gerais:'Despesas pagas gerais'};
+/* o mesmo padrão do banco (seg.desp_mapa): o banco grava a categoria em cada lançamento do celular */
+const MAPA_PAD={combustivel:{destino:'entregas',categoria:'Combustível para entrega'},arla:{destino:'entregas',categoria:'Combustível para entrega'},
+ alimentacao:{destino:'gerais',categoria:'Alimentação'},pedagio:{destino:'gerais',categoria:''},hospedagem:{destino:'gerais',categoria:''},
+ manutencao:{destino:'gerais',categoria:'Manutenção'},oleo:{destino:'gerais',categoria:'Manutenção'},outros:{destino:'gerais',categoria:'Outras despesas'}};
+const REGRAS_PAD={exigirViagem:false,avulsaJustificativa:true,motoristaAbreViagem:true,ajustarData:true,fotoObrigatoria:false,pedirKm:true,diasAtras:7};
+const ORIGENS=[['adiantamento','Dinheiro do adiantamento da viagem'],['motorista','Dinheiro do motorista (reembolso)'],['empresa','Pago pela empresa (cartão, PIX ou faturado)']];
+const rotOrigem=k=>(ORIGENS.find(x=>x[0]===k)||[,'Não informado'])[1];
+const FORMAS_D=['Dinheiro','Cartão','PIX','Faturado','Outro'];
+const rotForma=k=>k==='Faturado'?'Faturado / conta da empresa':k||'Não informado';
+function CFGD(){const c=maisNovo((DATA[COLC]||[]).find(x=>x&&x.id==='cfg')||null,COLC+'/cfg')||{};
+ return{_rec:c.id?c:null,regras:{...REGRAS_PAD,...(c.regras&&typeof c.regras==='object'?c.regras:{})},mapa:c.mapa&&typeof c.mapa==='object'?c.mapa:{},
+  aprovadores:Array.isArray(c.aprovadores)?c.aprovadores:[],catAdiant:c.catAdiant||''}}
+const mapaDe=tipo=>{const m=CFGD().mapa[tipo];if(m&&typeof m==='object')return{destino:m.destino==='entregas'?'entregas':'gerais',categoria:String(m.categoria||'')};return MAPA_PAD[tipo]||{destino:'gerais',categoria:''}};
+const catsFin=()=>{try{return H&&H.fcfg?H.fcfg().categorias:[]}catch(e){return []}};
+const catExiste=c=>!!c&&catsFin().includes(c);
+/* a categoria de cada lançamento é a que ele recebeu; só quem não recebeu nenhuma usa o mapeamento de hoje */
+const catDe=d=>d.categoria?d.categoria:mapaDe(d.tipoDesp).categoria;
+const destinoDe=d=>d.destino||mapaDe(d.tipoDesp).destino;
+
+/* ---------- 4. utilidades ---------- */
+const r2=v=>Math.round((+v||0)*100)/100;
+const n0=x=>x===''||x==null||isNaN(+x)?0:+x;
+const eu=()=>APP.uid||'local',agora=()=>new Date().toISOString();
+const N=s=>semAcento(String(s==null?'':s)).toLowerCase().replace(/\s+/g,' ').trim();
+const quem=uid=>uid?(nomeUsuario(uid)||''):'';
+const msgE=e=>typeof msgFalhaSalvar==='function'?msgFalhaSalvar(e):(typeof msgErro==='function'?msgErro(e):String(e&&e.message||e));
+const pl=(n,s,p)=>fNum(n)+' '+(n===1?s:(p||s+'s'));
+const novoCod=pre=>{const a='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';const b=new Uint8Array(20);crypto.getRandomValues(b);return pre+[...b].map(x=>a[x%62]).join('')};
+const MOT=id=>{const r=maisNovo(DATA.deMot.find(m=>m.id===id)||null,COLC+'/'+id);return r&&r.tipo==='motorista'?r:null};
+const nomeMot=id=>{const m=MOT(id);return m?(m.nome||'Motorista'):(id?'(motorista não encontrado)':'—')};
+const DESP=id=>{const r=maisNovo(DATA.deLanc.find(x=>x.id===id)||null,COL+'/'+id);return r&&r.tipo==='desp'?r:null};
+const VIAG=id=>{const r=maisNovo(DATA.deViag.find(x=>x.id===id)||null,COL+'/'+id);return r&&r.tipo==='viagem'?r:null};
+async function gravarCad(n,at){await gravar(COLC,n,at);lembrar(COLC+'/'+n.id,n,at);return n}
+const frota=()=>{try{if(window.FROTA_V157)return FROTA_V157.frota()}catch(e){}return (DATA.locais||[]).filter(l=>l.setor==='combustivel'&&l.situacao!=='Inativo')};
+const LOC=id=>id&&typeof LOCAL==='function'?LOCAL(id):null;
+const placaDe=id=>{const l=LOC(id);return l?(l.identificacao||l.nome||''):''};
+const nomeVeic=id=>{const l=LOC(id);return l?[l.identificacao,l.nome].filter(Boolean).join(' · '):(id?'(veículo não encontrado)':'—')};
+const rotViag=v=>v?'Viagem nº '+(v.numero||'—')+(v.destino?' · '+v.destino:''):'Sem viagem';
+/* as listas das telas: o DATA, com o que esta tela acabou de gravar por cima (enquanto o banco não devolve) */
+const comUlt=(lista,pre,tipo)=>{if(!ULT.size)return lista;const vistos=new Set();const L=lista.map(d=>{vistos.add(d.id);return maisNovo(d,pre+d.id)||d});
+ ULT.forEach((u,k)=>{if(k.startsWith(pre)&&u.n.tipo===tipo&&!vistos.has(u.n.id))L.push(u.n)});return L};
+const LANCS=()=>comUlt(DATA.deLanc,COL+'/','desp'),VIAGS=()=>comUlt(DATA.deViag,COL+'/','viagem'),MOTS=()=>comUlt(DATA.deMot,COLC+'/','motorista');
+const vivoD=d=>d&&d.st!=='cancelado';
+const contaD=d=>d&&!['cancelado','rejeitado'].includes(d.st);      /* entra no custo (aguardando, correção e aprovado) */
+const ST_V={planejada:['Planejada','at'],andamento:['Em andamento','in'],concluida:['Concluída','ok'],cancelada:['Cancelada','']};
+const tagV=v=>tag((ST_V[v.st]||[v.st||'—'])[0],(ST_V[v.st]||[,''])[1]);
+const temFoto=d=>!!(d.foto&&d.foto.id);
+const proxNum=tipo=>Math.max(0,...(DATA[COL]||[]).filter(r=>r&&r.tipo===tipo).map(r=>+r.numero||0))+1;
+const ordD=(a,b)=>(String(b.data||'')+(b.hora||'')).localeCompare(String(a.data||'')+(a.hora||''))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||''));
+
+/* compromisso no Financeiro de cada lançamento (o mesmo código sempre: ft_<lançamento>) */
+const finIdDe=d=>(d.fin&&d.fin.id)||('ft_'+d.id);
+const titDe=id=>(DATA.fTitulos||[]).find(t=>t.id===id)||null;
+const obDe=id=>{try{return FS?FS.obrigacoes().find(o=>o.ref==='t:'+id)||null:null}catch(e){return null}};
+const vaiProFin=d=>d.st==='aprovado'&&d.origem!=='adiantamento';
+/* situação: calculada dos fatos (o lançamento guarda só a decisão; pago vem do Financeiro) */
+function situ(d){
+ if(d.st==='cancelado')return{k:'cancelado',t:'Cancelado',c:''};
+ if(d.st==='rejeitado')return{k:'rejeitado',t:'Rejeitado',c:'pe'};
+ if(d.st==='correcao')return{k:'correcao',t:'Correção pedida ao motorista',c:'br'};
+ if(d.st==='aprovado'){
+  if(d.origem==='adiantamento')return{k:'adiant',t:'Aprovado · no adiantamento',c:'ok'};
+  const id=finIdDe(d),tem=titDe(id),o=tem?obDe(id):null;
+  if(o){if(o.cancelado)return{k:'fincanc',t:'Aprovado · cancelado no Financeiro',c:'pe'};if(o.s.saldo<=0.004)return{k:'pago',t:'Pago',c:'ok'};if(o.s.pagoEf>0.004)return{k:'parcial',t:'Pago em parte',c:'br'};return{k:'fin',t:o.prog?'No Financeiro · agendado':'No Financeiro · a pagar',c:'in'}}
+  if(tem||(d.fin&&d.fin.id))return{k:'fin',t:'No Financeiro · a pagar',c:'in'};
+  if(d.finErro)return{k:'falha',t:'Aprovado · não foi ao Financeiro',c:'pe'};
+  if(!catExiste(catDe(d)))return{k:'semcat',t:'Aprovado · falta categoria',c:'at'};
+  return{k:'enviar',t:'Aprovado · enviar ao Financeiro',c:'at'};
+ }
+ return{k:'aguardando',t:'Aguardando conferência',c:'at'};
+}
+const tagS=d=>{const s=situ(d);return tag(s.t,s.c)};
+const pedidoAberto=d=>!!(d&&d.pedidoCorrecao&&d.pedidoCorrecao.st==='aberto');
+
+/* ---------- 5. gravação: o lançamento inteiro, com o histórico (antes e depois) ---------- */
+const ROT_CAMPOS={tipoDesp:'Tipo',valor:'Valor',data:'Data',hora:'Hora',motoristaId:'Motorista',veiculoId:'Caminhão',viagemId:'Viagem',local:'Local',descricao:'Descrição',
+ forma:'Forma de pagamento',origem:'De onde saiu o dinheiro',litros:'Litros',km:'Km',justificativa:'Motivo (sem viagem)',categoria:'Categoria',destino:'Destino financeiro',venc:'Pagar até',fornecedorId:'Fornecedor',st:'Situação'};
+const txtCampo=(k,v)=>v==null||v===''?'—':k==='valor'?fMoeda(v):k==='data'||k==='venc'?fData(v):k==='motoristaId'?nomeMot(v):k==='veiculoId'?nomeVeic(v):k==='viagemId'?rotViag(VIAG(v)):k==='tipoDesp'?TIPO(v).l:k==='origem'?rotOrigem(v):k==='fornecedorId'?(typeof FORN==='function'&&FORN(v)?nomeFornecedor(FORN(v)):v):String(v);
+async function salvarItem(d0,mud,acao,extra){
+ const at=(d0.tipo==='viagem'?VIAG(d0.id):DESP(d0.id))||d0;
+ const n={...clone(at),...mud,alteradoEm:agora(),alteradoPor:eu()};
+ if(acao)n.hist=[...(Array.isArray(at.hist)?at.hist:[]),{em:n.alteradoEm,por:eu(),acao,...(extra||{})}];
+ await gravar(COL,n,at);lembrar(COL+'/'+n.id,n,at);
+ try{await logV(COL,n.id,acao||'alterou',Object.keys(mud).filter(k=>ROT_CAMPOS[k]&&JSON.stringify(at[k])!==JSON.stringify(mud[k])).map(k=>({c:ROT_CAMPOS[k],de:txtCampo(k,at[k]),para:txtCampo(k,mud[k])})))}catch(e){}
+ return n}
+async function novoItem(rec,acao){
+ const n={...rec,numero:rec.numero||proxNum(rec.tipo),criadoEm:agora(),criadoPor:eu(),alteradoEm:agora(),alteradoPor:eu(),hist:[{em:agora(),por:eu(),acao}]};
+ await gravar(COL,n,null);lembrar(COL+'/'+n.id,n,null);try{await logV(COL,n.id,acao,[])}catch(e){}return n}
+
+/* ---------- 6. Financeiro: um compromisso por lançamento aprovado (sem cópia, sem duplicar) ---------- */
+const formaPrev=d=>{const F=window.FORMAS_F||(typeof FORMAS_V!=='undefined'?FORMAS_V:[]);const q=d.origem==='motorista'?'PIX':d.forma==='Faturado'?'Boleto':d.forma==='Cartão'?'Cartão de crédito':d.forma||'PIX';
+ return F.includes(q)?q:F.includes('PIX')?'PIX':(F[0]||'')};
+async function enviarFin(d0){
+ const d=DESP(d0.id)||d0;
+ if(!vaiProFin(d))return{ok:true,pulou:true};
+ const id=finIdDe(d),ja=titDe(id);
+ if(ja){if(!(d.fin&&d.fin.id))await salvarItem(d,{fin:{id,data:ja.data||d.data,em:agora(),por:eu(),numero:ja.numero||''},finErro:null},'ligou ao compromisso do Financeiro');return{ok:true,ja:true}}
+ const cat=catDe(d);if(!catExiste(cat))return{ok:false,motivo:'categoria',cat};
+ if(!H||!MODS.fTitulos)return{ok:false,motivo:'financeiro'};
+ const m=MOT(d.motoristaId)||{},v=d.viagemId?VIAG(d.viagemId):null,t=TIPO(d.tipoDesp);
+ const benef=d.origem==='motorista'?(m.nome||'Motorista'):(d.local||t.l);   /* reembolso: o motorista; conta da empresa: o estabelecimento */
+ const st={id,data:d.data,descricao:'Despesa de entrega nº '+(d.numero||'—')+' · '+t.l+(d.local?' · '+d.local:'')+(v?' · viagem nº '+(v.numero||'—'):'')+(d.veiculoId?' · '+placaDe(d.veiculoId):''),
+  categoria:cat,setorOrigem:'Setor de Combustível',moduloFin:destinoDe(d)==='entregas'?'comb':'gerais',
+  beneficiarioTipo:d.fornecedorId?'Fornecedor cadastrado':'Outro',...(d.fornecedorId?{fornecedorId:d.fornecedorId}:{beneficiario:benef}),
+  valor:r2(d.valor),vencimento:d.venc||hoje(),formaPrevista:formaPrev(d),docOrigemTipo:temFoto(d)?'Recibo':'Sem documento',docOrigemNum:'',
+  ...(temFoto(d)?{anexo:d.foto}:{}),motorista:m.nome||'',pagamentos:[],condicaoT:'A prazo',
+  obs:[d.origem==='motorista'?'Reembolso ao motorista '+(m.nome||''):d.origem==='empresa'?'Pago pela empresa ('+rotForma(d.forma)+')':'',d.descricao||'','Lançado nas Despesas de Entrega (Setor de Combustível) por '+(d.origemLanc==='motorista'?'motorista pelo celular':'escritório')+'.'].filter(Boolean).join(' · '),
+  despEntId:d.id,despEntNum:d.numero||'',despEntViagemId:d.viagemId||'',despEntMotoristaId:d.motoristaId||'',despEntVeiculoId:d.veiculoId||'',despEntOrigem:d.origem||'',despEntTipo:d.tipoDesp,
+  responsavelNome:typeof window.respPrincipalV48==='function'?window.respPrincipalV48('Óleo e combustível'):''};
+ try{await gravarRegistro('fTitulos',st,null,true)}
+ catch(e){try{await salvarItem(d,{finErro:{em:agora(),por:eu(),msg:msgE(e)}},'não foi ao Financeiro',{motivo:msgE(e)})}catch(x){}return{ok:false,motivo:'erro',erro:e}}
+ const t1=titDe(id)||st;
+ await salvarItem(DESP(d.id)||d,{fin:{id,data:st.data,em:agora(),por:eu(),numero:t1.numero||''},finErro:null},'enviou ao Financeiro',{motivo:'Compromisso '+(t1.numero?'nº '+t1.numero+' ':'')+'· '+cat+' · '+DESTINOS[destinoDe(d)]});
+ return{ok:true}}
+/* adiantamento e complemento do acerto: movimentação própria, a pagar ao motorista (não é despesa) */
+async function enviarFinViagem(v0,qual){
+ const v=VIAG(v0.id)||v0;const x=qual==='adiant'?v.adiant:(v.acerto||{}).complemento;if(!x||!(+x.valor>0))return{ok:true,pulou:true};
+ const id=(x.fin&&x.fin.id)||((qual==='adiant'?'fa_':'fc_')+v.id),ja=titDe(id);
+ const ligar=async t=>{const mud=qual==='adiant'?{adiant:{...v.adiant,fin:{id,data:t.data,em:agora(),por:eu(),numero:t.numero||''},finErro:null}}:{acerto:{...v.acerto,complemento:{...v.acerto.complemento,fin:{id,data:t.data,em:agora(),por:eu(),numero:t.numero||''},finErro:null}}};
+  await salvarItem(v,mud,qual==='adiant'?'enviou o adiantamento ao Financeiro':'enviou o complemento do acerto ao Financeiro')};
+ if(ja){if(!(x.fin&&x.fin.id))await ligar(ja);return{ok:true,ja:true}}
+ const cat=CFGD().catAdiant;if(!catExiste(cat))return{ok:false,motivo:'categoria',cat};
+ const m=MOT(v.motoristaId)||{};
+ const st={id,data:x.data||hoje(),descricao:(qual==='adiant'?'Adiantamento de viagem':'Complemento do acerto da viagem')+' nº '+(v.numero||'—')+(v.destino?' · '+v.destino:'')+' · '+(m.nome||'motorista'),
+  categoria:cat,setorOrigem:'Setor de Combustível',moduloFin:'outros',beneficiarioTipo:'Outro',beneficiario:m.nome||'Motorista',valor:r2(x.valor),vencimento:x.data||hoje(),
+  formaPrevista:(window.FORMAS_F||(typeof FORMAS_V!=='undefined'?FORMAS_V:[])).includes(x.forma)?x.forma:'PIX',docOrigemTipo:'Sem documento',pagamentos:[],condicaoT:'A prazo',
+  obs:(qual==='adiant'?'Adiantamento entregue ao motorista para a viagem (prestação de contas nas Despesas de Entrega). Não é despesa: as despesas são os lançamentos aprovados.':'Gasto acima do adiantamento, a reembolsar ao motorista (acerto da viagem).')+(x.obs?' · '+x.obs:''),
+  despEntAdiant:v.id,despEntViagemId:v.id,despEntMotoristaId:v.motoristaId||'',responsavelNome:typeof window.respPrincipalV48==='function'?window.respPrincipalV48('Óleo e combustível'):''};
+ try{await gravarRegistro('fTitulos',st,null,true)}
+ catch(e){const mud=qual==='adiant'?{adiant:{...v.adiant,finErro:{em:agora(),msg:msgE(e)}}}:{acerto:{...v.acerto,complemento:{...v.acerto.complemento,finErro:{em:agora(),msg:msgE(e)}}}};try{await salvarItem(v,mud,'não foi ao Financeiro',{motivo:msgE(e)})}catch(z){}return{ok:false,motivo:'erro',erro:e}}
+ await ligar(titDe(id)||st);return{ok:true}}
+const avisoFin=(r,o)=>{if(!r||r.ok)return;if(r.motivo==='categoria')toast((o||'Aprovado')+', mas não foi ao Financeiro: a categoria '+(r.cat?'"'+r.cat+'" ':'')+'não existe lá. O administrador configura em Despesas de entrega › Configurações.','erro');
+ else toast((o||'Aprovado')+', mas não foi ao Financeiro: '+msgE(r.erro||'')+'. Use "Enviar ao Financeiro" de novo (não duplica).','erro')};
+
+/* ---------- 7. adiantamento e acerto da viagem ---------- */
+function contasViagem(v){
+ const L=LANCS().filter(d=>d.viagemId===v.id&&vivoD(d));const cust=L.filter(contaD);
+ const aceitasAdt=L.filter(d=>d.st==='aprovado'&&d.origem==='adiantamento');
+ const recebido=r2(v.adiant&&+v.adiant.valor>0?v.adiant.valor:0),aceitas=r2(soma(aceitasAdt,d=>d.valor));
+ const porTipo={};cust.forEach(d=>{const k=d.tipoDesp;porTipo[k]=r2((porTipo[k]||0)+n0(d.valor))});
+ const comb=r2(soma(cust.filter(d=>TIPO(d.tipoDesp).comb),d=>d.valor));
+ return{L,cust,total:r2(soma(cust,d=>d.valor)),comb,outras:r2(soma(cust,d=>d.valor)-soma(cust.filter(d=>TIPO(d.tipoDesp).comb),d=>d.valor)),porTipo,
+  recebido,aceitas,saldo:r2(recebido-aceitas),pendentes:L.filter(d=>d.st==='aguardando'||d.st==='correcao'),reemb:r2(soma(L.filter(d=>d.st==='aprovado'&&d.origem==='motorista'),d=>d.valor)),
+  km:v.kmIni!=null&&v.kmFim!=null?n0(v.kmFim)-n0(v.kmIni):null}}
+
+/* ---------- 8. telas: pedaços comuns ---------- */
+const BTN=(cls,i,l,pri,extra)=>`<a href="javascript:void 0" class="btn${pri?' pri':''} ${cls}"${extra||''}>${ic(i)}${esc(l)}</a>`;
+function cabecalho(tit,txt,acoes){return `<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('frota')}</span><div><h1>${esc(tit)}</h1><p>${esc(txt)}</p></div></div><div class="acoes">${acoes||''}</div></div>`}
+const SUBS=[['#/despEnt','despEnt','Painel','painel'],['#/deLanc','deLanc','Lançamentos','livro'],['#/deViag','deViag','Viagens','deEstrada'],['#/deRel','deRel','Relatórios','grafico'],['#/deCfg','deCfg','Configurações','engrenagem']];
+const subAbas=at=>`<nav class="de-sub" aria-label="Despesas de entrega">${SUBS.filter(([,m])=>pode(m)).map(([r,m,l,i])=>`<a href="${r}" class="${m===at?'on':''}"${m===at?' aria-current="page"':''}>${ic(i)}<span>${esc(l)}</span></a>`).join('')}</nav>`;
+const optsMot=(todos)=>MOTS().filter(m=>todos||m.situacao!=='Inativo').slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')).map(m=>[m.id,(m.nome||'Motorista')+(m.situacao==='Inativo'?' (inativo)':'')]);
+const optsVeic=()=>frota().map(l=>[l.id,[l.identificacao,l.nome].filter(Boolean).join(' · ')+(l.tipo?' ('+l.tipo+')':'')]);
+const optsViag=(motId,inclId)=>VIAGS().filter(v=>(v.st==='andamento'||v.st==='planejada'||v.id===inclId)&&(!motId||v.motoristaId===motId)).sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(v=>[v.id,rotViag(v)+' · '+nomeMot(v.motoristaId)]);
+const campoH=(id,rot,inner,aj)=>H?H.campoM(id,rot,inner,aj):`<div class="cmp"><label for="${id}">${rot}</label>${inner}${aj?`<span class="ajuda">${aj}</span>`:''}</div>`;
+const optHx=(ops,sel)=>H?H.optH(ops,sel):ops.map(o=>{const[v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(l)}</option>`}).join('');
+const valMx=(v,id)=>{const x=v.querySelector('#'+id);return x?x.value:''};
+const modalX=(t,c,ok,fn,o)=>H?H.modalF(t,c,ok,fn,o):null;
+const pendCats=()=>{const c=CFGD(),out=[];TIPOS.forEach(t=>{const m=mapaDe(t.k);if(!m.categoria)out.push({t,motivo:'sem categoria'});else if(!catExiste(m.categoria))out.push({t,motivo:'a categoria "'+m.categoria+'" não existe no Financeiro'})});return out};
+
+/* ---------- 9. ações sobre o lançamento ---------- */
+async function aprovar(id,opc){
+ const d=DESP(id);if(!d)return;if(!ehAprovador()){toast('Só quem aprova as despesas de entrega pode aprovar.','erro');return}
+ if(!['aguardando','correcao'].includes(d.st)){toast('Este lançamento não está esperando conferência.','erro');return}
+ const cat=catDe(d),m=mapaDe(d.tipoDesp),v=d.viagemId?VIAG(d.viagemId):null,temAdt=!!(v&&v.adiant&&+v.adiant.valor>0);
+ const forn=(DATA.fornecedores||[]).slice().sort((a,b)=>nomeFornecedor(a).localeCompare(nomeFornecedor(b),'pt-BR')).map(f=>[f.id,nomeFornecedor(f)]);
+ const corpo=`<p class="ajuda" style="margin:0 0 10px">${esc(TIPO(d.tipoDesp).l)} · <b>${esc(fMoeda(d.valor))}</b> · ${esc(nomeMot(d.motoristaId))} · ${esc(fData(d.data))}${d.hora?' '+esc(d.hora):''}<br>${esc(v?rotViag(v):'Sem viagem'+(d.justificativa?' ('+d.justificativa+')':''))}${temFoto(d)?'':' · <b>sem foto do comprovante</b>'}</p>
+  <p class="ajuda" style="margin:0 0 10px">Classificação: <b>${esc(DESTINOS[destinoDe(d)])}</b> · categoria <b>${esc(cat||'(sem categoria)')}</b>${catExiste(cat)?'':' — <span style="color:var(--pe)">não existe no Financeiro: aprova, mas só vai para o Financeiro depois que o administrador configurar</span>'}.</p>
+  <div class="duas">${campoH('apO','De onde saiu o dinheiro?<i> *</i>',`<select id="apO"><option value="">Escolha…</option>${optHx(ORIGENS,d.origem||'')}</select>`,d.origem?'Informado pelo motorista: '+esc(rotOrigem(d.origem))+'.':'O motorista não informou. Confira antes de aprovar.')}
+  ${campoH('apV','Pagar até',`<input id="apV" type="date" value="${esc(d.venc||hoje())}">`,'Só para reembolso ou conta da empresa (vira o vencimento no Financeiro).')}</div>
+  <div id="apForn">${campoH('apF','Quem recebe (conta da empresa)',`<select id="apF"><option value="">${esc(d.local||'Estabelecimento informado')}</option>${optHx(forn,d.fornecedorId||'')}</select>`,'Faturado no posto ou na oficina: escolha o fornecedor cadastrado, se houver.')}</div>
+  <p class="ajuda" id="apAdt" style="margin:0 0 8px" hidden>${temAdt?'Entra na prestação de contas do adiantamento de '+esc(fMoeda(v.adiant.valor))+' desta viagem (não vira outra conta a pagar).':'<span style="color:var(--at)">Esta viagem ainda não tem adiantamento registrado.</span> A despesa entra na prestação de contas quando o adiantamento for registrado.'}</p>
+  ${campoH('apObs','Observação (opcional)','<input id="apObs" maxlength="300">')}`;
+ modalX('Aprovar despesa nº '+(d.numero||'—'),corpo,'Aprovar',async mv=>{
+  const origem=valMx(mv,'apO');if(!origem){toast('Diga de onde saiu o dinheiro.','erro');return false}
+  const at=DESP(id);if(!at||!['aguardando','correcao'].includes(at.st)){toast('O lançamento mudou: confira de novo.','erro');return false}
+  const mud={st:'aprovado',origem,aprov:{em:agora(),por:eu(),obs:valMx(mv,'apObs').trim()},categoria:at.categoria||m.categoria,destino:at.destino||m.destino,
+   venc:origem==='adiantamento'?null:(valMx(mv,'apV')||hoje()),fornecedorId:origem==='empresa'&&valMx(mv,'apF')?valMx(mv,'apF'):null};
+  if(pedidoAberto(at))mud.pedidoCorrecao={...at.pedidoCorrecao,st:'atendido',resolvidoEm:agora(),resolvidoPor:eu(),resposta:'Conferido e aprovado.'};
+  const n=await salvarItem(at,mud,'aprovou',{motivo:mud.aprov.obs||'',origem});
+  const r=await enviarFin(n);avisoFin(r,'Aprovado');
+  if(r.ok)toast('Despesa nº '+(n.numero||'')+' aprovada'+(r.pulou?' (prestação de contas do adiantamento).':' e enviada ao Financeiro.'),'ok');
+  if(opc&&opc.depois)opc.depois()},{depois:mv=>{const sel=$('#apO',mv);const f=()=>{const o=sel.value;$('#apForn',mv).hidden=o!=='empresa';$('#apAdt',mv).hidden=o!=='adiantamento';const vv=$('#apV',mv).closest('.cmp');if(vv)vv.hidden=o==='adiantamento'};sel.onchange=f;f()}});
+}
+function decidir(id,qual,opc){
+ const d=DESP(id);if(!d)return;if(!ehAprovador()){toast('Só quem aprova as despesas de entrega pode fazer isso.','erro');return}
+ const rej=qual==='rejeitar';
+ if(!['aguardando','correcao'].includes(d.st)&&!(rej&&d.st==='aprovado'&&!d.fin)){toast('Este lançamento não está esperando conferência.','erro');return}
+ modalX((rej?'Rejeitar':'Pedir correção da')+' despesa nº '+(d.numero||'—'),`<p class="ajuda" style="margin:0 0 10px">${esc(TIPO(d.tipoDesp).l)} · <b>${esc(fMoeda(d.valor))}</b> · ${esc(nomeMot(d.motoristaId))}. ${rej?'O motorista vê o motivo e pode pedir correção.':'O motorista vê o pedido no celular, corrige e o lançamento volta para a conferência.'}</p>
+  ${campoH('dcM','Motivo<i> *</i>','<textarea id="dcM" rows="3" maxlength="400"></textarea>',rej?'Ex.: comprovante de outra data; despesa não autorizada.':'Ex.: a foto está ilegível; o valor não confere com o cupom.')}`,rej?'Rejeitar':'Pedir correção',async mv=>{
+  const mot=valMx(mv,'dcM').trim();if(mot.length<4){toast('Escreva o motivo.','erro');return false}
+  const at=DESP(id);const mud={st:rej?'rejeitado':'correcao'};
+  if(pedidoAberto(at))mud.pedidoCorrecao={...at.pedidoCorrecao,st:'respondido',resolvidoEm:agora(),resolvidoPor:eu(),resposta:mot};
+  await salvarItem(at,mud,rej?'rejeitou':'pediu correção',{motivo:mot});
+  toast(rej?'Despesa rejeitada.':'Pedido de correção enviado ao motorista.','ok');if(opc&&opc.depois)opc.depois()},{perigo:rej});
+}
+function cancelar(id,opc){
+ const d=DESP(id);if(!d)return;if(!ehAprovador()){toast('Só quem aprova as despesas de entrega pode cancelar.','erro');return}
+ const t=d.fin&&d.fin.id?titDe(d.fin.id):titDe(finIdDe(d));const o=t?obDe(t.id):null;
+ if(o&&o.pagamentos.length){toast('Já há pagamento registrado no Financeiro para esta despesa: estorne lá primeiro.','erro');return}
+ modalX('Cancelar despesa nº '+(d.numero||'—'),`<p class="ajuda" style="margin:0 0 10px">O lançamento não é apagado: fica como cancelado, com o motivo e quem cancelou${t?', e o compromisso nº '+esc(t.numero||'')+' do Financeiro também é cancelado':''}.</p>${campoH('ccM','Motivo<i> *</i>','<input id="ccM" maxlength="300">')}`,'Cancelar lançamento',async mv=>{
+  const mot=valMx(mv,'ccM').trim();if(mot.length<4){toast('Escreva o motivo.','erro');return false}
+  if(t){const tt=titDe(t.id);if(tt&&!tt.cancelado){const n={...clone(tt),cancelado:{motivo:'Despesa de entrega nº '+(d.numero||'')+' cancelada: '+mot,em:agora(),por:eu()},alteradoEm:agora(),alteradoPor:eu()};await gravar('fTitulos',n,tt);try{await logV('fTitulos',tt.id,'cancelou',[{c:'Cancelado',de:'',para:mot}])}catch(e){}}}
+  await salvarItem(DESP(id),{st:'cancelado',cancel:{em:agora(),por:eu(),motivo:mot}},'cancelou',{motivo:mot});
+  toast('Lançamento cancelado.','ok');if(opc&&opc.depois)opc.depois()},{perigo:true});
+}
+/* correção feita por quem aprova: o antes e o depois ficam no histórico; o compromisso do Financeiro acompanha (se ainda não tem pagamento) */
+function corrigir(id,opc){
+ const d=DESP(id);if(!d)return;
+ const aprov=d.st==='aprovado';if(aprov&&!ehAprovador()){toast('Lançamento aprovado só é corrigido por quem aprova.','erro');return}
+ if(!podeE()){toast('Seu perfil não corrige lançamentos.','erro');return}
+ if(['cancelado'].includes(d.st)){toast('Lançamento cancelado não é corrigido.','erro');return}
+ const t=aprov?titDe(finIdDe(d)):null,o=t?obDe(t.id):null;if(o&&o.pagamentos.length){toast('Já há pagamento no Financeiro para esta despesa: corrija lá (ou estorne) primeiro.','erro');return}
+ const corpo=`<div class="duas">${campoH('crT','Tipo',`<select id="crT">${optHx(TIPOS.map(x=>[x.k,x.l]),d.tipoDesp)}</select>`)}${campoH('crV','Valor<i> *</i>',`<input id="crV" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(d.valor))}">`)}
+  ${campoH('crD','Data',`<input id="crD" type="date" max="${hoje()}" value="${esc(d.data)}">`)}${campoH('crH','Hora',`<input id="crH" type="time" value="${esc(d.hora||'')}">`)}
+  ${campoH('crVe','Caminhão',`<select id="crVe"><option value="">—</option>${optHx(optsVeic(),d.veiculoId||'')}</select>`)}${campoH('crVi','Viagem',`<select id="crVi"><option value="">Sem viagem</option>${optHx(optsViag(d.motoristaId,d.viagemId),d.viagemId||'')}</select>`)}
+  ${campoH('crL','Local',`<input id="crL" maxlength="120" value="${esc(d.local||'')}">`)}${campoH('crLi','Litros',`<input id="crLi" inputmode="decimal" value="${esc(d.litros!=null?String(d.litros).replace('.',','):'')}">`)}
+  ${campoH('crFo','Forma de pagamento',`<select id="crFo"><option value="">Não informado</option>${optHx(FORMAS_D.map(f=>[f,rotForma(f)]),d.forma||'')}</select>`)}${campoH('crOr','De onde saiu o dinheiro',`<select id="crOr"><option value="">Não informado</option>${optHx(ORIGENS,d.origem||'')}</select>`)}</div>
+  ${campoH('crDs','Descrição',`<input id="crDs" maxlength="300" value="${esc(d.descricao||'')}">`)}
+  ${campoH('crM','Motivo da correção<i> *</i>','<input id="crM" maxlength="300">','Fica no histórico, com o que era antes.')}`;
+ modalX('Corrigir despesa nº '+(d.numero||'—'),corpo,'Salvar correção',async mv=>{
+  const at=DESP(id);const val=r2(lerMoeda(valMx(mv,'crV')));if(!(val>0)){toast('Informe o valor (maior que zero).','erro');return false}
+  const mot=valMx(mv,'crM').trim();if(mot.length<4){toast('Escreva o motivo da correção.','erro');return false}
+  const data=valMx(mv,'crD');if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  const tipo=valMx(mv,'crT');const li=lerMoeda(valMx(mv,'crLi'));
+  const nov={tipoDesp:tipo,valor:val,data,hora:valMx(mv,'crH'),veiculoId:valMx(mv,'crVe')||null,viagemId:valMx(mv,'crVi')||null,local:valMx(mv,'crL').trim()||null,
+   litros:TIPO(tipo).comb&&li>0?li:null,forma:valMx(mv,'crFo')||null,origem:valMx(mv,'crOr')||null,descricao:valMx(mv,'crDs').trim()||null};
+  if(nov.viagemId){const vg=VIAG(nov.viagemId);if(vg&&vg.veiculoId&&!nov.veiculoId)nov.veiculoId=vg.veiculoId}
+  nov.avulsa=!nov.viagemId;
+  if(tipo!==at.tipoDesp){const m=mapaDe(tipo);nov.categoria=m.categoria;nov.destino=m.destino}   /* tipo novo: a classificação do tipo novo (a antiga fica no histórico) */
+  if(aprov&&nov.origem!==at.origem&&(at.origem==='adiantamento'||nov.origem==='adiantamento')&&t){toast('Esta despesa já está no Financeiro como conta a pagar: para passar a "adiantamento", cancele e lance de novo.','erro');return false}
+  const antes={};Object.keys(nov).forEach(k=>{if(JSON.stringify(at[k]==null?null:at[k])!==JSON.stringify(nov[k]))antes[k]=at[k]==null?null:at[k]});
+  if(!Object.keys(antes).length){toast('Nada mudou.','erro');return false}
+  const n=await salvarItem(at,nov,'corrigiu',{motivo:mot,antes});
+  /* o compromisso do Financeiro acompanha a correção (valor, data, categoria e descrição) */
+  if(t){const tt=titDe(t.id);if(tt){const nt={...clone(tt),valor:n.valor,data:n.data,categoria:catDe(n),moduloFin:destinoDe(n)==='entregas'?'comb':'gerais',
+    descricao:'Despesa de entrega nº '+(n.numero||'—')+' · '+TIPO(n.tipoDesp).l+(n.local?' · '+n.local:'')+(n.viagemId&&VIAG(n.viagemId)?' · viagem nº '+(VIAG(n.viagemId).numero||'—'):'')+(n.veiculoId?' · '+placaDe(n.veiculoId):''),alteradoEm:agora(),alteradoPor:eu()};
+   if(!catExiste(nt.categoria)){toast('Corrigido aqui, mas o Financeiro não foi atualizado: a categoria "'+nt.categoria+'" não existe lá.','erro')}
+   else{await gravarRegistro('fTitulos',nt,tt,false);await salvarItem(DESP(id),{fin:{...(n.fin||{}),id:tt.id,data:nt.data}},'atualizou o compromisso do Financeiro',{motivo:'Valor '+fMoeda(nt.valor)+' · '+nt.categoria})}}}
+  else if(aprov&&vaiProFin(n)){const r=await enviarFin(n);avisoFin(r,'Corrigido')}
+  toast('Correção salva (o que era antes ficou no histórico).','ok');if(opc&&opc.depois)opc.depois()});
+}
+function responderPedido(id,opc){
+ const d=DESP(id);if(!d||!pedidoAberto(d))return;if(!ehAprovador()){toast('Só quem aprova responde o pedido de correção.','erro');return}
+ modalX('Pedido de correção do motorista',`<p class="ajuda" style="margin:0 0 10px">Despesa nº ${esc(d.numero||'—')} · ${esc(TIPO(d.tipoDesp).l)} · ${esc(fMoeda(d.valor))}<br>O motorista pediu: <b>${esc(d.pedidoCorrecao.texto||'')}</b></p>
+  <p class="ajuda" style="margin:0 0 10px">Para atender, use <b>Corrigir</b> (o antes e o depois ficam no histórico) e depois marque como atendido. Para não atender, explique o motivo.</p>${campoH('rpR','Resposta ao motorista<i> *</i>','<input id="rpR" maxlength="300">')}
+  ${campoH('rpS','O pedido foi…',`<select id="rpS"><option value="atendido">atendido (já corrigi)</option><option value="recusado">não atendido</option></select>`)}`,'Responder',async mv=>{
+  const r=valMx(mv,'rpR').trim();if(r.length<3){toast('Escreva a resposta.','erro');return false}
+  const at=DESP(id);await salvarItem(at,{pedidoCorrecao:{...at.pedidoCorrecao,st:valMx(mv,'rpS'),resolvidoEm:agora(),resolvidoPor:eu(),resposta:r}},'respondeu o pedido de correção',{motivo:r});
+  toast('Resposta registrada.','ok');if(opc&&opc.depois)opc.depois()});
+}
+async function reenviar(id,opc){const d=DESP(id);if(!d)return;if(!podeE()){toast('Seu perfil não envia ao Financeiro.','erro');return}
+ const r=await enviarFin(d);if(r.ok)toast(r.ja?'O compromisso já estava no Financeiro: lançamento ligado a ele (nada foi duplicado).':'Enviado ao Financeiro.','ok');else avisoFin(r,'Aprovado');if(opc&&opc.depois)opc.depois()}
+
+/* ---------- 10. lançamento pelo escritório (comprovante que chegou na mão) ---------- */
+function lancarEscritorio(pre){
+ if(!podeE()){toast('Seu perfil não lança despesas.','erro');return}
+ if(!MOTS().some(m=>m.situacao!=='Inativo')){toast('Cadastre o motorista primeiro (Configurações › Motoristas).','erro');return}
+ pre=pre||{};const v0=pre.viagemId?VIAG(pre.viagemId):null;
+ const corpo=`<div class="duas">${campoH('leM','Motorista<i> *</i>',`<select id="leM"><option value="">Escolha…</option>${optHx(optsMot(),pre.motoristaId||(v0&&v0.motoristaId)||'')}</select>`)}
+  ${campoH('leT','Tipo<i> *</i>',`<select id="leT">${optHx(TIPOS.map(x=>[x.k,x.l]),pre.tipoDesp||'combustivel')}</select>`)}
+  ${campoH('leV','Valor<i> *</i>','<input id="leV" data-masc="moeda" inputmode="decimal">')}${campoH('leLi','Litros (combustível e Arla)','<input id="leLi" inputmode="decimal">')}
+  ${campoH('leD','Data<i> *</i>',`<input id="leD" type="date" max="${hoje()}" value="${hoje()}">`)}${campoH('leH','Hora','<input id="leH" type="time">')}
+  ${campoH('leVi','Viagem',`<select id="leVi"><option value="">Sem viagem</option>${optHx(optsViag('',pre.viagemId),pre.viagemId||'')}</select>`)}${campoH('leVe','Caminhão',`<select id="leVe"><option value="">—</option>${optHx(optsVeic(),(v0&&v0.veiculoId)||'')}</select>`)}
+  ${campoH('leFo','Forma de pagamento',`<select id="leFo"><option value="">Não informado</option>${optHx(FORMAS_D.map(f=>[f,rotForma(f)]),'')}</select>`)}${campoH('leOr','De onde saiu o dinheiro',`<select id="leOr"><option value="">Não informado</option>${optHx(ORIGENS,'')}</select>`)}</div>
+  ${campoH('leL','Local ou estabelecimento','<input id="leL" maxlength="120">')}${campoH('leJ','Motivo (despesa sem viagem)','<input id="leJ" maxlength="300">')}
+  ${campoH('leDs','Descrição ou observação','<input id="leDs" maxlength="300">')}
+  ${campoH('leA','Foto ou arquivo do comprovante',APP.assets?'<input id="leA" type="file" accept="image/*,application/pdf">':'<span class="ajuda">Nesta sessão não dá para enviar arquivo.</span>')}`;
+ modalX('Lançar despesa de entrega (escritório)',corpo,'Lançar',async mv=>{
+  const mot=valMx(mv,'leM'),tipo=valMx(mv,'leT'),val=r2(lerMoeda(valMx(mv,'leV'))),data=valMx(mv,'leD'),vi=valMx(mv,'leVi');
+  if(!mot){toast('Escolha o motorista.','erro');return false}if(!(val>0)){toast('Informe o valor (maior que zero).','erro');return false}
+  if(!data||data>hoje()){toast('Informe uma data até hoje.','erro');return false}
+  const reg=CFGD().regras;if(!vi&&reg.exigirViagem){toast('Escolha a viagem (regra das Configurações).','erro');return false}
+  if(!vi&&reg.avulsaJustificativa&&valMx(mv,'leJ').trim().length<5){toast('Despesa sem viagem: escreva o motivo.','erro');return false}
+  if(vi){const vg=VIAG(vi);if(vg&&vg.motoristaId!==mot){toast('Esta viagem é de outro motorista.','erro');return false}}
+  let foto=null;try{const f=$('#leA',mv)&&$('#leA',mv).files[0];if(f){toast('Enviando o comprovante…');foto=await H.subirComprovante(f)}}catch(e){toast(e&&e.code==='grande'?'Arquivo maior que 20 MB.':'Não foi possível enviar o comprovante. Nada foi gravado.','erro');return false}
+  if(!foto&&reg.fotoObrigatoria){toast('Anexe o comprovante (regra das Configurações).','erro');return false}
+  const vg=vi?VIAG(vi):null,m=mapaDe(tipo),li=lerMoeda(valMx(mv,'leLi'));
+  const rec={id:novoCod('de_'),tipo:'desp',tipoDesp:tipo,valor:val,data,hora:valMx(mv,'leH')||'',motoristaId:mot,veiculoId:valMx(mv,'leVe')||(vg&&vg.veiculoId)||'',viagemId:vi||'',avulsa:!vi,
+   justificativa:vi?'':valMx(mv,'leJ').trim(),local:valMx(mv,'leL').trim(),descricao:valMx(mv,'leDs').trim(),forma:valMx(mv,'leFo'),origem:valMx(mv,'leOr'),
+   ...(TIPO(tipo).comb&&li>0?{litros:li}:{}),...(foto?{foto}:{}),destino:m.destino,categoria:m.categoria,st:'aguardando',origemLanc:'escritorio'};
+  Object.keys(rec).forEach(k=>{if(rec[k]===''&&!['hora','veiculoId','viagemId'].includes(k))delete rec[k]});
+  const n=await novoItem(rec,'lançou no escritório');
+  toast('Despesa nº '+(n.numero||'')+' lançada: aguardando conferência.','ok');if(pre.depois)pre.depois()});
+}
+
+/* ---------- 11. viagens ---------- */
+function editarViagem(id,pre){
+ if(!podeE()){toast('Seu perfil não cadastra viagens.','erro');return}
+ const v=id?VIAG(id):null;pre=pre||{};
+ if(!MOTS().some(m=>m.situacao!=='Inativo')){toast('Cadastre o motorista primeiro (Configurações › Motoristas).','erro');return}
+ const corpo=`<div class="duas">${campoH('vgM','Motorista<i> *</i>',`<select id="vgM"><option value="">Escolha…</option>${optHx(optsMot(!!v),(v&&v.motoristaId)||pre.motoristaId||'')}</select>`)}
+  ${campoH('vgVe','Caminhão',`<select id="vgVe"><option value="">—</option>${optHx(optsVeic(),(v&&v.veiculoId)||'')}</select>`)}
+  ${campoH('vgD','Data da saída<i> *</i>',`<input id="vgD" type="date" value="${esc((v&&v.data)||hoje())}">`)}${campoH('vgH','Hora',`<input id="vgH" type="time" value="${esc((v&&v.hora)||'')}">`)}
+  ${campoH('vgDe','Destino<i> *</i>',`<input id="vgDe" maxlength="120" value="${esc((v&&v.destino)||'')}">`)}${campoH('vgC','Cliente ou entrega',`<input id="vgC" maxlength="120" value="${esc((v&&v.cliente)||'')}">`)}
+  ${campoH('vgKi','Km na saída',`<input id="vgKi" inputmode="numeric" value="${esc(v&&v.kmIni!=null?v.kmIni:'')}">`)}${campoH('vgKf','Km na chegada',`<input id="vgKf" inputmode="numeric" value="${esc(v&&v.kmFim!=null?v.kmFim:'')}">`)}</div>
+  ${campoH('vgO','Observação',`<input id="vgO" maxlength="300" value="${esc((v&&v.obs)||'')}">`)}
+  ${v?'':`<p class="ajuda" style="margin:0">A viagem fica <b>planejada</b>: aparece no celular do motorista para ele começar. Também dá para começar por aqui.</p>`}`;
+ modalX(v?'Viagem nº '+(v.numero||'—'):'Nova viagem',corpo,v?'Salvar':'Criar viagem',async mv=>{
+  const mot=valMx(mv,'vgM'),dest=valMx(mv,'vgDe').trim(),data=valMx(mv,'vgD');
+  if(!mot){toast('Escolha o motorista.','erro');return false}if(dest.length<2){toast('Informe o destino.','erro');return false}if(!data){toast('Informe a data.','erro');return false}
+  const ki=valMx(mv,'vgKi').trim(),kf=valMx(mv,'vgKf').trim();const kin=ki===''?null:Math.round(+ki),kfn=kf===''?null:Math.round(+kf);
+  if((ki!==''&&!(kin>=0))||(kf!==''&&!(kfn>=0))){toast('Confira o km (só números).','erro');return false}
+  if(kin!=null&&kfn!=null&&kfn<kin){toast('O km da chegada é menor que o da saída.','erro');return false}
+  if(v&&v.motoristaId!==mot&&LANCS().some(d=>d.viagemId===v.id&&vivoD(d))){toast('Esta viagem já tem despesas do motorista '+nomeMot(v.motoristaId)+': não troque o motorista (crie outra viagem).','erro');return false}
+  const dados={motoristaId:mot,veiculoId:valMx(mv,'vgVe')||null,data,hora:valMx(mv,'vgH')||'',destino:dest,cliente:valMx(mv,'vgC').trim()||null,kmIni:kin,kmFim:kfn,obs:valMx(mv,'vgO').trim()||null};
+  if(v){await salvarItem(v,dados,'alterou a viagem');toast('Viagem salva.','ok')}
+  else{const n=await novoItem({id:novoCod('vg_'),tipo:'viagem',st:'planejada',origemLanc:'escritorio',...Object.fromEntries(Object.entries(dados).filter(([,x])=>x!=null&&x!==''))},'criou a viagem no escritório');toast('Viagem nº '+(n.numero||'')+' criada (planejada).','ok');if(pre.depois)return pre.depois(n)}
+  if(pre.depois)pre.depois()});
+}
+async function mudarViagem(id,acao,opc){
+ const v=VIAG(id);if(!v)return;if(!podeE()){toast('Seu perfil não altera viagens.','erro');return}
+ if(acao==='iniciar'){if(v.st!=='planejada')return;const outra=VIAGS().find(x=>x.id!==v.id&&x.motoristaId===v.motoristaId&&x.st==='andamento');
+  if(outra){toast('O motorista já tem a viagem nº '+(outra.numero||'')+' em andamento. Conclua aquela primeiro.','erro');return}
+  await salvarItem(v,{st:'andamento',inicioEm:agora()},'começou a viagem (escritório)');toast('Viagem em andamento.','ok')}
+ else if(acao==='concluir'){if(v.st!=='andamento'&&v.st!=='planejada')return;
+  modalX('Concluir a viagem nº '+(v.numero||'—'),`${campoH('cvK','Km na chegada',`<input id="cvK" inputmode="numeric" value="${esc(v.kmFim!=null?v.kmFim:'')}">`,v.kmIni!=null?'Na saída: '+fNum(v.kmIni,0)+' km':'')}`,'Concluir',async mv=>{
+   const k=valMx(mv,'cvK').trim();const kn=k===''?null:Math.round(+k);if(k!==''&&!(kn>=0)){toast('Confira o km.','erro');return false}
+   if(kn!=null&&v.kmIni!=null&&kn<+v.kmIni){toast('O km da chegada é menor que o da saída.','erro');return false}
+   await salvarItem(VIAG(id),{st:'concluida',fimEm:agora(),...(kn!=null?{kmFim:kn}:{})},'concluiu a viagem (escritório)');toast('Viagem concluída.','ok');if(opc&&opc.depois)opc.depois()});return}
+ else if(acao==='cancelar'){const c=contasViagem(v);if(c.L.length){toast('A viagem tem '+pl(c.L.length,'despesa')+' lançada(s): cancele ou mude as despesas de viagem antes.','erro');return}
+  if(v.adiant&&+v.adiant.valor>0){toast('A viagem tem adiantamento registrado: não pode ser cancelada.','erro');return}
+  modalX('Cancelar a viagem nº '+(v.numero||'—'),campoH('cvM','Motivo<i> *</i>','<input id="cvM" maxlength="300">'),'Cancelar viagem',async mv=>{const m=valMx(mv,'cvM').trim();if(m.length<4){toast('Escreva o motivo.','erro');return false}
+   await salvarItem(VIAG(id),{st:'cancelada',cancel:{em:agora(),por:eu(),motivo:m}},'cancelou a viagem',{motivo:m});toast('Viagem cancelada.','ok');if(opc&&opc.depois)opc.depois()},{perigo:true});return}
+ else if(acao==='reabrir'){if(v.st!=='concluida')return;if(v.acerto&&v.acerto.em){toast('O acerto desta viagem já foi feito: desfaça o acerto antes.','erro');return}
+  await salvarItem(v,{st:'andamento',fimEm:null},'reabriu a viagem');toast('Viagem reaberta.','ok')}
+ if(opc&&opc.depois)opc.depois()}
+function registrarAdiant(id,opc){
+ const v=VIAG(id);if(!v)return;if(!ehAprovador()){toast('Só quem aprova as despesas de entrega registra o adiantamento.','erro');return}
+ const a=v.adiant||{};if(a.fin&&a.fin.id){const o=obDe(a.fin.id);if(o&&o.pagamentos.length){toast('O adiantamento já foi pago no Financeiro: para mudar, estorne lá primeiro.','erro');return}}
+ const cat=CFGD().catAdiant;
+ modalX((a.valor?'Mudar o':'Registrar')+' adiantamento · viagem nº '+(v.numero||'—'),`<p class="ajuda" style="margin:0 0 10px">${esc(nomeMot(v.motoristaId))} · ${esc(v.destino||'')}. O adiantamento é dinheiro entregue ao motorista antes da viagem: vira um compromisso a pagar ao motorista no Financeiro (categoria "${esc(cat||'não configurada')}"), nunca uma despesa. As despesas pagas com ele entram na prestação de contas.</p>
+  ${catExiste(cat)?'':'<div class="aviso at" style="margin:0 0 10px">A categoria do adiantamento não está configurada (Configurações › Classificação financeira): fica registrado aqui e vai ao Financeiro quando o administrador configurar.</div>'}
+  <div class="duas">${campoH('adV','Valor<i> *</i>',`<input id="adV" data-masc="moeda" inputmode="decimal" value="${esc(a.valor?fMoedaCampo(a.valor):'')}">`)}${campoH('adD','Data<i> *</i>',`<input id="adD" type="date" value="${esc(a.data||hoje())}">`)}
+  ${campoH('adF','Forma',`<select id="adF">${optHx((window.FORMAS_F||(typeof FORMAS_V!=='undefined'?FORMAS_V:['PIX','Dinheiro'])),a.forma||'PIX')}</select>`)}</div>${campoH('adO','Observação',`<input id="adO" maxlength="300" value="${esc(a.obs||'')}">`)}`,'Salvar adiantamento',async mv=>{
+  const val=r2(lerMoeda(valMx(mv,'adV'))),data=valMx(mv,'adD');if(!(val>0)){toast('Informe o valor.','erro');return false}if(!data){toast('Informe a data.','erro');return false}
+  const at=VIAG(id);const ad={...(at.adiant||{}),valor:val,data,forma:valMx(mv,'adF'),obs:valMx(mv,'adO').trim(),em:(at.adiant&&at.adiant.em)||agora(),por:(at.adiant&&at.adiant.por)||eu()};
+  let n=await salvarItem(at,{adiant:ad},a.valor?'mudou o adiantamento':'registrou o adiantamento',{motivo:fMoeda(val)+' em '+fData(data)});
+  /* compromisso já no Financeiro (sem pagamento): acompanha o valor e a data */
+  if(ad.fin&&ad.fin.id){const tt=titDe(ad.fin.id);if(tt){await gravarRegistro('fTitulos',{...clone(tt),valor:val,data,vencimento:data,alteradoEm:agora(),alteradoPor:eu()},tt,false)}}
+  else{const r=await enviarFinViagem(n,'adiant');if(!r.ok&&r.motivo!=='categoria')avisoFin(r,'Adiantamento registrado')}
+  toast('Adiantamento de '+fMoeda(val)+' registrado.','ok');if(opc&&opc.depois)opc.depois()});
+}
+function fazerAcerto(id,opc){
+ const v=VIAG(id);if(!v)return;if(!ehAprovador()){toast('Só quem aprova as despesas de entrega faz o acerto.','erro');return}
+ const c=contasViagem(v);
+ if(c.pendentes.length){toast('Há '+pl(c.pendentes.length,'despesa')+' desta viagem esperando conferência: confira antes do acerto.','erro');return}
+ if(!(c.recebido>0)){toast('Esta viagem não tem adiantamento: as despesas pagas pelo motorista já viram reembolso no Financeiro.','erro');return}
+ const dev=c.saldo>0.004,comp=c.saldo<-0.004;
+ modalX('Acerto da viagem nº '+(v.numero||'—'),`<div class="de-acerto" style="padding:0;margin:0 0 12px"><div><span>Adiantamento recebido</span><b>${esc(fMoeda(c.recebido))}</b></div><div><span>Despesas aceitas</span><b>${esc(fMoeda(c.aceitas))}</b></div>
+  <div><span>${dev?'Saldo a devolver':comp?'A reembolsar ao motorista':'Saldo'}</span><b>${esc(fMoeda(Math.abs(c.saldo)))}</b></div></div>
+  <p class="ajuda" style="margin:0 0 10px">Despesas aceitas = as aprovadas desta viagem pagas com o adiantamento. ${comp?'O que passou do adiantamento vira um compromisso a pagar ao motorista no Financeiro (complemento).':dev?'Registre a devolução do saldo pelo motorista.':'O adiantamento fechou certinho.'}</p>
+  ${dev?`<div class="duas">${campoH('acV','Valor devolvido',`<input id="acV" data-masc="moeda" inputmode="decimal" value="${esc(fMoedaCampo(c.saldo))}">`)}${campoH('acD','Data da devolução',`<input id="acD" type="date" value="${hoje()}">`)}
+   ${campoH('acF','Forma',`<select id="acF">${optHx(['Dinheiro','PIX','Desconto na próxima viagem','Outro'],'Dinheiro')}</select>`)}</div>`:''}
+  ${campoH('acO','Observação','<input id="acO" maxlength="300">')}`,'Fechar o acerto',async mv=>{
+  const at=VIAG(id),c2=contasViagem(at);if(Math.abs(c2.saldo-c.saldo)>0.004){toast('As despesas mudaram: abra o acerto de novo.','erro');return false}
+  const ac={em:agora(),por:eu(),recebido:c2.recebido,aceitas:c2.aceitas,saldo:c2.saldo,obs:valMx(mv,'acO').trim()};
+  if(dev){const dv=r2(lerMoeda(valMx(mv,'acV')));if(!(dv>=0)){toast('Informe o valor devolvido (pode ser 0).','erro');return false}ac.devolucao={valor:dv,data:valMx(mv,'acD')||hoje(),forma:valMx(mv,'acF')};if(Math.abs(dv-c2.saldo)>0.004)ac.diferenca=r2(c2.saldo-dv)}
+  if(comp)ac.complemento={valor:r2(-c2.saldo),data:hoje()};
+  let n=await salvarItem(at,{acerto:ac,...(at.st==='andamento'?{st:'concluida',fimEm:agora()}:{})},'fez o acerto da viagem',{motivo:'Recebido '+fMoeda(c2.recebido)+' · aceitas '+fMoeda(c2.aceitas)+' · '+(dev?'devolveu '+fMoeda(ac.devolucao.valor):comp?'a reembolsar '+fMoeda(ac.complemento.valor):'sem saldo')});
+  if(comp){const r=await enviarFinViagem(n,'comp');if(!r.ok)avisoFin(r,'Acerto feito')}
+  toast('Acerto da viagem nº '+(at.numero||'')+' feito.','ok');if(opc&&opc.depois)opc.depois()});
+}
+async function desfazerAcerto(id,opc){const v=VIAG(id);if(!v||!v.acerto||!v.acerto.em)return;if(!ehAprovador()){toast('Só quem aprova desfaz o acerto.','erro');return}
+ const cp=v.acerto.complemento;if(cp&&cp.fin&&cp.fin.id){const o=obDe(cp.fin.id);if(o&&o.pagamentos.length){toast('O complemento já foi pago no Financeiro: estorne lá primeiro.','erro');return}}
+ if(!await confirmar('Desfazer o acerto?','O acerto fica no histórico da viagem'+(cp&&cp.fin?' e o compromisso do complemento é cancelado no Financeiro':'')+'.',{ok:'Desfazer',perigo:true}))return;
+ if(cp&&cp.fin&&cp.fin.id){const tt=titDe(cp.fin.id);if(tt&&!tt.cancelado)await gravar('fTitulos',{...clone(tt),cancelado:{motivo:'Acerto da viagem nº '+(v.numero||'')+' desfeito',em:agora(),por:eu()},alteradoEm:agora(),alteradoPor:eu()},tt)}
+ await salvarItem(v,{acerto:{...v.acerto,em:null,desfeitoEm:agora(),desfeitoPor:eu()}},'desfez o acerto da viagem');toast('Acerto desfeito.','ok');if(opc&&opc.depois)opc.depois()}
+
+/* ---------- 12. filtros e listas ---------- */
+const UI={de:'',ate:'',mot:'',veic:'',viag:'',tipo:'',st:'',dest:'',q:'',vst:'',vmot:''};
+const mesIni=()=>hoje().slice(0,8)+'01';
+function filtrar(L){const q=N(UI.q).split(/\s+/).filter(Boolean);const de=UI.de||'',ate=UI.ate||'';
+ return L.filter(d=>(!de||String(d.data)>=de)&&(!ate||String(d.data)<=ate)&&(!UI.mot||d.motoristaId===UI.mot)&&(!UI.veic||d.veiculoId===UI.veic)&&(!UI.viag||(UI.viag==='_sem'?!d.viagemId:d.viagemId===UI.viag))
+  &&(!UI.tipo||(UI.tipo==='_comb'?TIPO(d.tipoDesp).comb:UI.tipo==='_outras'?!TIPO(d.tipoDesp).comb:d.tipoDesp===UI.tipo))&&(!UI.dest||destinoDe(d)===UI.dest)
+  &&(!UI.st||(UI.st==='_semfoto'?!temFoto(d)&&vivoD(d):UI.st==='_pedido'?pedidoAberto(d):UI.st==='_fin'?['fin','parcial','pago'].includes(situ(d).k):UI.st==='_pend'?['falha','semcat','enviar'].includes(situ(d).k):situ(d).k===UI.st||d.st===UI.st))
+  &&(!q.length||q.every(x=>N([d.numero,TIPO(d.tipoDesp).l,d.local,d.descricao,nomeMot(d.motoristaId),placaDe(d.veiculoId),d.viagemId&&VIAG(d.viagemId)?rotViag(VIAG(d.viagemId)):''].join(' ')).includes(x))))}
+const filtrosHTML=()=>`<div class="de-filtros" data-def>
+ <label>De<input type="date" data-f="de" value="${esc(UI.de)}"></label><label>Até<input type="date" data-f="ate" value="${esc(UI.ate)}"></label>
+ <label>Motorista<select data-f="mot"><option value="">Todos</option>${optHx(optsMot(true),UI.mot)}</select></label>
+ <label>Caminhão / placa<select data-f="veic"><option value="">Todos</option>${optHx(optsVeic(),UI.veic)}</select></label>
+ <label>Viagem<select data-f="viag"><option value="">Todas</option><option value="_sem"${UI.viag==='_sem'?' selected':''}>Sem viagem (avulsas)</option>${optHx(VIAGS().slice().sort((a,b)=>(+b.numero||0)-(+a.numero||0)).map(v=>[v.id,rotViag(v)]),UI.viag)}</select></label>
+ <label>Tipo<select data-f="tipo"><option value="">Todos</option><option value="_comb"${UI.tipo==='_comb'?' selected':''}>Só combustível e Arla</option><option value="_outras"${UI.tipo==='_outras'?' selected':''}>Só as outras</option>${optHx(TIPOS.map(t=>[t.k,t.l]),UI.tipo)}</select></label>
+ <label>Situação<select data-f="st"><option value="">Todas</option>${optHx([['aguardando','Aguardando conferência'],['correcao','Correção pedida'],['_pedido','Motorista pediu correção'],['aprovado','Aprovados'],['_fin','No Financeiro'],['pago','Pagos'],['_pend','Aprovados que não foram ao Financeiro'],['adiant','No adiantamento'],['rejeitado','Rejeitados'],['cancelado','Cancelados'],['_semfoto','Sem comprovante']],UI.st)}</select></label>
+ <label>Destino financeiro<select data-f="dest"><option value="">Todos</option>${optHx(Object.entries(DESTINOS),UI.dest)}</select></label>
+ <label style="flex:1">Pesquisar<input type="search" data-f="q" value="${esc(UI.q)}" placeholder="nº, local, motorista, placa…"></label></div>`;
+function ligarFiltros(c,refazer){c.querySelectorAll('[data-def] [data-f]').forEach(el=>{const k=el.dataset.f;const f=()=>{UI[k]=el.value;refazer()};if(el.type==='search')el.oninput=()=>{UI[k]=el.value;clearTimeout(ligarFiltros.t);ligarFiltros.t=setTimeout(refazer,250)};else el.onchange=f})}
+const linhaTab=(d,acoes)=>{const v=d.viagemId?VIAG(d.viagemId):null,t=TIPO(d.tipoDesp);
+ return `<tr class="clic" data-de="${esc(d.id)}"><td data-l="Nº">${esc(d.numero||'—')}<span class="de-sub2">${esc(fData(d.data))}${d.hora?' '+esc(d.hora):''}</span></td>
+ <td data-l="Motorista"><b>${esc(nomeMot(d.motoristaId))}</b><span class="de-sub2">${esc(placaDe(d.veiculoId)||'—')}</span></td>
+ <td data-l="Tipo"><span class="de-ic-t">${ic(t.i)}${esc(t.l)}</span><span class="de-sub2">${esc(d.local||'')}</span></td>
+ <td data-l="Viagem">${v?esc('nº '+(v.numero||'—'))+'<span class="de-sub2">'+esc(v.destino||'')+'</span>':'<span class="de-sub2">sem viagem</span>'}</td>
+ <td data-l="Valor" class="num"><b>${esc(fMoeda(d.valor))}</b></td>
+ <td data-l="Comprovante">${temFoto(d)?tag('com foto','ok'):tag('sem foto','at')}</td>
+ <td data-l="Situação">${tagS(d)}${pedidoAberto(d)?' '+tag('pediu correção','br'):''}</td>${acoes?`<td data-l="">${acoes(d)}</td>`:''}</tr>`};
+const acoesRapidas=d=>ehAprovador()&&['aguardando','correcao'].includes(d.st)?`<div class="de-acs"><a href="javascript:void 0" class="btn pri" data-ap="${esc(d.id)}">${ic('check')}Aprovar</a></div>`:'';
+function ligarAcoes(c,refazer){
+ const dep={depois:refazer};
+ c.querySelectorAll('[data-ap]').forEach(b=>b.onclick=e=>{e.stopPropagation();aprovar(b.dataset.ap,dep)});
+ c.querySelectorAll('[data-pc]').forEach(b=>b.onclick=e=>{e.stopPropagation();decidir(b.dataset.pc,'correcao',dep)});
+ c.querySelectorAll('[data-rj]').forEach(b=>b.onclick=e=>{e.stopPropagation();decidir(b.dataset.rj,'rejeitar',dep)});
+ c.querySelectorAll('tr[data-de]').forEach(tr=>tr.onclick=e=>{if(e.target.closest('a,button'))return;JBNAV.ir('#/deLanc/'+tr.dataset.de)})}
+const tabela=(L,acoes)=>`<div class="painel"><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Nº</th><th>Motorista</th><th>Tipo</th><th>Viagem</th><th class="num">Valor</th><th>Comprovante</th><th>Situação</th>${acoes?'<th></th>':''}</tr></thead><tbody>
+ ${L.length?L.map(d=>linhaTab(d,acoes)).join(''):`<tr><td colspan="${acoes?8:7}" class="vazio">Nenhum lançamento com estes filtros.</td></tr>`}</tbody>
+ ${L.length?`<tfoot><tr><td colspan="4">Total sem rejeitados e cancelados (${pl(L.filter(contaD).length,'lançamento')})</td><td class="num">${esc(fMoeda(soma(L.filter(contaD),d=>d.valor)))}</td><td colspan="${acoes?3:2}"></td></tr></tfoot>`:''}</table></div></div>`;
+const totaisHTML=L=>{const C=L.filter(contaD);const cb=C.filter(d=>TIPO(d.tipoDesp).comb);const out={};C.filter(d=>!TIPO(d.tipoDesp).comb).forEach(d=>{out[d.tipoDesp]=r2((out[d.tipoDesp]||0)+n0(d.valor))});
+ return `<div class="de-tot"><div><span>Total (sem rejeitados)</span><b>${esc(fMoeda(soma(C,d=>d.valor)))}</b><small>${pl(C.length,'lançamento')}</small></div><div><span>Combustível e Arla</span><b>${esc(fMoeda(soma(cb,d=>d.valor)))}</b><small>${esc(fNum(soma(cb,d=>n0(d.litros)),1))} L informados</small></div>
+ ${TIPOS.filter(t=>!t.comb&&out[t.k]).map(t=>`<div><span>${esc(t.l)}</span><b>${esc(fMoeda(out[t.k]))}</b></div>`).join('')}</div>`};
+
+/* ---------- 13. telas ---------- */
+function telaPainel(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const h=hoje(),m=h.slice(0,7),L=LANCS().filter(vivoD);
+ const dia=L.filter(d=>d.data===h&&contaD(d)),mes=L.filter(d=>String(d.data).startsWith(m)&&contaD(d));
+ const aguard=L.filter(d=>d.st==='aguardando').sort((a,b)=>-ordD(a,b));const pedidos=L.filter(pedidoAberto);
+ const semFoto=L.filter(d=>!temFoto(d)&&['aguardando','correcao','aprovado'].includes(d.st));
+ const pend=L.filter(d=>['falha','semcat','enviar'].includes(situ(d).k));
+ const abertas=VIAGS().filter(v=>v.st==='andamento'||v.st==='planejada').sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+ const viagHoje=VIAGS().filter(v=>v.st!=='cancelada'&&(v.data===h||v.st==='andamento'));
+ const comb=x=>r2(soma(x.filter(d=>TIPO(d.tipoDesp).comb),d=>d.valor)),tot=x=>r2(soma(x,d=>d.valor));
+ const porMot={},porVeic={},porTipo={};mes.forEach(d=>{porMot[d.motoristaId]=r2((porMot[d.motoristaId]||0)+n0(d.valor));if(d.veiculoId)porVeic[d.veiculoId]=r2((porVeic[d.veiculoId]||0)+n0(d.valor));porTipo[d.tipoDesp]=r2((porTipo[d.tipoDesp]||0)+n0(d.valor))});
+ const pc=pendCats();
+ const ac=[podeE()?BTN('de-nlanc','mais','Lançar despesa',1):'',podeE()?BTN('de-nviag','deEstrada','Nova viagem'):'',BTN('de-rel','doc','Relatório')].join('');
+ c.innerHTML=subAbas('despEnt')+cabecalho('Despesas de entrega','Gastos das viagens lançados pelos motoristas no celular: conferência, viagens, Financeiro e relatórios.',ac)+
+ (ehAdmin()&&pc.length?`<div class="de-faixa auto"><div class="aviso at"><span><b>Classificação financeira pendente:</b> ${esc(pc.map(x=>x.t.l+' ('+x.motivo+')').join('; '))}. O que for aprovado desses tipos só vai ao Financeiro depois de configurar.</span></div><a class="btn" href="#/deCfg">Configurar</a></div>`:'')+
+ (pend.length?`<div class="de-faixa"><div class="aviso pe"><span><b>${pl(pend.length,'despesa aprovada','despesas aprovadas')} sem compromisso no Financeiro</b> (${esc(fMoeda(soma(pend,d=>d.valor)))}). Abra cada uma e use "Enviar ao Financeiro" (não duplica).</span></div><a class="btn" href="javascript:void 0" data-vst="_pend">Ver</a></div>`:'')+
+ (pedidos.length?`<div class="de-faixa auto"><div class="aviso in"><span><b>${pl(pedidos.length,'pedido')} de correção</b> dos motoristas esperando resposta.</span></div><a class="btn" href="javascript:void 0" data-vst="_pedido">Ver</a></div>`:'')+
+ `<div class="hero de-hero">
+  ${kpiV('c1','deEstrada','Viagens hoje',String(viagHoje.length),abertas.filter(v=>v.st==='andamento').length+' em andamento','#/deViag')}
+  ${kpiV('c4','moeda','Despesas hoje',fMoeda(tot(dia)),pl(dia.length,'lançamento'),'#/deLanc')}
+  ${kpiV('c3','bomba','Combustível hoje',fMoeda(comb(dia)),'outras: '+fMoeda(r2(tot(dia)-comb(dia))),'#/deLanc')}
+  ${kpiV('c2','moeda','Em '+fMes(m),fMoeda(tot(mes)),'combustível '+fMoeda(comb(mes)),'#/deLanc')}
+  ${kpiV('c6','aviso','Pendências',String(aguard.length+pedidos.length+pend.length),aguard.length+' a conferir · '+semFoto.length+' sem foto','javascript:void 0')}
+ </div>
+ <div class="bloco"><h3>Aguardando conferência<span class="n">${aguard.length}</span><a href="javascript:void 0" data-vst="aguardando">Ver todos</a></h3>
+  ${aguard.length?`<div style="padding:0 18px 14px">${tabela(aguard.slice(0,10),acoesRapidas)}</div>`:'<div class="ex-vazio">Nada esperando conferência.</div>'}</div>
+ <div class="ex2" style="margin:14px 0">
+  <div class="bloco"><h3>Viagens abertas<span class="n">${abertas.length}</span><a href="#/deViag">Todas as viagens</a></h3>${lstV(abertas.slice(0,8).map(v=>{const x=contasViagem(v);return{href:'#/deViag/'+v.id,ic:'deEstrada',t:rotViag(v),s:nomeMot(v.motoristaId)+' · '+(ST_V[v.st]||[v.st])[0]+' · '+pl(x.cust.length,'despesa'),v:fMoeda(x.total)}}),'Nenhuma viagem aberta.')}</div>
+  <div class="bloco"><h3>Por tipo em ${esc(fMes(m))}</h3>${lstV(TIPOS.filter(t=>porTipo[t.k]).map(t=>({href:'#/deLanc',ic:t.i,t:t.l,s:t.comb?DESTINOS.entregas:DESTINOS.gerais,v:fMoeda(porTipo[t.k])})),'Nenhuma despesa neste mês.')}</div>
+ </div>
+ <div class="ex2" style="margin:0 0 14px">
+  <div class="bloco"><h3>Por motorista em ${esc(fMes(m))}</h3>${lstV(Object.entries(porMot).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({href:'#/deLanc',ic:'pessoas',t:nomeMot(k),s:'',v:fMoeda(v)})),'Nenhuma despesa neste mês.')}</div>
+  <div class="bloco"><h3>Por caminhão em ${esc(fMes(m))}</h3>${lstV(Object.entries(porVeic).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({href:'#/deLanc',ic:'frota',t:nomeVeic(k),s:'',v:fMoeda(v)})),'Nenhuma despesa neste mês.')}</div>
+ </div>
+ <div class="bloco"><h3>Comprovantes ausentes<span class="n">${semFoto.length}</span><a href="javascript:void 0" data-vst="_semfoto">Ver todos</a></h3>${lstV(semFoto.slice(0,6).map(d=>({href:'#/deLanc/'+d.id,ic:'camera',t:'Nº '+(d.numero||'—')+' · '+TIPO(d.tipoDesp).l+' · '+nomeMot(d.motoristaId),s:fData(d.data)+' · '+situ(d).t,v:fMoeda(d.valor)})),'Todos os lançamentos têm foto do comprovante.')}</div>`;
+ const painel=()=>telaPainel(c);
+ ligarAcoes(c,painel);
+ c.querySelectorAll('[data-vst]').forEach(a=>a.onclick=()=>{Object.assign(UI,{de:'',ate:'',mot:'',veic:'',viag:'',tipo:'',dest:'',q:'',st:a.dataset.vst});JBNAV.ir('#/deLanc')});
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ on('.de-nlanc',()=>lancarEscritorio({depois:painel}));on('.de-nviag',()=>editarViagem(null,{depois:painel}));on('.de-rel',e=>menuRel(e.currentTarget));
+ const k=[...c.querySelectorAll('.de-hero .kpi')];if(k[4])k[4].onclick=e=>{e.preventDefault();Object.assign(UI,{st:'aguardando',de:'',ate:''});JBNAV.ir('#/deLanc')};
+}
+function telaLancs(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const id=lerRota().id;if(id)return telaDetalhe(c,id);
+ if(UI.de===''&&UI.ate===''&&!UI.st&&!UI._ini){UI._ini=1;UI.de=mesIni()}
+ const L=filtrar(LANCS()).sort(ordD);
+ const ac=[podeE()?BTN('de-nlanc','mais','Lançar despesa',1):'',BTN('de-exp','planilha','Exportar')].join('');
+ c.innerHTML=subAbas('deLanc')+cabecalho('Lançamentos','Todas as despesas de entrega, com filtros por período, motorista, caminhão, viagem, tipo, situação e destino financeiro.',ac)+filtrosHTML()+totaisHTML(L)+tabela(L,acoesRapidas);
+ const re=()=>telaLancs(c);ligarFiltros(c,re);ligarAcoes(c,re);
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ on('.de-nlanc',()=>lancarEscritorio({depois:re}));on('.de-exp',e=>menuExportar(e.currentTarget,L));
+ try{resolverNomes([...new Set(L.map(d=>d.criadoPor).filter(Boolean))])}catch(e){}
+}
+function telaDetalhe(c,id){
+ const d=DESP(id);
+ if(!d){c.innerHTML=subAbas('deLanc')+`<div class="vazio"><b>Lançamento não encontrado</b><div class="vazio-acoes"><a class="btn pri" href="#/deLanc">${ic('esquerda')}Lançamentos</a></div></div>`;return}
+ const v=d.viagemId?VIAG(d.viagemId):null,t=TIPO(d.tipoDesp),s=situ(d),aprov=ehAprovador(),fid=finIdDe(d),tit=titDe(fid);
+ const dado=(l,x,w)=>`<div${w?' class="w2"':''}><span>${esc(l)}</span><b>${x}</b></div>`;
+ const ac=[aprov&&['aguardando','correcao'].includes(d.st)?BTN('de-ap','check','Aprovar',1):'',aprov&&['aguardando','correcao'].includes(d.st)?BTN('de-pc','editar','Pedir correção'):'',
+  aprov&&(['aguardando','correcao'].includes(d.st)||(d.st==='aprovado'&&!tit))?BTN('de-rj','fechar','Rejeitar'):'',
+  (d.st!=='cancelado'&&((d.st==='aprovado'&&aprov)||(d.st!=='aprovado'&&podeE())))?BTN('de-cr','editar','Corrigir'):'',
+  aprov&&pedidoAberto(d)?BTN('de-rp','enviar','Responder ao motorista'):'',
+  ['falha','semcat','enviar'].includes(s.k)&&podeE()?BTN('de-fin','enviar','Enviar ao Financeiro'):'',
+  tit&&pode('fTitulos')?BTN('de-vfin','moeda','Ver no Financeiro'):'',BTN('de-doc','doc','Comprovante'),
+  aprov&&d.st!=='cancelado'?BTN('de-cc','fechar','Cancelar'):''].join('');
+ const H_=(Array.isArray(d.hist)?d.hist:[]).slice().reverse();
+ c.innerHTML=subAbas('deLanc')+`<p style="margin:0 0 10px"><a class="btn min" href="#/deLanc">${ic('esquerda')}<span>Lançamentos</span></a></p>`+
+ cabecalho('Despesa nº '+(d.numero||'—')+' · '+t.l,fData(d.data)+(d.hora?' às '+d.hora:'')+' · '+nomeMot(d.motoristaId)+' · '+(d.origemLanc==='motorista'?'lançada pelo motorista no celular':'lançada no escritório'),ac)+
+ (d.st==='correcao'?`<div class="de-nota at"><b>Correção pedida ao motorista</b>${esc(((H_.find(h=>h.acao==='pediu correção')||{}).motivo)||'')}<small>Ele corrige pelo celular e o lançamento volta para a conferência.</small></div>`:'')+
+ (d.st==='rejeitado'?`<div class="de-nota pe"><b>Rejeitado</b>${esc(((H_.find(h=>h.acao==='rejeitou')||{}).motivo)||'')}</div>`:'')+
+ (d.st==='cancelado'&&d.cancel?`<div class="de-nota pe"><b>Cancelado</b>${esc(d.cancel.motivo||'')}<small>${esc(fDataHora(d.cancel.em))} · ${esc(quem(d.cancel.por))}</small></div>`:'')+
+ (pedidoAberto(d)?`<div class="de-nota in"><b>O motorista pediu correção</b>${esc(d.pedidoCorrecao.texto||'')}<small>${esc(fDataHora(d.pedidoCorrecao.em))}</small></div>`:'')+
+ (d.finErro&&!tit?`<div class="de-nota pe"><b>Não foi ao Financeiro</b>${esc(d.finErro.msg||'')}<small>${esc(fDataHora(d.finErro.em))} · use "Enviar ao Financeiro" (não duplica).</small></div>`:'')+
+ (s.k==='semcat'?`<div class="de-nota at"><b>Falta a categoria no Financeiro</b>Este tipo de despesa ainda não tem categoria${catDe(d)?' válida ("'+esc(catDe(d))+'" não existe no Financeiro)':''}. O administrador configura em Configurações › Classificação financeira; depois use "Enviar ao Financeiro".</div>`:'')+
+ `<div class="de-ficha"><div class="bloco"><h3>Lançamento ${tagS(d)}</h3>
+  <div class="de-dados">${dado('Valor','<span style="font-size:18px">'+esc(fMoeda(d.valor))+'</span>')}${dado('Tipo',esc(t.l))}
+   ${dado('Destino financeiro',esc(DESTINOS[destinoDe(d)]))}${dado('Categoria no Financeiro',esc(catDe(d)||'(sem categoria)')+(catExiste(catDe(d))?'':' <span class="tag at">não existe no Financeiro</span>'))}
+   ${dado('Motorista',esc(nomeMot(d.motoristaId)))}${dado('Caminhão',esc(nomeVeic(d.veiculoId)))}
+   ${dado('Viagem',v?`<a href="#/deViag/${esc(v.id)}">${esc(rotViag(v))}</a>`:'Sem viagem'+(d.justificativa?' · '+esc(d.justificativa):''))}${dado('Data e hora',esc(fData(d.data)+(d.hora?' '+d.hora:'')))}
+   ${d.litros!=null?dado('Litros',esc(fNum(d.litros,3))+' L'+(d.valor&&+d.litros>0?' · '+esc(fMoeda(r2(d.valor/d.litros)))+'/L':'')):''}${d.km!=null?dado('Km do painel',esc(fNum(d.km,0))):''}
+   ${dado('Local',esc(d.local||'—'))}${dado('Forma de pagamento',esc(rotForma(d.forma)))}${dado('De onde saiu o dinheiro',esc(rotOrigem(d.origem)))}
+   ${d.venc&&vaiProFin(d)?dado('Pagar até',esc(fData(d.venc))):''}${d.fornecedorId&&typeof FORN==='function'&&FORN(d.fornecedorId)?dado('Quem recebe',esc(nomeFornecedor(FORN(d.fornecedorId)))):''}
+   ${d.descricao?dado('Descrição',esc(d.descricao),1):''}
+   ${tit?dado('Compromisso no Financeiro',esc('nº '+(tit.numero||'—')+' · '+(tit.categoria||'')+' · '+s.t),1):d.origem==='adiantamento'&&d.st==='aprovado'?dado('Financeiro',esc('Paga com o adiantamento da viagem: entra na prestação de contas (não vira outra conta).'),1):''}
+   ${dado('Registrado',esc(fDataHora(d.criadoEm)+(d.criadoPor?' · '+(quem(d.criadoPor)||''):'')))}${d.aprov&&d.aprov.em?dado('Aprovado',esc(fDataHora(d.aprov.em)+' · '+quem(d.aprov.por)+(d.aprov.obs?' · '+d.aprov.obs:''))):''}</div></div>
+  <div class="bloco"><h3>Comprovante</h3>${temFoto(d)?(/^image\//.test(d.foto.tipo||'image/')?`<a class="de-foto" href="/_blob/${esc(d.foto.id)}" target="_blank" rel="noopener"><img src="/_blob/${esc(d.foto.id)}" alt="Foto do comprovante" loading="lazy"></a>`:`<div class="de-acoes"><a class="btn" href="/_blob/${esc(d.foto.id)}" target="_blank" rel="noopener">${ic('doc')}Abrir o arquivo do comprovante</a></div>`):'<div class="de-semfoto">Sem foto do comprovante.</div>'}
+   <h3 style="margin-top:4px">Histórico</h3>${H_.length?`<ul class="de-hist">${H_.map(h=>`<li><b>${esc(String(h.acao||'').replace(/^./,x=>x.toUpperCase()))}</b><small>${esc(fDataHora(h.em))}${h.por?' · '+esc(quem(h.por)||nomeMot(d.motoristaId)):''}</small>${h.motivo?`<div>${esc(h.motivo)}</div>`:''}${h.antes&&typeof h.antes==='object'?`<div class="ajuda">Antes: ${esc(Object.entries(h.antes).map(([k,x])=>(ROT_CAMPOS[k]||k)+' '+txtCampo(k,x)).join(' · '))}</div>`:''}</li>`).join('')}</ul>`:'<p class="de-semfoto">Sem histórico.</p>'}</div></div>`;
+ const re=()=>telaDetalhe(c,id),dep={depois:re};
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ on('.de-ap',()=>aprovar(id,dep));on('.de-pc',()=>decidir(id,'correcao',dep));on('.de-rj',()=>decidir(id,'rejeitar',dep));on('.de-cr',()=>corrigir(id,dep));
+ on('.de-rp',()=>responderPedido(id,dep));on('.de-fin',()=>reenviar(id,dep));on('.de-cc',()=>cancelar(id,dep));on('.de-doc',e=>menuDoc(e.currentTarget,()=>docLanc(id),'Comprovante da despesa nº '+(d.numero||'')));
+ on('.de-vfin',()=>JBNAV.ir('#/fTitulos/'+fid));
+ try{resolverNomes([...new Set((d.hist||[]).map(h=>h.por).concat([d.criadoPor]).filter(Boolean))])}catch(e){}
+}
+function telaViagens(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const id=lerRota().id;if(id)return telaViagem(c,id);
+ const V=VIAGS().filter(v=>(!UI.vst||v.st===UI.vst)&&(!UI.vmot||v.motoristaId===UI.vmot)).sort((a,b)=>{const o={andamento:0,planejada:1,concluida:2,cancelada:3};return (o[a.st]??4)-(o[b.st]??4)||String(b.data).localeCompare(String(a.data))||(+b.numero||0)-(+a.numero||0)});
+ const ac=[podeE()?BTN('de-nviag','mais','Nova viagem',1):''].join('');
+ c.innerHTML=subAbas('deViag')+cabecalho('Viagens','Cada viagem com o motorista, o caminhão, o destino, os gastos lançados, o adiantamento e o acerto.',ac)+
+ `<div class="de-filtros"><label>Situação<select data-vf="vst"><option value="">Todas</option>${optHx(Object.entries(ST_V).map(([k,x])=>[k,x[0]]),UI.vst)}</select></label><label>Motorista<select data-vf="vmot"><option value="">Todos</option>${optHx(optsMot(true),UI.vmot)}</select></label></div>
+ <div class="painel"><div class="tabwrap"><table class="tbl cartao"><thead><tr><th>Nº</th><th>Saída</th><th>Motorista</th><th>Caminhão</th><th>Destino</th><th class="num">Gasto</th><th>Adiantamento</th><th>Situação</th></tr></thead><tbody>
+ ${V.length?V.map(v=>{const x=contasViagem(v);return `<tr class="clic" data-vg="${esc(v.id)}"><td data-l="Nº"><b>${esc(v.numero||'—')}</b></td><td data-l="Saída">${esc(fData(v.data))}${v.hora?' '+esc(v.hora):''}</td><td data-l="Motorista">${esc(nomeMot(v.motoristaId))}</td><td data-l="Caminhão">${esc(placaDe(v.veiculoId)||'—')}</td>
+  <td data-l="Destino">${esc(v.destino||'—')}${v.cliente?'<span class="de-sub2">'+esc(v.cliente)+'</span>':''}</td><td data-l="Gasto" class="num"><b>${esc(fMoeda(x.total))}</b><span class="de-sub2">${pl(x.cust.length,'despesa')}</span></td>
+  <td data-l="Adiantamento">${x.recebido>0?esc(fMoeda(x.recebido))+(v.acerto&&v.acerto.em?'<span class="de-sub2">acerto feito</span>':'<span class="de-sub2">saldo '+esc(fMoeda(x.saldo))+'</span>'):'—'}</td><td data-l="Situação">${tagV(v)}</td></tr>`}).join(''):'<tr><td colspan="8" class="vazio">Nenhuma viagem ainda. Os motoristas começam a viagem pelo celular, ou crie aqui em "Nova viagem".</td></tr>'}
+ </tbody></table></div></div>`;
+ const re=()=>telaViagens(c);
+ c.querySelectorAll('[data-vf]').forEach(el=>el.onchange=()=>{UI[el.dataset.vf]=el.value;re()});
+ c.querySelectorAll('tr[data-vg]').forEach(tr=>tr.onclick=()=>JBNAV.ir('#/deViag/'+tr.dataset.vg));
+ const b=c.querySelector('.de-nviag');if(b)b.onclick=()=>editarViagem(null,{depois:n=>{if(n&&n.id)JBNAV.ir('#/deViag/'+n.id);else re()}});
+}
+function telaViagem(c,id){
+ const v=VIAG(id);
+ if(!v){c.innerHTML=subAbas('deViag')+`<div class="vazio"><b>Viagem não encontrada</b><div class="vazio-acoes"><a class="btn pri" href="#/deViag">${ic('esquerda')}Viagens</a></div></div>`;return}
+ const x=contasViagem(v),aprov=ehAprovador(),L=x.L.slice().sort((a,b)=>-ordD(a,b));
+ const dado=(l,y,w)=>`<div${w?' class="w2"':''}><span>${esc(l)}</span><b>${y}</b></div>`;
+ const ac=[podeE()&&['andamento','planejada'].includes(v.st)?BTN('de-nlanc','mais','Lançar despesa',1):'',podeE()&&v.st==='planejada'?BTN('de-ini','deEstrada','Começar'):'',
+  podeE()&&['andamento','planejada'].includes(v.st)?BTN('de-conc','check','Concluir'):'',podeE()&&v.st==='concluida'&&!(v.acerto&&v.acerto.em)?BTN('de-reab','desfazer','Reabrir'):'',
+  podeE()&&v.st!=='cancelada'?BTN('de-ed','editar','Editar'):'',BTN('de-relv','doc','Relatório da viagem'),podeE()&&['planejada','andamento'].includes(v.st)?BTN('de-canc','fechar','Cancelar'):''].join('');
+ const ad=v.adiant||{},acer=v.acerto&&v.acerto.em?v.acerto:null,tAd=ad.fin&&ad.fin.id?titDe(ad.fin.id):null,oAd=tAd?obDe(tAd.id):null;
+ c.innerHTML=subAbas('deViag')+`<p style="margin:0 0 10px"><a class="btn min" href="#/deViag">${ic('esquerda')}<span>Viagens</span></a></p>`+
+ cabecalho(rotViag(v),nomeMot(v.motoristaId)+' · '+(nomeVeic(v.veiculoId)||'sem caminhão')+' · '+fData(v.data)+(v.hora?' '+v.hora:''),ac)+
+ (x.pendentes.length?`<div class="de-nota at"><b>${pl(x.pendentes.length,'despesa')} esperando conferência</b>Confira antes de fazer o acerto da viagem.</div>`:'')+
+ `<div class="de-tot"><div><span>Custo total gerencial</span><b>${esc(fMoeda(x.total))}</b><small>${pl(x.cust.length,'despesa')} (sem rejeitadas)</small></div><div><span>Combustível e Arla</span><b>${esc(fMoeda(x.comb))}</b></div><div><span>Outras despesas</span><b>${esc(fMoeda(x.outras))}</b></div>
+  ${x.km!=null?`<div><span>Km rodados</span><b>${esc(fNum(x.km,0))}</b><small>${x.km>0?esc(fMoeda(r2(x.total/x.km)))+' por km':''}</small></div>`:''}</div>
+ <div class="de-ficha"><div class="bloco"><h3>Despesas da viagem<span class="n">${L.length}</span></h3><div style="padding:0 18px 14px">${tabela(L,acoesRapidas)}</div>
+   <h3>Por categoria</h3><div style="padding:0 18px 14px"><div class="tabwrap"><table class="tbl"><thead><tr><th>Tipo</th><th>Destino financeiro</th><th class="num">Valor</th></tr></thead><tbody>${TIPOS.filter(t=>x.porTipo[t.k]).map(t=>`<tr><td>${esc(t.l)}</td><td>${esc(DESTINOS[mapaDe(t.k).destino])}</td><td class="num">${esc(fMoeda(x.porTipo[t.k]))}</td></tr>`).join('')||'<tr><td colspan="3" class="vazio">Nenhuma despesa.</td></tr>'}</tbody><tfoot><tr><td colspan="2">Custo total gerencial</td><td class="num">${esc(fMoeda(x.total))}</td></tr></tfoot></table></div></div></div>
+  <div><div class="bloco"><h3>Viagem ${tagV(v)}</h3><div class="de-dados">${dado('Motorista',esc(nomeMot(v.motoristaId)))}${dado('Caminhão',esc(nomeVeic(v.veiculoId)))}${dado('Destino',esc(v.destino||'—'))}${dado('Cliente ou entrega',esc(v.cliente||'—'))}
+   ${dado('Saída',esc(fData(v.data)+(v.hora?' '+v.hora:'')))}${dado('Km na saída',v.kmIni!=null?esc(fNum(v.kmIni,0)):'—')}${dado('Km na chegada',v.kmFim!=null?esc(fNum(v.kmFim,0)):'—')}${dado('Aberta por',esc(v.origemLanc==='motorista'?'motorista (celular)':'escritório'))}${v.obs?dado('Observação',esc(v.obs),1):''}</div></div>
+  <div class="bloco"><h3>Adiantamento e acerto</h3>
+   ${x.recebido>0?`<div class="de-acerto"><div><span>Adiantamento recebido</span><b>${esc(fMoeda(x.recebido))}</b><span class="de-sub2">${esc(fData(ad.data)+' · '+(ad.forma||''))}</span></div><div><span>Despesas aceitas</span><b>${esc(fMoeda(x.aceitas))}</b><span class="de-sub2">aprovadas, pagas com o adiantamento</span></div>
+    <div><span>${x.saldo>0.004?'Saldo a devolver':x.saldo<-0.004?'A reembolsar ao motorista':'Saldo'}</span><b>${esc(fMoeda(Math.abs(x.saldo)))}</b></div></div>
+    <p class="ajuda" style="margin:0 18px 10px">${tAd?'No Financeiro: compromisso nº '+esc(tAd.numero||'—')+(oAd?' · '+esc(oAd.s.saldo<=0.004?'pago ao motorista':'a pagar ao motorista'):''):ad.finErro?'<span style="color:var(--pe)">Não foi ao Financeiro: '+esc(ad.finErro.msg||'')+'</span>':catExiste(CFGD().catAdiant)?'Ainda não foi ao Financeiro.':'Vai ao Financeiro quando o administrador configurar a categoria do adiantamento.'}${x.reemb>0?' · Pagas pelo motorista (reembolso à parte): '+esc(fMoeda(x.reemb)):''}</p>
+    ${acer?`<div class="de-nota ok" style="margin:0 18px 12px"><b>Acerto feito</b>${esc(fDataHora(acer.em))} · ${esc(quem(acer.por))}: ${acer.devolucao?'devolveu '+esc(fMoeda(acer.devolucao.valor))+' ('+esc(acer.devolucao.forma||'')+')':acer.complemento?'a reembolsar '+esc(fMoeda(acer.complemento.valor))+(acer.complemento.fin&&acer.complemento.fin.id?' (compromisso no Financeiro)':''):'sem saldo'}${acer.diferenca?' · diferença de '+esc(fMoeda(acer.diferenca)):''}${acer.obs?' · '+esc(acer.obs):''}.</div>`:''}`
+   :'<p class="ajuda" style="margin:0 18px 12px">Sem adiantamento. As despesas pagas pelo motorista viram reembolso no Financeiro quando aprovadas; as da empresa, conta da empresa.</p>'}
+   <div class="de-acoes">${aprov&&!acer?BTN('de-adt','moeda',x.recebido>0?'Mudar adiantamento':'Registrar adiantamento'):''}${aprov&&x.recebido>0&&!acer?BTN('de-acer','check','Fazer o acerto',1):''}${aprov&&acer?BTN('de-dacer','desfazer','Desfazer o acerto'):''}
+    ${aprov&&ad.valor&&!tAd&&catExiste(CFGD().catAdiant)?BTN('de-adfin','enviar','Enviar adiantamento ao Financeiro'):''}${aprov&&acer&&acer.complemento&&!(acer.complemento.fin&&acer.complemento.fin.id)&&catExiste(CFGD().catAdiant)?BTN('de-cpfin','enviar','Enviar complemento ao Financeiro'):''}</div></div>
+  <div class="bloco"><h3>Histórico</h3>${(v.hist||[]).length?`<ul class="de-hist">${(v.hist||[]).slice().reverse().map(h=>`<li><b>${esc(String(h.acao||'').replace(/^./,y=>y.toUpperCase()))}</b><small>${esc(fDataHora(h.em))}${h.por?' · '+esc(quem(h.por)||nomeMot(v.motoristaId)):''}</small>${h.motivo?`<div>${esc(h.motivo)}</div>`:''}</li>`).join('')}</ul>`:'<p class="de-semfoto">Sem histórico.</p>'}</div></div></div>`;
+ const re=()=>telaViagem(c,id),dep={depois:re};
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ ligarAcoes(c,re);
+ on('.de-nlanc',()=>lancarEscritorio({viagemId:id,motoristaId:v.motoristaId,depois:re}));on('.de-ini',()=>mudarViagem(id,'iniciar',dep));on('.de-conc',()=>mudarViagem(id,'concluir',dep));
+ on('.de-reab',()=>mudarViagem(id,'reabrir',dep));on('.de-canc',()=>mudarViagem(id,'cancelar',dep));on('.de-ed',()=>editarViagem(id,dep));
+ on('.de-adt',()=>registrarAdiant(id,dep));on('.de-acer',()=>fazerAcerto(id,dep));on('.de-dacer',()=>desfazerAcerto(id,dep));
+ on('.de-adfin',async()=>{const r=await enviarFinViagem(VIAG(id),'adiant');if(r.ok)toast(r.ja?'Já estava no Financeiro: ligado (nada duplicado).':'Adiantamento enviado ao Financeiro.','ok');else avisoFin(r,'Adiantamento');re()});
+ on('.de-cpfin',async()=>{const r=await enviarFinViagem(VIAG(id),'comp');if(r.ok)toast(r.ja?'Já estava no Financeiro: ligado (nada duplicado).':'Complemento enviado ao Financeiro.','ok');else avisoFin(r,'Complemento');re()});
+ on('.de-relv',e=>menuDoc(e.currentTarget,()=>relViagem(id),'Relatório da viagem nº '+(v.numero||'')));
+ try{resolverNomes([...new Set((v.hist||[]).map(h=>h.por).filter(Boolean))])}catch(e){}
+}
+
+/* ---------- 14. relatórios (modelo dos documentos do sistema) ---------- */
+function menuDoc(btn,fazer,tit){if(typeof itensAcaoDoc==='function')abrirMenuMais(btn,itensAcaoDoc(fazer,tit));else{const D=fazer();if(D)toast('Relatório pronto.','ok')}}
+function menuExportar(btn,L){const cols=[{k:'n',l:'Nº',t:'num'},{k:'data',l:'Data',t:'data'},{k:'hora',l:'Hora'},{k:'mot',l:'Motorista'},{k:'placa',l:'Caminhão'},{k:'viag',l:'Viagem'},{k:'tipo',l:'Tipo'},{k:'dest',l:'Destino financeiro'},{k:'cat',l:'Categoria'},
+  {k:'local',l:'Local'},{k:'litros',l:'Litros',t:'num'},{k:'valor',l:'Valor',t:'moeda'},{k:'forma',l:'Forma'},{k:'orig',l:'De onde saiu'},{k:'foto',l:'Comprovante'},{k:'sit',l:'Situação'}];
+ const rows=L.map(d=>({n:d.numero||'',data:d.data,hora:d.hora||'',mot:nomeMot(d.motoristaId),placa:placaDe(d.veiculoId),viag:d.viagemId&&VIAG(d.viagemId)?rotViag(VIAG(d.viagemId)):'Sem viagem',tipo:TIPO(d.tipoDesp).l,dest:DESTINOS[destinoDe(d)],cat:catDe(d),
+  local:d.local||'',litros:d.litros!=null?d.litros:'',valor:d.valor,forma:rotForma(d.forma),orig:rotOrigem(d.origem),foto:temFoto(d)?'Sim':'Não',sit:situ(d).t}));
+ const fx=f=>exportar(f,'Despesas_de_entrega_'+hoje(),cols,rows,'Despesas de entrega · Setor de Combustível');
+ abrirMenuMais(btn,[{l:'Exportar Excel',sub:pl(L.length,'lançamento'),fn:()=>fx('xlsx')},{l:'Exportar PDF',fn:()=>fx('pdf')},{l:'Visualizar',fn:()=>fx('ver')},{l:'Relatório do período (documento)',fn:()=>menuDoc(btn,()=>relPeriodo(L),'Relatório de despesas de entrega')}])}
+function menuRel(btn){const L=filtrar(LANCS());menuExportar(btn,L)}
+function docLanc(id){const d=DESP(id);if(!d)return null;const v=d.viagemId?VIAG(d.viagemId):null,t=TIPO(d.tipoDesp);
+ const D=baseRel('COMPROVANTE DE DESPESA DE ENTREGA','Nº '+(d.numero||'—'),[['Motorista',nomeMot(d.motoristaId)],['Caminhão',nomeVeic(d.veiculoId)],['Data',fData(d.data)+(d.hora?' '+d.hora:'')]]);
+ D.setor='Setor de Combustível';D.arquivo='Despesa_entrega_'+(d.numero||d.id)+'_'+d.data;D.rodape='Despesa de entrega nº '+(d.numero||'—');
+ const sec=(n,ti,o)=>D.blocos.push({tipo:'secao',n,titulo:ti,...o});
+ sec('1','Despesa',{campos:[['Tipo',t.l],['Valor',fMoeda(d.valor)],['Destino financeiro',DESTINOS[destinoDe(d)]],['Categoria',catDe(d)||'(sem categoria)'],['Viagem',v?rotViag(v):'Sem viagem'+(d.justificativa?' · '+d.justificativa:''),1],
+  ...(d.litros!=null?[['Litros',fNum(d.litros,3)+' L']]:[]),...(d.km!=null?[['Km do painel',fNum(d.km,0)]]:[]),['Local',d.local||'—'],['Forma de pagamento',rotForma(d.forma)],['De onde saiu o dinheiro',rotOrigem(d.origem)],...(d.descricao?[['Descrição',d.descricao,1]]:[]),['Comprovante',temFoto(d)?'Foto anexada no sistema':'Sem foto']]});
+ sec('2','Situação',{campos:[['Situação',situ(d).t,1],['Registrado',fDataHora(d.criadoEm)+(d.origemLanc==='motorista'?' (pelo motorista, no celular)':' (no escritório)'),1],...(d.aprov&&d.aprov.em?[['Aprovado',fDataHora(d.aprov.em)+' · '+quem(d.aprov.por),1]]:[]),...(d.fin&&d.fin.id&&titDe(d.fin.id)?[['Compromisso no Financeiro','nº '+(titDe(d.fin.id).numero||'—'),1]]:[])]});
+ const hs=(d.hist||[]);if(hs.length)sec('3','Histórico',{tabela:{head:['Quando','O que','Quem','Detalhe'],body:hs.map(h=>[fDataHora(h.em),h.acao||'',quem(h.por)||nomeMot(d.motoristaId),[h.motivo,h.antes?'antes: '+Object.entries(h.antes).map(([k,x])=>(ROT_CAMPOS[k]||k)+' '+txtCampo(k,x)).join(', '):''].filter(Boolean).join(' · ')])}});
+ D.notaFinal='Montado na hora a partir do lançamento das Despesas de Entrega. Emitir não altera nenhum dado.';return D}
+function relViagem(id){const v=VIAG(id);if(!v)return null;const x=contasViagem(v);
+ const D=baseRel('RELATÓRIO DE VIAGEM',rotViag(v),[['Motorista',nomeMot(v.motoristaId)],['Caminhão',nomeVeic(v.veiculoId)],['Saída',fData(v.data)+(v.hora?' '+v.hora:'')]]);
+ D.setor='Setor de Combustível';D.arquivo='Viagem_'+(v.numero||v.id)+'_'+v.data;D.rodape='Relatório da viagem nº '+(v.numero||'—');
+ const sec=(n,ti,o)=>D.blocos.push({tipo:'secao',n,titulo:ti,...o});
+ D.blocos.push({tipo:'indicadores',itens:[['Custo total gerencial',fMoeda(x.total)],['Combustível e Arla',fMoeda(x.comb)],['Outras despesas',fMoeda(x.outras)],...(x.km!=null?[['Km rodados',fNum(x.km,0)]]:[])]});
+ sec('1','Dados da viagem',{campos:[['Destino',v.destino||'—'],['Cliente ou entrega',v.cliente||'—'],['Situação',(ST_V[v.st]||[v.st])[0]],['Km na saída',v.kmIni!=null?fNum(v.kmIni,0):'—'],['Km na chegada',v.kmFim!=null?fNum(v.kmFim,0):'—'],...(v.obs?[['Observação',v.obs,1]]:[])]});
+ const L=x.L.slice().sort((a,b)=>-ordD(a,b));
+ sec('2','Despesas',L.length?{tabela:{head:['Nº','Data','Tipo','Local','Pago com','Situação','Valor'],body:L.map(d=>[String(d.numero||'—'),fData(d.data)+(d.hora?' '+d.hora:''),TIPO(d.tipoDesp).l,d.local||'—',rotOrigem(d.origem),situ(d).t,fMoeda(d.valor)]),foot:['Total (sem rejeitadas)','','','','','',fMoeda(x.total)],dir:[6]}}:{campos:[['Situação','Nenhuma despesa lançada.',1]]});
+ sec('3','Custo por categoria',{tabela:{head:['Tipo','Destino financeiro','Valor'],body:TIPOS.filter(t=>x.porTipo[t.k]).map(t=>[t.l,DESTINOS[mapaDe(t.k).destino],fMoeda(x.porTipo[t.k])]),foot:['Custo total gerencial','',fMoeda(x.total)],dir:[2]}});
+ if(x.recebido>0)sec('4','Adiantamento e prestação de contas',{campos:[['Adiantamento recebido',fMoeda(x.recebido)+' em '+fData((v.adiant||{}).data)],['Despesas aceitas (pagas com o adiantamento)',fMoeda(x.aceitas)],[x.saldo>0.004?'Saldo a devolver':x.saldo<-0.004?'A reembolsar ao motorista':'Saldo',fMoeda(Math.abs(x.saldo))],
+  ['Acerto',v.acerto&&v.acerto.em?'Feito em '+fDataHora(v.acerto.em)+(v.acerto.devolucao?' · devolveu '+fMoeda(v.acerto.devolucao.valor):v.acerto.complemento?' · a reembolsar '+fMoeda(v.acerto.complemento.valor):''):'Ainda não feito',1]]});
+ D.notaFinal='Custo total gerencial = soma dos lançamentos ligados à viagem (aguardando, em correção e aprovados), sem contar duas vezes o que foi para o Financeiro. Emitir não altera nenhum dado.';
+ D._excel={nome:'Viagem_'+(v.numero||v.id),cols:['Nº','Data','Tipo','Local','Pago com','Situação','Valor'],rows:L.map(d=>[d.numero||'',fData(d.data),TIPO(d.tipoDesp).l,d.local||'',rotOrigem(d.origem),situ(d).t,r2(d.valor)])};return D}
+function relPeriodo(L0){const L=(L0||filtrar(LANCS())).slice().sort((a,b)=>-ordD(a,b)),C=L.filter(contaD);
+ const de=UI.de||(L.length?L[0].data:hoje()),ate=UI.ate||(L.length?L[L.length-1].data:hoje());
+ const D=baseRel('RELATÓRIO DE DESPESAS DE ENTREGA',fData(de)+' a '+fData(ate),[['Período',fData(de)+' a '+fData(ate)],['Motorista',UI.mot?nomeMot(UI.mot):'Todos'],['Caminhão',UI.veic?nomeVeic(UI.veic):'Todos'],['Lançamentos',String(L.length)]]);
+ D.setor='Setor de Combustível';D.arquivo='Despesas_de_entrega_'+de+'_'+ate;D.rodape='Relatório de despesas de entrega · '+fData(de)+' a '+fData(ate);
+ const sec=(n,ti,o)=>D.blocos.push({tipo:'secao',n,titulo:ti,...o});const tot=x=>fMoeda(soma(x,d=>d.valor));
+ const cb=C.filter(d=>TIPO(d.tipoDesp).comb);
+ D.blocos.push({tipo:'indicadores',itens:[['Total',tot(C)],['Combustível e Arla',tot(cb)],['Outras despesas',fMoeda(r2(soma(C,d=>d.valor)-soma(cb,d=>d.valor)))],['Aguardando conferência',String(L.filter(d=>d.st==='aguardando').length),L.some(d=>d.st==='aguardando')?'at':'']]});
+ sec('1','Por tipo (combustível separado)',{tabela:{head:['Tipo','Destino financeiro','Lançamentos','Valor'],body:TIPOS.map(t=>{const x=C.filter(d=>d.tipoDesp===t.k);return x.length?[t.l,DESTINOS[mapaDe(t.k).destino],String(x.length),tot(x)]:null}).filter(Boolean),foot:['Total','',String(C.length),tot(C)],dir:[2,3]}});
+ const grupo=(f,nome)=>{const M=new Map();C.forEach(d=>{const k=f(d)||'';const g=M.get(k)||[];g.push(d);M.set(k,g)});return [...M.entries()].map(([k,x])=>[nome(k),String(x.length),fMoeda(soma(x.filter(d=>TIPO(d.tipoDesp).comb),d=>d.valor)),fMoeda(soma(x.filter(d=>!TIPO(d.tipoDesp).comb),d=>d.valor)),tot(x),soma(x,d=>d.valor)]).sort((a,b)=>b[5]-a[5]).map(r=>r.slice(0,5))};
+ sec('2','Por motorista',{tabela:{head:['Motorista','Lançamentos','Combustível','Outras','Total'],body:grupo(d=>d.motoristaId,nomeMot),dir:[1,2,3,4]}});
+ sec('3','Por caminhão',{tabela:{head:['Caminhão','Lançamentos','Combustível','Outras','Total'],body:grupo(d=>d.veiculoId,k=>k?nomeVeic(k):'Sem caminhão'),dir:[1,2,3,4]}});
+ sec('4','Custo por viagem',{tabela:{head:['Viagem','Lançamentos','Combustível','Outras','Total'],body:grupo(d=>d.viagemId,k=>k&&VIAG(k)?rotViag(VIAG(k))+' · '+nomeMot(VIAG(k).motoristaId):'Sem viagem (avulsas)'),dir:[1,2,3,4]}});
+ const pend=L.filter(d=>vivoD(d)&&(!temFoto(d)||['aguardando','correcao','rejeitado'].includes(d.st)||pedidoAberto(d)));
+ sec('5','Pendências (comprovante ausente, aguardando, correção e rejeitados)',pend.length?{tabela:{head:['Nº','Data','Motorista','Tipo','Valor','Pendência'],body:pend.map(d=>[String(d.numero||'—'),fData(d.data),nomeMot(d.motoristaId),TIPO(d.tipoDesp).l,fMoeda(d.valor),[!temFoto(d)?'sem comprovante':'',situ(d).t,pedidoAberto(d)?'motorista pediu correção':''].filter(Boolean).join(' · ')])}}:{campos:[['Situação','Nenhuma pendência no período.',1]]});
+ sec('6','Lançamentos',L.length?{tabela:{head:['Nº','Data','Motorista','Caminhão','Tipo','Viagem','Situação','Valor'],body:L.map(d=>[String(d.numero||'—'),fData(d.data),nomeMot(d.motoristaId),placaDe(d.veiculoId)||'—',TIPO(d.tipoDesp).l,d.viagemId&&VIAG(d.viagemId)?'nº '+(VIAG(d.viagemId).numero||'—'):'avulsa',situ(d).t,fMoeda(d.valor)]),dir:[7]}}:{campos:[['Situação','Nenhum lançamento no período.',1]]});
+ D.notaFinal='Total sem os rejeitados e cancelados. Combustível e Arla 32 vão para "Despesas com entregas"; os demais tipos, para "Despesas pagas gerais", conforme a classificação das Configurações. Emitir não altera nenhum dado.';return D}
+function telaRel(c){
+ if(!APP.carregado){carregandoV(c);return}
+ if(!UI.de&&!UI.ate){UI.de=mesIni()}
+ const L=filtrar(LANCS());
+ c.innerHTML=subAbas('deRel')+cabecalho('Relatórios','Relatório do período com combustível separado, por motorista, por caminhão, por viagem e as pendências; exportação em PDF e Excel.','')+filtrosHTML()+totaisHTML(L)+
+ `<div class="bloco"><h3>Gerar</h3><div class="de-acoes">${BTN('de-r1','doc','Relatório do período (documento)',1)}${BTN('de-r2','planilha','Exportar lançamentos (Excel)')}${BTN('de-r3','imprimir','Lista em PDF')}</div>
+  <p class="ajuda" style="margin:0 18px 14px">O relatório de cada viagem fica na própria viagem (Viagens › abrir a viagem › Relatório da viagem). Os filtros acima valem para tudo.</p></div>`;
+ const re=()=>telaRel(c);ligarFiltros(c,re);
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ on('.de-r1',e=>menuDoc(e.currentTarget,()=>relPeriodo(filtrar(LANCS())),'Relatório de despesas de entrega'));on('.de-r2',e=>menuExportar(e.currentTarget,filtrar(LANCS())));
+ on('.de-r3',()=>{const cols=[{k:'n',l:'Nº'},{k:'data',l:'Data',t:'data'},{k:'mot',l:'Motorista'},{k:'tipo',l:'Tipo'},{k:'viag',l:'Viagem'},{k:'valor',l:'Valor',t:'moeda'},{k:'sit',l:'Situação'}];
+  exportar('pdf','Despesas_de_entrega_'+hoje(),cols,filtrar(LANCS()).sort(ordD).map(d=>({n:d.numero||'',data:d.data,mot:nomeMot(d.motoristaId),tipo:TIPO(d.tipoDesp).l,viag:d.viagemId&&VIAG(d.viagemId)?'nº '+(VIAG(d.viagemId).numero||''):'avulsa',valor:d.valor,sit:situ(d).t})),'Despesas de entrega')});
+}
+
+/* ---------- 15. configurações (o administrador faz tudo aqui) ---------- */
+let LOGINS=null,USUS=null;
+async function carregarLogins(){const a=API();if(!a||!ehAdmin())return;try{LOGINS=await a.rpc('jb_desp_logins')}catch(e){LOGINS=null}try{USUS=await a.rpc('jb_admin_usuarios')}catch(e){USUS=null}}
+const loginDe=m=>m&&m.userId&&Array.isArray(LOGINS)?LOGINS.find(x=>x.userId===m.userId)||null:null;
+async function salvarCfg(mud,acao){if(!ehAdmin()){toast('Só o administrador muda as configurações.','erro');return false}
+ const at=maisNovo((DATA[COLC]||[]).find(x=>x&&x.id==='cfg')||null,COLC+'/cfg');const n={...(at?clone(at):{id:'cfg',tipo:'cfg',criadoEm:agora(),criadoPor:eu()}),...mud,alteradoEm:agora(),alteradoPor:eu()};
+ await gravarCad(n,at);try{await registrarLog(COLC,'cfg',acao||'alterou',at||{},n,{regras:'Regras',mapa:'Classificação financeira',aprovadores:'Quem aprova',catAdiant:'Categoria do adiantamento'})}catch(e){}toast('Configuração salva.','ok');return true}
+function editarMotorista(id,depois){
+ const m=id?MOT(id):null;if(!podeE()&&!ehAdmin()){toast('Seu perfil não cadastra motoristas.','erro');return}
+ const resp=(DATA.responsaveis||[]).filter(r=>r.situacao!=='Inativo');
+ const corpo=`${!m&&resp.length?campoH('mtR','Puxar de "Motoristas e responsáveis"',`<select id="mtR"><option value="">— digitar —</option>${optHx(resp.map(r=>[r.id,r.nome+(r.cargo?' · '+r.cargo:'')]),'')}</select>`,'Aproveita o nome e o telefone do cadastro que já existe (nada duplicado).'):''}
+  <div class="duas">${campoH('mtN','Nome completo<i> *</i>',`<input id="mtN" maxlength="120" value="${esc((m&&m.nome)||'')}">`)}${campoH('mtA','Como chamar no celular',`<input id="mtA" maxlength="40" value="${esc((m&&m.apelido)||'')}">`,'Ex.: Zé. Em branco: o primeiro nome.')}
+  ${campoH('mtC','Identificador interno',`<input id="mtC" maxlength="30" value="${esc((m&&m.codigo)||'')}">`,'Matrícula, código ou apelido do escritório.')}${campoH('mtT','Telefone',`<input id="mtT" type="tel" maxlength="30" value="${esc((m&&m.telefone)||'')}">`)}
+  ${campoH('mtS','Situação',`<select id="mtS">${optHx(['Ativo','Inativo'],(m&&m.situacao)||'Ativo')}</select>`,'Inativo: o login para de abrir a página do motorista.')}</div>
+  <div class="cmp"><label>Caminhões e veículos liberados para ele</label><div class="de-veics">${frota().map(l=>`<label><input type="checkbox" value="${esc(l.id)}"${m&&(m.veiculos||[]).includes(l.id)?' checked':''}>${esc([l.identificacao,l.nome].filter(Boolean).join(' · '))}${l.tipo?' <small>('+esc(l.tipo)+')</small>':''}</label>`).join('')||'<span class="ajuda">Nenhum veículo em Veículos e máquinas.</span>'}</div><span class="ajuda">Com um só, o celular escolhe sozinho. O motorista só lança nos veículos marcados (o servidor confere).</span></div>
+  ${campoH('mtO','Observação',`<input id="mtO" maxlength="300" value="${esc((m&&m.obs)||'')}">`)}`;
+ modalX(m?'Motorista · '+(m.nome||''):'Novo motorista',corpo,'Salvar',async mv=>{
+  const nome=valMx(mv,'mtN').trim();if(nome.length<3){toast('Informe o nome completo.','erro');return false}
+  const dup=MOTS().find(x=>x.id!==(m&&m.id)&&N(x.nome)===N(nome));if(dup){toast('Já existe um motorista com este nome.','erro');return false}
+  const veics=[...mv.querySelectorAll('.de-veics input:checked')].map(i=>i.value);
+  const dados={nome,apelido:valMx(mv,'mtA').trim()||null,codigo:valMx(mv,'mtC').trim()||null,telefone:valMx(mv,'mtT').trim()||null,situacao:valMx(mv,'mtS')||'Ativo',veiculos:veics,obs:valMx(mv,'mtO').trim()||null};
+  const r=$('#mtR',mv);if(r&&r.value)dados.respId=r.value;
+  const at=m?MOT(m.id):null;const n={...(at?clone(at):{id:novoCod('mt_'),tipo:'motorista',criadoEm:agora(),criadoPor:eu()}),...dados,alteradoEm:agora(),alteradoPor:eu()};
+  await gravarCad(n,at);try{await registrarLog(COLC,n.id,at?'alterou':'criou',at||{},n,{nome:'Nome',apelido:'Como chamar',codigo:'Identificador',telefone:'Telefone',situacao:'Situação',veiculos:'Veículos liberados'})}catch(e){}
+  toast(at?'Motorista salvo.':'Motorista cadastrado. Agora crie o login dele.','ok');if(depois)depois()},{depois:mv=>{const r=$('#mtR',mv);if(r)r.onchange=()=>{const x=resp.find(y=>y.id===r.value);if(x){$('#mtN',mv).value=x.nome||'';if(x.telefone)$('#mtT',mv).value=x.telefone}}}});
+}
+const sugUsuario=nome=>{const p=semAcento(String(nome||'')).toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(Boolean);return (p.length>1?p[0]+'.'+p[p.length-1]:p[0]||'motorista').slice(0,30)};
+const senhaProv=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789',b=new Uint8Array(10);crypto.getRandomValues(b);return [...b].map(x=>a[x%a.length]).join('')};
+function criarLogin(id,depois){
+ const m=MOT(id);if(!m)return;const a=API();
+ if(!a||typeof a.auth!=='function'){toast('O login do motorista é criado na nuvem (jb-gestao-ceramica.netlify.app), entrando como administrador.','erro');return}
+ if(!ehAdmin()){toast('Só o administrador cria o login do motorista.','erro');return}
+ if(m.userId){toast('Este motorista já tem login.','erro');return}
+ const s0=senhaProv();
+ modalX('Criar o login de '+(m.nome||''),`<p class="ajuda" style="margin:0 0 10px">O motorista entra pelo celular com este usuário e esta senha provisória. No primeiro acesso ele cria a senha dele. O login não recebe nenhuma permissão do sistema: só abre a página do motorista.</p>
+  <div class="duas">${campoH('lgU','Usuário<i> *</i>',`<input id="lgU" maxlength="40" autocapitalize="none" spellcheck="false" value="${esc(sugUsuario(m.nome))}">`,'Letras minúsculas, números, ponto ou traço.')}${campoH('lgS','Senha provisória<i> *</i>',`<input id="lgS" maxlength="40" value="${esc(s0)}">`,'Anote e entregue ao motorista.')}</div>`,'Criar login',async mv=>{
+  const u=valMx(mv,'lgU').trim().toLowerCase(),s=valMx(mv,'lgS');
+  if(!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(u)){toast('Usuário: 3 a 40 caracteres, só letras minúsculas, números, ponto, traço ou sublinhado.','erro');return false}
+  let r;try{r=await a.auth('criar-usuario',{usuario:u,nome:m.nome,senhaInicial:s,admin:false})}catch(e){toast(e.message||'Não foi possível criar o login.','erro');return false}
+  try{const at=MOT(id);await gravarCad({...clone(at),userId:r.id,acesso:{usuario:r.usuario||u,criadoEm:agora(),criadoPor:eu()},alteradoEm:agora(),alteradoPor:eu()},at)}
+  catch(e){toast('O login foi criado, mas não ficou ligado ao motorista: '+msgE(e)+'. Use "Ligar login existente".','erro');return}
+  await carregarLogins();
+  modalX('Login criado',`<p style="margin:0 0 10px">Entregue ao motorista:</p><div class="de-dados" style="margin:0 0 10px"><div><span>Endereço</span><b>${esc(linkMot())}</b></div><div><span>Usuário</span><b>${esc(r.usuario||u)}</b></div><div class="w2"><span>Senha provisória</span><b>${esc(s)}</b></div></div><p class="ajuda" style="margin:0">No primeiro acesso ele troca a senha. Esta senha não fica guardada no sistema.</p>`,'',null);
+  if(depois)depois()});
+}
+function ligarLogin(id,depois){
+ const m=MOT(id);const a=API();if(!m||!a||!ehAdmin()){toast('Só o administrador, na nuvem, liga o login.','erro');return}
+ const us=(Array.isArray(USUS)?USUS:[]).filter(u=>!u.admin&&!MOTS().some(x=>x.userId===u.id));
+ modalX('Ligar um login que já existe a '+(m.nome||''),`<p class="ajuda" style="margin:0 0 10px">Use quando o login já foi criado (por exemplo, no painel Usuários e segurança). Login com permissões no sistema não deve virar motorista.</p>
+  ${campoH('llU','Login',`<select id="llU"><option value="">Escolha…</option>${optHx(us.map(u=>[u.id,u.nome+' ('+u.usuario+')'+(Object.keys(u.permissoes||{}).length?' · tem permissões no sistema':'')]),'')}</select>`)}`,'Ligar',async mv=>{
+  const uid=valMx(mv,'llU');if(!uid){toast('Escolha o login.','erro');return false}const u=us.find(x=>x.id===uid);
+  const at=MOT(id);await gravarCad({...clone(at),userId:uid,acesso:{usuario:u?u.usuario:'',criadoEm:agora(),criadoPor:eu(),ligado:true},alteradoEm:agora(),alteradoPor:eu()},at);
+  await carregarLogins();toast('Login ligado ao motorista.','ok');if(depois)depois()});
+}
+async function tirarLogin(id,depois){const m=MOT(id);if(!m||!m.userId)return;if(!ehAdmin()){toast('Só o administrador tira o login.','erro');return}
+ if(!await confirmar('Tirar o login de '+(m.nome||'')+'?','O login deixa de abrir a página do motorista (os lançamentos dele ficam). Para bloquear a conta de vez, use o painel Usuários e segurança.',{ok:'Tirar o login',perigo:true}))return;
+ const at=MOT(id);await gravarCad({...clone(at),userId:null,acesso:{...(at.acesso||{}),tiradoEm:agora(),tiradoPor:eu()},alteradoEm:agora(),alteradoPor:eu()},at);await carregarLogins();toast('Login tirado do motorista.','ok');if(depois)depois()}
+function redefinirSenha(id){const m=MOT(id);const a=API();if(!m||!m.userId||!a||!ehAdmin())return;const s0=senhaProv();
+ modalX('Nova senha provisória · '+(m.nome||''),`${campoH('rsS','Senha provisória',`<input id="rsS" maxlength="40" value="${esc(s0)}">`,'O motorista troca no próximo acesso.')}`,'Redefinir',async mv=>{const s=valMx(mv,'rsS');
+  try{await a.auth('redefinir-senha',{userId:m.userId,senhaNova:s})}catch(e){toast(e.message||'Não foi possível redefinir.','erro');return false}toast('Senha redefinida: entregue ao motorista. Ele troca no próximo acesso.','ok')})}
+const linkMot=()=>{try{const u=new URL('motorista.html',location.href.split('#')[0]);return /^https?:/.test(u.protocol)&&!/claude|usercontent/.test(u.host)?u.href:'https://jb-gestao-ceramica.netlify.app/motorista.html'}catch(e){return 'https://jb-gestao-ceramica.netlify.app/motorista.html'}};
+function telaCfg(c){
+ if(!APP.carregado){carregandoV(c);return}
+ const adm=ehAdmin(),cfg=CFGD(),R=cfg.regras,cats=catsFin(),na=API();
+ const M=MOTS().slice().sort((a,b)=>(a.situacao==='Inativo')-(b.situacao==='Inativo')||String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+ const veicMot=id=>MOTS().filter(m=>(m.veiculos||[]).includes(id)&&m.situacao!=='Inativo');
+ const pc=pendCats();
+ const users=Array.isArray(USUS)?USUS.filter(u=>u.ativo&&!MOTS().some(m=>m.userId===u.id)).map(u=>({uid:u.uid,nome:u.nome,sub:u.usuario+(u.admin?' · administrador':'')})):(typeof ACESSOS!=='undefined'?ACESSOS:[]).filter(a=>a.ativo!==false).map(a=>({uid:a.id,nome:a.nome||nomeUsuario(a.id),sub:PAPEIS&&PAPEIS[a.papel]?PAPEIS[a.papel]:''}));
+ c.innerHTML=subAbas('deCfg')+cabecalho('Configurações','Motoristas e o login de cada um, caminhões liberados, classificação financeira, regras do lançamento e quem aprova.',adm?'':'<span class="tag at">Só o administrador muda</span>')+
+ `<div class="de-cfg">
+ <div class="bloco"><h3>Motoristas<span class="n">${M.length}</span>${podeE()||adm?'<a href="javascript:void 0" class="de-nmot">Novo motorista</a>':''}</h3>
+  <p class="ajuda">Cada motorista tem um login próprio (só abre a página do motorista, no celular) e os caminhões que pode usar. ${na?'':'O login é criado na nuvem, entrando como administrador.'}</p>
+  ${M.length?`<ul class="de-lista-cfg">${M.map(m=>{const lg=loginDe(m);const v=(m.veiculos||[]).map(placaDe).filter(Boolean);
+   return `<li><span class="tx"><b>${esc(m.nome||'—')}${m.codigo?' · '+esc(m.codigo):''}</b><small>${esc(v.length?v.join(', '):'nenhum caminhão liberado')}${m.telefone?' · '+esc(m.telefone):''}</small>
+    <small>${m.userId?'Login: <b>'+esc((m.acesso&&m.acesso.usuario)||(lg&&lg.usuario)||'ligado')+'</b>'+(lg?(lg.ativo===false?' · conta desativada':lg.bloqueado?' · conta bloqueada':'')+(lg.trocarSenha?' · ainda não trocou a senha provisória':'')+(lg.ultimoAcesso?' · último acesso '+esc(fDataHora(lg.ultimoAcesso)):' · nunca entrou')+(lg.permissoes>0?' · <span style="color:var(--pe)">tem permissões no sistema (tire no painel Usuários e segurança)</span>':''):''):'Sem login'}</small></span>
+    ${tag(m.situacao||'Ativo',m.situacao==='Inativo'?'pe':'ok')}
+    <span class="de-acs">${podeE()||adm?`<a href="javascript:void 0" class="btn" data-emt="${esc(m.id)}">Editar</a>`:''}${adm&&!m.userId&&na?`<a href="javascript:void 0" class="btn pri" data-lgc="${esc(m.id)}">Criar login</a><a href="javascript:void 0" class="btn" data-lgl="${esc(m.id)}">Ligar login existente</a>`:''}${adm&&m.userId&&na?`<a href="javascript:void 0" class="btn" data-lgr="${esc(m.id)}">Nova senha</a>`:''}${adm&&m.userId?`<a href="javascript:void 0" class="btn" data-lgt="${esc(m.id)}">Tirar login</a>`:''}</span></li>`}).join('')}</ul>`:'<div class="ex-vazio">Nenhum motorista cadastrado. Toque em "Novo motorista".</div>'}</div>
+ <div class="bloco"><h3>Acesso dos motoristas</h3><p class="ajuda">Mande este endereço para o motorista abrir no celular (Chrome no Android). Na primeira vez, toque em "Adicionar à tela inicial" para virar um aplicativo. Ele só vê os próprios lançamentos, caminhões e viagens.</p>
+  <div class="de-link"><code>${esc(linkMot())}</code><a href="javascript:void 0" class="btn" data-cplink>Copiar</a><a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('JB ERP · Despesas de entrega: abra no celular e entre com o usuário e a senha que o escritório passou: '+linkMot())}">Enviar pelo WhatsApp</a></div></div>
+ <div class="bloco"><h3>Caminhões e veículos<span class="n">${frota().length}</span>${pode('locais','e')?'<a href="javascript:void 0" class="de-nveic">Cadastrar veículo</a>':''}</h3><p class="ajuda">É o cadastro de Veículos e máquinas do Combustível (o mesmo das revisões e dos abastecimentos): placa, marca e modelo, tipo e situação ficam lá. Aqui fica quem pode usar cada um.</p>
+  <ul class="de-lista-cfg">${frota().map(l=>`<li><span class="tx"><b>${esc([l.identificacao,l.nome].filter(Boolean).join(' · '))}</b><small>${esc([l.tipo,l.marcaModelo,l.situacao].filter(Boolean).join(' · '))}</small><small>Motoristas liberados: ${esc(veicMot(l.id).map(m=>m.nome).join(', ')||'nenhum')}</small></span>
+   <span class="de-acs">${podeE()||adm?`<a href="javascript:void 0" class="btn" data-vmt="${esc(l.id)}">Motoristas</a>`:''}${pode('locais','e')?`<a href="#/locais/${esc(l.id)}" class="btn">Cadastro</a>`:''}</span></li>`).join('')||'<li>Nenhum veículo cadastrado.</li>'}</ul></div>
+ <div class="bloco"><h3>Classificação financeira</h3><p class="ajuda">O tipo da despesa decide para onde ela vai; o motorista não escolhe. Mudar aqui vale para os lançamentos novos (cada lançamento guarda a categoria que recebeu). Categoria que não existe no Financeiro: crie lá primeiro (Financeiro › Configurações › Categorias)${cats.length?'':' — as categorias do Financeiro não estão disponíveis neste acesso'}.</p>
+  ${pc.length?`<div class="de-nota at" style="margin:0 18px 12px"><b>${pl(pc.length,'tipo')} sem categoria válida</b>${esc(pc.map(x=>x.t.l+' ('+x.motivo+')').join('; '))}.<small>O que for aprovado desses tipos fica esperando: só vai ao Financeiro depois de escolher a categoria aqui.</small></div>`:''}
+  <div style="padding:0 18px 12px;overflow-x:auto"><table class="de-mapa"><thead><tr><th>Tipo</th><th>Destino</th><th>Categoria no Financeiro</th></tr></thead><tbody>${TIPOS.map(t=>{const m=mapaDe(t.k);const op=[...new Set([...cats,...(m.categoria?[m.categoria]:[])])];
+   return `<tr><td><span class="de-ic-t">${ic(t.i)}${esc(t.l)}</span>${pc.some(x=>x.t.k===t.k)?' '+tag('pendente','at'):''}</td><td><select data-md="${t.k}"${adm?'':' disabled'}>${optHx(Object.entries(DESTINOS),m.destino)}</select></td>
+    <td><select data-mc="${t.k}"${adm?'':' disabled'}><option value="">— sem categoria (pendência) —</option>${op.map(x=>`<option value="${esc(x)}"${x===m.categoria?' selected':''}>${esc(x)}${cats.includes(x)?'':' (não existe no Financeiro)'}</option>`).join('')}</select></td></tr>`}).join('')}
+   <tr><td><span class="de-ic-t">${ic('moeda')}Adiantamento de viagem</span></td><td>Outros pagamentos</td><td><select data-mca${adm?'':' disabled'}><option value="">— não configurada —</option>${[...new Set([...cats,...(cfg.catAdiant?[cfg.catAdiant]:[])])].map(x=>`<option value="${esc(x)}"${x===cfg.catAdiant?' selected':''}>${esc(x)}${cats.includes(x)?'':' (não existe no Financeiro)'}</option>`).join('')}</select></td></tr></tbody></table></div>
+  ${adm?`<div class="de-acoes">${BTN('de-smapa','check','Salvar classificação',1)}${BTN('de-pmapa','desfazer','Voltar ao padrão')}</div>`:''}</div>
+ <div class="bloco"><h3>Regras do lançamento no celular</h3><div class="de-chk">
+  ${[['motoristaAbreViagem','O motorista pode começar a viagem pelo celular','Desligado: só o escritório abre a viagem (o motorista só começa a que foi planejada).'],['exigirViagem','Toda despesa precisa de uma viagem','Desligado: dá para lançar despesa avulsa.'],
+    ['avulsaJustificativa','Despesa sem viagem precisa de motivo','O motorista escreve por que não tem viagem.'],['ajustarData','O motorista pode mudar a data e a hora','Desligado: vale a hora do envio.'],['fotoObrigatoria','A foto do comprovante é obrigatória','Desligado: dá para enviar sem foto (fica em Comprovantes ausentes).'],['pedirKm','Pedir o km do painel (abastecimento e viagem)','Sempre opcional para o motorista.']]
+   .map(([k,l,s])=>`<label><input type="checkbox" data-rg="${k}"${R[k]?' checked':''}${adm?'':' disabled'}><span>${esc(l)}<small>${esc(s)}</small></span></label>`).join('')}
+  <label style="align-items:center">Dias para trás que o motorista pode lançar <input type="number" min="0" max="60" data-rgd value="${esc(R.diasAtras)}" style="width:80px;padding:6px 8px;border:1px solid var(--linha);border-radius:8px"${adm?'':' disabled'}></label></div>
+  ${adm?`<div class="de-acoes">${BTN('de-sregras','check','Salvar regras',1)}</div>`:''}</div>
+ <div class="bloco"><h3>Quem aprova</h3><p class="ajuda">Quem pode aprovar, rejeitar, pedir correção, cancelar, corrigir lançamento aprovado e cuidar do adiantamento e do acerto. O administrador sempre pode. Quem aprova também precisa ter o acesso do Setor de Combustível.</p>
+  <div class="de-chk">${users.length?users.map(u=>`<label><input type="checkbox" data-apv="${esc(u.uid)}"${cfg.aprovadores.includes(u.uid)?' checked':''}${adm?'':' disabled'}><span>${esc(u.nome)}<small>${esc(u.sub||'')}</small></span></label>`).join(''):`<span class="ajuda">${na?'Carregando os usuários…':'A lista de usuários aparece para o administrador.'}</span>`}
+   ${cfg.aprovadores.filter(id=>!users.some(u=>u.uid===id)).map(id=>`<label><input type="checkbox" data-apv="${esc(id)}" checked${adm?'':' disabled'}><span>${esc(nomeUsuario(id)||id)}<small>(fora da lista atual)</small></span></label>`).join('')}</div>
+  ${adm?`<div class="de-acoes">${BTN('de-saprov','check','Salvar quem aprova',1)}</div>`:''}</div>
+ </div>`;
+ const re=()=>telaCfg(c);
+ const on=(s,f)=>{const b=c.querySelector(s);if(b)b.onclick=f};
+ on('.de-nmot',()=>editarMotorista(null,re));
+ c.querySelectorAll('[data-emt]').forEach(b=>b.onclick=()=>editarMotorista(b.dataset.emt,re));
+ c.querySelectorAll('[data-lgc]').forEach(b=>b.onclick=()=>criarLogin(b.dataset.lgc,re));
+ c.querySelectorAll('[data-lgl]').forEach(b=>b.onclick=()=>ligarLogin(b.dataset.lgl,re));
+ c.querySelectorAll('[data-lgr]').forEach(b=>b.onclick=()=>redefinirSenha(b.dataset.lgr));
+ c.querySelectorAll('[data-lgt]').forEach(b=>b.onclick=()=>tirarLogin(b.dataset.lgt,re));
+ c.querySelectorAll('[data-vmt]').forEach(b=>b.onclick=()=>motoristasDoVeiculo(b.dataset.vmt,re));
+ on('[data-cplink]',async()=>{try{await navigator.clipboard.writeText(linkMot());toast('Endereço copiado.','ok')}catch(e){toast(linkMot())}});
+ on('.de-nveic',()=>{PREFILL={mod:'locais',dados:{setor:'combustivel',situacao:'Ativo',tipo:'Caminhão',controleUso:'Hodômetro (km)'}};JBNAV.ir('#/locais/novo')});
+ on('.de-smapa',async()=>{const mapa={};TIPOS.forEach(t=>{mapa[t.k]={destino:c.querySelector('[data-md="'+t.k+'"]').value,categoria:c.querySelector('[data-mc="'+t.k+'"]').value}});
+  const sel=c.querySelector('[data-mca]');if(await salvarCfg({mapa,catAdiant:sel?sel.value:''},'alterou a classificação financeira'))re()});
+ on('.de-pmapa',async()=>{if(!await confirmar('Voltar a classificação ao padrão?','Combustível e Arla 32 → Despesas com entregas (Combustível para entrega); alimentação → Alimentação; manutenção e troca de óleo → Manutenção; outros → Outras despesas; pedágio e hospedagem sem categoria. Vale para os lançamentos novos.',{ok:'Voltar ao padrão'}))return;
+  if(await salvarCfg({mapa:clone(MAPA_PAD)},'voltou a classificação ao padrão'))re()});
+ on('.de-sregras',async()=>{const regras={};c.querySelectorAll('[data-rg]').forEach(i=>regras[i.dataset.rg]=i.checked);const d=+c.querySelector('[data-rgd]').value;regras.diasAtras=Number.isInteger(d)&&d>=0&&d<=60?d:7;if(await salvarCfg({regras},'alterou as regras do lançamento'))re()});
+ on('.de-saprov',async()=>{const ap=[...c.querySelectorAll('[data-apv]:checked')].map(i=>i.dataset.apv);if(await salvarCfg({aprovadores:ap},'alterou quem aprova'))re()});
+ if(adm&&API()&&LOGINS===null){LOGINS=[];carregarLogins().then(()=>{if(/^#\/deCfg/.test(location.hash))re()})}
+}
+function motoristasDoVeiculo(lid,depois){
+ const L=LOC(lid);if(!L)return;const M=MOTS().filter(m=>m.situacao!=='Inativo');
+ modalX('Quem pode usar '+([L.identificacao,L.nome].filter(Boolean).join(' · ')),`<div class="de-veics">${M.map(m=>`<label><input type="checkbox" value="${esc(m.id)}"${(m.veiculos||[]).includes(lid)?' checked':''}>${esc(m.nome)}</label>`).join('')||'<span class="ajuda">Nenhum motorista cadastrado.</span>'}</div>`,'Salvar',async mv=>{
+  const marc=new Set([...mv.querySelectorAll('.de-veics input:checked')].map(i=>i.value));
+  for(const m of M){const tem=(m.veiculos||[]).includes(lid);if(tem===marc.has(m.id))continue;const at=MOT(m.id);const vs=marc.has(m.id)?[...(at.veiculos||[]),lid]:(at.veiculos||[]).filter(x=>x!==lid);
+   await gravarCad({...clone(at),veiculos:vs,alteradoEm:agora(),alteradoPor:eu()},at)}
+  toast('Motoristas do veículo salvos.','ok');if(depois)depois()});
+}
+
+/* ---------- 16. Controladoria: as despesas aprovadas, pela data do gasto (o compromisso que elas geram não entra de novo) ---------- */
+const CAMPO_ALM=c=>c==='manut'?'frotaPecas':c;   /* manutenção de veículo de entrega = peças da frota (como no Almoxarifado) */
+function controladoria(m,CAT){
+ const out=[];CAT=CAT||{};
+ DATA.deLanc.filter(d=>d.st==='aprovado'&&String(d.data||'').slice(0,7)===m).forEach(d=>{
+  const cat=catDe(d),t=TIPO(d.tipoDesp),txt='Nº '+(d.numero||'—')+' · '+t.l+' · '+nomeMot(d.motoristaId)+(d.veiculoId?' · '+placaDe(d.veiculoId):'')+' · '+fData(d.data);
+  const campo=cat?CAT[cat]:null;
+  if(campo)out.push({c:CAMPO_ALM(campo),v:r2(d.valor),o:'Setor de Combustível · Despesas de entrega',t:txt+' ('+cat+')'});
+  else out.push({fora:{o:'Setor de Combustível · Despesas de entrega',t:txt+(cat?' ('+cat+')':''),v:r2(d.valor),porque:cat?'categoria sem campo na Controladoria':'despesa sem categoria (Despesas de entrega › Configurações)'}})});
+ return out}
+
+/* ---------- 17. rotas, menus, pendências e busca ---------- */
+const entrar=()=>{SV='combustivel';if(typeof marcarSetor==='function')marcarSetor('combustivel')};
+Object.assign(TELAS_V,{despEnt:el=>{entrar();shellV(el,'despEnt',telaPainel,{setor:'combustivel'})},deLanc:el=>{entrar();shellV(el,'deLanc',telaLancs,{setor:'combustivel'})},
+ deViag:el=>{entrar();shellV(el,'deViag',telaViagens,{setor:'combustivel'})},deRel:el=>{entrar();shellV(el,'deRel',telaRel,{setor:'combustivel'})},deCfg:el=>{entrar();shellV(el,'deCfg',telaCfg,{setor:'combustivel'})}});
+/* aba do Setor de Combustível (logo depois de "Despesa com combustível") */
+{const ab0=ABAS_V;ABAS_V=function(s){const a=ab0(s);if(s==='combustivel'&&pode('despEnt')&&!a.some(x=>x&&x.r==='#/despEnt')){const t={r:'#/despEnt',m:'despEnt',ic:'frota',l:'Despesas de entrega',at:['despEnt','deLanc','deViag','deRel','deCfg']};
+ const i=a.findIndex(x=>x&&x.r==='#/combEntrega');a.splice(i<0?a.length:i+1,0,t)}return a}}
+if(typeof window.LEMBRETES_V61==='function'){const l0=window.LEMBRETES_V61;window.LEMBRETES_V61=function(){const L=l0.apply(this,arguments)||[];
+ try{if((typeof liberadoV!=='function'||liberadoV('combustivel'))&&pode('despEnt')){
+  const ag=LANCS().filter(d=>d.st==='aguardando');if(ag.length&&ehAprovador())L.push({key:'dea-'+ag.length+'-'+ag.map(d=>d.id).sort().slice(-1)[0],mod:'despEnt',setor:'Combustível',prio:'media',titulo:pl(ag.length,'despesa')+' de entrega esperando conferência',det:'Total de '+fMoeda(soma(ag,d=>d.valor))+'.',rota:'#/deLanc'});
+  const pe=LANCS().filter(d=>['falha','semcat'].includes(situ(d).k));if(pe.length)L.push({key:'def-'+pe.map(d=>d.id).sort().join('.').slice(-40),mod:'despEnt',setor:'Combustível',prio:'alta',titulo:pl(pe.length,'despesa aprovada','despesas aprovadas')+' sem compromisso no Financeiro',det:'Configure a categoria ou use "Enviar ao Financeiro".',rota:'#/deLanc'});
+  const pcx=ehAdmin()?pendCats():[];if(pcx.length)L.push({key:'dec-'+pcx.map(x=>x.t.k).join('.'),mod:'despEnt',setor:'Combustível',prio:'media',titulo:'Despesas de entrega: '+pl(pcx.length,'tipo')+' sem categoria no Financeiro',det:pcx.map(x=>x.t.l).join(', ')+'. Escolha a categoria em Configurações › Classificação financeira.',rota:'#/deCfg'});
+  const pd=LANCS().filter(pedidoAberto);if(pd.length&&ehAprovador())L.push({key:'dep-'+pd.map(d=>d.id).sort().join('.').slice(-40),mod:'despEnt',setor:'Combustível',prio:'media',titulo:pl(pd.length,'pedido')+' de correção de motorista',det:'Responda pelo lançamento.',rota:'#/deLanc'})}}catch(e){console.warn('despesas de entrega: pendências',e)}
+ return L}}
+if(typeof pqEntradas==='function'){const pq0=pqEntradas;pqEntradas=function(){const E=pq0.apply(this,arguments);try{const NN=s=>typeof pqN==='function'?pqN(s):semAcento(String(s||''));
+ const add=(t,s,i,h,x)=>E.push({g:'Telas',t,s,ic:i,k:NN(t+' '+s+' '+x),ir:()=>JBNAV.ir(h),h,ix:E.length});
+ if(pode('despEnt')){add('Despesas de entrega','Combustível · gastos das viagens lançados pelos motoristas no celular','frota','#/despEnt','despesas entrega viagem motorista celular pedagio alimentacao hospedagem borracharia arla diesel');
+  add('Viagens dos motoristas','Combustível · Despesas de entrega · viagens, adiantamento e acerto','deEstrada','#/deViag','viagem viagens adiantamento acerto prestacao contas motorista');
+  add('Configurações das despesas de entrega','Combustível · motoristas, login do celular, caminhões, classificação financeira','engrenagem','#/deCfg','motorista login celular caminhao classificacao categoria aprova')}}catch(e){}return E}}
+window.DESP_ENTREGA_V177=Object.freeze({CFGD,mapaDe,catDe,destinoDe,situ,contasViagem,enviarFin,enviarFinViagem,controladoria,relViagem,relPeriodo,docLanc,TIPOS,MAPA_PAD,REGRAS_PAD,DESTINOS,
+ aprovar,decidir,cancelar,corrigir,reenviar,lancarEscritorio,editarViagem,mudarViagem,registrarAdiant,fazerAcerto,desfazerAcerto,editarMotorista,UI});
 })();
 </script>
 </body>
