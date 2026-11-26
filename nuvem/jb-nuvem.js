@@ -26,6 +26,15 @@
     if (p.length < 2 || p.length % 2) throw erro('invalid_argument', 'caminho inválido: ' + caminho);
     return { colecao: p.slice(0, -1).join('/'), id: p[p.length - 1] };
   }
+  /* igualdade de conteúdo sem depender da ordem das chaves (o banco devolve o jsonb em outra ordem) */
+  function igual(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    var ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    for (var i = 0; i < ka.length; i++) { if (!Object.prototype.hasOwnProperty.call(b, ka[i]) || !igual(a[ka[i]], b[ka[i]])) return false; }
+    return true;
+  }
   function novoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   function mesclar(a, b) {
     var o = Object.assign({}, a || {});
@@ -80,14 +89,74 @@
     if (dados === null || dados === undefined) cache.delete(colecao + '/' + id);
     else cache.set(colecao + '/' + id, { colecao: colecao, id: id, dados: dados });
   }
+
+  /* ---------------- cadastros de um setor guardados na coleção de outro módulo (16/11/2026) ----------------
+     A leitura no servidor é por módulo, e alguns cadastros que um setor usa moram na coleção de outro
+     módulo: terceiros que abastecem, responsáveis e contas ficam no Financeiro ("fin"), a configuração do
+     barro no Barro, os nomes dos funcionários no DP. Quem não tinha o módulo dono via a lista vazia (ex.:
+     veículos de terceiros no Combustível). O servidor (jb_compartilhados) entrega só os itens e campos que o
+     setor da pessoa usa; aqui eles entram no mesmo "banco" do programa. "parciais" são as coleções que a
+     pessoa só enxerga em parte: elas não chegam pelo tempo real, então são conferidas a cada minuto. */
+  var parciais = new Set();
+  var raizDe = function (colecao) { return String(colecao || '').split('/')[0]; };
+  async function lerCompartilhados() {
+    var r = await sb.rpc('jb_compartilhados');
+    if (r.error) {
+      if (r.error.code === 'PGRST202' || r.error.code === '42883') return null;   // servidor ainda sem a função: segue como antes
+      throw traduzErro(r.error);
+    }
+    var d = r.data || {};
+    return { parciais: Array.isArray(d.parciais) ? d.parciais : [], docs: Array.isArray(d.docs) ? d.docs : [] };
+  }
+  var conferindoComp = null, compAgendado = null;
+  function atualizarCompartilhados() {
+    if (!sb || !eu || eu.admin) return Promise.resolve();
+    if (conferindoComp) return conferindoComp;
+    conferindoComp = (async function () {
+      var res; try { res = await lerCompartilhados(); } catch (e) { return; }
+      if (!res) return;
+      var np = new Set(res.parciais), vistos = new Set(), mud = new Set();
+      res.docs.forEach(function (x) {
+        if (!x || !x.colecao || !x.id || !np.has(raizDe(x.colecao))) return;
+        var k = x.colecao + '/' + x.id, a = cache.get(k); vistos.add(k);
+        if (!a || JSON.stringify(a.dados) !== JSON.stringify(x.dados)) { cache.set(k, { colecao: x.colecao, id: x.id, dados: x.dados }); mud.add(x.colecao); }
+      });
+      cache.forEach(function (r, k) { if (np.has(raizDe(r.colecao)) && !vistos.has(k)) { cache.delete(k); mud.add(r.colecao); } });
+      parciais = np;
+      mud.forEach(function (c) { avisar(c); });
+    })().finally(function () { conferindoComp = null; });
+    return conferindoComp;
+  }
+  /* depois de gravar numa coleção parcial, o servidor pode completar o registro (ex.: o número do
+     compromisso): confere logo em seguida */
+  function agendarCompartilhados(colecao) {
+    if (!parciais.has(raizDe(colecao))) return;
+    clearTimeout(compAgendado);
+    compAgendado = setTimeout(function () { atualizarCompartilhados(); }, 1500);
+  }
+
   async function carregarTudo() {
     var novo = new Map(), de = 0, passo = 1000;
+    var comp = lerCompartilhados().catch(function () { return null; });
     for (;;) {
       var r = await sb.from('docs').select('colecao,id,dados').order('colecao').order('id').range(de, de + passo - 1);
       if (r.error) throw traduzErro(r.error);
       r.data.forEach(function (x) { novo.set(x.colecao + '/' + x.id, x); });
       if (r.data.length < passo) break;
       de += passo;
+    }
+    var res = await comp;
+    if (res) {
+      var np = new Set(res.parciais);
+      res.docs.forEach(function (x) {
+        if (!x || !x.colecao || !x.id || !np.has(raizDe(x.colecao))) return;
+        var k = x.colecao + '/' + x.id;
+        if (!novo.has(k)) novo.set(k, { colecao: x.colecao, id: x.id, dados: x.dados });
+      });
+      parciais = np;
+    } else {
+      // não deu para conferir agora: mantém o que já tinha dessas coleções até a próxima conferência
+      cache.forEach(function (r, k) { if (parciais.has(raizDe(r.colecao)) && !novo.has(k)) novo.set(k, r); });
     }
     /* devolve as coleções que mudaram, para redesenhar só elas */
     var mudaram = new Set(), velho = cache;
@@ -99,11 +168,17 @@
   async function recarregarDoc(colecao, id) {
     var r = await sb.from('docs').select('colecao,id,dados').eq('colecao', colecao).eq('id', id).maybeSingle();
     if (r.error) throw traduzErro(r.error);
-    guardar(colecao, id, r.data ? r.data.dados : null);
+    /* 20/11/2026 (desempenho): o tempo real também avisa das gravações feitas por esta própria aba, que já
+       estão no cache. Igual ao que já está aqui: não redesenha a tela de novo (antes cada salvar redesenhava duas vezes). */
+    var novo = r.data ? r.data.dados : null, ant = cache.get(colecao + '/' + id);
+    if (ant ? (novo !== null && igual(ant.dados, novo)) : novo === null) return;
+    guardar(colecao, id, novo);
     avisar(colecao, id);
   }
 
   /* ---------------- banco no formato que o sistema já usa ---------------- */
+  var gravando = 0;                 // gravações ainda sem resposta do servidor (o aviso de versão nova pergunta antes de recarregar)
+  async function rpcGravar(nome, args) { gravando++; try { return await sb.rpc(nome, args); } finally { gravando--; } }
   function refDoc(caminho) {
     var p = separar(caminho);
     return {
@@ -111,22 +186,22 @@
       get: async function () { await pronto; return snapDoc(p.colecao, p.id); },
       set: async function (d) {
         await pronto; atividade();
-        var r = await sb.rpc('jb_gravar', { p_colecao: p.colecao, p_id: p.id, p_dados: clone(d) });
+        var r = await rpcGravar('jb_gravar', { p_colecao: p.colecao, p_id: p.id, p_dados: clone(d) });
         if (r.error) throw traduzErro(r.error);
-        guardar(p.colecao, p.id, clone(d)); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, clone(d)); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       update: async function (d) {
         await pronto; atividade();
-        var r = await sb.rpc('jb_atualizar', { p_colecao: p.colecao, p_id: p.id, p_campos: clone(d) });
+        var r = await rpcGravar('jb_atualizar', { p_colecao: p.colecao, p_id: p.id, p_campos: clone(d) });
         if (r.error) throw traduzErro(r.error);
         var ant = cache.get(p.colecao + '/' + p.id);
-        guardar(p.colecao, p.id, mesclar(ant ? ant.dados : {}, clone(d))); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, mesclar(ant ? ant.dados : {}, clone(d))); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       delete: async function () {
         await pronto; atividade();
-        var r = await sb.rpc('jb_apagar', { p_colecao: p.colecao, p_id: p.id });
+        var r = await rpcGravar('jb_apagar', { p_colecao: p.colecao, p_id: p.id });
         if (r.error) throw traduzErro(r.error);
-        guardar(p.colecao, p.id, null); avisar(p.colecao, p.id);
+        guardar(p.colecao, p.id, null); avisar(p.colecao, p.id); agendarCompartilhados(p.colecao);
       },
       onSnapshot: function (cb, aoErro) {
         var o = { tipo: 'doc', colecao: p.colecao, id: p.id, filtros: [], cb: cb, erro: aoErro };
@@ -192,12 +267,108 @@
     delete: async function (id) { await pronto; var r = await sb.storage.from('anexos').remove([String(id)]); if (r.error) throw erro('permission_denied', r.error.message); }
   });
 
+  /* leitura de documentos por IA (Lançamento Inteligente por Foto): a função do servidor confere a
+     sessão e a permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave */
+  var LEITOR = SB_URL + '/functions/v1/jb-ler-documento';
+  var aquecido = 0;
+  /* pedido a uma função de IA do servidor, com a resposta chegando aos poucos (leitura de documentos e redator de contratos) */
+  async function pedirFluxo(URL_IA, corpo, sinal, aoAndar) {
+      await pronto; atividade();
+      var aosPoucos = typeof aoAndar === 'function';
+      var envio = Object.assign({}, corpo || {}); if (aosPoucos) envio.fluxo = true;
+      var cancelou = function () { return !!(sinal && sinal.aborted); };
+      var r;
+      try {
+        r = await fetch(URL_IA, { method: 'POST', signal: sinal,
+          headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
+          body: JSON.stringify(envio) });
+      } catch (e) {
+        if (cancelou()) throw erro('cancelado', '');
+        throw erro('rede', 'Sem conexão com o servidor de leitura. Verifique a internet e tente de novo.');
+      }
+      aquecido = Date.now();
+      var tipo = r.headers.get('content-type') || '';
+      if (r.ok && r.body && /ndjson/i.test(tipo)) {
+        var leitorFluxo = r.body.getReader(), dec = new TextDecoder(), resto = '', texto = '', fim = null;
+        var linha = function (l) {
+          if (!l) return; var o; try { o = JSON.parse(l); } catch (e) { return; }
+          if (o.t === 'texto' && typeof o.d === 'string') { texto += o.d; try { aoAndar({ texto: texto }); } catch (e) {} }
+          else if (o.t === 'inicio') { try { aoAndar({ texto: '' }); } catch (e) {} }
+          else if (o.t === 'fim' || o.t === 'erro') fim = o;
+        };
+        try {
+          for (;;) {
+            var p = await leitorFluxo.read(); if (p.done) break;
+            resto += dec.decode(p.value, { stream: true });
+            var q; while ((q = resto.indexOf('\n')) >= 0) { linha(resto.slice(0, q)); resto = resto.slice(q + 1); }
+            atividade();
+          }
+          linha(resto);
+        } catch (e) {
+          if (cancelou()) throw erro('cancelado', '');
+          throw erro('rede', 'A conexão caiu no meio da leitura. Verifique a internet e tente de novo.');
+        }
+        if (cancelou()) throw erro('cancelado', '');
+        if (!fim) throw erro('rede', 'A leitura foi interrompida antes de terminar. Tente de novo.');
+        if (fim.t === 'erro') throw erro(fim.erro || 'erro', fim.mensagem || 'A leitura não deu certo. Tente de novo.');
+        return { ok: true, texto: fim.texto, modelo: fim.modelo, cortado: !!fim.cortado };
+      }
+      var j = {}; try { j = await r.json(); } catch (e) {}
+      if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || ('O servidor de leitura respondeu com erro (' + r.status + ').'));
+      return j;
+    }
+
+  var leitor = Object.freeze({
+    /* V109: com aoAndar a leitura vem aos poucos (o programa mostra o andamento de verdade); sem ele, como antes */
+    ler: function (corpo, sinal, aoAndar) { return pedirFluxo(LEITOR, corpo, sinal, aoAndar); },
+    /* acorda a função do servidor quando a pessoa abre a tela da foto, para a leitura não esperar a partida */
+    aquecer: function () {
+      if (Date.now() - aquecido < 240000) return; aquecido = Date.now();
+      pronto.then(function () {
+        return fetch(LEITOR, { method: 'GET', headers: { apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token } });
+      }).catch(function () {});
+    }
+  });
+
+  /* redator de contratos por IA (Setor Pessoal › Contratos, V125): a função jb-contratos-ia confere a sessão e a
+     permissão e chama a IA com a chave guardada no Supabase; o navegador nunca vê a chave. Dados pessoais do
+     cadastro não vão no pedido: o programa manda marcadores e troca pelo dado na tela. */
+  var REDATOR = SB_URL + '/functions/v1/jb-contratos-ia';
+  var redator = Object.freeze({
+    escrever: function (corpo, sinal, aoAndar) { return pedirFluxo(REDATOR, corpo, sinal, aoAndar); }
+  });
+
+  /* serviço fiscal (Setor Fiscal · NF-e pela Focus NFe): a função jb-fiscal do servidor confere a sessão e o
+     perfil e fala com a Focus NFe com os tokens guardados no Supabase; o navegador nunca vê os tokens.
+     Devolve a resposta do serviço (dados, ou {erro:{tipo, mensagem}}). Sem resposta reconhecível, o erro é
+     "sem_resposta"/"rede": o pedido pode ter chegado, por isso o programa consulta antes de reenviar. */
+  var FISCAL = SB_URL + '/functions/v1/jb-fiscal';
+  async function fiscal(acao, args) {
+    await pronto; atividade();
+    var r;
+    try {
+      r = await fetch(FISCAL, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SB_CHAVE, Authorization: 'Bearer ' + sessao.access_token },
+        body: JSON.stringify({ acao: String(acao || ''), args: args || {} }) });
+    } catch (e) {
+      throw erro('rede', 'Sem conexão com o servidor fiscal. Verifique a internet; se estava emitindo, consulte a nota antes de enviar de novo.');
+    }
+    var j = null; try { j = await r.json(); } catch (e) {}
+    if (j && typeof j === 'object' && !Array.isArray(j)) {
+      if (r.ok) return j;
+      if (j.erro && typeof j.erro === 'object' && j.erro.tipo) return j;   // recusa do próprio serviço fiscal
+    }
+    throw erro('sem_resposta', 'O servidor fiscal não respondeu direito (código ' + r.status + '). Se estava emitindo, consulte a nota antes de enviar de novo.');
+  }
+
   window.claude = Object.freeze({
     use: async function (nome) {
       if (nome === 'db') { await pronto; return db; }
       if (nome === 'user') { await pronto; return user; }
       if (nome === 'assets') { await pronto; return assets; }
-      return null; // assistente, editor por IA, conector fiscal e versões do Claude não existem fora dele
+      if (nome === 'leitor') { await pronto; return leitor; }
+      if (nome === 'redator') { await pronto; return redator; }
+      return null; // assistente, editor por IA e versões do Claude não existem fora dele (o serviço fiscal vem por JB_NUVEM_API.fiscal)
     }
   });
 
@@ -214,6 +385,32 @@
     if (!sb || !eu || document.hidden) return;
     try { (await carregarTudo()).forEach(function (c) { avisar(c); }); } catch (e) { /* tratado em traduzErro */ }   // antes: a tela inteira era redesenhada mesmo sem mudança
   }, 10 * 60 * 1000);
+  /* coleções que a pessoa só enxerga em parte (sem tempo real): conferidas a cada minuto com a tela em uso
+     e na hora em que a pessoa volta para a aba */
+  setInterval(function () {
+    if (!sb || !eu || document.hidden || !parciais.size) return;
+    if (Date.now() - ultimaAtividade > 5 * 60 * 1000) return;
+    atualizarCompartilhados();
+  }, 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && sb && eu && parciais.size) atualizarCompartilhados(); });
+
+  /* setores que aparecem na tela de setores e no trilho: além das regras do perfil (no programa), só os que o
+     servidor libera para a pessoa (antes aparecia o setor e as telas ficavam vazias). Administrador vê todos. */
+  var MODULOS_DO_SETOR = { dp: ['dp', 'folha'], vendas: ['vendas'], lenha: ['compras'], combustivel: ['compras'], producao: ['producao'],
+    financeiro: ['financeiro'], barro: ['barro'], almox: ['almox', 'cozinha'], paletes: ['paletes'], fiscal: ['fiscal'], control: ['controladoria'] };
+  /* V160: o Setor do Almoxarifado / Cozinha aparece também para quem só tem a Cozinha (controle de almoço) */
+  window.JB_SETOR_SRV = function (id) {
+    if (!eu || eu.admin) return true;
+    var ms = MODULOS_DO_SETOR[id];
+    if (!ms) return true;   // setores sem módulo próprio (Controle Central, Inventário): valem as regras do programa
+    return ms.some(function (m) { var p = eu.permissoes && eu.permissoes[m]; return !!(p && p.ler); });
+  };
+  /* 25/11/2026: o programa pergunta se a pessoa tem um módulo no servidor (quem tem só a Cozinha, sem o Almoxarifado,
+     usa só as telas das refeições). Administrador tem todos. */
+  window.JB_MODULO_SRV = function (m) {
+    if (!eu || eu.admin) return true;
+    var p = eu.permissoes && eu.permissoes[m]; return !!(p && p.ler);
+  };
   function ligarTempoReal() {
     sb.channel('jb-docs').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, function (p) {
       var r = p.new && p.new.colecao ? p.new : p.old;
@@ -240,24 +437,66 @@
     eu: function () { return eu ? clone(eu) : null; },
     rpc: async function (fn, args) { await pronto; atividade(); var r = await sb.rpc(fn, args || {}); if (r.error) throw traduzErro(r.error); return r.data; },
     auth: async function (acao, corpo) { await pronto; atividade(); return post(acao, corpo, sessao.access_token); },
+    fiscal: fiscal,
+    /* V160: depois de um cadastro feito no servidor (cadastro rápido da Cozinha), traz os dados compartilhados na hora */
+    atualizarCompartilhados: function () { return atualizarCompartilhados(); },
     db: db
   });
 
   /* ---------------- tela de entrada ---------------- */
-  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;background:#F6F3EF;display:flex;align-items:center;justify-content:center;padding:16px;font:14px Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#221C18}' +
-    '#jbl .c{background:#fff;border:1px solid #E8E1DA;border-radius:16px;box-shadow:0 12px 28px -10px rgba(38,28,20,.18);width:100%;max-width:380px;padding:28px 26px}' +
-    '#jbl .m{display:flex;align-items:center;gap:12px;margin-bottom:20px}#jbl .lg{width:42px;height:42px;border-radius:11px;background:linear-gradient(150deg,#C2603A,#8A3A19);color:#fff;display:grid;place-items:center;font-weight:700}' +
-    '#jbl h1{font-size:18px;margin:0;font-weight:600}#jbl small{color:#5C534C;font-size:12.5px}' +
-    '#jbl label{display:block;font-size:12.5px;font-weight:500;color:#5C534C;margin:12px 0 4px}' +
-    '#jbl input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #E8E1DA;border-radius:8px;font:inherit;font-size:16px;background:#FAF8F5}' +
-    '#jbl input:focus{outline:none;border-color:#A3461F;box-shadow:0 0 0 3px rgba(163,70,31,.18);background:#fff}' +
-    '#jbl button{width:100%;margin-top:18px;padding:11px;border:0;border-radius:8px;background:#A3461F;color:#fff;font:inherit;font-weight:600;cursor:pointer}' +
-    '#jbl button:disabled{opacity:.6;cursor:wait}#jbl .msg{min-height:18px;margin-top:12px;font-size:13px;color:#B3302A}#jbl .ok{color:#16784A}' +
-    '#jbl .rod{margin-top:16px;font-size:11.5px;color:#9C9188;text-align:center}' +
+  /* visual "céu aberto" (09/11/2026): a foto real da cerâmica. Celular e tablet: formulário em cima e a foto embaixo,
+     com o céu sumindo no branco. Computador e tablet deitado: fundo creme, formulário à esquerda e a foto em tom de fim de tarde à direita.
+     Os mesmos elementos de antes: logo e nome, usuário, senha, botão Entrar, aviso e rodapé. */
+  var JBL_LARGA = '(min-width:1040px),(min-width:900px) and (orientation:landscape)';
+  var CSS = '#jbl{position:fixed;inset:0;z-index:2147483600;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;' +
+      'font:15px Barlow,Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#121318}' +
+    '#jbl .f{flex:0 0 auto;display:flex;justify-content:center;align-items:center;box-sizing:border-box;padding:calc(28px + env(safe-area-inset-top,0px)) 28px 8px}' +
+    '#jbl .c{width:100%;max-width:400px}' +
+    '#jbl .m{display:flex;align-items:center;gap:12px;margin-bottom:36px}' +
+    '#jbl .lg{width:48px;height:48px;display:block;flex:none}' +
+    '#jbl .mt b{display:block;font-family:"Barlow Condensed","Arial Narrow",Barlow,sans-serif;font-size:26px;font-weight:700;line-height:1}#jbl .mt span{display:block;font-size:13px;line-height:1.3;color:#5B606B;margin-top:2px}' +
+    '#jbl h1{font-size:36px;line-height:1.08;font-weight:600;letter-spacing:-.01em;margin:0}#jbl h1 span{color:#D3121C}' +
+    '#jbl small{display:block;color:#4E5260;font-size:16px;line-height:1.35;margin:8px 0 10px}' +
+    '#jbl label{display:block;font-size:13px;font-weight:600;color:#3A3E48;margin:14px 0 6px}' +
+    '#jbl input{width:100%;box-sizing:border-box;height:54px;padding:0 14px;border:1px solid #CFD3DA;border-radius:10px;font:inherit;font-size:16px;color:#121318;background:#fff}' +
+    '#jbl input[type=password],#jbl .cs input{padding-right:54px}' +
+    '#jbl input:focus{outline:none;border-color:#D3121C;box-shadow:0 0 0 3px rgba(211,18,28,.16)}' +
+    '#jbl .cs{position:relative}' +
+    '#jbl .olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:#4E5260;display:grid;place-items:center;cursor:pointer;padding:0;margin:0}' +
+    '#jbl .olho:hover,#jbl .olho[aria-pressed=true]{color:#D3121C}#jbl .olho:focus-visible{outline:3px solid #D3121C;outline-offset:1px}' +
+    '#jbl button[type=submit]{width:100%;height:54px;margin-top:20px;border:0;border-radius:10px;background:#D3121C;color:#fff;font:inherit;font-size:17px;font-weight:700;cursor:pointer}' +
+    '#jbl button[type=submit]:hover{background:#B90F18}#jbl button[type=submit]:focus-visible{outline:3px solid #121318;outline-offset:2px}' +
+    '#jbl button[type=submit]:disabled{opacity:.75;cursor:wait}' +
+    '#jbl .msg{font-size:14px;line-height:1.35;color:#8E1016}#jbl .msg:not(:empty){margin-top:12px;background:#FDECEE;border:1px solid #F6C7CB;border-radius:10px;padding:10px 12px}' +
+    '#jbl .ok{color:#16784A}#jbl .msg.ok:not(:empty){background:#E6F4EC;border-color:#BFE3CD}' +
+    '#jbl .rod{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:13px;color:#5B606B;text-align:center}' +
+    '#jbl .ft{position:relative;flex:1 0 292px;min-height:292px;overflow:hidden}' +
+    '#jbl .ft img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:60% 100%;-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0%,#000 30%);mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0%,#000 30%)}' +
+    '#jbl .vu{display:none}' +
+    '#jbl .sb{position:absolute;left:0;right:0;bottom:0;height:72px;background:linear-gradient(to bottom,rgba(18,12,8,0),rgba(18,12,8,.66))}' +
+    '#jbl .cr{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;font-size:13px;font-weight:500;color:#fff}' +
+    '@media ' + JBL_LARGA + '{#jbl{background:#FBF5EC;flex-direction:row}' +
+      '#jbl .f{position:relative;z-index:1;flex:0 0 560px;padding:48px 80px}' +
+      '#jbl h1{font-size:52px;line-height:1.04}' +
+      '#jbl .ft{position:fixed;top:0;left:380px;right:0;bottom:0;min-height:0}' +
+      '#jbl .ft img{object-position:100% 100%;-webkit-mask-image:none;mask-image:none}' +
+      '#jbl .vu{display:block;position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,#FBF5EC 0,#FBF5EC 130px,rgba(251,245,236,0) 340px)}' +
+      '#jbl .sb{display:none}' +
+      '#jbl .cr{position:fixed;left:80px;right:auto;bottom:12px;color:#5B606B}}' +
+    '@media (prefers-reduced-motion:no-preference){#jbl .c{animation:jblEntra .25s ease-out}@keyframes jblEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}' +
     '#jbsair{position:fixed;left:12px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbsair:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbsair{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:64px}}' +
     '#jbadm{position:fixed;left:130px;bottom:12px;z-index:2147483000;border:1px solid #E8E1DA;background:#fff;color:#5C534C;border-radius:999px;padding:6px 12px;font:12.5px Inter,system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 3px rgba(38,28,20,.08)}' +
     '#jbadm:hover{color:#A3461F;border-color:#A3461F}@media(max-width:960px){#jbadm{display:none}}' +
+    /* aviso de versão nova: logo abaixo da barra do topo (z 20), acima da barra de baixo do celular (45) e
+       abaixo das gavetas (50), das mensagens de salvo/erro (80), do "Sair" e da tela de entrada */
+    '#jbversao{position:fixed;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:49;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;width:max-content;max-width:min(780px,calc(100% - 24px));box-sizing:border-box;background:#A3461F;color:#fff;border-radius:12px;padding:8px 10px 8px 16px;font:13.5px Inter,system-ui,sans-serif;box-shadow:0 10px 30px -8px rgba(38,28,20,.45)}' +
+    '#jbversao>span{flex:1 1 auto;min-width:0}#jbversao b{font-weight:600}#jbversao small{display:block;opacity:.85;font-size:12px;margin-top:1px}' +
+    '#jbversao button{flex:none;white-space:nowrap;border:0;border-radius:8px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}' +
+    '#jbversao .sim{background:#fff;color:#A3461F}#jbversao .nao{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)}' +
+    '@media(max-width:960px){#jbversao{left:10px;right:10px;transform:none;width:auto;max-width:none;top:calc(62px + env(safe-area-inset-top,0px));padding:6px 6px 6px 12px;gap:6px;font-size:13px}#jbversao small{display:none}#jbversao button{padding:6px 10px;font-size:12.5px}}' +
+    '@media(max-width:380px){#jbversao b{font-size:12px}#jbversao button{padding:6px 8px}}' +
+    '@media print{#jbversao{display:none}}' +
     /* selo "Powered by Netlify": o Netlify o põe no canto de baixo à direita, em cima do botão Salvar das
        gavetas. No plano gratuito ele não pode ser escondido; aqui ele só muda de canto e continua visível:
        embaixo à esquerda, acima de "Sair" (computador) ou acima da barra de baixo (tablet em pé e celular) */
@@ -267,13 +506,28 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function caixa(titulo, sub, campos, botao, rodape) {
     var v = document.getElementById('jbl'); if (v) v.remove();
-    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><form class="c" novalidate><div class="m"><span class="lg">JB</span><div><h1 id="jblt">' + esc(titulo) + '</h1><small>' + esc(sub) + '</small></div></div>' +
-      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || 'JB Gestão de Cerâmica e Controladoria') + '</div></form></div>');
+    var cadeado = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+    var manchete = titulo === 'JB ERP' ? 'A gente cuida da gestão da sua <span>cerâmica.</span>' : esc(titulo);   // nas outras caixas fica o título delas
+    v = el('<div id="jbl" role="dialog" aria-modal="true" aria-labelledby="jblt"><div class="f"><form class="c" novalidate><div class="m"><img class="lg" src="icone.svg" alt="" width="48" height="48"><div class="mt"><b>JB ERP</b><span>Cerâmica Concretiza</span></div></div><h1 id="jblt">' + manchete + '</h1><small>' + esc(sub) + '</small>' +
+      campos + '<button type="submit">' + esc(botao) + '</button><div class="msg" role="status" aria-live="polite"></div><div class="rod">' + (rodape || cadeado + '<span>Acesso restrito a usuários autorizados</span>') + '</div></form></div>' +
+      '<div class="ft" aria-hidden="true"><picture><source media="' + JBL_LARGA + '" srcset="entrada-computador.jpg"><img src="entrada-celular.jpg" alt=""></picture><div class="vu"></div><div class="sb"></div><div class="cr">Cerâmica Concretiza · JB ERP</div></div></div>');
     (document.body || document.documentElement).appendChild(v);
+    /* olho: mostra e esconde a senha digitada */
+    v.addEventListener('click', function (e) {
+      var o = e.target.closest && e.target.closest('.olho'); if (!o) return;
+      var i = o.parentNode.querySelector('input'); var mostra = i.type === 'password';
+      i.type = mostra ? 'text' : 'password'; o.setAttribute('aria-pressed', mostra ? 'true' : 'false');
+      o.setAttribute('aria-label', mostra ? 'Esconder a senha' : 'Mostrar a senha'); i.focus();
+    });
     var f = v.querySelector('input'); if (f) setTimeout(function () { f.focus(); }, 30);
     return v;
   }
-  function campo(id, rot, tipo, auto) { return '<label for="' + id + '">' + esc(rot) + '</label><input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '" required>'; }
+  var OLHO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  function campo(id, rot, tipo, auto) {
+    var i = '<input id="' + id + '" type="' + tipo + '" autocomplete="' + auto + '" required' + (tipo === 'text' ? ' autocapitalize="none" spellcheck="false"' : '') + '>';
+    if (tipo === 'password') i = '<div class="cs">' + i + '<button type="button" class="olho" aria-label="Mostrar a senha" aria-pressed="false" aria-controls="' + id + '">' + OLHO + '</button></div>';
+    return '<label for="' + id + '">' + esc(rot) + '</label>' + i;
+  }
   async function post(acao, corpo, token) {
     var h = { 'Content-Type': 'application/json' }; if (token) h.Authorization = 'Bearer ' + token;
     var r; try { r = await fetch(AUTH + acao, { method: 'POST', headers: h, body: JSON.stringify(corpo || {}) }); }
@@ -282,22 +536,37 @@
     if (!r.ok) throw erro(j.erro || 'erro', j.mensagem || 'Não foi possível concluir.');
     return j;
   }
+  /* o servidor de login desliga ~15 s depois de usado e religar custa ~1 s. Enquanto a tela de
+     entrada está aberta, ele é "acordado" (no máximo a cada 10 s, só se a pessoa estiver mexendo),
+     para já estar pronto quando ela apertar Entrar. O "ping" não envia nada da pessoa. */
+  var ultimoAcordar = 0;
+  function acordarLogin() {
+    if (Date.now() - ultimoAcordar < 10000 || !document.getElementById('jbl')) return;
+    ultimoAcordar = Date.now();
+    fetch(AUTH + 'ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function () {});
+  }
+  function etapa(v, texto) {
+    var b = v.querySelector('button[type=submit]'); if (b) b.textContent = texto;
+    var m = v.querySelector('.msg'); if (m) { m.className = 'msg ok'; m.textContent = ''; }
+  }
   function tela(aviso, encerrada) {
     if (encerrada) { var s = document.getElementById('jbsair'); if (s) s.remove(); }
-    var v = caixa('JB Gestão', 'Entre com seu usuário e senha', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
+    var v = caixa('JB ERP', 'Entre com seu usuário e senha.', campo('jblu', 'Usuário', 'text', 'username') + campo('jbls', 'Senha', 'password', 'current-password'), 'Entrar');
     var msg = v.querySelector('.msg'); if (aviso) msg.textContent = aviso;
+    acordarLogin();
+    ['focusin', 'input'].forEach(function (ev) { v.addEventListener(ev, acordarLogin); });
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var b = v.querySelector('button'), u = v.querySelector('#jblu').value.trim().toLowerCase(), s = v.querySelector('#jbls').value;
+      var b = v.querySelector('button[type=submit]'), u = v.querySelector('#jblu').value.trim().toLowerCase(), s = v.querySelector('#jbls').value;
       if (!u || !s) { msg.textContent = 'Informe usuário e senha.'; return; }
-      b.disabled = true; msg.textContent = '';
+      b.disabled = true; msg.textContent = ''; etapa(v, 'Conferindo a senha…');
       try {
         var r = await post('login', { usuario: u, senha: s });
         v.querySelector('#jbls').value = '';
         if (r.trocarSenha) { trocarSenha(r); return; }
-        if (encerrada) { location.reload(); return; }
-        await entrar(r);
-      } catch (e) { msg.textContent = e.message; b.disabled = false; }
+        if (encerrada) { etapa(v, 'Abrindo…'); location.reload(); return; }
+        await entrar(r, function (t) { etapa(v, t); });
+      } catch (e) { msg.className = 'msg'; msg.textContent = e.message; b.disabled = false; b.textContent = 'Entrar'; }
     });
   }
   function trocarSenha(r) {
@@ -306,7 +575,7 @@
     var msg = v.querySelector('.msg');
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var a = v.querySelector('#jbla').value, n = v.querySelector('#jbln').value, rr = v.querySelector('#jblr').value, b = v.querySelector('button');
+      var a = v.querySelector('#jbla').value, n = v.querySelector('#jbln').value, rr = v.querySelector('#jblr').value, b = v.querySelector('button[type=submit]');
       if (n !== rr) { msg.textContent = 'As duas senhas novas não são iguais.'; return; }
       b.disabled = true; msg.textContent = '';
       try {
@@ -318,13 +587,13 @@
     });
   }
   function instalar() {
-    var v = caixa('Instalação do JB Gestão', 'Criar o primeiro administrador',
+    var v = caixa('Instalação do JB ERP', 'Criar o primeiro administrador',
       campo('jbic', 'Código de instalação', 'text', 'one-time-code') + campo('jbiu', 'Usuário (ex.: jeferson)', 'text', 'username') +
       campo('jbin', 'Nome completo', 'text', 'name') + campo('jbis', 'Senha (mínimo 8 caracteres)', 'password', 'new-password') + campo('jbir', 'Repita a senha', 'password', 'new-password'), 'Criar administrador');
     var msg = v.querySelector('.msg');
     v.querySelector('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      var g = function (i) { return v.querySelector(i).value; }, b = v.querySelector('button');
+      var g = function (i) { return v.querySelector(i).value; }, b = v.querySelector('button[type=submit]');
       if (g('#jbis') !== g('#jbir')) { msg.textContent = 'As duas senhas não são iguais.'; return; }
       b.disabled = true; msg.textContent = '';
       try {
@@ -336,7 +605,9 @@
     });
   }
 
-  async function entrar(r) {
+  async function entrar(r, avisarEtapa) {
+    avisarEtapa = avisarEtapa || function () {};
+    avisarEtapa('Abrindo a sessão…');
     sessao = r;
     sb = window.supabase.createClient(SB_URL, SB_CHAVE, { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } });
     var s = await sb.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
@@ -345,10 +616,15 @@
       if (nova) sessao = Object.assign({}, sessao, { access_token: nova.access_token, refresh_token: nova.refresh_token });
       if (ev === 'SIGNED_OUT') sessaoEncerrada();
     });
+    avisarEtapa('Carregando os dados…');
+    // acesso e dados ao mesmo tempo (antes era um depois do outro). Os dados só ficam
+    // disponíveis ao sistema depois que o acesso é confirmado (prontoRes, abaixo).
+    var dados = carregarTudo().then(function () { return null; }, function (e) { return e; });
     var q = await sb.rpc('jb_eu');
-    if (q.error || !q.data) throw erro('sessao', 'Não foi possível confirmar seu acesso.');
+    if (q.error || !q.data) { cache = new Map(); throw erro('sessao', 'Não foi possível confirmar seu acesso.'); }
     eu = { uid: q.data.uid, nome: q.data.nome, usuario: q.data.usuario, admin: !!q.data.admin, permissoes: q.data.permissoes || {} };
-    await carregarTudo();
+    var falhaDados = await dados;
+    if (falhaDados) throw falhaDados;
     ligarTempoReal();
     var v = document.getElementById('jbl'); if (v) v.remove();
     var bt = el('<button id="jbsair" type="button" title="Encerrar a sessão neste aparelho">' + esc(eu.usuario) + ' · Sair</button>');
@@ -369,6 +645,150 @@
     var r = await sb.storage.from('anexos').createSignedUrl(id, 300);
     if (r.data && r.data.signedUrl) window.open(r.data.signedUrl, '_blank', 'noopener');
   }, true);
+
+  /* imagens "/_blob/<id>" (foto da ficha, fotos do ponto): a página pede a imagem pelo código e aqui
+     ela é trocada por um endereço temporário e privado do armazenamento (vale 1 hora). Os códigos
+     que o armazenamento não reconhece ficam 5 minutos sem nova tentativa (sem repetir pedidos). */
+  var blobUrls = {}, blobPedindo = {}, blobAgendado = false;
+  /* a página pode montar a imagem já com o endereço guardado (sem pedir "/_blob/" de novo a cada redesenho) */
+  window.JB_BLOB_URL = function (id) { var c = blobUrls[id]; return c && c.url && c.ate > Date.now() + 60000 ? c.url : ''; };
+  function blobVarrer() {
+    blobAgendado = false;
+    if (!sb || !sessao) return;
+    var agora = Date.now(), faltam = [];
+    document.querySelectorAll('img[src^="/_blob/"]').forEach(function (img) {
+      var id = img.getAttribute('src').slice(7), c = blobUrls[id];
+      if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) return;
+      if (c && c.ate > agora) {
+        if (c.url) { img.setAttribute('data-blob', id); img.src = c.url; }
+        else if (!img.hasAttribute('data-blob-falhou')) { img.setAttribute('data-blob-falhou', '1'); img.dispatchEvent(new Event('error')); }   // o armazenamento não tem essa foto
+        return;
+      }
+      if (!blobPedindo[id] && faltam.indexOf(id) < 0) faltam.push(id);
+    });
+    if (!faltam.length) return;
+    faltam.forEach(function (id) { blobPedindo[id] = true; });
+    sb.storage.from('anexos').createSignedUrls(faltam, 3600).then(function (r) {
+      var ok = {};
+      (r && r.data || []).forEach(function (x) { if (x && x.path && x.signedUrl) { ok[x.path] = 1; blobUrls[x.path] = { url: x.signedUrl, ate: Date.now() + 3300000 }; } });
+      faltam.forEach(function (id) { if (!ok[id]) blobUrls[id] = { url: '', ate: Date.now() + 300000 }; });
+    }).catch(function () {
+      faltam.forEach(function (id) { blobUrls[id] = { url: '', ate: Date.now() + 60000 }; });
+    }).then(function () {
+      faltam.forEach(function (id) { delete blobPedindo[id]; });
+      blobAgendar();
+    });
+  }
+  function blobAgendar() { if (!blobAgendado) { blobAgendado = true; setTimeout(blobVarrer, 30); } }
+  new MutationObserver(function (ms) {
+    for (var i = 0; i < ms.length; i++) {
+      var m = ms[i];
+      if (m.type === 'attributes' ? m.target.tagName === 'IMG' && (m.target.getAttribute('src') || '').indexOf('/_blob/') === 0 : m.addedNodes.length) { blobAgendar(); return; }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
+  /* ---------------- versão nova publicada ----------------
+     Quem deixava o sistema aberto continuava na versão antiga até recarregar a página por conta
+     própria (foi o que aconteceu em 05/11/2026). A página sabe a própria versão (<meta name="jb-site">,
+     gravada na construção) e compara com o /versao.json de tempos em tempos e ao voltar para a aba.
+     - Tela de entrada parada e vazia: recarrega sozinha (no máximo uma vez por versão a cada 10 min,
+       para não entrar em laço se o servidor ainda entregar a página antiga).
+     - Com alguém usando: avisa, com "Atualizar agora" e "Agora não" (30 min). Recarregar pede o login
+       de novo (a sessão fica só na memória da aba), então o botão pergunta antes se há algo digitado
+       e não salvo ou gravação em andamento.
+     - 13/11/2026 (pedido do dono: "atualize tudo automaticamente"): com o aviso na tela, a página se
+       atualiza sozinha assim que fica 2 minutos sem ninguém mexer, desde que não haja nada digitado sem
+       salvar, nenhuma gravação em andamento e a tela não seja a do ponto (a tela travada do ponto facial
+       não pode cair no login no meio do dia; ela pega a versão nova na próxima vez que for aberta).
+     - Depois de entrar, a página registra no servidor a versão que está aberta (jb_versao_aberta), para
+       dar para conferir quem já está na versão nova. Servidor sem a função: segue sem registrar. */
+  var metaVersao = document.querySelector('meta[name="jb-site"]');
+  var versaoAberta = metaVersao ? metaVersao.getAttribute('content') : null;
+  var campoVersao = metaVersao ? 'site' : 'versao';   // sem a meta (página antiga): usa a primeira leitura
+  var avisoVersao = null, adiarVersaoAte = 0;
+  function lerVersao() {
+    return fetch('versao.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return j && typeof j[campoVersao] === 'string' ? j[campoVersao] : null; }, function () { return null; });
+  }
+  function entradaParada() {
+    var v = document.getElementById('jbl');
+    if (!v || !v.querySelector('#jblu') || /[?&]instalar\b/.test(location.search)) return false;   // só a tela de entrada comum
+    if ([].some.call(v.querySelectorAll('input'), function (i) { return i.value; })) return false;   // alguém digitando
+    var b = v.querySelector('button[type=submit]'); if (b && b.disabled) return false;              // entrada em andamento
+    var m = v.querySelector('.msg'); if (m && m.textContent.trim()) return false;                  // há um recado na tela
+    return true;
+  }
+  function recarregarSozinho(nova) {
+    try {
+      var k = 'jb_recarga_versao', a = JSON.parse(sessionStorage.getItem(k) || 'null');   // só a versão, nada da pessoa
+      if (a && a.para === nova && Date.now() - a.em < 10 * 60 * 1000) return;
+      sessionStorage.setItem(k, JSON.stringify({ para: nova, em: Date.now() }));
+    } catch (e) { return; }
+    location.reload();
+  }
+  function conferirVersao() {
+    if (document.hidden) return;
+    lerVersao().then(function (v) {
+      if (!v) return;
+      if (!versaoAberta) { versaoAberta = v; return; }
+      if (v === versaoAberta) return;
+      if (!eu) { if (entradaParada()) recarregarSozinho(v); return; }
+      versaoPublicada = v;
+      if (Date.now() >= adiarVersaoAte) mostrarAvisoVersao();
+    });
+  }
+  var versaoPublicada = null;
+  function telaDoPonto() {
+    try { if (window.JB_PONTO && window.JB_PONTO.aberto()) return true; } catch (e) {}
+    return /^#\/ponto/i.test(location.hash) || !!document.querySelector('video');   // câmera aberta: ponto ou foto de lançamento
+  }
+  function atualizarSozinho() {
+    if (!versaoPublicada || !eu || document.hidden) return;
+    if (Date.now() < adiarVersaoAte) return;                          // a pessoa pediu "Agora não"
+    if (Date.now() - ultimaAtividade < 2 * 60 * 1000) return;         // alguém mexendo
+    if (gravando > 0 || telaDoPonto()) return;
+    var ns = naoSalvo(); if (ns.nativo || ns.outro) return;
+    recarregarSozinho(versaoPublicada);
+  }
+  setInterval(atualizarSozinho, 20 * 1000);
+  var versaoRegistrada = false;
+  function registrarVersao() {
+    if (versaoRegistrada || !sb || !eu || !versaoAberta) return;
+    versaoRegistrada = true;
+    try { sb.rpc('jb_versao_aberta', { p_site: versaoAberta }).then(function () {}, function () {}); } catch (e) {}
+  }
+  pronto.then(registrarVersao, function () {});
+  setInterval(registrarVersao, 30 * 1000);
+  /* o programa informa o que ainda não foi salvo: nativo = já tem a pergunta do navegador ao sair
+     (gaveta e Configurações); outro = algo digitado nesta tela que só existe na memória */
+  function naoSalvo() {
+    var r = null;
+    try { if (typeof window.JB_NAO_SALVO === 'function') r = window.JB_NAO_SALVO(); } catch (e) {}
+    if (!r) r = { nativo: false, outro: !!document.querySelector('.gaveta') };
+    return r;
+  }
+  function mostrarAvisoVersao() {
+    if (avisoVersao || !document.body) return;
+    avisoVersao = el('<div id="jbversao" role="status" aria-live="polite"><span><b>Saiu uma versão nova do sistema.</b>' +
+      '<small>Ela entra sozinha quando a tela ficar parada. Depois é só entrar de novo com seu usuário e senha.</small></span>' +
+      '<button type="button" class="sim">Atualizar agora</button><button type="button" class="nao">Agora não</button></div>');
+    avisoVersao.querySelector('.sim').addEventListener('click', function () {
+      if (gravando > 0) { window.alert('Ainda estou gravando o que você salvou. Espere alguns segundos e toque em "Atualizar agora" de novo.'); return; }
+      var ns = naoSalvo();
+      if (ns.outro && !ns.nativo && !window.confirm('Você digitou algo nesta tela. Se ainda não salvou, isso se perde ao atualizar. Atualizar mesmo assim?')) return;
+      location.reload();   // gaveta ou Configurações com alteração: o próprio navegador pergunta
+    });
+    avisoVersao.querySelector('.nao').addEventListener('click', function () {
+      adiarVersaoAte = Date.now() + 30 * 60 * 1000;
+      if (avisoVersao) { avisoVersao.remove(); avisoVersao = null; }
+    });
+    document.body.appendChild(avisoVersao);
+  }
+  conferirVersao();
+  setInterval(conferirVersao, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) conferirVersao(); });
+  addEventListener('online', conferirVersao);
 
   function iniciarTela() {
     var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);

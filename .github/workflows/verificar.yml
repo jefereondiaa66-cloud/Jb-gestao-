@@ -25,10 +25,74 @@ jobs:
         run: node scripts/construir.mjs
       - name: Instalar navegador de teste
         run: |
-          npm install --no-save --no-package-lock playwright@1.48.2
+          npm install --no-save --no-package-lock playwright@1.48.2 xlsx@0.18.5 @vladmandic/face-api@1.7.15 jspdf@2.5.1 jspdf-autotable@3.8.2
           npx playwright install --with-deps chromium
       - name: Teste de ponta a ponta no navegador
         run: node scripts/testar-navegador.mjs
+      - name: Ponto facial (reconhecimento de verdade, câmera simulada)
+        timeout-minutes: 12
+        run: node scripts/testar-ponto-facial.mjs
+      - name: Pendências (avisos no botão PENDÊNCIAS)
+        run: node scripts/testar-pendencias.mjs
+      - name: Padrão de cores de todos
+        run: node scripts/testar-tema-padrao.mjs
+      - name: Testar a tela fixa
+        run: node scripts/testar-tela-fixa.mjs
+      - name: Testar insalubridade e adicional noturno
+        run: node scripts/testar-adicionais.mjs
+      - name: Setor de Vendas (pedido, venda, ticket 58/80 mm, orçamento, simulação)
+        run: node scripts/testar-vendas.mjs
+      - name: "Filtros e lançamentos (V129: Período, Competência, Mais filtros, Ordenar e menu de três pontos)"
+        timeout-minutes: 5
+        run: node scripts/testar-lanc-filtros.mjs
+      - name: Combustível e Lenha (lançamentos, foto, programação, descontos e acerto)
+        timeout-minutes: 8
+        run: node scripts/testar-combustivel-lenha.mjs
+      - name: Fornos com saldo (enforna e desenforna em partes, perda no fechamento, lenha por milheiro)
+        timeout-minutes: 8
+        run: node scripts/testar-fornos-saldo.mjs
+      - name: Custo de buscar o combustível (V115)
+        timeout-minutes: 5
+        run: node scripts/testar-custo-buscar.mjs
+      - name: "Combustível para fornecedor de lenha (V117: desconto automático, painéis, lançamento à mão e acerto)"
+        timeout-minutes: 8
+        run: node scripts/testar-combustivel-fornecedor-lenha.mjs
+      - name: "Comprovante do lançamento (V120: todos os setores menos o Pessoal)"
+        timeout-minutes: 5
+        run: node scripts/testar-comprovante-lancamento.mjs
+      - name: "Setor do Barro (V124: valor do barro junto da tonelada, também com a extração ligada)"
+        timeout-minutes: 5
+        run: node scripts/testar-barro-valor.mjs
+      - name: "Setor do Barro (V143: painel do consumo ligado à maromba e painel próprio da extração)"
+        timeout-minutes: 5
+        run: node scripts/testar-barro-paineis.mjs
+      - name: "Contratos com IA (V125: pedido livre, perguntas, edição, análise, assinatura, versões, derivados)"
+        timeout-minutes: 8
+        run: node scripts/testar-contratos.mjs
+      - name: "Centro de Inventário (18/11/2026: setor da cerâmica, sem cadastro de empresa)"
+        timeout-minutes: 5
+        run: node scripts/testar-inventario-setor.mjs
+      - name: "Centro de Inventário (V139: fotografias da conferência à vista e Estoque de materiais)"
+        timeout-minutes: 6
+        run: node scripts/testar-inventario-estoque.mjs
+      - name: "Almoxarifado (V137: grupos de materiais, cadastro em lote, reposição e folha de contagem)"
+        timeout-minutes: 5
+        run: node scripts/testar-almox-materiais.mjs
+      - name: "Almoxarifado (V140: Estoque / Produtos, cadastro por foto, saída marcando os produtos e cupom)"
+        timeout-minutes: 5
+        run: node scripts/testar-almox-produtos.mjs
+      - name: "Setor de Fichas e Documentação (V145: estrutura inicial, módulos em cartões, página da ficha e EM BREVE)"
+        timeout-minutes: 5
+        run: node scripts/testar-fichas.mjs
+      - name: "Almoxarifado (V146: Cozinha separada, sem valor, saída para a pessoa, EPI, grupos e requisição semanal)"
+        timeout-minutes: 6
+        run: node scripts/testar-almox-cozinha.mjs
+      - name: "Almoxarifado (V148: Limpeza separada, com botão, estoque e valor próprios)"
+        timeout-minutes: 5
+        run: node scripts/testar-almox-limpeza.mjs
+      - name: "Almoxarifado (V172: marca diferente é outro produto e editar o lançamento por completo)"
+        timeout-minutes: 6
+        run: node scripts/testar-almox-marca-editar.mjs
       - name: Guardar o que foi construído
         if: always()
         uses: actions/upload-artifact@v4
@@ -38,3 +102,42 @@ jobs:
             dist/
             saida/
           retention-days: 30
+      - name: "Movimentações dos setores (V151: Almoxarifado, Lenha, Combustível e Produção, com comprovante)"
+        timeout-minutes: 6
+        run: node scripts/testar-movimentacoes.mjs
+      - name: "Variação de vendas por vendedor (V152: aba Variações do Setor de Vendas, em R$ e em milheiros)"
+        timeout-minutes: 6
+        run: node scripts/testar-variacoes-vendedor.mjs
+      - name: "Visual Vidro claro em teste (V154: só para o dono que ligar a chave; os outros usuários não veem)"
+        timeout-minutes: 8
+        run: node scripts/testar-vidro-claro.mjs
+      - name: "Produção no visual Vidro claro em teste (V155: só com a chave; nada some das telas e nada é gravado)"
+        timeout-minutes: 8
+        run: node scripts/testar-vidro-producao.mjs
+      - name: "Controle de Produção por Grade (V156: Enforna e Desenforna, pagamentos e módulo no Financeiro)"
+        timeout-minutes: 8
+        run: node scripts/testar-controle-grade.mjs
+      - name: "Revisões e manutenção da frota (V157: Setor de Combustível, revisões, próxima revisão, fotos do painel, relatórios)"
+        timeout-minutes: 8
+        run: node scripts/testar-frota.mjs
+      - name: "Contas a pagar da Lenha por fornecedor (V159: um cartão por fornecedor, compras dele ao tocar, Pagar e Exportar)"
+        timeout-minutes: 5
+        run: node scripts/testar-pagar-lenha-fornecedor.mjs
+      - name: "Controle de almoço da Cozinha (V160: SIM e NÃO do dia, valor do almoço, cadastro rápido e desconto na folha)"
+        timeout-minutes: 8
+        run: node scripts/testar-almoco.mjs
+      - name: "Estoque integrado Almoxarifado ↔ Combustível (V165: destino na entrada, compra × transferência, USAR, requisição, concorrência)"
+        timeout-minutes: 6
+        run: node scripts/testar-estoque-integrado.mjs
+      - name: "Boletos e contas a pagar (V166: linha digitável conferida, boleto repetido bloqueado, prioridades, fila de agendamento)"
+        timeout-minutes: 8
+        run: node scripts/testar-boletos.mjs
+      - name: "Resumo financeiro do dia e pagamentos avulsos (V167: números do dia, fechamento, relatório ao proprietário, Controle por grade no caixa)"
+        timeout-minutes: 8
+        run: node scripts/testar-caixa-dia.mjs
+      - name: "Pagamentos da Produção (V169: conferência na Produção, fila de quem paga, pagamento pelo Controle por grade, sem duplicar)"
+        timeout-minutes: 8
+        run: node scripts/testar-pagamentos-producao.mjs
+      - name: "Preço do combustível para o fornecedor de lenha (V173: preço do cadastro do combustível, Setor de Combustível e Setor da Lenha, custo do estoque igual)"
+        timeout-minutes: 5
+        run: node scripts/testar-preco-fornecedor-lenha.mjs

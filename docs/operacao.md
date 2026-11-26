@@ -46,6 +46,10 @@ Claude Code edita app/jb-gestao.html ─► verificar ─► commit/PR ─► me
                                                        banco anota a versão nova em ≤10 min
 ```
 
+- Na nuvem (desde 20/11/2026), os blocos `<script>` grandes do programa vão para `dist/js/<impressão>.js`,
+  na mesma ordem: o navegador compila em segundo plano e guarda o código compilado, e a abertura ficou
+  cerca de duas vezes mais rápida. A verificação junta os arquivos de volta e confere que a página é
+  exatamente o programa + cabeçalho. O Claude continua recebendo o programa num arquivo só.
 - Backup do código: cada versão é um commit; o Netlify guarda os deploys anteriores.
 - Backup dos dados: cópia diária às 3h (30 dias) + botão "Fazer cópia de segurança".
 - Recuperação: GitHub → Actions → **Reverter publicação** (desfaz por commit novo, verifica e publica).
@@ -92,3 +96,137 @@ detectado no contador de uso, gravado ao mesmo tempo pela nuvem e pelo Claude (e
 O motor no banco real também foi testado com uma coleção de teste (`jbcoreTeste`, já apagada):
 gravar, repetir (idempotente), atualizar, conflito, documento inexistente, caminho inválido,
 exclusão e exclusão repetida, e usuário não administrador recusado.
+
+## 7. Lançamento Inteligente por Foto (Almoxarifado e Financeiro)
+
+Aba "Lançamento Inteligente por Foto" no Setor do Almoxarifado (`#/almIA`) e no Setor Financeiro (`#/fIA`).
+A pessoa fotografa (câmera do celular ou do computador) ou anexa PDF/JPG/PNG, uma ou várias páginas.
+
+| Etapa | O que acontece |
+|---|---|
+| Leitura | Fotos e páginas de PDF viram imagens (página comprida vai em faixas, para a letra miúda continuar legível); o texto do PDF digital vai junto. Roda em segundo plano: dá para mudar de tela, um aviso no canto leva de volta. |
+| Quem lê | No Claude: o Claude da própria página (capacidade `sample` com `images: true`). Na nuvem: a função `jb-ler-documento` do Supabase, que confere a sessão e a permissão (`almox` ou `financeiro` com "criar") e usa a chave `ANTHROPIC_API_KEY` guardada nos segredos das funções. |
+| Conferência | Fornecedor por CNPJ/CPF (com dígito verificador) e nome; itens por descrição aprendida, código do fornecedor, nome igual ou parecido (marcado "confira"); soma dos itens × total; impostos e descontos da nota rateados no custo; documento repetido (impressão digital SHA-256 do arquivo, chave de acesso, número da nota do mesmo fornecedor, compromisso já lançado); leitura duvidosa e campos ilegíveis sinalizados. |
+| Pergunta | Só uma, quando o documento não mostra: "Como foi realizado o pagamento?" (formas do Financeiro ou "Ainda não foi pago"). |
+| Gravação | Depois da confirmação: guarda o original (`anexo`/`anexos`), cadastra fornecedor e itens que faltam, grava a entrada pelo mesmo caminho da "Nova entrada" (`almEntradas` → `sincFinEntrada` → `fTitulos`) ou, se for só despesa (boleto, fatura), o compromisso em `fTitulos`. Cada registro leva o campo `ia` com o que foi lido. Nenhuma coleção nova. |
+
+Ativar na nuvem (uma vez): Supabase → projeto "JB Gestão" → Edge Functions → Secrets → `ANTHROPIC_API_KEY`
+(chave de platform.claude.com; V104: se a chave foi guardada com outro nome, a função usa o segredo cujo valor é uma chave do Claude). Opcional: `JB_IA_MODELO` (padrão `claude-opus-5-5`). Sem a chave, a tela avisa
+"A leitura por IA ainda não foi ativada no servidor" e nada é lançado.
+Ativar no Claude: o artifact precisa declarar `sample: {images: true}`; sem isso, só PDFs digitais (com texto) são lidos lá.
+Teste: `node scripts/construir.mjs && PDFJS_DIR=<pasta do pdfjs-dist/build> node scripts/testar-lancamento-foto.mjs`.
+
+## 7. Desfazer e Refazer
+
+Dois ícones no alto de todos os setores (Ctrl+Z e Ctrl+Y). Código: bloco `<script id="jb-desfazer">`, no fim de
+`app/jb-gestao.html`. Ele envolve `APP.db`, por onde passam todas as gravações; nenhum módulo precisou mudar e o banco não mudou.
+
+- Uma ação do usuário é uma entrada, mesmo com várias gravações. Documentos agrupados são desfeitos item a item.
+- Histórico separado por setor; vale enquanto a aba estiver aberta (`sessionStorage`) e é limpo ao sair.
+- Com formulário aberto, volta primeiro o que foi digitado. Com o cursor em pesquisa, Ctrl+Z é o do próprio campo.
+- Não desfaz se o registro mudou depois, se está travado (só os autorizados), se a folha do mês está fechada ou se o cadastro já é usado.
+- Pedem confirmação: folha, funcionários, contratos, vendas, compras, financeiro, configurações e ações com 4 ou mais registros.
+- `log`, uso e registros do sistema ficam de fora. Nota fiscal e acessos ficam na lista como "não pode ser desfeita".
+- Teste: `node scripts/construir.mjs && node scripts/testar-desfazer.mjs`.
+
+### Leitura mais rápida e tela mais suave (V109, 12/11/2026)
+
+Medido nos registros da função em 12/11/2026: cada leitura levava de 16 a 21 segundos, quase tudo no tempo de a IA
+escrever a resposta (cerca de 2.000 tokens de saída). O que mudou, sem trocar o modelo nem o cuidado da leitura:
+
+- **Resposta enxuta**: o pedido manda a IA responder em uma linha só e deixar de fora os campos vazios (chave ausente vale como null).
+- **Resposta aos poucos**: com `fluxo: true` a função devolve uma linha JSON por vez (`inicio`, `texto`, `pulso`, `fim` ou `erro`);
+  a tela mostra a barra andando e quantos itens já foram lidos. Sem `fluxo`, responde inteira como antes.
+- **Partes ao mesmo tempo**: documento com mais de 16 imagens é lido em partes, duas de cada vez (antes era uma depois da outra).
+- **Servidor acordado**: ao abrir a tela da foto o programa faz um GET na função, para a primeira leitura não esperar a partida.
+- **Cancelar interrompe a IA**: na resposta aos poucos, "Parar a leitura" (ou fechar a tela) derruba o pedido no servidor.
+- Fotos preparadas juntas e um pouco mais leves (JPEG 0,80 em vez de 0,85; mesmo tamanho em pontos).
+
+Cada leitura registra `ms_chegada`, `ms_primeira_letra`, `ms_ia`, `saida` e `letras` nos registros da função.
+Ajustes sem publicar de novo (segredos da função): `JB_IA_MODELO` e `JB_IA_ESFORCO` (`low`, `medium` — padrão — ou `high`).
+Baixar o esforço ou trocar para um modelo menor deixa mais rápido, mas pode errar mais em letra de mão: só com teste em documentos reais.
+Teste: `node scripts/testar-leitura-rapida.mjs` (função de verdade no Deno + adaptador, IA simulada).
+
+## 8. Centro de Inventário
+
+Setor de acesso exclusivo do dono: inventário patrimonial da cerâmica e, desde a V139, o estoque de materiais.
+
+| Peça | Onde |
+|---|---|
+| Telas | blocos `inv-estilos` e `inv-centro` no fim de `app/jb-gestao.html`; rota `#/inventario/...` |
+| QR Code | `inv-qr-gerador` (qrcode-generator, MIT) e `inv-qr-leitor` (jsQR, Apache-2.0), embutidos |
+| Banco | esquema `inv` (migração `20261108233000_inv_01_centro_inventario`), relacional e fora de `public.docs` |
+| Entrada no banco | nuvem: `public.jb_inv` (sessão conferida) · Claude: `inv.api_ponte` (conector do dono) · as duas caem em `inv.executar` |
+| Quem acessa | tabela `inv.acessos`. Ser administrador do JB não dá acesso. Para os outros o setor nem aparece. |
+
+Regras garantidas no banco: cada registro preso à empresa (chaves compostas), código patrimonial único por empresa,
+inventário concluído congelado, movimentações, leituras e auditoria sem alteração nem exclusão, empresas e bens sem exclusão.
+Anexos ficam em `inv.arquivos`/`inv.arquivo_partes`, com limite de 250 MB e pausa automática se o banco chegar perto do limite do plano.
+Cópias: `inv.fazer_copia()` diária às 3h20 (30 dias), separada da cópia geral; os arquivos anexos não entram nela.
+Para abrir o inventário a outra pessoa é preciso uma linha nova em `inv.acessos`, só com pedido do dono.
+Fotografias da conferência (V139): ficam em `inv.arquivos` presas à leitura (`entidade = 'leitura'`). A migração
+`20261119120000_inv_02_fotos_conferencia` faz `inv.conferencia_resumo` devolver as fotos do inventário numa chamada só, quando a
+tela pede (`"fotos": true`); sem ela a tela busca leitura por leitura. Aparecem na conferência, na ficha do inventário e na do bem.
+Estoque de materiais (V139): a aba Estoque (`#/inventario/estoque`) NÃO usa o esquema `inv`. Ela mostra e lança sobre a coleção
+`alm` de `public.docs`, a mesma do Setor do Almoxarifado, com as funções e as permissões de lá (`window.ALMOX_V52`, `pode('almEstoque')`,
+`pode('almSaida','e')`…). Um estoque só: compra lançada no almoxarifado soma no Centro de Inventário e saída lançada no Centro baixa lá.
+`inv.naturezas` continua só com `patrimonial` ativa.
+
+## 9. Resumo diário no WhatsApp
+
+Todo dia às 19h de Fortaleza (22h UTC) o banco chama a função `jb-whatsapp`, que monta o mesmo "Resumo do dia" do programa,
+gera o PDF e manda para os donos pela API oficial da Meta. Só lê os dados: não grava nada em `public.docs`.
+
+| Peça | Onde |
+|---|---|
+| Função | `supabase/functions/jb-whatsapp` (contas em `nucleo.js`, PDF em `pdf.js`) |
+| Configuração | `jbcore.whatsapp_config` (`ativo`, `dias_semana`, 0 = domingo) |
+| Quem recebe | `jbcore.whatsapp_destinatarios` (55 + DDD + número) |
+| Histórico | `jbcore.whatsapp_envios`: um envio por dia e telefone; só repete quem falhou |
+| Agendamento | `jb-whatsapp-resumo` (`cron.job`); desligado (`ativo = false`) não faz nada |
+
+Modelo a cadastrar na Meta: nome `jb_resumo_diario`, categoria Utilidade, idioma Português (Brasil), cabeçalho Documento. Corpo:
+
+```
+Resumo do dia da Cerâmica Concretiza: {{1}}.
+
+Dinheiro: {{2}}.
+Vendas: {{3}}.
+Produção na maromba: {{4}}.
+Fornos: {{5}}.
+Combustível: {{6}}.
+Lenha: {{7}}.
+
+O relatório completo está no PDF em anexo.
+```
+
+Para ligar: gravar os segredos da função `WHATSAPP_TOKEN` e `WHATSAPP_PHONE_NUMBER_ID`, cadastrar os destinatários e testar antes:
+
+```sql
+select jbcore.whatsapp_previa('2026-11-05');                 -- monta e não envia; resultado em jbcore.resposta(<pedido>)
+insert into jbcore.whatsapp_destinatarios (nome, telefone) values ('Nome', '5586999999999');
+select jbcore.whatsapp_disparar(null, '5586999999999');      -- teste para um número
+update jbcore.whatsapp_config set ativo = true;
+```
+
+Se as regras da tela do Resumo do dia (bloco V77 de `app/jb-gestao.html`) mudarem, mude também `nucleo.js`.
+
+## 10. Combustível e Lenha (V112, 13/11/2026)
+
+Menu de funções agrupado com pesquisa, central de lançamentos, saída e saldo negativo autorizado, programações,
+lançamento por foto (pelo motor do Lançamento Inteligente por Foto, com conferência), consumo de lenha ligado à
+fornada, descontos autorizados e acerto de lenha com abatimento nas compras. Coleção nova `clCtrl` (migração
+`20261113123600_cl_01_colecao_clctrl.sql`). Detalhes, permissões, testes e pendências:
+[`combustivel-lenha-2026-11-13.md`](combustivel-lenha-2026-11-13.md). Teste: `node scripts/testar-combustivel-lenha.mjs`.
+
+## Contratos com inteligência artificial (V125, 15/11/2026)
+
+A aba Contratos do Setor Pessoal cria, analisa e administra contratos com IA; os modelos prontos continuam.
+Detalhes, onde ficam os dados e testes: [`contratos-ia-v125.md`](contratos-ia-v125.md).
+
+| Onde | Quem responde |
+|---|---|
+| No Claude | O Claude da conta de quem está usando (capacidade `sample`, a mesma do JB Inteligência). |
+| Na nuvem | A função `jb-contratos-ia` do Supabase: confere a sessão e a permissão (`dp` com "criar" e `dp_sensivel` com "ler", ou administrador) e usa a mesma chave `ANTHROPIC_API_KEY` da leitura por foto. Sem a chave, a tela avisa e os modelos prontos continuam. |
+
+Dados pessoais do cadastro não vão para a IA (marcadores). Teste: `node scripts/testar-contratos.mjs`.

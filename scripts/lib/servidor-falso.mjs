@@ -20,11 +20,39 @@ export function criarServidorFalso(opcoes) {
     return o;
   }
   function registrar(c, i, op, v) { mudancas.push({ seq: ++seq, c: c, i: i, op: op, v: v, em: Date.now() }); }
+  /* V165: versão de cada produto do estoque (imita seg.estoque_versao e o gatilho docs_estoque_versao) */
+  var versoesEst = new Map();
+  function chavesEst(p) {
+    var out = [];
+    if (!p || typeof p !== 'object') return out;
+    if (p.produtoId) out.push('p:' + p.produtoId); if (p.produtoDestinoId) out.push('p:' + p.produtoDestinoId);
+    if (p.itemId) out.push('i:' + p.itemId); if (p.almItemId) out.push('i:' + p.almItemId);
+    (Array.isArray(p.itens) ? p.itens : []).forEach(function (l) { if (l && l.itemId) out.push('i:' + l.itemId); if (l && l.produtoId) out.push('p:' + l.produtoId); if (l && l.produtoSetorId) out.push('p:' + l.produtoSetorId); });
+    return out;
+  }
+  function subirVersoes(c, antes, depois) {
+    if (['alm', 'compras', 'consumos', 'estoqueMov'].indexOf(String(c).split('/')[0]) < 0) return;
+    var a = (antes && antes.items) || {}, b = (depois && depois.items) || {}, ch = new Set();
+    Object.keys(Object.assign({}, a, b)).forEach(function (x) { if (JSON.stringify(a[x]) !== JSON.stringify(b[x])) chavesEst(a[x]).concat(chavesEst(b[x])).forEach(function (y) { ch.add(y); }); });
+    ch.forEach(function (y) { versoesEst.set(y, (versoesEst.get(y) || 0) + 1); });
+  }
+  function estoquePonte(acao, dados, uid) {
+    if (admins.indexOf(uid) < 0) throw erroSql('42501', 'estoque: acesso restrito');
+    if (acao === 'versoes') { var v = {}; (dados.chaves || []).forEach(function (c) { v[c] = versoesEst.get(c) || 0; }); return { versoes: v }; }
+    if (acao === 'reservar') {
+      var vs = dados.versoes || {}, mudou = Object.keys(vs).filter(function (c) { return (versoesEst.get(c) || 0) !== +vs[c]; });
+      if (mudou.length) return { ok: false, mudou: mudou };
+      var nv = {}; Object.keys(vs).forEach(function (c) { versoesEst.set(c, (versoesEst.get(c) || 0) + 1); nv[c] = versoesEst.get(c); });
+      return { ok: true, versoes: nv };
+    }
+    throw erroSql('22023', 'ação desconhecida');
+  }
   function gravarDireto(c, i, dados) {   // gravação vinda "da nuvem"
     var at = docs.get(k(c, i)), v = at ? at.versao + 1 : 1;
+    subirVersoes(c, at ? at.dados : null, dados);
     docs.set(k(c, i), { colecao: c, id: i, dados: clone(dados), versao: v }); registrar(c, i, at ? 'alteracao' : 'inclusao', v); return v;
   }
-  function apagarDireto(c, i) { var at = docs.get(k(c, i)); if (at) { docs.delete(k(c, i)); registrar(c, i, 'exclusao', at.versao); } }
+  function apagarDireto(c, i) { var at = docs.get(k(c, i)); if (at) { subirVersoes(c, at.dados, null); docs.delete(k(c, i)); registrar(c, i, 'exclusao', at.versao); } }
   function erroSql(code, msg) {
     var e = new Error(JSON.stringify({ error: { name: 'HttpException', message: 'Failed to run sql query: ERROR:  ' + code + ': ' + msg } }));
     e.code = 'tool_error'; return e;
@@ -47,14 +75,21 @@ export function criarServidorFalso(opcoes) {
         if (!caminhoOk(op.colecao, op.id)) { code = '22023'; throw new Error('caminho inválido'); }
         var at = docs.get(k(op.colecao, op.id));
         conf = typeof op.versao_base === 'number' && (at ? at.versao : 0) !== op.versao_base;
+        /* opcoes.antesDeGravar(colecao, id, antes, depois) imita um gatilho do banco: pode recusar (lança um erro com
+           .codigo) ou devolver o documento como o banco gravaria. Sem a opção, nada muda. */
+        var gatilho = function (antes, depois) {
+          if (typeof opcoes.antesDeGravar !== 'function') return depois;
+          try { var g = opcoes.antesDeGravar(op.colecao, op.id, clone(antes), clone(depois)); return g === undefined ? depois : g; }
+          catch (e) { code = (e && e.codigo) || 'P0001'; throw e; }
+        };
         if (op.tipo === 'gravar') {
           if (!op.dados || typeof op.dados !== 'object' || Array.isArray(op.dados)) { code = '22023'; throw new Error('dados inválidos'); }
-          ver = gravarDireto(op.colecao, op.id, op.dados); res = 'aplicada';
+          ver = gravarDireto(op.colecao, op.id, gatilho(at ? at.dados : null, op.dados)); res = 'aplicada';
         } else if (op.tipo === 'atualizar') {
           if (!at) { code = 'P0002'; throw new Error('documento inexistente'); }
-          ver = gravarDireto(op.colecao, op.id, mesclar(at.dados, op.campos)); res = 'aplicada';
+          ver = gravarDireto(op.colecao, op.id, gatilho(at.dados, mesclar(at.dados, op.campos))); res = 'aplicada';
         } else {
-          if (!at) res = 'sem_efeito'; else { apagarDireto(op.colecao, op.id); res = 'aplicada'; }
+          if (!at) res = 'sem_efeito'; else { gatilho(at.dados, null); apagarDireto(op.colecao, op.id); res = 'aplicada'; }
         }
       } catch (e) { res = 'erro'; err = code + ': ' + e.message; }
       var x = { resultado: res, versao: ver, conflito: conf, erro: err, codigo: code };
@@ -106,17 +141,40 @@ export function criarServidorFalso(opcoes) {
     var payload = { result: texto };
     return { content: [{ type: 'text', text: JSON.stringify(payload) }], payload: payload };
   }
+  /* serviço fiscal: jbcore.fiscal registra o pedido (só administrador) e jbcore.resposta entrega a
+     resposta da função jb-fiscal depois de "esperas" consultas (como o pg_net, que responde depois).
+     opcoes.fiscal(acao, args, uid) → {status, corpo} | {erro: 'texto do pg_net'} imita a função. */
+  var fiscalSeq = 0;
+  var fiscal = { pedidos: [], respostas: new Map(), esperas: opcoes.esperasFiscal == null ? 1 : opcoes.esperasFiscal };
+  function fiscalPedir(acao, argsF, uid) {
+    if (admins.indexOf(uid) < 0) throw erroSql('42501', 'serviço fiscal recusado: ' + uid + ' não é administrador ativo');
+    var id = ++fiscalSeq;
+    fiscal.pedidos.push({ id: id, acao: acao, args: clone(argsF), uid: uid });
+    var r = opcoes.fiscal ? opcoes.fiscal(acao, clone(argsF), uid) : { status: 503, corpo: { erro: { tipo: 'configuracao', mensagem: 'Serviço fiscal simulado sem resposta configurada.' } } };
+    fiscal.respostas.set(id, { falta: fiscal.esperas, r: r });
+    return id;
+  }
+  function fiscalResposta(id) {
+    var x = fiscal.respostas.get(id);
+    if (!x) return { pronto: false };
+    if (x.falta > 0) { x.falta--; return { pronto: false }; }
+    if (x.r && x.r.erro) return { pronto: true, status: null, erro: x.r.erro, corpo: null };
+    return { pronto: true, status: x.r.status, erro: null, corpo: clone(x.r.corpo) };
+  }
   function executar(q) {
     var a = args(q);
     if (/jbcore\.instantaneo_pagina\(/.test(q)) return pagina(a[0], a[1], a[2], a[3]);
     if (/jbcore\.mudancas_desde\(/.test(q)) return desde(a[0], a[1]);
     if (/jbcore\.aplicar\(/.test(q)) return aplicar(a[0]);
+    if (/jbcore\.fiscal\(/.test(q)) return fiscalPedir(a[0], a[1], a[2]);
+    if (/jbcore\.resposta\(/.test(q)) return fiscalResposta(a[0]);
+    if (/jbcore\.estoque_ponte\(/.test(q)) return estoquePonte(a[0], a[1], a[2]);
     if (/from public\.docs d where d\.colecao = /.test(q)) { var d = docs.get(k(a[0], a[1])); return d ? [clone(d.dados), d.versao] : null; }
     throw erroSql('42883', 'consulta não prevista no servidor falso: ' + q.slice(0, 80));
   }
   var estado = {
-    docs: docs, operacoes: operacoes, chamadas: chamadas, falhas: falhas, sinais: [],
-    gravarDireto: gravarDireto, apagarDireto: apagarDireto,
+    docs: docs, operacoes: operacoes, chamadas: chamadas, falhas: falhas, sinais: [], fiscal: fiscal,
+    gravarDireto: gravarDireto, apagarDireto: apagarDireto, versoesEstoque: versoesEst,
     contarAplicadas: function () { var n = 0; operacoes.forEach(function (o) { if (o.resultado === 'aplicada') n++; }); return n; }
   };
   var mcp = {
