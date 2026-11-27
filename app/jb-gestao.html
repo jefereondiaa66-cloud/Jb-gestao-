@@ -33436,91 +33436,290 @@ window.V62={formasLenha,semDinheiro,registrarPagLenha,pagarComCombustivel,COMB,s
 })();
 </script>
 <style id="variacoes-v73-css">
-/* V73 · Variações mês a mês: só cores do tema (variáveis), funciona no claro, no escuro e em todos os visuais */
-.vr-mesbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.vr-mesbar input[type=month]{max-width:170px}
-.vr-mesbar .vr-cmp{color:var(--suave);font-size:13px}
-.vr-mesbar .vr-cmp b{color:var(--tinta)}
+/* V73 · Variações mês a mês: só cores do tema (variáveis), funciona no claro, no escuro e em todos os visuais.
+   V181 (27/11/2026) · visual novo, pedido do Jeferson: painel no alto de cada setor (resumo, destaques e cartões com
+   mini-gráfico), mês × mês anterior lado a lado, gráfico de 12 meses e tabela contínua, no mesmo padrão em todos os
+   setores. Só aparência: nenhum número muda. Cores: verde = melhorou, vermelho = piorou, cinza = sem mudança ou número
+   neutro (variáveis do tema: funcionam no escuro). Marca Concretiza (preto e vermelho) só nos detalhes: faixa do
+   resumo, marcador dos títulos e o mês escolhido na tabela. Tudo preso a .vr-raiz (a raiz da tela Variações). */
+.vr-raiz{--vr-marca:#D3121C;--vr-preto:#141416;--vr-r:16px;--vr-r2:12px;--vr-g:14px;
+ --vr-bom:var(--ok);--vr-bom-bg:var(--ok-bg);--vr-ruim:var(--pe);--vr-ruim-bg:var(--pe-bg);--vr-neu:var(--suave);--vr-neu-bg:var(--linha2);
+ --vr-cart:var(--branco);--vr-borda:var(--linha);--vr-forte:var(--tinta);
+ --vr-cinza:color-mix(in srgb,var(--tinta) 10%,var(--branco));--vr-cinza2:color-mix(in srgb,var(--tinta) 26%,var(--branco));
+ --vr-sombra:0 1px 2px color-mix(in srgb,var(--tinta) 6%,transparent),0 10px 24px -18px color-mix(in srgb,var(--tinta) 32%,transparent);
+ min-width:0;padding-bottom:72px!important}
+/* fim da tela livre: o selo "Powered by Netlify" (versão da nuvem) e a barra de baixo do celular não cobrem o último quadro */
+@media (max-width:860px){
+ .vr-raiz{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))!important}
+ body.c2-tem-mob .vr-raiz{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))!important}
+}
+.vr-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
+
+/* ---------- cabeçalho ---------- */
+.vr-raiz .vr-cab{margin-bottom:12px}
+.vr-raiz .vr-cab p{max-width:86ch}
 .vr-cab-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.vr-cab-acoes select{max-width:240px}
-.vr-res{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
-.vr-res>div{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:12px 14px;min-width:0}
-.vr-res h4{margin:0 0 8px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--suave);display:flex;gap:6px;align-items:center;font-weight:700}
-.vr-res h4 i{font-style:normal;font-size:13px}
-.vr-res .sobe h4 i{color:var(--ok)}.vr-res .desce h4 i{color:var(--pe)}
-.vr-res ul{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:13px}
-.vr-res li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
-.vr-res li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vr-res .vazio-l{color:var(--fraco);font-size:12.5px}
-.vr-frase{margin:0 0 14px;font-size:13.5px;line-height:1.5;color:var(--tinta);background:var(--branco);border:1px solid var(--linha);border-left:3px solid var(--brasa);border-radius:var(--r2);padding:10px 14px}
-.vr-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px;margin-bottom:16px}
-.vr-card{font:inherit;color:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:5px;background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);padding:14px 16px 12px;box-shadow:var(--sombra);min-width:0;position:relative;transition:border-color .15s,transform .15s}
-.vr-card:hover{border-color:var(--brasa)}
-.vr-card:focus-visible{outline:2px solid var(--brasa);outline-offset:2px}
-.vr-card.on{border-color:var(--brasa);box-shadow:0 0 0 1px var(--brasa),var(--sombra)}
-.vr-card>span{display:block;min-width:0}
-.vr-card .vr-l{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--suave)}
-.vr-card .vr-v{font-size:22px;font-weight:700;color:var(--tinta);line-height:1.15;overflow-wrap:anywhere}
-.vr-card .vr-sub{font-size:12px;color:var(--suave);line-height:1.4}
-.vr-card .vr-sub b{color:var(--tinta);font-weight:600}
-.vr-card .vr-nota{font-size:11.5px;color:var(--at);font-weight:600}
-.vr-pill{display:inline-flex!important;align-items:center;gap:4px;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;width:max-content;max-width:100%;white-space:nowrap;line-height:1.5}
-.vr-pill.bom{color:var(--ok);background:var(--ok-bg)}
-.vr-pill.ruim{color:var(--pe);background:var(--pe-bg)}
-.vr-pill.neu{color:var(--suave);background:var(--linha2)}
-.vr-pill.mini{font-size:11px;padding:0 7px}
+.vr-cab-acoes select{max-width:240px;min-height:40px;border-radius:12px}
+.vr-raiz .vr-cab-acoes .btn.vr-btn2{min-height:40px;background:var(--vr-cart)!important;color:var(--vr-forte)!important;border:1px solid var(--vr-borda)!important;box-shadow:none!important}
+.vr-raiz .vr-cab-acoes .btn.vr-btn2:hover{border-color:var(--vr-forte)!important}
+
+/* ---------- seletor do mês ---------- */
+.vr-mesbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;margin:0 0 var(--vr-g);padding:10px 12px;background:var(--vr-cart);border:1px solid var(--vr-borda);border-radius:var(--vr-r);box-shadow:var(--vr-sombra);min-width:0}
+.vr-mes-ctl{display:flex;align-items:center;gap:6px;min-width:0;flex:0 1 380px}
+.vr-nav{flex:none;width:42px;height:42px;display:grid;place-items:center;padding:0;margin:0;border-radius:12px;border:1px solid var(--vr-borda);background:var(--vr-cart);color:var(--vr-forte);cursor:pointer;transition:border-color .15s,background .15s}
+.vr-nav svg{width:18px;height:18px}
+.vr-nav:hover:not(:disabled){border-color:var(--vr-forte)}
+.vr-nav:focus-visible{outline:2px solid var(--vr-marca);outline-offset:2px}
+.vr-nav:disabled{opacity:.35;cursor:default}
+.vr-mes-sel{position:relative;display:block;flex:1 1 auto;min-width:0;margin:0}
+.vr-mes-sel select{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;height:42px;margin:0;padding:0 40px 0 14px;border-radius:12px;border:1px solid var(--vr-borda);background:var(--vr-cart);color:var(--vr-forte);font:inherit;font-size:16px;font-weight:750;cursor:pointer;text-overflow:ellipsis}
+.vr-mes-sel>svg{position:absolute;right:12px;top:50%;width:18px;height:18px;margin-top:-9px;pointer-events:none;color:var(--suave)}
+.vr-cmp{flex:1 1 220px;min-width:0;font-size:13px;line-height:1.45;color:var(--suave)}
+.vr-cmp b{color:var(--vr-forte);font-weight:700}
+.vr-and{display:inline-block;margin-left:4px;padding:1px 8px;border-radius:999px;background:var(--at-bg);color:var(--at);font-size:11.5px;font-weight:700;white-space:nowrap}
+.vr-hoje{flex:none;min-height:36px;padding:0 13px;border-radius:10px;border:1px solid var(--vr-borda);background:var(--vr-cart);color:var(--vr-forte);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.vr-hoje:hover{border-color:var(--vr-forte)}
+.vr-aviso{margin:0 0 var(--vr-g);padding:10px 14px;border-radius:var(--vr-r2);background:var(--at-bg);border:1px solid color-mix(in srgb,var(--at) 30%,transparent);color:var(--tinta);font-size:13px;line-height:1.45}
+
+/* ---------- resumo do mês (faixa preta da marca) ---------- */
+.vr-hero{position:relative;margin:0 0 var(--vr-g);padding:20px 20px 16px;border-radius:var(--vr-r);background:var(--vr-preto);color:#F4F4F5;box-shadow:0 14px 30px -18px rgba(0,0,0,.55);overflow:hidden;min-width:0}
+.vr-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--vr-marca)}
+.vr-h-rot{display:block;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#A1A1AA}
+.vr-raiz .vr-hero .vr-h-mes{margin:4px 0 0;font-size:21px;line-height:1.25;font-weight:750;letter-spacing:-.015em;color:#fff!important}
+.vr-raiz .vr-hero .vr-h-mes span{font-size:14px;font-weight:500;letter-spacing:0;color:#C9C9D1}
+.vr-h-corpo{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:16px}
+@media (min-width:960px){.vr-h-corpo{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}}
+.vr-placar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
+.vr-pl{min-width:0;padding:12px 14px 11px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 3px 0 var(--vr-pl,#71717A)}
+.vr-pl.bom{--vr-pl:#22C55E}.vr-pl.ruim{--vr-pl:#F04048}
+.vr-pl b{display:block;font-size:34px;line-height:1;font-weight:800;letter-spacing:-.02em;color:#D4D4D8}
+.vr-pl.bom b{color:#4ADE80}.vr-pl.ruim b{color:#FF7479}
+.vr-pl span{display:block;margin-top:6px;font-size:12.5px;line-height:1.3;font-weight:650;color:#D4D4D8}
+.vr-dest{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}
+.vr-dt{min-width:0;padding:11px 14px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09)}
+.vr-dt small{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#A1A1AA}
+.vr-dt.bom small{color:#4ADE80}.vr-dt.ruim small{color:#FF8A8E}
+.vr-dt b{display:block;margin-top:4px;font-size:15px;line-height:1.3;font-weight:750;color:#fff}
+.vr-dt.vr-nada b{font-size:13px;font-weight:600;color:#C9C9D1}
+.vr-dt-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:7px;font-size:12.5px;color:#D4D4D8}
+.vr-hero .vr-pill.bom{background:rgba(74,222,128,.16);color:#86EFAC}
+.vr-hero .vr-pill.ruim{background:rgba(255,116,121,.18);color:#FFB4B7}
+.vr-hero .vr-pill.neu{background:rgba(255,255,255,.1);color:#D4D4D8}
+.vr-grupos{display:grid;gap:9px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);min-width:0}
+.vr-gp{display:flex;align-items:baseline;gap:6px 10px;min-width:0}
+.vr-gp-t{flex:none;width:200px;font-size:12px;font-weight:700;color:#A1A1AA}
+.vr-gp.bom .vr-gp-t{color:#4ADE80}.vr-gp.ruim .vr-gp-t{color:#FF8A8E}
+.vr-gp-l{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.vr-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;line-height:1.4;background:rgba(255,255,255,.08);color:#E4E4E7}
+.vr-chip.bom{background:rgba(74,222,128,.14);color:#BBF7D0}.vr-chip.ruim{background:rgba(255,116,121,.16);color:#FECACA}
+.vr-chip em{font-style:normal;font-weight:800;white-space:nowrap}
+.vr-gp-0{font-size:12.5px;color:#8E8E96}
+.vr-h-vazio{margin:14px 0 0;font-size:14px;line-height:1.5;color:#E4E4E7}
+.vr-h-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin:14px 0 0;font-size:11.5px;color:#A1A1AA}
+.vr-h-leg span{display:inline-flex;align-items:center;gap:6px}
+.vr-h-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#A1A1AA}
+.vr-h-leg i.bom{background:#4ADE80}.vr-h-leg i.ruim{background:#FF7479}
+
+/* ---------- títulos das partes ---------- */
+.vr-sec{margin:0 0 var(--vr-g);min-width:0}
+.vr-sec-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:6px 14px;flex-wrap:wrap;margin:22px 2px 10px}
+.vr-raiz .vr-sec-cab h2{display:flex;align-items:center;gap:9px;margin:0;font-size:16px;line-height:1.3;font-weight:750;letter-spacing:-.01em;color:var(--tinta)}
+.vr-raiz .vr-sec-cab h2::before,.vr-raiz .bloco.vr-graf>h3::before,.vr-raiz .bloco.vr-tabbloco>h3::before{content:"";flex:none;width:4px;height:16px;border-radius:2px;background:var(--vr-marca)}
+.vr-raiz .bloco.vr-graf>h3,.vr-raiz .bloco.vr-tabbloco>h3{display:flex;align-items:center;justify-content:flex-start;gap:9px;text-align:left}
+.vr-sec-cab p{margin:0;font-size:12.5px;line-height:1.4;color:var(--suave)}
+.vr-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--suave)}
+.vr-leg span{display:inline-flex;align-items:center;gap:6px}
+.vr-leg i{display:inline-block;width:18px;height:8px;border-radius:999px;background:var(--vr-forte)}
+.vr-leg i.b{background:var(--vr-cinza2)}
+
+/* ---------- pílula da variação (seta + % ou p.p.) ---------- */
+.vr-pill{position:relative;display:inline-flex;align-items:center;gap:4px;width:max-content;max-width:100%;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:750;line-height:1.35;white-space:nowrap}
+.vr-pill.bom{color:var(--vr-bom,var(--ok));background:var(--vr-bom-bg,var(--ok-bg))}
+.vr-pill.ruim{color:var(--vr-ruim,var(--pe));background:var(--vr-ruim-bg,var(--pe-bg))}
+.vr-pill.neu{color:var(--vr-neu,var(--suave));background:var(--vr-neu-bg,var(--linha2))}
+.vr-pill.longo{white-space:normal;border-radius:10px;font-size:11.5px;line-height:1.3}
+.vr-pill.mini{font-size:11px;padding:1px 7px}
+
+/* ---------- cartões dos números ---------- */
+.vr-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.vr-card{position:relative;display:flex;flex-direction:column;align-items:stretch;width:100%;min-width:0;margin:0;padding:15px 15px 12px;text-align:left;font:inherit;color:var(--tinta);background:var(--vr-cart);border:1px solid var(--vr-borda);border-radius:var(--vr-r);box-shadow:var(--vr-sombra);cursor:pointer;container-type:inline-size;transition:border-color .15s,box-shadow .15s,transform .15s;--vr-st:var(--vr-cinza2)}
+.vr-card.st-bom{--vr-st:var(--vr-bom)}.vr-card.st-ruim{--vr-st:var(--vr-ruim)}
+.vr-card::before{content:"";position:absolute;left:16px;right:16px;top:-1px;height:3px;border-radius:0 0 3px 3px;background:var(--vr-st)}
+.vr-card:hover{border-color:var(--vr-cinza2);transform:translateY(-1px)}
+.vr-card:focus-visible{outline:2px solid var(--vr-marca);outline-offset:2px}
+.vr-card.on{border-color:var(--vr-forte);box-shadow:0 0 0 1px var(--vr-forte),var(--vr-sombra)}
+.vr-k-top{display:flex;align-items:center;gap:9px;min-width:0}
+.vr-k-ic{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--vr-neu-bg);color:var(--vr-forte)}
+.vr-k-ic svg{width:17px;height:17px}
+.st-bom .vr-k-ic{background:var(--vr-bom-bg);color:var(--vr-bom)}.st-ruim .vr-k-ic{background:var(--vr-ruim-bg);color:var(--vr-ruim)}
+.vr-card .vr-l{min-width:0;font-size:12.5px;font-weight:650;line-height:1.3;color:var(--suave);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vr-flag{align-self:flex-start;margin-top:9px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;line-height:1.5}
+.vr-flag.bom{background:var(--vr-bom-bg);color:var(--vr-bom)}.vr-flag.ruim{background:var(--vr-ruim-bg);color:var(--vr-ruim)}
+.vr-card .vr-v{display:block;margin-top:10px;line-height:1.12;overflow-wrap:anywhere}
+.vr-v .vr-num{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--tinta)}
+/* número grande numa linha só: a fonte acompanha a largura do cartão e o tamanho do número (--vr-n = quantos caracteres) */
+@supports (font-size:1cqi){.vr-v .vr-num{font-size:clamp(16px,calc(100cqi / (var(--vr-n,6) * .62 + 1.4)),26px)}}
+.vr-v .vr-pre,.vr-v .vr-un{font-size:13px;font-weight:650;color:var(--suave);letter-spacing:0}
+.vr-k-var{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;min-width:0}
+.vr-vs{font-size:11.5px;color:var(--fraco)}
+.vr-spark{display:block;width:100%;height:36px;margin-top:10px;overflow:visible}
+.vr-spark.vr-sem{display:flex;align-items:center;justify-content:center;border-radius:8px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--linha2) 6px 7px)}
+.vr-spark.vr-sem span{font-size:11px;color:var(--fraco);background:var(--vr-cart);padding:0 6px;border-radius:6px}
+.vr-sp-ar{fill:color-mix(in srgb,var(--tinta) 6%,transparent)}
+.vr-sp-ln{fill:none;stroke:color-mix(in srgb,var(--tinta) 45%,transparent);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.vr-sp-p{stroke:color-mix(in srgb,var(--tinta) 45%,transparent);stroke-width:4;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.vr-sp-pt{stroke:var(--vr-forte);stroke-width:8;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.vr-sp-pt.bom{stroke:var(--vr-bom)}.vr-sp-pt.ruim{stroke:var(--vr-ruim)}
+.vr-sp-x{display:flex;justify-content:space-between;gap:8px;margin-top:3px;font-size:10.5px;color:var(--fraco)}
+.vr-k-pe{display:grid;gap:3px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--linha);font-size:12px;line-height:1.4;color:var(--suave)}
+.vr-k-pe b{color:var(--tinta);font-weight:650}
+.vr-k-pe .vr-pill{margin-left:2px;vertical-align:1px}
+.vr-card .vr-nota{margin-top:6px;font-size:11.5px;font-weight:650;color:var(--at)}
+
+/* ---------- mês × mês anterior, lado a lado ---------- */
+.vr-cl{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr));gap:10px}
+.vr-cr{display:grid;gap:10px;min-width:0;padding:13px 15px 14px;background:var(--vr-cart);border:1px solid var(--vr-borda);border-radius:var(--vr-r2);box-shadow:var(--vr-sombra);--vr-st:var(--vr-forte)}
+.vr-cr.st-bom{--vr-st:var(--vr-bom)}.vr-cr.st-ruim{--vr-st:var(--vr-ruim)}
+.vr-cr-nome b{display:block;font-size:14px;line-height:1.3;font-weight:700;color:var(--tinta)}
+.vr-cr-nome small{display:block;margin-top:1px;font-size:11.5px;line-height:1.35;color:var(--fraco)}
+.vr-cr-vals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.vr-cv{min-width:0}
+.vr-cv>small{display:block;margin-bottom:3px;font-size:10.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--fraco)}
+.vr-cv-v{display:block;line-height:1.2;overflow-wrap:anywhere}
+.vr-cv-v .vr-num{font-size:17px;font-weight:750;color:var(--tinta)}
+.vr-cv-v .vr-pre,.vr-cv-v .vr-un{font-size:11.5px;font-weight:600;color:var(--suave)}
+.vr-cv-d em{display:block;margin-top:4px;font-style:normal;font-size:11.5px;font-weight:650;color:var(--suave);overflow-wrap:anywhere}
+.vr-cr-bar{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px 8px}
+.vr-cr-bar small{min-width:46px;font-size:10.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--fraco)}
+.vr-cr-bar>span{display:block;height:9px;border-radius:999px;background:var(--linha2);overflow:hidden}
+.vr-cr-bar i{display:block;height:100%;min-width:0;border-radius:999px}
+.vr-cr-bar .a i{background:var(--vr-st)}
+.vr-cr-bar .b i{background:var(--vr-cinza2)}
+.vr-cr-bar .neg i{background-image:repeating-linear-gradient(135deg,transparent 0 4px,rgba(255,255,255,.5) 4px 6px)}
+
+/* ---------- gráfico dos últimos meses ---------- */
+.vr-raiz .bloco.vr-graf{margin:22px 0 var(--vr-g)}
+.vr-graf>.vr-in{padding:4px 18px 16px}
+.vr-graf .vr-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.vr-graf .vr-chips button{min-height:34px;padding:6px 12px;border:1px solid var(--vr-borda,var(--linha));border-radius:999px;background:var(--vr-cart,var(--branco));color:var(--tinta);font:inherit;font-size:12.5px;font-weight:650;white-space:nowrap;cursor:pointer}
+.vr-graf .vr-chips button:hover{border-color:var(--vr-forte,var(--tinta))}
+.vr-graf .vr-chips button.on{background:var(--vr-forte,var(--tinta));border-color:var(--vr-forte,var(--tinta));color:var(--vr-cart,var(--branco))}
+.vr-graf .vr-sel{margin:0 0 12px;font-size:13px;color:var(--suave)}
+.vr-graf .vr-sel b{color:var(--tinta)}
 .vr-gr{display:flex;align-items:stretch;gap:6px;min-width:0}
-.vr-gr .vr-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;cursor:pointer;background:none;border:0;padding:0;font:inherit;color:inherit}
+.vr-gr .vr-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;padding:0;border:0;background:none;font:inherit;color:inherit;cursor:pointer}
 .vr-gr .vr-plot{display:flex;flex-direction:column;height:var(--vr-h,170px)}
 .vr-gr .vr-ar{display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;min-height:0}
 .vr-gr .vr-ar.n{justify-content:flex-start;border-top:1px solid var(--linha)}
-.vr-gr .vr-ar i{display:block;background:var(--brasa);opacity:.38;border-radius:4px 4px 0 0;min-height:0;transition:opacity .15s}
-.vr-gr .vr-ar.n i{background:var(--pe);border-radius:0 0 4px 4px}
-.vr-gr .vr-col.on .vr-ar i{opacity:1}
-.vr-gr .vr-col:hover .vr-ar i{opacity:.75}
-.vr-gr .vr-col.nd .vr-plot{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--linha2) 6px 7px);border-radius:4px}
-.vr-gr .vr-x{font-size:11px;color:var(--suave);text-align:center;margin-top:6px;white-space:nowrap;overflow:hidden}
-.vr-gr .vr-col.on .vr-x{color:var(--tinta);font-weight:700}
+.vr-gr .vr-ar i{display:block;min-height:0;border-radius:6px 6px 0 0;background:var(--vr-cinza2,var(--linha));transition:background .15s}
+.vr-gr .vr-ar.n i{border-radius:0 0 6px 6px;background:color-mix(in srgb,var(--pe) 55%,var(--branco))}
+.vr-gr .vr-col:hover .vr-ar i{background:color-mix(in srgb,var(--tinta) 45%,var(--branco))}
+.vr-gr .vr-col.on .vr-ar i{background:var(--vr-forte,var(--tinta))}
+.vr-gr .vr-col.on .vr-ar.n i{background:var(--pe)}
+.vr-gr .vr-col.nd .vr-plot{border-radius:6px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--linha2) 6px 7px)}
+.vr-gr .vr-col:focus-visible{outline:2px solid var(--vr-marca,var(--brasa));outline-offset:2px;border-radius:6px}
+.vr-gr .vr-x{margin-top:6px;font-size:11px;color:var(--suave);text-align:center;white-space:nowrap;overflow:hidden}
+.vr-gr .vr-col.on .vr-x{color:var(--tinta);font-weight:800}
 .vr-gr.mini{gap:3px;margin-top:6px}
 .vr-gr.mini .vr-plot{height:34px}
 .vr-gr.mini .vr-ar i{border-radius:2px 2px 0 0}
-.vr-graf>.vr-in{padding:4px 18px 16px}
-.vr-graf .vr-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.vr-ajuda{margin:10px 2px 0;font-size:12.5px;line-height:1.5;color:var(--suave)}
 .vr-tab-aj{padding:0 18px 14px}
-.vr-graf .vr-chips button{font:inherit;font-size:12.5px;border:1px solid var(--linha);background:var(--branco);color:var(--tinta);border-radius:999px;padding:4px 11px;cursor:pointer}
-.vr-graf .vr-chips button.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
-.vr-graf .vr-sel{font-size:13px;color:var(--suave);margin:0 0 10px}
-.vr-graf .vr-sel b{color:var(--tinta)}
-.vr-tab th,.vr-tab td{white-space:nowrap}
-.vr-tab tbody tr{cursor:pointer}
-.vr-tab tbody tr.on td{background:var(--brasa-bg);font-weight:600}
-.vr-tab td .vr-pill{margin-left:6px}
-.vr-tab td.vr-m{position:sticky;left:0;background:var(--branco);z-index:1}
-.vr-tab tbody tr.on td.vr-m{background:var(--brasa-bg)}
-.vr-ajuda{font-size:12.5px;color:var(--suave);margin:8px 2px 0;line-height:1.5}
-.vr-setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.vr-set{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r2);box-shadow:var(--sombra);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+
+/* ---------- tabela mês a mês: contínua, mês fixo à esquerda (no celular não vira cartões) ---------- */
+.vr-raiz .vr-tabbloco>.vr-tab-top{margin:-2px 0 10px;padding:0 18px}
+.vr-raiz .tabwrap.vr-tabw{overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch;margin:0;border-radius:0;border-top:1px solid var(--linha2)}
+.vr-raiz .tabwrap.vr-tabw.v82-rola-esq{-webkit-mask-image:none;mask-image:none}
+.vr-raiz .tabwrap.vr-tabw.v82-rola-esq.v82-rola-dir{-webkit-mask-image:linear-gradient(to left,transparent 0,#000 44px);mask-image:linear-gradient(to left,transparent 0,#000 44px)}
+.vr-raiz table.vr-tab{width:100%;border-collapse:separate;border-spacing:0;margin:0}
+.vr-raiz table.vr-tab>thead{display:table-header-group!important}
+.vr-raiz table.vr-tab>thead>tr>th{padding:10px 14px!important;background:var(--linha2);border:0!important;border-bottom:1px solid var(--linha)!important;font-size:11px!important;font-weight:750;letter-spacing:.05em;text-transform:uppercase;line-height:1.25;text-align:right;vertical-align:bottom;white-space:normal;min-width:104px;max-width:170px;color:var(--suave)}
+.vr-raiz table.vr-tab>tbody>tr{display:table-row!important;background:none!important;border:0!important;border-radius:0!important;margin:0!important;box-shadow:none!important;padding:0!important;cursor:pointer}
+.vr-raiz table.vr-tab>tbody>tr>td{display:table-cell!important;padding:10px 14px!important;border:0!important;border-bottom:1px solid var(--linha2)!important;background:var(--vr-cart)!important;color:var(--tinta);font-size:13.5px;line-height:1.3;text-align:right;vertical-align:top;white-space:nowrap}
+.vr-raiz table.vr-tab>tbody>tr>td::before{content:none!important;display:none!important}
+.vr-raiz table.vr-tab>tbody>tr:last-child>td{border-bottom:0!important}
+.vr-raiz table.vr-tab>thead>tr>th:first-child,.vr-raiz table.vr-tab>tbody>tr>td:first-child{position:sticky;left:0;z-index:1;min-width:76px;text-align:left}
+.vr-raiz table.vr-tab>thead>tr>th:first-child{z-index:2}
+.vr-raiz table.vr-tab>tbody>tr>td:first-child{box-shadow:6px 0 10px -10px color-mix(in srgb,var(--tinta) 45%,transparent)}
+.vr-raiz table.vr-tab>tbody>tr:hover>td{background:color-mix(in srgb,var(--tinta) 4%,var(--vr-cart))!important}
+.vr-raiz table.vr-tab>tbody>tr.on>td{background:color-mix(in srgb,var(--vr-marca) 7%,var(--vr-cart))!important;font-weight:700}
+.vr-raiz table.vr-tab>tbody>tr.on>td:first-child{box-shadow:inset 3px 0 0 var(--vr-marca),6px 0 10px -10px color-mix(in srgb,var(--tinta) 45%,transparent)}
+.vr-raiz table.vr-tab td.vr-m{font-weight:750}
+.vr-raiz table.vr-tab td .vr-tv{display:inline}
+.vr-raiz table.vr-tab td .vr-pill{margin-left:6px;vertical-align:1px}
+.vr-raiz table.vr-tab>tfoot:empty{display:none}
+
+/* ---------- variações de todos os setores ---------- */
+.vr-setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:12px}
+.vr-set{display:flex;flex-direction:column;gap:12px;min-width:0;padding:15px 16px;background:var(--vr-cart);border:1px solid var(--vr-borda);border-radius:var(--vr-r);box-shadow:var(--vr-sombra)}
 .vr-set header{display:flex;align-items:center;gap:10px;min-width:0}
-.vr-set header b{flex:1;min-width:0;font-size:15px}
-.vr-set .vr-cont{font-size:12px;color:var(--suave);white-space:nowrap}
-.vr-set .vr-cont .s{color:var(--ok);font-weight:700}.vr-set .vr-cont .d{color:var(--pe);font-weight:700}
-.vr-set ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.vr-set li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
-.vr-set li span{font-size:12.5px;color:var(--suave);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vr-set li b{font-size:14.5px;grid-column:1}
-.vr-set li .vr-pill{grid-column:2;grid-row:1/span 2;justify-self:end}
+.vr-set-ic{flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:var(--vr-preto);color:#fff}
+.vr-set-ic svg{width:18px;height:18px}
+.vr-set header b{flex:1;min-width:0;font-size:15.5px;font-weight:750}
+.vr-set .vr-cont{display:flex;gap:6px;flex-wrap:wrap;margin:-2px 0 0}
+.vr-set ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.vr-set li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding-top:10px;border-top:1px solid var(--linha2)}
+.vr-set li:first-child{padding-top:0;border-top:0}
+.vr-set li>span:first-child{grid-column:1;font-size:12.5px;color:var(--suave);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-set .vr-set-v{grid-column:1;line-height:1.15}
+.vr-set .vr-set-v .vr-num{font-size:17px;font-weight:750;color:var(--tinta)}
+.vr-set .vr-set-v .vr-pre,.vr-set .vr-set-v .vr-un{font-size:12px;font-weight:600;color:var(--suave)}
+.vr-set li>.vr-pill{grid-column:2;grid-row:1/span 2;justify-self:end;max-width:150px}
 .vr-set .btn{align-self:flex-start;margin-top:auto}
 .vr-atalho{margin:-4px 0 18px}
+
+/* ---------- celular ---------- */
 @media (max-width:760px){
- .vr-res{grid-template-columns:1fr}
- .vr-grade{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
- .vr-card{padding:12px 12px 10px}
- .vr-card .vr-v{font-size:19px}
+ .vr-mesbar{padding:10px}
+ .vr-mes-ctl{flex:1 1 100%}
+ .vr-cmp{flex:1 1 150px}
  .vr-gr{gap:3px}
- .vr-gr .vr-x{font-size:9.5px}
- .vr-mesbar .vr-cmp{flex-basis:100%}
+ .vr-gr .vr-x{font-size:10px}
+ .vr-gr .vr-x:not(.ano) .vr-x-a{display:none}
+ .vr-graf>.vr-in{padding:4px 14px 14px}
+ .vr-graf .vr-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
+ .vr-graf .vr-chips::-webkit-scrollbar{display:none}
+ .vr-raiz .vr-tabbloco>.vr-tab-top,.vr-tab-aj{padding-left:14px;padding-right:14px}
+ .vr-raiz table.vr-tab>thead>tr>th{padding:9px 11px!important;min-width:96px}
+ .vr-raiz table.vr-tab>tbody>tr>td{padding:9px 11px!important;font-size:13px}
+ .vr-raiz table.vr-tab>thead>tr>th:first-child,.vr-raiz table.vr-tab>tbody>tr>td:first-child{min-width:64px}
+ .vr-raiz table.vr-tab td .vr-tv{display:block}
+ .vr-raiz table.vr-tab td .vr-pill{display:flex;margin:4px 0 0 auto}
 }
-@media print{.vr-card,.vr-set{box-shadow:none}.vr-mesbar button,.vr-cab-acoes{display:none}}
+@media (max-width:600px){
+ /* no celular o painel sobe: a explicação do cabeçalho é a mesma do seletor do mês e do resumo */
+ .vr-raiz .vr-cab .sec-id p{display:none}
+ .vr-hero{padding:18px 14px 14px;border-radius:14px}
+ .vr-raiz .vr-hero .vr-h-mes{font-size:18px}
+ .vr-raiz .vr-hero .vr-h-mes span{display:block;margin-top:2px;font-size:13px}
+ .vr-placar{gap:8px}
+ .vr-pl{padding:10px 10px 9px}
+ .vr-pl b{font-size:28px}
+ .vr-pl span{font-size:11.5px}
+ .vr-dest{grid-template-columns:minmax(0,1fr);gap:8px}
+ .vr-gp{flex-direction:column;align-items:flex-start;gap:5px}
+ .vr-gp-t{width:auto}
+ .vr-grade{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .vr-card{padding:13px 12px 10px;border-radius:14px}
+ .vr-card::before{left:12px;right:12px}
+ .vr-k-top{gap:7px}
+ .vr-k-ic{width:28px;height:28px;border-radius:9px}
+ .vr-k-ic svg{width:15px;height:15px}
+ .vr-card .vr-l{font-size:12px}
+ .vr-v .vr-pre,.vr-v .vr-un{font-size:12px}
+ .vr-k-pe{font-size:11.5px}
+ .vr-cr{padding:12px 12px 13px}
+ .vr-cv-v .vr-num{font-size:16px}
+ .vr-sec-cab{margin-top:20px}
+}
+@media (max-width:340px){.vr-grade{grid-template-columns:minmax(0,1fr)}.vr-cr-vals{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media print{
+ .vr-raiz{padding-bottom:0!important}
+ .vr-hero{background:#fff!important;color:#000!important;border:1px solid #999;box-shadow:none}
+ .vr-hero *{color:#000!important}
+ .vr-mesbar .vr-nav,.vr-hoje,.vr-cab-acoes{display:none}
+ .vr-card,.vr-set,.vr-cr,.vr-mesbar{box-shadow:none}
+}
 </style>
 <script id="variacoes-v73">
 "use strict";
@@ -33782,16 +33981,97 @@ function comparar(I,a,b){
  const cls=dir==='igual'||!I.bom?'neu':(I.bom==='+')===(dif>0)?'bom':'ruim';
  return{dir,cls,dif,rel,doZero:dir!=='igual'&&b===0&&I.u!=='pct'};
 }
-function pill(I,c,mini){
- if(!c||c.dir==='sem')return `<span class="vr-pill neu${mini?' mini':''}">${mini?'—':'sem comparação'}</span>`;
+/* ================= V181 (27/11/2026) · visual novo da tela Variações =================
+   Pedido do Jeferson: leitura mais fácil e um painel caprichado no alto de cada setor, no mesmo padrão em todos.
+   SÓ APARÊNCIA E ORGANIZAÇÃO: nenhum número, conta, comparação, nome de indicador ou regra muda. Tudo o que a
+   tela mostra continua saindo de val(), comparar(), media3() e fmt() (acima, iguais letra por letra).
+   · No alto: seletor do mês (setas e lista de meses), resumo curto (quantos melhoraram, pioraram e ficaram
+     iguais ou são neutros) e destaques: o que mais melhorou e o que mais piorou (a maior variação percentual
+     entre os números que têm base de comparação; número sem dado no mês anterior não entra no destaque).
+   · Cartões de cada número: ícone, valor grande com a unidade, seta com a variação e mini-gráfico de 6 meses.
+   · "Mês × mês anterior": os dois valores e a variação lado a lado, com barras (cada número na própria escala).
+   · Gráfico dos últimos meses e tabela "Mês a mês" (no celular, tabela contínua com o mês fixo à esquerda).
+   · Cores como já eram: verde = melhorou, vermelho = piorou (Perdas subindo = vermelho), cinza = sem mudança
+     ou número neutro. "novo" e "antes era zero" viraram "sem dado no mês anterior"; "h" virou "horas". */
+const capV=s=>String(s||'').replace(/^./,x=>x.toUpperCase());
+const UNV={h:'horas','tijolos/h':'tijolos/hora'};
+/* o valor em partes (R$, número e unidade), para o número sair grande e a unidade pequena */
+function partesV(I,v){
+ if(v==null||!isFinite(v))return{pre:'',num:'—',suf:''};
+ if(I.u==='moeda'){const s=fMoeda(v);const x=/^([^\d]*?R\$)\s*([\s\S]*)$/.exec(s);return x?{pre:x[1],num:x[2],suf:''}:{pre:'',num:s,suf:''}}
+ if(I.u==='pct')return{pre:'',num:fNum(v,1),suf:'%'};
+ return{pre:'',num:fNum(v,I.dec||0),suf:I.suf?(UNV[I.suf]||I.suf):''};
+}
+const juntarV=p=>(p.pre?p.pre+' ':'')+p.num+(p.suf?(p.suf==='%'?'':' ')+p.suf:'');
+const txtV=(I,v)=>juntarV(partesV(I,v));
+function valorV(I,v,cls){const p=partesV(I,v);
+ return `<span class="${cls||'vr-v'}">${p.pre?`<span class="vr-pre">${esc(p.pre)}</span> `:''}<b class="vr-num" style="--vr-n:${p.num.length}">${esc(p.num)}</b>${p.suf?`<span class="vr-un">${p.suf==='%'?'':' '}${esc(p.suf)}</span>`:''}</span>`}
+function difV(I,d){
+ if(d==null||!isFinite(d))return '';const s=d>0?'+':d<0?'−':'';
+ return I.u==='pct'?s+fNum(Math.abs(d),1)+' p.p.':s+txtV(I,Math.abs(d));
+}
+/* "de → para": a unidade uma vez só quando é a mesma */
+function deParaV(I,b,a){const pb=partesV(I,b),pa=partesV(I,a);
+ if(I.u!=='moeda'&&pb.num!=='—'&&pa.num!=='—')return pb.num+(pb.suf==='%'?'%':'')+' → '+juntarV(pa);
+ return juntarV(pb)+' → '+juntarV(pa)}
+/* o que a comparação quer dizer, em palavras (para a leitura de tela e a dica) */
+function estadoV(I,c){
+ if(!c||c.dir==='sem')return 'sem comparação';
+ if(c.dir==='igual')return 'sem mudança';
+ if(c.cls==='bom')return 'melhorou';if(c.cls==='ruim')return 'piorou';
+ return (c.dir==='sobe'?'cresceu':'diminuiu')+' (número neutro)';
+}
+const semDadoV=(a,b)=>{const sa=a==null||!isFinite(a),sb=b==null||!isFinite(b);return sa&&sb?'sem dado nos dois meses':sb?'sem dado no mês anterior':'sem dado neste mês'};
+const varV=(I,c)=>I.u==='pct'?fNum(Math.abs(c.dif),1)+' p.p.':c.doZero||c.rel==null?'':(x=>(x>=1000?'mais de 999':fNum(x,x<10?1:0))+'%')(Math.abs(c.rel));
+function pill(I,c,mini,a,b){
+ const sr=t=>`<span class="vr-sr"> · ${esc(t)}</span>`;
+ if(!c||c.dir==='sem'){const t=semDadoV(a,b);return `<span class="vr-pill neu${mini?' mini':' longo'}" title="${esc(t)}">${mini?'—'+sr(t):esc(t)}</span>`}
  const seta=c.dir==='sobe'?'▲':c.dir==='desce'?'▼':'=';
  let t;
- if(c.dir==='igual')t=mini?'':'estável';
- else if(I.u==='pct')t=fNum(Math.abs(c.dif),1)+' p.p.';
- else if(c.doZero)t=mini?'novo':'antes era zero';
- else{const a=Math.abs(c.rel);t=(a>=1000?'mais de 999':fNum(a,a<10?1:0))+'%'}
- const tip=c.dir==='sobe'?'cresceu':c.dir==='desce'?'diminuiu':'ficou igual';
- return `<span class="vr-pill ${c.cls}${mini?' mini':''}" title="${esc(tip)}">${seta}${t?' '+esc(t):''}</span>`;
+ if(c.dir==='igual')t=mini?'':'sem mudança';
+ else if(c.doZero)t=mini?'':'sem dado no mês anterior';
+ else t=varV(I,c);
+ const tip=(c.dir==='sobe'?'cresceu':c.dir==='desce'?'diminuiu':'ficou igual')+(c.cls==='bom'?' · melhorou':c.cls==='ruim'?' · piorou':'')+(c.doZero?' · sem dado no mês anterior':'');
+ return `<span class="vr-pill ${c.cls}${mini?' mini':''}${!mini&&(c.doZero||c.dir==='igual')?' longo':''}" title="${esc(tip)}">${seta}${t?' '+esc(t):''}${sr(estadoV(I,c))}</span>`;
+}
+
+/* ---------- ícone de cada número (pela unidade; só desenho) ---------- */
+const ICV={
+ tijolo:'<path d="M3 5.5h18v13H3z"/><path d="M3 12h18M9 5.5V12M15 12v6.5"/>',
+ perda:'<path d="M4 5h16v14H4z"/><path d="m12.5 5-2.2 4.6 3.4 2.6-2.6 6.8"/>',
+ relogio:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+ ritmo:'<path d="M4.5 17.5a7.5 7.5 0 1 1 15 0"/><path d="m12 17.5 4-5"/><path d="M4.5 17.5h15"/>',
+ pct:'<circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M18.5 5.5 5.5 18.5"/>',
+ moeda:'<circle cx="12" cy="12" r="8.5"/><path d="M14.8 9.2c-.5-.9-1.6-1.4-2.8-1.4-1.6 0-2.8.9-2.8 2.1 0 2.8 5.6 1.4 5.6 4.2 0 1.2-1.2 2.1-2.8 2.1-1.3 0-2.4-.6-2.9-1.5M12 6.3v1.5M12 16.2v1.5"/>',
+ pessoas:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M15.5 4.8a3.4 3.4 0 0 1 0 6.4M17.5 14.2A6.5 6.5 0 0 1 21.5 20"/>',
+ gota:'<path d="M12 3.5s6 6.4 6 10.6a6 6 0 0 1-12 0c0-4.2 6-10.6 6-10.6z"/>',
+ lenha:'<circle cx="7" cy="16" r="3.2"/><circle cx="17" cy="16" r="3.2"/><circle cx="12" cy="8.4" r="3.2"/>',
+ barro:'<path d="M3 19.5h18"/><path d="M4.5 19.5 9 11l3 4.5 2.6-3.8 4.9 7.8"/>',
+ palete:'<path d="M3 7h18M3 13h18"/><path d="M5 7v12M12 7v12M19 7v12"/>',
+ doc:'<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h5"/>',
+ lista:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
+ epi:'<path d="M4 16.5a8 8 0 0 1 16 0"/><path d="M3 16.5h18v2.5H3z"/><path d="M12 8.5v-3"/>',
+ cal:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8.5 3v4M15.5 3v4M10 13.5l4 4M14 13.5l-4 4"/>',
+ grafico:'<path d="M3.5 3.5v17h17"/><path d="m7.5 15 4-4 3.5 3.5 5-6"/>'
+};
+const icV=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICV[n]||ICV.grafico}</svg>`;
+function icInd(I){const s=String(I.suf||'');
+ if(/perd/i.test(I.k)||/perda/i.test(I.l))return icV('perda');
+ if(I.u==='moeda')return icV('moeda');
+ if(I.u==='pct')return icV('pct');
+ if(s==='milheiros')return icV('tijolo');
+ if(s==='h')return icV('relogio');
+ if(s==='tijolos/h')return icV('ritmo');
+ if(/pessoa/.test(s))return icV('pessoas');
+ if(s==='L'||/lançamento/.test(s))return icV('gota');
+ if(s==='m³')return icV('lenha');
+ if(s==='t')return icV('barro');
+ if(/palete/.test(s))return icV('palete');
+ if(/nota|venda|conta/.test(s))return icV('doc');
+ if(/requisi/.test(s))return icV('lista');
+ if(/peça/.test(s))return icV('epi');
+ if(/falta/.test(s))return icV('cal');
+ return icV('grafico');
 }
 
 /* ---------- gráfico de barras (sem biblioteca: funciona sem internet, no tema e na impressão) ---------- */
@@ -33799,25 +34079,44 @@ function barras(I,pts,sel,mini){
  const vs=pts.map(p=>p.v).filter(v=>v!=null&&isFinite(v));
  const mp=Math.max(0,...vs),mn=Math.max(0,...vs.map(v=>-v));const tot=(mp+mn)||1;
  const hp=mn?mp/tot*100:100,hn=mn/tot*100;
- return `<div class="vr-gr${mini?' mini':''}" role="img" aria-label="${esc(I.l+': '+pts.map(p=>curto(p.m)+' '+fmt(I,p.v)).join(', '))}">${pts.map(p=>{
+ return `<div class="vr-gr${mini?' mini':''}" role="img" aria-label="${esc(I.l+': '+pts.map(p=>curto(p.m)+' '+txtV(I,p.v)).join(', '))}">${pts.map((p,k)=>{
   const v=p.v;const nd=v==null||!isFinite(v);
   const a=!nd&&v>0&&mp?v/mp*100:0,b=!nd&&v<0&&mn?-v/mn*100:0;
-  return `<${mini?'span':'button type="button"'} class="vr-col${p.m===sel?' on':''}${nd?' nd':''}"${mini?'':` data-vrmes="${esc(p.m)}"`} title="${esc(longo(p.m)+': '+fmt(I,v))}">
+  const cm=curto(p.m),ano=k===0||p.m.endsWith('-01');
+  return `<${mini?'span':'button type="button"'} class="vr-col${p.m===sel?' on':''}${nd?' nd':''}"${mini?'':` data-vrmes="${esc(p.m)}"`} title="${esc(longo(p.m)+': '+txtV(I,v))}">
    <span class="vr-plot"><span class="vr-ar p" style="height:${hp.toFixed(2)}%"><i style="height:${a.toFixed(2)}%"></i></span>${mn?`<span class="vr-ar n" style="height:${hn.toFixed(2)}%"><i style="height:${b.toFixed(2)}%"></i></span>`:''}</span>
-   ${mini?'':`<span class="vr-x">${esc(curto(p.m))}</span>`}</${mini?'span':'button'}>`}).join('')}</div>`;
+   ${mini?'':`<span class="vr-x${ano?' ano':''}">${esc(cm.slice(0,3))}<span class="vr-x-a">${esc(cm.slice(3))}</span></span>`}</${mini?'span':'button'}>`}).join('')}</div>`;
+}
+/* mini-gráfico de linha dos últimos meses (mês sem número interrompe a linha; o ponto do mês escolhido na cor da variação) */
+function sparkV(pts,sel,cls){
+ const W=120,H=36,P=4,n=pts.length;const ok=v=>v!=null&&isFinite(v);const vs=pts.map(p=>p.v).filter(ok);
+ if(n<2||vs.length<2)return `<span class="vr-spark vr-sem" aria-hidden="true"><span>sem histórico</span></span>`;
+ const mx=Math.max(...vs),mn=Math.min(...vs),amp=mx-mn;
+ const X=i=>P+i*(W-2*P)/(n-1),Y=v=>amp?P+(mx-v)/amp*(H-2*P):H/2,f=q=>q.toFixed(1);
+ const segs=[];let s=[];
+ pts.forEach((p,i)=>{if(!ok(p.v)){if(s.length)segs.push(s);s=[];return}s.push([X(i),Y(p.v)])});if(s.length)segs.push(s);
+ const ln=segs.filter(q=>q.length>1).map(q=>'M'+q.map(([x,y])=>f(x)+' '+f(y)).join(' L')).join(' ');
+ const ar=segs.filter(q=>q.length>1).map(q=>'M'+f(q[0][0])+' '+H+' L'+q.map(([x,y])=>f(x)+' '+f(y)).join(' L')+' L'+f(q[q.length-1][0])+' '+H+' Z').join(' ');
+ const soltos=segs.filter(q=>q.length===1).map(q=>`<path class="vr-sp-p" d="M${f(q[0][0])} ${f(q[0][1])}h0"/>`).join('');
+ const k=pts.findIndex(p=>p.m===sel);const fim=k>=0&&ok(pts[k].v)?`<path class="vr-sp-pt ${esc(cls||'neu')}" d="M${f(X(k))} ${f(Y(pts[k].v))}h0"/>`:'';
+ return `<svg class="vr-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${ar?`<path class="vr-sp-ar" d="${ar}"/>`:''}${ln?`<path class="vr-sp-ln" d="${ln}"/>`:''}${soltos}${fim}</svg>`;
 }
 
 /* ---------- estado da tela ---------- */
 const VR={mes:'',ind:{}};
 function mesSel(){if(!okM(VR.mes))VR.mes=mesMenos(mesAtual(),1);if(VR.mes>mesAtual())VR.mes=mesAtual();return VR.mes}
+/* meses da lista: os 24 últimos (e o escolhido, se for mais antigo) */
+function mesesLista(m){const at=mesAtual();const L=[];for(let i=0;i<24;i++)L.push(mesMenos(at,i));if(okM(m)&&m<=at&&!L.includes(m))L.push(m);return L.sort().reverse()}
 function barraMes(m){
- const atual=m===mesAtual();const dia=+hoje().slice(8,10);
- return `<div class="painel filtros vr-mesbar" role="group" aria-label="Mês comparado">
-  <button type="button" class="btn min" data-vrnav="-1" aria-label="Mês anterior">${ic('esquerda')}</button>
-  <input type="month" data-vrin value="${esc(m)}" max="${esc(mesAtual())}" aria-label="Mês">
-  <button type="button" class="btn min" data-vrnav="1" aria-label="Mês seguinte"${atual?' disabled':''}>${ic('direita')}</button>
-  ${atual?'':`<button type="button" class="btn min" data-vrhoje>Mês atual</button>`}
-  <span class="vr-cmp"><b>${esc(longo(m))}</b> comparado com <b>${esc(longo(ant(m)))}</b>${atual?` · <span class="tag at">em andamento: dias 1 a ${dia}</span>`:''}</span></div>`;
+ const at=mesAtual();const atual=m===at;const dia=+hoje().slice(8,10);
+ return `<div class="vr-mesbar" role="group" aria-label="Mês comparado">
+  <div class="vr-mes-ctl">
+   <button type="button" class="vr-nav" data-vrnav="-1" aria-label="Mês anterior" title="Mês anterior">${ic('esquerda')}</button>
+   <label class="vr-mes-sel"><span class="vr-sr">Mês</span><select data-vrin aria-label="Escolher o mês">${mesesLista(m).map(x=>`<option value="${esc(x)}"${x===m?' selected':''}>${esc(capV(longo(x)))}${x===at?' (em andamento)':''}</option>`).join('')}</select>${ic('calendario')}</label>
+   <button type="button" class="vr-nav" data-vrnav="1" aria-label="Mês seguinte" title="Mês seguinte"${atual?' disabled':''}>${ic('direita')}</button>
+  </div>
+  <span class="vr-cmp">Comparado com <b>${esc(longo(ant(m)))}</b>${atual?` <span class="vr-and">em andamento: dias 1 a ${dia}</span>`:''}</span>
+  ${atual?'':`<button type="button" class="vr-hoje" data-vrhoje>Mês atual</button>`}</div>`;
 }
 function ligarMes(c,redesenhar){
  const ir=m=>{if(!okM(m))return;VR.mes=m>mesAtual()?mesAtual():m;redesenhar()};
@@ -33829,66 +34128,95 @@ function seletorSetor(id){
  const L=setoresVisiveis();if(L.length<2)return '';
  return `<select class="vr-setor" aria-label="Ver as variações de outro setor">${L.map(s=>`<option value="${esc(s)}"${s===id?' selected':''}>${esc(SETS[s].curto)}</option>`).join('')}</select>`;
 }
+/* o que mais melhorou e o que mais piorou: maior variação percentual, só entre os números com base de comparação */
+function destaquesV(res){
+ const peso=x=>{const a=x.a.v,b=x.b.v;if(x.c.doZero||a==null||b==null||!isFinite(a)||!isFinite(b)||b===0)return null;return Math.abs(a-b)/Math.abs(b)};
+ const maior=cls=>{let r=null,s=-1;res.forEach(x=>{if(x.c.cls!==cls||(x.c.dir!=='sobe'&&x.c.dir!=='desce'))return;const p=peso(x);if(p!=null&&p>s){s=p;r=x}});return r};
+ return{B:maior('bom'),R:maior('ruim')};
+}
+const legV=()=>`<p class="vr-h-leg"><span><i class="bom"></i>verde: melhorou</span><span><i class="ruim"></i>vermelho: piorou</span><span><i></i>cinza: sem mudança ou número neutro</span></p>`;
+function placarV(nB,nR,nN,txt){
+ return `<div class="vr-placar">
+  <div class="vr-pl bom"><b>${nB}</b><span>${txt?txt[0](nB):nB===1?'melhorou':'melhoraram'}</span></div>
+  <div class="vr-pl ruim"><b>${nR}</b><span>${txt?txt[1](nR):nR===1?'piorou':'pioraram'}</span></div>
+  <div class="vr-pl neu"><b>${nN}</b><span>sem mudança ou ${nN===1?'neutro':'neutros'}</span></div></div>`;
+}
 
 /* ================= painel de um setor ================= */
 function desenhar(c,id){
  conferirMemo();
  const S=SETS[id];const m=mesSel();const IS=indsDe(id);
  const redesenhar=()=>{const y=window.scrollY;desenhar(c,id);window.scrollTo(0,y)};
+ c.classList.add('vr-raiz');
  if(!APP.carregado){c.innerHTML=typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>';return}
- const cab=`<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações · ${esc(S.curto)}</h1>
-  <p>O que cresceu e o que diminuiu em ${esc(longo(m))}, comparado com ${esc(longo(ant(m)))} e com a média dos 3 meses anteriores. Só leitura: os números vêm dos lançamentos do setor.</p></div></div>
-  <div class="acoes vr-cab-acoes">${seletorSetor(id)}<a class="btn" href="#/${ROTA}">${ic('painel')}Todos os setores</a></div></div>`;
+ const cab=`<div class="sec-cab vr-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações · ${esc(S.curto)}</h1>
+  <p>Comparação de ${esc(longo(m))} com ${esc(longo(ant(m)))} e com a média dos 3 meses anteriores. Só leitura: os números vêm dos lançamentos do setor.</p></div></div>
+  <div class="acoes vr-cab-acoes">${seletorSetor(id)}<a class="btn vr-btn2" href="#/${ROTA}">${ic('painel')}Todos os setores</a></div></div>`;
  if(!IS.length){c.innerHTML=cab+`<div class="vazio"><b>Nenhum número deste setor liberado para o seu perfil</b>Fale com o administrador.</div>`;ligarCab(c,id);return}
  if(!VR.ind[id]||!IS.some(I=>I.k===VR.ind[id]))VR.ind[id]=IS[0].k;
  const IA=IS.find(I=>I.k===VR.ind[id]);
  const res=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,b,c:comparar(I,a.v,b.v)}});
- const sob=res.filter(x=>x.c.dir==='sobe'),des=res.filter(x=>x.c.dir==='desce'),ig=res.filter(x=>x.c.dir==='igual');
- const bons=res.filter(x=>x.c.cls==='bom').length,ruins=res.filter(x=>x.c.cls==='ruim').length;
+ const bons=res.filter(x=>x.c.cls==='bom'),ruins=res.filter(x=>x.c.cls==='ruim');
+ const neutros=res.filter(x=>x.c.cls==='neu'&&(x.c.dir==='sobe'||x.c.dir==='desce'));
+ const parados=res.filter(x=>x.c.dir==='igual'||x.c.dir==='sem');
  const semDado=res.every(x=>x.a.v==null||x.a.v===0)&&res.every(x=>x.b.v==null||x.b.v===0);
- const it=x=>`<li><span>${esc(x.I.l)}</span>${pill(x.I,x.c,true)}</li>`;
- const lista=(xs,vz)=>xs.length?`<ul>${xs.map(it).join('')}</ul>`:`<span class="vazio-l">${esc(vz)}</span>`;
- const frase=(()=>{
-  if(semDado)return `Nenhum lançamento deste setor em ${longo(m)} nem em ${longo(ant(m))}. Escolha outro mês.`;
-  const p=[];const nomes=xs=>xs.slice(0,4).map(x=>x.I.l.toLowerCase()+' ('+(x.c.doZero?'antes era zero':x.I.u==='pct'?fmtDif(x.I,x.c.dif):(x.c.dif>0?'+':'−')+fNum(Math.abs(x.c.rel),Math.abs(x.c.rel)<10?1:0)+'%')+')').join(', ')+(xs.length>4?' e mais '+(xs.length-4):'');
-  if(sob.length)p.push('cresceram '+nomes(sob));if(des.length)p.push('diminuíram '+nomes(des));
-  if(!p.length)return 'Nenhum número mudou de forma relevante em relação a '+longo(ant(m))+'.';
-  return 'Em '+longo(m)+', comparado com '+longo(ant(m))+': '+p.join('; ')+'.'+(bons||ruins?' No total, '+bons+(bons===1?' melhorou':' melhoraram')+' e '+ruins+(ruins===1?' piorou':' pioraram')+'.':'');
- })();
- const aviso=m===mesAtual()?`<div class="aviso at" style="margin-bottom:14px"><span><b>${esc(longo(m).replace(/^./,x=>x.toUpperCase()))} ainda está em andamento</b> (lançamentos até ${esc(fData(hoje()))}). Comparar com ${esc(longo(ant(m)))} inteiro tende a mostrar queda; para uma comparação justa, escolha um mês já fechado.</span></div>`:'';
+ const D=destaquesV(res);
+ const mL=capV(longo(m)),aL=longo(ant(m)),mC=curto(m),aC=curto(ant(m));
+ const aviso=m===mesAtual()?`<div class="vr-aviso" role="note"><b>${esc(mL)} ainda está em andamento</b> (lançamentos até ${esc(fData(hoje()))}). Comparar com ${esc(aL)} inteiro tende a mostrar queda; para uma comparação justa, escolha um mês já fechado.</div>`:'';
+ /* resumo do mês */
+ const chip=x=>`<span class="vr-chip ${x.c.cls}" title="${esc(estadoV(x.I,x.c))}">${esc(x.I.l)}${x.c.dir==='sobe'||x.c.dir==='desce'?` <em>${x.c.dir==='sobe'?'▲':'▼'}${x.c.doZero?'':' '+esc(varV(x.I,x.c))}</em>`:''}</span>`;
+ const grupo=(t,xs,cls,vz)=>xs.length||vz?`<div class="vr-gp ${cls}"><span class="vr-gp-t">${esc(t)} (${xs.length})</span><span class="vr-gp-l">${xs.length?xs.map(chip).join(''):`<span class="vr-gp-0">${esc(vz)}</span>`}</span></div>`:'';
+ const dest=(x,cls,t,vz)=>x?`<div class="vr-dt ${cls}"><small>${t}</small><b>${esc(x.I.l)}</b><span class="vr-dt-l">${pill(x.I,x.c,false,x.a.v,x.b.v)}<span>${esc(deParaV(x.I,x.b.v,x.a.v))}</span></span></div>`
+  :`<div class="vr-dt vr-nada"><small>${t}</small><b>${esc(vz)}</b></div>`;
+ const vzDest=(xs,nenhum)=>!xs.length?nenhum:'Só números sem dado no mês anterior';
+ const hero=`<section class="vr-hero" aria-label="Resumo de ${esc(longo(m))}">
+  <span class="vr-h-rot">Resumo do mês</span>
+  <h2 class="vr-h-mes">${esc(mL)} <span>comparado com ${esc(aL)}</span></h2>
+  ${semDado?`<p class="vr-h-vazio">Nenhum lançamento deste setor em ${esc(longo(m))} nem em ${esc(aL)}. Escolha outro mês.</p>`:
+  `<div class="vr-h-corpo">${placarV(bons.length,ruins.length,res.length-bons.length-ruins.length)}
+   <div class="vr-dest">${dest(D.B,'bom','▲ Mais melhorou',vzDest(bons,'Nenhum número melhorou'))}${dest(D.R,'ruim','▼ Mais piorou',vzDest(ruins,'Nenhum número piorou'))}</div></div>
+   <div class="vr-grupos">${grupo('Melhoraram',bons,'bom','nenhum')}${grupo('Pioraram',ruins,'ruim','nenhum')}${grupo('Mudaram (números neutros)',neutros,'neu','')}${grupo('Sem mudança ou sem comparação',parados,'neu','')}</div>`}
+  ${legV()}</section>`;
+ /* cartões de cada número */
  const cartao=x=>{const I=x.I;const md=media3(id,I,m);const c3=comparar(I,x.a.v,md);
   const ult6=janela(m,6).map(mm=>({m:mm,v:val(id,I,mm).v}));
-  return `<button type="button" class="vr-card${I.k===IA.k?' on':''}" data-vrind="${esc(I.k)}" aria-pressed="${I.k===IA.k}">
-   <span class="vr-l">${esc(I.l)}</span>
-   <span class="vr-v">${esc(fmt(I,x.a.v))}</span>
-   ${pill(I,x.c)}
-   <span class="vr-sub">${esc(curto(ant(m)))}: <b>${esc(fmt(I,x.b.v))}</b>${x.c.dif!=null&&x.c.dir!=='igual'?' · '+esc(fmtDif(I,x.c.dif)):''}</span>
-   ${md!=null?`<span class="vr-sub">Média de 3 meses: <b>${esc(fmt(I,md))}</b> ${pill(I,c3,true)}</span>`:''}
-   ${x.a.nota?`<span class="vr-nota">${esc(x.a.nota)}</span>`:''}
-   ${I.ajuda?`<span class="vr-sub">${esc(I.ajuda)}</span>`:''}
-   ${barras(I,ult6,m,true)}</button>`};
+  const flag=x===D.B?'<span class="vr-flag bom">Mais melhorou</span>':x===D.R?'<span class="vr-flag ruim">Mais piorou</span>':'';
+  return `<button type="button" class="vr-card st-${x.c.cls}${I.k===IA.k?' on':''}" data-vrind="${esc(I.k)}" aria-pressed="${I.k===IA.k}">
+   <span class="vr-k-top"><span class="vr-k-ic">${icInd(I)}</span><span class="vr-l">${esc(I.l)}</span></span>${flag}
+   ${valorV(I,x.a.v)}
+   <span class="vr-k-var">${pill(I,x.c,false,x.a.v,x.b.v)}${x.c.dir==='sem'||x.c.doZero?'':`<span class="vr-vs">vs ${esc(aC)}</span>`}</span>
+   ${sparkV(ult6,m,x.c.cls)}<span class="vr-sp-x" aria-hidden="true"><span>${esc(curto(ult6[0].m))}</span><span>${esc(mC)}</span></span>
+   <span class="vr-k-pe"><span>${esc(aC)}: <b>${esc(txtV(I,x.b.v))}</b></span>${md!=null?`<span>Média de 3 meses: <b>${esc(txtV(I,md))}</b> ${pill(I,c3,true,x.a.v,md)}</span>`:''}</span>
+   ${x.a.nota?`<span class="vr-nota">${esc(x.a.nota)}</span>`:''}</button>`};
+ const kpis=`<section class="vr-sec vr-kpis" aria-label="Números de ${esc(longo(m))}"><div class="vr-sec-cab"><h2>Números de ${esc(longo(m))}</h2><p>Toque num número para ver os meses dele no gráfico.</p></div>
+  <div class="vr-grade">${res.map(cartao).join('')}</div></section>`;
+ /* mês × mês anterior, lado a lado */
+ const linhaCmp=x=>{const I=x.I;const a=x.a.v,b=x.b.v;const ok=v=>v!=null&&isFinite(v);
+  const A=ok(a)?Math.abs(a):0,B=ok(b)?Math.abs(b):0,mx=Math.max(A,B);const w=v=>mx>0?Math.min(100,v/mx*100):0;
+  const dif=x.c.dif!=null&&x.c.dir!=='igual'&&I.u!=='pct'?difV(I,x.c.dif):'';
+  return `<li class="vr-cr st-${x.c.cls}">
+   <div class="vr-cr-nome"><b>${esc(I.l)}</b>${I.ajuda?`<small>${esc(I.ajuda)}</small>`:''}${x.a.nota?`<small>${esc(x.a.nota)}</small>`:''}</div>
+   <div class="vr-cr-vals"><span class="vr-cv"><small>${esc(mC)}</small>${valorV(I,a,'vr-cv-v')}</span><span class="vr-cv"><small>${esc(aC)}</small>${valorV(I,b,'vr-cv-v')}</span>
+    <span class="vr-cv vr-cv-d"><small>Variação</small>${pill(I,x.c,false,a,b)}${dif?`<em>${esc(dif)}</em>`:''}</span></div>
+   <div class="vr-cr-bar" aria-hidden="true"><small>${esc(mC)}</small><span class="a${ok(a)&&a<0?' neg':''}"><i style="width:${w(A).toFixed(1)}%"></i></span><small>${esc(aC)}</small><span class="b${ok(b)&&b<0?' neg':''}"><i style="width:${w(B).toFixed(1)}%"></i></span></div></li>`};
+ const comp=`<section class="vr-sec vr-comp" aria-label="${esc(mL)} comparado com ${esc(aL)}"><div class="vr-sec-cab"><div><h2>${esc(mL)} × ${esc(aL)}</h2><p>O valor de cada número no mês e no mês anterior, lado a lado.</p></div>
+  <span class="vr-leg"><span><i></i>${esc(mC)}</span><span><i class="b"></i>${esc(aC)}</span></span></div><ul class="vr-cl">${res.map(linhaCmp).join('')}</ul></section>`;
  /* gráfico e tabela: 12 meses até o escolhido (meses vazios do começo saem, ficam pelo menos 2) */
  let meses=janela(m,12);
  while(meses.length>2&&IS.every(I=>{const v=val(id,I,meses[0]).v;return v==null||v===0}))meses=meses.slice(1);
  const pts=meses.map(mm=>({m:mm,v:val(id,IA,mm).v}));
  const aV=val(id,IA,m).v;
- const graf=`<div class="bloco vr-graf"><h3>Últimos ${meses.length} meses</h3>
+ const graf=`<section class="bloco vr-graf"><h3>Últimos ${meses.length} meses</h3>
   <div class="vr-in"><div class="vr-chips" role="group" aria-label="Número do gráfico">${IS.map(I=>`<button type="button" data-vrind="${esc(I.k)}" class="${I.k===IA.k?'on':''}" aria-pressed="${I.k===IA.k}">${esc(I.l)}</button>`).join('')}</div>
-  <p class="vr-sel"><b>${esc(IA.l)}</b> · ${esc(longo(m))}: <b>${esc(fmt(IA,aV))}</b>${IA.ajuda?' · '+esc(IA.ajuda):''}</p>
+  <p class="vr-sel"><b>${esc(IA.l)}</b> · ${esc(longo(m))}: <b>${esc(txtV(IA,aV))}</b>${IA.ajuda?' · '+esc(IA.ajuda):''}</p>
   ${barras(IA,pts,m,false)}
-  <p class="vr-ajuda">Toque em uma barra (ou em uma linha da tabela) para comparar aquele mês. Área listrada: mês sem número calculável.</p></div></div>`;
- const linhas=meses.slice().reverse().map(mm=>`<tr class="${mm===m?'on':''}" data-vrmes="${esc(mm)}"><td class="vr-m" data-l="Mês">${esc(curto(mm))}</td>${IS.map(I=>{const a=val(id,I,mm).v;const c2=comparar(I,a,val(id,I,ant(mm)).v);
-  return `<td class="num" data-l="${esc(I.l)}">${esc(fmt(I,a))}${a!=null&&c2.dir!=='sem'?pill(I,c2,true):''}</td>`}).join('')}</tr>`).join('');
- const tab=`<div class="bloco"><h3>Mês a mês</h3><div class="tabwrap"><table class="tbl vr-tab"><thead><tr><th>Mês</th>${IS.map(I=>`<th class="num">${esc(I.l)}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody><tfoot class="vr-sem-total"></tfoot></table></div>
-  <p class="vr-ajuda vr-tab-aj">Cada seta compara o mês com o mês anterior. Verde: melhorou. Vermelho: piorou. Cinza: número neutro ou sem mudança.</p></div>`;
- c.innerHTML=cab+barraMes(m)+aviso+`<p class="vr-frase">${esc(frase)}</p>
-  <div class="vr-res">
-   <div class="sobe"><h4><i>▲</i>Cresceram (${sob.length})</h4>${lista(sob,'Nenhum número cresceu.')}</div>
-   <div class="desce"><h4><i>▼</i>Diminuíram (${des.length})</h4>${lista(des,'Nenhum número diminuiu.')}</div>
-   <div><h4><i>=</i>Sem mudança ou sem comparação (${ig.length+res.filter(x=>x.c.dir==='sem').length})</h4>${lista(ig.concat(res.filter(x=>x.c.dir==='sem')),'Todos os números mudaram.')}</div>
-  </div>
-  <div class="vr-grade">${res.map(cartao).join('')}</div>
-  <div class="ex2" style="grid-template-columns:1fr">${graf}</div>${tab}`;
+  <p class="vr-ajuda">Toque numa barra (ou numa linha da tabela) para ver aquele mês. Área listrada: mês sem número calculável.</p></div></section>`;
+ const linhas=meses.slice().reverse().map(mm=>`<tr class="${mm===m?'on':''}" data-vrmes="${esc(mm)}"><td class="vr-m" data-l="Mês">${esc(curto(mm))}</td>${IS.map(I=>{const a=val(id,I,mm).v;const pv=val(id,I,ant(mm)).v;const c2=comparar(I,a,pv);
+  return `<td class="num" data-l="${esc(I.l)}"><span class="vr-tv">${esc(txtV(I,a))}</span>${a!=null&&c2.dir!=='sem'?pill(I,c2,true,a,pv):''}</td>`}).join('')}</tr>`).join('');
+ const tab=`<div class="bloco vr-tabbloco"><h3>Mês a mês</h3><p class="vr-ajuda vr-tab-top">Cada seta compara o mês com o mês anterior. Toque numa linha para ver aquele mês.</p>
+  <div class="tabwrap vr-tabw"><table class="tbl vr-tab"><thead><tr><th>Mês</th>${IS.map(I=>`<th class="num">${esc(I.l)}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody><tfoot class="vr-sem-total"></tfoot></table></div>
+  <p class="vr-ajuda vr-tab-aj">Verde: melhorou. Vermelho: piorou. Cinza: número neutro ou sem mudança.</p></div>`;
+ c.innerHTML=cab+barraMes(m)+aviso+hero+kpis+comp+graf+tab;
  ligarCab(c,id);ligarMes(c,redesenhar);
  $$('[data-vrind]',c).forEach(b=>b.onclick=()=>{VR.ind[id]=b.dataset.vrind;redesenhar()});
  $$('[data-vrmes]',c).forEach(b=>b.onclick=()=>{VR.mes=b.dataset.vrmes;redesenhar()});
@@ -33903,18 +34231,23 @@ function telaGeral(el){
  const corpo=()=>{
   if(!APP.carregado)return typeof esqueletoTela==='function'?esqueletoTela():'<div class="carrega">Carregando…</div>';
   if(!L.length)return `<div class="vazio"><b>Nenhum setor liberado para o seu perfil</b>Fale com o administrador.</div>`;
-  return `<div class="sec-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações de todos os setores</h1>
-   <p>Um resumo de cada setor: os principais números de ${esc(longo(m))} e quanto mudaram em relação a ${esc(longo(ant(m)))}. Abra o setor para ver todos os números, o gráfico e a tabela de 12 meses.</p></div></div></div>
-   ${barraMes(m)}
-   <div class="vr-setores">${L.map(id=>{const S=SETS[id];const IS=indsDe(id);
-    const rs=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,c:comparar(I,a.v,b.v)}});
-    const s=rs.filter(x=>x.c.dir==='sobe').length,d=rs.filter(x=>x.c.dir==='desce').length;
-    return `<article class="vr-set"><header><span class="sec-ic">${ic(S.ic)}</span><b>${esc(S.curto)}</b><span class="vr-cont"><span class="s">▲ ${s}</span> · <span class="d">▼ ${d}</span></span></header>
-     ${rs.length?`<ul>${rs.slice(0,3).map(x=>`<li><span>${esc(x.I.l)}</span><b>${esc(fmt(x.I,x.a.v))}</b>${pill(x.I,x.c)}</li>`).join('')}</ul>`:'<p class="vr-ajuda">Nenhum número liberado para o seu perfil.</p>'}
-     <a class="btn" href="${esc(rotaVar(id))}">Ver variações ${ic('direita')}</a></article>`}).join('')}</div>
-   <p class="vr-ajuda">▲ quantos números cresceram · ▼ quantos diminuíram. Verde: melhorou. Vermelho: piorou. Cinza: neutro.</p>`;
+  let tB=0,tR=0,tN=0;
+  const cards=L.map(id=>{const S=SETS[id];const IS=indsDe(id);
+   const rs=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,b,c:comparar(I,a.v,b.v)}});
+   const nB=rs.filter(x=>x.c.cls==='bom').length,nR=rs.filter(x=>x.c.cls==='ruim').length;tB+=nB;tR+=nR;tN+=rs.length-nB-nR;
+   return `<article class="vr-set"><header><span class="vr-set-ic">${ic(S.ic)}</span><b>${esc(S.curto)}</b></header>
+    <p class="vr-cont"><span class="vr-pill bom mini">${nB} ${nB===1?'melhorou':'melhoraram'}</span><span class="vr-pill ruim mini">${nR} ${nR===1?'piorou':'pioraram'}</span></p>
+    ${rs.length?`<ul>${rs.slice(0,3).map(x=>`<li><span>${esc(x.I.l)}</span>${valorV(x.I,x.a.v,'vr-set-v')}${pill(x.I,x.c,false,x.a.v,x.b.v)}</li>`).join('')}</ul>`:'<p class="vr-ajuda">Nenhum número liberado para o seu perfil.</p>'}
+    <a class="btn" href="${esc(rotaVar(id))}">Ver variações ${ic('direita')}</a></article>`}).join('');
+  const hero=`<section class="vr-hero" aria-label="Resumo de todos os setores"><span class="vr-h-rot">Resumo de todos os setores</span>
+   <h2 class="vr-h-mes">${esc(capV(longo(m)))} <span>comparado com ${esc(longo(ant(m)))}</span></h2>
+   <div class="vr-h-corpo">${placarV(tB,tR,tN,[n=>n===1?'número melhorou':'números melhoraram',n=>n===1?'número piorou':'números pioraram'])}</div>${legV()}</section>`;
+  return `<div class="sec-cab vr-cab"><div class="sec-id"><span class="sec-ic">${ic('grafico')}</span><div><h1>Variações de todos os setores</h1>
+   <p>Os principais números de ${esc(longo(m))} em cada setor, comparados com ${esc(longo(ant(m)))}. Abra o setor para ver todos os números, os gráficos e a tabela de 12 meses.</p></div></div></div>
+   ${barraMes(m)}${hero}<div class="vr-setores">${cards}</div>
+   <p class="vr-ajuda">Verde: melhorou. Vermelho: piorou. Cinza: número neutro ou sem mudança.</p>`;
  };
- el.innerHTML=`<div class="spot">${cabSpot('Variações',razaoMostra()+' · CNPJ '+cnpjMostra(),voltar)}<main class="spot-corpo">${corpo()}</main></div>`;
+ el.innerHTML=`<div class="spot">${cabSpot('Variações',razaoMostra()+' · CNPJ '+cnpjMostra(),voltar)}<main class="spot-corpo vr-raiz vr-geral">${corpo()}</main></div>`;
  ligarMes(el,()=>{const y=window.scrollY;telaGeral(el);window.scrollTo(0,y)});
 }
 
@@ -49122,20 +49455,22 @@ window.JB_MOV=Object.freeze({SETS,montar,docMov,tela,linhas:s=>montar(s),estado:
 .vvd-pos{color:var(--ok);font-weight:600}
 .vvd-neg{color:var(--pe);font-weight:600}
 .vvd-dif{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;vertical-align:middle}
+/* V181: "sem venda no mês anterior" quebra em duas linhas em vez de alargar a coluna */
+.vvd-dif .vr-pill.longo,.vvd-g-nome .vr-pill.longo{max-width:128px;white-space:normal;text-align:right;justify-content:flex-end;line-height:1.25}
 .vvd-nota{font-size:12.5px;color:var(--at);margin:8px 2px 0;line-height:1.5}
 .vvd-grafs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
 .vvd-leg{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--suave);margin:2px 0 14px}
 .vvd-leg span{display:inline-flex;align-items:center;gap:7px}
-.vvd-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--brasa)}
-.vvd-leg i.b{opacity:.38}
+.vvd-leg i{display:inline-block;width:18px;height:8px;border-radius:999px;background:var(--vr-forte,var(--tinta))}
+.vvd-leg i.b{background:var(--vr-cinza2,var(--linha))}
 .vvd-g{display:grid;gap:16px;--vvd-rot:118px}
 .vvd-g.mil{--vvd-rot:92px}
 .vvd-g-lin{display:grid;gap:2px;min-width:0}
 .vvd-g-nome{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--tinta);min-width:0;margin-bottom:3px}
 .vvd-g-nome span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .vvd-g-bar{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;line-height:1.2}
-.vvd-g-bar i{display:block;flex:none;height:12px;min-width:0;border-radius:0 4px 4px 0;background:var(--brasa)}
-.vvd-g-bar.b i{opacity:.38}
+.vvd-g-bar i{display:block;flex:none;height:12px;min-width:0;border-radius:0 6px 6px 0;background:var(--vr-forte,var(--tinta))}
+.vvd-g-bar.b i{background:var(--vr-cinza2,var(--linha))}
 .vvd-g-bar b{font-weight:600;color:var(--tinta);white-space:nowrap}
 .vvd-g-bar.b b{font-weight:500;color:var(--suave)}
 .vvd-g-vazio{margin:4px 0 6px;font-size:13px;color:var(--fraco)}
@@ -49166,7 +49501,8 @@ window.JB_MOV=Object.freeze({SETS,montar,docMov,tela,linhas:s=>montar(s),estado:
    · Faturamento = total da venda faturada (igual ao cartão "Faturamento"). Milheiros = itens em milheiro +
      itens em unidade ÷ 1.000. Preço médio = valor dos tijolos ÷ milheiros, sem frete (igual ao cartão
      "Preço médio do milheiro"). Participação = parte do vendedor no total da empresa no período atual.
-     Variação % = (atual − anterior) ÷ anterior × 100; anterior zerado: "novo" (vendeu agora) ou "—".
+     Variação % = (atual − anterior) ÷ anterior × 100; anterior zerado: "sem venda no mês anterior" (vendeu agora;
+     até a V180 aparecia "novo") ou "—".
    · Vendedor = quem está na venda (vendedor; sem ele, quem lançou). Contas diferentes com o mesmo nome
      (a mesma pessoa com dois acessos) e a mesma conta com nomes diferentes contam como um vendedor só.
    · Quem vê: quem vê a aba Variações (V85: só o Jeferson e o Bayron).
@@ -49247,7 +49583,7 @@ function somar(xs,G){
 }
 const juntar=L=>{const t={fat:0,mil:0,val:0,n:0,fora:0,unid:0};L.forEach(s=>{for(const k in t)t[k]+=s[k]||0});t.fat=r2(t.fat);t.mil=r3(t.mil);t.val=r2(t.val);return t};
 const tot=S=>juntar([...S.values()]);
-/* variação %: nunca divide por zero. Anterior zerado: Infinity = "novo" (vendeu agora); null = "—" */
+/* variação %: nunca divide por zero. Anterior zerado: Infinity = "sem venda no mês anterior" (vendeu agora); null = "—" */
 const pct=(a,b)=>b>0?(a-b)/b*100:(b===0?(a>0?Infinity:null):null);
 const pm=s=>s.mil>0?r2(s.val/s.mil):null;
 function linha(g,nome,a,b,T){
@@ -49274,7 +49610,7 @@ function calcular(mes,hj,opc){
 /* ---------- desenho ---------- */
 function pill(p){
  if(p==null)return '<span class="vr-pill neu mini" title="sem venda nos dois períodos">—</span>';
- if(p===Infinity)return '<span class="vr-pill bom mini" title="não vendeu no período anterior">▲ novo</span>';
+ if(p===Infinity)return '<span class="vr-pill bom mini longo" title="não vendeu no período anterior">▲ sem venda no mês anterior</span>';
  if(Math.abs(p)<0.05)return '<span class="vr-pill neu mini" title="ficou igual">= 0,0%</span>';
  const a=Math.abs(p);
  return `<span class="vr-pill ${p>0?'bom':'ruim'} mini" title="${p>0?'cresceu':'diminuiu'}">${p>0?'▲':'▼'} ${a>=1000?'mais de 999':esc(fNum(a,1))}%</span>`;
@@ -49337,7 +49673,7 @@ function desenhar(c,s){
    <select id="vvdOrd" aria-label="Ordenar por" title="Ordem da tabela: do maior para o menor">${ORDENS.map(([k,l])=>`<option value="${k}"${EST.ord===k?' selected':''}>Ordem: ${esc(l)}</option>`).join('')}</select>
    <span class="vvd-per">Período: <b>${esc(rotulo(A,false))}</b> comparado com <b>${esc(rotulo(B,false))}</b> · é o mesmo mês da barra no alto da aba</span></div>
   <div class="bloco"><h3>Por vendedor</h3>${tabela(R)}
-   <p class="vr-ajuda vr-tab-aj">Faturamento: total das vendas faturadas (igual ao cartão Faturamento). Milheiros: itens em milheiro + itens em unidade ÷ 1.000. Preço médio: valor dos tijolos ÷ milheiros, sem frete. Participação: parte do vendedor no total da empresa no período atual. Variação % com o período anterior zerado: “novo”. Contas com o mesmo nome contam como um vendedor só. Verde: subiu. Vermelho: caiu.</p>
+   <p class="vr-ajuda vr-tab-aj">Faturamento: total das vendas faturadas (igual ao cartão Faturamento). Milheiros: itens em milheiro + itens em unidade ÷ 1.000. Preço médio: valor dos tijolos ÷ milheiros, sem frete. Participação: parte do vendedor no total da empresa no período atual. Vendedor que não vendeu no período anterior: “sem venda no mês anterior” (sem %). Contas com o mesmo nome contam como um vendedor só. Verde: subiu. Vermelho: caiu.</p>
    ${nota.length?`<p class="vvd-nota vr-tab-aj">${nota.map(esc).join(' ')}</p>`:''}</div>
   <div class="vvd-grafs">${grafico('Faturamento por vendedor (R$)',R,'fat',fR,false)}${grafico('Milheiros por vendedor',R,'mil',fMil,true)}</div>`;
  ligar(c,s);

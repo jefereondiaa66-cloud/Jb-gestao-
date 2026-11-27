@@ -4,7 +4,7 @@
 // Nada sai para a internet e só se usam dados fictícios. Confere, no computador e no celular:
 //   - a seção aparece só na aba Variações de Vendas, no fim (depois da tabela "Mês a mês");
 //   - os números (R$, milheiros, preço médio, participação, quantidade de vendas e TOTAL GERAL) e as regras:
-//     zero, "novo" e "—" sem dividir por zero, unidade ÷ 1.000, frete fora do preço médio, venda cancelada
+//     zero, "sem venda no mês anterior" (V181; antes "novo") e "—" sem dividir por zero, unidade ÷ 1.000, frete fora do preço médio, venda cancelada
 //     e pedido não faturado fora, a mesma pessoa com duas contas (ou com nome trocado) = um vendedor só;
 //   - período: o mês da aba e o anterior de mesma duração (mês em andamento: os mesmos dias);
 //   - filtros (vendedor e ordem), setas do mês (mudam o mês da aba toda), gráficos, celular,
@@ -124,8 +124,8 @@ async function conteudoSemSecao(page) { let a = await fotoTela(page); for (let i
 const bancoSemUso = (page) => page.evaluate(() => JSON.stringify([...window.__srv.estado.docs.entries()].filter(([k]) => !/^(log|uso|diagnostico|ws)\//.test(k)).map(([k, v]) => [k, v.versao])));
 
 const OUT = ['Vendedor A Teste', 'R$ 10.400,00', 'R$ 7.800,00', '+R$ 2.600,00 ▲ 33,3%', '13,00 mil', '10,00 mil', '+3,00 mil ▲ 30,0%', 'R$ 800,00', 'R$ 780,00', '+R$ 20,00 ▲ 2,6%', '46,2%', '44,8%', '2'];
-const OUT_EXT = ['Vendedor Externo Teste', 'R$ 6.320,00', 'R$ 0,00', '+R$ 6.320,00 ▲ novo', '8,00 mil', '0,00 mil', '+8,00 mil ▲ novo', 'R$ 790,00', '—', '—', '28,1%', '27,6%', '1'];
-const OUT_B = ['Vendedor B Teste', 'R$ 5.800,00', 'R$ 0,00', '+R$ 5.800,00 ▲ novo', '8,00 mil', '0,00 mil', '+8,00 mil ▲ novo', 'R$ 725,00', '—', '—', '25,8%', '27,6%', '1'];
+const OUT_EXT = ['Vendedor Externo Teste', 'R$ 6.320,00', 'R$ 0,00', '+R$ 6.320,00 ▲ sem venda no mês anterior', '8,00 mil', '0,00 mil', '+8,00 mil ▲ sem venda no mês anterior', 'R$ 790,00', '—', '—', '28,1%', '27,6%', '1'];
+const OUT_B = ['Vendedor B Teste', 'R$ 5.800,00', 'R$ 0,00', '+R$ 5.800,00 ▲ sem venda no mês anterior', '8,00 mil', '0,00 mil', '+8,00 mil ▲ sem venda no mês anterior', 'R$ 725,00', '—', '—', '25,8%', '27,6%', '1'];
 const OUT_TOTAL = ['TOTAL GERAL', 'R$ 22.520,00', 'R$ 7.800,00', '+R$ 14.720,00 ▲ 188,7%', '29,00 mil', '10,00 mil', '+19,00 mil ▲ 190,0%', 'R$ 776,55', 'R$ 780,00', '−R$ 3,45 ▼ 0,4%', '100,0%', '100,0%', '4'];
 const sp = (x) => String(x).replace(/\s+/g, ' ');   // o R$ do sistema vem com espaço fixo
 
@@ -198,7 +198,7 @@ try {
     // ordem da tabela
     await page.selectOption('#vvdOrd', 'pfat'); await page.waitForTimeout(250);
     S = await lerSecao(page);
-    ok(S && igual(S.linhas.map((l) => l[0]), ['Vendedor Externo Teste', 'Vendedor B Teste', 'Vendedor A Teste']) && sp(S.total[1]) === 'R$ 22.520,00', `ordenar por variação %: "novo" primeiro (${S && S.linhas.map((l) => l[0]).join(', ')})`);
+    ok(S && igual(S.linhas.map((l) => l[0]), ['Vendedor Externo Teste', 'Vendedor B Teste', 'Vendedor A Teste']) && sp(S.total[1]) === 'R$ 22.520,00', `ordenar por variação %: "sem venda no mês anterior" primeiro (${S && S.linhas.map((l) => l[0]).join(', ')})`);
     await page.selectOption('#vvdOrd', 'fat'); await page.waitForTimeout(250);
 
     // filtro de vendedor (e o "Limpar" do padrão de filtros)
@@ -277,7 +277,7 @@ try {
     await page.evaluate(() => { DATA.vendas = DATA.vendas.concat([{ id: 'v-novo', numero: 99, setor: 'vendas', data: '2026-10-15', hora: '10:00', clienteId: 'c1', itens: [{ produtoId: 'p2', nome: 'Tijolo', qtd: 2, unidade: 'milheiro', preco: 600, total: 1200 }], subtotal: 1200, total: 1200, desconto: 0, frete: 0, outros: 0, status: 'Concluída', forma: 'PIX', condicao: 'À vista', pagamentos: [], vendedor: 'u_VC', vendedorNome: 'Vendedor C Teste', criadoPor: 'u_VC' }]); renderSemPular(); });
     await page.waitForTimeout(500);
     S = await lerSecao(page);
-    ok(S && S.linhas.some((l) => l[0] === 'Vendedor C Teste' && sp(l[1]) === 'R$ 1.200,00' && /novo/.test(l[3])) && sp(S.total[1]) === 'R$ 23.720,00', 'venda nova aparece na seção quando a tela se atualiza');
+    ok(S && S.linhas.some((l) => l[0] === 'Vendedor C Teste' && sp(l[1]) === 'R$ 1.200,00' && /sem venda no mês anterior/.test(l[3])) && sp(S.total[1]) === 'R$ 23.720,00', 'venda nova aparece na seção quando a tela se atualiza');
     await page.evaluate(() => { DATA.vendas = DATA.vendas.filter((v) => v.id !== 'v-novo'); renderSemPular(); });
     await page.waitForTimeout(400);
 

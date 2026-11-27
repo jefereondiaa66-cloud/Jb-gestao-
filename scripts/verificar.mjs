@@ -1625,6 +1625,39 @@ teste('controladoria', 'V178: layout novo da Controladoria (DRE em tabela contí
   if (ci) assert.ok(ci.includes('node scripts/testar-controladoria-layout.mjs'), 'teste no navegador roda na conferência automática');
 });
 
+/* ---------- V181: visual novo da tela Variações ---------- */
+teste('variacoes', 'V181: visual novo da tela Variações (resumo, destaques, cartões com mini-gráfico, mês × mês anterior, tabela contínua): só aparência, as contas das variações não mudam', () => {
+  const app = ler('app/jb-gestao.html');
+  const v73 = /<script id="variacoes-v73">([\s\S]*?)<\/script>/.exec(app); assert.ok(v73, 'bloco das variações (V73)');
+  const b = v73[1];
+  /* as contas: de "const okM=" até o fim de comparar(), letra por letra as da V180 (impressão digital do trecho) */
+  const i = b.indexOf('const okM='), j = b.indexOf('function comparar(I,a,b){'), k = b.indexOf('\n}\n', j) + 3;
+  assert.ok(i > 0 && j > i && k > j, 'trecho das contas das variações');
+  assert.equal(sha256(b.slice(i, k)), 'c71a15fc7c55093b324d60b2030494d51dc8de79f92de782b4c0c53ac7adaff8',
+    'as contas das variações (SETS, val, media3, fmt, fmtDif, comparar) são as mesmas da V180; se uma versão futura mudar uma conta de propósito, atualize esta impressão digital');
+  /* a tela só desenha o que essas funções devolvem */
+  const d = b.slice(k).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(d.includes('const res=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,b,c:comparar(I,a.v,b.v)}});') && d.includes('const md=media3(id,I,m);const c3=comparar(I,x.a.v,md);')
+    && d.includes('const rs=IS.map(I=>{const a=val(id,I,m),b=val(id,I,ant(m));return{I,a,b,c:comparar(I,a.v,b.v)}});'), 'painel do setor e visão geral saem de val, comparar e media3');
+  for (const proibido of ['gravar(', 'apagar(', 'atualizar(', 'gravarRegistro(', 'bucketPut(', 'registrarLog(', 'salvarCfg(', 'salvarPrefs(', 'localStorage', 'APP.db', 'jbcore', 'execute_sql', 'fetch(']) assert.ok(!b.includes(proibido), 'a tela só lê: não pode usar ' + proibido);
+  assert.ok(!/location\.hash\s*=(?!=)|location\.replace\(|history\.back\(\)/.test(b), 'navegação só pelo JBNAV');
+  assert.ok(!d.includes("'novo'") && !d.includes('antes era zero') && d.includes('sem dado no mês anterior'), '"novo" e "antes era zero" viraram "sem dado no mês anterior"');
+  /* as peças que a seção por vendedor (V152) e os testes usam continuam no lugar */
+  for (const peca of ['<div class="vr-mesbar"', 'data-vrnav="-1"', 'data-vrnav="1"', '<select data-vrin', 'class="vr-card st-', 'data-vrind="${esc(I.k)}"', '<h3>Mês a mês</h3>', 'data-vrmes="${esc(mm)}"', 'c.innerHTML=cab+barraMes(m)+aviso+hero+kpis+comp+graf+tab;']) assert.ok(d.includes(peca), 'peça da tela: ' + peca);
+  const v152 = /<script id="variacoes-vendedor-v152">([\s\S]*?)<\/script>/.exec(app)[1];
+  assert.ok(!v152.includes('▲ novo') && v152.includes('▲ sem venda no mês anterior'), 'por vendedor (V152): "novo" virou "sem venda no mês anterior"');
+  /* estilos: toda regra presa à tela Variações (.vr-…), sem buscar nada de fora e sem esconder o selo do Netlify */
+  const css = /<style id="variacoes-v73-css">([\s\S]*?)<\/style>/.exec(app); assert.ok(css, 'estilo das variações');
+  const corpo = css[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/@(media|supports)[^{]+\{/g, '');
+  assert.ok(!/url\(|@import/.test(corpo) && !corpo.includes('nl-badge'), 'nada buscado de fora e o selo do Netlify não é mexido');
+  const partes = (sel) => { const out = []; let p = 0, a = ''; for (const ch of sel) { if (ch === '(') p++; if (ch === ')') p--; if (ch === ',' && !p) { out.push(a); a = ''; } else a += ch; } out.push(a); return out.map((x) => x.trim()).filter(Boolean); };
+  const soltos = []; let n = 0;
+  for (const m of corpo.matchAll(/([^{}]+)\{[^{}]*\}/g)) { const s = m[1].trim(); if (!s) continue; n++; partes(s).forEach((x) => { if (!/\.vr-/.test(x)) soltos.push(x); }); }
+  assert.ok(n > 150 && !soltos.length, 'toda regra vale só para a tela Variações' + (soltos.length ? ': ' + soltos.slice(0, 3).join(' | ') : ''));
+  const ci = existsSync(join(RAIZ, '.github/workflows/verificar.yml')) ? ler('.github/workflows/verificar.yml') : null;
+  if (ci) assert.ok(ci.includes('node scripts/testar-variacoes-visual.mjs'), 'teste no navegador roda na conferência automática');
+});
+
 const escolhidos = testes.filter((t) => !filtro || t.grupo === filtro);
 let ok = 0, falhou = 0;
 const inicio = Date.now();

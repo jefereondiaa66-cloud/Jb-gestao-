@@ -46,6 +46,7 @@ Um programa, dois endereços, um banco só.
 | `node scripts/testar-acesso-setores.mjs` | nuvem com permissão por setor: quem só tem o Combustível vê os terceiros (guardados no Financeiro), quem só tem o Almoxarifado vê funcionários (só nome e função) e máquinas, e cada um só vê os setores dele ([docs/acesso-setores-2026-11-16.md](docs/acesso-setores-2026-11-16.md)) |
 | `node scripts/testar-fichas.mjs` | V145: Setor de Fichas e Documentação (estrutura inicial): cartão no menu principal, módulos em cartões, página da ficha (Últimas emitidas, Informações, Emitir ficha em breve), funções previstas EM BREVE, banco intacto ([docs/fichas-documentacao-v145.md](docs/fichas-documentacao-v145.md)) |
 | `node scripts/testar-variacoes-vendedor.mjs` | V152: Variação de vendas por vendedor na aba Variações do Setor de Vendas (R$, milheiros, preço médio, participação, TOTAL GERAL, filtros, gráficos e celular) e as outras telas iguais às da versão sem ela ([docs/variacoes-vendedor-v152.md](docs/variacoes-vendedor-v152.md)) |
+| `node scripts/testar-variacoes-visual.mjs` | V181: visual novo da tela Variações em todos os setores (resumo, destaques, cartões com mini-gráfico, mês × mês anterior, tabela contínua no celular): números iguais aos calculados, cores pelo sentido, seletor do mês, celular e fim da tela livre do selo ([docs/variacoes-visual-v181.md](docs/variacoes-visual-v181.md)) |
 | `node scripts/testar-vidro-claro.mjs` | V154: visual "Vidro claro" em teste, só para o dono que ligar a chave em Configurações › Aparência; outro administrador e usuário comum nunca veem (Claude e página real da nuvem), mesmos botões nas telas e só a preferência do usuário gravada ([docs/vidro-claro-teste-v154.md](docs/vidro-claro-teste-v154.md)) |
 | `node scripts/testar-vidro-producao.mjs` | V155: Setor de Produção no visual "Vidro claro" (só com a chave): barra de módulos, Início novo, Lançamentos do setor, listas; nada some das 15 telas e nada é gravado ([docs/vidro-producao-v155.md](docs/vidro-producao-v155.md)) |
 | `node scripts/testar-lancamento-foto.mjs` | testa o Lançamento Inteligente por Foto de ponta a ponta (IA e banco simulados) |
@@ -65,6 +66,7 @@ Documentação: [`docs/operacao.md`](docs/operacao.md) (como funciona e como ope
 [`docs/comprovante-lenha-conta-2026-11-18.md`](docs/comprovante-lenha-conta-2026-11-18.md) (comprovante de entrega de lenha com o total devido ao fornecedor) ·
 [`docs/fichas-documentacao-v145.md`](docs/fichas-documentacao-v145.md) (Setor de Fichas e Documentação, estrutura inicial) ·
 [`docs/variacoes-vendedor-v152.md`](docs/variacoes-vendedor-v152.md) (Variação de vendas por vendedor, V152) ·
+[`docs/variacoes-visual-v181.md`](docs/variacoes-visual-v181.md) (visual novo da tela Variações, V181) ·
 [`docs/vidro-claro-teste-v154.md`](docs/vidro-claro-teste-v154.md) (visual "Vidro claro" em teste, só para o dono, V154) ·
 [`docs/vidro-producao-v155.md`](docs/vidro-producao-v155.md) (Setor de Produção no visual novo, V155) ·
 [`docs/almoco-cozinha-v160.md`](docs/almoco-cozinha-v160.md) (Controle de almoço da Cozinha, desconto refeição na folha, V160) ·
